@@ -1,0 +1,68 @@
+{
+  "audit": [
+    {
+      "elapsed_ms": 771,
+      "endpoint": "status",
+      "params": {},
+      "remaining_quota": 6323,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1266,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489396"
+      },
+      "remaining_quota": 6321,
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1274,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489398"
+      },
+      "remaining_quota": 6320,
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1289,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489399"
+      },
+      "remaining_quota": 6319,
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1358,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1539017"
+      },
+      "remaining_quota": 6318,
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 696,
+      "endpoint": "status",
+      "params": {},
+      "remaining_quota": 6323,
+      "result_count": 0,
+      "status_code": 200
+    }
+  ],
+  "daily_hard_budget": 6000,
+  "first_cycle_requests": 5,
+  "minimum_reserve": 1500,
+  "per_cycle_cap": 1000,
+  "provider": "api_football",
+  "remaining_quota": 6323,
+  "scheduler_cycle_requests": 1,
+  "total_requests": 6
+}

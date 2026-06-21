@@ -24,6 +24,7 @@ runtime/replay/
 runtime/stage7b/
 runtime/stage7c/
 runtime/stage7d/
+runtime/stage7e/
 data/raw/
 data/processed/
 .DS_Store
