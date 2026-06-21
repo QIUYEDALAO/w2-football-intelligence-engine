@@ -1,5 +1,12 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
+from w2.infrastructure.persistence.ingestion_models import (
+    FreshnessAlertModel,
+    IngestionRunModel,
+    ProviderRequestLogModel,
+    QuotaUsageModel,
+    SyncCursorModel,
+)
 from w2.infrastructure.persistence.models import (
     AuditEventModel,
     BookmakerModel,
@@ -37,8 +44,10 @@ __all__ = [
     "CompetitionModel",
     "DataProvenanceModel",
     "FeatureSnapshotModel",
+    "FreshnessAlertModel",
     "FixtureModel",
     "InjuryModel",
+    "IngestionRunModel",
     "LineupModel",
     "MarketModel",
     "ModelRunModel",
@@ -46,6 +55,8 @@ __all__ = [
     "PlayerModel",
     "PredictionModel",
     "ProviderEntityMappingModel",
+    "ProviderRequestLogModel",
+    "QuotaUsageModel",
     "RawPayloadReferenceModel",
     "RecommendationLockModel",
     "RecommendationModel",
@@ -56,9 +67,9 @@ __all__ = [
     "SquadModel",
     "StageModel",
     "SuspensionModel",
+    "SyncCursorModel",
     "TeamModel",
     "TeamRatingModel",
     "VenueModel",
     "WeatherObservationModel",
 ]
-

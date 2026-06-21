@@ -1,0 +1,81 @@
+{
+  "provider": "api_football",
+  "captured_at": "2026-06-22T01:00:00+00:00",
+  "fixtures": {
+    "response": [
+      {
+        "fixture": {
+          "id": 900001,
+          "date": "2026-06-22T18:00:00+00:00",
+          "venue": {"id": 501, "name": "Synthetic Venue"}
+        },
+        "league": {"id": 101, "name": "Synthetic League", "season": 2026},
+        "teams": {
+          "home": {"id": 1001, "name": "Synthetic Home"},
+          "away": {"id": 1002, "name": "Synthetic Away"}
+        }
+      }
+    ]
+  },
+  "odds": {
+    "response": [
+      {
+        "fixture": {"id": 900001, "date": "2026-06-22T18:00:00+00:00"},
+        "update": "2026-06-22T00:55:00+00:00",
+        "live": false,
+        "stale": true,
+        "bookmakers": [
+          {
+            "id": 11,
+            "name": "Synthetic Book A",
+            "bets": [
+              {
+                "name": "Match Winner",
+                "values": [
+                  {"value": "Home", "odd": "2.10", "suspended": false, "settlement_rule": "1x2"}
+                ]
+              },
+              {
+                "name": "Goals Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "line": "2.25",
+                    "odd": "1.90",
+                    "suspended": false,
+                    "settlement_rule": "total_goals"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "name": "Synthetic Book B",
+            "bets": [
+              {
+                "name": "Asian Handicap",
+                "values": [
+                  {
+                    "value": "Away",
+                    "line": "0.25",
+                    "odd": "1.95",
+                    "suspended": false,
+                    "settlement_rule": "asian_handicap"
+                  }
+                ]
+              },
+              {
+                "name": "Both Teams Score",
+                "values": [
+                  {"value": "Yes", "odd": "1.80", "suspended": false, "settlement_rule": "btts"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+

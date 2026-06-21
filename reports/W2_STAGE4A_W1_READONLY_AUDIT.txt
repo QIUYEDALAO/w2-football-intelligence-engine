@@ -1,0 +1,40 @@
+# W2 Stage 4A W1 Readonly Audit
+
+HEAD: aabf01723332bc3a77634c3964c57107df182346
+
+## git status --short
+
+```text
+ M README.md
+?? W1_LEGACY_STATUS.md
+?? data/results/world_cup_2026_results.json
+?? docs/W1_LEGACY_CHANGE_POLICY.md
+?? docs/W1_LEGACY_FREEZE_REPORT.md
+?? reports/P0_BASELINE_SUMMARY.md
+?? reports/W1_SCOUT_MEMORY_AND_TELEMETRY_TASKS.md
+?? reports/W1_SCOUT_REFRAME_TASKS.md
+?? reports/legacy_baseline/
+?? reports/legacy_classification/
+?? reports/legacy_decisions/
+?? scripts/audit_w1_odds_collection_continuity.py
+?? scripts/build_w1_legacy_decision_register.py
+?? scripts/check_w1_legacy_baseline.py
+?? scripts/check_w1_legacy_classification.py
+?? scripts/check_w1_legacy_decisions.py
+?? scripts/check_w1_legacy_freeze.py
+?? scripts/classify_w1_legacy_files.py
+```
+
+## Protected hashes
+
+```text
+dec0b95253af712436962f194d4e605bf78673e5f6af059f035fb21077ff3ce8  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/scripts/w1_score_engine.py
+0b065cf499017da1f85f0f468f5afb9c3652da0ada3b430e0a3c3bf74bca819d  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/scripts/w1_odds_snapshot_collector.py
+34a50b5d5781dbdd9b880207909a115ad0725d83ecb310ba9468502a2e111c26  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/scripts/w1_local_predict_server.py
+5e3aef9d40bd948d36141250e26941c05ce19a5b5df94e22e2ca74c032b84020  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/scripts/build_w1_dashboard_data.py
+547b64b68ae09c8697445e75aeb7e3e52561515a80a6dc4d23e6ca7042bec909  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/config/w1_decision_policy.json
+f40628ee619fc436dd634319b6fe858f8e0d52e1ab5b613a02a7e2736b272bb3  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/config/w1_scout_policy.json
+cb24d525f90f40ca9c75059adfaae0a3b099263bf354337eef1fa8f6668c3b5b  /Users/liudehua/.openclaw/workspace/w1_world_cup_engine/config/w1_rho_provenance.json
+```
+
+W1 was read only during W2 Stage 4A work.

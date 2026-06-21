@@ -41,6 +41,8 @@ ALLOWLIST = (
     "token =",
     "{token}",
     "real_world_tokens",
+    "adapter token",
+    "W2_API_FOOTBALL_API_KEY",
     "SECRETS_AND_ENVIRONMENTS",
     "Secrets and Environments",
 )
