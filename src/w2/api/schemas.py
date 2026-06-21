@@ -150,3 +150,32 @@ class WorldCupReadinessResponse(BaseModel):
     production_deployment: str
     shadow_runtime: str
     blockers: list[str]
+
+
+class LeagueSummary(BaseModel):
+    competition_id: str
+    name: str
+    country: str
+    results_status: str
+    market_status: dict[str, str]
+    latest_season: str | None
+    blocker: str | None
+
+
+class LeagueListResponse(BaseModel):
+    request_id: str
+    items: list[LeagueSummary]
+
+
+class LeagueReadinessResponse(BaseModel):
+    request_id: str
+    competition_id: str
+    audit: dict[str, Any]
+    rollover: dict[str, Any]
+    checklist: dict[str, str]
+    model_scope_policy: dict[str, Any]
+
+
+class LeagueOnboardingResponse(BaseModel):
+    request_id: str
+    items: list[LeagueReadinessResponse]

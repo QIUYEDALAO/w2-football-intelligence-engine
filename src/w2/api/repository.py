@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
     load_stage5b_world_cup_fixtures,
@@ -73,6 +74,12 @@ class ReadModelRepository:
         fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
         plan = build_operations_plan(profile, fixtures)
         return readiness_report(profile, plan)
+
+    def league_readiness(self) -> dict[str, Any]:
+        existing = load_json(REPORTS / "W2_STAGE14A_READINESS.json", {})
+        if existing:
+            return cast(dict[str, Any], existing)
+        return cast(dict[str, Any], run_top_five_audit()["readiness"])
 
 
 class ReadModelService:
@@ -284,6 +291,56 @@ class ReadModelService:
 
     def world_cup_readiness(self) -> dict[str, Any]:
         return self.repository.world_cup_readiness()
+
+    def leagues(self) -> list[dict[str, Any]]:
+        readiness = self.repository.league_readiness()
+        output: list[dict[str, Any]] = []
+        for competition_id, payload in sorted(readiness.items()):
+            audit = payload["audit"]
+            latest_season = sorted(audit["seasons"])[-1] if audit["seasons"] else None
+            rollover_status = payload["rollover"]["status"]
+            output.append(
+                {
+                    "competition_id": competition_id,
+                    "name": audit["name"],
+                    "country": audit["country"],
+                    "results_status": audit["market_state"]["RESULTS_READY"],
+                    "market_status": {
+                        "1X2": audit["market_state"]["MARKET_1X2_READY"],
+                        "AH": audit["market_state"]["MARKET_AH_READY"],
+                        "OU": audit["market_state"]["MARKET_OU_READY"],
+                        "TIMELINE": audit["market_state"]["TIMELINE_READY"],
+                    },
+                    "latest_season": latest_season,
+                    "blocker": (
+                        "MANUAL_REVIEW_REQUIRED"
+                        if rollover_status == "MANUAL_REVIEW_REQUIRED"
+                        else None
+                    ),
+                }
+            )
+        return output
+
+    def league_readiness(self, competition_id: str) -> dict[str, Any] | None:
+        readiness = self.repository.league_readiness()
+        payload = readiness.get(competition_id)
+        if payload is None:
+            return None
+        return {
+            "competition_id": competition_id,
+            "audit": payload["audit"],
+            "rollover": payload["rollover"],
+            "checklist": payload["checklist"],
+            "model_scope_policy": payload["model_scope_policy"],
+        }
+
+    def league_onboarding(self) -> list[dict[str, Any]]:
+        items = []
+        for summary in self.leagues():
+            readiness = self.league_readiness(summary["competition_id"])
+            if readiness is not None:
+                items.append({"request_id": "", **readiness})
+        return items
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         fixture = item.get("fixture", {})

@@ -60,6 +60,20 @@ type WorldCupReadiness = {
   blockers: string[];
 };
 
+type LeagueSummary = {
+  competition_id: string;
+  name: string;
+  country: string;
+  results_status: string;
+  market_status: Record<string, string>;
+  latest_season: string | null;
+  blocker: string | null;
+};
+
+type LeagueList = {
+  items: LeagueSummary[];
+};
+
 const emptyProbability: Probability = {
   probability_type: "not_available",
   probabilities: {},
@@ -113,6 +127,7 @@ function App() {
   const [tasks, setTasks] = useState<OpsList | null>(null);
   const [alerts, setAlerts] = useState<OpsList | null>(null);
   const [worldCup, setWorldCup] = useState<WorldCupReadiness | null>(null);
+  const [leagues, setLeagues] = useState<LeagueSummary[]>([]);
 
   useEffect(() => {
     getJson<FixtureList>("/v1/fixtures?page_size=12&timezone=UTC").then((payload) => {
@@ -126,6 +141,7 @@ function App() {
     getJson<OpsList>("/ops/tasks").then(setTasks);
     getJson<OpsList>("/ops/alerts").then(setAlerts);
     getJson<WorldCupReadiness>("/ops/world-cup-readiness").then(setWorldCup);
+    getJson<LeagueList>("/v1/leagues").then((payload) => setLeagues(payload?.items ?? []));
   }, []);
 
   useEffect(() => {
@@ -269,6 +285,42 @@ function App() {
             <dd>{worldCup?.blockers.length ? worldCup.blockers.join(", ") : "None"}</dd>
           </div>
         </dl>
+        <p className="warning">正式推荐尚未启用。</p>
+      </section>
+
+      <section className="panel readiness">
+        <div className="panel-title">
+          <h2>League Readiness</h2>
+          <span>top five onboarding</span>
+        </div>
+        <div className="league-grid">
+          {leagues.map((league) => (
+            <article className="league-card" key={league.competition_id}>
+              <div>
+                <h3>{league.name}</h3>
+                <span>{league.country}</span>
+              </div>
+              <dl className="facts compact">
+                <div>
+                  <dt>Season</dt>
+                  <dd>{league.latest_season ?? "review"}</dd>
+                </div>
+                <div>
+                  <dt>Results</dt>
+                  <dd>{league.results_status}</dd>
+                </div>
+                <div>
+                  <dt>Markets</dt>
+                  <dd>{JSON.stringify(league.market_status)}</dd>
+                </div>
+                <div>
+                  <dt>Blocker</dt>
+                  <dd>{league.blocker ?? "None"}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
         <p className="warning">正式推荐尚未启用。</p>
       </section>
 

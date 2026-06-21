@@ -21,6 +21,7 @@ COMMANDS = [
     ["uv", "run", "python", "scripts/check_w2_stage11a.py"],
     ["uv", "run", "python", "scripts/check_w2_stage12a.py"],
     ["uv", "run", "python", "scripts/check_w2_stage13a.py"],
+    ["uv", "run", "python", "scripts/check_w2_stage14a.py"],
     ["uv", "run", "ruff", "check", "."],
     ["uv", "run", "mypy", "src", "apps"],
     ["uv", "run", "pytest", "-q"],

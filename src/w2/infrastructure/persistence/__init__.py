@@ -36,6 +36,14 @@ from w2.infrastructure.persistence.ingestion_models import (
     QuotaUsageModel,
     SyncCursorModel,
 )
+from w2.infrastructure.persistence.league_models import (
+    LeagueProfileModel,
+    LeagueReadinessAuditModel,
+    LeagueSeasonModel,
+    LeagueTeamMembershipModel,
+    PromotionRelegationMappingModel,
+    SeasonRolloverPlanModel,
+)
 from w2.infrastructure.persistence.market_models import (
     MarketBaselineRunModel,
     MarketConsensusModel,
@@ -141,6 +149,10 @@ __all__ = [
     "InjuryModel",
     "IngestionRunModel",
     "LineupModel",
+    "LeagueProfileModel",
+    "LeagueReadinessAuditModel",
+    "LeagueSeasonModel",
+    "LeagueTeamMembershipModel",
     "LabelReferenceModel",
     "MarketModel",
     "MarketBaselineRunModel",
@@ -164,6 +176,7 @@ __all__ = [
     "PredictionSnapshotModel",
     "ProviderEntityMappingModel",
     "ProviderRequestLogModel",
+    "PromotionRelegationMappingModel",
     "QuotaUsageModel",
     "RawPayloadReferenceModel",
     "ReadModelCheckpointModel",
@@ -176,6 +189,7 @@ __all__ = [
     "ReplayEventModel",
     "ReplayRunModel",
     "SeasonModel",
+    "SeasonRolloverPlanModel",
     "SecurityAuditEventModel",
     "SettlementModel",
     "ShadowComparisonRecordModel",

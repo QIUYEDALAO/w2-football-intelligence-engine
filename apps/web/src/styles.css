@@ -159,6 +159,29 @@ small {
   font-weight: 800;
 }
 
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.league-card {
+  border: 1px solid #edf1ef;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfb;
+}
+
+.league-card h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.league-card span {
+  color: #62706a;
+  font-size: 13px;
+}
+
 .fixture-list {
   display: grid;
   gap: 8px;
@@ -239,7 +262,8 @@ pre {
   .two,
   .three,
   .main-grid,
-  .readiness-grid {
+  .readiness-grid,
+  .league-grid {
     grid-template-columns: 1fr;
   }
 

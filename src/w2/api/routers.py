@@ -20,6 +20,9 @@ from w2.api.schemas import (
     FixtureDetailResponse,
     FixtureListResponse,
     ForwardHoldoutStatusResponse,
+    LeagueListResponse,
+    LeagueOnboardingResponse,
+    LeagueReadinessResponse,
     OddsTimelineResponse,
     OperationListResponse,
     PageMeta,
@@ -201,6 +204,19 @@ def competition_operations_profile(competition_id: str, request: Request) -> dic
     return {"request_id": request_id(request), **payload}
 
 
+@public_router.get("/leagues", response_model=LeagueListResponse)
+def leagues(request: Request) -> dict[str, Any]:
+    return {"request_id": request_id(request), "items": service.leagues()}
+
+
+@public_router.get("/leagues/{competition_id}/readiness", response_model=LeagueReadinessResponse)
+def league_readiness(competition_id: str, request: Request) -> dict[str, Any]:
+    payload = service.league_readiness(competition_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="league readiness not found")
+    return {"request_id": request_id(request), **payload}
+
+
 @ops_router.get("/health")
 def ops_health(request: Request) -> dict[str, str]:
     ensure_ops_enabled()
@@ -259,3 +275,9 @@ def ops_gates(request: Request) -> dict[str, Any]:
 def ops_world_cup_readiness(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
     return {"request_id": request_id(request), **service.world_cup_readiness()}
+
+
+@ops_router.get("/league-onboarding", response_model=LeagueOnboardingResponse)
+def ops_league_onboarding(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), "items": service.league_onboarding()}

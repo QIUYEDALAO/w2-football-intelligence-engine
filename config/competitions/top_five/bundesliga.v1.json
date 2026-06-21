@@ -1,0 +1,17 @@
+{
+  "competition_id": "bundesliga",
+  "name": "Bundesliga",
+  "country": "Germany",
+  "timezone": "Europe/Berlin",
+  "provider_mapping": {
+    "api_football_league_id": "78"
+  },
+  "season_naming_policy": "starting_calendar_year",
+  "expected_team_count": 18,
+  "promotion_relegation_policy": "promotion_relegation_playoff_manual_review_required",
+  "market_scope": ["ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"],
+  "data_sources": ["stage5b_api_football_local_raw"],
+  "model_scope": "LEAGUE",
+  "calibration_scope": "LEAGUE_SEASON",
+  "readiness_requirements": ["fixtures", "results", "teams", "provider_mapping", "market_coverage"]
+}

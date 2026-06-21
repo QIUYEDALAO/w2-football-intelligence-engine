@@ -1,0 +1,190 @@
+{
+  "bundesliga": {
+    "calibration_reset_policy": "RESET_LEAGUE_SEASON_CALIBRATION_PENDING_VALIDATION",
+    "competition_id": "bundesliga",
+    "latest_completed_season": "2025",
+    "next_season": "2026",
+    "promoted_or_new_teams": [
+      "175",
+      "185",
+      "192"
+    ],
+    "provider_id_conflicts": [],
+    "relegated_or_removed_teams": [
+      "1660",
+      "176",
+      "191"
+    ],
+    "retained_teams": [
+      "157",
+      "160",
+      "161",
+      "162",
+      "163",
+      "164",
+      "165",
+      "167",
+      "168",
+      "169",
+      "170",
+      "172",
+      "173",
+      "180",
+      "182",
+      "186"
+    ],
+    "season_end": "2027-06-30",
+    "season_start": "2026-08-01",
+    "status": "MANUAL_REVIEW_REQUIRED",
+    "team_prior_carry_forward_policy": "CARRY_FORWARD_RETAINED_TEAM_PRIORS_WITH_SHRINKAGE",
+    "unresolved_mappings": [
+      "PROMOTION_RELEGATION_NOT_CONFIRMED_OFFLINE"
+    ]
+  },
+  "la_liga": {
+    "calibration_reset_policy": "RESET_LEAGUE_SEASON_CALIBRATION_PENDING_VALIDATION",
+    "competition_id": "la_liga",
+    "latest_completed_season": "2025",
+    "next_season": "2026",
+    "promoted_or_new_teams": [
+      "539",
+      "718",
+      "797"
+    ],
+    "provider_id_conflicts": [],
+    "relegated_or_removed_teams": [
+      "534",
+      "537",
+      "720"
+    ],
+    "retained_teams": [
+      "529",
+      "530",
+      "531",
+      "532",
+      "533",
+      "536",
+      "538",
+      "540",
+      "541",
+      "542",
+      "543",
+      "546",
+      "547",
+      "548",
+      "727",
+      "728",
+      "798"
+    ],
+    "season_end": "2027-06-30",
+    "season_start": "2026-08-01",
+    "status": "MANUAL_REVIEW_REQUIRED",
+    "team_prior_carry_forward_policy": "CARRY_FORWARD_RETAINED_TEAM_PRIORS_WITH_SHRINKAGE",
+    "unresolved_mappings": [
+      "PROMOTION_RELEGATION_NOT_CONFIRMED_OFFLINE"
+    ]
+  },
+  "ligue_1": {
+    "calibration_reset_policy": "RESET_LEAGUE_SEASON_CALIBRATION_PENDING_VALIDATION",
+    "competition_id": "ligue_1",
+    "latest_completed_season": "2025",
+    "next_season": "2026",
+    "promoted_or_new_teams": [
+      "104",
+      "114",
+      "1301",
+      "97"
+    ],
+    "provider_id_conflicts": [],
+    "relegated_or_removed_teams": [
+      "82",
+      "93"
+    ],
+    "retained_teams": [
+      "106",
+      "1063",
+      "108",
+      "111",
+      "112",
+      "116",
+      "77",
+      "79",
+      "80",
+      "81",
+      "83",
+      "84",
+      "85",
+      "91",
+      "94",
+      "95",
+      "96"
+    ],
+    "season_end": "2027-06-30",
+    "season_start": "2026-08-01",
+    "status": "MANUAL_REVIEW_REQUIRED",
+    "team_prior_carry_forward_policy": "CARRY_FORWARD_RETAINED_TEAM_PRIORS_WITH_SHRINKAGE",
+    "unresolved_mappings": [
+      "PROMOTION_RELEGATION_NOT_CONFIRMED_OFFLINE"
+    ]
+  },
+  "premier_league": {
+    "calibration_reset_policy": "RESET_LEAGUE_SEASON_CALIBRATION_PENDING_VALIDATION",
+    "competition_id": "premier_league",
+    "latest_completed_season": "2025",
+    "next_season": "2026",
+    "promoted_or_new_teams": [
+      "44",
+      "63",
+      "746"
+    ],
+    "provider_id_conflicts": [],
+    "relegated_or_removed_teams": [
+      "41",
+      "46",
+      "57"
+    ],
+    "retained_teams": [
+      "33",
+      "34",
+      "35",
+      "36",
+      "39",
+      "40",
+      "42",
+      "45",
+      "47",
+      "48",
+      "49",
+      "50",
+      "51",
+      "52",
+      "55",
+      "65",
+      "66"
+    ],
+    "season_end": "2027-06-30",
+    "season_start": "2026-08-01",
+    "status": "MANUAL_REVIEW_REQUIRED",
+    "team_prior_carry_forward_policy": "CARRY_FORWARD_RETAINED_TEAM_PRIORS_WITH_SHRINKAGE",
+    "unresolved_mappings": [
+      "PROMOTION_RELEGATION_NOT_CONFIRMED_OFFLINE"
+    ]
+  },
+  "serie_a": {
+    "calibration_reset_policy": "LEAGUE_SEASON_CALIBRATION_REQUIRES_REVIEW",
+    "competition_id": "serie_a",
+    "latest_completed_season": null,
+    "next_season": null,
+    "promoted_or_new_teams": [],
+    "provider_id_conflicts": [],
+    "relegated_or_removed_teams": [],
+    "retained_teams": [],
+    "season_end": null,
+    "season_start": null,
+    "status": "MANUAL_REVIEW_REQUIRED",
+    "team_prior_carry_forward_policy": "NO_CARRY_FORWARD_WITHOUT_MEMBERSHIP",
+    "unresolved_mappings": [
+      "NO_LOCAL_FIXTURES_FOR_PROFILE"
+    ]
+  }
+}
