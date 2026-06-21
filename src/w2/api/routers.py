@@ -14,6 +14,7 @@ from w2.api.metrics import metrics
 from w2.api.repository import ReadModelService
 from w2.api.schemas import (
     BacktestLatestResponse,
+    CompetitionOperationsProfileResponse,
     DataHealthResponse,
     ErrorPayload,
     FixtureDetailResponse,
@@ -24,6 +25,7 @@ from w2.api.schemas import (
     PageMeta,
     ProbabilityResponse,
     ProviderStatusResponse,
+    WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
 
@@ -188,6 +190,17 @@ def forward_holdout_status(request: Request) -> dict[str, Any]:
     return {"request_id": request_id(request), **service.forward_status()}
 
 
+@public_router.get(
+    "/competitions/{competition_id}/operations-profile",
+    response_model=CompetitionOperationsProfileResponse,
+)
+def competition_operations_profile(competition_id: str, request: Request) -> dict[str, Any]:
+    payload = service.competition_operations_profile(competition_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="competition operations profile not found")
+    return {"request_id": request_id(request), **payload}
+
+
 @ops_router.get("/health")
 def ops_health(request: Request) -> dict[str, str]:
     ensure_ops_enabled()
@@ -240,3 +253,9 @@ def ops_settlements(request: Request) -> dict[str, Any]:
 @ops_router.get("/gates", response_model=OperationListResponse)
 def ops_gates(request: Request) -> dict[str, Any]:
     return ops_list("gates", request)
+
+
+@ops_router.get("/world-cup-readiness", response_model=WorldCupReadinessResponse)
+def ops_world_cup_readiness(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **service.world_cup_readiness()}

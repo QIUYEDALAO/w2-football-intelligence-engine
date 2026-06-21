@@ -6,9 +6,18 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+from w2.operations.tournament import (
+    build_operations_plan,
+    load_stage5b_world_cup_fixtures,
+    load_tournament_profile,
+    readiness_report,
+)
+
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
+WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
+WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -52,6 +61,18 @@ class ReadModelRepository:
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
+
+    def world_cup_profile(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
+
+    def world_cup_readiness(self) -> dict[str, Any]:
+        existing = load_json(REPORTS / "W2_STAGE13A_READINESS.json", {})
+        if existing:
+            return cast(dict[str, Any], existing)
+        profile = load_tournament_profile(WORLD_CUP_PROFILE)
+        fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
+        plan = build_operations_plan(profile, fixtures)
+        return readiness_report(profile, plan)
 
 
 class ReadModelService:
@@ -242,6 +263,27 @@ class ReadModelService:
         }
         payload = mapping.get(name, {})
         return [{"key": name, "status": "READY", "payload": payload}]
+
+    def competition_operations_profile(self, competition_id: str) -> dict[str, Any] | None:
+        payload = self.repository.world_cup_profile()
+        if payload.get("competition_id") != competition_id:
+            return None
+        return {
+            "competition_id": payload["competition_id"],
+            "version": payload["version"],
+            "season": payload["season"],
+            "hosts": payload["hosts"],
+            "neutral_site_policy": payload["neutral_site_policy"],
+            "stages": payload["stages"],
+            "groups": payload["groups"],
+            "knockout_rounds": payload["knockout_rounds"],
+            "operations_schedule": payload["operations_schedule"],
+            "strategy_version": payload["strategy_version"],
+            "freeze_policy": payload["freeze_policy"],
+        }
+
+    def world_cup_readiness(self) -> dict[str, Any]:
+        return self.repository.world_cup_readiness()
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         fixture = item.get("fixture", {})

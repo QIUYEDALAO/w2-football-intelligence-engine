@@ -1,0 +1,3331 @@
+{
+  "candidate_output": false,
+  "competition_id": "world_cup_2026",
+  "created_at": "2026-06-21T22:14:27.609291+00:00",
+  "deepseek_enabled": false,
+  "fixture_count_available": 889,
+  "fixture_count_planned": 48,
+  "fixture_source": "runtime/stage5b/processed/national_fixtures_cleaned.json",
+  "network_used": false,
+  "operations_plan": [
+    {
+      "closing_cutoff_at": "2023-09-07T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "8375de824d0df6e5fb66184027909180",
+      "gate_audit_at": "2023-09-07T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "8375de824d0df6e5fb66184027909180",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-07T18:00:00+00:00",
+      "lineup_check_at": "2023-09-07T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-04T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-05T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-06T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-07T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-07T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-07T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-07T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-07T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-07T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-06T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-07T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-08T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "26a7eba79e656e10fa6b709e0730e4df",
+      "gate_audit_at": "2023-09-08T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "26a7eba79e656e10fa6b709e0730e4df",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-08T18:00:00+00:00",
+      "lineup_check_at": "2023-09-08T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-05T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-06T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-07T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-08T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-08T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-08T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-08T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-08T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-08T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-07T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-08T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-08T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "6fce3d70b9168af83c2d039d11718771",
+      "gate_audit_at": "2023-09-08T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "6fce3d70b9168af83c2d039d11718771",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-08T18:00:00+00:00",
+      "lineup_check_at": "2023-09-08T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-05T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-06T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-07T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-08T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-08T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-08T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-08T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-08T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-08T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-07T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-08T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-09T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "0f521d9435095d98024d6ea7e95b8cb5",
+      "gate_audit_at": "2023-09-09T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "0f521d9435095d98024d6ea7e95b8cb5",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-09T18:00:00+00:00",
+      "lineup_check_at": "2023-09-09T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-06T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-07T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-08T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-09T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-09T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-09T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-09T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-09T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-09T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-08T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-09T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-09T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "d614858761de623d21a7caab7bc6608f",
+      "gate_audit_at": "2023-09-09T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "d614858761de623d21a7caab7bc6608f",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-09T18:00:00+00:00",
+      "lineup_check_at": "2023-09-09T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-06T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-07T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-08T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-09T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-09T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-09T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-09T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-09T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-09T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-08T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-09T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "8704addfc8a53c4a7d50818731230144",
+      "gate_audit_at": "2023-09-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "8704addfc8a53c4a7d50818731230144",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-12T18:00:00+00:00",
+      "lineup_check_at": "2023-09-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "e7fc8f989048388f781f9d176203e8c9",
+      "gate_audit_at": "2023-09-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "e7fc8f989048388f781f9d176203e8c9",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-12T18:00:00+00:00",
+      "lineup_check_at": "2023-09-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "ff4b779de5f930c10ec9f042c571a148",
+      "gate_audit_at": "2023-09-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "ff4b779de5f930c10ec9f042c571a148",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-12T18:00:00+00:00",
+      "lineup_check_at": "2023-09-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "d3254050f96136c28854cb0e0b3e3095",
+      "gate_audit_at": "2023-09-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "d3254050f96136c28854cb0e0b3e3095",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-13T18:00:00+00:00",
+      "lineup_check_at": "2023-09-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-09-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "ded573389da2c85379bfe952f3200eee",
+      "gate_audit_at": "2023-09-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "ded573389da2c85379bfe952f3200eee",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-09-13T18:00:00+00:00",
+      "lineup_check_at": "2023-09-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-09-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-09-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-09-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-09-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-09-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-09-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-09-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-09-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-09-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-09-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-09-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "23588e9449510ee58d075d8316ae21c5",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "23588e9449510ee58d075d8316ae21c5",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "2fef9d6c5f78043cd0a4a1a710ddc50d",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "2fef9d6c5f78043cd0a4a1a710ddc50d",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "325bb9479abbd187d35a2bd17163f3b2",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "325bb9479abbd187d35a2bd17163f3b2",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "444a75a1e64ddd1e643c8fd50450e903",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "444a75a1e64ddd1e643c8fd50450e903",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "471648a717086459a66978a18d0ef8ec",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "471648a717086459a66978a18d0ef8ec",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "781dd3170e0596eaab696c6f1d6f0a81",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "781dd3170e0596eaab696c6f1d6f0a81",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "a56c41eef723873a1881b42c08de1562",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "a56c41eef723873a1881b42c08de1562",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "ade7c32718e1d5085338dcf472d87996",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "ade7c32718e1d5085338dcf472d87996",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "d713cf732aa00c1042c50e665c16ed11",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "d713cf732aa00c1042c50e665c16ed11",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "dcdd3d51abaef2252106a32dae8f9eb7",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "dcdd3d51abaef2252106a32dae8f9eb7",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-12T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "f252cc36d8d91bde7a23e526be43f1ff",
+      "gate_audit_at": "2023-10-12T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "f252cc36d8d91bde7a23e526be43f1ff",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-12T18:00:00+00:00",
+      "lineup_check_at": "2023-10-12T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-09T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-12T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-12T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-12T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-12T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-12T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-12T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-11T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-12T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "3005768f094538798ba997251586a407",
+      "gate_audit_at": "2023-10-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "3005768f094538798ba997251586a407",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-13T18:00:00+00:00",
+      "lineup_check_at": "2023-10-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "4238adea799dcbe5b77d3e6e0eaa3de0",
+      "gate_audit_at": "2023-10-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "4238adea799dcbe5b77d3e6e0eaa3de0",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-13T18:00:00+00:00",
+      "lineup_check_at": "2023-10-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "81beff76a976a3fe5d62d8d0fccd78c6",
+      "gate_audit_at": "2023-10-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "81beff76a976a3fe5d62d8d0fccd78c6",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-13T18:00:00+00:00",
+      "lineup_check_at": "2023-10-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-13T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "a24879cf324177907d46991e320a6d0b",
+      "gate_audit_at": "2023-10-13T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "a24879cf324177907d46991e320a6d0b",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-13T18:00:00+00:00",
+      "lineup_check_at": "2023-10-13T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-10T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-11T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-13T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-13T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-13T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-13T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-13T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-13T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-12T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-13T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "05e20501cbba33659303e5796f18edb0",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "05e20501cbba33659303e5796f18edb0",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "2f2a961757bd22d480d80f03c449f338",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "2f2a961757bd22d480d80f03c449f338",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "4c13c41c281740a21136b3362ddc32e4",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "4c13c41c281740a21136b3362ddc32e4",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "561a6f3ba11f39317aa98545e26d7f68",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "561a6f3ba11f39317aa98545e26d7f68",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "802b94cb8b643d85f91428fcd58a9f4e",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "802b94cb8b643d85f91428fcd58a9f4e",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "93e573c2570d807cfce72f32785e2078",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "93e573c2570d807cfce72f32785e2078",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "b382572b513a89cd676bd3aed51e665e",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "b382572b513a89cd676bd3aed51e665e",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "e2d1edbfbe4f7d6a0580e383e183d939",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "e2d1edbfbe4f7d6a0580e383e183d939",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "eed715056b93c04bffb982b2c88ef10e",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "eed715056b93c04bffb982b2c88ef10e",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "f544da31c90087d0d2da12b6aafa2ccd",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "f544da31c90087d0d2da12b6aafa2ccd",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "fb44ddb1040da08dc1e88c126f5af405",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "fb44ddb1040da08dc1e88c126f5af405",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-17T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "fb8f1015ef221318b94588138938d6e6",
+      "gate_audit_at": "2023-10-17T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "fb8f1015ef221318b94588138938d6e6",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-17T18:00:00+00:00",
+      "lineup_check_at": "2023-10-17T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-17T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-17T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-17T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-17T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-17T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-17T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-16T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-17T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-18T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "0b7a212cc7933a479f4993f43721900f",
+      "gate_audit_at": "2023-10-18T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "0b7a212cc7933a479f4993f43721900f",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-18T18:00:00+00:00",
+      "lineup_check_at": "2023-10-18T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-17T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-18T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-18T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-18T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-18T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-18T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-18T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-17T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-18T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-18T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "8f348d76959a4afceb518ac106268bfe",
+      "gate_audit_at": "2023-10-18T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "8f348d76959a4afceb518ac106268bfe",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-18T18:00:00+00:00",
+      "lineup_check_at": "2023-10-18T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-17T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-18T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-18T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-18T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-18T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-18T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-18T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-17T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-18T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-10-18T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "f5fb4e8a1c874bb17921cd00babfb478",
+      "gate_audit_at": "2023-10-18T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "f5fb4e8a1c874bb17921cd00babfb478",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-10-18T18:00:00+00:00",
+      "lineup_check_at": "2023-10-18T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-10-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-10-16T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-10-17T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-10-18T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-10-18T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-10-18T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-10-18T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-10-18T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-10-18T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-10-17T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-10-18T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-15T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "3864bfe3070ad3e90b77e4963a42a751",
+      "gate_audit_at": "2023-11-15T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "3864bfe3070ad3e90b77e4963a42a751",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-15T18:00:00+00:00",
+      "lineup_check_at": "2023-11-15T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-15T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-15T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-15T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-15T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-15T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-15T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-14T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-15T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-15T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "3f10a446b83bd98c58e42d2085ce0181",
+      "gate_audit_at": "2023-11-15T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "3f10a446b83bd98c58e42d2085ce0181",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-15T18:00:00+00:00",
+      "lineup_check_at": "2023-11-15T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-15T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-15T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-15T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-15T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-15T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-15T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-14T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-15T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-15T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "c94c4a613470b30d64bdc6f450dd60d5",
+      "gate_audit_at": "2023-11-15T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "c94c4a613470b30d64bdc6f450dd60d5",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-15T18:00:00+00:00",
+      "lineup_check_at": "2023-11-15T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-12T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-15T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-15T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-15T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-15T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-15T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-15T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-14T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-15T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-16T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "091fea3c46499d7414991a1167ad8a3f",
+      "gate_audit_at": "2023-11-16T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "091fea3c46499d7414991a1167ad8a3f",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-16T18:00:00+00:00",
+      "lineup_check_at": "2023-11-16T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-16T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-16T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-16T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-16T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-16T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-16T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-15T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-16T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-16T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "0e82a051143221cb19e1a1a9f150b5b6",
+      "gate_audit_at": "2023-11-16T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "0e82a051143221cb19e1a1a9f150b5b6",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-16T18:00:00+00:00",
+      "lineup_check_at": "2023-11-16T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-16T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-16T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-16T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-16T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-16T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-16T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-15T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-16T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-16T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "1a3add83ae1b4a2c87f1194a6861fdc7",
+      "gate_audit_at": "2023-11-16T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "1a3add83ae1b4a2c87f1194a6861fdc7",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-16T18:00:00+00:00",
+      "lineup_check_at": "2023-11-16T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-16T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-16T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-16T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-16T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-16T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-16T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-15T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-16T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-16T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "1e21465a6cf4f58bd6f331b7c4e9237e",
+      "gate_audit_at": "2023-11-16T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "1e21465a6cf4f58bd6f331b7c4e9237e",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-16T18:00:00+00:00",
+      "lineup_check_at": "2023-11-16T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-16T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-16T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-16T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-16T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-16T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-16T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-15T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-16T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    },
+    {
+      "closing_cutoff_at": "2023-11-16T17:50:00+00:00",
+      "competition_id": "world_cup_2026",
+      "fixture_id": "21d1cbe508de64d6cd8061ce4889484b",
+      "gate_audit_at": "2023-11-16T06:00:00+00:00",
+      "importance_context": {
+        "draw_sufficient": false,
+        "eliminated": false,
+        "fixture_id": "21d1cbe508de64d6cd8061ce4889484b",
+        "group_standings_context": "GROUP_TABLE_REQUIRES_VALIDATED_STANDINGS_FEED",
+        "host_context": "STANDARD_CONTEXT",
+        "knockout_path": "NOT_APPLICABLE_OR_UNVALIDATED",
+        "model_feature_enabled": false,
+        "must_win": false,
+        "qualification_state": "UNKNOWN_UNTIL_VALIDATED_TABLE",
+        "qualified": false,
+        "rest_days": null,
+        "validation_status": "EXPLANATORY_ONLY_UNVALIDATED"
+      },
+      "kickoff_utc": "2023-11-16T18:00:00+00:00",
+      "lineup_check_at": "2023-11-16T16:45:00+00:00",
+      "neutral_site": false,
+      "phase_plan": [
+        {
+          "phase": "T-72h",
+          "scheduled_at": "2023-11-13T18:00:00+00:00"
+        },
+        {
+          "phase": "T-48h",
+          "scheduled_at": "2023-11-14T18:00:00+00:00"
+        },
+        {
+          "phase": "T-24h",
+          "scheduled_at": "2023-11-15T18:00:00+00:00"
+        },
+        {
+          "phase": "T-12h",
+          "scheduled_at": "2023-11-16T06:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "scheduled_at": "2023-11-16T12:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "scheduled_at": "2023-11-16T15:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "scheduled_at": "2023-11-16T17:00:00+00:00"
+        },
+        {
+          "phase": "Closing",
+          "scheduled_at": "2023-11-16T17:50:00+00:00"
+        }
+      ],
+      "settlement_at": "2023-11-16T21:00:00+00:00",
+      "stage_id": "qualifying",
+      "watch_skip_lock_windows": [
+        {
+          "lock_at": "2023-11-15T18:00:00+00:00",
+          "phase": "T-24h"
+        },
+        {
+          "lock_at": "2023-11-16T17:00:00+00:00",
+          "phase": "T-1h"
+        }
+      ]
+    }
+  ],
+  "plan_sha256": "deb1a7cfda8fcf25a7b79c3f8b7d5be37816f0c36f05e01823e0f764f251a0df",
+  "production_enabled": false,
+  "profile_version": "world-cup-2026-profile-v1",
+  "recommend_output": false,
+  "run_id": "stage13a-world-cup-dry-run-v1",
+  "shadow_runtime_enabled": false,
+  "strategy_version": "NOT_AVAILABLE_GATE4"
+}

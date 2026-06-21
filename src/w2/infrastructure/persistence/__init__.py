@@ -102,6 +102,11 @@ from w2.infrastructure.persistence.replay_models import (
     ReplayEventModel,
     ReplayRunModel,
 )
+from w2.infrastructure.persistence.tournament_models import (
+    TournamentOperationsPlanModel,
+    TournamentProfileModel,
+    TournamentReadinessAuditModel,
+)
 
 __all__ = [
     "AblationRunModel",
@@ -182,6 +187,9 @@ __all__ = [
     "SyncCursorModel",
     "TeamModel",
     "TeamRatingModel",
+    "TournamentOperationsPlanModel",
+    "TournamentProfileModel",
+    "TournamentReadinessAuditModel",
     "VenueModel",
     "WeatherObservationModel",
 ]

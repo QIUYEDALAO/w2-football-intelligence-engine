@@ -120,6 +120,45 @@ small {
   color: #62706a;
 }
 
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.readiness-grid div {
+  border: 1px solid #edf1ef;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfb;
+}
+
+.readiness-grid span {
+  display: block;
+  color: #62706a;
+  font-size: 13px;
+}
+
+.readiness-grid strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+
+.compact {
+  margin-top: 14px;
+}
+
+.warning {
+  margin: 14px 0 0;
+  border-left: 4px solid #a45112;
+  padding: 10px 12px;
+  background: #fff6ed;
+  color: #7d3609;
+  font-weight: 800;
+}
+
 .fixture-list {
   display: grid;
   gap: 8px;
@@ -199,7 +238,8 @@ pre {
   .topbar,
   .two,
   .three,
-  .main-grid {
+  .main-grid,
+  .readiness-grid {
     grid-template-columns: 1fr;
   }
 

@@ -121,3 +121,32 @@ class OperationItem(BaseModel):
 class OperationListResponse(BaseModel):
     request_id: str
     items: list[OperationItem]
+
+
+class CompetitionOperationsProfileResponse(BaseModel):
+    request_id: str
+    competition_id: str
+    version: str
+    season: str
+    hosts: list[str]
+    neutral_site_policy: str
+    stages: list[dict[str, Any]]
+    groups: list[dict[str, Any]]
+    knockout_rounds: list[dict[str, Any]]
+    operations_schedule: dict[str, Any]
+    strategy_version: str
+    freeze_policy: dict[str, Any]
+
+
+class WorldCupReadinessResponse(BaseModel):
+    request_id: str
+    competition_id: str
+    profile_version: str
+    fixture_coverage_count: int
+    data_coverage: dict[str, Any]
+    phase_count_per_fixture: int
+    gate_status: str
+    strategy_version: str
+    production_deployment: str
+    shadow_runtime: str
+    blockers: list[str]

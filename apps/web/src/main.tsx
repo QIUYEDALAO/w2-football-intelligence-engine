@@ -47,6 +47,19 @@ type OpsList = {
   items: Array<{ key: string; status: string; payload: Record<string, unknown> }>;
 };
 
+type WorldCupReadiness = {
+  competition_id: string;
+  profile_version: string;
+  fixture_coverage_count: number;
+  data_coverage: Record<string, string>;
+  phase_count_per_fixture: number;
+  gate_status: string;
+  strategy_version: string;
+  production_deployment: string;
+  shadow_runtime: string;
+  blockers: string[];
+};
+
 const emptyProbability: Probability = {
   probability_type: "not_available",
   probabilities: {},
@@ -99,6 +112,7 @@ function App() {
   const [model, setModel] = useState<Probability>(emptyProbability);
   const [tasks, setTasks] = useState<OpsList | null>(null);
   const [alerts, setAlerts] = useState<OpsList | null>(null);
+  const [worldCup, setWorldCup] = useState<WorldCupReadiness | null>(null);
 
   useEffect(() => {
     getJson<FixtureList>("/v1/fixtures?page_size=12&timezone=UTC").then((payload) => {
@@ -111,6 +125,7 @@ function App() {
     getJson<DataHealth>("/v1/data-health").then(setHealth);
     getJson<OpsList>("/ops/tasks").then(setTasks);
     getJson<OpsList>("/ops/alerts").then(setAlerts);
+    getJson<WorldCupReadiness>("/ops/world-cup-readiness").then(setWorldCup);
   }, []);
 
   useEffect(() => {
@@ -215,6 +230,46 @@ function App() {
       <section className="grid two">
         <ProbabilityTable data={market} title="Market fair probabilities" />
         <ProbabilityTable data={model} title="Independent model probabilities" />
+      </section>
+
+      <section className="panel readiness">
+        <div className="panel-title">
+          <h2>World Cup Readiness</h2>
+          <span>{worldCup?.strategy_version ?? "NOT_AVAILABLE_GATE4"}</span>
+        </div>
+        <div className="readiness-grid">
+          <div>
+            <span>Profile</span>
+            <strong>{worldCup?.profile_version ?? "loading"}</strong>
+          </div>
+          <div>
+            <span>Fixture coverage</span>
+            <strong>{worldCup?.fixture_coverage_count ?? 0}</strong>
+          </div>
+          <div>
+            <span>Phase plan</span>
+            <strong>{worldCup?.phase_count_per_fixture ?? 0} phases</strong>
+          </div>
+          <div>
+            <span>Gate</span>
+            <strong>{worldCup?.gate_status ?? "pending"}</strong>
+          </div>
+        </div>
+        <dl className="facts compact">
+          <div>
+            <dt>Data coverage</dt>
+            <dd>{JSON.stringify(worldCup?.data_coverage ?? {})}</dd>
+          </div>
+          <div>
+            <dt>Shadow runtime</dt>
+            <dd>{worldCup?.shadow_runtime ?? "DISABLED_PENDING_GATE4"}</dd>
+          </div>
+          <div>
+            <dt>Blockers</dt>
+            <dd>{worldCup?.blockers.length ? worldCup.blockers.join(", ") : "None"}</dd>
+          </div>
+        </dl>
+        <p className="warning">正式推荐尚未启用。</p>
       </section>
 
       <section className="grid two">

@@ -1,6 +1,6 @@
 PYTHON ?= uv run --python 3.12
 
-.PHONY: setup lint typecheck test up smoke down migrate-up migrate-down
+.PHONY: setup lint typecheck test up smoke down migrate-up migrate-down verify
 
 setup:
 	uv sync --python 3.12 --all-groups
@@ -26,6 +26,9 @@ up:
 smoke:
 	PYTHONPATH=.:src $(PYTHON) scripts/check_w2_stage1_contracts.py
 	PYTHONPATH=.:src $(PYTHON) scripts/smoke.py
+
+verify:
+	PYTHONPATH=.:src $(PYTHON) scripts/check_w2_all.py
 
 down:
 	docker compose --profile local down

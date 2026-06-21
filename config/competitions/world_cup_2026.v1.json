@@ -1,0 +1,82 @@
+{
+  "competition_id": "world_cup_2026",
+  "version": "world-cup-2026-profile-v1",
+  "provider_mapping": {
+    "api_football_league_id": "1",
+    "api_football_season": "2026"
+  },
+  "season": "2026",
+  "hosts": ["Canada", "Mexico", "United States"],
+  "neutral_site_policy": "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST;OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT",
+  "stages": [
+    {
+      "stage_id": "qualifying",
+      "name": "Qualifying and play-in context",
+      "stage_type": "QUALIFYING",
+      "result_semantics": "90_MINUTES_SEPARATE_FROM_EXTRA_TIME_AND_PENALTIES"
+    },
+    {
+      "stage_id": "group",
+      "name": "Group stage",
+      "stage_type": "GROUP",
+      "result_semantics": "90_MINUTES_ONLY"
+    },
+    {
+      "stage_id": "knockout",
+      "name": "Knockout stage",
+      "stage_type": "KNOCKOUT",
+      "result_semantics": "90_MINUTES_EXTRA_TIME_PENALTIES_SEPARATED"
+    }
+  ],
+  "groups": [
+    {"group_id": "A", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "B", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "C", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "D", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "E", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "F", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "G", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "H", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "I", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "J", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "K", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4},
+    {"group_id": "L", "qualification_rule_id": "group_top_two_plus_ranked_third", "team_slots": 4}
+  ],
+  "knockout_rounds": [
+    {"round_id": "round_of_32", "name": "Round of 32", "entrant_count": 32, "extra_time_enabled": true, "penalties_enabled": true},
+    {"round_id": "round_of_16", "name": "Round of 16", "entrant_count": 16, "extra_time_enabled": true, "penalties_enabled": true},
+    {"round_id": "quarterfinal", "name": "Quarterfinal", "entrant_count": 8, "extra_time_enabled": true, "penalties_enabled": true},
+    {"round_id": "semifinal", "name": "Semifinal", "entrant_count": 4, "extra_time_enabled": true, "penalties_enabled": true},
+    {"round_id": "final", "name": "Final", "entrant_count": 2, "extra_time_enabled": true, "penalties_enabled": true}
+  ],
+  "qualification_rules": [
+    {
+      "rule_id": "group_top_two_plus_ranked_third",
+      "description": "Top two group teams and the best ranked third-place teams advance.",
+      "advances": 2,
+      "tie_breakers": ["points", "goal_difference", "goals_for", "fair_play", "drawing_of_lots"]
+    }
+  ],
+  "venue_timezone_references": {
+    "source": "provider venue timezone, normalized to UTC internally",
+    "display": "request timezone only"
+  },
+  "lineup_expected_window": "T-75m",
+  "operations_schedule": {
+    "collection_phases": ["T-72h", "T-48h", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "Closing"],
+    "lineup_expected_window_minutes": 75,
+    "settlement_delay_hours": 3,
+    "gate_audit_hour_utc": 6
+  },
+  "model_version": "stage7b-frozen-challenger",
+  "calibration_version": "stage7b-frozen-calibration",
+  "strategy_version": "NOT_AVAILABLE_GATE4",
+  "freeze_policy": {
+    "model_in_place_changes": "FORBIDDEN_DURING_TOURNAMENT",
+    "allowed_change": "CLEAR_ENGINEERING_BUG_FIX_ONLY",
+    "upgrade_requires_new_version": true,
+    "group_and_knockout_evaluated_separately": true,
+    "single_match_tuning": "FORBIDDEN",
+    "research_proposals_after_round_only": true
+  }
+}

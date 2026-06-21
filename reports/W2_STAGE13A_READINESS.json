@@ -1,0 +1,17 @@
+{
+  "blockers": [],
+  "competition_id": "world_cup_2026",
+  "data_coverage": {
+    "lineup_data": "EXPECTED_WINDOW_CONFIGURED",
+    "market_data": "READINESS_ONLY",
+    "stage5b_world_cup_fixture_source": "AVAILABLE"
+  },
+  "fixture_coverage_count": 48,
+  "gate_status": "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+  "phase_count_per_fixture": 8,
+  "production_deployment": "DISABLED",
+  "profile_version": "world-cup-2026-profile-v1",
+  "readiness_sha256": "515133de72dd233f3eefeebf24f96caee6e4c31d29a5267e6c90333aa29fa244",
+  "shadow_runtime": "DISABLED_PENDING_GATE4",
+  "strategy_version": "NOT_AVAILABLE_GATE4"
+}
