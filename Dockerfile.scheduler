@@ -4,7 +4,7 @@ RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md ./
 COPY apps ./apps
 COPY src ./src
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen && rm -f /app/.venv/lib/python3.12/site-packages/_editable_impl_w2_football_intelligence_engine.pth && chown -R w2:w2 /app/.venv
 USER w2
 HEALTHCHECK CMD uv run python -c "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
 CMD ["uv", "run", "python", "-m", "apps.scheduler.main"]

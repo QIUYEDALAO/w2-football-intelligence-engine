@@ -1,0 +1,275 @@
+# W2 Staging Lite Override
+#
+# Usage:
+#   sudo docker compose \
+#     -f docker-compose.yml \
+#     -f infra/compose/staging-lite.override.yml \
+#     -p w2 up -d
+#
+# All public ports bound to 127.0.0.1 only.
+# No MinIO (not required by staging forward-holdout cycle).
+# Resource budget estimates for 4vCPU/8GiB host:
+#   postgres  ~1.25 GiB | redis  ~256 MiB
+#   api       ~768 MiB  | worker ~1.5 GiB (concurrency=1)
+#   scheduler ~512 MiB  | web    ~256 MiB
+#   system reserves ~2 GiB
+#   => total ~6.5 GiB within 8 GiB host
+
+services:
+
+  # ─── Postgres ──────────────────────────────────────────────
+  postgres:
+    profiles: ["staging"]
+    shm_size: 256m
+    environment:
+      POSTGRES_DB: w2
+      POSTGRES_USER: w2_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # No published ports — cluster-local only
+
+  # ─── Redis ─────────────────────────────────────────────────
+  redis:
+    profiles: ["staging"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # No published ports — cluster-local only
+
+  # ─── Migration (one-shot) ──────────────────────────────────
+  migration:
+    profiles: ["staging"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile.migrations
+    environment:
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
+      W2_ENVIRONMENT: staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - w2-staging
+    restart: no
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── API ───────────────────────────────────────────────────
+  api:
+    profiles: ["staging"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api
+    command:
+      - "uv"
+      - "run"
+      - "uvicorn"
+      - "apps.api.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+    ports:
+      - "127.0.0.1:18000:8000"
+    volumes:
+      - ./runtime:/app/runtime
+      - ./config:/app/config
+    environment:
+      W2_ENVIRONMENT: staging
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
+      W2_REDIS_URL: redis://redis:6379/0
+      W2_CELERY_BROKER_URL: redis://redis:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      W2_FORWARD_HOLDOUT_AUTORUN: "true"
+      W2_FORWARD_HOLDOUT_NETWORK: "true"
+      W2_DEEPSEEK_ENABLED: "false"
+      W2_RECOMMENDATION_ENABLED: "false"
+      W2_CANDIDATE_ENABLED: "false"
+      W2_PRODUCTION_RELEASE: "false"
+      W2_EXTERNAL_ALERTING: "false"
+      W2_API_DAILY_HARD_LIMIT: "6000"
+      W2_API_MINIMUM_RESERVE: "1500"
+      CELERY_WORKER_CONCURRENCY: "1"
+      W2_SERVICE_VERSION: staging-0.1.0
+      W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY:?required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); assert r.status==200"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── Worker ────────────────────────────────────────────────
+  worker:
+    profiles: ["staging"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile.worker
+    command:
+      - "uv"
+      - "run"
+      - "celery"
+      - "-A"
+      - "apps.worker.celery_app"
+      - "worker"
+      - "--loglevel=INFO"
+      - "--concurrency=1"
+    volumes:
+      - ./runtime:/app/runtime
+      - ./config:/app/config
+    environment:
+      W2_ENVIRONMENT: staging
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
+      W2_REDIS_URL: redis://redis:6379/0
+      W2_CELERY_BROKER_URL: redis://redis:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      W2_FORWARD_HOLDOUT_AUTORUN: "true"
+      W2_FORWARD_HOLDOUT_NETWORK: "true"
+      W2_DEEPSEEK_ENABLED: "false"
+      W2_RECOMMENDATION_ENABLED: "false"
+      W2_CANDIDATE_ENABLED: "false"
+      W2_PRODUCTION_RELEASE: "false"
+      W2_EXTERNAL_ALERTING: "false"
+      W2_API_DAILY_HARD_LIMIT: "6000"
+      W2_API_MINIMUM_RESERVE: "1500"
+      CELERY_WORKER_CONCURRENCY: "1"
+      W2_SERVICE_VERSION: staging-0.1.0
+      W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY:?required}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── Scheduler ─────────────────────────────────────────────
+  scheduler:
+    profiles: ["staging"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile.scheduler
+    command:
+      - "uv"
+      - "run"
+      - "python"
+      - "-m"
+      - "apps.scheduler.main"
+    volumes:
+      - ./runtime:/app/runtime
+      - ./config:/app/config
+    environment:
+      W2_ENVIRONMENT: staging
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
+      W2_REDIS_URL: redis://redis:6379/0
+      W2_CELERY_BROKER_URL: redis://redis:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      W2_FORWARD_HOLDOUT_AUTORUN: "true"
+      W2_FORWARD_HOLDOUT_NETWORK: "true"
+      W2_DEEPSEEK_ENABLED: "false"
+      W2_RECOMMENDATION_ENABLED: "false"
+      W2_CANDIDATE_ENABLED: "false"
+      W2_PRODUCTION_RELEASE: "false"
+      W2_EXTERNAL_ALERTING: "false"
+      W2_API_DAILY_HARD_LIMIT: "6000"
+      W2_API_MINIMUM_RESERVE: "1500"
+      CELERY_WORKER_CONCURRENCY: "1"
+      W2_SERVICE_VERSION: staging-0.1.0
+      W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY:?required}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── Web ───────────────────────────────────────────────────
+  web:
+    profiles: ["staging"]
+    build:
+      context: apps/web
+      dockerfile: ../../Dockerfile.web
+    ports:
+      - "127.0.0.1:18080:8080"
+    environment:
+      W2_ENVIRONMENT: staging
+      VITE_API_BASE_URL: http://127.0.0.1:18000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - w2-staging
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  w2-staging:
+    driver: bridge
+    # All port binding controlled per-service; no internal-only constraint
+
+volumes:
+  postgres-data:
+  redis-data:

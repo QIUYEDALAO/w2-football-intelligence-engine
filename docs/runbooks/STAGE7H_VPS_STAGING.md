@@ -1,0 +1,144 @@
+# W2 Stage7H – VPS Staging Runbook
+
+**Task**: W2-STAGE7H-001-BUNDLE  
+**Server**: 43.155.208.138 (首尔 VPS, Tencent Cloud)  
+**Spec**: 4 vCPU / 8 GiB / 120 GiB SSD  
+**OS**: Ubuntu 24.04 LTS
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Host: 43.155.208.138 (public)                  │
+│  UFW: inactive  │  SSH: :22                     │
+│                                                  │
+│  systemd: w2-staging.service                     │
+│  ┌───────────────────────────────────────┐       │
+│  │  Docker Compose (staging profile)     │       │
+│  │                                       │       │
+│  │  postgres:5432 ←──── migration        │       │
+│  │     ↓                                  │       │
+│  │  api:8000   → 127.0.0.1:18000          │       │
+│  │  web:8080   → 127.0.0.1:18080          │       │
+│  │  worker (celery, concurrency=1)        │       │
+│  │  scheduler (heartbeat)                 │       │
+│  │  redis:6379                            │       │
+│  └───────────────────────────────────────┘       │
+│                                                  │
+│  /opt/w2/                                        │
+│    ├── current → releases/<SHA>                  │
+│    ├── releases/<SHA>/                           │
+│    └── shared/                                   │
+│         ├── .env (chmod 600)                     │
+│         ├── state/                               │
+│         ├── data/                                │
+│         ├── logs/                                │
+│         ├── backups/                             │
+│         └── runtime/                             │
+└─────────────────────────────────────────────────┘
+```
+
+## Port Mapping
+
+| Service | Container Port | Host Binding |
+|---|---|---|
+| API | 8000 | `127.0.0.1:18000` (enforced) |
+| Web | 8080 | `127.0.0.1:18080` (enforced) |
+| PostgreSQL | 5432 | Not exposed |
+| Redis | 6379 | Not exposed |
+
+**No 0.0.0.0 business ports.** Compose is standalone `compose.staging.yml` — does not inherit base docker-compose.yml port definitions.
+
+## Resource Budget
+
+| Service | Estimate |
+|---|---|
+| postgres | ~1.25 GiB |
+| redis | ~256 MiB |
+| api | ~768 MiB |
+| worker (concurrency=1) | ~1.5 GiB |
+| scheduler | ~512 MiB |
+| web | ~256 MiB |
+| System reserve | ~2 GiB |
+| **Total** | **~6.5 GiB / 8 GiB** |
+
+## Service Control
+
+```bash
+# Start full stack
+sudo systemctl start w2-staging.service
+
+# Stop full stack
+sudo systemctl stop w2-staging.service
+
+# Restart
+sudo systemctl restart w2-staging.service
+
+# Status
+sudo systemctl status w2-staging.service --no-pager
+sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml ps
+
+# View logs
+sudo journalctl -u w2-staging.service -f
+sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f api
+sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f worker
+sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f scheduler
+```
+
+## Deployment
+
+```bash
+# From local workspace
+export W2_API_FOOTBALL_API_KEY='<key>'
+export POSTGRES_PASSWORD='<pwd>'
+bash scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
+```
+
+## Health Checks (on server)
+
+```bash
+# API
+curl -fsS http://127.0.0.1:18000/health
+curl -fsS http://127.0.0.1:18000/ready
+curl -fsS http://127.0.0.1:18000/metrics
+
+# Web
+curl -I http://127.0.0.1:18080/
+
+# Docker
+sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml ps
+sudo docker stats --no-stream
+
+# Full check
+python3 /opt/w2/current/scripts/check_w2_stage7h.py
+```
+
+## Rollback
+
+```bash
+# Stop stack
+sudo systemctl stop w2-staging.service
+
+# Point current to previous release
+ls /opt/w2/releases/
+ln -sfn /opt/w2/releases/<PREVIOUS_SHA> /opt/w2/current
+
+# Restart
+sudo systemctl start w2-staging.service
+```
+
+Rollback does not:
+- Delete new release
+- Delete volumes
+- Roll back lock/result append-only data
+
+## Security Notes
+
+- API key stored in `/opt/w2/shared/.env` (chmod 600)
+- PostgreSQL credential auto-generated (32-byte hex)
+- No Docker group membership for `ubuntu`
+- All business ports bound to 127.0.0.1 only
+- SSH is the only public port
+- No cloud security group modifications

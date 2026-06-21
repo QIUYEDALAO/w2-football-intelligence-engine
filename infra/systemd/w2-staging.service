@@ -1,0 +1,53 @@
+# W2 Staging systemd unit
+#
+# Manages the W2 staging stack via docker compose with sudo.
+# Uses independent compose.staging.yml — no port bleed-through from base compose.
+# All business ports (18000, 18080) bind to localhost only.
+#
+# Environment file: /opt/w2/shared/.env (chmod 600, owner ubuntu)
+# Docker compose reads .env via --env-file flag (not working directory .env)
+
+[Unit]
+Description=W2 Football Intelligence Engine — Staging Stack
+Documentation=https://github.com/openclaw/w2-football-intelligence-engine
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+User=ubuntu
+Group=ubuntu
+
+Environment=COMPOSE_PROJECT_NAME=w2
+
+WorkingDirectory=/opt/w2/current
+
+ExecStart=/usr/bin/sudo /usr/bin/docker compose \
+  -f infra/compose/compose.staging.yml \
+  --env-file /opt/w2/shared/.env \
+  up -d --remove-orphans
+
+ExecStop=/usr/bin/sudo /usr/bin/docker compose \
+  -f infra/compose/compose.staging.yml \
+  down
+
+ExecReload=/usr/bin/sudo /usr/bin/docker compose \
+  -f infra/compose/compose.staging.yml \
+  --env-file /opt/w2/shared/.env \
+  restart
+
+ExecStartPost=/usr/bin/sudo /usr/bin/docker compose \
+  -f infra/compose/compose.staging.yml \
+  --env-file /opt/w2/shared/.env \
+  ps
+
+StandardOutput=journal
+StandardError=journal
+
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

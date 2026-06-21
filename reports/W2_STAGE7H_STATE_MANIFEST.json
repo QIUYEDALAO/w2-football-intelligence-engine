@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-06-22T08:27:00+08:00",
+  "source_revision": "52607c4...",
+  "source_host": "local-macos",
+  "entries": [
+    {
+      "category": "forward_lock_ledger",
+      "source": "runtime/stage7e/prediction_locks.json",
+      "size_bytes": 4648,
+      "sha256": "da83ef4c773e9515f5f113a7defc69020b9dcd6b6736d84b3aabc45fab3fa9aa",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_autorun_config",
+      "source": "runtime/stage7e/local_autorun_config.json",
+      "size_bytes": 336,
+      "sha256": "dcae693b3e4e84c4a05ed3b1c625ee6e092f60b295b32afcc6af9b82254dfa1c",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_market_snapshots",
+      "source": "runtime/stage7e/market_snapshots.json",
+      "size_bytes": 643,
+      "sha256": "f20660b93476d889b0622b169e4991e27c8c221f1ddfd033318bc0e281a350bd",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_result_events",
+      "source": "runtime/stage7e/result_events.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_lock_ledger",
+      "source": "runtime/stage7f/prediction_locks.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_result_events",
+      "source": "runtime/stage7f/result_events.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_lock_ledger",
+      "source": "runtime/stage7g/prediction_locks.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_checkpoint",
+      "source": "runtime/stage7g/controlled_cycle.json",
+      "size_bytes": 204,
+      "sha256": "b5e92e4a4b82dcff8f32ca1e71baed3b1aa68d287ded6f41cdf7cee8d445eec7",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_result_events",
+      "source": "runtime/stage7g/result_events.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "frozen_challenger_artifact",
+      "source": "runtime/model_artifacts/stage7/club-model-manifest-4a8d732b7f2c.json",
+      "size_bytes": 68965,
+      "sha256": "7b3c5a61d32959c964de6432da7f7a6b2f43194629b741793db4ba0449ea1a59",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "frozen_challenger_artifact",
+      "source": "runtime/model_artifacts/stage7/club-model-manifest-580ba4cea90c.json",
+      "size_bytes": 68966,
+      "sha256": "c6ac802c6a542bb1d9f8007f57a98c06eff8f9ffcefbd54dc4d9288ebb9bed8c",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "frozen_challenger_artifact",
+      "source": "runtime/model_artifacts/stage7/national-model-manifest-a1bce61b4caa.json",
+      "size_bytes": 54450,
+      "sha256": "d5f4dafa52c4822613c96de90eae7fc30409022577d4c52a63966d1214ae32e7",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "calibration_artifact",
+      "source": "runtime/model_artifacts/stage7/calibration-manifest-2c0e3ed29ffb.json",
+      "size_bytes": 20786,
+      "sha256": "4d772d88fccaf77b9446eb0dec0ee06a376cefe9932491416a62ed69627ae242",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "calibration_artifact",
+      "source": "runtime/model_artifacts/stage7/calibration-manifest-c4b6be0f6188.json",
+      "size_bytes": 20792,
+      "sha256": "9f679103744c2cd41f504ce09820e079da869fe310264abc26f87c8239c013ad",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "provider_mapping",
+      "source": "runtime/stage5b/processed/national_provider_mappings.json",
+      "size_bytes": 130336,
+      "sha256": "a52bbe9ab98c1ec82f670e09fab01217f16faa973419046d657462b830965449",
+      "immutable": true,
+      "migrate": true
+    },
+    {
+      "category": "forward_holdout_policy",
+      "source": "config/policies/forward_holdout_schedule.v1.json",
+      "size_bytes": 1439,
+      "sha256": "4da3b4dd89e2826bcf6d938fab26e15207842f46208baa834378f64f72f483a4",
+      "immutable": true,
+      "migrate": true
+    }
+  ]
+}

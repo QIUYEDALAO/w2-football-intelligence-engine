@@ -4,7 +4,7 @@ RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md alembic.ini ./
 COPY src ./src
 COPY migrations ./migrations
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen && rm -f /app/.venv/lib/python3.12/site-packages/_editable_impl_w2_football_intelligence_engine.pth && chown -R w2:w2 /app/.venv
 USER w2
 HEALTHCHECK CMD uv run alembic current || exit 1
 CMD ["uv", "run", "alembic", "upgrade", "head"]
