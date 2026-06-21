@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -11,11 +17,24 @@ class LiveNetworkDisabledError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True, kw_only=True)
+class LiveApiFootballResponse:
+    endpoint: str
+    params: dict[str, str]
+    status_code: int
+    elapsed_ms: int
+    payload: dict[str, Any]
+    headers: dict[str, str]
+    captured_at: datetime
+
+
 @dataclass(frozen=True)
 class ApiFootballClient:
     api_key_env_name: str = "W2_API_FOOTBALL_API_KEY"
     allow_live: bool = False
     provider: str = "api_football"
+    base_url: str = "https://v3.football.api-sports.io"
+    auth_header_name: str = "x-apisports-key"
 
     def fetch(self, request: ProviderRequest) -> ProviderResponse:
         if request.endpoint not in API_FOOTBALL_ENDPOINTS:
@@ -41,6 +60,58 @@ class ApiFootballClient:
             payload=payload,
             captured_at=datetime.now(UTC),
         )
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        if endpoint not in (*API_FOOTBALL_ENDPOINTS, "status"):
+            raise ValueError(f"unsupported API-Football endpoint: {endpoint}")
+        if not self.allow_live:
+            raise LiveNetworkDisabledError(
+                "network is disabled unless --live is explicitly approved"
+            )
+        api_key = os.environ.get(self.api_key_env_name)
+        if not api_key:
+            raise LiveNetworkDisabledError("provider credential is not visible to the process")
+        query = urllib.parse.urlencode(params)
+        suffix = f"?{query}" if query else ""
+        request = urllib.request.Request(  # noqa: S310
+            f"{self.base_url}/{endpoint}{suffix}",
+            headers={self.auth_header_name: api_key},
+        )
+        started = time.monotonic()
+        captured_at = datetime.now(UTC)
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
+                raw = response.read()
+                status_code = response.status
+                headers = self._sanitize_headers(response.headers)
+        except urllib.error.HTTPError as exc:
+            raw = exc.read()
+            status_code = exc.code
+            headers = self._sanitize_headers(exc.headers)
+        payload = json.loads(raw.decode("utf-8")) if raw else {}
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=status_code,
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            payload=payload,
+            headers=headers,
+            captured_at=captured_at,
+        )
+
+    def _sanitize_headers(self, headers: Any) -> dict[str, str]:
+        blocked = {
+            "authorization",
+            self.auth_header_name.lower(),
+            "x-rapidapi-key",
+            "set-cookie",
+            "cookie",
+        }
+        return {
+            str(key): str(value)
+            for key, value in dict(headers).items()
+            if str(key).lower() not in blocked
+        }
 
 
 @dataclass(frozen=True)

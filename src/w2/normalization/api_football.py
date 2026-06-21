@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -37,6 +37,24 @@ def normalize_market(raw_market: str) -> MarketType:
         raise ValueError(f"unsupported market label {raw_market}") from exc
 
 
+def split_provider_selection(
+    market: MarketType,
+    raw_selection: object,
+    explicit_line: object | None,
+) -> tuple[str, Decimal | None]:
+    selection = str(raw_selection)
+    line = Decimal(str(explicit_line)) if explicit_line is not None else None
+    if market in {MarketType.ASIAN_HANDICAP, MarketType.TOTALS}:
+        parts = selection.rsplit(" ", maxsplit=1)
+        if len(parts) == 2:
+            try:
+                line = Decimal(parts[1])
+                selection = parts[0]
+            except ArithmeticError:
+                pass
+    return selection, line
+
+
 @dataclass(frozen=True)
 class NormalizedReplay:
     provider_mappings: list[ProviderEntityMapping]
@@ -68,7 +86,7 @@ class ApiFootballNormalizer:
             features.append(
                 FeatureSnapshot(
                     fixture_id=fixture_id,
-                    as_of_time=kickoff_at,
+                    as_of_time=kickoff_at - timedelta(microseconds=1),
                     features={"offline_fixture_seen": Decimal("1")},
                 )
             )
@@ -116,17 +134,27 @@ class ApiFootballNormalizer:
                     )
                 )
                 for bet in bookmaker.get("bets", []):
-                    market = normalize_market(bet["name"])
+                    try:
+                        market = normalize_market(bet["name"])
+                    except ValueError:
+                        continue
                     for value in bet.get("values", []):
-                        line = value.get("line")
+                        selection, line = split_provider_selection(
+                            market,
+                            value["value"],
+                            value.get("line"),
+                        )
+                        decimal_odds = Decimal(str(value["odd"]))
+                        if decimal_odds <= Decimal("1"):
+                            continue
                         odds.append(
                             OddsObservation(
                                 fixture_id=fixture_id,
                                 bookmaker_id=bookmaker_id,
                                 market=market,
-                                selection=value["value"],
-                                line=Decimal(str(line)) if line is not None else None,
-                                decimal_odds=Decimal(str(value["odd"])),
+                                selection=selection,
+                                line=line,
+                                decimal_odds=decimal_odds,
                                 suspended=bool(value.get("suspended", False)),
                                 live=bool(item.get("live", False)),
                                 stale=bool(item.get("stale", False)),

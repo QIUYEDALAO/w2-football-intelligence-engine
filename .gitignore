@@ -17,5 +17,5 @@ apps/web/dist/
 *.log
 logs/
 tmp/
+runtime/live_smoke/
 .DS_Store
-

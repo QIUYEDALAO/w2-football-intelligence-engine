@@ -1,0 +1,48 @@
+[
+  {
+    "captured_at_utc": "2026-06-21T18:22:48.585158+00:00",
+    "elapsed_ms": 715,
+    "endpoint": "status",
+    "fixture_id": "",
+    "http_status": 200,
+    "params": {},
+    "provider_error": null,
+    "provider_error_code": null,
+    "provider_error_message": null,
+    "remaining_quota": "6757",
+    "request_type": "auth_probe",
+    "sha256": "7372a28d3a181ab2026c5a50ad66fd2b407d840aec69286703b05d0e14445b47"
+  },
+  {
+    "captured_at_utc": "2026-06-21T18:22:49.311725+00:00",
+    "elapsed_ms": 794,
+    "endpoint": "fixtures",
+    "fixture_id": "1489395",
+    "http_status": 200,
+    "params": {
+      "id": "1489395"
+    },
+    "provider_error": null,
+    "provider_error_code": null,
+    "provider_error_message": null,
+    "remaining_quota": "6752",
+    "request_type": "data",
+    "sha256": "9fe2162d8ce2d40dd121ba31f14c279f175c1e583bd379b97dd82560809f08be"
+  },
+  {
+    "captured_at_utc": "2026-06-21T18:22:50.108506+00:00",
+    "elapsed_ms": 1260,
+    "endpoint": "odds",
+    "fixture_id": "1489395",
+    "http_status": 200,
+    "params": {
+      "fixture": "1489395"
+    },
+    "provider_error": null,
+    "provider_error_code": null,
+    "provider_error_message": null,
+    "remaining_quota": "6751",
+    "request_type": "data",
+    "sha256": "e614a3d4f117f53181a69d32530067225d42e5ecefa53f5a1dd0cb95d26e128d"
+  }
+]

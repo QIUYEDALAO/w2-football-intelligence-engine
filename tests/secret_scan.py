@@ -43,10 +43,23 @@ ALLOWLIST = (
     "real_world_tokens",
     "adapter token",
     "W2_API_FOOTBALL_API_KEY",
+    "x-apisports-key",
+    "x-rapidapi-key",
+    "api_key",
+    "API_KEY_NOT_PRESENT",
+    "printing secrets",
     "SECRETS_AND_ENVIRONMENTS",
     "Secrets and Environments",
 )
-SKIP_PARTS = {".git", ".venv", "node_modules", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+SKIP_PARTS = {
+    ".git",
+    ".venv",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "runtime",
+}
 SKIP_SUFFIXES = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".db"}
 
 

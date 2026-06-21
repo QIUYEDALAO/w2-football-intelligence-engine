@@ -37,6 +37,7 @@ class IngestionService:
     _odds_keys: set[tuple[str, str, str, str, str | None, datetime, datetime]] = field(
         default_factory=set
     )
+    _mapping_keys: set[tuple[str, str, str, str]] = field(default_factory=set)
 
     def replay_api_football_payload(
         self,
@@ -58,6 +59,18 @@ class IngestionService:
             else self.normalizer.normalize_fixture_payload(payload)
         )
         deduped_odds: list[OddsObservation] = []
+        deduped_mappings: list[ProviderEntityMapping] = []
+        for mapping in normalized.provider_mappings:
+            mapping_key = (
+                mapping.entity_type,
+                mapping.provider,
+                mapping.external_id,
+                mapping.valid_from.isoformat(),
+            )
+            if mapping_key in self._mapping_keys:
+                continue
+            self._mapping_keys.add(mapping_key)
+            deduped_mappings.append(mapping)
         for item in normalized.odds_observations:
             key = (
                 str(item.fixture_id),
@@ -110,7 +123,7 @@ class IngestionService:
         ]
         return IngestionReplayResult(
             raw=raw,
-            provider_mappings=normalized.provider_mappings,
+            provider_mappings=deduped_mappings,
             odds_observations=deduped_odds,
             feature_snapshots=normalized.feature_snapshots,
             provenance=provenance,
