@@ -1,0 +1,33 @@
+{
+  "version": "observability.v1",
+  "environment_scope": ["local", "staging"],
+  "production_deployment": false,
+  "external_notifications": false,
+  "metrics": [
+    "api_request_count",
+    "api_latency_ms",
+    "api_error_count",
+    "provider_success_rate",
+    "provider_latency_ms",
+    "remaining_api_quota",
+    "queue_length",
+    "worker_task_duration_ms",
+    "worker_task_failures",
+    "scheduler_task_duration_ms",
+    "scheduler_task_failures",
+    "data_freshness",
+    "upcoming_odds_coverage",
+    "t24_lock_success_rate",
+    "t1_lock_success_rate",
+    "result_sync_lag",
+    "fixture_mapping_conflict",
+    "duplicate_odds_observation",
+    "forward_holdout_current_sample",
+    "forward_holdout_target_sample",
+    "model_probability_drift",
+    "calibration_drift",
+    "gate_state",
+    "backup_freshness"
+  ],
+  "slo_thresholds": "CALIBRATION_REQUIRED"
+}

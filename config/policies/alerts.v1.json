@@ -1,0 +1,20 @@
+{
+  "version": "alerts.v1",
+  "external_notifications": false,
+  "states": ["INFO", "WARNING", "CRITICAL", "RESOLVED"],
+  "rules": [
+    "upcoming_fixture_without_odds",
+    "stale_data",
+    "bookmaker_count_drop",
+    "provider_failure",
+    "low_quota",
+    "scheduler_heartbeat_missing",
+    "mapping_conflict",
+    "closing_snapshot_missing",
+    "result_sync_delay",
+    "frozen_manifest_hash_mismatch",
+    "backup_stale"
+  ],
+  "thresholds": "CALIBRATION_REQUIRED",
+  "audit_retention": "LOCAL_STAGING_ONLY"
+}

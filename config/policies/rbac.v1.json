@@ -1,0 +1,17 @@
+{
+  "version": "rbac.v1",
+  "real_user_management": false,
+  "roles": {
+    "VIEWER": ["read:public"],
+    "OPERATOR": ["read:public", "read:operations"],
+    "ADMIN": ["read:public", "read:operations", "read:audit"]
+  },
+  "production_operations_enabled": false,
+  "config_env_allowlist": [
+    "W2_ENVIRONMENT",
+    "W2_DATABASE_URL",
+    "W2_REDIS_URL",
+    "W2_FORWARD_HOLDOUT_AUTORUN",
+    "W2_FORWARD_HOLDOUT_NETWORK"
+  ]
+}

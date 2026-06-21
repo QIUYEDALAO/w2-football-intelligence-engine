@@ -1,0 +1,145 @@
+{
+  "alerts": {
+    "active": [
+      {
+        "alert_key": "backup_stale",
+        "created_at": "2026-06-21 21:55:14.424903+00:00",
+        "payload": {
+          "threshold": "CALIBRATION_REQUIRED"
+        },
+        "reason": "local drill calibration required",
+        "resolved_at": "2026-06-21 21:55:14.424660+00:00",
+        "severity": "RESOLVED"
+      }
+    ],
+    "audit": [
+      {
+        "alert_key": "backup_stale",
+        "event": "alert_raised"
+      },
+      {
+        "alert_key": "backup_stale",
+        "event": "alert_idempotent"
+      },
+      {
+        "alert_key": "backup_stale",
+        "event": "alert_resolved"
+      }
+    ],
+    "rules": [
+      "upcoming_fixture_without_odds",
+      "stale_data",
+      "bookmaker_count_drop",
+      "provider_failure",
+      "low_quota",
+      "scheduler_heartbeat_missing",
+      "mapping_conflict",
+      "closing_snapshot_missing",
+      "result_sync_delay",
+      "frozen_manifest_hash_mismatch",
+      "backup_stale"
+    ]
+  },
+  "drift": {
+    "auto_gate_change": false,
+    "auto_model_replacement": false,
+    "auto_tuning": false,
+    "diagnostics": [
+      {
+        "action": "DIAGNOSE_ONLY",
+        "name": "prediction_distribution_drift",
+        "read_only": true,
+        "status": "WATCH",
+        "value": 0.0
+      },
+      {
+        "action": "DIAGNOSE_ONLY",
+        "name": "probability_calibration_drift",
+        "read_only": true,
+        "status": "WATCH",
+        "value": 0.0
+      },
+      {
+        "action": "DIAGNOSE_ONLY",
+        "name": "feature_missingness_drift",
+        "read_only": true,
+        "status": "WATCH",
+        "value": 0.0
+      },
+      {
+        "action": "DIAGNOSE_ONLY",
+        "name": "bookmaker_coverage_drift",
+        "read_only": true,
+        "status": "WATCH",
+        "value": 0.0
+      },
+      {
+        "action": "DIAGNOSE_ONLY",
+        "name": "market_independent_divergence_drift",
+        "read_only": true,
+        "status": "WATCH",
+        "value": 0.0
+      }
+    ]
+  },
+  "external_alerting": false,
+  "metrics_text": "# TYPE w2_api_errors_total counter\nw2_api_errors_total 0.0\n# TYPE w2_api_requests_total counter\nw2_api_requests_total 0.0\n# TYPE w2_duplicate_odds_observations_total counter\nw2_duplicate_odds_observations_total 0.0\n# TYPE w2_mapping_conflicts_total counter\nw2_mapping_conflicts_total 0.0\n# TYPE w2_provider_failures_total counter\nw2_provider_failures_total 0.0\n# TYPE w2_provider_requests_total counter\nw2_provider_requests_total 0.0\n# TYPE w2_worker_task_failures_total counter\nw2_worker_task_failures_total 0.0\n# TYPE w2_backup_freshness_seconds gauge\nw2_backup_freshness_seconds 0\n# TYPE w2_calibration_drift gauge\nw2_calibration_drift 0\n# TYPE w2_forward_holdout_current_sample gauge\nw2_forward_holdout_current_sample 0\n# TYPE w2_forward_holdout_target_sample gauge\nw2_forward_holdout_target_sample 50\n# TYPE w2_gate4_state gauge\nw2_gate4_state 0\n# TYPE w2_model_probability_drift gauge\nw2_model_probability_drift 0\n# TYPE w2_provider_remaining_quota gauge\nw2_provider_remaining_quota 6323\n# TYPE w2_queue_length gauge\nw2_queue_length 0\n# TYPE w2_result_sync_lag_seconds gauge\nw2_result_sync_lag_seconds 0\n# TYPE w2_stale_data_count gauge\nw2_stale_data_count 0\n# TYPE w2_t1_lock_success_ratio gauge\nw2_t1_lock_success_ratio 0\n# TYPE w2_t24_lock_success_ratio gauge\nw2_t24_lock_success_ratio 0\n# TYPE w2_upcoming_odds_coverage gauge\nw2_upcoming_odds_coverage 0\n# TYPE w2_api_latency_ms summary\nw2_api_latency_ms_count 1\nw2_api_latency_ms_sum 0\n# TYPE w2_provider_latency_ms summary\nw2_provider_latency_ms_count 1\nw2_provider_latency_ms_sum 0\n# TYPE w2_worker_task_duration_ms summary\nw2_worker_task_duration_ms_count 1\nw2_worker_task_duration_ms_sum 0\n",
+  "slo": {
+    "metrics": {
+      "api_availability": 1.0,
+      "backup_freshness": 1.0
+    },
+    "overall_status": "CALIBRATION_REQUIRED",
+    "production_thresholds_declared": false,
+    "targets": [
+      {
+        "name": "api_availability",
+        "objective": "API responds to read requests",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "ingestion_success",
+        "objective": "Provider cycle completes",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "odds_freshness",
+        "objective": "Pre-match odds are recent",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "fixture_mapping_integrity",
+        "objective": "Fixture mappings remain unique",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "lock_success",
+        "objective": "T-24h/T-1h locks complete before kickoff",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "result_sync_completeness",
+        "objective": "Results append after match",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "scheduler_heartbeat",
+        "objective": "Scheduler emits heartbeat",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      },
+      {
+        "name": "backup_freshness",
+        "objective": "Local backup drill is current",
+        "status": "CALIBRATION_REQUIRED",
+        "threshold": "CALIBRATION_REQUIRED"
+      }
+    ]
+  }
+}

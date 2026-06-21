@@ -1,0 +1,13 @@
+.git
+.venv
+.local
+node_modules
+apps/web/node_modules
+apps/web/dist
+runtime
+data/raw
+data/processed
+.env
+.env.*
+__pycache__
+*.pyc
