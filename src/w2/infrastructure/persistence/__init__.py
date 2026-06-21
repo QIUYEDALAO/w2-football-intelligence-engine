@@ -15,6 +15,12 @@ from w2.infrastructure.persistence.ingestion_models import (
     QuotaUsageModel,
     SyncCursorModel,
 )
+from w2.infrastructure.persistence.market_models import (
+    MarketBaselineRunModel,
+    MarketConsensusModel,
+    MarketFitDiagnosticModel,
+    MarketQualityAssessmentModel,
+)
 from w2.infrastructure.persistence.models import (
     AuditEventModel,
     BookmakerModel,
@@ -64,6 +70,10 @@ __all__ = [
     "LineupModel",
     "LabelReferenceModel",
     "MarketModel",
+    "MarketBaselineRunModel",
+    "MarketConsensusModel",
+    "MarketFitDiagnosticModel",
+    "MarketQualityAssessmentModel",
     "ModelRunModel",
     "OddsObservationModel",
     "PlayerModel",

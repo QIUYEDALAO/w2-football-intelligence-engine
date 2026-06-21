@@ -1,0 +1,31 @@
+{
+  "ah_functional_validation": {
+    "matrix_pricing_available": true,
+    "quarter_settlement_available": true,
+    "source": "Stage4B real snapshot"
+  },
+  "bookmaker_count": 14,
+  "consensus_effective_bookmakers": 14,
+  "consensus_status": "READY",
+  "historical_ah_status": "FORWARD_ONLY",
+  "movement_features": {
+    "captured_at_status": "WARN_ONLY",
+    "cross_market_consistency": "WARN_ONLY",
+    "lineup_before_after_hook": true,
+    "non_captured_at_guard": [
+      "MOVEMENT_DISABLED_FOR_NON_CAPTURED_AT"
+    ],
+    "threshold_status": "CALIBRATION_REQUIRED"
+  },
+  "quality": {
+    "bookmaker_coverage": "READY",
+    "conflict": "LOW",
+    "dispersion": "LOW",
+    "freshness": "FRESH",
+    "liquidity": "HIGH",
+    "status": "READY"
+  },
+  "recommendation_output": false,
+  "single_bookmaker_formal_consensus": false,
+  "stage4b_fixture_id": "1489395"
+}

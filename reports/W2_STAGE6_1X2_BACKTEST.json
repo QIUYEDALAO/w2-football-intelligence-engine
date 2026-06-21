@@ -1,0 +1,1671 @@
+{
+  "backtest_scope": "aggregate_closing_like_market_baseline_only",
+  "dataset": "Stage5B national Football-Data 1X2",
+  "method_selection_policy": "train_validation_only_test_final_report",
+  "methods": {
+    "LOGARITHMIC": {
+      "all": {
+        "brier": 0.459723,
+        "ece": 0.032464,
+        "log_loss": 0.788312,
+        "reliability_bins": [
+          {
+            "accuracy": 0.294118,
+            "bin": 3.0,
+            "confidence": 0.370755,
+            "count": 119.0,
+            "weight": 0.11080074487895716
+          },
+          {
+            "accuracy": 0.460396,
+            "bin": 4.0,
+            "confidence": 0.449309,
+            "count": 202.0,
+            "weight": 0.18808193668528864
+          },
+          {
+            "accuracy": 0.540107,
+            "bin": 5.0,
+            "confidence": 0.550044,
+            "count": 187.0,
+            "weight": 0.17411545623836128
+          },
+          {
+            "accuracy": 0.644444,
+            "bin": 6.0,
+            "confidence": 0.649698,
+            "count": 180.0,
+            "weight": 0.16759776536312848
+          },
+          {
+            "accuracy": 0.805882,
+            "bin": 7.0,
+            "confidence": 0.747086,
+            "count": 170.0,
+            "weight": 0.15828677839851024
+          },
+          {
+            "accuracy": 0.884058,
+            "bin": 8.0,
+            "confidence": 0.848238,
+            "count": 138.0,
+            "weight": 0.12849162011173185
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.926099,
+            "count": 78.0,
+            "weight": 0.07262569832402235
+          }
+        ],
+        "rps": 0.148864,
+        "sample_count": 1074,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 882,
+            "log_loss": 0.75372
+          },
+          "favorite_strength:balanced": {
+            "count": 226,
+            "log_loss": 1.089709
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 282,
+            "log_loss": 1.002963
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 566,
+            "log_loss": 0.561021
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.776125
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774244
+          },
+          "year:2025": {
+            "count": 486,
+            "log_loss": 0.733056
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.878092
+          }
+        }
+      },
+      "test": {
+        "brier": 0.482686,
+        "ece": 0.048811,
+        "log_loss": 0.817674,
+        "reliability_bins": [
+          {
+            "accuracy": 0.310345,
+            "bin": 3.0,
+            "confidence": 0.373646,
+            "count": 29.0,
+            "weight": 0.13488372093023257
+          },
+          {
+            "accuracy": 0.421053,
+            "bin": 4.0,
+            "confidence": 0.449672,
+            "count": 38.0,
+            "weight": 0.17674418604651163
+          },
+          {
+            "accuracy": 0.433333,
+            "bin": 5.0,
+            "confidence": 0.548736,
+            "count": 30.0,
+            "weight": 0.13953488372093023
+          },
+          {
+            "accuracy": 0.571429,
+            "bin": 6.0,
+            "confidence": 0.647442,
+            "count": 28.0,
+            "weight": 0.13023255813953488
+          },
+          {
+            "accuracy": 0.75,
+            "bin": 7.0,
+            "confidence": 0.74211,
+            "count": 36.0,
+            "weight": 0.16744186046511628
+          },
+          {
+            "accuracy": 0.833333,
+            "bin": 8.0,
+            "confidence": 0.842217,
+            "count": 36.0,
+            "weight": 0.16744186046511628
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.923516,
+            "count": 18.0,
+            "weight": 0.08372093023255814
+          }
+        ],
+        "rps": 0.156002,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.817674
+          },
+          "favorite_strength:balanced": {
+            "count": 49,
+            "log_loss": 1.107462
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 48,
+            "log_loss": 1.045269
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 118,
+            "log_loss": 0.604758
+          },
+          "year:2025": {
+            "count": 199,
+            "log_loss": 0.812817
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.878092
+          }
+        }
+      },
+      "train": {
+        "brier": 0.475213,
+        "ece": 0.032514,
+        "log_loss": 0.812956,
+        "reliability_bins": [
+          {
+            "accuracy": 0.294118,
+            "bin": 3.0,
+            "confidence": 0.370107,
+            "count": 68.0,
+            "weight": 0.10559006211180125
+          },
+          {
+            "accuracy": 0.475806,
+            "bin": 4.0,
+            "confidence": 0.452452,
+            "count": 124.0,
+            "weight": 0.19254658385093168
+          },
+          {
+            "accuracy": 0.547619,
+            "bin": 5.0,
+            "confidence": 0.550281,
+            "count": 126.0,
+            "weight": 0.1956521739130435
+          },
+          {
+            "accuracy": 0.625,
+            "bin": 6.0,
+            "confidence": 0.647843,
+            "count": 112.0,
+            "weight": 0.17391304347826086
+          },
+          {
+            "accuracy": 0.80198,
+            "bin": 7.0,
+            "confidence": 0.748841,
+            "count": 101.0,
+            "weight": 0.15683229813664595
+          },
+          {
+            "accuracy": 0.871429,
+            "bin": 8.0,
+            "confidence": 0.851319,
+            "count": 70.0,
+            "weight": 0.10869565217391304
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.925418,
+            "count": 43.0,
+            "weight": 0.06677018633540373
+          }
+        ],
+        "rps": 0.15506,
+        "sample_count": 644,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 452,
+            "log_loss": 0.755923
+          },
+          "favorite_strength:balanced": {
+            "count": 128,
+            "log_loss": 1.08528
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 190,
+            "log_loss": 1.000615
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 326,
+            "log_loss": 0.596659
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.776125
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774244
+          },
+          "year:2025": {
+            "count": 72,
+            "log_loss": 0.655704
+          }
+        }
+      },
+      "validation": {
+        "brier": 0.390361,
+        "ece": 0.0819,
+        "log_loss": 0.685135,
+        "reliability_bins": [
+          {
+            "accuracy": 0.272727,
+            "bin": 3.0,
+            "confidence": 0.368948,
+            "count": 22.0,
+            "weight": 0.10232558139534884
+          },
+          {
+            "accuracy": 0.45,
+            "bin": 4.0,
+            "confidence": 0.439221,
+            "count": 40.0,
+            "weight": 0.18604651162790697
+          },
+          {
+            "accuracy": 0.612903,
+            "bin": 5.0,
+            "confidence": 0.550344,
+            "count": 31.0,
+            "weight": 0.14418604651162792
+          },
+          {
+            "accuracy": 0.75,
+            "bin": 6.0,
+            "confidence": 0.656473,
+            "count": 40.0,
+            "weight": 0.18604651162790697
+          },
+          {
+            "accuracy": 0.878788,
+            "bin": 7.0,
+            "confidence": 0.747142,
+            "count": 33.0,
+            "weight": 0.15348837209302327
+          },
+          {
+            "accuracy": 0.96875,
+            "bin": 8.0,
+            "confidence": 0.848273,
+            "count": 32.0,
+            "weight": 0.14883720930232558
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.930555,
+            "count": 17.0,
+            "weight": 0.07906976744186046
+          }
+        ],
+        "rps": 0.123166,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.685135
+          },
+          "favorite_strength:balanced": {
+            "count": 49,
+            "log_loss": 1.083523
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 44,
+            "log_loss": 0.966951
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 122,
+            "log_loss": 0.423488
+          },
+          "year:2025": {
+            "count": 215,
+            "log_loss": 0.685135
+          }
+        }
+      }
+    },
+    "POWER": {
+      "all": {
+        "brier": 0.458613,
+        "ece": 0.028723,
+        "log_loss": 0.78187,
+        "reliability_bins": [
+          {
+            "accuracy": 0.273585,
+            "bin": 3.0,
+            "confidence": 0.369679,
+            "count": 106.0,
+            "weight": 0.09869646182495345
+          },
+          {
+            "accuracy": 0.452632,
+            "bin": 4.0,
+            "confidence": 0.447576,
+            "count": 190.0,
+            "weight": 0.17690875232774675
+          },
+          {
+            "accuracy": 0.517241,
+            "bin": 5.0,
+            "confidence": 0.548914,
+            "count": 174.0,
+            "weight": 0.16201117318435754
+          },
+          {
+            "accuracy": 0.608434,
+            "bin": 6.0,
+            "confidence": 0.646358,
+            "count": 166.0,
+            "weight": 0.15456238361266295
+          },
+          {
+            "accuracy": 0.7625,
+            "bin": 7.0,
+            "confidence": 0.746349,
+            "count": 160.0,
+            "weight": 0.148975791433892
+          },
+          {
+            "accuracy": 0.879433,
+            "bin": 8.0,
+            "confidence": 0.847405,
+            "count": 141.0,
+            "weight": 0.13128491620111732
+          },
+          {
+            "accuracy": 0.948905,
+            "bin": 9.0,
+            "confidence": 0.954708,
+            "count": 137.0,
+            "weight": 0.12756052141527002
+          }
+        ],
+        "rps": 0.148276,
+        "sample_count": 1074,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.898311
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941742
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 1.004881
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 882,
+            "log_loss": 0.745638
+          },
+          "favorite_strength:balanced": {
+            "count": 209,
+            "log_loss": 1.091711
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 261,
+            "log_loss": 1.019962
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 604,
+            "log_loss": 0.571774
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.898311
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941742
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 1.004881
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.770801
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.767769
+          },
+          "year:2025": {
+            "count": 486,
+            "log_loss": 0.723359
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.871195
+          }
+        }
+      },
+      "test": {
+        "brier": 0.484818,
+        "ece": 0.059862,
+        "log_loss": 0.817356,
+        "reliability_bins": [
+          {
+            "accuracy": 0.307692,
+            "bin": 3.0,
+            "confidence": 0.373682,
+            "count": 26.0,
+            "weight": 0.12093023255813953
+          },
+          {
+            "accuracy": 0.405405,
+            "bin": 4.0,
+            "confidence": 0.449213,
+            "count": 37.0,
+            "weight": 0.17209302325581396
+          },
+          {
+            "accuracy": 0.37931,
+            "bin": 5.0,
+            "confidence": 0.548997,
+            "count": 29.0,
+            "weight": 0.13488372093023257
+          },
+          {
+            "accuracy": 0.583333,
+            "bin": 6.0,
+            "confidence": 0.645073,
+            "count": 24.0,
+            "weight": 0.11162790697674418
+          },
+          {
+            "accuracy": 0.685714,
+            "bin": 7.0,
+            "confidence": 0.746084,
+            "count": 35.0,
+            "weight": 0.16279069767441862
+          },
+          {
+            "accuracy": 0.861111,
+            "bin": 8.0,
+            "confidence": 0.853272,
+            "count": 36.0,
+            "weight": 0.16744186046511628
+          },
+          {
+            "accuracy": 0.928571,
+            "bin": 9.0,
+            "confidence": 0.954849,
+            "count": 28.0,
+            "weight": 0.13023255813953488
+          }
+        ],
+        "rps": 0.156605,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.817356
+          },
+          "favorite_strength:balanced": {
+            "count": 45,
+            "log_loss": 1.097925
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 47,
+            "log_loss": 1.104411
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 123,
+            "log_loss": 0.605021
+          },
+          "year:2025": {
+            "count": 199,
+            "log_loss": 0.813028
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.871195
+          }
+        }
+      },
+      "train": {
+        "brier": 0.474702,
+        "ece": 0.030846,
+        "log_loss": 0.808078,
+        "reliability_bins": [
+          {
+            "accuracy": 0.269841,
+            "bin": 3.0,
+            "confidence": 0.370032,
+            "count": 63.0,
+            "weight": 0.09782608695652174
+          },
+          {
+            "accuracy": 0.472727,
+            "bin": 4.0,
+            "confidence": 0.450035,
+            "count": 110.0,
+            "weight": 0.17080745341614906
+          },
+          {
+            "accuracy": 0.525,
+            "bin": 5.0,
+            "confidence": 0.54868,
+            "count": 120.0,
+            "weight": 0.18633540372670807
+          },
+          {
+            "accuracy": 0.605505,
+            "bin": 6.0,
+            "confidence": 0.645353,
+            "count": 109.0,
+            "weight": 0.16925465838509315
+          },
+          {
+            "accuracy": 0.747126,
+            "bin": 7.0,
+            "confidence": 0.746866,
+            "count": 87.0,
+            "weight": 0.13509316770186336
+          },
+          {
+            "accuracy": 0.871795,
+            "bin": 8.0,
+            "confidence": 0.843475,
+            "count": 78.0,
+            "weight": 0.12111801242236025
+          },
+          {
+            "accuracy": 0.935065,
+            "bin": 9.0,
+            "confidence": 0.956364,
+            "count": 77.0,
+            "weight": 0.11956521739130435
+          }
+        ],
+        "rps": 0.154708,
+        "sample_count": 644,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.898311
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941742
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 1.004881
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 452,
+            "log_loss": 0.74851
+          },
+          "favorite_strength:balanced": {
+            "count": 118,
+            "log_loss": 1.089087
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 175,
+            "log_loss": 1.01699
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 351,
+            "log_loss": 0.609449
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.898311
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941742
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 1.004881
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.770801
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.767769
+          },
+          "year:2025": {
+            "count": 72,
+            "log_loss": 0.64118
+          }
+        }
+      },
+      "validation": {
+        "brier": 0.384218,
+        "ece": 0.061606,
+        "log_loss": 0.667884,
+        "reliability_bins": [
+          {
+            "accuracy": 0.235294,
+            "bin": 3.0,
+            "confidence": 0.362253,
+            "count": 17.0,
+            "weight": 0.07906976744186046
+          },
+          {
+            "accuracy": 0.44186,
+            "bin": 4.0,
+            "confidence": 0.439878,
+            "count": 43.0,
+            "weight": 0.2
+          },
+          {
+            "accuracy": 0.64,
+            "bin": 5.0,
+            "confidence": 0.549938,
+            "count": 25.0,
+            "weight": 0.11627906976744186
+          },
+          {
+            "accuracy": 0.636364,
+            "bin": 6.0,
+            "confidence": 0.650613,
+            "count": 33.0,
+            "weight": 0.15348837209302327
+          },
+          {
+            "accuracy": 0.868421,
+            "bin": 7.0,
+            "confidence": 0.74541,
+            "count": 38.0,
+            "weight": 0.17674418604651163
+          },
+          {
+            "accuracy": 0.925926,
+            "bin": 8.0,
+            "confidence": 0.850937,
+            "count": 27.0,
+            "weight": 0.12558139534883722
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.950601,
+            "count": 32.0,
+            "weight": 0.14883720930232558
+          }
+        ],
+        "rps": 0.120677,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.667884
+          },
+          "favorite_strength:balanced": {
+            "count": 46,
+            "log_loss": 1.092362
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 39,
+            "log_loss": 0.931524
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 130,
+            "log_loss": 0.438592
+          },
+          "year:2025": {
+            "count": 215,
+            "log_loss": 0.667884
+          }
+        }
+      }
+    },
+    "PROPORTIONAL": {
+      "all": {
+        "brier": 0.459723,
+        "ece": 0.032464,
+        "log_loss": 0.788312,
+        "reliability_bins": [
+          {
+            "accuracy": 0.294118,
+            "bin": 3.0,
+            "confidence": 0.370755,
+            "count": 119.0,
+            "weight": 0.11080074487895716
+          },
+          {
+            "accuracy": 0.460396,
+            "bin": 4.0,
+            "confidence": 0.449309,
+            "count": 202.0,
+            "weight": 0.18808193668528864
+          },
+          {
+            "accuracy": 0.540107,
+            "bin": 5.0,
+            "confidence": 0.550044,
+            "count": 187.0,
+            "weight": 0.17411545623836128
+          },
+          {
+            "accuracy": 0.644444,
+            "bin": 6.0,
+            "confidence": 0.649698,
+            "count": 180.0,
+            "weight": 0.16759776536312848
+          },
+          {
+            "accuracy": 0.805882,
+            "bin": 7.0,
+            "confidence": 0.747086,
+            "count": 170.0,
+            "weight": 0.15828677839851024
+          },
+          {
+            "accuracy": 0.884058,
+            "bin": 8.0,
+            "confidence": 0.848238,
+            "count": 138.0,
+            "weight": 0.12849162011173185
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.926099,
+            "count": 78.0,
+            "weight": 0.07262569832402235
+          }
+        ],
+        "rps": 0.148864,
+        "sample_count": 1074,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 882,
+            "log_loss": 0.75372
+          },
+          "favorite_strength:balanced": {
+            "count": 226,
+            "log_loss": 1.089709
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 282,
+            "log_loss": 1.002963
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 566,
+            "log_loss": 0.561021
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.776125
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774244
+          },
+          "year:2025": {
+            "count": 486,
+            "log_loss": 0.733056
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.878092
+          }
+        }
+      },
+      "test": {
+        "brier": 0.482686,
+        "ece": 0.048811,
+        "log_loss": 0.817674,
+        "reliability_bins": [
+          {
+            "accuracy": 0.310345,
+            "bin": 3.0,
+            "confidence": 0.373646,
+            "count": 29.0,
+            "weight": 0.13488372093023257
+          },
+          {
+            "accuracy": 0.421053,
+            "bin": 4.0,
+            "confidence": 0.449672,
+            "count": 38.0,
+            "weight": 0.17674418604651163
+          },
+          {
+            "accuracy": 0.433333,
+            "bin": 5.0,
+            "confidence": 0.548736,
+            "count": 30.0,
+            "weight": 0.13953488372093023
+          },
+          {
+            "accuracy": 0.571429,
+            "bin": 6.0,
+            "confidence": 0.647442,
+            "count": 28.0,
+            "weight": 0.13023255813953488
+          },
+          {
+            "accuracy": 0.75,
+            "bin": 7.0,
+            "confidence": 0.74211,
+            "count": 36.0,
+            "weight": 0.16744186046511628
+          },
+          {
+            "accuracy": 0.833333,
+            "bin": 8.0,
+            "confidence": 0.842217,
+            "count": 36.0,
+            "weight": 0.16744186046511628
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.923516,
+            "count": 18.0,
+            "weight": 0.08372093023255814
+          }
+        ],
+        "rps": 0.156002,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.817674
+          },
+          "favorite_strength:balanced": {
+            "count": 49,
+            "log_loss": 1.107462
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 48,
+            "log_loss": 1.045269
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 118,
+            "log_loss": 0.604758
+          },
+          "year:2025": {
+            "count": 199,
+            "log_loss": 0.812817
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.878092
+          }
+        }
+      },
+      "train": {
+        "brier": 0.475213,
+        "ece": 0.032514,
+        "log_loss": 0.812956,
+        "reliability_bins": [
+          {
+            "accuracy": 0.294118,
+            "bin": 3.0,
+            "confidence": 0.370107,
+            "count": 68.0,
+            "weight": 0.10559006211180125
+          },
+          {
+            "accuracy": 0.475806,
+            "bin": 4.0,
+            "confidence": 0.452452,
+            "count": 124.0,
+            "weight": 0.19254658385093168
+          },
+          {
+            "accuracy": 0.547619,
+            "bin": 5.0,
+            "confidence": 0.550281,
+            "count": 126.0,
+            "weight": 0.1956521739130435
+          },
+          {
+            "accuracy": 0.625,
+            "bin": 6.0,
+            "confidence": 0.647843,
+            "count": 112.0,
+            "weight": 0.17391304347826086
+          },
+          {
+            "accuracy": 0.80198,
+            "bin": 7.0,
+            "confidence": 0.748841,
+            "count": 101.0,
+            "weight": 0.15683229813664595
+          },
+          {
+            "accuracy": 0.871429,
+            "bin": 8.0,
+            "confidence": 0.851319,
+            "count": 70.0,
+            "weight": 0.10869565217391304
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.925418,
+            "count": 43.0,
+            "weight": 0.06677018633540373
+          }
+        ],
+        "rps": 0.15506,
+        "sample_count": 644,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 452,
+            "log_loss": 0.755923
+          },
+          "favorite_strength:balanced": {
+            "count": 128,
+            "log_loss": 1.08528
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 190,
+            "log_loss": 1.000615
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 326,
+            "log_loss": 0.596659
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.901588
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941649
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.998424
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.776125
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774244
+          },
+          "year:2025": {
+            "count": 72,
+            "log_loss": 0.655704
+          }
+        }
+      },
+      "validation": {
+        "brier": 0.390361,
+        "ece": 0.0819,
+        "log_loss": 0.685135,
+        "reliability_bins": [
+          {
+            "accuracy": 0.272727,
+            "bin": 3.0,
+            "confidence": 0.368948,
+            "count": 22.0,
+            "weight": 0.10232558139534884
+          },
+          {
+            "accuracy": 0.45,
+            "bin": 4.0,
+            "confidence": 0.439221,
+            "count": 40.0,
+            "weight": 0.18604651162790697
+          },
+          {
+            "accuracy": 0.612903,
+            "bin": 5.0,
+            "confidence": 0.550344,
+            "count": 31.0,
+            "weight": 0.14418604651162792
+          },
+          {
+            "accuracy": 0.75,
+            "bin": 6.0,
+            "confidence": 0.656473,
+            "count": 40.0,
+            "weight": 0.18604651162790697
+          },
+          {
+            "accuracy": 0.878788,
+            "bin": 7.0,
+            "confidence": 0.747142,
+            "count": 33.0,
+            "weight": 0.15348837209302327
+          },
+          {
+            "accuracy": 0.96875,
+            "bin": 8.0,
+            "confidence": 0.848273,
+            "count": 32.0,
+            "weight": 0.14883720930232558
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.930555,
+            "count": 17.0,
+            "weight": 0.07906976744186046
+          }
+        ],
+        "rps": 0.123166,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.685135
+          },
+          "favorite_strength:balanced": {
+            "count": 49,
+            "log_loss": 1.083523
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 44,
+            "log_loss": 0.966951
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 122,
+            "log_loss": 0.423488
+          },
+          "year:2025": {
+            "count": 215,
+            "log_loss": 0.685135
+          }
+        }
+      }
+    },
+    "SHIN": {
+      "all": {
+        "brier": 0.459571,
+        "ece": 0.030752,
+        "log_loss": 0.787771,
+        "reliability_bins": [
+          {
+            "accuracy": 0.293103,
+            "bin": 3.0,
+            "confidence": 0.370491,
+            "count": 116.0,
+            "weight": 0.10800744878957169
+          },
+          {
+            "accuracy": 0.455446,
+            "bin": 4.0,
+            "confidence": 0.449481,
+            "count": 202.0,
+            "weight": 0.18808193668528864
+          },
+          {
+            "accuracy": 0.538043,
+            "bin": 5.0,
+            "confidence": 0.550767,
+            "count": 184.0,
+            "weight": 0.1713221601489758
+          },
+          {
+            "accuracy": 0.642045,
+            "bin": 6.0,
+            "confidence": 0.649261,
+            "count": 176.0,
+            "weight": 0.16387337057728119
+          },
+          {
+            "accuracy": 0.790698,
+            "bin": 7.0,
+            "confidence": 0.746446,
+            "count": 172.0,
+            "weight": 0.1601489757914339
+          },
+          {
+            "accuracy": 0.888112,
+            "bin": 8.0,
+            "confidence": 0.848178,
+            "count": 143.0,
+            "weight": 0.13314711359404097
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.927003,
+            "count": 81.0,
+            "weight": 0.07541899441340782
+          }
+        ],
+        "rps": 0.148778,
+        "sample_count": 1074,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.90108
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941566
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.99888
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 882,
+            "log_loss": 0.753071
+          },
+          "favorite_strength:balanced": {
+            "count": 224,
+            "log_loss": 1.092444
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 278,
+            "log_loss": 1.002028
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 572,
+            "log_loss": 0.564327
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.90108
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941566
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.99888
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.775723
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774002
+          },
+          "year:2025": {
+            "count": 486,
+            "log_loss": 0.73212
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.877809
+          }
+        }
+      },
+      "test": {
+        "brier": 0.483005,
+        "ece": 0.048728,
+        "log_loss": 0.817856,
+        "reliability_bins": [
+          {
+            "accuracy": 0.321429,
+            "bin": 3.0,
+            "confidence": 0.373318,
+            "count": 28.0,
+            "weight": 0.13023255813953488
+          },
+          {
+            "accuracy": 0.410256,
+            "bin": 4.0,
+            "confidence": 0.450141,
+            "count": 39.0,
+            "weight": 0.1813953488372093
+          },
+          {
+            "accuracy": 0.413793,
+            "bin": 5.0,
+            "confidence": 0.550039,
+            "count": 29.0,
+            "weight": 0.13488372093023257
+          },
+          {
+            "accuracy": 0.586207,
+            "bin": 6.0,
+            "confidence": 0.650199,
+            "count": 29.0,
+            "weight": 0.13488372093023257
+          },
+          {
+            "accuracy": 0.742857,
+            "bin": 7.0,
+            "confidence": 0.744765,
+            "count": 35.0,
+            "weight": 0.16279069767441862
+          },
+          {
+            "accuracy": 0.837838,
+            "bin": 8.0,
+            "confidence": 0.844615,
+            "count": 37.0,
+            "weight": 0.17209302325581396
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.925353,
+            "count": 18.0,
+            "weight": 0.08372093023255814
+          }
+        ],
+        "rps": 0.156086,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.817856
+          },
+          "favorite_strength:balanced": {
+            "count": 49,
+            "log_loss": 1.10776
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 47,
+            "log_loss": 1.057169
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 119,
+            "log_loss": 0.603964
+          },
+          "year:2025": {
+            "count": 199,
+            "log_loss": 0.813035
+          },
+          "year:2026": {
+            "count": 16,
+            "log_loss": 0.877809
+          }
+        }
+      },
+      "train": {
+        "brier": 0.475127,
+        "ece": 0.030266,
+        "log_loss": 0.812561,
+        "reliability_bins": [
+          {
+            "accuracy": 0.294118,
+            "bin": 3.0,
+            "confidence": 0.370544,
+            "count": 68.0,
+            "weight": 0.10559006211180125
+          },
+          {
+            "accuracy": 0.471074,
+            "bin": 4.0,
+            "confidence": 0.452907,
+            "count": 121.0,
+            "weight": 0.18788819875776397
+          },
+          {
+            "accuracy": 0.552,
+            "bin": 5.0,
+            "confidence": 0.550607,
+            "count": 125.0,
+            "weight": 0.19409937888198758
+          },
+          {
+            "accuracy": 0.616822,
+            "bin": 6.0,
+            "confidence": 0.645686,
+            "count": 107.0,
+            "weight": 0.16614906832298137
+          },
+          {
+            "accuracy": 0.780952,
+            "bin": 7.0,
+            "confidence": 0.746789,
+            "count": 105.0,
+            "weight": 0.16304347826086957
+          },
+          {
+            "accuracy": 0.878378,
+            "bin": 8.0,
+            "confidence": 0.85098,
+            "count": 74.0,
+            "weight": 0.11490683229813664
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.926838,
+            "count": 44.0,
+            "weight": 0.06832298136645963
+          }
+        ],
+        "rps": 0.155001,
+        "sample_count": 644,
+        "strata": {
+          "competition:World Cup 2014": {
+            "count": 64,
+            "log_loss": 0.90108
+          },
+          "competition:World Cup 2018": {
+            "count": 64,
+            "log_loss": 0.941566
+          },
+          "competition:World Cup 2022": {
+            "count": 64,
+            "log_loss": 0.99888
+          },
+          "competition:WorldCup2026Qualifiers": {
+            "count": 452,
+            "log_loss": 0.75538
+          },
+          "favorite_strength:balanced": {
+            "count": 127,
+            "log_loss": 1.087631
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 187,
+            "log_loss": 0.995045
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 330,
+            "log_loss": 0.603293
+          },
+          "year:2014": {
+            "count": 64,
+            "log_loss": 0.90108
+          },
+          "year:2018": {
+            "count": 64,
+            "log_loss": 0.941566
+          },
+          "year:2022": {
+            "count": 64,
+            "log_loss": 0.99888
+          },
+          "year:2023": {
+            "count": 135,
+            "log_loss": 0.775723
+          },
+          "year:2024": {
+            "count": 245,
+            "log_loss": 0.774002
+          },
+          "year:2025": {
+            "count": 72,
+            "log_loss": 0.653867
+          }
+        }
+      },
+      "validation": {
+        "brier": 0.389542,
+        "ece": 0.080809,
+        "log_loss": 0.683432,
+        "reliability_bins": [
+          {
+            "accuracy": 0.25,
+            "bin": 3.0,
+            "confidence": 0.366355,
+            "count": 20.0,
+            "weight": 0.09302325581395349
+          },
+          {
+            "accuracy": 0.452381,
+            "bin": 4.0,
+            "confidence": 0.438997,
+            "count": 42.0,
+            "weight": 0.19534883720930232
+          },
+          {
+            "accuracy": 0.6,
+            "bin": 5.0,
+            "confidence": 0.552139,
+            "count": 30.0,
+            "weight": 0.13953488372093023
+          },
+          {
+            "accuracy": 0.75,
+            "bin": 6.0,
+            "confidence": 0.658146,
+            "count": 40.0,
+            "weight": 0.18604651162790697
+          },
+          {
+            "accuracy": 0.875,
+            "bin": 7.0,
+            "confidence": 0.747162,
+            "count": 32.0,
+            "weight": 0.14883720930232558
+          },
+          {
+            "accuracy": 0.96875,
+            "bin": 8.0,
+            "confidence": 0.845818,
+            "count": 32.0,
+            "weight": 0.14883720930232558
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 9.0,
+            "confidence": 0.928948,
+            "count": 19.0,
+            "weight": 0.08837209302325581
+          }
+        ],
+        "rps": 0.122829,
+        "sample_count": 215,
+        "strata": {
+          "competition:WorldCup2026Qualifiers": {
+            "count": 215,
+            "log_loss": 0.683432
+          },
+          "favorite_strength:balanced": {
+            "count": 48,
+            "log_loss": 1.089545
+          },
+          "favorite_strength:moderate_favorite": {
+            "count": 44,
+            "log_loss": 0.972805
+          },
+          "favorite_strength:strong_favorite": {
+            "count": 123,
+            "log_loss": 0.421433
+          },
+          "year:2025": {
+            "count": 215,
+            "log_loss": 0.683432
+          }
+        }
+      }
+    }
+  },
+  "sample_count": 1074,
+  "selected_method": "POWER",
+  "snapshot_semantics": "UNKNOWN_PREMATCH_AGGREGATE",
+  "split_policy": "chronological_plus_walk_forward",
+  "test_final": {
+    "brier": 0.484818,
+    "ece": 0.059862,
+    "log_loss": 0.817356,
+    "reliability_bins": [
+      {
+        "accuracy": 0.307692,
+        "bin": 3.0,
+        "confidence": 0.373682,
+        "count": 26.0,
+        "weight": 0.12093023255813953
+      },
+      {
+        "accuracy": 0.405405,
+        "bin": 4.0,
+        "confidence": 0.449213,
+        "count": 37.0,
+        "weight": 0.17209302325581396
+      },
+      {
+        "accuracy": 0.37931,
+        "bin": 5.0,
+        "confidence": 0.548997,
+        "count": 29.0,
+        "weight": 0.13488372093023257
+      },
+      {
+        "accuracy": 0.583333,
+        "bin": 6.0,
+        "confidence": 0.645073,
+        "count": 24.0,
+        "weight": 0.11162790697674418
+      },
+      {
+        "accuracy": 0.685714,
+        "bin": 7.0,
+        "confidence": 0.746084,
+        "count": 35.0,
+        "weight": 0.16279069767441862
+      },
+      {
+        "accuracy": 0.861111,
+        "bin": 8.0,
+        "confidence": 0.853272,
+        "count": 36.0,
+        "weight": 0.16744186046511628
+      },
+      {
+        "accuracy": 0.928571,
+        "bin": 9.0,
+        "confidence": 0.954849,
+        "count": 28.0,
+        "weight": 0.13023255813953488
+      }
+    ],
+    "rps": 0.156605,
+    "sample_count": 215,
+    "strata": {
+      "competition:WorldCup2026Qualifiers": {
+        "count": 215,
+        "log_loss": 0.817356
+      },
+      "favorite_strength:balanced": {
+        "count": 45,
+        "log_loss": 1.097925
+      },
+      "favorite_strength:moderate_favorite": {
+        "count": 47,
+        "log_loss": 1.104411
+      },
+      "favorite_strength:strong_favorite": {
+        "count": 123,
+        "log_loss": 0.605021
+      },
+      "year:2025": {
+        "count": 199,
+        "log_loss": 0.813028
+      },
+      "year:2026": {
+        "count": 16,
+        "log_loss": 0.871195
+      }
+    }
+  }
+}
