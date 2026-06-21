@@ -1,0 +1,102 @@
+{
+  "ai_allowed_decisions": [
+    "RECOMMEND",
+    "WATCH",
+    "SKIP"
+  ],
+  "calibration_required_thresholds": [
+    "minimum_edge",
+    "minimum_hit_rate",
+    "minimum_clv",
+    "minimum_recommendation_odds",
+    "minimum_bookmaker_count",
+    "model_promotion_delta"
+  ],
+  "current_project_gate": "GATE_0_LEGACY",
+  "data_statuses": [
+    "READY",
+    "PARTIAL",
+    "STALE",
+    "BLOCKED"
+  ],
+  "decision_statuses": [
+    "NOT_READY",
+    "SKIP",
+    "WATCH",
+    "CANDIDATE",
+    "RECOMMEND"
+  ],
+  "default_evaluated_no_candidate_status": "SKIP",
+  "default_pre_evaluation_status": "NOT_READY",
+  "display_grades": [
+    "A",
+    "B",
+    "C",
+    "NA"
+  ],
+  "execution_modes": [
+    "CONTRACT_EXAMPLE",
+    "RESEARCH",
+    "SHADOW",
+    "PRODUCTION"
+  ],
+  "explanatory_only_markets": [
+    "EXACT_SCORE"
+  ],
+  "gate_status": "PROVISIONAL",
+  "hard_invariants": [
+    "PREMATCH_LEAKAGE_COUNT_ZERO",
+    "LOCKED_CARD_PROVENANCE_COMPLETE",
+    "SAME_INPUT_VERSION_SAME_CARD_HASH",
+    "RAW_API_PAYLOAD_IMMUTABLE",
+    "FAILED_RECOMMENDATIONS_NOT_DELETED",
+    "POSTMATCH_CANNOT_MODIFY_PREMATCH_PROBABILITIES",
+    "NO_FORCED_DAILY_RECOMMENDATIONS",
+    "RECOMMEND_REQUIRES_COUNTER_ARGUMENT",
+    "RECOMMEND_REQUIRES_INVALIDATION_CONDITIONS"
+  ],
+  "lifecycle_statuses": [
+    "DRAFT",
+    "ACTIVE",
+    "LOCKED",
+    "SUPERSEDED",
+    "VOID",
+    "SETTLED"
+  ],
+  "maximum_primary_recommendations": 1,
+  "maximum_reference_scores": 2,
+  "maximum_watched_candidates": 1,
+  "prediction_phases": [
+    "T_72H",
+    "T_48H",
+    "T_24H",
+    "T_12H",
+    "T_6H",
+    "T_3H",
+    "T_1H",
+    "T_30M",
+    "T_10M",
+    "CLOSING"
+  ],
+  "product_version": "W2_PRODUCT_POLICY_V1",
+  "production_publish_enabled": false,
+  "real_recommendation_enabled": false,
+  "research_markets_phase_2": [
+    "BTTS"
+  ],
+  "supported_markets_phase_1": [
+    "ONE_X_TWO",
+    "ASIAN_HANDICAP",
+    "TOTALS"
+  ],
+  "unsupported_markets": [
+    "PLAYER_PROPS",
+    "CORNERS",
+    "CARDS",
+    "HALF_FULL_TIME",
+    "PARLAY",
+    "LIVE",
+    "ADVANCEMENT_MIXED_WITH_90_MIN",
+    "SPECIAL_NO_SETTLEMENT_RULE"
+  ]
+}

@@ -1,0 +1,4 @@
+gate: GATE_0_LEGACY
+real_recommendation_enabled: false
+production_publish_enabled: false
+

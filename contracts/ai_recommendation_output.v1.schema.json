@@ -1,0 +1,41 @@
+{
+  "$id": "ai_recommendation_output.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "decision": {
+      "enum": [
+        "RECOMMEND",
+        "WATCH",
+        "SKIP"
+      ]
+    },
+    "schema_version": {
+      "const": "W2_AI_RECOMMENDATION_OUTPUT_V1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request_id",
+    "fixture_id",
+    "decision",
+    "selected_candidate_id",
+    "confidence_score",
+    "risk_level",
+    "market_relation",
+    "headline_cn",
+    "executive_summary_cn",
+    "match_read_cn",
+    "market_read_cn",
+    "supporting_reasons",
+    "counter_arguments",
+    "rejected_alternatives",
+    "main_reference_score_id",
+    "alternative_reference_score_id",
+    "invalidation_condition_ids",
+    "data_limitation_ids",
+    "watch_reason_cn",
+    "skip_reason_cn"
+  ],
+  "title": "W2 AI Recommendation Output",
+  "type": "object"
+}

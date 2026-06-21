@@ -1,0 +1,76 @@
+{
+  "$id": "ai_recommendation_input.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "analysis_context": {
+      "type": "object"
+    },
+    "data_limitation_catalog": {
+      "type": "array"
+    },
+    "data_quality": {
+      "type": "object"
+    },
+    "evidence_catalog": {
+      "type": "array"
+    },
+    "execution_mode": {
+      "enum": [
+        "CONTRACT_EXAMPLE",
+        "RESEARCH",
+        "SHADOW",
+        "PRODUCTION"
+      ]
+    },
+    "fixture": {
+      "type": "object"
+    },
+    "hard_rules": {
+      "type": "object"
+    },
+    "invalidation_catalog": {
+      "type": "array"
+    },
+    "legal_candidates": {
+      "type": "array"
+    },
+    "market_snapshot": {
+      "type": "object"
+    },
+    "model_snapshot": {
+      "type": "object"
+    },
+    "project_gate": {
+      "type": "object"
+    },
+    "reference_score_catalog": {
+      "maxItems": 2,
+      "type": "array"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "W2_AI_RECOMMENDATION_INPUT_V1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request_id",
+    "execution_mode",
+    "project_gate",
+    "fixture",
+    "analysis_context",
+    "data_quality",
+    "market_snapshot",
+    "model_snapshot",
+    "legal_candidates",
+    "evidence_catalog",
+    "invalidation_catalog",
+    "reference_score_catalog",
+    "data_limitation_catalog",
+    "hard_rules"
+  ],
+  "title": "W2 AI Recommendation Input",
+  "type": "object"
+}

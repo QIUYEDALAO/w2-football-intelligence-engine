@@ -1,0 +1,64 @@
+{
+  "calibration_required_thresholds": [
+    "minimum_edge",
+    "minimum_hit_rate",
+    "minimum_clv",
+    "minimum_recommendation_odds",
+    "minimum_bookmaker_count",
+    "model_promotion_delta"
+  ],
+  "hard_invariants": [
+    "PREMATCH_LEAKAGE_COUNT_ZERO",
+    "LOCKED_CARD_PROVENANCE_COMPLETE",
+    "SAME_INPUT_VERSION_SAME_CARD_HASH",
+    "RAW_API_PAYLOAD_IMMUTABLE",
+    "FAILED_RECOMMENDATIONS_NOT_DELETED",
+    "POSTMATCH_CANNOT_MODIFY_PREMATCH_PROBABILITIES",
+    "NO_FORCED_DAILY_RECOMMENDATIONS",
+    "RECOMMEND_REQUIRES_COUNTER_ARGUMENT",
+    "RECOMMEND_REQUIRES_INVALIDATION_CONDITIONS"
+  ],
+  "model_layer": [
+    "Log Loss",
+    "Ranked Probability Score",
+    "Brier Score",
+    "Expected Calibration Error",
+    "Reliability Curve",
+    "Exact Score Log Score",
+    "Incremental Log Loss vs Market",
+    "Incremental RPS vs Market",
+    "Calibration by Competition",
+    "Calibration by Market",
+    "Calibration by Prediction Phase"
+  ],
+  "schema_version": "W2_METRIC_CATALOG_V1",
+  "strategy_layer": [
+    "Candidate Coverage",
+    "Recommendation Coverage",
+    "Skip Rate",
+    "Watch-to-Recommend Conversion",
+    "Closing Line Value",
+    "Stability by Competition",
+    "Stability by Market",
+    "Stability by Odds Band",
+    "Stability by Prediction Phase",
+    "Maximum Consecutive Misses",
+    "Drawdown under Fixed Unit Evaluation",
+    "Post-Recommendation Market Direction",
+    "Threshold Sensitivity"
+  ],
+  "system_layer": [
+    "Provider Request Success Rate",
+    "Data Ingestion Success Rate",
+    "Data Freshness",
+    "Task Failure Rate",
+    "API Quota Utilization",
+    "Prediction Latency",
+    "Recommendation Lock Success Rate",
+    "Result Sync Completeness",
+    "Fixture Mapping Conflict Rate",
+    "Duplicate Odds Observation Rate",
+    "Closing Snapshot Coverage",
+    "Reproducibility Pass Rate"
+  ]
+}

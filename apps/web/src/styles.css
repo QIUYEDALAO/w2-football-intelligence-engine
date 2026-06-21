@@ -1,0 +1,87 @@
+:root {
+  color: #16211c;
+  background: #eef2ee;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  align-items: center;
+  padding: 32px;
+}
+
+.status-panel {
+  width: min(880px, 100%);
+  border-left: 6px solid #20694f;
+  padding: 28px 32px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgb(30 48 42 / 12%);
+}
+
+.kicker {
+  margin: 0 0 8px;
+  color: #20694f;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.1;
+}
+
+.notice {
+  margin: 16px 0 24px;
+  color: #9a4d12;
+  font-weight: 700;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+.health-grid div {
+  border: 1px solid #d6ded8;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+dt {
+  color: #5b6862;
+  font-size: 13px;
+}
+
+dd {
+  margin: 6px 0 0;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .shell {
+    padding: 20px;
+  }
+
+  .status-panel {
+    padding: 22px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+}
+

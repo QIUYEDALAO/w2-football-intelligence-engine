@@ -1,0 +1,4 @@
+environment: local
+external_api_calls_enabled: false
+real_recommendation_enabled: false
+

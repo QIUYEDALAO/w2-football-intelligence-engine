@@ -1,0 +1,57 @@
+{
+  "alternative_reference_score_id": "score-alt-1",
+  "confidence_score": 0.48,
+  "counter_arguments": [
+    {
+      "argument_id": "cnt-1",
+      "evidence_refs": [
+        "ev-market-1"
+      ],
+      "text_cn": "若比赛节奏下降，主方向优势会收窄。"
+    }
+  ],
+  "data_limitation_ids": [
+    "lim-contract"
+  ],
+  "decision": "WATCH",
+  "executive_summary_cn": "这是虚构比赛的合同示例，用于验证卡片结构。",
+  "fixture_id": "syn-fixture-001",
+  "headline_cn": "合同示例：继续观察，不形成正式推荐",
+  "invalidation_condition_ids": [
+    "inv-price-1",
+    "inv-data-1"
+  ],
+  "main_reference_score_id": "score-main-1",
+  "market_read_cn": "当前市场态度偏谨慎，候选需要价格和数据同时满足。",
+  "market_relation": "PARTIAL_AGREE",
+  "match_read_cn": "AI 认为主队更可能掌握节奏，但仍需要系统证据约束。",
+  "rejected_alternatives": [
+    {
+      "candidate_id": "cand-1x2-home",
+      "reason_cn": "胜平负暴露更直接，风险不如让球候选可控。"
+    }
+  ],
+  "request_id": "syn-request-watch-001",
+  "risk_level": "MEDIUM",
+  "schema_version": "W2_AI_RECOMMENDATION_OUTPUT_V1",
+  "selected_candidate_id": "cand-total-under-25",
+  "skip_reason_cn": "",
+  "supporting_reasons": [
+    {
+      "evidence_refs": [
+        "ev-market-1",
+        "ev-model-1"
+      ],
+      "reason_id": "sup-1",
+      "text_cn": "系统候选与市场基准方向一致。"
+    },
+    {
+      "evidence_refs": [
+        "ev-lineup-1"
+      ],
+      "reason_id": "sup-2",
+      "text_cn": "数据状态足以支撑合同示例中的审阅。"
+    }
+  ],
+  "watch_reason_cn": "等待首发和盘口新鲜度确认，尚未形成正式推荐。"
+}

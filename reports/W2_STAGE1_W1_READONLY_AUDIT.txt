@@ -1,0 +1,85 @@
+# W2 Stage 1 W1 Readonly Audit
+
+## Before
+
+branch: w1-scout-reframe-review-c5a4d09
+head: aabf01723332bc3a77634c3964c57107df182346
+
+git status --short:
+```text
+M README.md
+?? W1_LEGACY_STATUS.md
+?? data/results/world_cup_2026_results.json
+?? docs/W1_LEGACY_CHANGE_POLICY.md
+?? docs/W1_LEGACY_FREEZE_REPORT.md
+?? reports/P0_BASELINE_SUMMARY.md
+?? reports/W1_SCOUT_MEMORY_AND_TELEMETRY_TASKS.md
+?? reports/W1_SCOUT_REFRAME_TASKS.md
+?? reports/legacy_baseline/
+?? reports/legacy_classification/
+?? reports/legacy_decisions/
+?? scripts/audit_w1_odds_collection_continuity.py
+?? scripts/build_w1_legacy_decision_register.py
+?? scripts/check_w1_legacy_baseline.py
+?? scripts/check_w1_legacy_classification.py
+?? scripts/check_w1_legacy_decisions.py
+?? scripts/check_w1_legacy_freeze.py
+?? scripts/classify_w1_legacy_files.py
+```
+
+Protected hashes:
+```text
+dec0b95253af712436962f194d4e605bf78673e5f6af059f035fb21077ff3ce8  scripts/w1_score_engine.py
+0b065cf499017da1f85f0f468f5afb9c3652da0ada3b430e0a3c3bf74bca819d  scripts/w1_odds_snapshot_collector.py
+34a50b5d5781dbdd9b880207909a115ad0725d83ecb310ba9468502a2e111c26  scripts/w1_local_predict_server.py
+5e3aef9d40bd948d36141250e26941c05ce19a5b5df94e22e2ca74c032b84020  scripts/build_w1_dashboard_data.py
+547b64b68ae09c8697445e75aeb7e3e52561515a80a6dc4d23e6ca7042bec909  config/w1_decision_policy.json
+f40628ee619fc436dd634319b6fe858f8e0d52e1ab5b613a02a7e2736b272bb3  config/w1_scout_policy.json
+cb24d525f90f40ca9c75059adfaae0a3b099263bf354337eef1fa8f6668c3b5b  config/w1_rho_provenance.json
+```
+
+W1 current uncommitted/untracked files pre-existed this task. This task does not modify W1, does not run W1 collector, recommendation, or Dashboard build.
+
+## After
+
+branch: w1-scout-reframe-review-c5a4d09
+head: aabf01723332bc3a77634c3964c57107df182346
+
+git status --short:
+```text
+M README.md
+?? W1_LEGACY_STATUS.md
+?? data/results/world_cup_2026_results.json
+?? docs/W1_LEGACY_CHANGE_POLICY.md
+?? docs/W1_LEGACY_FREEZE_REPORT.md
+?? reports/P0_BASELINE_SUMMARY.md
+?? reports/W1_SCOUT_MEMORY_AND_TELEMETRY_TASKS.md
+?? reports/W1_SCOUT_REFRAME_TASKS.md
+?? reports/legacy_baseline/
+?? reports/legacy_classification/
+?? reports/legacy_decisions/
+?? scripts/audit_w1_odds_collection_continuity.py
+?? scripts/build_w1_legacy_decision_register.py
+?? scripts/check_w1_legacy_baseline.py
+?? scripts/check_w1_legacy_classification.py
+?? scripts/check_w1_legacy_decisions.py
+?? scripts/check_w1_legacy_freeze.py
+?? scripts/classify_w1_legacy_files.py
+```
+
+Protected hashes:
+```text
+dec0b95253af712436962f194d4e605bf78673e5f6af059f035fb21077ff3ce8  scripts/w1_score_engine.py
+0b065cf499017da1f85f0f468f5afb9c3652da0ada3b430e0a3c3bf74bca819d  scripts/w1_odds_snapshot_collector.py
+34a50b5d5781dbdd9b880207909a115ad0725d83ecb310ba9468502a2e111c26  scripts/w1_local_predict_server.py
+5e3aef9d40bd948d36141250e26941c05ce19a5b5df94e22e2ca74c032b84020  scripts/build_w1_dashboard_data.py
+547b64b68ae09c8697445e75aeb7e3e52561515a80a6dc4d23e6ca7042bec909  config/w1_decision_policy.json
+f40628ee619fc436dd634319b6fe858f8e0d52e1ab5b613a02a7e2736b272bb3  config/w1_scout_policy.json
+cb24d525f90f40ca9c75059adfaae0a3b099263bf354337eef1fa8f6668c3b5b  config/w1_rho_provenance.json
+```
+
+Result: W1 HEAD unchanged=False; protected hashes changed=[]. This task did not modify W1, did not run W1 collector, did not run W1 recommendation, and did not run W1 Dashboard build.
+
+## W1 HEAD Drift Warning
+
+During final readonly verification, W1 HEAD was observed at `aabf01723332bc3a77634c3964c57107df182346` instead of the task-start value `ce2bac25e6e467ca3c2303b69e2f54d6cbe6058c`. The visible latest commit is `aabf017 scout memory: cycle 2026-06-21T16:03:13Z`. This task did not run git write commands in W1 and did not modify W1 protected files; all protected hashes remained unchanged.

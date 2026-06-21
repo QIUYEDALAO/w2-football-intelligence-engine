@@ -1,0 +1,199 @@
+{
+  "ai_analysis": {
+    "confidence_score": 0.72,
+    "executive_summary_cn": "这是虚构比赛的合同示例，用于验证卡片结构。",
+    "headline_cn": "合同示例：AI 倾向主队让球方向",
+    "market_read_cn": "当前市场态度偏谨慎，候选需要价格和数据同时满足。",
+    "market_relation": "PARTIAL_AGREE",
+    "match_read_cn": "AI 认为主队更可能掌握节奏，但仍需要系统证据约束。",
+    "model": "contract-placeholder-no-api-call",
+    "provider": "DeepSeek",
+    "risk_level": "MEDIUM"
+  },
+  "analysis_context": {
+    "analysis_phase": "T_1H",
+    "as_of_time_utc": "2099-05-18T18:00:00Z",
+    "data_cutoff_utc": "2099-05-18T17:58:00Z",
+    "display_timezone": "Asia/Shanghai",
+    "generated_at_utc": "2099-05-18T18:01:00Z",
+    "locale": "zh-CN"
+  },
+  "card_id": "syn-card-recommend-001",
+  "counter_arguments": [
+    {
+      "argument_id": "cnt-1",
+      "evidence_refs": [
+        "ev-market-1"
+      ],
+      "text_cn": "若比赛节奏下降，主方向优势会收窄。"
+    }
+  ],
+  "data_limitations": [
+    {
+      "display_text_cn": "本示例为合同样例，不代表真实比赛。",
+      "limitation_id": "lim-contract"
+    }
+  ],
+  "data_quality": {
+    "blocking_reason_ids": [],
+    "effective_bookmaker_count": 8,
+    "lineup_status": "CONFIRMED",
+    "model_status": "READY",
+    "odds_freshness_seconds": 120,
+    "quality_score": 0.91,
+    "status": "READY",
+    "warning_ids": []
+  },
+  "display_grade": "A",
+  "expected_goals": {
+    "away": 1.03,
+    "home": 1.44
+  },
+  "fixture": {
+    "away_team": {
+      "name": "Riverside City",
+      "name_cn": "河岸城",
+      "team_id": "syn-team-riverside"
+    },
+    "competition_id": "syn-league-001",
+    "competition_name": "Synthetic Premier League",
+    "competition_name_cn": "虚构超级联赛",
+    "fixture_id": "syn-fixture-001",
+    "home_team": {
+      "name": "Northbridge Athletic",
+      "name_cn": "北桥竞技",
+      "team_id": "syn-team-northbridge"
+    },
+    "kickoff_utc": "2099-05-18T19:00:00Z",
+    "neutral_site": false,
+    "not_a_real_recommendation": true,
+    "round": "Round 8",
+    "season": "2099",
+    "stage": "Regular Season",
+    "synthetic_fixture": true
+  },
+  "invalidation_conditions": [
+    {
+      "condition_id": "inv-price-1",
+      "condition_type": "PRICE",
+      "display_text_cn": "若主方向价格低于系统给定有效区间，取消正式推荐。",
+      "machine_rule": "candidate.current_decimal_odds < candidate.minimum_acceptable_odds",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025"
+      ]
+    },
+    {
+      "condition_id": "inv-data-1",
+      "condition_type": "DATA",
+      "display_text_cn": "若关键首发或盘口快照变为阻断状态，取消正式推荐。",
+      "machine_rule": "data_quality.status == BLOCKED",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025"
+      ]
+    }
+  ],
+  "lock": {
+    "card_hash": "contract-placeholder-not-implemented",
+    "hash_algorithm": "SHA-256",
+    "locked": true,
+    "locked_at_utc": "2099-05-18T18:01:00Z"
+  },
+  "market_movement": "首次采集盘口，不等于官方开盘。",
+  "match_probabilities": {
+    "away_win_probability": 0.25,
+    "draw_probability": 0.27,
+    "home_win_probability": 0.48
+  },
+  "primary_recommendation": {
+    "calibrated_probability": 0.53,
+    "candidate_id": "cand-ah-home-minus-025",
+    "candidate_risk_flags": [
+      "LOW_BLOCK_RISK"
+    ],
+    "current_decimal_odds": 1.94,
+    "edge": 0.04,
+    "effective_bookmaker_count": 8,
+    "eligibility": "ELIGIBLE",
+    "line": -0.25,
+    "market": "ASIAN_HANDICAP",
+    "market_fair_probability": 0.49,
+    "minimum_acceptable_odds": 1.88,
+    "model_fair_odds": 1.89,
+    "model_probability": 0.55,
+    "odds_captured_at_utc": "2099-05-18T17:58:00Z",
+    "odds_snapshot_id": "syn-odds-001",
+    "official": true,
+    "price_status": "ACCEPTABLE",
+    "selection": "HOME",
+    "settlement_distribution": {
+      "half_win": 0.1,
+      "loss": 0.45,
+      "push": 0.0,
+      "win": 0.45
+    }
+  },
+  "provenance": {
+    "ai_model": "contract-placeholder-no-api-call",
+    "ai_provider": "DeepSeek",
+    "calibration_version": "contract-example-calibration",
+    "contract_version": "W2_STAGE1_CONTRACT_V1",
+    "feature_snapshot_id": "syn-feature-snapshot-001",
+    "fixture_id": "syn-fixture-001",
+    "generated_at_utc": "2099-05-18T18:01:00Z",
+    "model_run_id": "syn-model-run-001",
+    "model_version": "synthetic-market-baseline-v0",
+    "odds_snapshot_id": "syn-odds-001",
+    "prompt_version": "W2_AI_PROMPT_CONTRACT_V1",
+    "request_id": "syn-request-recommend-001"
+  },
+  "reference_scenarios": [
+    {
+      "narrative_cn": "系统提供的参考剧情，不是精确比分推荐。",
+      "outcome_bucket": "HOME_WIN",
+      "probability": 0.118,
+      "role": "MAIN",
+      "score_id": "score-main-1",
+      "scoreline": "1-0",
+      "source_model_run_id": "syn-model-run-001"
+    },
+    {
+      "narrative_cn": "系统提供的参考剧情，不是精确比分推荐。",
+      "outcome_bucket": "DRAW",
+      "probability": 0.102,
+      "role": "ALTERNATIVE",
+      "score_id": "score-alt-1",
+      "scoreline": "1-1",
+      "source_model_run_id": "syn-model-run-001"
+    }
+  ],
+  "rejected_alternatives": [
+    {
+      "candidate_id": "cand-1x2-home",
+      "reason_cn": "胜平负暴露更直接，风险不如让球候选可控。"
+    }
+  ],
+  "schema_version": "W2_AI_RECOMMENDATION_CARD_V1",
+  "statuses": {
+    "data": "READY",
+    "decision": "RECOMMEND",
+    "lifecycle": "LOCKED"
+  },
+  "supporting_reasons": [
+    {
+      "evidence_refs": [
+        "ev-market-1",
+        "ev-model-1"
+      ],
+      "reason_id": "sup-1",
+      "text_cn": "系统候选与市场基准方向一致。"
+    },
+    {
+      "evidence_refs": [
+        "ev-lineup-1"
+      ],
+      "reason_id": "sup-2",
+      "text_cn": "数据状态足以支撑合同示例中的审阅。"
+    }
+  ],
+  "watched_candidate": null
+}

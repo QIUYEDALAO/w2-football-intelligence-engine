@@ -1,0 +1,39 @@
+{
+  "$id": "ai_recommendation_card.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "primary_recommendation": {},
+    "schema_version": {
+      "const": "W2_AI_RECOMMENDATION_CARD_V1"
+    },
+    "statuses": {
+      "type": "object"
+    },
+    "watched_candidate": {}
+  },
+  "required": [
+    "schema_version",
+    "card_id",
+    "fixture",
+    "analysis_context",
+    "statuses",
+    "display_grade",
+    "ai_analysis",
+    "primary_recommendation",
+    "watched_candidate",
+    "match_probabilities",
+    "expected_goals",
+    "reference_scenarios",
+    "market_movement",
+    "supporting_reasons",
+    "counter_arguments",
+    "rejected_alternatives",
+    "invalidation_conditions",
+    "data_quality",
+    "data_limitations",
+    "provenance",
+    "lock"
+  ],
+  "title": "W2 AI Recommendation Card",
+  "type": "object"
+}

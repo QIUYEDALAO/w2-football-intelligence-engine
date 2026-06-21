@@ -1,0 +1,37 @@
+{
+  "combination_rules": [
+    "DataStatus=BLOCKED cannot RECOMMEND",
+    "DataStatus=STALE cannot lock RECOMMEND",
+    "RECOMMEND+LOCKED requires READY",
+    "LOCKED and SETTLED are LifecycleStatus only"
+  ],
+  "data_statuses": [
+    "READY",
+    "PARTIAL",
+    "STALE",
+    "BLOCKED"
+  ],
+  "decision_statuses": [
+    "NOT_READY",
+    "SKIP",
+    "WATCH",
+    "CANDIDATE",
+    "RECOMMEND"
+  ],
+  "display_grade_mapping": {
+    "CANDIDATE": "B",
+    "NOT_READY": "NA",
+    "RECOMMEND": "A",
+    "SKIP": "NA",
+    "WATCH": "C"
+  },
+  "lifecycle_statuses": [
+    "DRAFT",
+    "ACTIVE",
+    "LOCKED",
+    "SUPERSEDED",
+    "VOID",
+    "SETTLED"
+  ],
+  "schema_version": "W2_STATE_MACHINE_V1"
+}

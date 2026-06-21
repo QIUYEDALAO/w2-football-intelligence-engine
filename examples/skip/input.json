@@ -1,0 +1,283 @@
+{
+  "analysis_context": {
+    "analysis_phase": "T_1H",
+    "as_of_time_utc": "2099-05-18T18:00:00Z",
+    "data_cutoff_utc": "2099-05-18T17:58:00Z",
+    "display_timezone": "Asia/Shanghai",
+    "generated_at_utc": "2099-05-18T18:01:00Z",
+    "locale": "zh-CN"
+  },
+  "data_limitation_catalog": [
+    {
+      "display_text_cn": "本示例为合同样例，不代表真实比赛。",
+      "limitation_id": "lim-contract"
+    }
+  ],
+  "data_quality": {
+    "blocking_reason_ids": [
+      "ODDS_STALE",
+      "MODEL_BLOCKED"
+    ],
+    "effective_bookmaker_count": 8,
+    "lineup_status": "CONFIRMED",
+    "model_status": "BLOCKED",
+    "odds_freshness_seconds": 120,
+    "quality_score": 0.31,
+    "status": "BLOCKED",
+    "warning_ids": []
+  },
+  "evidence_catalog": [
+    {
+      "as_of_utc": "2099-05-18T17:58:00Z",
+      "category": "market",
+      "evidence_id": "ev-market-1",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025",
+        "cand-1x2-home"
+      ],
+      "reliability": "ESTIMATED",
+      "source_refs": [
+        "syn-odds-001"
+      ],
+      "statement_cn": "盘口显示主队方向有轻微支持，但价格已经接近可接受边界。"
+    },
+    {
+      "as_of_utc": "2099-05-18T18:00:00Z",
+      "category": "model",
+      "evidence_id": "ev-model-1",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025"
+      ],
+      "reliability": "ESTIMATED",
+      "source_refs": [
+        "syn-model-run-001"
+      ],
+      "statement_cn": "市场基准模型给主队让球方向提供了有限支持。"
+    },
+    {
+      "as_of_utc": "2099-05-18T17:55:00Z",
+      "category": "lineup",
+      "evidence_id": "ev-lineup-1",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025",
+        "cand-total-under-25"
+      ],
+      "reliability": "CONFIRMED",
+      "source_refs": [
+        "syn-feature-snapshot-001"
+      ],
+      "statement_cn": "双方首发状态为合同示例中的完整状态。"
+    }
+  ],
+  "execution_mode": "CONTRACT_EXAMPLE",
+  "fixture": {
+    "away_team": {
+      "name": "Riverside City",
+      "name_cn": "河岸城",
+      "team_id": "syn-team-riverside"
+    },
+    "competition_id": "syn-league-001",
+    "competition_name": "Synthetic Premier League",
+    "competition_name_cn": "虚构超级联赛",
+    "fixture_id": "syn-fixture-001",
+    "home_team": {
+      "name": "Northbridge Athletic",
+      "name_cn": "北桥竞技",
+      "team_id": "syn-team-northbridge"
+    },
+    "kickoff_utc": "2099-05-18T19:00:00Z",
+    "neutral_site": false,
+    "not_a_real_recommendation": true,
+    "round": "Round 8",
+    "season": "2099",
+    "stage": "Regular Season",
+    "synthetic_fixture": true
+  },
+  "hard_rules": {
+    "allowed_ai_decisions": [
+      "RECOMMEND",
+      "WATCH",
+      "SKIP"
+    ],
+    "can_recommend": false,
+    "forbidden_terms": [
+      "稳赢",
+      "稳赚",
+      "必中",
+      "必胜",
+      "保证命中",
+      "百分百",
+      "无风险",
+      "梭哈",
+      "重注",
+      "满仓",
+      "内幕",
+      "庄家送分"
+    ],
+    "maximum_confidence_score": 0.85,
+    "maximum_primary_recommendations": 1,
+    "maximum_reference_scores": 2,
+    "maximum_watched_candidates": 1,
+    "production_publish_enabled": false,
+    "real_recommendation_enabled": false,
+    "require_counter_argument": true,
+    "require_invalidation_conditions": true
+  },
+  "invalidation_catalog": [
+    {
+      "condition_id": "inv-price-1",
+      "condition_type": "PRICE",
+      "display_text_cn": "若主方向价格低于系统给定有效区间，取消正式推荐。",
+      "machine_rule": "candidate.current_decimal_odds < candidate.minimum_acceptable_odds",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025"
+      ]
+    },
+    {
+      "condition_id": "inv-data-1",
+      "condition_type": "DATA",
+      "display_text_cn": "若关键首发或盘口快照变为阻断状态，取消正式推荐。",
+      "machine_rule": "data_quality.status == BLOCKED",
+      "related_candidate_ids": [
+        "cand-ah-home-minus-025"
+      ]
+    }
+  ],
+  "legal_candidates": [
+    {
+      "calibrated_probability": 0.53,
+      "candidate_id": "cand-ah-home-minus-025",
+      "candidate_risk_flags": [
+        "LOW_BLOCK_RISK"
+      ],
+      "current_decimal_odds": 1.94,
+      "edge": 0.04,
+      "eligibility": "BLOCKED",
+      "line": -0.25,
+      "market": "ASIAN_HANDICAP",
+      "market_fair_probability": 0.49,
+      "minimum_acceptable_odds": 1.88,
+      "model_fair_odds": 1.89,
+      "model_probability": 0.55,
+      "odds_snapshot_id": "syn-odds-001",
+      "price_status": "ACCEPTABLE",
+      "selection": "HOME",
+      "settlement_distribution": {
+        "half_win": 0.1,
+        "loss": 0.45,
+        "push": 0.0,
+        "win": 0.45
+      }
+    },
+    {
+      "calibrated_probability": 0.47,
+      "candidate_id": "cand-1x2-home",
+      "candidate_risk_flags": [
+        "DRAW_EXPOSURE"
+      ],
+      "current_decimal_odds": 2.14,
+      "edge": 0.02,
+      "eligibility": "BLOCKED",
+      "line": null,
+      "market": "ONE_X_TWO",
+      "market_fair_probability": 0.45,
+      "minimum_acceptable_odds": 2.05,
+      "model_fair_odds": 2.13,
+      "model_probability": 0.48,
+      "odds_snapshot_id": "syn-odds-001",
+      "price_status": "TIGHT",
+      "selection": "HOME",
+      "settlement_distribution": {
+        "loss": 0.52,
+        "win": 0.48
+      }
+    },
+    {
+      "calibrated_probability": 0.52,
+      "candidate_id": "cand-total-under-25",
+      "candidate_risk_flags": [
+        "EARLY_GOAL_RISK"
+      ],
+      "current_decimal_odds": 1.98,
+      "edge": 0.02,
+      "eligibility": "BLOCKED",
+      "line": 2.5,
+      "market": "TOTALS",
+      "market_fair_probability": 0.5,
+      "minimum_acceptable_odds": 1.91,
+      "model_fair_odds": 1.92,
+      "model_probability": 0.54,
+      "odds_snapshot_id": "syn-odds-001",
+      "price_status": "ACCEPTABLE",
+      "selection": "UNDER",
+      "settlement_distribution": {
+        "loss": 0.48,
+        "win": 0.52
+      }
+    }
+  ],
+  "market_snapshot": {
+    "asian_handicap": [
+      {
+        "away": 1.96,
+        "home": 1.94,
+        "line": -0.25
+      }
+    ],
+    "captured_at_utc": "2099-05-18T17:58:00Z",
+    "effective_bookmaker_count": 8,
+    "movement_summary": "首次采集盘口，不等于官方开盘。",
+    "odds_snapshot_id": "syn-odds-001",
+    "one_x_two": {
+      "away": 3.62,
+      "draw": 3.25,
+      "home": 2.14
+    },
+    "source_type": "FIRST_SEEN_SNAPSHOT",
+    "totals": [
+      {
+        "line": 2.5,
+        "over": 1.92,
+        "under": 1.98
+      }
+    ]
+  },
+  "model_snapshot": {
+    "away_win_probability": 0.25,
+    "calibration_version": "contract-example-calibration",
+    "draw_probability": 0.27,
+    "expected_away_goals": 1.03,
+    "expected_home_goals": 1.44,
+    "home_win_probability": 0.48,
+    "model_run_id": "syn-model-run-001",
+    "model_version": "synthetic-market-baseline-v0",
+    "model_warnings": [
+      "CONTRACT_EXAMPLE_ONLY"
+    ],
+    "uncertainty_level": "MEDIUM"
+  },
+  "project_gate": {
+    "current_project_gate": "GATE_0_LEGACY",
+    "gate_status": "PROVISIONAL",
+    "production_publish_enabled": false,
+    "real_recommendation_enabled": false
+  },
+  "reference_score_catalog": [
+    {
+      "outcome_bucket": "HOME_WIN",
+      "probability": 0.118,
+      "score_id": "score-main-1",
+      "scoreline": "1-0",
+      "source_model_run_id": "syn-model-run-001"
+    },
+    {
+      "outcome_bucket": "DRAW",
+      "probability": 0.102,
+      "score_id": "score-alt-1",
+      "scoreline": "1-1",
+      "source_model_run_id": "syn-model-run-001"
+    }
+  ],
+  "request_id": "syn-request-skip-001",
+  "schema_version": "W2_AI_RECOMMENDATION_INPUT_V1"
+}

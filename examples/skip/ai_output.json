@@ -1,0 +1,33 @@
+{
+  "alternative_reference_score_id": null,
+  "confidence_score": 0.48,
+  "counter_arguments": [
+    {
+      "argument_id": "cnt-1",
+      "evidence_refs": [
+        "ev-market-1"
+      ],
+      "text_cn": "若比赛节奏下降，主方向优势会收窄。"
+    }
+  ],
+  "data_limitation_ids": [
+    "lim-contract"
+  ],
+  "decision": "SKIP",
+  "executive_summary_cn": "这是虚构比赛的合同示例，用于验证卡片结构。",
+  "fixture_id": "syn-fixture-001",
+  "headline_cn": "合同示例：数据阻断，跳过本场",
+  "invalidation_condition_ids": [],
+  "main_reference_score_id": null,
+  "market_read_cn": "当前市场态度偏谨慎，候选需要价格和数据同时满足。",
+  "market_relation": "PARTIAL_AGREE",
+  "match_read_cn": "AI 认为主队更可能掌握节奏，但仍需要系统证据约束。",
+  "rejected_alternatives": [],
+  "request_id": "syn-request-skip-001",
+  "risk_level": "MEDIUM",
+  "schema_version": "W2_AI_RECOMMENDATION_OUTPUT_V1",
+  "selected_candidate_id": null,
+  "skip_reason_cn": "数据为 BLOCKED，硬规则不允许推荐。",
+  "supporting_reasons": [],
+  "watch_reason_cn": ""
+}
