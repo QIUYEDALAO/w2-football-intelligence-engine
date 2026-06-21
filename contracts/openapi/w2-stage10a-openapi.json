@@ -1,0 +1,1338 @@
+{
+  "components": {
+    "schemas": {
+      "BacktestLatestResponse": {
+        "properties": {
+          "gate4_national_1x2": {
+            "title": "Gate4 National 1X2",
+            "type": "string"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "status",
+          "gate4_national_1x2",
+          "metrics"
+        ],
+        "title": "BacktestLatestResponse",
+        "type": "object"
+      },
+      "DataHealthResponse": {
+        "properties": {
+          "forward_cycle_age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forward Cycle Age Seconds"
+          },
+          "gate4_progress": {
+            "additionalProperties": true,
+            "title": "Gate4 Progress",
+            "type": "object"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "provider_status": {
+            "title": "Provider Status",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "stale_data_count": {
+            "title": "Stale Data Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request_id",
+          "stale_data_count",
+          "provider_status",
+          "forward_cycle_age_seconds",
+          "gate4_progress",
+          "generated_at"
+        ],
+        "title": "DataHealthResponse",
+        "type": "object"
+      },
+      "FixtureDetailResponse": {
+        "properties": {
+          "away_team_id": {
+            "title": "Away Team Id",
+            "type": "string"
+          },
+          "bookmaker_count": {
+            "title": "Bookmaker Count",
+            "type": "integer"
+          },
+          "competition_id": {
+            "title": "Competition Id",
+            "type": "string"
+          },
+          "competition_name": {
+            "title": "Competition Name",
+            "type": "string"
+          },
+          "data_state": {
+            "title": "Data State",
+            "type": "string"
+          },
+          "fixture_id": {
+            "title": "Fixture Id",
+            "type": "string"
+          },
+          "forward_decision": {
+            "title": "Forward Decision",
+            "type": "string"
+          },
+          "home_team_id": {
+            "title": "Home Team Id",
+            "type": "string"
+          },
+          "kickoff_display": {
+            "title": "Kickoff Display",
+            "type": "string"
+          },
+          "kickoff_utc": {
+            "format": "date-time",
+            "title": "Kickoff Utc",
+            "type": "string"
+          },
+          "lifecycle_state": {
+            "title": "Lifecycle State",
+            "type": "string"
+          },
+          "market_coverage": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Market Coverage",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "risk_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Risk Notes",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "venue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue"
+          }
+        },
+        "required": [
+          "fixture_id",
+          "competition_id",
+          "competition_name",
+          "kickoff_utc",
+          "kickoff_display",
+          "status",
+          "home_team_id",
+          "away_team_id",
+          "lifecycle_state",
+          "data_state",
+          "request_id",
+          "venue",
+          "bookmaker_count",
+          "market_coverage",
+          "forward_decision",
+          "provenance",
+          "risk_notes"
+        ],
+        "title": "FixtureDetailResponse",
+        "type": "object"
+      },
+      "FixtureListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FixtureSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "meta",
+          "items"
+        ],
+        "title": "FixtureListResponse",
+        "type": "object"
+      },
+      "FixtureSummary": {
+        "properties": {
+          "away_team_id": {
+            "title": "Away Team Id",
+            "type": "string"
+          },
+          "competition_id": {
+            "title": "Competition Id",
+            "type": "string"
+          },
+          "competition_name": {
+            "title": "Competition Name",
+            "type": "string"
+          },
+          "data_state": {
+            "title": "Data State",
+            "type": "string"
+          },
+          "fixture_id": {
+            "title": "Fixture Id",
+            "type": "string"
+          },
+          "home_team_id": {
+            "title": "Home Team Id",
+            "type": "string"
+          },
+          "kickoff_display": {
+            "title": "Kickoff Display",
+            "type": "string"
+          },
+          "kickoff_utc": {
+            "format": "date-time",
+            "title": "Kickoff Utc",
+            "type": "string"
+          },
+          "lifecycle_state": {
+            "title": "Lifecycle State",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fixture_id",
+          "competition_id",
+          "competition_name",
+          "kickoff_utc",
+          "kickoff_display",
+          "status",
+          "home_team_id",
+          "away_team_id",
+          "lifecycle_state",
+          "data_state"
+        ],
+        "title": "FixtureSummary",
+        "type": "object"
+      },
+      "ForwardHoldoutStatusResponse": {
+        "properties": {
+          "current_settled_n": {
+            "title": "Current Settled N",
+            "type": "integer"
+          },
+          "locks": {
+            "title": "Locks",
+            "type": "integer"
+          },
+          "market_comparable": {
+            "title": "Market Comparable",
+            "type": "integer"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_n": {
+            "title": "Target N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request_id",
+          "status",
+          "locks",
+          "market_comparable",
+          "current_settled_n",
+          "target_n"
+        ],
+        "title": "ForwardHoldoutStatusResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthPayload": {
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "redis": {
+            "title": "Redis",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "version",
+          "environment",
+          "database",
+          "redis"
+        ],
+        "title": "HealthPayload",
+        "type": "object"
+      },
+      "OddsPoint": {
+        "properties": {
+          "bookmaker_count": {
+            "title": "Bookmaker Count",
+            "type": "integer"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "closing": {
+            "title": "Closing",
+            "type": "boolean"
+          },
+          "decimal_odds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decimal Odds"
+          },
+          "first_seen": {
+            "title": "First Seen",
+            "type": "boolean"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "selection": {
+            "title": "Selection",
+            "type": "string"
+          },
+          "snapshot_semantics": {
+            "title": "Snapshot Semantics",
+            "type": "string"
+          }
+        },
+        "required": [
+          "captured_at",
+          "snapshot_semantics",
+          "market",
+          "selection",
+          "line",
+          "decimal_odds",
+          "bookmaker_count",
+          "first_seen",
+          "closing"
+        ],
+        "title": "OddsPoint",
+        "type": "object"
+      },
+      "OddsTimelineResponse": {
+        "properties": {
+          "fixture_id": {
+            "title": "Fixture Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OddsPoint"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "fixture_id",
+          "items"
+        ],
+        "title": "OddsTimelineResponse",
+        "type": "object"
+      },
+      "OperationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "status",
+          "payload"
+        ],
+        "title": "OperationItem",
+        "type": "object"
+      },
+      "OperationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OperationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "items"
+        ],
+        "title": "OperationListResponse",
+        "type": "object"
+      },
+      "PageMeta": {
+        "properties": {
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "page_size",
+          "total"
+        ],
+        "title": "PageMeta",
+        "type": "object"
+      },
+      "ProbabilityResponse": {
+        "properties": {
+          "as_of_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of Time"
+          },
+          "calibrated": {
+            "default": false,
+            "title": "Calibrated",
+            "type": "boolean"
+          },
+          "fixture_id": {
+            "title": "Fixture Id",
+            "type": "string"
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Probabilities",
+            "type": "object"
+          },
+          "probability_type": {
+            "title": "Probability Type",
+            "type": "string"
+          },
+          "quality": {
+            "title": "Quality",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "fixture_id",
+          "probability_type",
+          "probabilities",
+          "source",
+          "quality"
+        ],
+        "title": "ProbabilityResponse",
+        "type": "object"
+      },
+      "ProviderStatusResponse": {
+        "properties": {
+          "credential_status": {
+            "title": "Credential Status",
+            "type": "string"
+          },
+          "last_request_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Request Status"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "remaining_quota": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Quota"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "provider",
+          "status",
+          "remaining_quota",
+          "credential_status",
+          "last_request_status"
+        ],
+        "title": "ProviderStatusResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "W2 Football Intelligence Engine",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/ops/alerts": {
+      "get": {
+        "operationId": "ops_alerts_ops_alerts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Alerts",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/forward-cycles": {
+      "get": {
+        "operationId": "ops_forward_cycles_ops_forward_cycles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Forward Cycles",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/gates": {
+      "get": {
+        "operationId": "ops_gates_ops_gates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Gates",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/health": {
+      "get": {
+        "operationId": "ops_health_ops_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ops Health Ops Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Health",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/locks": {
+      "get": {
+        "operationId": "ops_locks_ops_locks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Locks",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/mapping-conflicts": {
+      "get": {
+        "operationId": "ops_mapping_conflicts_ops_mapping_conflicts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Mapping Conflicts",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/quota": {
+      "get": {
+        "operationId": "ops_quota_ops_quota_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Quota",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/settlements": {
+      "get": {
+        "operationId": "ops_settlements_ops_settlements_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Settlements",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ops/tasks": {
+      "get": {
+        "operationId": "ops_tasks_ops_tasks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ops Tasks",
+        "tags": [
+          "operations-read"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/v1/backtests/latest": {
+      "get": {
+        "operationId": "backtests_latest_v1_backtests_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Backtests Latest",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/data-health": {
+      "get": {
+        "operationId": "data_health_v1_data_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataHealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Data Health",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/fixtures": {
+      "get": {
+        "operationId": "list_fixtures_v1_fixtures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competition_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "team_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixtureListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Fixtures",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/fixtures/{fixture_id}": {
+      "get": {
+        "operationId": "fixture_detail_v1_fixtures__fixture_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixture_id",
+            "required": true,
+            "schema": {
+              "title": "Fixture Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "title": "Timezone",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixtureDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fixture Detail",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/fixtures/{fixture_id}/market-probabilities": {
+      "get": {
+        "operationId": "market_probabilities_v1_fixtures__fixture_id__market_probabilities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixture_id",
+            "required": true,
+            "schema": {
+              "title": "Fixture Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbabilityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Market Probabilities",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/fixtures/{fixture_id}/model-probabilities": {
+      "get": {
+        "operationId": "model_probabilities_v1_fixtures__fixture_id__model_probabilities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixture_id",
+            "required": true,
+            "schema": {
+              "title": "Fixture Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbabilityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Model Probabilities",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/fixtures/{fixture_id}/odds-timeline": {
+      "get": {
+        "operationId": "odds_timeline_v1_fixtures__fixture_id__odds_timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixture_id",
+            "required": true,
+            "schema": {
+              "title": "Fixture Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OddsTimelineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Odds Timeline",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/forward-holdout/status": {
+      "get": {
+        "operationId": "forward_holdout_status_v1_forward_holdout_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForwardHoldoutStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Forward Holdout Status",
+        "tags": [
+          "public-read"
+        ]
+      }
+    },
+    "/v1/providers/status": {
+      "get": {
+        "operationId": "providers_status_v1_providers_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Providers Status",
+        "tags": [
+          "public-read"
+        ]
+      }
+    }
+  }
+}

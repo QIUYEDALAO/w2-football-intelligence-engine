@@ -1,0 +1,242 @@
+from __future__ import annotations
+
+from datetime import datetime
+from time import monotonic
+from typing import Annotated, Any
+from uuid import uuid4
+
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+
+from w2.api.cache import read_cache
+from w2.api.metrics import metrics
+from w2.api.repository import ReadModelService
+from w2.api.schemas import (
+    BacktestLatestResponse,
+    DataHealthResponse,
+    ErrorPayload,
+    FixtureDetailResponse,
+    FixtureListResponse,
+    ForwardHoldoutStatusResponse,
+    OddsTimelineResponse,
+    OperationListResponse,
+    PageMeta,
+    ProbabilityResponse,
+    ProviderStatusResponse,
+)
+from w2.config import Environment, get_settings
+
+public_router = APIRouter(prefix="/v1", tags=["public-read"])
+ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
+service = ReadModelService()
+
+
+def request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid4())
+
+
+def cached_response(
+    key: str,
+    payload: dict[str, Any],
+    response: Response,
+    if_none_match: str | None,
+) -> dict[str, Any] | Response:
+    stable_payload = {name: value for name, value in payload.items() if name != "request_id"}
+    cached = read_cache.get_or_set(key, stable_payload)
+    response.headers["ETag"] = cached.etag
+    if if_none_match == cached.etag:
+        response.status_code = 304
+        return Response(status_code=304, headers={"ETag": cached.etag})
+    return payload
+
+
+async def error_handler(request: Request, exc: Exception) -> JSONResponse:
+    rid = request_id(request)
+    if isinstance(exc, HTTPException):
+        status_code = exc.status_code
+        code = "HTTP_ERROR"
+        message = str(exc.detail)
+    elif isinstance(exc, ValidationError):
+        status_code = 422
+        code = "VALIDATION_ERROR"
+        message = "Invalid request"
+    else:
+        status_code = 500
+        code = "INTERNAL_ERROR"
+        message = "Internal error"
+    payload = ErrorPayload(request_id=rid, code=code, message=message)
+    return JSONResponse(status_code=status_code, content=payload.model_dump())
+
+
+def ensure_ops_enabled() -> None:
+    if get_settings().environment == Environment.PRODUCTION:
+        raise HTTPException(status_code=403, detail="operations API disabled in production")
+
+
+@public_router.get("/fixtures", response_model=FixtureListResponse)
+def list_fixtures(
+    request: Request,
+    response: Response,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    competition_id: str | None = None,
+    status: str | None = None,
+    team_id: str | None = None,
+    timezone: str = "UTC",
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+    if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
+) -> Any:
+    started = monotonic()
+    items, total = service.fixtures(
+        timezone=timezone,
+        page=page,
+        page_size=page_size,
+        date_from=date_from,
+        date_to=date_to,
+        competition_id=competition_id,
+        status=status,
+        team_id=team_id,
+    )
+    payload = {
+        "request_id": request_id(request),
+        "meta": PageMeta(page=page, page_size=page_size, total=total).model_dump(),
+        "items": items,
+    }
+    metrics.record("/v1/fixtures", 200, started)
+    cache_key = ":".join(
+        [
+            "fixtures",
+            str(page),
+            str(page_size),
+            str(date_from),
+            str(date_to),
+            str(competition_id),
+            str(status),
+            str(team_id),
+            timezone,
+        ]
+    )
+    return cached_response(cache_key, payload, response, if_none_match)
+
+
+@public_router.get("/fixtures/{fixture_id}", response_model=FixtureDetailResponse)
+def fixture_detail(fixture_id: str, request: Request, timezone: str = "UTC") -> dict[str, Any]:
+    started = monotonic()
+    item = service.fixture(fixture_id, timezone)
+    if item is None:
+        metrics.record("/v1/fixtures/{fixture_id}", 404, started)
+        raise HTTPException(status_code=404, detail="fixture not found")
+    item["request_id"] = request_id(request)
+    metrics.record("/v1/fixtures/{fixture_id}", 200, started)
+    return item
+
+
+@public_router.get("/fixtures/{fixture_id}/odds-timeline", response_model=OddsTimelineResponse)
+def odds_timeline(fixture_id: str, request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        "items": service.odds_timeline(fixture_id),
+    }
+
+
+@public_router.get(
+    "/fixtures/{fixture_id}/market-probabilities",
+    response_model=ProbabilityResponse,
+)
+def market_probabilities(fixture_id: str, request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        **service.market_probabilities(fixture_id),
+    }
+
+
+@public_router.get("/fixtures/{fixture_id}/model-probabilities", response_model=ProbabilityResponse)
+def model_probabilities(fixture_id: str, request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        **service.model_probabilities(fixture_id),
+    }
+
+
+@public_router.get("/data-health", response_model=DataHealthResponse)
+def data_health(request: Request) -> dict[str, Any]:
+    return {"request_id": request_id(request), **service.data_health()}
+
+
+@public_router.get("/providers/status", response_model=ProviderStatusResponse)
+def providers_status(request: Request) -> dict[str, Any]:
+    return {"request_id": request_id(request), **service.provider_status()}
+
+
+@public_router.get("/backtests/latest", response_model=BacktestLatestResponse)
+def backtests_latest(request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "status": "READY",
+        "gate4_national_1x2": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+        "metrics": service.repository.stage8_summary(),
+    }
+
+
+@public_router.get("/forward-holdout/status", response_model=ForwardHoldoutStatusResponse)
+def forward_holdout_status(request: Request) -> dict[str, Any]:
+    return {"request_id": request_id(request), **service.forward_status()}
+
+
+@ops_router.get("/health")
+def ops_health(request: Request) -> dict[str, str]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), "status": "READY", "mode": "read-only"}
+
+
+def ops_list(name: str, request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return OperationListResponse(
+        request_id=request_id(request),
+        items=service.operations_items(name),
+    ).model_dump()
+
+
+@ops_router.get("/quota", response_model=OperationListResponse)
+def ops_quota(request: Request) -> dict[str, Any]:
+    return ops_list("quota", request)
+
+
+@ops_router.get("/tasks", response_model=OperationListResponse)
+def ops_tasks(request: Request) -> dict[str, Any]:
+    return ops_list("tasks", request)
+
+
+@ops_router.get("/alerts", response_model=OperationListResponse)
+def ops_alerts(request: Request) -> dict[str, Any]:
+    return ops_list("alerts", request)
+
+
+@ops_router.get("/mapping-conflicts", response_model=OperationListResponse)
+def ops_mapping_conflicts(request: Request) -> dict[str, Any]:
+    return ops_list("mapping-conflicts", request)
+
+
+@ops_router.get("/forward-cycles", response_model=OperationListResponse)
+def ops_forward_cycles(request: Request) -> dict[str, Any]:
+    return ops_list("forward-cycles", request)
+
+
+@ops_router.get("/locks", response_model=OperationListResponse)
+def ops_locks(request: Request) -> dict[str, Any]:
+    return ops_list("locks", request)
+
+
+@ops_router.get("/settlements", response_model=OperationListResponse)
+def ops_settlements(request: Request) -> dict[str, Any]:
+    return ops_list("settlements", request)
+
+
+@ops_router.get("/gates", response_model=OperationListResponse)
+def ops_gates(request: Request) -> dict[str, Any]:
+    return ops_list("gates", request)

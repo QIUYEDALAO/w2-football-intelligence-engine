@@ -42,6 +42,7 @@ ALLOWLIST = (
     "{token}",
     "real_world_tokens",
     "adapter token",
+    "js-tokens",
     "W2_API_FOOTBALL_API_KEY",
     "x-apisports-key",
     "x-rapidapi-key",
@@ -59,6 +60,7 @@ SKIP_PARTS = {
     ".pytest_cache",
     ".ruff_cache",
     "runtime",
+    "dist",
 }
 SKIP_SUFFIXES = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".db"}
 

@@ -1,5 +1,10 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
+from w2.infrastructure.persistence.api_models import (
+    ApiRequestAuditModel,
+    OperationalMetricSnapshotModel,
+    ReadModelCheckpointModel,
+)
 from w2.infrastructure.persistence.challenger_models import (
     ChallengerModelModel,
     ForwardEvaluationModel,
@@ -85,6 +90,7 @@ from w2.infrastructure.persistence.replay_models import (
 
 __all__ = [
     "AblationRunModel",
+    "ApiRequestAuditModel",
     "AuditEventModel",
     "AsOfSampleModel",
     "BookmakerModel",
@@ -126,6 +132,7 @@ __all__ = [
     "ModelExperimentModel",
     "ModelGateDecisionModel",
     "OddsObservationModel",
+    "OperationalMetricSnapshotModel",
     "PlayerModel",
     "PredictionModel",
     "PredictionSnapshotModel",
@@ -133,6 +140,7 @@ __all__ = [
     "ProviderRequestLogModel",
     "QuotaUsageModel",
     "RawPayloadReferenceModel",
+    "ReadModelCheckpointModel",
     "RecommendationLockModel",
     "RecommendationModel",
     "RefereeModel",
