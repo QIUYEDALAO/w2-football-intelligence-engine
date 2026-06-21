@@ -1,0 +1,22 @@
+{
+  "audit_set_usage": "AUDIT_ONLY_NO_TUNING",
+  "challenger_candidates": [
+    "TIME_DECAY_ATTACK_DEFENCE",
+    "REGULARIZED_MULTICLASS_LOGISTIC",
+    "GRADIENT_BOOSTING",
+    "ELO_POISSON_STACKING",
+    "HIERARCHICAL_ATTACK_DEFENCE",
+    "CONSTRAINED_ENSEMBLE"
+  ],
+  "no_candidate_or_recommendation": true,
+  "selected_challenger": "CONSTRAINED_ENSEMBLE",
+  "selection_data": [
+    "train",
+    "validation",
+    "nested_walk_forward"
+  ],
+  "stage7_time_decay_attack_defence": {
+    "audit_metric_read": false,
+    "source": "reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json"
+  }
+}

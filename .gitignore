@@ -21,6 +21,7 @@ runtime/live_smoke/
 runtime/stage5b/
 runtime/model_artifacts/
 runtime/replay/
+runtime/stage7b/
 data/raw/
 data/processed/
 .DS_Store

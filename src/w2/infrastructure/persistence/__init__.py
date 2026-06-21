@@ -1,5 +1,11 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
+from w2.infrastructure.persistence.challenger_models import (
+    ChallengerModelModel,
+    ForwardEvaluationModel,
+    ForwardHoldoutRunModel,
+    ForwardPredictionLockModel,
+)
 from w2.infrastructure.persistence.historical_models import (
     AsOfSampleModel,
     DataQualityRunModel,
@@ -73,6 +79,7 @@ __all__ = [
     "AsOfSampleModel",
     "BookmakerModel",
     "CalibrationArtifactModel",
+    "ChallengerModelModel",
     "CompetitionModel",
     "DataProvenanceModel",
     "DataQualityRunModel",
@@ -81,6 +88,9 @@ __all__ = [
     "DatasetVersionModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
+    "ForwardEvaluationModel",
+    "ForwardHoldoutRunModel",
+    "ForwardPredictionLockModel",
     "FixtureModel",
     "EvaluationRecordModel",
     "InjuryModel",
