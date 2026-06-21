@@ -25,9 +25,13 @@ from w2.api.schemas import (
     LeagueReadinessResponse,
     OddsTimelineResponse,
     OperationListResponse,
+    OperationsCycleResponse,
+    OperationsLatestResponse,
     PageMeta,
     ProbabilityResponse,
     ProviderStatusResponse,
+    ReleaseReadinessResponse,
+    RetentionStatusResponse,
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
@@ -281,3 +285,27 @@ def ops_world_cup_readiness(request: Request) -> dict[str, Any]:
 def ops_league_onboarding(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
     return {"request_id": request_id(request), "items": service.league_onboarding()}
+
+
+@ops_router.get("/operations/cycles", response_model=OperationsCycleResponse)
+def ops_operations_cycles(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), "items": service.operations_cycles()}
+
+
+@ops_router.get("/operations/latest", response_model=OperationsLatestResponse)
+def ops_operations_latest(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), "latest": service.operations_latest()}
+
+
+@ops_router.get("/releases/readiness", response_model=ReleaseReadinessResponse)
+def ops_releases_readiness(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **service.releases_readiness()}
+
+
+@ops_router.get("/retention/status", response_model=RetentionStatusResponse)
+def ops_retention_status(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **service.retention_status()}

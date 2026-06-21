@@ -179,3 +179,26 @@ class LeagueReadinessResponse(BaseModel):
 class LeagueOnboardingResponse(BaseModel):
     request_id: str
     items: list[LeagueReadinessResponse]
+
+
+class OperationsCycleResponse(BaseModel):
+    request_id: str
+    items: list[dict[str, Any]]
+
+
+class OperationsLatestResponse(BaseModel):
+    request_id: str
+    latest: dict[str, Any]
+
+
+class ReleaseReadinessResponse(BaseModel):
+    request_id: str
+    approval_status: str
+    production_release: str
+    dependency_blocker: str | None
+
+
+class RetentionStatusResponse(BaseModel):
+    request_id: str
+    status: str
+    policy: dict[str, Any]

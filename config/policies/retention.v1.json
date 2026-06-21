@@ -1,0 +1,11 @@
+{
+  "version": "retention-policy-v1",
+  "raw_payload": "retain_with_manifest",
+  "normalized_feature_artifact": "retain_by_dataset_version",
+  "replay_model_artifact": "retain_by_experiment_manifest",
+  "audit": "retain_permanently",
+  "cache_log_cleanup": "dry_run_only",
+  "backup": "retain_by_local_staging_policy",
+  "legal_hold": "manual_approval_required",
+  "files_deleted": false
+}

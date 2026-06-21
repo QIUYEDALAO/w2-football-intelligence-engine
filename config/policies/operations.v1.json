@@ -1,0 +1,9 @@
+{
+  "version": "operations-policy-v1",
+  "autorun": false,
+  "external_alerting": false,
+  "production_release": false,
+  "cycles": ["DAILY", "WEEKLY", "MATCHDAY", "ROUND_END", "SEASON_END", "MODEL_RELEASE"],
+  "gate4_recommendation_items": "DISABLED_GATE4",
+  "immutable_audit_required": true
+}

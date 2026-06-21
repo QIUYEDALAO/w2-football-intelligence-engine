@@ -1,0 +1,37 @@
+{
+  "approval": {
+    "gate4_closed": false,
+    "gate5_closed": false,
+    "gate6_closed": false,
+    "production_release_enabled": false,
+    "release_id": "stage15a-no-release"
+  },
+  "approval_status": "PRODUCTION_RELEASE_DISABLED",
+  "candidate": {
+    "ablation_complete": false,
+    "calibration_complete": false,
+    "model_card": {
+      "model_id": "stage7b-frozen-challenger",
+      "scope": "NATIONAL_FORWARD_HOLDOUT",
+      "training_status": "NO_TRAINING_IN_STAGE15A",
+      "version": "frozen"
+    },
+    "release_id": "stage15a-no-release",
+    "shadow_complete": false,
+    "walk_forward_complete": false
+  },
+  "change_freeze": {
+    "active": true,
+    "reason": "Stage15A governance dry-run does not publish models.",
+    "scope": "local_staging"
+  },
+  "dependency_blocker": "DEPENDENCY_MAJOR_UPGRADE_MANUAL_REVIEW_REQUIRED",
+  "model_published": false,
+  "production_release": "DISABLED",
+  "release_sha256": "00041d7f7db36c4fe2a64cb14d5e9281121fb559b3a152f8311c8d698b53dfa5",
+  "rollback": {
+    "previous_artifact_hash": "UNCHANGED",
+    "release_id": "stage15a-no-release",
+    "rollback_ready": false
+  }
+}

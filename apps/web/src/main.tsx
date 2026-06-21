@@ -74,6 +74,27 @@ type LeagueList = {
   items: LeagueSummary[];
 };
 
+type OperationsLatest = {
+  latest: {
+    kind?: string;
+    status?: string;
+    checkpoint?: string;
+    BLOCKER?: string[];
+    WARN_ONLY?: string[];
+  };
+};
+
+type ReleaseReadiness = {
+  approval_status: string;
+  production_release: string;
+  dependency_blocker: string | null;
+};
+
+type RetentionStatus = {
+  status: string;
+  policy: Record<string, unknown>;
+};
+
 const emptyProbability: Probability = {
   probability_type: "not_available",
   probabilities: {},
@@ -128,6 +149,9 @@ function App() {
   const [alerts, setAlerts] = useState<OpsList | null>(null);
   const [worldCup, setWorldCup] = useState<WorldCupReadiness | null>(null);
   const [leagues, setLeagues] = useState<LeagueSummary[]>([]);
+  const [operations, setOperations] = useState<OperationsLatest | null>(null);
+  const [release, setRelease] = useState<ReleaseReadiness | null>(null);
+  const [retention, setRetention] = useState<RetentionStatus | null>(null);
 
   useEffect(() => {
     getJson<FixtureList>("/v1/fixtures?page_size=12&timezone=UTC").then((payload) => {
@@ -142,6 +166,9 @@ function App() {
     getJson<OpsList>("/ops/alerts").then(setAlerts);
     getJson<WorldCupReadiness>("/ops/world-cup-readiness").then(setWorldCup);
     getJson<LeagueList>("/v1/leagues").then((payload) => setLeagues(payload?.items ?? []));
+    getJson<OperationsLatest>("/ops/operations/latest").then(setOperations);
+    getJson<ReleaseReadiness>("/ops/releases/readiness").then(setRelease);
+    getJson<RetentionStatus>("/ops/retention/status").then(setRetention);
   }, []);
 
   useEffect(() => {
@@ -341,6 +368,46 @@ function App() {
             Gate 4 remains pending. WATCH/SKIP are lifecycle states, not recommendations.
           </p>
         </section>
+      </section>
+
+      <section className="panel readiness">
+        <div className="panel-title">
+          <h2>Operations Governance</h2>
+          <span>{operations?.latest.status ?? "dry-run"}</span>
+        </div>
+        <div className="readiness-grid">
+          <div>
+            <span>Daily / weekly</span>
+            <strong>{operations?.latest.kind ?? "MODEL_RELEASE"}</strong>
+          </div>
+          <div>
+            <span>Forward progress</span>
+            <strong>{forward ? `${forward.current_settled_n}/${forward.target_n}` : "loading"}</strong>
+          </div>
+          <div>
+            <span>Dependency risk</span>
+            <strong>{release?.dependency_blocker ?? "reviewed"}</strong>
+          </div>
+          <div>
+            <span>Backups / retention</span>
+            <strong>{retention?.status ?? "DRY_RUN_ONLY"}</strong>
+          </div>
+        </div>
+        <dl className="facts compact">
+          <div>
+            <dt>Release</dt>
+            <dd>{release?.approval_status ?? "PRODUCTION_RELEASE_DISABLED"}</dd>
+          </div>
+          <div>
+            <dt>Gate</dt>
+            <dd>GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING</dd>
+          </div>
+          <div>
+            <dt>Blockers</dt>
+            <dd>{operations?.latest.BLOCKER?.join(", ") || "None"}</dd>
+          </div>
+        </dl>
+        <p className="warning">正式推荐与生产发布尚未启用。</p>
       </section>
     </main>
   );

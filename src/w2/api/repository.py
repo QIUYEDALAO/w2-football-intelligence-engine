@@ -81,6 +81,12 @@ class ReadModelRepository:
             return cast(dict[str, Any], existing)
         return cast(dict[str, Any], run_top_five_audit()["readiness"])
 
+    def operations_report(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_OPERATIONS.json", {}))
+
+    def release_readiness(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
+
 
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
@@ -341,6 +347,28 @@ class ReadModelService:
             if readiness is not None:
                 items.append({"request_id": "", **readiness})
         return items
+
+    def operations_cycles(self) -> list[dict[str, Any]]:
+        return list(self.repository.operations_report().get("cycles", []))
+
+    def operations_latest(self) -> dict[str, Any]:
+        cycles = self.operations_cycles()
+        return cycles[-1] if cycles else {}
+
+    def releases_readiness(self) -> dict[str, Any]:
+        release = self.repository.release_readiness()
+        return {
+            "approval_status": release.get("approval_status", "PRODUCTION_RELEASE_DISABLED"),
+            "production_release": release.get("production_release", "DISABLED"),
+            "dependency_blocker": release.get("dependency_blocker"),
+        }
+
+    def retention_status(self) -> dict[str, Any]:
+        operations = self.repository.operations_report()
+        return {
+            "status": "DRY_RUN_ONLY",
+            "policy": operations.get("retention", {}),
+        }
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         fixture = item.get("fixture", {})

@@ -1,0 +1,57 @@
+{
+  "major_or_breaking_auto_fix": false,
+  "npm": {
+    "exit_code": 1,
+    "force_fix_used": false,
+    "metadata": {
+      "dependencies": {
+        "dev": 4,
+        "optional": 49,
+        "peer": 0,
+        "peerOptional": 0,
+        "prod": 62,
+        "total": 114
+      },
+      "vulnerabilities": {
+        "critical": 0,
+        "high": 1,
+        "info": 0,
+        "low": 0,
+        "moderate": 1,
+        "total": 2
+      }
+    },
+    "risks": [
+      {
+        "dependency_path": [
+          "node_modules/vite"
+        ],
+        "fix_is_semver_major": true,
+        "fix_version": "8.0.16",
+        "package": "vite",
+        "severity": "high",
+        "status": "MANUAL_REVIEW_REQUIRED"
+      },
+      {
+        "dependency_path": [
+          "node_modules/esbuild"
+        ],
+        "fix_is_semver_major": true,
+        "fix_version": "8.0.16",
+        "package": "esbuild",
+        "severity": "moderate",
+        "status": "MANUAL_REVIEW_REQUIRED"
+      }
+    ],
+    "tool": "npm audit"
+  },
+  "npm_audit_fix_force_used": false,
+  "python": {
+    "exit_code": 0,
+    "manual_review_required": true,
+    "package_count": 67,
+    "risks": [],
+    "status": "LOCAL_INVENTORY_RECORDED_NO_VULNERABILITY_DATABASE",
+    "tool": "uv pip list"
+  }
+}
