@@ -1,0 +1,575 @@
+{
+  "assets": [
+    {
+      "domain": "competition_season_fixture",
+      "migration_eligibility": "MANUAL_REVIEW_REQUIRED",
+      "original_path": "data/processed/international/w1_international_dataset.csv",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 1081,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:Competition/Season/Fixture",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "team_player_provider_mapping",
+      "migration_eligibility": "MANUAL_REVIEW_REQUIRED",
+      "original_path": "data/processed/international/w1_international_dataset.csv",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 1081,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:Team/Player/ProviderEntityMapping",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "raw_odds_payload",
+      "migration_eligibility": "READY_FOR_TRANSFORM",
+      "original_path": "data/odds_snapshots/raw",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 7,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "9350445d3374e155fd7a0aae48e0cae9d527e1b611c4d4915daf9af0588d098d",
+      "source_system": "W1",
+      "target_w2_entity_layer": "RAW:RawPayloadReference",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "bookmaker_odds_snapshots",
+      "migration_eligibility": "READY_FOR_TRANSFORM",
+      "original_path": "data/local_odds/world_cup_odds_historical.csv",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 128,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "78bec760d90212064cf0df459fb5c607e4e97f5d7d0b643cb4c4210fd8542ed6",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:OddsObservation",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "match_cards",
+      "migration_eligibility": "QUARANTINE",
+      "original_path": "reports/match_previews/W1_GROUP_STAGE_ROUND1_REAL_FIXTURE_CARDS.md",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 63,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "a2a7d8ab0f2ad5f81975f98325bc287a7b91397f877222c02f565f1b7504cecf",
+      "source_system": "W1",
+      "target_w2_entity_layer": "QUARANTINE:Manual schema review",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "lineups_injuries",
+      "migration_eligibility": "MANUAL_REVIEW_REQUIRED",
+      "original_path": "data/processed/international/w1_international_dataset.csv",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 1081,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:Lineup/Injury",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "weather_venue",
+      "migration_eligibility": "MANUAL_REVIEW_REQUIRED",
+      "original_path": "data/processed/international/w1_international_dataset.csv",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 1081,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:WeatherObservation/Venue",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "results",
+      "migration_eligibility": "MANUAL_REVIEW_REQUIRED",
+      "original_path": "data/results/world_cup_2026_results.json",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 1,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "12b26e66b6b96660c233af81c882a68465db0f497db6aa50e927d63835575ebb",
+      "source_system": "W1",
+      "target_w2_entity_layer": "NORMALIZED:Result",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "forward_ledger",
+      "migration_eligibility": "AUDIT_ONLY",
+      "original_path": "reports/W1_FORWARD_LEDGER_PROSPECTIVE_RUN_V1_RESULT.md",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 121,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "c32a20ce2be0fd17b44d0e9bd6f48e9c3f190a70f6cbcb6420e6a6071ecca17d",
+      "source_system": "W1",
+      "target_w2_entity_layer": "AUDIT:Forward ledger evidence",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "w1_model_outputs",
+      "migration_eligibility": "AUDIT_ONLY",
+      "original_path": "reports/w1_backtest_1x2_only_baseline_v1.json",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 3,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "b9ec21fef49b43193b479c3ec71823d51a9f5ed3c8c30e00328c90afa3467235",
+      "source_system": "W1",
+      "target_w2_entity_layer": "AUDIT:Model output evidence",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "w1_ai_scout_outputs",
+      "migration_eligibility": "AUDIT_ONLY",
+      "original_path": "reports/W1_SCOUT_MVP_RESULT.md",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 94,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "0d8f163529394d58d591505ac5074d1c3b8711e79e6758777aa85aeabc890cf5",
+      "source_system": "W1",
+      "target_w2_entity_layer": "AUDIT:AI/SCOUT evidence",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    },
+    {
+      "domain": "recommendation_audit_records",
+      "migration_eligibility": "AUDIT_ONLY",
+      "original_path": "reports/w1_recommendation_accuracy_audit.json",
+      "original_schema_version": "W1_FROZEN_OR_LEGACY_UNKNOWN",
+      "provenance_quality": "FROZEN_AUDIT",
+      "record_count": 4,
+      "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+      "source_sha256": "764487b022e72f0fefc444475f53350d6bfb319d9db9dd8ef531982786f26405",
+      "source_system": "W1",
+      "target_w2_entity_layer": "AUDIT:Recommendation audit evidence",
+      "transform_version": "w2-stage12a-dry-run-v1",
+      "validation_status": "DRY_RUN_ONLY"
+    }
+  ],
+  "full_dataset_copied": false,
+  "inventory_version": "w2-stage12a-source-inventory-v1",
+  "source_head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+  "source_system": "W1",
+  "transform_contracts": [
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "competition_season_fixture:source_sha256:source_row_hash",
+      "domain": "competition_season_fixture",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "team_player_provider_mapping:source_sha256:source_row_hash",
+      "domain": "team_player_provider_mapping",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "raw_odds_payload:source_sha256:source_row_hash",
+      "domain": "raw_odds_payload",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "bookmaker_odds_snapshots:source_sha256:source_row_hash",
+      "domain": "bookmaker_odds_snapshots",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "match_cards:source_sha256:source_row_hash",
+      "domain": "match_cards",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "lineups_injuries:source_sha256:source_row_hash",
+      "domain": "lineups_injuries",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "weather_venue:source_sha256:source_row_hash",
+      "domain": "weather_venue",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "results:source_sha256:source_row_hash",
+      "domain": "results",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "forward_ledger:source_sha256:source_row_hash",
+      "domain": "forward_ledger",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "w1_model_outputs:source_sha256:source_row_hash",
+      "domain": "w1_model_outputs",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "w1_ai_scout_outputs:source_sha256:source_row_hash",
+      "domain": "w1_ai_scout_outputs",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    },
+    {
+      "decimal_probability_conversion": "odds and probabilities converted with Decimal",
+      "deduplication_key": "recommendation_audit_records:source_sha256:source_row_hash",
+      "domain": "recommendation_audit_records",
+      "id_mapping": "provider IDs and aliases revalidated before persistent load",
+      "null_missing_policy": "missing critical identity enters quarantine",
+      "provenance": "source_system/source_head/source_sha256/transform_version required",
+      "rollback_metadata": [
+        "batch_id",
+        "source_sha256",
+        "transform_version",
+        "target_row_ids",
+        "verification_result",
+        "rollback_eligibility"
+      ],
+      "source_fields": [
+        "domain_sample",
+        "source_row_hash",
+        "source_event_time"
+      ],
+      "target_fields": [
+        "w2_internal_id",
+        "source_ref",
+        "provenance",
+        "payload_summary"
+      ],
+      "utc_time_conversion": "timezone-aware source time normalized to UTC",
+      "validation_rules": [
+        "no same-fixture result fields in pre-match feature payload",
+        "unknown schema rejected or quarantined",
+        "AI and model output remains audit-only"
+      ]
+    }
+  ],
+  "w1_runtime_imported": false
+}

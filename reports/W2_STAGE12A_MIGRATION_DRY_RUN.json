@@ -1,0 +1,130 @@
+{
+  "business_data_copy_retained": false,
+  "manifest_sha256": "675f9f8c003d14eb5279961a3d850ca9d1a324644c8ab0f932420194913d9447",
+  "results": [
+    {
+      "accepted": 3,
+      "deterministic_hash": "f04a29cc4e0f24bc07487d87837bcea7b9c41a8d9e7d61b802c0ec1f714cbe00",
+      "domain": "bookmaker_odds_snapshots",
+      "quarantined": 0,
+      "rejected": 0,
+      "source_sha256": "78bec760d90212064cf0df459fb5c607e4e97f5d7d0b643cb4c4210fd8542ed6",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "cba90db8e328636b4d701f6c829b895cd963b963839767f33048d123472aa190",
+      "domain": "competition_season_fixture",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "400cffc6e01dd8d339fe2c3d1b7d1f3d7e1fe70f7ff80d987eae4bc4ee6673b6",
+      "domain": "forward_ledger",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "c32a20ce2be0fd17b44d0e9bd6f48e9c3f190a70f6cbcb6420e6a6071ecca17d",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "12bc6bdc6910b514b96a9cca1b65bc4fb81b890484288fabd03ffb69f17e5185",
+      "domain": "lineups_injuries",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "fcaa66c4daf9478e2124085c013743bc32476b874efb791fccc67130d257cdd0",
+      "domain": "match_cards",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "a2a7d8ab0f2ad5f81975f98325bc287a7b91397f877222c02f565f1b7504cecf",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 3,
+      "deterministic_hash": "0542b8e57e54c0de9a4d57cae5379ec134c072cc13c6166bc0dcab85f0fef709",
+      "domain": "raw_odds_payload",
+      "quarantined": 0,
+      "rejected": 0,
+      "source_sha256": "9350445d3374e155fd7a0aae48e0cae9d527e1b611c4d4915daf9af0588d098d",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "403e441ecc96ca09ecb1d69291ad809831703ef71640ac4e8d3522e82977efeb",
+      "domain": "recommendation_audit_records",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "764487b022e72f0fefc444475f53350d6bfb319d9db9dd8ef531982786f26405",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "1a4db2bc88d5abce891a9948ef43fa5d7b147a262bddc1277c51ea337d6aa06f",
+      "domain": "results",
+      "quarantined": 1,
+      "rejected": 0,
+      "source_sha256": "12b26e66b6b96660c233af81c882a68465db0f497db6aa50e927d63835575ebb",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "7627f88e9a985ce998ae75abc24a40df5616c57b4b6cab11150c17bd5ab666a0",
+      "domain": "team_player_provider_mapping",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "290ef7d49ed98faa96842396f833d96f68161320bd24f5a6153b6ce53be4a596",
+      "domain": "w1_ai_scout_outputs",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "0d8f163529394d58d591505ac5074d1c3b8711e79e6758777aa85aeabc890cf5",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "2300ba032a97242beb25b0c59f258f859204e7972ef2ee7f66a172796720e764",
+      "domain": "w1_model_outputs",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "b9ec21fef49b43193b479c3ec71823d51a9f5ed3c8c30e00328c90afa3467235",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    },
+    {
+      "accepted": 0,
+      "deterministic_hash": "721ea5e25f840229ac2912f230c60b28364e32136d06c10b3be98072e24c2d03",
+      "domain": "weather_venue",
+      "quarantined": 3,
+      "rejected": 0,
+      "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "temporary_load": "TEMPORARY_DIRECTORY_ONLY",
+      "validation_status": "VERIFIED_DETERMINISTIC"
+    }
+  ],
+  "run_id": "stage12a-dry-run-v1",
+  "started_at": "2026-06-22T00:00:00+00:00",
+  "temporary_load_touched_w2_database": false,
+  "w1_writes": false
+}

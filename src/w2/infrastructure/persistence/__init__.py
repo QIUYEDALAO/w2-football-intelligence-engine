@@ -42,6 +42,14 @@ from w2.infrastructure.persistence.market_models import (
     MarketFitDiagnosticModel,
     MarketQualityAssessmentModel,
 )
+from w2.infrastructure.persistence.migration_models import (
+    MigrationDryRunModel,
+    MigrationQuarantineRecordModel,
+    MigrationSourceAssetModel,
+    MigrationValidationRecordModel,
+    ShadowComparisonRecordModel,
+    ShadowRunModel,
+)
 from w2.infrastructure.persistence.model_experiment_models import (
     CalibrationArtifactModel,
     ModelArtifactModel,
@@ -134,6 +142,10 @@ __all__ = [
     "MarketConsensusModel",
     "MarketFitDiagnosticModel",
     "MarketQualityAssessmentModel",
+    "MigrationDryRunModel",
+    "MigrationQuarantineRecordModel",
+    "MigrationSourceAssetModel",
+    "MigrationValidationRecordModel",
     "ModelRunModel",
     "ModelArtifactModel",
     "ModelEvaluationModel",
@@ -161,6 +173,8 @@ __all__ = [
     "SeasonModel",
     "SecurityAuditEventModel",
     "SettlementModel",
+    "ShadowComparisonRecordModel",
+    "ShadowRunModel",
     "SloEvaluationModel",
     "SquadModel",
     "StageModel",
