@@ -1,0 +1,292 @@
+{
+  "api_key_status": "PRESENT",
+  "audit": [
+    {
+      "elapsed_ms": 744,
+      "endpoint": "status",
+      "params": {},
+      "remaining_quota": 6202,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 861,
+      "endpoint": "leagues",
+      "params": {
+        "search": "World Cup"
+      },
+      "remaining_quota": 6200,
+      "result_count": 18,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 948,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "1",
+        "season": "2026",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6199,
+      "result_count": 38,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 755,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "8",
+        "season": "2023",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6198,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 709,
+      "endpoint": "leagues",
+      "params": {
+        "search": "World Cup Qualification"
+      },
+      "remaining_quota": 6197,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 705,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Euro"
+      },
+      "remaining_quota": 6196,
+      "result_count": 7,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 791,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "4",
+        "season": "2024",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6195,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 788,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "3",
+        "season": "2026",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6194,
+      "result_count": 20,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 710,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Copa America"
+      },
+      "remaining_quota": 6193,
+      "result_count": 2,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 672,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "9",
+        "season": "2024",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6192,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 698,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "926",
+        "season": "2025",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6191,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 683,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Asian Cup"
+      },
+      "remaining_quota": 6190,
+      "result_count": 12,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 731,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "7",
+        "season": "2027",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6189,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 712,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "35",
+        "season": "2024",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6188,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 678,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Africa Cup"
+      },
+      "remaining_quota": 6187,
+      "result_count": 4,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 707,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "6",
+        "season": "2025",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6186,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 756,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "538",
+        "season": "2025",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6185,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 716,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Nations League"
+      },
+      "remaining_quota": 6184,
+      "result_count": 5,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 710,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "5",
+        "season": "2026",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6183,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 667,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "808",
+        "season": "2018",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6182,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 741,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Friendlies"
+      },
+      "remaining_quota": 6181,
+      "result_count": 3,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 725,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "10",
+        "season": "2026",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6180,
+      "result_count": 2,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 727,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "666",
+        "season": "2026",
+        "to": "2026-08-20"
+      },
+      "remaining_quota": 6179,
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 819,
+      "endpoint": "fixtures",
+      "params": {
+        "id": "1489398"
+      },
+      "remaining_quota": 6178,
+      "result_count": 1,
+      "status_code": 200
+    }
+  ],
+  "circuit_breaker": null,
+  "max_authorized_requests": 100,
+  "minimum_reserve": 1500,
+  "provider": "api_football",
+  "remaining_quota": 6178,
+  "request_budget": 100,
+  "requests_used": 24
+}

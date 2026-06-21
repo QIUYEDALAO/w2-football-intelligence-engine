@@ -1,0 +1,93 @@
+{
+  "checkpoint_continuously_advancing": false,
+  "checkpoint_summary": {
+    "stage7e_first_cycle_hash": "1a69d538523b338311d267b824ce83d5d764dfb4ae37e678193fb0979b550ddf",
+    "stage7e_scheduler_cycle_hash": "cdadb0f2028b70d7ccf59bad7c89276a09f7fe69b6159c43ee9b004c433373c4",
+    "stage7f_request_count": 11
+  },
+  "errors": [],
+  "frozen_hashes": {
+    "blockers": [],
+    "files": {
+      "stage7b_forward_holdout_protocol": {
+        "actual_sha256": "400e8d8e66bf22bd65215619925f65486031bd84584da6a488d51f13f3958062",
+        "expected_sha256": "400e8d8e66bf22bd65215619925f65486031bd84584da6a488d51f13f3958062",
+        "ok": true,
+        "path": "reports/W2_STAGE7B_FORWARD_HOLDOUT_PROTOCOL.json"
+      },
+      "stage7b_frozen_model_manifest": {
+        "actual_sha256": "c9bca779968962eb8d8dc46cc29b1448634300a8e66827ecb85d25983bf32204",
+        "expected_sha256": "c9bca779968962eb8d8dc46cc29b1448634300a8e66827ecb85d25983bf32204",
+        "ok": true,
+        "path": "reports/W2_STAGE7B_FROZEN_MODEL_MANIFEST.json"
+      },
+      "stage7c_gate4_decision": {
+        "actual_sha256": "d5ea4e053f7537901135358eccf0b25805c20486d4688b2104bda59973198d32",
+        "expected_sha256": "d5ea4e053f7537901135358eccf0b25805c20486d4688b2104bda59973198d32",
+        "ok": true,
+        "path": "reports/W2_STAGE7C_GATE4_DECISION.json"
+      },
+      "stage7c_lock_audit": {
+        "actual_sha256": "67225c19e47e7a9b7b81bcc4fac4c8e5887a6b64a8ad27cf33922999f24b40f5",
+        "expected_sha256": "67225c19e47e7a9b7b81bcc4fac4c8e5887a6b64a8ad27cf33922999f24b40f5",
+        "ok": true,
+        "path": "reports/W2_STAGE7C_LOCK_AUDIT.json"
+      },
+      "stage7e_result": {
+        "actual_sha256": "777354117b60060141ed97ab2eacec6dbc27ab5fe36b2e6a5aaed4e50e6710e1",
+        "expected_sha256": "777354117b60060141ed97ab2eacec6dbc27ab5fe36b2e6a5aaed4e50e6710e1",
+        "ok": true,
+        "path": "reports/W2_STAGE7E_RESULT.md"
+      }
+    },
+    "manifest_fields": {
+      "audit_set_sha256": "5d255ec351cad9d42e1d0c364c218be0b1d68dfc057ed07e4ad8f418645e9d2c",
+      "calibration": "DIRICHLET_MULTICLASS_VALIDATION_ONLY",
+      "challenger_config_hash": "8a62d15129029f6ca34dd4f7502be250d6a63c57f12634ba435166b4bfe356de",
+      "feature_allowlist_hash": "59d9fcd922de37179cd5fb7a6848ea0ecd8a91939bdb62bd167727cdde3dc24e"
+    }
+  },
+  "heartbeat": "ABSENT",
+  "last_cycle": "2026-06-21 21:19:15.935295+00:00",
+  "next_cycle": null,
+  "no_overlap_lock_effective": true,
+  "pid": null,
+  "retry_records": [],
+  "scheduler_worker_processes": [],
+  "stage7e_autocycle_after_completion": false,
+  "status": "PERSISTENT_SCHEDULER_HOST_REQUIRED",
+  "system_daemon_started": false,
+  "w1_audit": {
+    "head": "745a1cda433905b9fec0cc0c0b7fe74869fd0988",
+    "mode": "READ_ONLY",
+    "protected_sha256": {
+      "config/w1_decision_policy.json": "547b64b68ae09c8697445e75aeb7e3e52561515a80a6dc4d23e6ca7042bec909",
+      "config/w1_rho_provenance.json": "cb24d525f90f40ca9c75059adfaae0a3b099263bf354337eef1fa8f6668c3b5b",
+      "config/w1_scout_policy.json": "f40628ee619fc436dd634319b6fe858f8e0d52e1ab5b613a02a7e2736b272bb3",
+      "scripts/build_w1_dashboard_data.py": "5e3aef9d40bd948d36141250e26941c05ce19a5b5df94e22e2ca74c032b84020",
+      "scripts/w1_local_predict_server.py": "34a50b5d5781dbdd9b880207909a115ad0725d83ecb310ba9468502a2e111c26",
+      "scripts/w1_odds_snapshot_collector.py": "0b065cf499017da1f85f0f468f5afb9c3652da0ada3b430e0a3c3bf74bca819d",
+      "scripts/w1_score_engine.py": "dec0b95253af712436962f194d4e605bf78673e5f6af059f035fb21077ff3ce8"
+    },
+    "status_short": [
+      " M README.md",
+      "?? W1_LEGACY_STATUS.md",
+      "?? data/results/world_cup_2026_results.json",
+      "?? docs/W1_LEGACY_CHANGE_POLICY.md",
+      "?? docs/W1_LEGACY_FREEZE_REPORT.md",
+      "?? reports/P0_BASELINE_SUMMARY.md",
+      "?? reports/W1_SCOUT_MEMORY_AND_TELEMETRY_TASKS.md",
+      "?? reports/W1_SCOUT_REFRAME_TASKS.md",
+      "?? reports/legacy_baseline/",
+      "?? reports/legacy_classification/",
+      "?? reports/legacy_decisions/",
+      "?? scripts/audit_w1_odds_collection_continuity.py",
+      "?? scripts/build_w1_legacy_decision_register.py",
+      "?? scripts/check_w1_legacy_baseline.py",
+      "?? scripts/check_w1_legacy_classification.py",
+      "?? scripts/check_w1_legacy_decisions.py",
+      "?? scripts/check_w1_legacy_freeze.py",
+      "?? scripts/classify_w1_legacy_files.py"
+    ]
+  }
+}
