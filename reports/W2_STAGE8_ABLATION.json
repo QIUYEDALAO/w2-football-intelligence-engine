@@ -1,0 +1,38 @@
+{
+  "disabled": {
+    "lineup": "DISABLED_INSUFFICIENT_COVERAGE",
+    "travel": "DISABLED_INSUFFICIENT_COVERAGE",
+    "weather": "DISABLED_INSUFFICIENT_COVERAGE"
+  },
+  "runs": {
+    "remove_calibration": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.008
+    },
+    "remove_elo": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.021
+    },
+    "remove_market_residual_layer": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.0
+    },
+    "remove_match_importance": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.006
+    },
+    "remove_neutral_site_adjustment": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.003
+    },
+    "remove_rest_days": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.002
+    },
+    "remove_rolling_form": {
+      "decision": "WATCH",
+      "log_loss_delta": 0.004
+    }
+  },
+  "selection_policy": "train_validation_only_no_test_feature_selection"
+}

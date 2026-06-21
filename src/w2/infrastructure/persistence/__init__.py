@@ -58,8 +58,17 @@ from w2.infrastructure.persistence.models import (
     VenueModel,
     WeatherObservationModel,
 )
+from w2.infrastructure.persistence.replay_models import (
+    AblationRunModel,
+    EvaluationRecordModel,
+    PredictionSnapshotModel,
+    ReplayCheckpointModel,
+    ReplayEventModel,
+    ReplayRunModel,
+)
 
 __all__ = [
+    "AblationRunModel",
     "AuditEventModel",
     "AsOfSampleModel",
     "BookmakerModel",
@@ -73,6 +82,7 @@ __all__ = [
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
     "FixtureModel",
+    "EvaluationRecordModel",
     "InjuryModel",
     "IngestionRunModel",
     "LineupModel",
@@ -90,6 +100,7 @@ __all__ = [
     "OddsObservationModel",
     "PlayerModel",
     "PredictionModel",
+    "PredictionSnapshotModel",
     "ProviderEntityMappingModel",
     "ProviderRequestLogModel",
     "QuotaUsageModel",
@@ -98,6 +109,9 @@ __all__ = [
     "RecommendationModel",
     "RefereeModel",
     "ResultModel",
+    "ReplayCheckpointModel",
+    "ReplayEventModel",
+    "ReplayRunModel",
     "SeasonModel",
     "SettlementModel",
     "SquadModel",

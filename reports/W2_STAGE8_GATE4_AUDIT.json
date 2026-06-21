@@ -1,0 +1,15 @@
+{
+  "GATE_4_AH": "BLOCKED_FORWARD_ONLY",
+  "GATE_4_NATIONAL_1X2": "PROVISIONAL_NOT_PROMOTED",
+  "nested_walk_forward_new_evidence": {
+    "bootstrap_ci_supports_improvement": false,
+    "calibration_not_worse": true,
+    "independent_beats_market": false,
+    "leakage_free": true,
+    "multi_slice_stable": false
+  },
+  "replay_decisions": [
+    "WATCH"
+  ],
+  "stage7_seen_test_rows_not_used_for_promotion": true
+}

@@ -1,0 +1,31 @@
+{
+  "artifact_sha256": "ae36a88e0dc9320ddf66fc67b61c91ad87bbaf66f84c7d835ee68eca7e0b2d23",
+  "checkpoint_resume_matches_full_run": true,
+  "event_count": 856,
+  "fixture_count": 214,
+  "fixture_split_leakage": false,
+  "future_leakage": false,
+  "idempotent_replay": true,
+  "ledger_hash": "592a48b48fd91899b06663ce33de173970de0287aa11949b4c5dcbbe76b35eaf",
+  "prediction_hash_deterministic": true,
+  "recommendation_strategy_run": false,
+  "runtime_artifact": "runtime/replay/stage8/stage8-replay-ae36a88e0dc9.json",
+  "splits": {
+    "chronological_holdout": {
+      "test": 43,
+      "train": 128,
+      "validation": 43
+    },
+    "expanding_window": 7,
+    "nested_walk_forward": {
+      "inner_selection": "validation_only",
+      "outer_folds": 6
+    },
+    "rolling_window": 6,
+    "season_based_future_test": {
+      "test": 114,
+      "train": 100
+    },
+    "walk_forward": 7
+  }
+}

@@ -1,2 +1,47 @@
-"""Backtest boundary package reserved for later stages."""
+"""Event-driven backtest utilities."""
 
+from w2.backtest.replay import (
+    AsOfDataRepository,
+    EvaluationStep,
+    EventOrderingPolicy,
+    FeatureBuildStep,
+    ModelLoadStep,
+    PredictionStep,
+    ReplayCheckpoint,
+    ReplayClock,
+    ReplayDecision,
+    ReplayEvent,
+    ReplayEventType,
+    ReplayLedger,
+    ReplayManifest,
+    chronological_holdout,
+    expanding_window,
+    nested_walk_forward,
+    rolling_window,
+    season_based_future_test,
+    stable_hash,
+    walk_forward,
+)
+
+__all__ = [
+    "AsOfDataRepository",
+    "EvaluationStep",
+    "EventOrderingPolicy",
+    "FeatureBuildStep",
+    "ModelLoadStep",
+    "PredictionStep",
+    "ReplayCheckpoint",
+    "ReplayClock",
+    "ReplayDecision",
+    "ReplayEvent",
+    "ReplayEventType",
+    "ReplayLedger",
+    "ReplayManifest",
+    "chronological_holdout",
+    "expanding_window",
+    "nested_walk_forward",
+    "rolling_window",
+    "season_based_future_test",
+    "stable_hash",
+    "walk_forward",
+]
