@@ -21,6 +21,13 @@ from w2.infrastructure.persistence.market_models import (
     MarketFitDiagnosticModel,
     MarketQualityAssessmentModel,
 )
+from w2.infrastructure.persistence.model_experiment_models import (
+    CalibrationArtifactModel,
+    ModelArtifactModel,
+    ModelEvaluationModel,
+    ModelExperimentModel,
+    ModelGateDecisionModel,
+)
 from w2.infrastructure.persistence.models import (
     AuditEventModel,
     BookmakerModel,
@@ -56,6 +63,7 @@ __all__ = [
     "AuditEventModel",
     "AsOfSampleModel",
     "BookmakerModel",
+    "CalibrationArtifactModel",
     "CompetitionModel",
     "DataProvenanceModel",
     "DataQualityRunModel",
@@ -75,6 +83,10 @@ __all__ = [
     "MarketFitDiagnosticModel",
     "MarketQualityAssessmentModel",
     "ModelRunModel",
+    "ModelArtifactModel",
+    "ModelEvaluationModel",
+    "ModelExperimentModel",
+    "ModelGateDecisionModel",
     "OddsObservationModel",
     "PlayerModel",
     "PredictionModel",

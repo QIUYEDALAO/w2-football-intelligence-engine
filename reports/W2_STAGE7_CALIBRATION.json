@@ -1,0 +1,768 @@
+{
+  "club": {
+    "models": {
+      "BIVARIATE_POISSON": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.613184,
+          "ece": 0.058169,
+          "log_loss": 1.023886,
+          "rps": 0.20948
+        },
+        "test_before": {
+          "brier": 0.614245,
+          "ece": 0.062754,
+          "log_loss": 1.025296,
+          "rps": 0.209999
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.4051724137931034,
+            "bin": 3.0,
+            "confidence": 0.3824342931863597,
+            "count": 232.0,
+            "weight": 0.22011385199240988
+          },
+          {
+            "accuracy": 0.4724025974025974,
+            "bin": 4.0,
+            "confidence": 0.44223647567079816,
+            "count": 616.0,
+            "weight": 0.5844402277039848
+          },
+          {
+            "accuracy": 0.7231638418079096,
+            "bin": 5.0,
+            "confidence": 0.5384821352660181,
+            "count": 177.0,
+            "weight": 0.16793168880455409
+          },
+          {
+            "accuracy": 0.7931034482758621,
+            "bin": 6.0,
+            "confidence": 0.6288159557453535,
+            "count": 29.0,
+            "weight": 0.027514231499051234
+          }
+        ]
+      },
+      "HIERARCHICAL_ATTACK_DEFENCE": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.631194,
+          "ece": 0.029438,
+          "log_loss": 1.048639,
+          "rps": 0.217928
+        },
+        "test_before": {
+          "brier": 0.631228,
+          "ece": 0.028843,
+          "log_loss": 1.048692,
+          "rps": 0.217933
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.34946236559139787,
+            "bin": 3.0,
+            "confidence": 0.3829681676244294,
+            "count": 186.0,
+            "weight": 0.17647058823529413
+          },
+          {
+            "accuracy": 0.44014732965009207,
+            "bin": 4.0,
+            "confidence": 0.4486977784668975,
+            "count": 543.0,
+            "weight": 0.5151802656546489
+          },
+          {
+            "accuracy": 0.4870689655172414,
+            "bin": 5.0,
+            "confidence": 0.5397346629669147,
+            "count": 232.0,
+            "weight": 0.22011385199240988
+          },
+          {
+            "accuracy": 0.7108433734939759,
+            "bin": 6.0,
+            "confidence": 0.633288596191807,
+            "count": 83.0,
+            "weight": 0.07874762808349146
+          },
+          {
+            "accuracy": 0.6666666666666666,
+            "bin": 7.0,
+            "confidence": 0.7433271955259264,
+            "count": 9.0,
+            "weight": 0.008538899430740038
+          },
+          {
+            "accuracy": 0.0,
+            "bin": 8.0,
+            "confidence": 0.8067489652772142,
+            "count": 1.0,
+            "weight": 0.0009487666034155598
+          }
+        ]
+      },
+      "HISTORICAL_DIXON_COLES": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.612912,
+          "ece": 0.062443,
+          "log_loss": 1.023041,
+          "rps": 0.209369
+        },
+        "test_before": {
+          "brier": 0.614101,
+          "ece": 0.067098,
+          "log_loss": 1.024655,
+          "rps": 0.209922
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.41509433962264153,
+            "bin": 3.0,
+            "confidence": 0.3799843270814072,
+            "count": 265.0,
+            "weight": 0.2514231499051233
+          },
+          {
+            "accuracy": 0.4744897959183674,
+            "bin": 4.0,
+            "confidence": 0.4406267606991142,
+            "count": 588.0,
+            "weight": 0.5578747628083491
+          },
+          {
+            "accuracy": 0.7183908045977011,
+            "bin": 5.0,
+            "confidence": 0.5369402375064862,
+            "count": 174.0,
+            "weight": 0.1650853889943074
+          },
+          {
+            "accuracy": 0.8148148148148148,
+            "bin": 6.0,
+            "confidence": 0.628650357519791,
+            "count": 27.0,
+            "weight": 0.025616698292220113
+          }
+        ]
+      },
+      "INDEPENDENT_POISSON": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.615268,
+          "ece": 0.049946,
+          "log_loss": 1.026936,
+          "rps": 0.21045
+        },
+        "test_before": {
+          "brier": 0.616069,
+          "ece": 0.053904,
+          "log_loss": 1.027979,
+          "rps": 0.210858
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.3970037453183521,
+            "bin": 3.0,
+            "confidence": 0.38252043140668834,
+            "count": 267.0,
+            "weight": 0.25332068311195444
+          },
+          {
+            "accuracy": 0.4673721340388007,
+            "bin": 4.0,
+            "confidence": 0.443545814749261,
+            "count": 567.0,
+            "weight": 0.5379506641366224
+          },
+          {
+            "accuracy": 0.6759776536312849,
+            "bin": 5.0,
+            "confidence": 0.5364452172512523,
+            "count": 179.0,
+            "weight": 0.1698292220113852
+          },
+          {
+            "accuracy": 0.868421052631579,
+            "bin": 6.0,
+            "confidence": 0.6291062161994978,
+            "count": 38.0,
+            "weight": 0.036053130929791274
+          },
+          {
+            "accuracy": 0.3333333333333333,
+            "bin": 7.0,
+            "confidence": 0.7319806374370099,
+            "count": 3.0,
+            "weight": 0.0028462998102466793
+          }
+        ]
+      },
+      "NEGATIVE_BINOMIAL": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.615046,
+          "ece": 0.06556,
+          "log_loss": 1.026393,
+          "rps": 0.210382
+        },
+        "test_before": {
+          "brier": 0.616267,
+          "ece": 0.070238,
+          "log_loss": 1.028015,
+          "rps": 0.210968
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.4122137404580153,
+            "bin": 3.0,
+            "confidence": 0.3817783813135121,
+            "count": 262.0,
+            "weight": 0.24857685009487665
+          },
+          {
+            "accuracy": 0.4796747967479675,
+            "bin": 4.0,
+            "confidence": 0.4399999830034158,
+            "count": 615.0,
+            "weight": 0.5834914611005693
+          },
+          {
+            "accuracy": 0.7453416149068323,
+            "bin": 5.0,
+            "confidence": 0.5358280671277047,
+            "count": 161.0,
+            "weight": 0.1527514231499051
+          },
+          {
+            "accuracy": 0.8125,
+            "bin": 6.0,
+            "confidence": 0.6253325314575162,
+            "count": 16.0,
+            "weight": 0.015180265654648957
+          }
+        ]
+      },
+      "TIME_DECAY_ATTACK_DEFENCE": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.618585,
+          "ece": 0.036325,
+          "log_loss": 1.031474,
+          "rps": 0.212006
+        },
+        "test_before": {
+          "brier": 0.618989,
+          "ece": 0.042929,
+          "log_loss": 1.031995,
+          "rps": 0.212224
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.3673469387755102,
+            "bin": 3.0,
+            "confidence": 0.3847259887581321,
+            "count": 245.0,
+            "weight": 0.23244781783681215
+          },
+          {
+            "accuracy": 0.45595854922279794,
+            "bin": 4.0,
+            "confidence": 0.44560003695105443,
+            "count": 579.0,
+            "weight": 0.5493358633776091
+          },
+          {
+            "accuracy": 0.6413043478260869,
+            "bin": 5.0,
+            "confidence": 0.5398912851954575,
+            "count": 184.0,
+            "weight": 0.174573055028463
+          },
+          {
+            "accuracy": 0.8333333333333334,
+            "bin": 6.0,
+            "confidence": 0.6331627296311141,
+            "count": 42.0,
+            "weight": 0.03984819734345351
+          },
+          {
+            "accuracy": 0.5,
+            "bin": 7.0,
+            "confidence": 0.7410856918142404,
+            "count": 4.0,
+            "weight": 0.003795066413662239
+          }
+        ]
+      },
+      "TIME_DECAY_ELO": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.612623,
+          "ece": 0.059898,
+          "log_loss": 1.022768,
+          "rps": 0.209236
+        },
+        "test_before": {
+          "brier": 0.613747,
+          "ece": 0.064517,
+          "log_loss": 1.024288,
+          "rps": 0.209767
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.40160642570281124,
+            "bin": 3.0,
+            "confidence": 0.3806616211165873,
+            "count": 249.0,
+            "weight": 0.23624288425047438
+          },
+          {
+            "accuracy": 0.4757929883138564,
+            "bin": 4.0,
+            "confidence": 0.44151960050860534,
+            "count": 599.0,
+            "weight": 0.5683111954459203
+          },
+          {
+            "accuracy": 0.7231638418079096,
+            "bin": 5.0,
+            "confidence": 0.5385467812651452,
+            "count": 177.0,
+            "weight": 0.16793168880455409
+          },
+          {
+            "accuracy": 0.7931034482758621,
+            "bin": 6.0,
+            "confidence": 0.6306749792693381,
+            "count": 29.0,
+            "weight": 0.027514231499051234
+          }
+        ]
+      }
+    },
+    "selection_policy": "validation_only_test_evaluated_once"
+  },
+  "national": {
+    "models": {
+      "BIVARIATE_POISSON": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.616594,
+          "ece": 0.070241,
+          "log_loss": 1.02743,
+          "rps": 0.219153
+        },
+        "test_before": {
+          "brier": 0.617712,
+          "ece": 0.070802,
+          "log_loss": 1.028951,
+          "rps": 0.219634
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.32558139534883723,
+            "bin": 3.0,
+            "confidence": 0.382420169865377,
+            "count": 43.0,
+            "weight": 0.19815668202764977
+          },
+          {
+            "accuracy": 0.5,
+            "bin": 4.0,
+            "confidence": 0.43615744300215864,
+            "count": 170.0,
+            "weight": 0.783410138248848
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 5.0,
+            "confidence": 0.51374922630297,
+            "count": 4.0,
+            "weight": 0.018433179723502304
+          }
+        ]
+      },
+      "HIERARCHICAL_ATTACK_DEFENCE": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.56438,
+          "ece": 0.116597,
+          "log_loss": 0.95664,
+          "rps": 0.193521
+        },
+        "test_before": {
+          "brier": 0.56742,
+          "ece": 0.112897,
+          "log_loss": 0.960762,
+          "rps": 0.194918
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.3488372093023256,
+            "bin": 3.0,
+            "confidence": 0.3758593326885306,
+            "count": 43.0,
+            "weight": 0.19815668202764977
+          },
+          {
+            "accuracy": 0.5523809523809524,
+            "bin": 4.0,
+            "confidence": 0.4429762799359929,
+            "count": 105.0,
+            "weight": 0.4838709677419355
+          },
+          {
+            "accuracy": 0.7333333333333333,
+            "bin": 5.0,
+            "confidence": 0.547281474712456,
+            "count": 45.0,
+            "weight": 0.2073732718894009
+          },
+          {
+            "accuracy": 0.8181818181818182,
+            "bin": 6.0,
+            "confidence": 0.6462270856117903,
+            "count": 22.0,
+            "weight": 0.10138248847926268
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 7.0,
+            "confidence": 0.7516393009971801,
+            "count": 2.0,
+            "weight": 0.009216589861751152
+          }
+        ]
+      },
+      "HISTORICAL_DIXON_COLES": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.617525,
+          "ece": 0.074458,
+          "log_loss": 1.028587,
+          "rps": 0.219238
+        },
+        "test_before": {
+          "brier": 0.618741,
+          "ece": 0.085953,
+          "log_loss": 1.03026,
+          "rps": 0.219752
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.3333333333333333,
+            "bin": 3.0,
+            "confidence": 0.3807203546354291,
+            "count": 51.0,
+            "weight": 0.2350230414746544
+          },
+          {
+            "accuracy": 0.50920245398773,
+            "bin": 4.0,
+            "confidence": 0.4338460879773986,
+            "count": 163.0,
+            "weight": 0.7511520737327189
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 5.0,
+            "confidence": 0.5141312241807102,
+            "count": 3.0,
+            "weight": 0.013824884792626729
+          }
+        ]
+      },
+      "INDEPENDENT_POISSON": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.552192,
+          "ece": 0.120916,
+          "log_loss": 0.937782,
+          "rps": 0.188176
+        },
+        "test_before": {
+          "brier": 0.555363,
+          "ece": 0.124423,
+          "log_loss": 0.94232,
+          "rps": 0.189636
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.2727272727272727,
+            "bin": 3.0,
+            "confidence": 0.3799288213997738,
+            "count": 33.0,
+            "weight": 0.15207373271889402
+          },
+          {
+            "accuracy": 0.5048543689320388,
+            "bin": 4.0,
+            "confidence": 0.4485488791689205,
+            "count": 103.0,
+            "weight": 0.47465437788018433
+          },
+          {
+            "accuracy": 0.8,
+            "bin": 5.0,
+            "confidence": 0.5448718890080739,
+            "count": 50.0,
+            "weight": 0.2304147465437788
+          },
+          {
+            "accuracy": 0.7727272727272727,
+            "bin": 6.0,
+            "confidence": 0.642976821739997,
+            "count": 22.0,
+            "weight": 0.10138248847926268
+          },
+          {
+            "accuracy": 0.8888888888888888,
+            "bin": 7.0,
+            "confidence": 0.7454674550591028,
+            "count": 9.0,
+            "weight": 0.041474654377880185
+          }
+        ]
+      },
+      "NEGATIVE_BINOMIAL": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.61886,
+          "ece": 0.073052,
+          "log_loss": 1.03052,
+          "rps": 0.220143
+        },
+        "test_before": {
+          "brier": 0.620067,
+          "ece": 0.084527,
+          "log_loss": 1.032167,
+          "rps": 0.220658
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.34,
+            "bin": 3.0,
+            "confidence": 0.3822451151097014,
+            "count": 50.0,
+            "weight": 0.2304147465437788
+          },
+          {
+            "accuracy": 0.509090909090909,
+            "bin": 4.0,
+            "confidence": 0.4317368072612406,
+            "count": 165.0,
+            "weight": 0.7603686635944701
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 5.0,
+            "confidence": 0.5116778417866101,
+            "count": 2.0,
+            "weight": 0.009216589861751152
+          }
+        ]
+      },
+      "TIME_DECAY_ATTACK_DEFENCE": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.54476,
+          "ece": 0.082027,
+          "log_loss": 0.926395,
+          "rps": 0.184752
+        },
+        "test_before": {
+          "brier": 0.546224,
+          "ece": 0.094297,
+          "log_loss": 0.928585,
+          "rps": 0.18543
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.32142857142857145,
+            "bin": 3.0,
+            "confidence": 0.3775796074088169,
+            "count": 28.0,
+            "weight": 0.12903225806451613
+          },
+          {
+            "accuracy": 0.5238095238095238,
+            "bin": 4.0,
+            "confidence": 0.45133027784819324,
+            "count": 84.0,
+            "weight": 0.3870967741935484
+          },
+          {
+            "accuracy": 0.5892857142857143,
+            "bin": 5.0,
+            "confidence": 0.5374778273388864,
+            "count": 56.0,
+            "weight": 0.25806451612903225
+          },
+          {
+            "accuracy": 0.8387096774193549,
+            "bin": 6.0,
+            "confidence": 0.6445180993554241,
+            "count": 31.0,
+            "weight": 0.14285714285714285
+          },
+          {
+            "accuracy": 0.7692307692307693,
+            "bin": 7.0,
+            "confidence": 0.7413457677586534,
+            "count": 13.0,
+            "weight": 0.059907834101382486
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 8.0,
+            "confidence": 0.8288803565993884,
+            "count": 5.0,
+            "weight": 0.02304147465437788
+          }
+        ]
+      },
+      "TIME_DECAY_ELO": {
+        "available_methods": [
+          "PLATT",
+          "ISOTONIC",
+          "BETA",
+          "DIRICHLET_MULTICLASS"
+        ],
+        "calibration_not_worse": true,
+        "selected_method": "ISOTONIC",
+        "test_after": {
+          "brier": 0.61682,
+          "ece": 0.063786,
+          "log_loss": 1.027649,
+          "rps": 0.21903
+        },
+        "test_before": {
+          "brier": 0.617993,
+          "ece": 0.079023,
+          "log_loss": 1.029258,
+          "rps": 0.219528
+        },
+        "test_reliability": [
+          {
+            "accuracy": 0.34782608695652173,
+            "bin": 3.0,
+            "confidence": 0.3806536992040232,
+            "count": 46.0,
+            "weight": 0.2119815668202765
+          },
+          {
+            "accuracy": 0.49700598802395207,
+            "bin": 4.0,
+            "confidence": 0.43482091434112236,
+            "count": 167.0,
+            "weight": 0.7695852534562212
+          },
+          {
+            "accuracy": 1.0,
+            "bin": 5.0,
+            "confidence": 0.5133772539475806,
+            "count": 4.0,
+            "weight": 0.018433179723502304
+          }
+        ]
+      }
+    },
+    "selection_policy": "validation_only_test_evaluated_once"
+  }
+}

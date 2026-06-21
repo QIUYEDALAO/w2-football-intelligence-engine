@@ -19,6 +19,7 @@ logs/
 tmp/
 runtime/live_smoke/
 runtime/stage5b/
+runtime/model_artifacts/
 data/raw/
 data/processed/
 .DS_Store
