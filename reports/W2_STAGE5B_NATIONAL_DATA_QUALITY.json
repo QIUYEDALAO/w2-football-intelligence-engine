@@ -1,0 +1,24 @@
+{
+  "competitions": {
+    "World Cup 2014": 64,
+    "World Cup 2018": 64,
+    "World Cup 2022": 64,
+    "WorldCup2026Qualifiers": 889
+  },
+  "expected": 192,
+  "football_data_1x2_semantics": "UNKNOWN_PREMATCH_AGGREGATE",
+  "hgp_semantics_repaired": true,
+  "historical_ou": {
+    "matched": 128,
+    "row_count": 128,
+    "unmatched": 0
+  },
+  "mapped": 192,
+  "mapping_rate": 1.0,
+  "post_match_observation_separated": true,
+  "pre_match_feature_result_leakage": false,
+  "row_count": 1081,
+  "source_sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+  "xlsx_source_present": true,
+  "xlsx_source_sha256": "777652ce1a400aabbbb5778f306311f36197b7e382ff87d5077b5a017473ae72"
+}

@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "path": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine/data/processed/international/w1_international_dataset.csv",
+      "readonly": true,
+      "sha256": "f7a1e444b555557146c53cd0e05db9604d19852299a2b01f042e937ccd4f3341",
+      "source_artifact": "processed_csv",
+      "source_id": "w1_international_dataset_csv"
+    },
+    {
+      "cross_validation": "processed CSV has WorldCup2026Qualifiers rows",
+      "path": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine/data/raw/international/WorldCup2026.xlsx",
+      "readonly": true,
+      "sha256": "777652ce1a400aabbbb5778f306311f36197b7e382ff87d5077b5a017473ae72",
+      "source_artifact": "raw_excel",
+      "source_id": "w1_worldcup2026_xlsx"
+    },
+    {
+      "path": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine/data/local_odds/world_cup_odds_historical.csv",
+      "readonly": true,
+      "sha256": "78bec760d90212064cf0df459fb5c607e4e97f5d7d0b643cb4c4210fd8542ed6",
+      "source_id": "w1_world_cup_odds_historical_csv"
+    },
+    {
+      "file_count": 7,
+      "path": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine/data/odds_snapshots/raw",
+      "readonly": true,
+      "sha256_manifest": "1c8bcb8fe19ba9abcb79016f943a82b28980b5e73ac5462568c87526427a4386",
+      "source_id": "w1_2026_odds_snapshots"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ API_FOOTBALL_ENDPOINTS = (
     "results",
     "events",
     "statistics",
+    "leagues",
 )
 
 
@@ -51,4 +52,3 @@ class OddsProviderPort(Protocol):
 class SecondaryOddsProviderPort(OddsProviderPort, Protocol):
     status: str
     capabilities: dict[str, bool]
-
