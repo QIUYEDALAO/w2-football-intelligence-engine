@@ -1,0 +1,41 @@
+{
+  "acquisition_status": "NOT_SELECTED",
+  "capability": {
+    "closing": "PARTIAL",
+    "first_seen": "AVAILABLE",
+    "opening": "UNVERIFIED"
+  },
+  "competitions": [
+    "Synthetic Nations Cup"
+  ],
+  "coverage": {
+    "1X2": "AVAILABLE",
+    "AH": "PARTIAL",
+    "OU": "AVAILABLE",
+    "fixtures": "AVAILABLE",
+    "injuries": "PARTIAL",
+    "lineups": "PARTIAL",
+    "results": "AVAILABLE"
+  },
+  "date_range": [
+    "2024-01-01T00:00:00+00:00",
+    "2025-12-31T00:00:00+00:00"
+  ],
+  "licence_commercial_use_status": "UNVERIFIED",
+  "national_or_club": "national",
+  "notes": "",
+  "provenance": "synthetic Stage 5A fixture; no real W1 data copied",
+  "provider": "synthetic_offline",
+  "provider_ids": [
+    "fixture",
+    "team",
+    "bookmaker"
+  ],
+  "seasons": [
+    "2024",
+    "2025"
+  ],
+  "snapshot_frequency": "demo fixed T-72h/T-24h",
+  "source_id": "international-synthetic-source",
+  "validation_status": "AVAILABLE"
+}

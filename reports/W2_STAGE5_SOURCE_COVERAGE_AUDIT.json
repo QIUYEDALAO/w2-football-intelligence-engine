@@ -1,0 +1,241 @@
+{
+  "audit_mode": "read_only_inventory_no_copy",
+  "candidate_count": 39,
+  "candidates": [
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/00_BASELINE_METADATA.json",
+      "sha256": "91acc85696d0a4f6d1442be2b4149d8c85dc9e8eee21ceaf7aac747a7c3f33d1",
+      "size_bytes": 1341
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/02_WORKTREE_MANIFEST.json",
+      "sha256": "6fc38f0caf1830aff7d4aba65b5070202a1f59f9c404a49d53dcf566d30bf093",
+      "size_bytes": 216420
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/06_CHECKER_INVENTORY.json",
+      "sha256": "fca55b0e106f197b0c4f288b4ef6c316933580d070180247238cbe61176d4324",
+      "size_bytes": 40471
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/07_CHECKER_RESULTS.json",
+      "sha256": "45359a0cb1f404dabf192d526743ed9bf64df65bda59f7aae7152eb5707ee654",
+      "size_bytes": 1559
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/08_MODEL_AND_POLICY_MANIFEST.json",
+      "sha256": "419ded5719c5272aef206f62e4d7f9bd046d446efab80cb05ec02acd7ff7f597",
+      "size_bytes": 17111
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/09_DATA_ASSET_MANIFEST.json",
+      "sha256": "24e05b7c6a8f47dac2d74ad508214270c93e8e7a6a418b45cf6c89c25dab7626",
+      "size_bytes": 13929
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/10_DASHBOARD_MANIFEST.json",
+      "sha256": "9805bb5402ea290200a5c69a351e278a75ec2282f8fe05de3e0a93edd51194d8",
+      "size_bytes": 1496
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/12_BASELINE_SUMMARY.md",
+      "sha256": "00657221bd1adfd086cbfb34adeb55e39fd78a4f65840ede4bed6d8f7ef7818b",
+      "size_bytes": 2513
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/13_RESTORE_AND_VERIFY.md",
+      "sha256": "144753292580e2eb5756fb008019461d4bd879ddddb786eb010fc1715b1331b5",
+      "size_bytes": 1784
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_baseline/2026-06-21/14_ERRORS_AND_WARNINGS.json",
+      "sha256": "3f398cacbccb54e7cc4b2ccb6df2e9889269c29d959cdecb23b0a7d565498423",
+      "size_bytes": 39619
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/00_CLASSIFICATION_METADATA.json",
+      "sha256": "6b8deb7e62f15e5b8e15c1afc9f827b51da2449a89fbb314c15ca3e4ec0b67c3",
+      "size_bytes": 1005
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/01_FILE_CLASSIFICATION.csv",
+      "sha256": "f05e7378f97df3b46d5ca0aaaa15e5cbf8c042373381f8ba3c5f32e037b44e2c",
+      "size_bytes": 248384
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json",
+      "sha256": "e0fcda261aa7f40e81edfbd223baa1173e12c1f0634c0d108b3c24f3a6842b6d",
+      "size_bytes": 572300
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/03_CLASSIFICATION_RULES.md",
+      "sha256": "f85e63130cb168e0c86417f6d048d919e81d4cb5ed94ffe64fff624886281836",
+      "size_bytes": 892
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/04_DIRECTORY_SUMMARY.md",
+      "sha256": "b4368c1a9b3577d2a49c8e4870e8fb568aeafce082840dd6fbf1e77e865a23b8",
+      "size_bytes": 511
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/05_PORT_CANDIDATES.md",
+      "sha256": "c9869e4460e1496ebbf887b32242532040e43252c16ed1b789fa2ee90e3421e5",
+      "size_bytes": 5074
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/06_MIGRATE_DATA_CANDIDATES.md",
+      "sha256": "599b4ac3d707d71cf92ec806d726ce82546fc4c59d7068f05508249fdd5595cc",
+      "size_bytes": 4400
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/07_REFERENCE_ASSETS.md",
+      "sha256": "7bf9de3962dc9ec4257d30082ae0fffe37d3eb5148082b258943d15d66d56dc8",
+      "size_bytes": 25319
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/08_ARCHIVE_ASSETS.md",
+      "sha256": "2883a7ad29b2338c0465dbe8e687bb5f1ce50e2a4ab539e5ba9db81eccadc6b1",
+      "size_bytes": 12067
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/09_DELETE_LATER_ASSETS.md",
+      "sha256": "a377d907016079caf410102c5822492fc9f0a4a4ecedb180e158883c5f767043",
+      "size_bytes": 4644
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/10_UNCERTAIN_REVIEW_QUEUE.md",
+      "sha256": "908750e7d4a982c9ce51512838729635a745178f4a4ef6ace0e47a292347a80e",
+      "size_bytes": 32591
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/11_W2_TARGET_MAP.json",
+      "sha256": "98790a938ed9efb7dfb065f67990f55fe0b1059fbe060939fa67a4077b31938c",
+      "size_bytes": 35773
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/12_ERRORS_AND_WARNINGS.json",
+      "sha256": "04a7462211681fec4dbe1d4cf359ea833f8a51d8c8e67737452452866acc5668",
+      "size_bytes": 14806
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_classification/2026-06-21/13_CLASSIFICATION_SUMMARY.md",
+      "sha256": "3a5dbafe9bad5c6d2977e8317fe229de1c7118eff137faa7350e09d1f1eef0d3",
+      "size_bytes": 17521
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/00_DECISION_METADATA.json",
+      "sha256": "8898bd2cd43dc6a1bf7cb007b1356533a3068e5822f859156523a9071575f532",
+      "size_bytes": 664
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/01_PORT_DECISION_REGISTER.csv",
+      "sha256": "74b095bb7fcd128f12c2c7196424e159c6618c7e0b736dbdd99b41958513cd44",
+      "size_bytes": 24143
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/02_PORT_DECISION_REGISTER.json",
+      "sha256": "5d613d314c6ccde69d87f347e346db7e45d5e2288d7fce22b78a7233286626cc",
+      "size_bytes": 36663
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/03_DATA_MIGRATION_DECISION_REGISTER.csv",
+      "sha256": "d4f51f6568740edba3a65e091fbbd2c63520dfa0ab8dbecea1b511d6c163a1d3",
+      "size_bytes": 105279
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/04_DATA_MIGRATION_DECISION_REGISTER.json",
+      "sha256": "731f1960240076f30cd469d97225d50277274a905af9bc0fab8b77fed11730bf",
+      "size_bytes": 253884
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/05_DEPRECATION_REGISTER.csv",
+      "sha256": "22c0711c3657de84d9aff96288ee089e12b4ed3bf1971cbcc9fdb7b8cf80f8a7",
+      "size_bytes": 13134
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/06_DEPRECATION_REGISTER.json",
+      "sha256": "f8c82c25feffe8b09796eaf6b74407a23b3f95453bb93c3420162ec215e29cd4",
+      "size_bytes": 25550
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/07_REFERENCE_AND_ARCHIVE_POLICY.md",
+      "sha256": "7c233947a15670e9fafbffa7f95891f904e2ce7e52fb5132e3c1ebec1014b3dd",
+      "size_bytes": 919
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/08_W2_REWRITE_BLUEPRINT.md",
+      "sha256": "c4ec81131552a28c166b591f6d83148b081b2c5e71e161a3bbc60c4cc318f979",
+      "size_bytes": 3333
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/09_W1_DECOMMISSION_PLAN.md",
+      "sha256": "ea02897eee6bdd397e448fb8f54d21b2775095ebe78432151892d71d526b0d8e",
+      "size_bytes": 1364
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/10_ODDS_COLLECTION_CONTINUITY_AUDIT.json",
+      "sha256": "47c3fc303dd0bb5c65b562a82b485b9ddc441ab2e467357dbc1f72d94f7a85f8",
+      "size_bytes": 2837
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/11_ODDS_COLLECTION_CONTINUITY_RUNBOOK.md",
+      "sha256": "1dbc03e1cfb3d788bdde38f663044f0518c44bd6403ad2fdb9ac19e32ca62ebe",
+      "size_bytes": 856
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/12_GATE_0_CLOSURE_CHECKLIST.md",
+      "sha256": "6cf4886f9265ca4565a7e16abc3f1eea60b68a0cc3f2a4b97754fecf7d387446",
+      "size_bytes": 1045
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/13_DECISION_CONFLICTS_AND_WARNINGS.json",
+      "sha256": "b24c250a1486fdb9a5f36508db8e015bd5390045d6e45c37a0ba94ddeb6e2586",
+      "size_bytes": 26503
+    },
+    {
+      "copy_status": "NOT_COPIED",
+      "relative_path": "reports/legacy_decisions/2026-06-21/14_BUNDLE_SUMMARY.md",
+      "sha256": "8fdad62cce3a087bdaf24edca4883c6f74993c8a113f0c120c1cdf704844256e",
+      "size_bytes": 1737
+    }
+  ],
+  "w1_head": "354c32d107f7ebe72f257a1f8994062445ff1f13"
+}

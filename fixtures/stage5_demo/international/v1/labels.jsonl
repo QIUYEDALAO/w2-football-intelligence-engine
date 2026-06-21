@@ -1,0 +1,4 @@
+{"away_goals": 1, "confirmed_at": "2024-03-01T21:00:00+00:00", "fixture_id": "fictional-int-2024-001", "home_goals": 2, "raw_payload_refs": ["raw://stage5/fictional-int-2024-001/label"], "result_status": "FINAL"}
+{"away_goals": 1, "confirmed_at": "2024-03-01T21:00:00+00:00", "fixture_id": "fictional-int-2024-001", "home_goals": 2, "raw_payload_refs": ["raw://stage5/fictional-int-2024-001/label"], "result_status": "FINAL"}
+{"away_goals": 0, "confirmed_at": "2025-03-01T21:00:00+00:00", "fixture_id": "fictional-int-2025-001", "home_goals": 0, "raw_payload_refs": ["raw://stage5/fictional-int-2025-001/label"], "result_status": "FINAL"}
+{"away_goals": 0, "confirmed_at": "2025-03-01T21:00:00+00:00", "fixture_id": "fictional-int-2025-001", "home_goals": 0, "raw_payload_refs": ["raw://stage5/fictional-int-2025-001/label"], "result_status": "FINAL"}

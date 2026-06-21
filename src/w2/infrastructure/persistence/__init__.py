@@ -1,5 +1,13 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
+from w2.infrastructure.persistence.historical_models import (
+    AsOfSampleModel,
+    DataQualityRunModel,
+    DatasetArtifactModel,
+    DatasetSourceModel,
+    DatasetVersionModel,
+    LabelReferenceModel,
+)
 from w2.infrastructure.persistence.ingestion_models import (
     FreshnessAlertModel,
     IngestionRunModel,
@@ -40,15 +48,21 @@ from w2.infrastructure.persistence.models import (
 
 __all__ = [
     "AuditEventModel",
+    "AsOfSampleModel",
     "BookmakerModel",
     "CompetitionModel",
     "DataProvenanceModel",
+    "DataQualityRunModel",
+    "DatasetArtifactModel",
+    "DatasetSourceModel",
+    "DatasetVersionModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
     "FixtureModel",
     "InjuryModel",
     "IngestionRunModel",
     "LineupModel",
+    "LabelReferenceModel",
     "MarketModel",
     "ModelRunModel",
     "OddsObservationModel",

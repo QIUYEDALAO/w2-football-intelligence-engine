@@ -1,0 +1,4 @@
+{"away_goals": 2, "confirmed_at": "2024-08-10T18:00:00+00:00", "fixture_id": "fictional-club-2024-001", "home_goals": 3, "raw_payload_refs": ["raw://stage5/fictional-club-2024-001/label"], "result_status": "FINAL"}
+{"away_goals": 2, "confirmed_at": "2024-08-10T18:00:00+00:00", "fixture_id": "fictional-club-2024-001", "home_goals": 3, "raw_payload_refs": ["raw://stage5/fictional-club-2024-001/label"], "result_status": "FINAL"}
+{"away_goals": 2, "confirmed_at": "2025-08-10T18:00:00+00:00", "fixture_id": "fictional-club-2025-001", "home_goals": 1, "raw_payload_refs": ["raw://stage5/fictional-club-2025-001/label"], "result_status": "FINAL"}
+{"away_goals": 2, "confirmed_at": "2025-08-10T18:00:00+00:00", "fixture_id": "fictional-club-2025-001", "home_goals": 1, "raw_payload_refs": ["raw://stage5/fictional-club-2025-001/label"], "result_status": "FINAL"}
