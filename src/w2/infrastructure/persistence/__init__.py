@@ -7,10 +7,14 @@ from w2.infrastructure.persistence.challenger_models import (
     ForwardPredictionLockModel,
 )
 from w2.infrastructure.persistence.forward_ops_models import (
+    ForwardCycleCheckpointModel,
     ForwardCycleRunModel,
     ForwardGateAuditModel,
     ForwardMarketSnapshotModel,
+    ForwardOperationalAlertModel,
     ForwardResultEventModel,
+    ForwardSchedulerRunModel,
+    ForwardStateTransitionModel,
 )
 from w2.infrastructure.persistence.historical_models import (
     AsOfSampleModel,
@@ -94,13 +98,17 @@ __all__ = [
     "DatasetVersionModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
+    "ForwardCycleCheckpointModel",
     "ForwardEvaluationModel",
     "ForwardCycleRunModel",
     "ForwardGateAuditModel",
     "ForwardHoldoutRunModel",
     "ForwardMarketSnapshotModel",
+    "ForwardOperationalAlertModel",
     "ForwardPredictionLockModel",
     "ForwardResultEventModel",
+    "ForwardSchedulerRunModel",
+    "ForwardStateTransitionModel",
     "FixtureModel",
     "EvaluationRecordModel",
     "InjuryModel",

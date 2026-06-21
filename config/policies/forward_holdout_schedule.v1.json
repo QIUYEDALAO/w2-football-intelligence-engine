@@ -1,0 +1,54 @@
+{
+  "version": "forward_holdout_schedule.v1",
+  "defaults": {
+    "W2_FORWARD_HOLDOUT_AUTORUN": false,
+    "W2_FORWARD_HOLDOUT_NETWORK": false,
+    "minimum_quota_reserve": 2500,
+    "per_cycle_request_cap": 100,
+    "daily_hard_budget": 500
+  },
+  "celery_beat": {
+    "enabled_by_default": false,
+    "network_enabled_by_default": false,
+    "entries": [
+      {
+        "name": "forward-discovery-cycle",
+        "task": "w2.forward_holdout.discover",
+        "schedule": "*/30 * * * *",
+        "enabled": false
+      },
+      {
+        "name": "forward-t24-cycle",
+        "task": "w2.forward_holdout.t24",
+        "schedule": "*/15 * * * *",
+        "enabled": false
+      },
+      {
+        "name": "forward-t1-cycle",
+        "task": "w2.forward_holdout.t1",
+        "schedule": "*/5 * * * *",
+        "enabled": false
+      },
+      {
+        "name": "forward-result-settlement-cycle",
+        "task": "w2.forward_holdout.settle_results",
+        "schedule": "*/20 * * * *",
+        "enabled": false
+      },
+      {
+        "name": "forward-daily-gate-audit",
+        "task": "w2.forward_holdout.gate_audit",
+        "schedule": "15 0 * * *",
+        "enabled": false
+      }
+    ]
+  },
+  "safety": {
+    "forbid_training": true,
+    "forbid_deepseek": true,
+    "forbid_candidate_output": true,
+    "forbid_recommend_output": true,
+    "stop_on_http_status": [401, 403, 429],
+    "stop_when_remaining_quota_unknown": true
+  }
+}
