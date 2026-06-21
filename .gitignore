@@ -22,6 +22,7 @@ runtime/stage5b/
 runtime/model_artifacts/
 runtime/replay/
 runtime/stage7b/
+runtime/stage7c/
 data/raw/
 data/processed/
 .DS_Store

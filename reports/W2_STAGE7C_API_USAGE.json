@@ -1,0 +1,338 @@
+{
+  "api_key_status": "PRESENT",
+  "audit": [
+    {
+      "elapsed_ms": 697,
+      "endpoint": "status",
+      "params": {},
+      "remaining_quota": "6353",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 720,
+      "endpoint": "leagues",
+      "params": {
+        "search": "World Cup"
+      },
+      "remaining_quota": "6351",
+      "result_count": 18,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 780,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "1",
+        "season": "2026",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6350",
+      "result_count": 38,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 698,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "8",
+        "season": "2023",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6349",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 831,
+      "endpoint": "leagues",
+      "params": {
+        "search": "World Cup Qualification"
+      },
+      "remaining_quota": "6348",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 760,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Nations League"
+      },
+      "remaining_quota": "6347",
+      "result_count": 5,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 721,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "5",
+        "season": "2026",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6346",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 722,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "808",
+        "season": "2018",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6345",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 691,
+      "endpoint": "leagues",
+      "params": {
+        "search": "Friendlies"
+      },
+      "remaining_quota": "6344",
+      "result_count": 3,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 729,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "10",
+        "season": "2026",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6343",
+      "result_count": 2,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 737,
+      "endpoint": "fixtures",
+      "params": {
+        "from": "2026-06-21",
+        "league": "666",
+        "season": "2026",
+        "to": "2026-08-05"
+      },
+      "remaining_quota": "6342",
+      "result_count": 0,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1340,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489398"
+      },
+      "remaining_quota": "6341",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1265,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489396"
+      },
+      "remaining_quota": "6340",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1229,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489399"
+      },
+      "remaining_quota": "6339",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1224,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1539017"
+      },
+      "remaining_quota": "6338",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1322,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489401"
+      },
+      "remaining_quota": "6337",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1266,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489398"
+      },
+      "remaining_quota": "6336",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1303,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489396"
+      },
+      "remaining_quota": "6335",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1237,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489399"
+      },
+      "remaining_quota": "6334",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1268,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1539017"
+      },
+      "remaining_quota": "6333",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1266,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489401"
+      },
+      "remaining_quota": "6332",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1344,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489400"
+      },
+      "remaining_quota": "6331",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1082,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489400"
+      },
+      "remaining_quota": "6330",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1299,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489404"
+      },
+      "remaining_quota": "6352",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1414,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489404"
+      },
+      "remaining_quota": "6351",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1242,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489402"
+      },
+      "remaining_quota": "6350",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1251,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489402"
+      },
+      "remaining_quota": "6349",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1393,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489403"
+      },
+      "remaining_quota": "6348",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1247,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1489403"
+      },
+      "remaining_quota": "6347",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1299,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1539008"
+      },
+      "remaining_quota": "6346",
+      "result_count": 1,
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 1261,
+      "endpoint": "odds",
+      "params": {
+        "fixture": "1539008"
+      },
+      "remaining_quota": "6345",
+      "result_count": 1,
+      "status_code": 200
+    }
+  ],
+  "dry_run": false,
+  "max_authorized": 500,
+  "remaining_quota": 6345,
+  "request_budget": 100,
+  "requests_used": 31,
+  "reserve_realtime": 2500,
+  "target_requests": 100
+}

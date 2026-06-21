@@ -1,0 +1,6 @@
+{
+  "append_only": true,
+  "idempotent_replay": true,
+  "model_feature_calibration_feedback": false,
+  "result_events": []
+}
