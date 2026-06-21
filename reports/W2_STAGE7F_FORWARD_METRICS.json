@@ -1,0 +1,23 @@
+{
+  "bootstrap_ci": null,
+  "challenger": null,
+  "ece": null,
+  "elo": null,
+  "market_comparable_n": 0,
+  "metrics_status": "INSUFFICIENT_SAMPLE",
+  "paired_delta": null,
+  "power_market": null,
+  "sample_guard": "NO_STABLE_ECE_OR_PROMOTION_UNTIL_TARGET_SAMPLE",
+  "settled_fixture_n": 0,
+  "settled_lock_n": 0,
+  "slices": {
+    "official_vs_friendly": {
+      "official_or_known": null
+    },
+    "phase": {
+      "T-1h": null,
+      "T-24h": null
+    }
+  },
+  "uniform": null
+}
