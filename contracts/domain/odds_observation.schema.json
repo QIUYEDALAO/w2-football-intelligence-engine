@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/domain/odds_observation.schema.json",
+  "title": "OddsObservation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "fixture_id",
+    "bookmaker_id",
+    "market",
+    "selection",
+    "decimal_odds",
+    "suspended",
+    "live",
+    "stale",
+    "provider_updated_at",
+    "captured_at",
+    "raw_label",
+    "canonical_selection",
+    "settlement_rule"
+  ],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "fixture_id": {"type": "string", "format": "uuid"},
+    "bookmaker_id": {"type": "string", "format": "uuid"},
+    "market": {"enum": ["ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"]},
+    "selection": {"type": "string", "minLength": 1},
+    "line": {"type": ["number", "null"]},
+    "decimal_odds": {"type": "number", "exclusiveMinimum": 1},
+    "suspended": {"type": "boolean"},
+    "live": {"type": "boolean"},
+    "stale": {"type": "boolean"},
+    "provider_updated_at": {"type": "string", "format": "date-time"},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "raw_label": {"type": "string"},
+    "canonical_selection": {"type": "string"},
+    "settlement_rule": {"type": "string"}
+  }
+}
+

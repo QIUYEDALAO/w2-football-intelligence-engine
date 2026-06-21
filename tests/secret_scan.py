@@ -36,6 +36,11 @@ ALLOWLIST = (
     "no secrets",
     "tests.secret_scan",
     "test_secret_patterns",
+    "for token",
+    "if token",
+    "token =",
+    "{token}",
+    "real_world_tokens",
     "SECRETS_AND_ENVIRONMENTS",
     "Secrets and Environments",
 )

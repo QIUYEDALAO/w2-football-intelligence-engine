@@ -1,11 +1,10 @@
 # W2 Football Intelligence Engine
 
-Current stage: Stage 2 Engineering Foundation, built on the protected Stage 1 Product Contract.
+Current stage: Stage 3 Unified Football Data Model, built on the protected Stage 1 Product Contract and Stage 2 Engineering Foundation.
 
-This repository now contains the W2 engineering base: Python src layout, minimal
-FastAPI service, Celery worker, scheduler heartbeat, SQLAlchemy/Alembic database
-foundation, React TypeScript status UI, Docker Compose local infrastructure,
-tests, CI, and runbooks.
+This repository now contains the W2 engineering base plus the Stage 3 unified
+football data model: domain entities, Pydantic schemas, SQLAlchemy persistence
+models, Alembic migrations, odds canonicalization, and settlement primitives.
 
 It still does not have real recommendation capability, does not call DeepSeek,
 does not call Football-API, does not connect to odds providers for production
@@ -30,6 +29,12 @@ make test
 make smoke
 ```
 
+Run Stage 3 data-model checks:
+
+```bash
+uv run python scripts/check_w2_stage3_data_model.py
+```
+
 Start local infrastructure when Docker is available:
 
 ```bash
@@ -49,9 +54,11 @@ python3 scripts/render_ai_card_text.py examples/skip/card.json
 
 - Stage 1 contracts remain protected and covered by
   `scripts/check_w2_stage1_contracts.py`.
-- Stage 2 establishes runtime and delivery foundations only.
-- Stage 3 may add football entities, ingestion, feature pipelines, models, and
-  strategy work after a separate approval gate.
+- Stage 2 establishes runtime and delivery foundations.
+- Stage 3 establishes football data identity, time, odds, persistence, and
+  provenance foundations only.
+- Later stages may add ingestion, feature pipelines, models, and strategy work
+  after a separate approval gate.
 - API keys must come from environment variables or a future secret manager.
 - Example values in `.env.example` are placeholders and must not be used as real
   credentials.

@@ -4,6 +4,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
+import w2.infrastructure.persistence  # noqa: F401
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 
@@ -36,4 +37,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

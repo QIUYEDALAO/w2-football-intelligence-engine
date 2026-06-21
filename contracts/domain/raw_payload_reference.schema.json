@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/domain/raw_payload_reference.schema.json",
+  "title": "RawPayloadReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "provider", "object_uri", "sha256", "captured_at", "immutable"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "provider": {"type": "string", "minLength": 1},
+    "object_uri": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "immutable": {"const": true}
+  }
+}
+

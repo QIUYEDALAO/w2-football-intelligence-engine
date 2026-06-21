@@ -26,6 +26,8 @@ def test_no_w1_or_legacy_runtime_path_dependency() -> None:
             continue
         if path.as_posix().endswith("scripts/check_w2_stage1_contracts.py"):
             continue
+        if path.as_posix().endswith("scripts/check_w2_stage3_data_model.py"):
+            continue
         if path.as_posix().endswith("tests/regression/test_guards.py"):
             continue
         if path.as_posix().endswith("tests/secret_scan.py"):

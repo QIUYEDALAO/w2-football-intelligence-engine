@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/domain/data_provenance.schema.json",
+  "title": "DataProvenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "entity_type", "entity_id", "layer", "event_time", "ingested_at"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "entity_type": {"type": "string"},
+    "entity_id": {"type": "string", "format": "uuid"},
+    "layer": {"enum": ["RAW", "NORMALIZED", "FEATURE", "PREDICTION_STRATEGY"]},
+    "source_ref_id": {"type": ["string", "null"], "format": "uuid"},
+    "event_time": {"type": "string", "format": "date-time"},
+    "provider_updated_at": {"type": ["string", "null"], "format": "date-time"},
+    "ingested_at": {"type": "string", "format": "date-time"},
+    "as_of_time": {"type": ["string", "null"], "format": "date-time"},
+    "confirmed_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
+

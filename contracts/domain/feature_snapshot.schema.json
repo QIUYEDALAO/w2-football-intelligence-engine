@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/domain/feature_snapshot.schema.json",
+  "title": "FeatureSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "fixture_id", "as_of_time", "features", "layer"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "fixture_id": {"type": "string", "format": "uuid"},
+    "as_of_time": {"type": "string", "format": "date-time"},
+    "features": {
+      "type": "object",
+      "additionalProperties": {"type": "number"},
+      "not": {
+        "anyOf": [
+          {"required": ["home_goals"]},
+          {"required": ["away_goals"]},
+          {"required": ["result"]},
+          {"required": ["settlement"]},
+          {"required": ["final_score"]}
+        ]
+      }
+    },
+    "layer": {"const": "FEATURE"}
+  }
+}
+

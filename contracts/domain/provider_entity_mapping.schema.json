@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/domain/provider_entity_mapping.schema.json",
+  "title": "ProviderEntityMapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "entity_type", "entity_id", "provider", "external_id", "source", "confidence", "valid_from"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "entity_type": {"type": "string", "minLength": 1},
+    "entity_id": {"type": "string", "format": "uuid"},
+    "provider": {"type": "string", "minLength": 1},
+    "external_id": {"type": "string", "minLength": 1},
+    "source": {"type": "string", "minLength": 1},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "valid_from": {"type": "string", "format": "date-time"},
+    "valid_to": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
+
