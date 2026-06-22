@@ -1,0 +1,11 @@
+{
+  "version": "research_grade.v1",
+  "gate4_pending_published_grade_cap": "C",
+  "grades": {
+    "A": {"risk_adjusted_ev_min": "0.05", "data_quality": "READY", "market_quality": "READY"},
+    "B": {"risk_adjusted_ev_min": "0.025"},
+    "C": {"risk_adjusted_ev_min_exclusive": "0"},
+    "D": {"risk_adjusted_ev_max": "0", "action": "NO_BET"},
+    "X": {"blocked": true}
+  }
+}
