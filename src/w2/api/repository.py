@@ -1055,3 +1055,8 @@ class ReadModelService:
             "formal_recommendation": False,
             "candidate": False,
         }
+
+    def _optional_string(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value)
