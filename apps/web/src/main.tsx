@@ -18,10 +18,14 @@ type Fixture = {
   competition_id: string;
   competition_name: string;
   kickoff_utc: string;
+  kickoff_beijing?: string | null;
+  operational_date_beijing?: string | null;
   kickoff_display: string;
   status: string;
   home_team_id: string;
+  home_team_name?: string | null;
   away_team_id: string;
+  away_team_name?: string | null;
   lifecycle_state: string;
   data_state: string;
   published_grade?: string | null;
@@ -71,6 +75,25 @@ type Matchday = {
   date: string;
   total: number;
   items: Array<Record<string, unknown>>;
+};
+
+type MatchdayCoverage = {
+  request_id: string;
+  requested_date_beijing: string;
+  timezone: string;
+  window_start_beijing: string;
+  window_end_beijing: string;
+  window_start_utc: string;
+  window_end_utc: string;
+  authoritative_count: number;
+  discovered_count: number;
+  eligible_count: number;
+  card_count: number;
+  read_model_count: number;
+  displayed_count: number;
+  missing_count: number;
+  reason_distribution: Record<string, number>;
+  coverage_status: "READY" | "PARTIAL" | "BLOCKED";
 };
 
 type MarketRanking = {
@@ -320,8 +343,42 @@ function ProbabilityTable({ title, resource, onRetry }: { title: string; resourc
   );
 }
 
+function beijingToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function matchdayFixture(item: Record<string, unknown>): Fixture {
+  return {
+    fixture_id: String(item.fixture_id),
+    competition_id: String(item.competition_id),
+    competition_name: String(item.competition_name),
+    kickoff_utc: String(item.kickoff_utc),
+    kickoff_beijing: item.kickoff_beijing ? String(item.kickoff_beijing) : null,
+    operational_date_beijing: item.operational_date_beijing ? String(item.operational_date_beijing) : null,
+    kickoff_display: String(item.kickoff_beijing ?? item.kickoff_utc),
+    status: String(item.status),
+    home_team_id: String(item.home_team_id),
+    home_team_name: item.home_team_name ? String(item.home_team_name) : null,
+    away_team_id: String(item.away_team_id),
+    away_team_name: item.away_team_name ? String(item.away_team_name) : null,
+    lifecycle_state: String(item.action ?? item.lifecycle_state ?? "SKIP"),
+    data_state: String(item.data_health ?? item.data_state ?? "CAPTURED_AT"),
+    published_grade: item.published_grade ? String(item.published_grade) : null,
+    primary_market: item.primary_market ? String(item.primary_market) : null,
+    primary_line: item.primary_line ? String(item.primary_line) : null,
+    primary_odds: item.primary_odds ? String(item.primary_odds) : null,
+    last_captured: item.last_captured ? String(item.last_captured) : null,
+  };
+}
+
 function App() {
-  const [fixtures, setFixtures] = useState<Resource<FixtureList>>(emptyResource("/api/v1/fixtures?page_size=12&timezone=UTC"));
+  const [selectedDate, setSelectedDate] = useState<string>(beijingToday());
+  const [fixtures, setFixtures] = useState<Resource<FixtureList>>(emptyResource(`/api/v1/matchday/${beijingToday()}`));
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Resource<FixtureDetail>>(emptyResource("/api/v1/fixtures/none"));
   const [forward, setForward] = useState<Resource<ForwardStatus>>(emptyResource("/api/v1/forward-holdout/status"));
@@ -330,6 +387,8 @@ function App() {
   const [market, setMarket] = useState<Resource<Probability>>(emptyResource("/api/v1/fixtures/none/market-probabilities"));
   const [model, setModel] = useState<Resource<Probability>>(emptyResource("/api/v1/fixtures/none/model-probabilities"));
   const [matchday, setMatchday] = useState<Resource<Matchday>>(emptyResource("/api/v1/matchday"));
+  const [next36, setNext36] = useState<Resource<Matchday>>(emptyResource("/api/v1/matchday/next-36-hours"));
+  const [coverage, setCoverage] = useState<Resource<MatchdayCoverage>>(emptyResource("/api/ops/matchday-coverage"));
   const [ranking, setRanking] = useState<Resource<MarketRanking>>(emptyResource("/api/v1/fixtures/none/market-ranking"));
   const [integrity, setIntegrity] = useState<Resource<Integrity>>(emptyResource("/api/v1/fixtures/none/integrity"));
   const [tasks, setTasks] = useState<Resource<OpsList>>(emptyResource("/api/ops/tasks"));
@@ -341,14 +400,23 @@ function App() {
   const [retention, setRetention] = useState<Resource<RetentionStatus>>(emptyResource("/api/ops/retention/status"));
 
   const loadFixtures = useCallback(() => {
-    const endpoint = "/api/v1/fixtures?page_size=12&timezone=UTC";
+    const endpoint = `/api/v1/matchday/${selectedDate}`;
     setFixtures(emptyResource(endpoint));
-    loadJson<FixtureList>(endpoint).then((payload) => {
-      setFixtures(payload);
-      const first = payload.data?.items?.[0]?.fixture_id ?? null;
+    loadJson<Matchday>(endpoint).then((payload) => {
+      const fixturePayload: Resource<FixtureList> = {
+        ...payload,
+        data: payload.data
+          ? {
+              request_id: payload.data.request_id,
+              items: payload.data.items.map(matchdayFixture),
+            }
+          : null,
+      };
+      setFixtures(fixturePayload);
+      const first = fixturePayload.data?.items?.[0]?.fixture_id ?? null;
       setSelected((current) => current ?? first);
     });
-  }, []);
+  }, [selectedDate]);
 
   const loadCommon = useCallback(() => {
     loadJson<ForwardStatus>("/api/v1/forward-holdout/status").then(setForward);
@@ -362,6 +430,8 @@ function App() {
     loadJson<ReleaseReadiness>("/api/ops/releases/readiness").then(setRelease);
     loadJson<RetentionStatus>("/api/ops/retention/status").then(setRetention);
     loadJson<Matchday>("/api/v1/matchday").then(setMatchday);
+    loadJson<Matchday>("/api/v1/matchday/next-36-hours").then(setNext36);
+    loadJson<MatchdayCoverage>("/api/ops/matchday-coverage").then(setCoverage);
   }, []);
 
   useEffect(() => {
@@ -434,28 +504,33 @@ function App() {
       </section>
 
       <section className="grid main-grid">
-        <StatePanel title="Today Fixtures" resource={fixtures} onRetry={loadFixtures}>
+        <StatePanel title="今日比赛（北京时间）" resource={fixtures} onRetry={loadFixtures}>
           {(data) => (
-            <div className="fixture-list">
-              {data.items.map((fixture) => (
-                <button
-                  className={fixture.fixture_id === selected ? "fixture active" : "fixture"}
-                  key={fixture.fixture_id}
-                  onClick={() => setSelected(fixture.fixture_id)}
-                  type="button"
-                >
-                  <span>{fixture.competition_name}</span>
-                  <strong>{fixture.kickoff_display}</strong>
-                  <small>
-                    {fixture.status} · {fixture.lifecycle_state} · {fixture.data_state}
-                    {fixture.published_grade ? ` · grade ${fixture.published_grade}` : ""}
-                  </small>
-                  <small>
-                    {fixture.primary_market ?? "NO_MARKET"} {fixture.primary_line ?? ""} · {fixture.primary_odds ?? "n/a"}
-                  </small>
-                </button>
-              ))}
-            </div>
+            <>
+              <label className="date-control">
+                北京时间日期
+                <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+              </label>
+              <p className="source">窗口：北京时间 00:00:00 至次日 00:00:00，左闭右开。</p>
+              <div className="fixture-list">
+                {data.items.map((fixture) => (
+                  <button
+                    className={fixture.fixture_id === selected ? "fixture active" : "fixture"}
+                    key={fixture.fixture_id}
+                    onClick={() => setSelected(fixture.fixture_id)}
+                    type="button"
+                  >
+                    <span>{fixture.competition_name}</span>
+                    <strong>{fixture.home_team_name ?? fixture.home_team_id} vs {fixture.away_team_name ?? fixture.away_team_id}</strong>
+                    <small>北京时间 {fixture.kickoff_beijing ?? fixture.kickoff_display}</small>
+                    <small>UTC {fixture.kickoff_utc} · {fixture.status} · {fixture.lifecycle_state}</small>
+                    <small>
+                      {fixture.primary_market ?? "NO_MARKET"} {fixture.primary_line ?? ""} · {fixture.primary_odds ?? "n/a"}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </StatePanel>
 
@@ -464,7 +539,9 @@ function App() {
             <dl className="facts">
               <div><dt>Fixture</dt><dd>{selectedFixture?.fixture_id ?? data.fixture_id}</dd></div>
               <div><dt>Competition</dt><dd>{data.competition_name}</dd></div>
-              <div><dt>Kickoff</dt><dd>{data.kickoff_display}</dd></div>
+              <div><dt>Kickoff 北京时间</dt><dd>{data.kickoff_beijing ?? data.kickoff_display}</dd></div>
+              <div><dt>Kickoff UTC</dt><dd>{data.kickoff_utc}</dd></div>
+              <div><dt>Operational date</dt><dd>{data.operational_date_beijing ?? "n/a"}</dd></div>
               <div><dt>Bookmakers</dt><dd>{data.bookmaker_count}</dd></div>
               <div><dt>Coverage</dt><dd>{JSON.stringify(data.market_coverage)}</dd></div>
               <div><dt>Research status</dt><dd>{data.forward_decision}</dd></div>
@@ -492,14 +569,43 @@ function App() {
         <StatePanel title="Daily Matchday" resource={matchday} onRetry={loadCommon}>
           {(data) => (
             <div className="fixture-list">
-              <strong>{data.date} · {data.total} fixtures</strong>
+              <strong>{data.date} 北京时间 · {data.total} fixtures</strong>
               {data.items.map((item) => (
                 <div className="fixture" key={String(item.fixture_id)}>
                   <span>{String(item.competition_name ?? item.fixture_id)}</span>
-                  <strong>{String(item.primary_market ?? "NO_MARKET")} {String(item.primary_line ?? "")}</strong>
-                  <small>grade {String(item.published_grade ?? "X")} · {String(item.temporal_status ?? "UNKNOWN")} · {String(item.integrity_status ?? "UNKNOWN")}</small>
+                  <strong>{String(item.home_team_name ?? "")} vs {String(item.away_team_name ?? "")}</strong>
+                  <small>北京时间 {String(item.kickoff_beijing ?? item.kickoff_utc)}</small>
+                  <small>{String(item.primary_market ?? "NO_MARKET")} {String(item.primary_line ?? "")} · grade {String(item.published_grade ?? "X")}</small>
                 </div>
               ))}
+            </div>
+          )}
+        </StatePanel>
+        <StatePanel title="未来36小时" resource={next36} onRetry={loadCommon}>
+          {(data) => (
+            <div className="fixture-list">
+              <strong>NEXT_36_HOURS · {data.total} fixtures</strong>
+              {data.items.map((item) => (
+                <div className="fixture" key={String(item.fixture_id)}>
+                  <span>{String(item.competition_name ?? item.fixture_id)}</span>
+                  <strong>{String(item.home_team_name ?? "")} vs {String(item.away_team_name ?? "")}</strong>
+                  <small>北京时间 {String(item.kickoff_beijing ?? item.kickoff_utc)}</small>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatePanel>
+      </section>
+
+      <section className="grid two">
+        <StatePanel title="Coverage Audit" resource={coverage} onRetry={loadCommon}>
+          {(data) => (
+            <div className={data.coverage_status === "READY" ? "metric" : "error-box"}>
+              <strong>{data.coverage_status}</strong>
+              <p>{data.requested_date_beijing} · {data.timezone}</p>
+              <p>Provider/read model/displayed: {data.authoritative_count}/{data.read_model_count}/{data.displayed_count}</p>
+              <p>Window UTC: {data.window_start_utc} → {data.window_end_utc}</p>
+              <pre>{JSON.stringify(data.reason_distribution, null, 2)}</pre>
             </div>
           )}
         </StatePanel>

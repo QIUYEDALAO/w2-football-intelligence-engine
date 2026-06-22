@@ -214,7 +214,7 @@ def test_daily_cycle_reports_and_api(tmp_path: Path, monkeypatch) -> None:
     assert result["actual_fixture_count"] == 1
     monkeypatch.setattr(repository, "REPORTS", reports)
     client = TestClient(app)
-    matchday = client.get("/v1/matchday/2026-06-22").json()
+    matchday = client.get("/v1/matchday/2026-06-23").json()
     assert matchday["total"] == 1
     fixture_id = matchday["items"][0]["fixture_id"]
     assert client.get(f"/v1/fixtures/{fixture_id}/research-card").status_code == 200
@@ -293,7 +293,7 @@ def test_stage10c_report_projection_feeds_matchday_api(monkeypatch) -> None:
             ]
 
     service = repository.ReadModelService(Repo())
-    matchday = service.matchday(target_date="2026-06-22")
+    matchday = service.matchday(target_date="2026-06-23")
     assert matchday["total"] == 1
     assert matchday["items"][0]["home_team_name"] == "Argentina"
     assert matchday["items"][0]["away_team_name"] == "Austria"

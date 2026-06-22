@@ -23,6 +23,8 @@ class FixtureSummary(BaseModel):
     competition_id: str
     competition_name: str
     kickoff_utc: datetime
+    kickoff_beijing: str | None = None
+    operational_date_beijing: str | None = None
     kickoff_display: str
     status: str
     home_team_id: str
@@ -107,6 +109,25 @@ class MatchdayResponse(BaseModel):
     date: str
     total: int
     items: list[dict[str, Any]]
+
+
+class MatchdayCoverageResponse(BaseModel):
+    request_id: str
+    requested_date_beijing: str
+    timezone: str
+    window_start_beijing: str
+    window_end_beijing: str
+    window_start_utc: str
+    window_end_utc: str
+    authoritative_count: int
+    discovered_count: int
+    eligible_count: int
+    card_count: int
+    read_model_count: int
+    displayed_count: int
+    missing_count: int
+    reason_distribution: dict[str, int]
+    coverage_status: str
 
 
 class ResearchCardResponse(BaseModel):

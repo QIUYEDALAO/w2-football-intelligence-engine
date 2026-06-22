@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
@@ -13,6 +13,13 @@ from w2.config import Environment, get_settings
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.matchday.coverage import MatchdayCoverageReconciler
+from w2.matchday.timezone import (
+    BEIJING_TZ,
+    BeijingOperationalDayPolicy,
+    FixtureOperationalDateResolver,
+    next_36_hours_window,
+)
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -322,6 +329,8 @@ class ReadModelRepository:
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
         self.repository = repository or ReadModelRepository()
+        self.day_policy = BeijingOperationalDayPolicy()
+        self.date_resolver = FixtureOperationalDateResolver()
 
     def fixtures(
         self,
@@ -366,10 +375,21 @@ class ReadModelService:
         research_grade: str | None = None,
         data_status: str | None = None,
     ) -> dict[str, Any]:
+        requested_date = (
+            date.fromisoformat(target_date)
+            if target_date
+            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+        )
+        window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
         rows = [self._matchday_item(card) for card in cards]
-        if target_date:
-            rows = [row for row in rows if str(row["kickoff_utc"]).startswith(target_date)]
+        rows = [
+            row
+            for row in rows
+            if window.contains(
+                datetime.fromisoformat(str(row["kickoff_utc"]).replace("Z", "+00:00"))
+            )
+        ]
         if competition_id:
             rows = [row for row in rows if row["competition_id"] == competition_id]
         if status:
@@ -379,10 +399,61 @@ class ReadModelService:
         if data_status:
             rows = [row for row in rows if row.get("data_health") == data_status]
         return {
-            "date": target_date or datetime.now(UTC).date().isoformat(),
+            "date": requested_date.isoformat(),
+            "timezone": BEIJING_TZ,
+            "window_start_beijing": window.start_local.isoformat(),
+            "window_end_beijing": window.end_local.isoformat(),
+            "window_start_utc": window.start_utc.isoformat().replace("+00:00", "Z"),
+            "window_end_utc": window.end_utc.isoformat().replace("+00:00", "Z"),
             "total": len(rows),
             "items": rows,
         }
+
+    def matchday_next_36_hours(self, *, now_utc: datetime | None = None) -> dict[str, Any]:
+        start, end = next_36_hours_window(now_utc)
+        rows = [self._matchday_item(card) for card in self.repository.matchday_cards()]
+        rows = [
+            row
+            for row in rows
+            if start
+            <= datetime.fromisoformat(
+                str(row["kickoff_utc"]).replace("Z", "+00:00")
+            ).astimezone(UTC)
+            < end
+        ]
+        return {
+            "view": "NEXT_36_HOURS",
+            "timezone": BEIJING_TZ,
+            "now_utc": start.isoformat().replace("+00:00", "Z"),
+            "window_end_utc": end.isoformat().replace("+00:00", "Z"),
+            "total": len(rows),
+            "items": rows,
+        }
+
+    def matchday_coverage(self, *, target_date: str | None = None) -> dict[str, Any]:
+        requested_date = (
+            date.fromisoformat(target_date)
+            if target_date
+            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+        )
+        window = self.day_policy.window_for_date(requested_date)
+        cards = self.repository.matchday_cards()
+        read_model = self.repository.dashboard_latest_fixtures()
+        authoritative = [
+            {
+                "fixture_id": row["fixture_id"],
+                "competition": row["competition_name"],
+                "kickoff_utc": row["kickoff_utc"],
+            }
+            for row in read_model
+        ]
+        return MatchdayCoverageReconciler().reconcile(
+            window=window,
+            authoritative_fixtures=authoritative,
+            cards=cards,
+            read_model_fixtures=read_model,
+            displayed_fixtures=read_model,
+        )
 
     def research_card(self, fixture_id: str) -> dict[str, Any] | None:
         for card in self.repository.matchday_cards():
@@ -899,11 +970,14 @@ class ReadModelService:
         kickoff = datetime.fromisoformat(str(fixture.get("date")).replace("Z", "+00:00"))
         kickoff = kickoff.astimezone(UTC)
         display_tz = ZoneInfo(timezone)
+        beijing = self.date_resolver.annotate(kickoff)
         return {
             "fixture_id": str(fixture.get("id")),
             "competition_id": str(league.get("id")),
             "competition_name": str(league.get("name")),
             "kickoff_utc": kickoff,
+            "kickoff_beijing": beijing["kickoff_beijing"],
+            "operational_date_beijing": beijing["operational_date_beijing"],
             "kickoff_display": kickoff.astimezone(display_tz).isoformat(),
             "status": str(fixture.get("status", {}).get("short")),
             "home_team_id": str(teams.get("home", {}).get("id")),
@@ -918,11 +992,14 @@ class ReadModelService:
         kickoff = datetime.fromisoformat(str(item["kickoff_utc"]).replace("Z", "+00:00"))
         kickoff = kickoff.astimezone(UTC)
         display_tz = ZoneInfo(timezone)
+        beijing = self.date_resolver.annotate(kickoff)
         return {
             "fixture_id": str(item["fixture_id"]),
             "competition_id": str(item["competition_id"]),
             "competition_name": str(item["competition_name"]),
             "kickoff_utc": kickoff,
+            "kickoff_beijing": beijing["kickoff_beijing"],
+            "operational_date_beijing": beijing["operational_date_beijing"],
             "kickoff_display": kickoff.astimezone(display_tz).isoformat(),
             "status": str(item["status"]),
             "home_team_id": str(item["home_team_id"]),
@@ -951,11 +1028,15 @@ class ReadModelService:
         card = cast(dict[str, Any], payload.get("card", {}))
         temporal = cast(dict[str, Any], payload.get("temporal", {}))
         primary = cast(dict[str, Any] | None, card.get("primary_market_direction"))
+        kickoff = datetime.fromisoformat(str(fixture.get("kickoff_utc")).replace("Z", "+00:00"))
+        beijing = self.date_resolver.annotate(kickoff)
         return {
             "fixture_id": str(fixture.get("fixture_id")),
             "competition_id": str(fixture.get("competition_id")),
             "competition_name": str(fixture.get("competition_name")),
             "kickoff_utc": fixture.get("kickoff_utc"),
+            "kickoff_beijing": beijing["kickoff_beijing"],
+            "operational_date_beijing": beijing["operational_date_beijing"],
             "status": fixture.get("status"),
             "home_team_id": str(fixture.get("home_team_id")),
             "home_team_name": fixture.get("home_team_name"),
