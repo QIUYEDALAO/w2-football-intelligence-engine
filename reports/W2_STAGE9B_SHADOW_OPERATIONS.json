@@ -1,0 +1,669 @@
+{
+  "candidate": false,
+  "coverage": {
+    "grade_distribution": {
+      "C": 4
+    },
+    "hard_gate_reasons": {
+      "CORRELATION_POLICY_INSUFFICIENT": 4
+    },
+    "market_distribution": {
+      "ASIAN_HANDICAP": 4
+    }
+  },
+  "decisions": [
+    {
+      "candidate": false,
+      "created_at": "2026-06-22T21:39:07.352959Z",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "formal_recommendation": false,
+      "invalidation_conditions": [
+        "Kickoff passed",
+        "Quote becomes stale/live/suspended",
+        "Frozen model or calibration hash changes"
+      ],
+      "most_likely_outcome": "HOME_WIN",
+      "opposing_factors": [
+        "Formal recommendation disabled",
+        "Shadow strategy requires future holdout validation"
+      ],
+      "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "primary": {
+        "adjusted_minimum_odds": "1.0417",
+        "bookmaker": "Pinnacle",
+        "executable": true,
+        "executable_odds": "2.02",
+        "hard_gate_reasons": [],
+        "line": "2.75",
+        "market": "ASIAN_HANDICAP",
+        "market_no_vig_odds": null,
+        "model_fair_odds": "1.0208",
+        "price_margin_above_minimum": "0.9783",
+        "published_grade": "C",
+        "rank": 1,
+        "raw_ev": "0.9592",
+        "raw_grade": "A",
+        "risk_adjusted_ev": "0.9392",
+        "risk_flags": [
+          "GATE4_PENDING",
+          "SHADOW_ONLY"
+        ],
+        "role": "PRIMARY",
+        "selection": "AWAY",
+        "settlement_distribution": {
+          "full_loss_probability": "0E+2",
+          "full_win_probability": "0.96",
+          "half_loss_probability": "0.04",
+          "half_win_probability": "0E+2",
+          "push_probability": "0E+2"
+        },
+        "total_penalty": "0.020"
+      },
+      "public_decision": "WATCH",
+      "published_grade": "C",
+      "raw_grade": "A",
+      "secondary": null,
+      "shadow_action": "SHADOW_WATCH",
+      "skip_reasons": [
+        "CORRELATION_POLICY_INSUFFICIENT"
+      ],
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "supporting_factors": [
+        "Price passed adjusted minimum odds",
+        "Gate 4 pending cap applied"
+      ],
+      "variant": "highest_raw_ev"
+    },
+    {
+      "candidate": false,
+      "created_at": "2026-06-22T21:39:07.353303Z",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "formal_recommendation": false,
+      "invalidation_conditions": [
+        "Kickoff passed",
+        "Quote becomes stale/live/suspended",
+        "Frozen model or calibration hash changes"
+      ],
+      "most_likely_outcome": "HOME_WIN",
+      "opposing_factors": [
+        "Formal recommendation disabled",
+        "Shadow strategy requires future holdout validation"
+      ],
+      "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "primary": {
+        "adjusted_minimum_odds": "1.0573",
+        "bookmaker": "Pinnacle",
+        "executable": true,
+        "executable_odds": "2.02",
+        "hard_gate_reasons": [],
+        "line": "2.75",
+        "market": "ASIAN_HANDICAP",
+        "market_no_vig_odds": null,
+        "model_fair_odds": "1.0208",
+        "price_margin_above_minimum": "0.9627",
+        "published_grade": "C",
+        "rank": 1,
+        "raw_ev": "0.9592",
+        "raw_grade": "A",
+        "risk_adjusted_ev": "0.9242",
+        "risk_flags": [
+          "GATE4_PENDING",
+          "SHADOW_ONLY"
+        ],
+        "role": "PRIMARY",
+        "selection": "AWAY",
+        "settlement_distribution": {
+          "full_loss_probability": "0E+2",
+          "full_win_probability": "0.96",
+          "half_loss_probability": "0.04",
+          "half_win_probability": "0E+2",
+          "push_probability": "0E+2"
+        },
+        "total_penalty": "0.035"
+      },
+      "public_decision": "WATCH",
+      "published_grade": "C",
+      "raw_grade": "A",
+      "secondary": null,
+      "shadow_action": "SHADOW_WATCH",
+      "skip_reasons": [
+        "CORRELATION_POLICY_INSUFFICIENT"
+      ],
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "supporting_factors": [
+        "Price passed adjusted minimum odds",
+        "Gate 4 pending cap applied"
+      ],
+      "variant": "highest_risk_adjusted_ev"
+    },
+    {
+      "candidate": false,
+      "created_at": "2026-06-22T21:39:07.353439Z",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "formal_recommendation": false,
+      "invalidation_conditions": [
+        "Kickoff passed",
+        "Quote becomes stale/live/suspended",
+        "Frozen model or calibration hash changes"
+      ],
+      "most_likely_outcome": "HOME_WIN",
+      "opposing_factors": [
+        "Formal recommendation disabled",
+        "Shadow strategy requires future holdout validation"
+      ],
+      "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "primary": {
+        "adjusted_minimum_odds": "1.0573",
+        "bookmaker": "Pinnacle",
+        "executable": true,
+        "executable_odds": "2.02",
+        "hard_gate_reasons": [],
+        "line": "2.75",
+        "market": "ASIAN_HANDICAP",
+        "market_no_vig_odds": null,
+        "model_fair_odds": "1.0208",
+        "price_margin_above_minimum": "0.9627",
+        "published_grade": "C",
+        "rank": 1,
+        "raw_ev": "0.9592",
+        "raw_grade": "A",
+        "risk_adjusted_ev": "0.9242",
+        "risk_flags": [
+          "GATE4_PENDING",
+          "SHADOW_ONLY"
+        ],
+        "role": "PRIMARY",
+        "selection": "AWAY",
+        "settlement_distribution": {
+          "full_loss_probability": "0E+2",
+          "full_win_probability": "0.96",
+          "half_loss_probability": "0.04",
+          "half_win_probability": "0E+2",
+          "push_probability": "0E+2"
+        },
+        "total_penalty": "0.035"
+      },
+      "public_decision": "WATCH",
+      "published_grade": "C",
+      "raw_grade": "A",
+      "secondary": null,
+      "shadow_action": "SHADOW_WATCH",
+      "skip_reasons": [
+        "CORRELATION_POLICY_INSUFFICIENT"
+      ],
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "supporting_factors": [
+        "Price passed adjusted minimum odds",
+        "Gate 4 pending cap applied"
+      ],
+      "variant": "main_line_only"
+    },
+    {
+      "candidate": false,
+      "created_at": "2026-06-22T21:39:07.353582Z",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "formal_recommendation": false,
+      "invalidation_conditions": [
+        "Kickoff passed",
+        "Quote becomes stale/live/suspended",
+        "Frozen model or calibration hash changes"
+      ],
+      "most_likely_outcome": "HOME_WIN",
+      "opposing_factors": [
+        "Formal recommendation disabled",
+        "Shadow strategy requires future holdout validation"
+      ],
+      "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "primary": {
+        "adjusted_minimum_odds": "1.0573",
+        "bookmaker": "Pinnacle",
+        "executable": true,
+        "executable_odds": "2.02",
+        "hard_gate_reasons": [],
+        "line": "2.75",
+        "market": "ASIAN_HANDICAP",
+        "market_no_vig_odds": null,
+        "model_fair_odds": "1.0208",
+        "price_margin_above_minimum": "0.9627",
+        "published_grade": "C",
+        "rank": 1,
+        "raw_ev": "0.9592",
+        "raw_grade": "A",
+        "risk_adjusted_ev": "0.9242",
+        "risk_flags": [
+          "GATE4_PENDING",
+          "SHADOW_ONLY"
+        ],
+        "role": "PRIMARY",
+        "selection": "AWAY",
+        "settlement_distribution": {
+          "full_loss_probability": "0E+2",
+          "full_win_probability": "0.96",
+          "half_loss_probability": "0.04",
+          "half_win_probability": "0E+2",
+          "push_probability": "0E+2"
+        },
+        "total_penalty": "0.035"
+      },
+      "public_decision": "WATCH",
+      "published_grade": "C",
+      "raw_grade": "A",
+      "secondary": null,
+      "shadow_action": "SHADOW_WATCH",
+      "skip_reasons": [
+        "CORRELATION_POLICY_INSUFFICIENT"
+      ],
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "supporting_factors": [
+        "Price passed adjusted minimum odds",
+        "Gate 4 pending cap applied"
+      ],
+      "variant": "stage9a_final_policy"
+    }
+  ],
+  "events": [
+    {
+      "append_only": true,
+      "decision_hash": "d49d1973db7b9b2d1332e020a60ae7866b5979d59b0f899b3c126ffa7ea5407b",
+      "event_time": "2026-06-22T21:39:07.353154Z",
+      "event_type": "LOCKED",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "variant": "highest_raw_ev"
+    },
+    {
+      "append_only": true,
+      "decision_hash": "17828cb6fb109c7da63a64be1ea4663ff41bc1b37c4c61b19ad602aa2a96d874",
+      "event_time": "2026-06-22T21:39:07.353344Z",
+      "event_type": "LOCKED",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "variant": "highest_risk_adjusted_ev"
+    },
+    {
+      "append_only": true,
+      "decision_hash": "115d1936dfb27f976f76ef5c8af87d2a2eea194e71dd8a5e9ad9355a263f4a14",
+      "event_time": "2026-06-22T21:39:07.353475Z",
+      "event_type": "LOCKED",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "variant": "main_line_only"
+    },
+    {
+      "append_only": true,
+      "decision_hash": "9381cb7fde9693f5f68020dfe953add43a021ba3156552242ebecb96478eccdd",
+      "event_time": "2026-06-22T21:39:07.353617Z",
+      "event_type": "LOCKED",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "variant": "stage9a_final_policy"
+    }
+  ],
+  "formal_recommendation": false,
+  "forward": {
+    "api_request_count": 0,
+    "lock_count": 0,
+    "quota_reserve": 1500,
+    "status": "NO_ELIGIBLE_FORWARD_FIXTURE"
+  },
+  "generated_at": "2026-06-22T21:39:07.353783Z",
+  "locks": [
+    {
+      "decision_hash": "d49d1973db7b9b2d1332e020a60ae7866b5979d59b0f899b3c126ffa7ea5407b",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "locked_at": "2026-06-22T21:39:07.353154Z",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "variant": "highest_raw_ev"
+    },
+    {
+      "decision_hash": "17828cb6fb109c7da63a64be1ea4663ff41bc1b37c4c61b19ad602aa2a96d874",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "locked_at": "2026-06-22T21:39:07.353344Z",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "variant": "highest_risk_adjusted_ev"
+    },
+    {
+      "decision_hash": "115d1936dfb27f976f76ef5c8af87d2a2eea194e71dd8a5e9ad9355a263f4a14",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "locked_at": "2026-06-22T21:39:07.353475Z",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "variant": "main_line_only"
+    },
+    {
+      "decision_hash": "9381cb7fde9693f5f68020dfe953add43a021ba3156552242ebecb96478eccdd",
+      "fixture_id": "stage9a-france-iraq-demo",
+      "locked_at": "2026-06-22T21:39:07.353617Z",
+      "phase": "RETROSPECTIVE_REPLAY",
+      "strategy_version": "W2_SHADOW_STRATEGY_V1",
+      "variant": "stage9a_final_policy"
+    }
+  ],
+  "manifest": {
+    "calibration_version": "STAGE7B_FROZEN_CALIBRATION",
+    "candidate": false,
+    "correlation_policy_sha256": "1cb61fe0cbf38620e00f278de39d6d0544478389068e008d568d9838fe45782a",
+    "formal_recommendation": false,
+    "grade_policy": "GATE4_CAP_MAX_C",
+    "hard_gate_policy_sha256": "bd44b758eb03cf3269de62f49e76282c094fb75a43c1b3779a6618540bbbc96d",
+    "model_version": "STAGE7B_FROZEN_CHALLENGER",
+    "shadow_strategy_policy_sha256": "7bbfa6ed9357e7866503ac4b717b395f0e927bed338c3281e50c1166ddb38a4a",
+    "strategy_version": "W2_SHADOW_STRATEGY_V1"
+  },
+  "manifest_sha256": "5db0bfb757659c4bbc03e23efc93d18ace9ff899ad2e0be3bdd7da2236a1c162",
+  "mode": "LOCAL_DRY_RUN",
+  "retrospective": {
+    "fixture_count": 1,
+    "replay_determinism": "PASS",
+    "status": "RETROSPECTIVE_REPLAY",
+    "variants": [
+      {
+        "decision_hash": "450e18e88f0992d568a49c43ea869747d7c49111bbae3f2cfdd354d991b70d23",
+        "decisions": [
+          {
+            "candidate": false,
+            "created_at": "2026-06-22T21:39:07.352959Z",
+            "fixture_id": "stage9a-france-iraq-demo",
+            "formal_recommendation": false,
+            "invalidation_conditions": [
+              "Kickoff passed",
+              "Quote becomes stale/live/suspended",
+              "Frozen model or calibration hash changes"
+            ],
+            "most_likely_outcome": "HOME_WIN",
+            "opposing_factors": [
+              "Formal recommendation disabled",
+              "Shadow strategy requires future holdout validation"
+            ],
+            "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+            "phase": "RETROSPECTIVE_REPLAY",
+            "primary": {
+              "adjusted_minimum_odds": "1.0417",
+              "bookmaker": "Pinnacle",
+              "executable": true,
+              "executable_odds": "2.02",
+              "hard_gate_reasons": [],
+              "line": "2.75",
+              "market": "ASIAN_HANDICAP",
+              "market_no_vig_odds": null,
+              "model_fair_odds": "1.0208",
+              "price_margin_above_minimum": "0.9783",
+              "published_grade": "C",
+              "rank": 1,
+              "raw_ev": "0.9592",
+              "raw_grade": "A",
+              "risk_adjusted_ev": "0.9392",
+              "risk_flags": [
+                "GATE4_PENDING",
+                "SHADOW_ONLY"
+              ],
+              "role": "PRIMARY",
+              "selection": "AWAY",
+              "settlement_distribution": {
+                "full_loss_probability": "0E+2",
+                "full_win_probability": "0.96",
+                "half_loss_probability": "0.04",
+                "half_win_probability": "0E+2",
+                "push_probability": "0E+2"
+              },
+              "total_penalty": "0.020"
+            },
+            "public_decision": "WATCH",
+            "published_grade": "C",
+            "raw_grade": "A",
+            "secondary": null,
+            "shadow_action": "SHADOW_WATCH",
+            "skip_reasons": [
+              "CORRELATION_POLICY_INSUFFICIENT"
+            ],
+            "strategy_version": "W2_SHADOW_STRATEGY_V1",
+            "supporting_factors": [
+              "Price passed adjusted minimum odds",
+              "Gate 4 pending cap applied"
+            ]
+          }
+        ],
+        "fixture_count": 1,
+        "name": "highest_raw_ev",
+        "uncertainty_penalty": "0.020"
+      },
+      {
+        "decision_hash": "5254f83510c40992fa7e46ed848317e097bcdfe39e2b41231c11f8666011bf9d",
+        "decisions": [
+          {
+            "candidate": false,
+            "created_at": "2026-06-22T21:39:07.353303Z",
+            "fixture_id": "stage9a-france-iraq-demo",
+            "formal_recommendation": false,
+            "invalidation_conditions": [
+              "Kickoff passed",
+              "Quote becomes stale/live/suspended",
+              "Frozen model or calibration hash changes"
+            ],
+            "most_likely_outcome": "HOME_WIN",
+            "opposing_factors": [
+              "Formal recommendation disabled",
+              "Shadow strategy requires future holdout validation"
+            ],
+            "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+            "phase": "RETROSPECTIVE_REPLAY",
+            "primary": {
+              "adjusted_minimum_odds": "1.0573",
+              "bookmaker": "Pinnacle",
+              "executable": true,
+              "executable_odds": "2.02",
+              "hard_gate_reasons": [],
+              "line": "2.75",
+              "market": "ASIAN_HANDICAP",
+              "market_no_vig_odds": null,
+              "model_fair_odds": "1.0208",
+              "price_margin_above_minimum": "0.9627",
+              "published_grade": "C",
+              "rank": 1,
+              "raw_ev": "0.9592",
+              "raw_grade": "A",
+              "risk_adjusted_ev": "0.9242",
+              "risk_flags": [
+                "GATE4_PENDING",
+                "SHADOW_ONLY"
+              ],
+              "role": "PRIMARY",
+              "selection": "AWAY",
+              "settlement_distribution": {
+                "full_loss_probability": "0E+2",
+                "full_win_probability": "0.96",
+                "half_loss_probability": "0.04",
+                "half_win_probability": "0E+2",
+                "push_probability": "0E+2"
+              },
+              "total_penalty": "0.035"
+            },
+            "public_decision": "WATCH",
+            "published_grade": "C",
+            "raw_grade": "A",
+            "secondary": null,
+            "shadow_action": "SHADOW_WATCH",
+            "skip_reasons": [
+              "CORRELATION_POLICY_INSUFFICIENT"
+            ],
+            "strategy_version": "W2_SHADOW_STRATEGY_V1",
+            "supporting_factors": [
+              "Price passed adjusted minimum odds",
+              "Gate 4 pending cap applied"
+            ]
+          }
+        ],
+        "fixture_count": 1,
+        "name": "highest_risk_adjusted_ev",
+        "uncertainty_penalty": "0.035"
+      },
+      {
+        "decision_hash": "5254f83510c40992fa7e46ed848317e097bcdfe39e2b41231c11f8666011bf9d",
+        "decisions": [
+          {
+            "candidate": false,
+            "created_at": "2026-06-22T21:39:07.353439Z",
+            "fixture_id": "stage9a-france-iraq-demo",
+            "formal_recommendation": false,
+            "invalidation_conditions": [
+              "Kickoff passed",
+              "Quote becomes stale/live/suspended",
+              "Frozen model or calibration hash changes"
+            ],
+            "most_likely_outcome": "HOME_WIN",
+            "opposing_factors": [
+              "Formal recommendation disabled",
+              "Shadow strategy requires future holdout validation"
+            ],
+            "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+            "phase": "RETROSPECTIVE_REPLAY",
+            "primary": {
+              "adjusted_minimum_odds": "1.0573",
+              "bookmaker": "Pinnacle",
+              "executable": true,
+              "executable_odds": "2.02",
+              "hard_gate_reasons": [],
+              "line": "2.75",
+              "market": "ASIAN_HANDICAP",
+              "market_no_vig_odds": null,
+              "model_fair_odds": "1.0208",
+              "price_margin_above_minimum": "0.9627",
+              "published_grade": "C",
+              "rank": 1,
+              "raw_ev": "0.9592",
+              "raw_grade": "A",
+              "risk_adjusted_ev": "0.9242",
+              "risk_flags": [
+                "GATE4_PENDING",
+                "SHADOW_ONLY"
+              ],
+              "role": "PRIMARY",
+              "selection": "AWAY",
+              "settlement_distribution": {
+                "full_loss_probability": "0E+2",
+                "full_win_probability": "0.96",
+                "half_loss_probability": "0.04",
+                "half_win_probability": "0E+2",
+                "push_probability": "0E+2"
+              },
+              "total_penalty": "0.035"
+            },
+            "public_decision": "WATCH",
+            "published_grade": "C",
+            "raw_grade": "A",
+            "secondary": null,
+            "shadow_action": "SHADOW_WATCH",
+            "skip_reasons": [
+              "CORRELATION_POLICY_INSUFFICIENT"
+            ],
+            "strategy_version": "W2_SHADOW_STRATEGY_V1",
+            "supporting_factors": [
+              "Price passed adjusted minimum odds",
+              "Gate 4 pending cap applied"
+            ]
+          }
+        ],
+        "fixture_count": 1,
+        "name": "main_line_only",
+        "uncertainty_penalty": "0.035"
+      },
+      {
+        "decision_hash": "5254f83510c40992fa7e46ed848317e097bcdfe39e2b41231c11f8666011bf9d",
+        "decisions": [
+          {
+            "candidate": false,
+            "created_at": "2026-06-22T21:39:07.353582Z",
+            "fixture_id": "stage9a-france-iraq-demo",
+            "formal_recommendation": false,
+            "invalidation_conditions": [
+              "Kickoff passed",
+              "Quote becomes stale/live/suspended",
+              "Frozen model or calibration hash changes"
+            ],
+            "most_likely_outcome": "HOME_WIN",
+            "opposing_factors": [
+              "Formal recommendation disabled",
+              "Shadow strategy requires future holdout validation"
+            ],
+            "participation_advice": "SHADOW_ONLY_DO_NOT_PUBLISH_AS_FORMAL",
+            "phase": "RETROSPECTIVE_REPLAY",
+            "primary": {
+              "adjusted_minimum_odds": "1.0573",
+              "bookmaker": "Pinnacle",
+              "executable": true,
+              "executable_odds": "2.02",
+              "hard_gate_reasons": [],
+              "line": "2.75",
+              "market": "ASIAN_HANDICAP",
+              "market_no_vig_odds": null,
+              "model_fair_odds": "1.0208",
+              "price_margin_above_minimum": "0.9627",
+              "published_grade": "C",
+              "rank": 1,
+              "raw_ev": "0.9592",
+              "raw_grade": "A",
+              "risk_adjusted_ev": "0.9242",
+              "risk_flags": [
+                "GATE4_PENDING",
+                "SHADOW_ONLY"
+              ],
+              "role": "PRIMARY",
+              "selection": "AWAY",
+              "settlement_distribution": {
+                "full_loss_probability": "0E+2",
+                "full_win_probability": "0.96",
+                "half_loss_probability": "0.04",
+                "half_win_probability": "0E+2",
+                "push_probability": "0E+2"
+              },
+              "total_penalty": "0.035"
+            },
+            "public_decision": "WATCH",
+            "published_grade": "C",
+            "raw_grade": "A",
+            "secondary": null,
+            "shadow_action": "SHADOW_WATCH",
+            "skip_reasons": [
+              "CORRELATION_POLICY_INSUFFICIENT"
+            ],
+            "strategy_version": "W2_SHADOW_STRATEGY_V1",
+            "supporting_factors": [
+              "Price passed adjusted minimum odds",
+              "Gate 4 pending cap applied"
+            ]
+          }
+        ],
+        "fixture_count": 1,
+        "name": "stage9a_final_policy",
+        "uncertainty_penalty": "0.035"
+      }
+    ]
+  },
+  "run_id": "stage9b-shadow-operations-local",
+  "server_shadow_cycle": {
+    "allowed_actions": [
+      "SHADOW_WATCH",
+      "SHADOW_SKIP"
+    ],
+    "api_request_count": 0,
+    "quota_reserve": 1500,
+    "reason": "STAGING_DEPLOYMENT_FREEZE_ACTIVE_AND_NO_DEPLOYED_STAGE9B_CLI",
+    "status": "NO_ELIGIBLE_FORWARD_FIXTURE"
+  },
+  "strategy_version": "W2_SHADOW_STRATEGY_V1",
+  "threshold_sensitivity": {
+    "status": "RESEARCH_ONLY_NOT_PROMOTED",
+    "variants": [
+      "highest_raw_ev",
+      "highest_risk_adjusted_ev",
+      "main_line_only",
+      "stage9a_final_policy"
+    ]
+  }
+}

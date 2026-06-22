@@ -117,6 +117,40 @@ def current_revision(current: Path, baseline_revision: str) -> dict[str, Any]:
     }
 
 
+def resolve_expected_revision(
+    *,
+    explicit: str | None,
+    current: Path,
+    environ: dict[str, str] | None = None,
+) -> tuple[str | None, str]:
+    env = environ if environ is not None else os.environ
+    if explicit:
+        return explicit, "CLI"
+    if env.get("W2_STAGE7I_EXPECTED_REVISION"):
+        return env["W2_STAGE7I_EXPECTED_REVISION"], "ENV"
+    revision = current_revision(current, "").get("revision")
+    if revision:
+        return str(revision), "CURRENT_DEPLOYMENT_REVISION"
+    return None, "CURRENT_DEPLOYMENT_REVISION"
+
+
+def sample(current: Path, expected_revision: str | None, expected_source: str) -> dict[str, Any]:
+    actual = current_revision(current, expected_revision or "").get("revision")
+    reason = None
+    if expected_revision is None:
+        reason = "EXPECTED_REVISION_UNAVAILABLE"
+    elif actual != expected_revision:
+        reason = "REVISION_MISMATCH"
+    return {
+        "timestamp_utc": iso(utc_now()),
+        "expected_revision": expected_revision,
+        "expected_revision_source": expected_source,
+        "actual_revision": actual,
+        "revision_ok": reason is None,
+        "invalidation_reason": reason,
+    }
+
+
 def migration_heads(current: Path) -> list[str]:
     versions = current / "migrations" / "versions"
     revisions: set[str] = set()

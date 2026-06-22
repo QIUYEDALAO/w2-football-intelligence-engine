@@ -387,6 +387,38 @@ def ops_gates(request: Request) -> dict[str, Any]:
     return ops_list("gates", request)
 
 
+@ops_router.get("/gates/5-preflight", response_model=OperationListResponse)
+def ops_gate5_preflight(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    payload = service.gate5_preflight()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": "gate5-preflight",
+                "status": str(payload.get("gate5_result", "NO_RUN")),
+                "payload": payload,
+            }
+        ],
+    }
+
+
+@ops_router.get("/w1-w2-shadow-comparison", response_model=OperationListResponse)
+def ops_w1_w2_shadow_comparison(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    payload = service.w1_w2_shadow_comparison()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": "w1-w2-shadow-comparison",
+                "status": str(payload.get("status", "NO_RUN")),
+                "payload": payload,
+            }
+        ],
+    }
+
+
 @ops_router.get("/world-cup-readiness", response_model=WorldCupReadinessResponse)
 def ops_world_cup_readiness(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
