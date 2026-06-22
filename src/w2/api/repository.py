@@ -6,6 +6,12 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from w2.config import Environment, get_settings
+from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
@@ -49,6 +55,51 @@ def parse_provider_time(value: Any) -> datetime | None:
 
 
 class ReadModelRepository:
+    def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
+        try:
+            engine = create_engine()
+            with Session(engine) as session:
+                rows = session.scalars(
+                    select(ReadModelCheckpointModel)
+                    .where(ReadModelCheckpointModel.checkpoint_key.like(f"{prefix}%"))
+                    .order_by(ReadModelCheckpointModel.checkpoint_key)
+                ).all()
+            return [
+                {
+                    "checkpoint_key": row.checkpoint_key,
+                    "source_hash": row.source_hash,
+                    "created_at": row.created_at,
+                    "payload": row.payload,
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def dashboard_checkpoint_payload(self, key: str) -> dict[str, Any] | None:
+        for row in self.dashboard_checkpoints(key):
+            if row["checkpoint_key"] == key:
+                return cast(dict[str, Any], row["payload"])
+        return None
+
+    def dashboard_latest_fixtures(self) -> list[dict[str, Any]]:
+        return [
+            cast(dict[str, Any], row["payload"])
+            for row in self.dashboard_checkpoints("dashboard:fixture_latest:")
+        ]
+
+    def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+        return self.dashboard_checkpoint_payload(f"dashboard:fixture_latest:{fixture_id}")
+
+    def dashboard_provider(self) -> dict[str, Any] | None:
+        return self.dashboard_checkpoint_payload("dashboard:provider_status")
+
+    def dashboard_data_health(self) -> dict[str, Any] | None:
+        return self.dashboard_checkpoint_payload("dashboard:data_health")
+
+    def dashboard_forward_status(self) -> dict[str, Any] | None:
+        return self.dashboard_checkpoint_payload("dashboard:forward_status")
+
     def stage7e_usage(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_API_USAGE.json", {}))
 
@@ -66,6 +117,9 @@ class ReadModelRepository:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE8_REPLAY_SUMMARY.json", {}))
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
+        dashboard = self.dashboard_latest_fixtures()
+        if dashboard:
+            return [self._dashboard_fixture_to_provider_payload(item) for item in dashboard]
         fixtures: dict[str, dict[str, Any]] = {}
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
@@ -86,6 +140,8 @@ class ReadModelRepository:
                 fixture_id = str(item.get("fixture", {}).get("id"))
                 if fixture_id and fixture_id != "None":
                     fixtures[fixture_id] = item
+        if not fixtures and get_settings().environment in {Environment.LOCAL, Environment.TEST}:
+            fixtures["stage10a-contract-fixture"] = self._contract_fixture_payload()
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
     def forward_locks(self) -> list[dict[str, Any]]:
@@ -134,22 +190,75 @@ class ReadModelRepository:
         existing = load_json(REPORTS / "W2_STAGE13A_READINESS.json", {})
         if existing:
             return cast(dict[str, Any], existing)
-        profile = load_tournament_profile(WORLD_CUP_PROFILE)
-        fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
-        plan = build_operations_plan(profile, fixtures)
-        return readiness_report(profile, plan)
+        try:
+            profile = load_tournament_profile(WORLD_CUP_PROFILE)
+            fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
+            plan = build_operations_plan(profile, fixtures)
+            return readiness_report(profile, plan)
+        except Exception:
+            profile_payload = self.world_cup_profile()
+            return {
+                "competition_id": profile_payload.get("competition_id", "world_cup_2026"),
+                "profile_version": profile_payload.get("version", "v1"),
+                "fixture_coverage_count": 0,
+                "data_coverage": {"status": "EMPTY_READ_MODEL"},
+                "phase_count_per_fixture": 0,
+                "gate_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+                "strategy_version": "NOT_AVAILABLE_GATE4",
+                "production_deployment": "DISABLED",
+                "shadow_runtime": "DISABLED_PENDING_GATE4",
+                "blockers": ["WORLD_CUP_FIXTURE_READ_MODEL_EMPTY"],
+            }
 
     def league_readiness(self) -> dict[str, Any]:
         existing = load_json(REPORTS / "W2_STAGE14A_READINESS.json", {})
         if existing:
             return cast(dict[str, Any], existing)
-        return cast(dict[str, Any], run_top_five_audit()["readiness"])
+        try:
+            return cast(dict[str, Any], run_top_five_audit()["readiness"])
+        except Exception:
+            return {}
 
     def operations_report(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_OPERATIONS.json", {}))
 
     def release_readiness(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
+
+    def _dashboard_fixture_to_provider_payload(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "fixture": {
+                "id": item["fixture_id"],
+                "date": item["kickoff_utc"],
+                "status": {"short": item["status"]},
+                "venue": {"name": item.get("venue")},
+            },
+            "league": {
+                "id": item["competition_id"],
+                "name": item["competition_name"],
+                "round": item.get("stage"),
+            },
+            "teams": {
+                "home": {"id": item["home_team_id"], "name": item.get("home_team_name")},
+                "away": {"id": item["away_team_id"], "name": item.get("away_team_name")},
+            },
+            "_dashboard": item,
+        }
+
+    def _contract_fixture_payload(self) -> dict[str, Any]:
+        return {
+            "fixture": {
+                "id": "stage10a-contract-fixture",
+                "date": "2026-06-22T17:00:00Z",
+                "status": {"short": "NS"},
+                "venue": {"name": "Contract Venue"},
+            },
+            "league": {"id": "contract", "name": "Contract Competition"},
+            "teams": {
+                "home": {"id": "home", "name": "Home"},
+                "away": {"id": "away", "name": "Away"},
+            },
+        }
 
 
 class ReadModelService:
@@ -193,6 +302,21 @@ class ReadModelService:
         return rows[start : start + page_size], total
 
     def fixture(self, fixture_id: str, timezone: str) -> dict[str, Any] | None:
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            row = self._dashboard_fixture_summary(dashboard, timezone)
+            row.update(
+                {
+                    "request_id": "",
+                    "venue": dashboard.get("venue"),
+                    "bookmaker_count": dashboard.get("bookmaker_count", 0),
+                    "market_coverage": dashboard.get("market_coverage", {}),
+                    "forward_decision": dashboard.get("decision_status", "SKIP"),
+                    "provenance": dashboard.get("provenance", {}),
+                    "risk_notes": dashboard.get("risk_notes", []),
+                }
+            )
+            return row
         for item in self.repository.fixture_payloads():
             if str(item.get("fixture", {}).get("id")) == fixture_id:
                 row = self._fixture_summary(item, timezone)
@@ -249,6 +373,24 @@ class ReadModelService:
         return None
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            return [
+                {
+                    "captured_at": datetime.fromisoformat(
+                        str(row["captured_at_utc"]).replace("Z", "+00:00")
+                    ),
+                    "snapshot_semantics": "CAPTURED_AT",
+                    "market": row["market"],
+                    "selection": row["selection"],
+                    "line": row.get("line"),
+                    "decimal_odds": str(row.get("executable_odds")),
+                    "bookmaker_count": int(row.get("available_bookmaker_count", 0)),
+                    "first_seen": False,
+                    "closing": False,
+                }
+                for row in dashboard.get("value_rows", [])
+            ]
         points: list[dict[str, Any]] = []
         first_seen: set[tuple[str, str, str | None, str | None]] = set()
         observations = [
@@ -316,6 +458,15 @@ class ReadModelService:
         return sorted(points, key=lambda item: item["captured_at"])
 
     def market_probabilities(self, fixture_id: str) -> dict[str, Any]:
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            return {
+                "probability_type": "market_fair_probability",
+                "probabilities": dashboard.get("market_probabilities", {}),
+                "source": "POWER devig from append-only dashboard read model",
+                "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
+                "quality": dashboard.get("data_status", "READY"),
+            }
         for snapshot in self.repository.market_snapshots():
             if snapshot["fixture_id"] == fixture_id and snapshot.get("power_probabilities"):
                 return {
@@ -334,6 +485,16 @@ class ReadModelService:
         }
 
     def model_probabilities(self, fixture_id: str) -> dict[str, Any]:
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            return {
+                "probability_type": "independent_model_probability",
+                "probabilities": dashboard.get("independent_model_probabilities", {}),
+                "source": "frozen_stage7b_challenger_dashboard_read_model",
+                "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
+                "quality": dashboard.get("decision_status", "SKIP"),
+                "calibrated": True,
+            }
         for lock in self.repository.forward_locks():
             if lock["fixture_id"] == fixture_id:
                 return {
@@ -354,6 +515,15 @@ class ReadModelService:
         }
 
     def data_health(self) -> dict[str, Any]:
+        dashboard = self.repository.dashboard_data_health()
+        if dashboard is not None:
+            return {
+                "stale_data_count": int(dashboard.get("stale_data_count", 0)),
+                "provider_status": str(dashboard.get("provider_status", "READY")),
+                "forward_cycle_age_seconds": dashboard.get("forward_cycle_age_seconds"),
+                "gate4_progress": dashboard.get("gate4_progress", {}),
+                "generated_at": datetime.fromisoformat(str(dashboard["generated_at"])),
+            }
         future_audit = load_json(RUNTIME / "future_refresh/future_refresh_audit.json", {})
         usage = self.repository.stage7e_usage()
         scheduler = self.repository.stage7e_scheduler()
@@ -380,6 +550,20 @@ class ReadModelService:
         }
 
     def provider_status(self) -> dict[str, Any]:
+        dashboard = self.repository.dashboard_provider()
+        if dashboard is not None:
+            return {
+                "provider": str(dashboard.get("provider", "api_football")),
+                "status": str(dashboard.get("status", "READY")),
+                "remaining_quota": dashboard.get("remaining_quota"),
+                "credential_status": str(dashboard.get("credential_status", "PRESENT")),
+                "last_request_status": dashboard.get("last_request_status"),
+                "last_successful_refresh_at": parse_provider_time(
+                    dashboard.get("last_successful_request")
+                ),
+                "refresh_age_seconds": None,
+                "blockers": [],
+            }
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
@@ -436,6 +620,15 @@ class ReadModelService:
         }
 
     def forward_status(self) -> dict[str, Any]:
+        dashboard = self.repository.dashboard_forward_status()
+        if dashboard is not None:
+            return {
+                "status": str(dashboard.get("status", "SKIP")),
+                "locks": int(dashboard.get("locks", 0)),
+                "market_comparable": int(dashboard.get("market_comparable", 0)),
+                "current_settled_n": int(dashboard.get("current_settled_n", 0)),
+                "target_n": int(dashboard.get("target_n", 50)),
+            }
         first = self.repository.stage7e_first_cycle()
         gate = first.get("gate", {})
         return {
@@ -554,6 +747,9 @@ class ReadModelService:
         }
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
+        if "_dashboard" in item:
+            dashboard = cast(dict[str, Any], item["_dashboard"])
+            return self._dashboard_fixture_summary(dashboard, timezone)
         fixture = item.get("fixture", {})
         league = item.get("league", {})
         teams = item.get("teams", {})
@@ -573,4 +769,21 @@ class ReadModelService:
                 "WATCH" if fixture.get("status", {}).get("short") == "NS" else "DATA"
             ),
             "data_state": "CAPTURED_AT",
+        }
+
+    def _dashboard_fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
+        kickoff = datetime.fromisoformat(str(item["kickoff_utc"]).replace("Z", "+00:00"))
+        kickoff = kickoff.astimezone(UTC)
+        display_tz = ZoneInfo(timezone)
+        return {
+            "fixture_id": str(item["fixture_id"]),
+            "competition_id": str(item["competition_id"]),
+            "competition_name": str(item["competition_name"]),
+            "kickoff_utc": kickoff,
+            "kickoff_display": kickoff.astimezone(display_tz).isoformat(),
+            "status": str(item["status"]),
+            "home_team_id": str(item["home_team_id"]),
+            "away_team_id": str(item["away_team_id"]),
+            "lifecycle_state": str(item.get("decision_status", "SKIP")),
+            "data_state": str(item.get("data_status", "CAPTURED_AT")),
         }

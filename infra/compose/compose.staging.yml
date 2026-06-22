@@ -245,7 +245,6 @@ services:
       - "127.0.0.1:18080:8080"
     environment:
       W2_ENVIRONMENT: staging
-      VITE_API_BASE_URL: http://127.0.0.1:18000
     depends_on:
       api:
         condition: service_healthy
