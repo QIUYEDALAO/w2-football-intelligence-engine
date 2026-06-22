@@ -24,6 +24,12 @@ def read_revision(current: Path) -> str | None:
     return path.read_text(encoding="utf-8").strip()
 
 
+def read_revision_file(path: Path | None) -> str | None:
+    if path is None or not path.exists() or not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8").strip()
+
+
 def resolve_expected_revision(
     *,
     explicit: str | None,
@@ -39,8 +45,34 @@ def resolve_expected_revision(
     return revision, "CURRENT_DEPLOYMENT_REVISION"
 
 
-def sample(current: Path, expected_revision: str | None, expected_source: str) -> dict[str, Any]:
-    actual = read_revision(current)
+def resolve_actual_revision(
+    *,
+    current: Path,
+    actual_revision_file: Path | None,
+    environ: dict[str, str] | None = None,
+) -> tuple[str | None, str]:
+    env = environ if environ is not None else os.environ
+    if env.get("W2_DEPLOYMENT_REVISION"):
+        return env["W2_DEPLOYMENT_REVISION"], "ENV"
+    from_file = read_revision_file(actual_revision_file)
+    if from_file:
+        return from_file, "ACTUAL_REVISION_FILE"
+    return read_revision(current), "CURRENT_DEPLOYMENT_REVISION"
+
+
+def sample(
+    current: Path,
+    expected_revision: str | None,
+    expected_source: str,
+    *,
+    actual_revision_file: Path | None = None,
+    environ: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    actual, actual_source = resolve_actual_revision(
+        current=current,
+        actual_revision_file=actual_revision_file,
+        environ=environ,
+    )
     reason = None
     if expected_revision is None:
         reason = "EXPECTED_REVISION_UNAVAILABLE"
@@ -51,6 +83,7 @@ def sample(current: Path, expected_revision: str | None, expected_source: str) -
         "expected_revision": expected_revision,
         "expected_revision_source": expected_source,
         "actual_revision": actual,
+        "actual_revision_source": actual_source,
         "revision_ok": reason is None,
         "invalidation_reason": reason,
         "blocker": reason,
@@ -61,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run Stage7I staging observation sampler.")
     parser.add_argument("--expected-revision")
     parser.add_argument("--current", type=Path, default=DEFAULT_CURRENT)
+    parser.add_argument("--actual-revision-file", type=Path)
     parser.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
     parser.add_argument("--duration-hours", type=float, default=24.0)
     parser.add_argument("--sample-interval-seconds", type=float, default=300.0)
@@ -89,14 +123,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     observations = args.runtime_root / "observations.jsonl"
     started = datetime.now(UTC)
-    first = sample(args.current, expected, source)
+    first = sample(
+        args.current,
+        expected,
+        source,
+        actual_revision_file=args.actual_revision_file,
+    )
     first["observer_started_at_utc"] = started.isoformat().replace("+00:00", "Z")
     _append(observations, first)
     if not args.once:
         deadline = started + timedelta(hours=args.duration_hours)
         while datetime.now(UTC) < deadline:
             time.sleep(args.sample_interval_seconds)
-            _append(observations, sample(args.current, expected, source))
+            _append(
+                observations,
+                sample(
+                    args.current,
+                    expected,
+                    source,
+                    actual_revision_file=args.actual_revision_file,
+                ),
+            )
         (args.runtime_root / "COMPLETED").write_text(iso_now() + "\n", encoding="utf-8")
 
     summary = {

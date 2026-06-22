@@ -2,6 +2,19 @@
 
 Status: LOCAL_PATCH_READY
 
+Patch 2 update:
+
+- Patch 1 deployment reached isolated runtime validation and failed because
+  `w2-shadow-cycle` was not visible on the container `PATH`.
+- The W2 virtual environment path is `/app/.venv`.
+- Runtime Dockerfiles now set `VIRTUAL_ENV=/app/.venv` and
+  `PATH=/app/.venv/bin:$PATH`.
+- API, Worker, Scheduler, and Migration images include build-time executable
+  assertions for their required runtime commands.
+- Stage7I observer supports explicit actual revision sources through
+  `--actual-revision-file` or `W2_DEPLOYMENT_REVISION`, so it does not require
+  `/opt/w2/current` to be mounted in every container mode.
+
 Original blocker:
 
 - `SHADOW_CLI_NOT_AVAILABLE_IN_RUNTIME_IMAGE`
@@ -38,6 +51,13 @@ Docker runtime validation:
 
 - `LOCAL_DOCKER_UNAVAILABLE`; local Docker server was not available.
 - Wheel/venv packaging contract was used instead.
+
+Container runtime prerequisite audit:
+
+- `w2-shadow-cycle`: package entrypoint, policy/config copied, reports not required.
+- `w2-gate5-preflight`: package entrypoint, Gate5 cannot close while Gate4 is pending.
+- `w2-shadow-comparison-import`: sanitized artifact only, W1 repository not required.
+- `w2-stage7i-observer`: expected and actual revision sources are explicit and runtime root is configurable.
 
 Server state:
 
