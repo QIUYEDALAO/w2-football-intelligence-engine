@@ -164,7 +164,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"]
+      test: ["CMD", "uv", "run", "python", "-c", "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -213,7 +213,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
       interval: 30s
       timeout: 10s
       retries: 3
