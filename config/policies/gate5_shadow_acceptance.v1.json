@@ -1,0 +1,25 @@
+{
+  "version": "gate5_shadow_acceptance.v1",
+  "status": "PREREGISTERED_BEFORE_NEW_RESULTS",
+  "gate4_prerequisite": "GATE_4_NATIONAL_1X2_CLOSED_REQUIRED",
+  "forward_retrospective_separation": "REQUIRED",
+  "fixture_phase_unique": true,
+  "lock_append_only": true,
+  "settlement_completeness_required": true,
+  "replay_reproducibility_required": true,
+  "hard_gate_correctness_required": true,
+  "correlation_correctness_required": true,
+  "leakage_allowed_count": 0,
+  "unresolved_critical_errors_allowed": 0,
+  "target_forward_sample_count": 60,
+  "target_forward_sample_source": "Stage7B forward holdout policy minimum practical review sample; not modified after reading Stage9B outputs",
+  "market_slice_requirements": ["ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"],
+  "competition_slice_requirements": ["WORLD_CUP", "INTERNATIONAL_OFFICIAL", "INTERNATIONAL_FRIENDLY"],
+  "allowed_gate5_results": [
+    "PROVISIONAL_BLOCKED_GATE4",
+    "PROVISIONAL_FORWARD_SAMPLE_PENDING",
+    "PROVISIONAL_TECHNICAL_GAPS",
+    "READY_FOR_GATE5_REVIEW"
+  ],
+  "closed_result_allowed": false
+}

@@ -411,6 +411,8 @@ function App() {
   const [release, setRelease] = useState<Resource<ReleaseReadiness>>(emptyResource("/api/ops/releases/readiness"));
   const [retention, setRetention] = useState<Resource<RetentionStatus>>(emptyResource("/api/ops/retention/status"));
   const [shadowStrategy, setShadowStrategy] = useState<Resource<ShadowStrategyStatus>>(emptyResource("/api/ops/shadow-strategy/status"));
+  const [gate5, setGate5] = useState<Resource<OpsList>>(emptyResource("/api/ops/gates/5-preflight"));
+  const [w1w2, setW1w2] = useState<Resource<OpsList>>(emptyResource("/api/ops/w1-w2-shadow-comparison"));
 
   const loadFixtures = useCallback(() => {
     const endpoint = `/api/v1/matchday/${selectedDate}`;
@@ -443,6 +445,8 @@ function App() {
     loadJson<ReleaseReadiness>("/api/ops/releases/readiness").then(setRelease);
     loadJson<RetentionStatus>("/api/ops/retention/status").then(setRetention);
     loadJson<ShadowStrategyStatus>("/api/ops/shadow-strategy/status").then(setShadowStrategy);
+    loadJson<OpsList>("/api/ops/gates/5-preflight").then(setGate5);
+    loadJson<OpsList>("/api/ops/w1-w2-shadow-comparison").then(setW1w2);
     loadJson<Matchday>("/api/v1/matchday").then(setMatchday);
     loadJson<Matchday>("/api/v1/matchday/next-36-hours").then(setNext36);
     loadJson<MatchdayCoverage>("/api/ops/matchday-coverage").then(setCoverage);
@@ -655,6 +659,25 @@ function App() {
         </StatePanel>
         <StatePanel title="Tasks" resource={tasks} onRetry={loadCommon}>
           {(data) => <pre>{JSON.stringify(data.items, null, 2)}</pre>}
+        </StatePanel>
+      </section>
+
+      <section className="grid two">
+        <StatePanel title="Gate 5 Preflight" resource={gate5} onRetry={loadCommon}>
+          {(data) => (
+            <div>
+              <p>Gate4 remains prerequisite; Gate5 cannot close from this panel.</p>
+              <pre>{JSON.stringify(data.items, null, 2)}</pre>
+            </div>
+          )}
+        </StatePanel>
+        <StatePanel title="W1/W2 Shadow Comparison" resource={w1w2} onRetry={loadCommon}>
+          {(data) => (
+            <div>
+              <p>Read-only frozen comparison; missing W1 fields remain NOT_AVAILABLE.</p>
+              <pre>{JSON.stringify(data.items, null, 2)}</pre>
+            </div>
+          )}
         </StatePanel>
       </section>
 
