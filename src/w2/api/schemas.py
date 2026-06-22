@@ -45,6 +45,17 @@ class FixtureDetailResponse(FixtureSummary):
     forward_decision: str
     provenance: dict[str, str]
     risk_notes: list[str]
+    primary_market: str | None = None
+    primary_selection: str | None = None
+    primary_line: str | None = None
+    primary_executable_odds: str | None = None
+    primary_hong_kong_odds: str | None = None
+    primary_model_fair_odds: str | None = None
+    primary_risk_adjusted_ev: str | None = None
+    research_grade: str | None = None
+    ah_ladder: list[dict[str, Any]] = Field(default_factory=list)
+    ou_ladder: list[dict[str, Any]] = Field(default_factory=list)
+    all_market_ranking: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class OddsPoint(BaseModel):

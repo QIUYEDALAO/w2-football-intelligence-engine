@@ -1,0 +1,28 @@
+{
+  "status": "AUDITED",
+  "findings": [
+    {
+      "location": "src/w2/markets/poisson.py",
+      "issue": "AH baseline used expected settlement score only and did not expose full distribution/fair odds for push and half outcomes.",
+      "classification": "IGNORES_PUSH_HALF_OUTCOMES_FOR_VALUATION_OUTPUT"
+    },
+    {
+      "location": "runtime matchday snapshot value_rows",
+      "issue": "Legacy quick-path value rows used model_probability/model_fair_odds fields that could be interpreted as 1/P(win) for AH push markets.",
+      "classification": "AH_PUSH_AND_QUARTER_LINE_PRICING_FIX_REQUIRED"
+    },
+    {
+      "location": "Dashboard read model",
+      "issue": "Stage10B dashboard projected value_rows but did not rank AH/OU/BTTS alongside 1X2.",
+      "classification": "CROSS_MARKET_COMPARISON_MISSING"
+    },
+    {
+      "location": "normalization/runtime quote display",
+      "issue": "Provider decimal odds and user-mentioned Hong Kong water were not represented as explicit odds formats in common domain code.",
+      "classification": "ODDS_FORMAT_AMBIGUITY"
+    }
+  ],
+  "business_data_changed": false,
+  "formal_recommendation": false,
+  "candidate": false
+}

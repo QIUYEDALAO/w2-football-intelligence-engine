@@ -33,6 +33,17 @@ type FixtureDetail = Fixture & {
   forward_decision: string;
   provenance: Record<string, string>;
   risk_notes: string[];
+  primary_market?: string | null;
+  primary_selection?: string | null;
+  primary_line?: string | null;
+  primary_executable_odds?: string | null;
+  primary_hong_kong_odds?: string | null;
+  primary_model_fair_odds?: string | null;
+  primary_risk_adjusted_ev?: string | null;
+  research_grade?: string | null;
+  ah_ladder?: unknown[];
+  ou_ladder?: unknown[];
+  all_market_ranking?: unknown[];
 };
 
 type FixtureList = {
@@ -407,6 +418,13 @@ function App() {
               <div><dt>Bookmakers</dt><dd>{data.bookmaker_count}</dd></div>
               <div><dt>Coverage</dt><dd>{JSON.stringify(data.market_coverage)}</dd></div>
               <div><dt>Research status</dt><dd>{data.forward_decision}</dd></div>
+              <div><dt>Primary market</dt><dd>{data.primary_market ?? "NO_BET"} {data.primary_selection ?? ""} {data.primary_line ?? ""}</dd></div>
+              <div><dt>Executable / HK</dt><dd>{data.primary_executable_odds ?? "n/a"} / {data.primary_hong_kong_odds ?? "n/a"}</dd></div>
+              <div><dt>Model fair odds</dt><dd>{data.primary_model_fair_odds ?? "n/a"}</dd></div>
+              <div><dt>Risk-adjusted EV</dt><dd>{data.primary_risk_adjusted_ev ?? "n/a"}</dd></div>
+              <div><dt>Research grade</dt><dd>{data.research_grade ?? "D"} · 正式推荐尚未启用</dd></div>
+              <div><dt>AH / OU ladder</dt><dd>{data.ah_ladder?.length ?? 0} AH · {data.ou_ladder?.length ?? 0} OU</dd></div>
+              <div><dt>All-market ranking</dt><dd>{data.all_market_ranking?.length ?? 0} markets evaluated</dd></div>
               <div><dt>Risk notes</dt><dd>{data.risk_notes.length ? data.risk_notes.join(", ") : "None"}</dd></div>
             </dl>
           )}

@@ -1,0 +1,9 @@
+{
+  "status": "LOCAL_ENGINE_READY_DISCOVERY_PENDING_RUNTIME_EXECUTION",
+  "scope": "today_world_cup_fixtures",
+  "hardcoded_fixtures": false,
+  "markets": ["ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"],
+  "formal_recommendation": false,
+  "candidate": false,
+  "note": "Runtime discovery and append-only correction generation require explicit server execution approval after commit."
+}
