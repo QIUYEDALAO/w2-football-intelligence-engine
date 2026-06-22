@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.run_stage7i_observer import resolve_expected_revision, sample
+from w2.observability.stage7i_observer_cli import resolve_expected_revision, sample
 
 
 def write_revision(root: Path, revision: str) -> None:

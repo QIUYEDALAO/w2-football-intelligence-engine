@@ -3,9 +3,16 @@
 Local replay:
 
 ```bash
-uv run python scripts/run_stage9b_shadow_cycle.py --dry-run
-uv run python scripts/run_stage12b_shadow_comparison.py
-uv run python scripts/check_w2_gate5_preflight.py
+uv run python -m w2.strategy.shadow_cycle_cli --execution-kind RETROSPECTIVE --dry-run --json
+uv run python -m w2.shadow.comparison_import_cli --dry-run --json
+uv run python -m w2.gates.gate5_preflight_cli --dry-run --json
+```
+
+Runtime containers use installed package entrypoints, not `/app/scripts`:
+
+```bash
+w2-shadow-cycle --execution-kind FORWARD --dry-run --database-url-from-env --json
+w2-gate5-preflight --dry-run --database-url-from-env --json
 ```
 
 This stage does not deploy, migrate staging, restart containers, or unlock the

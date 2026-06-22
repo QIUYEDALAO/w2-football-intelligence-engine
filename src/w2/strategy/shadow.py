@@ -484,6 +484,8 @@ def stable_sha256(payload: dict[str, Any]) -> str:
 
 
 def file_sha256(path: Path) -> str:
+    if not path.exists():
+        return "UNAVAILABLE_IN_RUNTIME_CONTEXT"
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 

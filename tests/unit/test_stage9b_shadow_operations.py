@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.run_stage9a_shadow_replay import demo_inputs
-
 from w2.strategy.operations import gate5_preflight, run_shadow_replay
+from w2.strategy.shadow_demo import demo_inputs
 
 ROOT = Path(__file__).resolve().parents[2]
 
