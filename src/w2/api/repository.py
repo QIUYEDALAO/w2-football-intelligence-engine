@@ -251,10 +251,18 @@ class ReadModelService:
                     "primary_market": dashboard.get("primary_market"),
                     "primary_selection": dashboard.get("primary_selection"),
                     "primary_line": dashboard.get("primary_line"),
-                    "primary_executable_odds": dashboard.get("primary_executable_odds"),
-                    "primary_hong_kong_odds": dashboard.get("primary_hong_kong_odds"),
-                    "primary_model_fair_odds": dashboard.get("primary_model_fair_odds"),
-                    "primary_risk_adjusted_ev": dashboard.get("primary_risk_adjusted_ev"),
+                    "primary_executable_odds": self._optional_string(
+                        dashboard.get("primary_executable_odds")
+                    ),
+                    "primary_hong_kong_odds": self._optional_string(
+                        dashboard.get("primary_hong_kong_odds")
+                    ),
+                    "primary_model_fair_odds": self._optional_string(
+                        dashboard.get("primary_model_fair_odds")
+                    ),
+                    "primary_risk_adjusted_ev": self._optional_string(
+                        dashboard.get("primary_risk_adjusted_ev")
+                    ),
                     "research_grade": dashboard.get("research_grade"),
                     "ah_ladder": dashboard.get("ah_ladder", []),
                     "ou_ladder": dashboard.get("ou_ladder", []),
@@ -610,3 +618,8 @@ class ReadModelService:
             "lifecycle_state": str(item.get("decision_status", "SKIP")),
             "data_state": str(item.get("data_status", "CAPTURED_AT")),
         }
+
+    def _optional_string(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value)
