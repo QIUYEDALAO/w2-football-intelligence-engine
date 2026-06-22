@@ -86,6 +86,37 @@ h2 {
   background: #fff;
 }
 
+.state-error {
+  border-color: #b33636;
+}
+
+.state-empty,
+.state-stale {
+  border-color: #d6b35d;
+}
+
+.error-box {
+  border: 1px solid #efc5c5;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff5f5;
+  color: #7d1d1d;
+}
+
+.error-box p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.error-box button {
+  border: 1px solid #7d1d1d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #7d1d1d;
+  cursor: pointer;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
