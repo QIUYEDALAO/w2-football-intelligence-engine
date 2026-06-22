@@ -29,6 +29,11 @@ class FixtureSummary(BaseModel):
     away_team_id: str
     lifecycle_state: str
     data_state: str
+    published_grade: str | None = None
+    primary_market: str | None = None
+    primary_line: str | None = None
+    primary_odds: str | None = None
+    last_captured: datetime | None = None
 
 
 class FixtureListResponse(BaseModel):
@@ -56,6 +61,16 @@ class FixtureDetailResponse(FixtureSummary):
     ah_ladder: list[dict[str, Any]] = Field(default_factory=list)
     ou_ladder: list[dict[str, Any]] = Field(default_factory=list)
     all_market_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    one_x_two_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    btts_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    secondary_market_direction: dict[str, Any] | None = None
+    source_snapshot_id: str | None = None
+    source_captured_at: datetime | None = None
+    source_phase: str | None = None
+    valuation_generated_at: datetime | None = None
+    projector_generated_at: datetime | None = None
+    temporal_status: str | None = None
+    integrity_status: str | None = None
 
 
 class OddsPoint(BaseModel):
@@ -85,6 +100,31 @@ class ProbabilityResponse(BaseModel):
     source: str
     as_of_time: datetime | None = None
     quality: str
+
+
+class MatchdayResponse(BaseModel):
+    request_id: str
+    date: str
+    total: int
+    items: list[dict[str, Any]]
+
+
+class ResearchCardResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    card: dict[str, Any]
+
+
+class MarketRankingResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    items: list[dict[str, Any]]
+
+
+class IntegrityResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    integrity: dict[str, Any]
 
 
 class DataHealthResponse(BaseModel):

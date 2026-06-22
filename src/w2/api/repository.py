@@ -79,6 +79,64 @@ class ReadModelRepository:
     def dashboard_forward_status(self) -> dict[str, Any] | None:
         return self.dashboard_checkpoint_payload("dashboard:forward_status")
 
+    def stage10c_matchday_cards(self) -> list[dict[str, Any]]:
+        payload = self.dashboard_checkpoint_payload("dashboard:stage10c_matchday_cards")
+        if payload is None:
+            return []
+        items = payload.get("items", [])
+        return cast(list[dict[str, Any]], items) if isinstance(items, list) else []
+
+    def matchday_cards(self) -> list[dict[str, Any]]:
+        stage10c_cards = self.stage10c_matchday_cards()
+        if stage10c_cards:
+            return stage10c_cards
+        report = load_json(REPORTS / "W2_STAGE10C_ALL_MARKET_CARDS.json", {})
+        items = report.get("items", []) if isinstance(report, dict) else []
+        if isinstance(items, list) and items:
+            return cast(list[dict[str, Any]], items)
+        dashboard = self.dashboard_latest_fixtures()
+        return [
+            {
+                "fixture": item,
+                "card": {
+                    "fixture_id": item["fixture_id"],
+                    "action": item.get("decision_status", "SKIP"),
+                    "published_grade": item.get("research_grade", "D"),
+                    "primary_market_direction": {
+                        "market": item.get("primary_market"),
+                        "selection": item.get("primary_selection"),
+                        "line": item.get("primary_line"),
+                        "executable_decimal_odds": item.get("primary_executable_odds"),
+                        "risk_adjusted_ev": item.get("primary_risk_adjusted_ev"),
+                    },
+                    "secondary_market_direction": None,
+                    "formal_recommendation": False,
+                    "candidate": False,
+                    "temporal_status": item.get("temporal_status", "PREMATCH_LOCKED"),
+                },
+                "market_ranking": item.get("all_market_ranking", []),
+                "temporal": {
+                    "source_snapshot_id": item.get("provenance", {}).get("snapshot_id"),
+                    "source_captured_at": item.get("captured_at"),
+                    "source_phase": item.get("phase"),
+                    "kickoff_utc": item.get("kickoff_utc"),
+                    "valuation_generated_at": item.get(
+                        "valuation_generated_at",
+                        item.get("captured_at"),
+                    ),
+                    "projector_generated_at": item.get(
+                        "projector_generated_at",
+                        item.get("captured_at"),
+                    ),
+                    "temporal_status": item.get("temporal_status", "PREMATCH_LOCKED"),
+                    "locked_before_kickoff": True,
+                    "recomputed_after_kickoff": False,
+                },
+                "integrity": {"integrity_status": item.get("integrity_status", "UNKNOWN")},
+            }
+            for item in dashboard
+        ]
+
     def stage7e_usage(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_API_USAGE.json", {}))
 
@@ -235,6 +293,74 @@ class ReadModelService:
         start = (page - 1) * page_size
         return rows[start : start + page_size], total
 
+    def matchday(
+        self,
+        *,
+        target_date: str | None = None,
+        competition_id: str | None = None,
+        status: str | None = None,
+        research_grade: str | None = None,
+        data_status: str | None = None,
+    ) -> dict[str, Any]:
+        cards = self.repository.matchday_cards()
+        rows = [self._matchday_item(card) for card in cards]
+        if target_date:
+            rows = [row for row in rows if str(row["kickoff_utc"]).startswith(target_date)]
+        if competition_id:
+            rows = [row for row in rows if row["competition_id"] == competition_id]
+        if status:
+            rows = [row for row in rows if row["status"] == status]
+        if research_grade:
+            rows = [row for row in rows if row.get("published_grade") == research_grade]
+        if data_status:
+            rows = [row for row in rows if row.get("data_health") == data_status]
+        return {
+            "date": target_date or datetime.now(UTC).date().isoformat(),
+            "total": len(rows),
+            "items": rows,
+        }
+
+    def research_card(self, fixture_id: str) -> dict[str, Any] | None:
+        for card in self.repository.matchday_cards():
+            if str(card.get("fixture", {}).get("fixture_id")) == fixture_id:
+                return cast(dict[str, Any], card.get("card", {}))
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is None:
+            return None
+        return {
+            "fixture_id": fixture_id,
+            "action": dashboard.get("decision_status", "SKIP"),
+            "published_grade": dashboard.get("research_grade", "D"),
+            "primary_market_direction": {
+                "market": dashboard.get("primary_market"),
+                "selection": dashboard.get("primary_selection"),
+                "line": dashboard.get("primary_line"),
+                "executable_decimal_odds": dashboard.get("primary_executable_odds"),
+                "risk_adjusted_ev": dashboard.get("primary_risk_adjusted_ev"),
+            },
+            "secondary_market_direction": dashboard.get("secondary_market_direction"),
+            "formal_recommendation": False,
+            "candidate": False,
+        }
+
+    def market_ranking(self, fixture_id: str) -> list[dict[str, Any]]:
+        for card in self.repository.matchday_cards():
+            if str(card.get("fixture", {}).get("fixture_id")) == fixture_id:
+                return cast(list[dict[str, Any]], card.get("market_ranking", []))
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is None:
+            return []
+        return cast(list[dict[str, Any]], dashboard.get("all_market_ranking", []))
+
+    def integrity(self, fixture_id: str) -> dict[str, Any] | None:
+        for card in self.repository.matchday_cards():
+            if str(card.get("fixture", {}).get("fixture_id")) == fixture_id:
+                return cast(dict[str, Any], card.get("integrity", {}))
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is None:
+            return None
+        return {"integrity_status": dashboard.get("integrity_status", "UNKNOWN")}
+
     def fixture(self, fixture_id: str, timezone: str) -> dict[str, Any] | None:
         dashboard = self.repository.dashboard_fixture(fixture_id)
         if dashboard is not None:
@@ -267,6 +393,30 @@ class ReadModelService:
                     "ah_ladder": dashboard.get("ah_ladder", []),
                     "ou_ladder": dashboard.get("ou_ladder", []),
                     "all_market_ranking": dashboard.get("all_market_ranking", []),
+                    "one_x_two_ranking": [
+                        row
+                        for row in dashboard.get("all_market_ranking", [])
+                        if row.get("market") == "ONE_X_TWO"
+                    ],
+                    "btts_ranking": [
+                        row
+                        for row in dashboard.get("all_market_ranking", [])
+                        if row.get("market") == "BTTS"
+                    ],
+                    "secondary_market_direction": dashboard.get(
+                        "secondary_market_direction"
+                    ),
+                    "source_snapshot_id": dashboard.get("provenance", {}).get("snapshot_id"),
+                    "source_captured_at": self._optional_datetime(dashboard.get("captured_at")),
+                    "source_phase": dashboard.get("phase"),
+                    "valuation_generated_at": self._optional_datetime(
+                        dashboard.get("valuation_generated_at", dashboard.get("captured_at"))
+                    ),
+                    "projector_generated_at": self._optional_datetime(
+                        dashboard.get("projector_generated_at", dashboard.get("captured_at"))
+                    ),
+                    "temporal_status": dashboard.get("temporal_status"),
+                    "integrity_status": dashboard.get("integrity_status"),
                 }
             )
             return row
@@ -617,9 +767,48 @@ class ReadModelService:
             "away_team_id": str(item["away_team_id"]),
             "lifecycle_state": str(item.get("decision_status", "SKIP")),
             "data_state": str(item.get("data_status", "CAPTURED_AT")),
+            "published_grade": item.get("published_grade") or item.get("research_grade"),
+            "primary_market": item.get("primary_market"),
+            "primary_line": item.get("primary_line"),
+            "primary_odds": self._optional_string(item.get("primary_executable_odds")),
+            "last_captured": self._optional_datetime(item.get("captured_at")),
         }
 
     def _optional_string(self, value: Any) -> str | None:
         if value is None:
             return None
         return str(value)
+
+    def _optional_datetime(self, value: Any) -> datetime | None:
+        if value is None:
+            return None
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+    def _matchday_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        fixture = cast(dict[str, Any], payload.get("fixture", {}))
+        card = cast(dict[str, Any], payload.get("card", {}))
+        temporal = cast(dict[str, Any], payload.get("temporal", {}))
+        primary = cast(dict[str, Any] | None, card.get("primary_market_direction"))
+        return {
+            "fixture_id": str(fixture.get("fixture_id")),
+            "competition_id": str(fixture.get("competition_id")),
+            "competition_name": str(fixture.get("competition_name")),
+            "kickoff_utc": fixture.get("kickoff_utc"),
+            "status": fixture.get("status"),
+            "home_team_id": str(fixture.get("home_team_id")),
+            "home_team_name": fixture.get("home_team_name"),
+            "away_team_id": str(fixture.get("away_team_id")),
+            "away_team_name": fixture.get("away_team_name"),
+            "published_grade": card.get("published_grade"),
+            "action": card.get("action"),
+            "primary_market": primary.get("market") if primary else None,
+            "primary_selection": primary.get("selection") if primary else None,
+            "primary_line": primary.get("line") if primary else None,
+            "primary_odds": primary.get("executable_decimal_odds") if primary else None,
+            "last_captured": temporal.get("source_captured_at") or fixture.get("last_captured"),
+            "data_health": fixture.get("data_health"),
+            "temporal_status": temporal.get("temporal_status"),
+            "integrity_status": payload.get("integrity", {}).get("integrity_status"),
+            "formal_recommendation": False,
+            "candidate": False,
+        }
