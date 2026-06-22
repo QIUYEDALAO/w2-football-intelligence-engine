@@ -248,6 +248,17 @@ class ReadModelService:
                     "forward_decision": dashboard.get("decision_status", "SKIP"),
                     "provenance": dashboard.get("provenance", {}),
                     "risk_notes": dashboard.get("risk_notes", []),
+                    "primary_market": dashboard.get("primary_market"),
+                    "primary_selection": dashboard.get("primary_selection"),
+                    "primary_line": dashboard.get("primary_line"),
+                    "primary_executable_odds": dashboard.get("primary_executable_odds"),
+                    "primary_hong_kong_odds": dashboard.get("primary_hong_kong_odds"),
+                    "primary_model_fair_odds": dashboard.get("primary_model_fair_odds"),
+                    "primary_risk_adjusted_ev": dashboard.get("primary_risk_adjusted_ev"),
+                    "research_grade": dashboard.get("research_grade"),
+                    "ah_ladder": dashboard.get("ah_ladder", []),
+                    "ou_ladder": dashboard.get("ou_ladder", []),
+                    "all_market_ranking": dashboard.get("all_market_ranking", []),
                 }
             )
             return row
