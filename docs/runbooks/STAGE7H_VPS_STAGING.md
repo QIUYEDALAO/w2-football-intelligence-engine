@@ -91,10 +91,23 @@ sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --
 
 ```bash
 # From local workspace
-export W2_API_FOOTBALL_API_KEY='<key>'
-export POSTGRES_PASSWORD='<pwd>'
 bash scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
 ```
+
+The deployment script assumes `/opt/w2/shared/.env` has already been provisioned
+with mode `600`. It must not print or rewrite sensitive values.
+
+## Compose Preflight
+
+Do not save or print expanded `docker compose config` output because it can
+include interpolated sensitive values. Use the structural port checker instead:
+
+```bash
+uv run python scripts/check_compose_staging_ports.py
+```
+
+The checker reads only `infra/compose/compose.staging.yml` and validates
+`services.*.ports`. It does not parse or print `environment`.
 
 ## Health Checks (on server)
 

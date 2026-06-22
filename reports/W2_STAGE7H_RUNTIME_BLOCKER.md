@@ -300,7 +300,7 @@ Healthcheck={"Test":["CMD","python","-c","from apps.scheduler.main import heartb
 - Scheduler category: `SCHEDULER_COMMAND_ERROR`
 - Scheduler evidence: `apps.scheduler.main` emitted heartbeat and exited normally; with `restart: unless-stopped`, Docker kept restarting the container.
 - Public port audit: business ports remain bound to `127.0.0.1`; public listener is SSH 22 only.
-- Secret handling: logs were collected through redaction filters; no API key, database password, or full database URL is recorded intentionally.
+- Sensitive-value handling: logs were collected through redaction filters; no provider credential, database credential, or full database URL is recorded intentionally.
 
 ## Local Fix
 
@@ -317,3 +317,23 @@ Healthcheck={"Test":["CMD","python","-c","from apps.scheduler.main import heartb
 ## Pending High-Risk Server Step
 
 Publishing a new release, switching `/opt/w2/current`, running migration no-op, and restarting `w2-staging.service` are pending explicit approval.
+
+
+## Migration Invocation Fix (2026-06-22T09:47:23+00:00)
+
+- `infra/compose/compose.staging.yml` now declares the migration service command as `uv run alembic upgrade head`.
+- `infra/compose/staging-lite.override.yml` mirrors the same command.
+- The previous blocker was command invocation only; future no-op migration runs must use the migration service default command or an explicit `uv run alembic ...` override.
+
+`MIGRATION_COMMAND_FIXED=YES`
+
+## Server Runtime Closure (2026-06-22T09:59:54+00:00)
+
+- Migration invocation blocker: resolved.
+- Migration default service command ran successfully as no-op against existing head.
+- Worker healthcheck: PASS after rebuilt image was deployed.
+- Scheduler command: PASS after rebuilt image was deployed; process stayed running and healthy through 90-second observation.
+- Scheduler restart count: 0 after rebuilt image restart.
+- Remaining observation: `PERSISTENCE_24H_OBSERVATION=PENDING`.
+
+`STAGE_7H_RUNTIME_FIX=COMPLETED`

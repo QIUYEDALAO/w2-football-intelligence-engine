@@ -58,6 +58,12 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile.migrations
+    command:
+      - "uv"
+      - "run"
+      - "alembic"
+      - "upgrade"
+      - "head"
     environment:
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_ENVIRONMENT: staging
