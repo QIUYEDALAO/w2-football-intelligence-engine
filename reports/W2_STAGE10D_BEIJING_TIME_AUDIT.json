@@ -1,0 +1,20 @@
+{
+  "beijing_operational_day": "2026-06-23",
+  "display_timezone": "Asia/Shanghai",
+  "kickoff_beijing_display": "PASS",
+  "no_japan_time_window": true,
+  "operational_day_start": "00:00:00",
+  "operations_timezone": "Asia/Shanghai",
+  "policy_version": "W2_MATCHDAY_TIMEZONE_V1",
+  "provider_utc_dates_queried": [
+    "2026-06-22",
+    "2026-06-23"
+  ],
+  "storage_timezone": "UTC",
+  "utc_storage": "PASS",
+  "window_end_beijing": "2026-06-24T00:00:00+08:00",
+  "window_end_utc": "2026-06-23T16:00:00Z",
+  "window_semantics": "LEFT_CLOSED_RIGHT_OPEN",
+  "window_start_beijing": "2026-06-23T00:00:00+08:00",
+  "window_start_utc": "2026-06-22T16:00:00Z"
+}

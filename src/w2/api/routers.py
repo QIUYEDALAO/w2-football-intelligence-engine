@@ -25,6 +25,7 @@ from w2.api.schemas import (
     LeagueOnboardingResponse,
     LeagueReadinessResponse,
     MarketRankingResponse,
+    MatchdayCoverageResponse,
     MatchdayResponse,
     OddsTimelineResponse,
     OperationListResponse,
@@ -155,6 +156,15 @@ def matchday(
     }
 
 
+@public_router.get("/matchday/next-36-hours", response_model=MatchdayResponse)
+def matchday_next_36_hours(request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "date": "NEXT_36_HOURS",
+        **service.matchday_next_36_hours(),
+    }
+
+
 @public_router.get("/matchday/{date}", response_model=MatchdayResponse)
 def matchday_by_date(
     date: str,
@@ -173,6 +183,30 @@ def matchday_by_date(
             research_grade=research_grade,
             data_status=data_status,
         ),
+    }
+
+
+@ops_router.get("/matchday-coverage", response_model=MatchdayCoverageResponse)
+def matchday_coverage(request: Request, date: str | None = None) -> dict[str, Any]:
+    ensure_ops_enabled()
+    coverage = service.matchday_coverage(target_date=date)
+    return {
+        "request_id": request_id(request),
+        "requested_date_beijing": str(coverage["local_date"]),
+        "timezone": "Asia/Shanghai",
+        "window_start_beijing": str(coverage["start_local"]),
+        "window_end_beijing": str(coverage["end_local"]),
+        "window_start_utc": str(coverage["start_utc"]),
+        "window_end_utc": str(coverage["end_utc"]),
+        "authoritative_count": coverage["authoritative_count"],
+        "discovered_count": coverage["discovered_count"],
+        "eligible_count": coverage["eligible_count"],
+        "card_count": coverage["card_count"],
+        "read_model_count": coverage["read_model_count"],
+        "displayed_count": coverage["displayed_count"],
+        "missing_count": coverage["missing_count"],
+        "reason_distribution": coverage["reason_distribution"],
+        "coverage_status": coverage["coverage_status"],
     }
 
 

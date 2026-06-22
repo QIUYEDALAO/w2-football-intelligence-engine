@@ -1,0 +1,8 @@
+{
+  "policy_version": "W2_MATCHDAY_TIMEZONE_V1",
+  "display_timezone": "Asia/Shanghai",
+  "operations_timezone": "Asia/Shanghai",
+  "storage_timezone": "UTC",
+  "operational_day_start": "00:00:00",
+  "window_semantics": "LEFT_CLOSED_RIGHT_OPEN"
+}
