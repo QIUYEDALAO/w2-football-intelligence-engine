@@ -274,3 +274,16 @@ class RetentionStatusResponse(BaseModel):
     request_id: str
     status: str
     policy: dict[str, Any]
+
+
+class ShadowStrategyStatusResponse(BaseModel):
+    request_id: str
+    status: str
+    strategy_version: str
+    gate4_status: str
+    gate5_status: str
+    formal_recommendation: bool
+    candidate: bool
+    decisions: int
+    locks: int
+    latest_run_id: str | None

@@ -1,0 +1,19 @@
+{
+  "version": "W2_SHADOW_STRATEGY_V1",
+  "mode": "SHADOW_ONLY",
+  "gate4_national_1x2": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+  "gate5_strategy": "NOT_STARTED",
+  "published_grade_cap_when_gate4_pending": "C",
+  "allowed_public_decisions": ["NOT_READY", "SKIP", "WATCH"],
+  "internal_states": [
+    "SHADOW_NOT_READY",
+    "SHADOW_SKIP",
+    "SHADOW_WATCH",
+    "SHADOW_LOCKED",
+    "SHADOW_VOID",
+    "SHADOW_SETTLED"
+  ],
+  "formal_recommendation": false,
+  "candidate": false,
+  "network": "DISABLED"
+}
