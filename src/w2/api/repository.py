@@ -290,6 +290,52 @@ class ReadModelRepository:
     def release_readiness(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
 
+    def shadow_strategy_replay(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE9A_SHADOW_REPLAY.json", {}))
+
+    def shadow_strategy_status(self) -> dict[str, Any]:
+        replay = self.shadow_strategy_replay()
+        decisions = replay.get("decisions", [])
+        locks = replay.get("locks", [])
+        decisions_count = len(decisions) if isinstance(decisions, list) else 0
+        locks_count = len(locks) if isinstance(locks, list) else 0
+        return {
+            "status": "SHADOW_READY" if decisions_count else "SHADOW_NOT_READY",
+            "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
+            "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "gate5_status": "NOT_STARTED",
+            "formal_recommendation": False,
+            "candidate": False,
+            "decisions": decisions_count,
+            "locks": locks_count,
+            "latest_run_id": replay.get("run_id") if replay else None,
+        }
+
+    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
+        replay = self.shadow_strategy_replay()
+        locks = replay.get("locks", [])
+        return cast(list[dict[str, Any]], locks) if isinstance(locks, list) else []
+
+    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
+        replay = self.shadow_strategy_replay()
+        decisions = replay.get("decisions", [])
+        if not isinstance(decisions, list):
+            return []
+        return [
+            {
+                "fixture_id": item.get("fixture_id"),
+                "phase": item.get("phase"),
+                "public_decision": item.get("public_decision"),
+                "published_grade": item.get("published_grade"),
+                "primary": item.get("primary"),
+                "secondary": item.get("secondary"),
+                "formal_recommendation": False,
+                "candidate": False,
+            }
+            for item in decisions
+            if isinstance(item, dict)
+        ]
+
     def _dashboard_fixture_to_provider_payload(self, item: dict[str, Any]) -> dict[str, Any]:
         return {
             "fixture": {
@@ -959,6 +1005,18 @@ class ReadModelService:
             "status": "DRY_RUN_ONLY",
             "policy": operations.get("retention", {}),
         }
+
+    def shadow_strategy_status(self) -> dict[str, Any]:
+        return self.repository.shadow_strategy_status()
+
+    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
+        return self.repository.shadow_strategy_locks()
+
+    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
+        return self.repository.shadow_strategy_evaluations()
+
+    def shadow_strategy_replay(self) -> dict[str, Any]:
+        return self.repository.shadow_strategy_replay()
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         if "_dashboard" in item:

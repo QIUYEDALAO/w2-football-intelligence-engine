@@ -1,4 +1,8 @@
-"""Strategy boundary package. No recommendation engine is implemented in Stage 2."""
+"""Shadow-only strategy boundary and score scenario helpers.
+
+Stage 9A introduces research-grade shadow decisions only. Public outputs remain
+limited to NOT_READY, SKIP, and WATCH while Gate 4 is pending.
+"""
 
 from w2.strategy.score_scenarios import (
     ScoreScenario,
