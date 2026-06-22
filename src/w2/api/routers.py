@@ -20,9 +20,12 @@ from w2.api.schemas import (
     FixtureDetailResponse,
     FixtureListResponse,
     ForwardHoldoutStatusResponse,
+    IntegrityResponse,
     LeagueListResponse,
     LeagueOnboardingResponse,
     LeagueReadinessResponse,
+    MarketRankingResponse,
+    MatchdayResponse,
     OddsTimelineResponse,
     OperationListResponse,
     OperationsCycleResponse,
@@ -31,6 +34,7 @@ from w2.api.schemas import (
     ProbabilityResponse,
     ProviderStatusResponse,
     ReleaseReadinessResponse,
+    ResearchCardResponse,
     RetentionStatusResponse,
     WorldCupReadinessResponse,
 )
@@ -130,6 +134,48 @@ def list_fixtures(
     return cached_response(cache_key, payload, response, if_none_match)
 
 
+@public_router.get("/matchday", response_model=MatchdayResponse)
+def matchday(
+    request: Request,
+    date: str | None = None,
+    competition_id: str | None = None,
+    status: str | None = None,
+    research_grade: str | None = None,
+    data_status: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        **service.matchday(
+            target_date=date,
+            competition_id=competition_id,
+            status=status,
+            research_grade=research_grade,
+            data_status=data_status,
+        ),
+    }
+
+
+@public_router.get("/matchday/{date}", response_model=MatchdayResponse)
+def matchday_by_date(
+    date: str,
+    request: Request,
+    competition_id: str | None = None,
+    status: str | None = None,
+    research_grade: str | None = None,
+    data_status: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        **service.matchday(
+            target_date=date,
+            competition_id=competition_id,
+            status=status,
+            research_grade=research_grade,
+            data_status=data_status,
+        ),
+    }
+
+
 @public_router.get("/fixtures/{fixture_id}", response_model=FixtureDetailResponse)
 def fixture_detail(fixture_id: str, request: Request, timezone: str = "UTC") -> dict[str, Any]:
     started = monotonic()
@@ -149,6 +195,37 @@ def odds_timeline(fixture_id: str, request: Request) -> dict[str, Any]:
         "fixture_id": fixture_id,
         "items": service.odds_timeline(fixture_id),
     }
+
+
+@public_router.get(
+    "/fixtures/{fixture_id}/research-card",
+    response_model=ResearchCardResponse,
+)
+def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
+    card = service.research_card(fixture_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="research card not found")
+    return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
+
+
+@public_router.get(
+    "/fixtures/{fixture_id}/market-ranking",
+    response_model=MarketRankingResponse,
+)
+def market_ranking(fixture_id: str, request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        "items": service.market_ranking(fixture_id),
+    }
+
+
+@public_router.get("/fixtures/{fixture_id}/integrity", response_model=IntegrityResponse)
+def fixture_integrity(fixture_id: str, request: Request) -> dict[str, Any]:
+    integrity = service.integrity(fixture_id)
+    if integrity is None:
+        raise HTTPException(status_code=404, detail="fixture integrity not found")
+    return {"request_id": request_id(request), "fixture_id": fixture_id, "integrity": integrity}
 
 
 @public_router.get(

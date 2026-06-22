@@ -24,6 +24,11 @@ type Fixture = {
   away_team_id: string;
   lifecycle_state: string;
   data_state: string;
+  published_grade?: string | null;
+  primary_market?: string | null;
+  primary_line?: string | null;
+  primary_odds?: string | null;
+  last_captured?: string | null;
 };
 
 type FixtureDetail = Fixture & {
@@ -33,11 +38,51 @@ type FixtureDetail = Fixture & {
   forward_decision: string;
   provenance: Record<string, string>;
   risk_notes: string[];
+  primary_market?: string | null;
+  primary_selection?: string | null;
+  primary_line?: string | null;
+  primary_executable_odds?: string | null;
+  primary_hong_kong_odds?: string | null;
+  primary_model_fair_odds?: string | null;
+  primary_risk_adjusted_ev?: string | null;
+  research_grade?: string | null;
+  ah_ladder?: unknown[];
+  ou_ladder?: unknown[];
+  all_market_ranking?: unknown[];
+  one_x_two_ranking?: unknown[];
+  btts_ranking?: unknown[];
+  secondary_market_direction?: Record<string, unknown> | null;
+  source_snapshot_id?: string | null;
+  source_captured_at?: string | null;
+  source_phase?: string | null;
+  valuation_generated_at?: string | null;
+  projector_generated_at?: string | null;
+  temporal_status?: string | null;
+  integrity_status?: string | null;
 };
 
 type FixtureList = {
   request_id: string;
   items: Fixture[];
+};
+
+type Matchday = {
+  request_id: string;
+  date: string;
+  total: number;
+  items: Array<Record<string, unknown>>;
+};
+
+type MarketRanking = {
+  request_id: string;
+  fixture_id: string;
+  items: Array<Record<string, unknown>>;
+};
+
+type Integrity = {
+  request_id: string;
+  fixture_id: string;
+  integrity: Record<string, unknown>;
 };
 
 type ForwardStatus = {
@@ -284,6 +329,9 @@ function App() {
   const [health, setHealth] = useState<Resource<DataHealth>>(emptyResource("/api/v1/data-health"));
   const [market, setMarket] = useState<Resource<Probability>>(emptyResource("/api/v1/fixtures/none/market-probabilities"));
   const [model, setModel] = useState<Resource<Probability>>(emptyResource("/api/v1/fixtures/none/model-probabilities"));
+  const [matchday, setMatchday] = useState<Resource<Matchday>>(emptyResource("/api/v1/matchday"));
+  const [ranking, setRanking] = useState<Resource<MarketRanking>>(emptyResource("/api/v1/fixtures/none/market-ranking"));
+  const [integrity, setIntegrity] = useState<Resource<Integrity>>(emptyResource("/api/v1/fixtures/none/integrity"));
   const [tasks, setTasks] = useState<Resource<OpsList>>(emptyResource("/api/ops/tasks"));
   const [alerts, setAlerts] = useState<Resource<OpsList>>(emptyResource("/api/ops/alerts"));
   const [worldCup, setWorldCup] = useState<Resource<WorldCupReadiness>>(emptyResource("/api/ops/world-cup-readiness"));
@@ -313,6 +361,7 @@ function App() {
     loadJson<OperationsLatest>("/api/ops/operations/latest").then(setOperations);
     loadJson<ReleaseReadiness>("/api/ops/releases/readiness").then(setRelease);
     loadJson<RetentionStatus>("/api/ops/retention/status").then(setRetention);
+    loadJson<Matchday>("/api/v1/matchday").then(setMatchday);
   }, []);
 
   useEffect(() => {
@@ -327,12 +376,18 @@ function App() {
     const detailEndpoint = `/api/v1/fixtures/${selected}`;
     const marketEndpoint = `/api/v1/fixtures/${selected}/market-probabilities`;
     const modelEndpoint = `/api/v1/fixtures/${selected}/model-probabilities`;
+    const rankingEndpoint = `/api/v1/fixtures/${selected}/market-ranking`;
+    const integrityEndpoint = `/api/v1/fixtures/${selected}/integrity`;
     setDetail(emptyResource(detailEndpoint));
     setMarket(emptyResource(marketEndpoint));
     setModel(emptyResource(modelEndpoint));
+    setRanking(emptyResource(rankingEndpoint));
+    setIntegrity(emptyResource(integrityEndpoint));
     loadJson<FixtureDetail>(detailEndpoint).then(setDetail);
     loadJson<Probability>(marketEndpoint).then(setMarket);
     loadJson<Probability>(modelEndpoint).then(setModel);
+    loadJson<MarketRanking>(rankingEndpoint).then(setRanking);
+    loadJson<Integrity>(integrityEndpoint).then(setIntegrity);
   }, [selected]);
 
   const fixtureItems = fixtures.data?.items ?? [];
@@ -391,7 +446,13 @@ function App() {
                 >
                   <span>{fixture.competition_name}</span>
                   <strong>{fixture.kickoff_display}</strong>
-                  <small>{fixture.status} · {fixture.lifecycle_state} · {fixture.data_state}</small>
+                  <small>
+                    {fixture.status} · {fixture.lifecycle_state} · {fixture.data_state}
+                    {fixture.published_grade ? ` · grade ${fixture.published_grade}` : ""}
+                  </small>
+                  <small>
+                    {fixture.primary_market ?? "NO_MARKET"} {fixture.primary_line ?? ""} · {fixture.primary_odds ?? "n/a"}
+                  </small>
                 </button>
               ))}
             </div>
@@ -407,8 +468,48 @@ function App() {
               <div><dt>Bookmakers</dt><dd>{data.bookmaker_count}</dd></div>
               <div><dt>Coverage</dt><dd>{JSON.stringify(data.market_coverage)}</dd></div>
               <div><dt>Research status</dt><dd>{data.forward_decision}</dd></div>
+              <div><dt>Primary market</dt><dd>{data.primary_market ?? "NO_BET"} {data.primary_selection ?? ""} {data.primary_line ?? ""}</dd></div>
+              <div><dt>Executable / HK</dt><dd>{data.primary_executable_odds ?? "n/a"} / {data.primary_hong_kong_odds ?? "n/a"}</dd></div>
+              <div><dt>Model fair odds</dt><dd>{data.primary_model_fair_odds ?? "n/a"}</dd></div>
+              <div><dt>Risk-adjusted EV</dt><dd>{data.primary_risk_adjusted_ev ?? "n/a"}</dd></div>
+              <div><dt>Research grade</dt><dd>{data.research_grade ?? "D"} · 正式推荐尚未启用</dd></div>
+              <div><dt>AH / OU ladder</dt><dd>{data.ah_ladder?.length ?? 0} AH · {data.ou_ladder?.length ?? 0} OU</dd></div>
+              <div><dt>1X2 / BTTS ranking</dt><dd>{data.one_x_two_ranking?.length ?? 0} 1X2 · {data.btts_ranking?.length ?? 0} BTTS</dd></div>
+              <div><dt>All-market ranking</dt><dd>{data.all_market_ranking?.length ?? 0} markets evaluated</dd></div>
+              <div><dt>Source captured</dt><dd>{data.source_captured_at ?? "n/a"} · {data.source_phase ?? "n/a"}</dd></div>
+              <div><dt>Recompute time</dt><dd>{data.valuation_generated_at ?? "n/a"}</dd></div>
+              <div><dt>Temporal / integrity</dt><dd>{data.temporal_status ?? "UNKNOWN"} · {data.integrity_status ?? "UNKNOWN"}</dd></div>
               <div><dt>Risk notes</dt><dd>{data.risk_notes.length ? data.risk_notes.join(", ") : "None"}</dd></div>
+              {data.temporal_status === "POSTMATCH_RECOMPUTED_FROM_LOCKED_PREMATCH" ? (
+                <div><dt>Notice</dt><dd>基于赛前锁定数据的赛后重算，不代表赛前实时发布。</dd></div>
+              ) : null}
             </dl>
+          )}
+        </StatePanel>
+      </section>
+
+      <section className="grid two">
+        <StatePanel title="Daily Matchday" resource={matchday} onRetry={loadCommon}>
+          {(data) => (
+            <div className="fixture-list">
+              <strong>{data.date} · {data.total} fixtures</strong>
+              {data.items.map((item) => (
+                <div className="fixture" key={String(item.fixture_id)}>
+                  <span>{String(item.competition_name ?? item.fixture_id)}</span>
+                  <strong>{String(item.primary_market ?? "NO_MARKET")} {String(item.primary_line ?? "")}</strong>
+                  <small>grade {String(item.published_grade ?? "X")} · {String(item.temporal_status ?? "UNKNOWN")} · {String(item.integrity_status ?? "UNKNOWN")}</small>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatePanel>
+        <StatePanel title="Market Ranking / Integrity" resource={ranking} onRetry={() => selected && loadJson<MarketRanking>(`/api/v1/fixtures/${selected}/market-ranking`).then(setRanking)}>
+          {(data) => (
+            <div>
+              <p>{data.items.length} market rows · 正式推荐尚未启用</p>
+              <pre>{JSON.stringify(data.items.slice(0, 5), null, 2)}</pre>
+              {integrity.data ? <pre>{JSON.stringify(integrity.data.integrity, null, 2)}</pre> : null}
+            </div>
           )}
         </StatePanel>
       </section>
