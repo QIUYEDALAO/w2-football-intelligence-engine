@@ -1,0 +1,21 @@
+{
+  "api_key_present": false,
+  "candidate": false,
+  "formal_recommendation": false,
+  "generated_at_utc": "2026-06-23T21:21:10Z",
+  "matches_limit_query_status": "BASELIGHT_API_KEY_REQUIRED",
+  "mcp_endpoint": "https://api.baselight.app/mcp",
+  "no_full_data_download": true,
+  "no_secret_logged": true,
+  "odds_limit_query_status": "BASELIGHT_API_KEY_REQUIRED",
+  "query_row_counts": {
+    "match_betting_odds": 0,
+    "matches": 0
+  },
+  "raw_response_dir": null,
+  "schema_version": "W2_BASELIGHT_MCP_PROBE_V1",
+  "sql_tool_detected": false,
+  "sql_tool_name": null,
+  "status": "BASELIGHT_API_KEY_REQUIRED",
+  "tools_discovered": []
+}

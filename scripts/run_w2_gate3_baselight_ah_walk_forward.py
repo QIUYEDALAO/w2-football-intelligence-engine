@@ -96,7 +96,6 @@ def write_reports(sample_path: Path | None) -> tuple[dict, dict]:
                 "## Remaining Limitations",
                 "",
                 *[f"- `{item}`" for item in DATE_ONLY_LIMITATIONS],
-                "",
             ]
         )
         + "\n"

@@ -116,6 +116,6 @@ def test_limited_ah_cli_reports_missing_sample_without_faking_backtest() -> None
     assert walk_forward["status"] == "INSUFFICIENT_SAMPLE"
     assert walk_forward["fixture_count"] == 0
     assert "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL" in walk_forward["blockers"]
-    assert "handoff_version: 26" in handoff
+    assert "handoff_version: 27" in handoff
     assert "candidate: false" in handoff
     assert "formal_recommendation: false" in handoff

@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 26
+handoff_version: 27
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -58,6 +58,10 @@ gate3_baselight_remaining_limitations:
   - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
   - PRECISE_PHASE_COVERAGE_UNAVAILABLE
   - EXPORT_AND_RETENTION_POLICY_UNVERIFIED
+gate3_baselight_mcp_probe_status: BASELIGHT_API_KEY_REQUIRED
+gate3_baselight_mcp_probe_path: reports/W2_BASELIGHT_MCP_PROBE.json
+gate3_baselight_api_key_required: true
+gate3_baselight_full_extract_status: NOT_STARTED
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
   - CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
@@ -331,6 +335,18 @@ Outputs:
 - `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md`
 
 Result: `gate3_baselight_limited_extract_status=INSUFFICIENT_SAMPLE` and `gate3_baselight_ah_walk_forward_status=INSUFFICIENT_SAMPLE` because no user-provided local Baselight sample file was present. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
+
+## 0.10 Gate3 Baselight MCP/API Key Read-Only Probe
+
+A read-only MCP probe script was added for Baselight access discovery:
+
+- `scripts/probe_baselight_mcp.py`
+- `reports/W2_BASELIGHT_MCP_PROBE.json`
+- `reports/W2_BASELIGHT_MCP_PROBE.md`
+
+The script reads `BASELIGHT_API_KEY` only from the process environment, sends it only as the `x-api-key` request header, and never writes the value to Git reports, logs, or raw response files. Raw MCP responses, if produced, are written only under `/tmp`.
+
+Current result: `gate3_baselight_mcp_probe_status=BASELIGHT_API_KEY_REQUIRED` because the current Codex process did not have `BASELIGHT_API_KEY` set. No Baselight table query was executed, no full data was downloaded, and no sample data was committed. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
 
 ## 1. 新会话启动协议
 
