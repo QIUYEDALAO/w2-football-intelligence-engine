@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+from w2.markets.baselight_limited_ah import (
+    DATE_ONLY_LIMITATIONS,
+    build_manifest,
+    build_walk_forward,
+    normalize_observations,
+    rows_from_sample,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+REPORTS = ROOT / "reports"
+DEFAULT_SAMPLE_DIR = Path(
+    "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah"
+)
+MANIFEST_PATH = REPORTS / "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
+WALK_FORWARD_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
+RESULT_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+
+
+def discover_sample(sample_path: str | None) -> Path | None:
+    if sample_path:
+        path = Path(sample_path)
+        return path if path.is_file() else None
+    candidate_names = (
+        "baselight_limited_ah.csv",
+        "baselight_limited_ah.jsonl",
+        "sample.csv",
+        "sample.jsonl",
+    )
+    for name in candidate_names:
+        path = DEFAULT_SAMPLE_DIR / name
+        if path.is_file():
+            return path
+    return None
+
+
+def write_reports(sample_path: Path | None) -> tuple[dict, dict]:
+    generated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    observations = []
+    errors = {}
+    if sample_path is not None:
+        rows = rows_from_sample(sample_path)
+        observations, error_counter = normalize_observations(rows)
+        errors = dict(sorted(error_counter.items()))
+    manifest = build_manifest(sample_path, observations)
+    manifest.update(
+        {
+            "generated_at_utc": generated_at,
+            "source_tables": {
+                "odds": "@blt.ultimate_soccer_dataset.match_betting_odds",
+                "matches": "@blt.ultimate_soccer_dataset.matches",
+            },
+            "sample_required_path": str(DEFAULT_SAMPLE_DIR),
+            "normalization_errors": errors,
+        }
+    )
+    walk_forward = build_walk_forward(observations)
+    walk_forward["generated_at_utc"] = generated_at
+    walk_forward["sample_path"] = str(sample_path) if sample_path else None
+    walk_forward["collected_at_precision"] = "DATE_ONLY"
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    WALK_FORWARD_PATH.write_text(json.dumps(walk_forward, indent=2, sort_keys=True) + "\n")
+    RESULT_PATH.write_text(
+        "\n".join(
+            [
+                "# W2 Gate3 Baselight AH Walk-Forward Result",
+                "",
+                f"Generated at: `{generated_at}`",
+                "",
+                f"STATUS={walk_forward['status']}",
+                f"SAMPLE_PATH={sample_path if sample_path else 'MISSING'}",
+                f"ROW_COUNT={manifest['row_count']}",
+                f"FIXTURE_COUNT={manifest['fixture_count']}",
+                f"BOOKMAKER_COUNT={manifest['bookmaker_count']}",
+                f"LINE_BUCKET_COUNT={manifest['line_bucket_count']}",
+                f"COMPETITION_COUNT={manifest['competition_count']}",
+                f"FOLD_COUNT={walk_forward['fold_count']}",
+                "candidate=false",
+                "formal_recommendation=false",
+                "",
+                "## Boundary",
+                "",
+                "- No full Baselight data is committed.",
+                "- No provider/network call is performed.",
+                "- DATE-only collected_at cannot support T-1h, T-30m, T-10m, "
+                "intraday movement, or exact closing timestamp.",
+                "- Gate3 remains PARTIAL unless closure checkers pass without blockers.",
+                "",
+                "## Remaining Limitations",
+                "",
+                *[f"- `{item}`" for item in DATE_ONLY_LIMITATIONS],
+                "",
+            ]
+        )
+        + "\n"
+    )
+    return manifest, walk_forward
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sample-path")
+    args = parser.parse_args()
+    sample_path = discover_sample(args.sample_path)
+    manifest, walk_forward = write_reports(sample_path)
+    print(
+        "W2 Gate3 Baselight AH walk-forward "
+        f"{walk_forward['status']} rows={manifest['row_count']} "
+        f"fixtures={manifest['fixture_count']}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

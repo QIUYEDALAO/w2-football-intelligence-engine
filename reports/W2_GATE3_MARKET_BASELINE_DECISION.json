@@ -16,6 +16,9 @@
     "status": "PARTIAL_NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
   },
   "baselight": {
+    "ah_walk_forward_path": "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+    "ah_walk_forward_result_path": "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md",
+    "ah_walk_forward_status": "INSUFFICIENT_SAMPLE",
     "ai_schema_probe_path": "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
     "can_resolve_if_backtest_passes": [
       "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
@@ -23,6 +26,10 @@
     ],
     "collected_at_precision": "DATE_ONLY",
     "license_status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED",
+    "limited_extract_fixture_count": 0,
+    "limited_extract_manifest_path": "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+    "limited_extract_row_count": 0,
+    "limited_extract_status": "INSUFFICIENT_SAMPLE",
     "match_table": "matches",
     "next_action": "BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD",
     "odds_table": "match_betting_odds",
@@ -31,6 +38,7 @@
       "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
       "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
     ],
+    "resolved_by_baselight_limited_backtest": [],
     "settled_ah_fixture_count": 10858,
     "status": "CONDITIONAL_GATE3_CANDIDATE"
   },
@@ -39,7 +47,8 @@
     "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
     "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
     "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
-    "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED"
+    "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED",
+    "BASELIGHT_LIMITED_AH_SAMPLE_REQUIRED"
   ],
   "candidate": false,
   "captured_at_phase_coverage": {
@@ -63,7 +72,11 @@
   },
   "evidence": [
     "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-    "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+    "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+    "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+    "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+    "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+    "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
   ],
   "external_source_comparison_path": "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
   "external_source_decision_path": "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
@@ -71,7 +84,7 @@
   "external_source_requirements_path": "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
   "formal_recommendation": false,
   "gate": 3,
-  "generated_at_utc": "2026-06-23T20:50:04Z",
+  "generated_at_utc": "2026-06-23T21:00:24Z",
   "internal_historical_ah_exhausted": true,
   "leakage_audit": {
     "closing_odds_not_used_for_early_phase": true,
@@ -103,7 +116,8 @@
     "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence.",
     "User must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change.",
     "Do not acquire or ingest external historical odds until user approval and license review are complete.",
-    "Build Baselight limited AH extract and walk-forward backtest."
+    "Build Baselight limited AH extract and walk-forward backtest.",
+    "User must provide the limited Baselight AH sample file before walk-forward can pass."
   ],
   "one_x_two": {
     "devig_methods": [

@@ -43,6 +43,6 @@ def test_baselight_limitations_keep_gate3_partial() -> None:
         decision["baselight"]["license_status"]
         == "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED"
     )
-    assert "handoff_version: 25" in handoff
+    assert "handoff_version: 26" in handoff
     assert "STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE" in handoff
 

@@ -1,0 +1,30 @@
+{
+  "blockers": [
+    "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL",
+    "BASELIGHT_WALK_FORWARD_FOLDS_INSUFFICIENT",
+    "BASELIGHT_BOOKMAKER_COVERAGE_INSUFFICIENT",
+    "BASELIGHT_AH_LINE_BUCKET_COVERAGE_INSUFFICIENT",
+    "BASELIGHT_COMPETITION_STRATA_INSUFFICIENT"
+  ],
+  "bookmaker_count": 0,
+  "candidate": false,
+  "collected_at_precision": "DATE_ONLY",
+  "competition_count": 0,
+  "fixture_count": 0,
+  "fold_count": 0,
+  "folds": [],
+  "formal_recommendation": false,
+  "generated_at_utc": "2026-06-23T21:03:25Z",
+  "line_bucket_count": 0,
+  "observation_count": 0,
+  "remaining_limitations": [
+    "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+    "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+  ],
+  "resolved_if_pass": [],
+  "sample_path": null,
+  "schema_version": "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_V1",
+  "settlement_distribution": {},
+  "status": "INSUFFICIENT_SAMPLE"
+}

@@ -1,0 +1,28 @@
+{
+  "bookmaker_count": 0,
+  "candidate": false,
+  "collected_at_precision": "DATE_ONLY",
+  "competition_count": 0,
+  "fixture_count": 0,
+  "formal_recommendation": false,
+  "generated_at_utc": "2026-06-23T21:03:25Z",
+  "large_sample_committed": false,
+  "line_bucket_count": 0,
+  "normalization_errors": {},
+  "remaining_limitations": [
+    "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+    "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+  ],
+  "row_count": 0,
+  "sample_path": null,
+  "sample_required_path": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah",
+  "sample_sha256": null,
+  "schema_version": "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST_V1",
+  "season_count": 0,
+  "source_tables": {
+    "matches": "@blt.ultimate_soccer_dataset.matches",
+    "odds": "@blt.ultimate_soccer_dataset.match_betting_odds"
+  },
+  "status": "INSUFFICIENT_SAMPLE"
+}

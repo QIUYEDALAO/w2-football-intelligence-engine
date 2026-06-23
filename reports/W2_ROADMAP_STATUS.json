@@ -101,6 +101,21 @@
       "name": "Gate3 Baselight AI schema probe intake",
       "notes": "User-provided Baselight AI schema/coverage evidence; no full data download or backtest. Gate3 remains PARTIAL.",
       "status": "CONDITIONAL_GATE3_CANDIDATE"
+    },
+    {
+      "evidence": [
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+      ],
+      "mapped_master_phases": [
+        "5",
+        "6"
+      ],
+      "name": "Gate3 Baselight limited AH extract and walk-forward",
+      "notes": "SQL generated; user sample file not present, so no formal walk-forward backtest was built. Gate3 remains PARTIAL.",
+      "status": "INSUFFICIENT_SAMPLE"
     }
   ],
   "candidate": false,
@@ -158,7 +173,11 @@
         "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
         "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
         "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "missing_requirements": [
         "Historical AH baseline/backtest remains missing.",
@@ -169,7 +188,9 @@
         "No external trial, purchase, contact, or license approval has been authorized.",
         "Historical AH baseline/backtest remains missing until Baselight limited extract and walk-forward pass.",
         "Baselight DATE-only precision cannot support T-1h/T-30m/T-10m phase claims.",
-        "Baselight platform export/retention policy remains unverified."
+        "Baselight platform export/retention policy remains unverified.",
+        "Baselight limited AH sample file has not been provided to W2.",
+        "Baselight AH walk-forward remains INSUFFICIENT_SAMPLE."
       ],
       "name": "\u5e02\u573a\u57fa\u51c6",
       "status": "PARTIAL"
@@ -218,7 +239,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-23T20:50:04Z",
+  "generated_at_utc": "2026-06-23T21:00:24Z",
   "phases": {
     "0": {
       "blockers": [
@@ -431,14 +452,19 @@
         "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
         "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
         "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "name": "\u5efa\u7acb\u5386\u53f2\u8bad\u7ec3\u4e0e\u56de\u6d4b\u6570\u636e\u96c6",
       "next_actions": [
         "Refresh source coverage when new approved historical data is added",
         "Resolve Gate3 external historical odds source decision before claiming historical AH closure.",
         "Keep forward-only accumulation as a separate path unless user approves external acquisition.",
-        "Build Baselight limited AH extract and walk-forward backtest."
+        "Build Baselight limited AH extract and walk-forward backtest.",
+        "Run limited Baselight AH walk-forward after user provides the local sample export."
       ],
       "status": "COMPLETE"
     },
@@ -461,7 +487,11 @@
         "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
         "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
         "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "name": "\u5efa\u7acb\u5e02\u573a\u5206\u6790\u5c42",
       "next_actions": [
@@ -469,7 +499,8 @@
         "Use generated historical market inventory for source acquisition decision.",
         "Resolve Gate3 external historical odds source decision before claiming historical AH closure.",
         "Keep forward-only accumulation as a separate path unless user approves external acquisition.",
-        "Build Baselight limited AH extract and walk-forward backtest."
+        "Build Baselight limited AH extract and walk-forward backtest.",
+        "Run limited Baselight AH walk-forward after user provides the local sample export."
       ],
       "status": "COMPLETE"
     },

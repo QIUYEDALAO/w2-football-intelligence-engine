@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 25
+handoff_version: 26
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -50,6 +50,14 @@ gate3_baselight_match_table: matches
 gate3_baselight_settled_ah_fixture_count: 10858
 gate3_baselight_collected_at_precision: DATE_ONLY
 gate3_baselight_next_action: BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD
+gate3_baselight_limited_extract_status: INSUFFICIENT_SAMPLE
+gate3_baselight_limited_extract_manifest_path: reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json
+gate3_baselight_ah_walk_forward_status: INSUFFICIENT_SAMPLE
+gate3_baselight_ah_walk_forward_path: reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json
+gate3_baselight_remaining_limitations:
+  - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
+  - PRECISE_PHASE_COVERAGE_UNAVAILABLE
+  - EXPORT_AND_RETENTION_POLICY_UNVERIFIED
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
   - CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
@@ -307,6 +315,22 @@ User-provided Baselight AI schema/coverage evidence was accepted into W2 as docu
 - `reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md`
 
 Result: `gate3_baselight_probe_status=CONDITIONAL_GATE3_CANDIDATE`. Baselight may support historical AH baseline, fixture-level chronological walk-forward, daily pre-match snapshot replay, and settled AH settlement testing if a limited extract and walk-forward backtest pass. Remaining limitations are `BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE`, `PRECISE_PHASE_COVERAGE_UNAVAILABLE`, and `EXPORT_AND_RETENTION_POLICY_UNVERIFIED`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`. Stage7I lifecycle blocker remains unchanged.
+
+
+## 0.9 Gate3 Baselight Limited AH Extract and Walk-Forward
+
+W2 generated the Baselight limited AH extract SQL and a local-sample-only walk-forward runner. Codex did not access Baselight, did not download full data, and did not import a formal dataset. The expected user export directory is:
+
+`/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/`
+
+Outputs:
+
+- `reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql`
+- `reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json`
+- `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json`
+- `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md`
+
+Result: `gate3_baselight_limited_extract_status=INSUFFICIENT_SAMPLE` and `gate3_baselight_ah_walk_forward_status=INSUFFICIENT_SAMPLE` because no user-provided local Baselight sample file was present. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
 
 ## 1. 新会话启动协议
 
