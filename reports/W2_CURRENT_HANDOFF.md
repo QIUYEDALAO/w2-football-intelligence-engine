@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 24
+handoff_version: 25
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -38,12 +38,18 @@ gate3_external_source_status: USER_DECISION_REQUIRED
 gate3_acquisition_authorized: false
 gate3_checker_mode: audit
 gate3_data_route: FORWARD_ONLY_ACCUMULATION
-gate3_baselight_probe_status: NOT_EVALUATED_SOURCE_MISMATCH
+gate3_baselight_probe_status: CONDITIONAL_GATE3_CANDIDATE
 gate3_baselight_observed_source: API_SPORTS_LOCAL_JSON
 gate3_baselight_settlement_validation: PASS
 gate3_baselight_time_series_status: NO_REPEATED_ECONOMIC_KEY_ACROSS_DATES
-gate3_baselight_license_status: UNVERIFIED
+gate3_baselight_license_status: DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED
 gate3_baselight_actual_query_completed: false
+gate3_baselight_ai_schema_probe_path: reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json
+gate3_baselight_odds_table: match_betting_odds
+gate3_baselight_match_table: matches
+gate3_baselight_settled_ah_fixture_count: 10858
+gate3_baselight_collected_at_precision: DATE_ONLY
+gate3_baselight_next_action: BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
   - CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
@@ -291,6 +297,16 @@ The archive manifest records original paths, SHA256, size, mode, and mtime. Afte
 A read-only continuity audit found the Stage7I observer still alive with PID/PGID `1435421/1435396`, the runtime directory present, and observations still present. The lifecycle collector process was not active (`collector_count=0`). The lifecycle lock file exists but has no holder. `final_evidence.in_progress.json` remains `IN_PROGRESS` with blockers including actual kickoff source unavailable and pending actual kickoff. Result evidence, lifecycle summary, and collector exit evidence are absent.
 
 Result: `OBSERVER_ACTIVE_COLLECTOR_INACTIVE`. BLOCKER: `STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE`. No restart, signal, deployment, runtime write, `.env` read, or W1 modification was performed.
+
+
+## 0.8 Gate3 Baselight AI Evidence Intake
+
+User-provided Baselight AI schema/coverage evidence was accepted into W2 as documentation evidence only. No full Baselight data was downloaded, no formal backtest was built, Gate3 was not closed, Stage7I recovery was not executed, and no deployment/runtime change was made. Outputs:
+
+- `reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json`
+- `reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md`
+
+Result: `gate3_baselight_probe_status=CONDITIONAL_GATE3_CANDIDATE`. Baselight may support historical AH baseline, fixture-level chronological walk-forward, daily pre-match snapshot replay, and settled AH settlement testing if a limited extract and walk-forward backtest pass. Remaining limitations are `BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE`, `PRECISE_PHASE_COVERAGE_UNAVAILABLE`, and `EXPORT_AND_RETENTION_POLICY_UNVERIFIED`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`. Stage7I lifecycle blocker remains unchanged.
 
 ## 1. 新会话启动协议
 

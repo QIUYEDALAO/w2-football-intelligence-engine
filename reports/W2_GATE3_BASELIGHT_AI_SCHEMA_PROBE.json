@@ -1,0 +1,71 @@
+{
+  "asian_handicap": {
+    "bookmaker_count": 15,
+    "competition_count": 70,
+    "fixture_count": 10946,
+    "join_failures": 0,
+    "line_bucket_count": 150,
+    "observation_count": 23109497,
+    "season_count": 3,
+    "settled_fixture_count": 10858
+  },
+  "baselight_status": "CONDITIONAL_GATE3_CANDIDATE",
+  "bookmaker_count": 20,
+  "can_support": [
+    "historical AH baseline",
+    "fixture-level chronological walk-forward",
+    "daily pre-match snapshot replay",
+    "settled AH settlement testing"
+  ],
+  "candidate": false,
+  "cannot_support": [
+    "T-1h phase",
+    "T-30m phase",
+    "T-10m phase",
+    "intraday odds movement",
+    "exact closing timestamp"
+  ],
+  "collected_at": {
+    "column_type": "TIMESTAMP",
+    "intraday_precision_available": false,
+    "observed_precision": "DATE_ONLY"
+  },
+  "dataset": "@blt.ultimate_soccer_dataset",
+  "formal_recommendation": false,
+  "gate3_status_after_intake": "PARTIAL",
+  "generated_at_utc": "2026-06-23T20:49:41Z",
+  "license": {
+    "dataset_level": "CC BY 4.0",
+    "platform_export_retention_policy": "UNVERIFIED",
+    "status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED"
+  },
+  "markets": [
+    "Match Winner",
+    "Asian Handicap",
+    "Goals Over/Under",
+    "Asian Handicap First Half",
+    "Goals Over/Under First Half",
+    "Double Chance",
+    "Exact Score"
+  ],
+  "match_count": 278892,
+  "match_result_table": "matches",
+  "matches": {
+    "home_score_away_score_non_null_fixtures": 32172
+  },
+  "no_backtest_built": true,
+  "no_full_data_download": true,
+  "odds_fixture_count": 32260,
+  "odds_row_count": 522058931,
+  "odds_table": "match_betting_odds",
+  "odds_type_values": [
+    "pre_match"
+  ],
+  "remaining_limitations": [
+    "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+    "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+  ],
+  "schema_version": "W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE_V1",
+  "source": "user_provided_baselight_ai_schema_coverage_result"
+}

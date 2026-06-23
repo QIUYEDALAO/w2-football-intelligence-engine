@@ -15,6 +15,25 @@
     "historical_build_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
     "status": "PARTIAL_NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
   },
+  "baselight": {
+    "ai_schema_probe_path": "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+    "can_resolve_if_backtest_passes": [
+      "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+      "AH_WALK_FORWARD_EVIDENCE_MISSING"
+    ],
+    "collected_at_precision": "DATE_ONLY",
+    "license_status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED",
+    "match_table": "matches",
+    "next_action": "BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD",
+    "odds_table": "match_betting_odds",
+    "remaining_limitations": [
+      "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+      "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+      "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+    ],
+    "settled_ah_fixture_count": 10858,
+    "status": "CONDITIONAL_GATE3_CANDIDATE"
+  },
   "blockers": [
     "AH_WALK_FORWARD_EVIDENCE_MISSING",
     "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
@@ -42,13 +61,17 @@
     },
     "status": "CAPTURED_AT_AVAILABLE"
   },
+  "evidence": [
+    "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+    "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+  ],
   "external_source_comparison_path": "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
   "external_source_decision_path": "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
   "external_source_decision_status": "USER_DECISION_REQUIRED",
   "external_source_requirements_path": "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
   "formal_recommendation": false,
   "gate": 3,
-  "generated_at_utc": "2026-06-23T17:35:29Z",
+  "generated_at_utc": "2026-06-23T20:50:04Z",
   "internal_historical_ah_exhausted": true,
   "leakage_audit": {
     "closing_odds_not_used_for_early_phase": true,
@@ -79,7 +102,8 @@
     "Acquire or approve an external/internal historical AH odds source with settled results before Gate3 closure.",
     "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence.",
     "User must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change.",
-    "Do not acquire or ingest external historical odds until user approval and license review are complete."
+    "Do not acquire or ingest external historical odds until user approval and license review are complete.",
+    "Build Baselight limited AH extract and walk-forward backtest."
   ],
   "one_x_two": {
     "devig_methods": [
@@ -421,6 +445,9 @@
     "CAPTURED_AT_COVERAGE_WITHOUT_SETTLED_BACKTEST",
     "ONE_X_TWO_UNKNOWN_PREMATCH_AGGREGATE",
     "OU_CLOSING_SUBSET_ONLY",
-    "STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY"
+    "STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY",
+    "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+    "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
   ]
 }
