@@ -127,8 +127,9 @@ Confirmed during R1B2:
 
 While the successor observer continues on staging revision
 `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`, the mainline code now includes the
-future fixture refresh implementation. This work is code-only and is not
-deployed to staging until the active Stage7I observer naturally completes.
+future fixture refresh implementation and operational hardening. This work is
+code-only and is not deployed to staging until the active Stage7I observer
+naturally completes.
 
 Formal runtime entries:
 
@@ -137,23 +138,36 @@ Formal runtime entries:
 
 Implementation:
 
+- `config/policies/future_fixture_refresh.v1.json`
 - `src/w2/ingestion/future_refresh.py`
 - `apps.scheduler.main.future_fixture_refresh_tick`
 - `apps.worker.celery_app.future_fixture_refresh`
 - `runtime/future_refresh/` is gitignored
 - read API repository merges `runtime/future_refresh/read_model` fixtures,
-  provider status, and market snapshots
+  provider status, and append-only market ledger projections
 
 Safety and quality controls:
 
+- scheduler dispatches Celery only; provider calls run in worker context
+- deterministic task key:
+  `future-refresh:<competition_id>:<season>:<time-bucket>`
+- cross-process singleton lock with Redis preferred and file fallback
+- owner-marker lock release
+- task audit with task ID, key, owner, queue/start/finish time, status, and
+  summary
+- policy-driven competition/season/horizon; unregistered competitions do not
+  run
 - uses existing `ApiFootballClient.request_live`
 - no direct external URL/key construction in scheduler or worker
-- request budget
+- every real provider attempt counts against request budget
 - quota reserve
-- retry/backoff with circuit breaker
+- retry/backoff with 401/403 no-retry and 429 counted retry
 - raw payload SHA256
+- per-response request audit linked to each persisted raw payload
 - provider mapping evidence
-- pre-match market snapshot evidence
+- append-only market observation ledger
+- stable observation identity dedup for replayed raw payloads
+- latest read model and odds timeline projected from the ledger
 - idempotent raw writes
 - failure audit
 - `candidate=false`

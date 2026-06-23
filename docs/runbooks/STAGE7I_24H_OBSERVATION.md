@@ -166,25 +166,40 @@ The refresh path is:
 
 1. `apps.scheduler.main.future_fixture_refresh_tick()` checks
    `W2_FUTURE_FIXTURE_REFRESH_ENABLED`.
-2. When explicitly enabled, it calls
-   `w2.ingestion.future_refresh.run_future_fixture_refresh()`.
-3. The service uses the existing `ApiFootballClient.request_live` adapter.
-4. The service writes append-safe runtime artifacts under
+2. When explicitly enabled, it loads
+   `config/policies/future_fixture_refresh.v1.json`, derives a deterministic
+   task key, and dispatches Celery task `w2.future_fixture_refresh`.
+3. The scheduler must not call provider clients or the refresh service
+   directly.
+4. The worker acquires a cross-process singleton lock, preferring Redis and
+   falling back to an owner-marker file lock.
+5. The worker service uses the existing `ApiFootballClient.request_live`
+   adapter.
+6. The service writes append-safe runtime artifacts under
    `runtime/future_refresh/`.
-5. The read API repository merges
+7. Market observations are appended to
+   `runtime/future_refresh/ledger/market_observations.jsonl` and projected into
+   read-model files.
+8. The read API repository merges
    `runtime/future_refresh/read_model/fixtures.json`,
-   `provider_status.json`, and `market_snapshots.json`.
+   `provider_status.json`, and ledger-derived market observations.
 
 The refresh service enforces:
 
 - API-Football credential use only through `ApiFootballClient`;
 - no direct URL/key concatenation in scheduler or worker code;
-- request budget;
+- request budget where every provider attempt counts;
 - quota reserve;
-- retry/backoff with circuit breaker;
+- retry/backoff with 401/403 no-retry and 429 counted retry;
+- deterministic task key:
+  `future-refresh:<competition_id>:<season>:<time-bucket>`;
+- task audit with queued/start/finish timestamps, owner marker, status, and
+  summary;
 - raw payload SHA256;
+- per-response audit reference for each persisted raw payload;
 - provider mapping evidence;
-- pre-match market snapshot evidence;
+- append-only market observation ledger with stable replay deduplication;
+- ledger-derived odds timeline with `closing=false`;
 - idempotent raw payload writes;
 - failure audit with `candidate=false` and `formal_recommendation=false`.
 

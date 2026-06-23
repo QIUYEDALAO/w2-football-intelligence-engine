@@ -1,0 +1,24 @@
+{
+  "version": "future_fixture_refresh.v1",
+  "default_enabled": false,
+  "notes": [
+    "Only explicitly registered competitions can run future fixture refresh.",
+    "Scheduler dispatch remains disabled unless W2_FUTURE_FIXTURE_REFRESH_ENABLED=true."
+  ],
+  "competitions": [
+    {
+      "competition_id": "world_cup_2026",
+      "provider": "api_football",
+      "provider_league_id": "1",
+      "season": "2026",
+      "horizon_days": 14,
+      "scheduler_interval_seconds": 900,
+      "quota_reserve": 1500,
+      "request_budget": 40,
+      "max_fixture_candidates": 20,
+      "max_odds_requests": 10,
+      "market_freshness_seconds": 3600,
+      "enabled": true
+    }
+  ]
+}

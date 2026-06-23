@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 10
+handoff_version: 11
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -15,6 +15,7 @@ legacy_policy: frozen_read_only
 active_stage_package: Stage7I-R1B2 successor forward observation in progress
 stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
 parallel_mainline_status: FUTURE_DATA_REFRESH_IMPLEMENTATION_COMPLETED
+future_refresh_hardening_status: OPERATIONAL_HARDENING_COMPLETED
 pending_staging_deployment: true
 pending_deployment_reason: preserve active Stage7I revision continuity
 ci_patch1_status: REMOTE_CI_FAILED_ALEMBIC_SMOKE
@@ -98,6 +99,12 @@ stage7i_r1b2_tooling_fix: typed_alembic_revision_parser_and_legacy_runtime_dir_c
 future_refresh_formal_scheduler_entry: apps/scheduler/main.py
 future_refresh_formal_worker_entry: apps/worker/celery_app.py
 future_refresh_service: src/w2/ingestion/future_refresh.py
+future_refresh_policy: config/policies/future_fixture_refresh.v1.json
+future_refresh_scheduler_semantics: dispatch_celery_task_only
+future_refresh_worker_lock: redis_preferred_file_fallback_owner_marker
+future_refresh_task_key: future-refresh:<competition_id>:<season>:<time-bucket>
+future_refresh_market_ledger: runtime/future_refresh/ledger/market_observations.jsonl
+future_refresh_read_model_source: append_only_market_ledger
 future_refresh_runtime_root: runtime/future_refresh
 future_refresh_deployment_status: PENDING_STAGE7I_COMPLETION
 repository_head_relation: handoff is current as of its containing Git commit

@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from datetime import UTC, datetime
+from uuid import uuid4
 
 logger = logging.getLogger("w2.scheduler")
 
@@ -25,18 +26,42 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
-    from w2.ingestion.future_refresh import run_future_fixture_refresh
+    from apps.worker.celery_app import celery_app
+    from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
 
-    result = run_future_fixture_refresh()
+    competition_id = os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    now = datetime.now(UTC)
+    config = config_from_policy(competition_id=competition_id)
+    if not config.enabled:
+        return {
+            "status": "DISABLED_BY_POLICY",
+            "competition_id": competition_id,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    task_key = deterministic_task_key(
+        competition_id=config.competition_id,
+        season=config.season,
+        now=now,
+        interval_seconds=config.scheduler_interval_seconds,
+    )
+    task_id = f"{task_key}:{uuid4()}"
+    celery_app.send_task(
+        "w2.future_fixture_refresh",
+        kwargs={
+            "competition_id": config.competition_id,
+            "task_key": task_key,
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        },
+        task_id=task_id,
+    )
     return {
-        "status": "COMPLETED" if not result.blockers else "BLOCKED",
-        "generated_at_utc": result.generated_at_utc.isoformat().replace("+00:00", "Z"),
-        "fixture_count": result.fixture_count,
-        "mapping_count": result.mapping_count,
-        "market_snapshot_count": result.market_snapshot_count,
-        "request_count": result.request_count,
-        "remaining_quota": result.remaining_quota,
-        "blockers": result.blockers,
+        "status": "QUEUED",
+        "task_id": task_id,
+        "task_key": task_key,
+        "competition_id": config.competition_id,
+        "season": config.season,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
     }
@@ -44,17 +69,21 @@ def future_fixture_refresh_tick() -> dict[str, object]:
 
 def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
-    refresh_interval_seconds = int(
-        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_INTERVAL_SECONDS", "900")
-    )
     next_refresh_at = datetime.now(UTC)
     while True:
         heartbeat()
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
             try:
-                logger.info("w2 future fixture refresh %s", future_fixture_refresh_tick())
+                result = future_fixture_refresh_tick()
+                logger.info("w2 future fixture refresh %s", result)
+                from w2.ingestion.future_refresh import config_from_policy
+
+                refresh_interval_seconds = config_from_policy().scheduler_interval_seconds
             except Exception:
                 logger.exception("w2 future fixture refresh failed")
+                refresh_interval_seconds = int(
+                    os.environ.get("W2_FUTURE_FIXTURE_REFRESH_INTERVAL_SECONDS", "900")
+                )
             next_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_refresh_at = next_refresh_at.fromtimestamp(
                 next_refresh_at.timestamp() + refresh_interval_seconds,

@@ -19,7 +19,7 @@ def write_fixture_payload(root: Path) -> None:
                 {
                     "fixture": {
                         "id": 900001,
-                        "date": "2026-06-23T00:00:00+00:00",
+                        "date": "2026-06-24T00:00:00+00:00",
                         "status": {"short": "NS"},
                         "venue": {"name": "Test Venue"},
                     },
@@ -68,6 +68,39 @@ def write_future_refresh_payload(root: Path) -> None:
                     "bookmaker_count": 14,
                     "quality": "READY",
                 }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (read_model / "latest_market_observations.json").write_text(
+        json.dumps(
+            [
+                {
+                    "observation_id": "obs-1",
+                    "fixture_id": "1489404",
+                    "provider": "api_football",
+                    "bookmaker_id": "1",
+                    "bookmaker_name": "Book A",
+                    "canonical_market": "ONE_X_TWO",
+                    "selection": "HOME",
+                    "line": None,
+                    "decimal_odds": "1.80",
+                    "captured_at": "2026-06-23T10:00:00Z",
+                    "provider_updated_at": "2026-06-23T09:59:00Z",
+                },
+                {
+                    "observation_id": "obs-2",
+                    "fixture_id": "1489404",
+                    "provider": "api_football",
+                    "bookmaker_id": "2",
+                    "bookmaker_name": "Book B",
+                    "canonical_market": "TOTALS",
+                    "selection": "OVER",
+                    "line": "2.5",
+                    "decimal_odds": "1.92",
+                    "captured_at": "2026-06-23T10:01:00Z",
+                    "provider_updated_at": "2026-06-23T10:00:00Z",
+                },
             ]
         ),
         encoding="utf-8",
@@ -135,8 +168,33 @@ def test_future_refresh_read_model_feeds_fixtures_and_provider_status(
     assert [item["fixture_id"] for item in fixtures] == ["1489404"]
     detail = client.get("/v1/fixtures/1489404").json()
     assert detail["bookmaker_count"] == 14
+    assert detail["market_coverage"]["TOTALS"]
+    timeline = client.get("/v1/fixtures/1489404/odds-timeline").json()["items"]
+    assert timeline[0]["bookmaker"] == "Book A"
+    assert timeline[0]["closing"] is False
+    assert {item["market"] for item in timeline} >= {"ONE_X_TWO", "TOTALS"}
     provider = client.get("/v1/providers/status").json()
     assert provider["remaining_quota"] == 6323
+    assert "blockers" in provider
+
+
+def test_future_refresh_hides_past_ns_fixture_from_default_list(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    write_fixture_payload(tmp_path)
+    payload_path = tmp_path / "stage7c/raw/test_fixtures.json"
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    payload["payload"]["response"][0]["fixture"]["date"] = "2026-06-22T00:00:00+00:00"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(repository, "RUNTIME", tmp_path)
+    client = TestClient(app)
+
+    fixtures = client.get("/v1/fixtures?page_size=10&status=NS&timezone=UTC").json()["items"]
+    health = client.get("/v1/data-health").json()
+
+    assert fixtures == []
+    assert health["stale_data_count"] == 1
 
 
 def test_operations_read_only_and_production_disabled(monkeypatch) -> None:

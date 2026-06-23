@@ -8,6 +8,11 @@ from w2.ingestion.future_refresh import (
     FutureFixtureRefreshService,
     FutureRefreshConfig,
     FutureRefreshError,
+    RefreshSingletonLock,
+    config_from_policy,
+    deterministic_task_key,
+    load_refresh_policy,
+    run_future_refresh_task,
 )
 from w2.providers.api_football import LiveApiFootballResponse
 
@@ -15,8 +20,9 @@ NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
 
 class FakeApiFootballClient:
-    def __init__(self, *, remaining: int = 7000) -> None:
+    def __init__(self, *, remaining: int = 7000, status_code: int = 200) -> None:
         self.remaining = remaining
+        self.status_code = status_code
         self.calls: list[tuple[str, dict[str, str]]] = []
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -25,7 +31,7 @@ class FakeApiFootballClient:
         return LiveApiFootballResponse(
             endpoint=endpoint,
             params=params,
-            status_code=200,
+            status_code=self.status_code,
             elapsed_ms=7,
             payload=payload,
             headers={"x-ratelimit-requests-remaining": str(self.remaining)},
@@ -71,12 +77,27 @@ class FakeApiFootballClient:
                             {
                                 "id": 1,
                                 "name": "Book A",
-                                "bets": [{"id": 1, "name": "Match Winner"}],
+                                "bets": [
+                                    {
+                                        "id": 1,
+                                        "name": "Match Winner",
+                                        "values": [
+                                            {"value": "Home", "odd": "1.80"},
+                                            {"value": "Draw", "odd": "3.70"},
+                                        ],
+                                    }
+                                ],
                             },
                             {
                                 "id": 2,
                                 "name": "Book B",
-                                "bets": [{"id": 1, "name": "Match Winner"}],
+                                "bets": [
+                                    {
+                                        "id": 1,
+                                        "name": "Match Winner",
+                                        "values": [{"value": "Home", "odd": "1.82"}],
+                                    }
+                                ],
                             },
                         ],
                     }
@@ -112,6 +133,10 @@ def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> 
     assert (tmp_path / "read_model/market_snapshots.json").is_file()
     assert len(list((tmp_path / "raw").glob("fixtures_*.json"))) == 1
     assert len(list((tmp_path / "raw").glob("odds_*.json"))) == 1
+    assert first.ledger_appended_count == 3
+    assert second.ledger_appended_count == 0
+    ledger_lines = (tmp_path / "ledger/market_observations.jsonl").read_text().splitlines()
+    assert len(ledger_lines) == 3
 
 
 def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
@@ -141,6 +166,113 @@ def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
 
     assert result.blockers == ["REQUEST_BUDGET_EXHAUSTED"]
     assert len(client.calls) == 1
+
+
+def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(status_code=401)
+    config = FutureRefreshConfig(runtime_root=tmp_path)
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
+
+    assert result.blockers == ["PROVIDER_HTTP_401"]
+    assert len(client.calls) == 1
+    assert "PROVIDER_HTTP_401" in audit
+
+
+def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        """
+        {
+          "competitions": [
+            {
+              "competition_id": "world_cup_2026",
+              "provider_league_id": "1",
+              "season": "2026",
+              "horizon_days": 14,
+              "scheduler_interval_seconds": 900,
+              "quota_reserve": 1500,
+              "request_budget": 40,
+              "max_fixture_candidates": 20,
+              "max_odds_requests": 10,
+              "market_freshness_seconds": 3600,
+              "enabled": true
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    policy = load_refresh_policy(competition_id="world_cup_2026", policy_path=policy_path)
+    config = config_from_policy(
+        competition_id="world_cup_2026",
+        runtime_root=tmp_path / "runtime",
+        policy_path=policy_path,
+    )
+
+    assert policy.provider_league_id == "1"
+    assert config.season == "2026"
+    try:
+        load_refresh_policy(competition_id="premier_league", policy_path=policy_path)
+    except FutureRefreshError as exc:
+        assert str(exc) == "FUTURE_REFRESH_COMPETITION_NOT_REGISTERED"
+    else:  # pragma: no cover
+        raise AssertionError("unregistered policy unexpectedly loaded")
+
+
+def test_future_refresh_file_lock_prevents_duplicate_owner(tmp_path: Path) -> None:
+    first = RefreshSingletonLock(
+        key="future-refresh:world_cup_2026:2026:bucket",
+        owner="owner-a",
+        runtime_root=tmp_path,
+        ttl_seconds=60,
+    )
+    second = RefreshSingletonLock(
+        key="future-refresh:world_cup_2026:2026:bucket",
+        owner="owner-b",
+        runtime_root=tmp_path,
+        ttl_seconds=60,
+    )
+
+    assert first.acquire(now=NOW)
+    assert not second.acquire(now=NOW)
+    assert first.release()
+
+
+def test_future_refresh_task_writes_audit_and_blocks_duplicate_bucket(tmp_path: Path) -> None:
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    existing = RefreshSingletonLock(
+        key=key,
+        owner="existing",
+        runtime_root=tmp_path,
+        ttl_seconds=60,
+    )
+    assert existing.acquire(now=NOW)
+
+    audit = run_future_refresh_task(
+        task_id="task-1",
+        key=key,
+        owner="new-owner",
+        queued_at=NOW,
+        runtime_root=tmp_path,
+        client=FakeApiFootballClient(),
+        now=NOW,
+    )
+
+    assert audit.status == "ALREADY_RUNNING"
+    assert (tmp_path / "task_audit/task-1.json").is_file()
+    assert existing.release()
 
 
 def test_future_refresh_error_type_is_runtime_error() -> None:
