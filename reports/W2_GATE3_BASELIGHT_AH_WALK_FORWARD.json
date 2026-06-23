@@ -4,7 +4,8 @@
     "BASELIGHT_WALK_FORWARD_FOLDS_INSUFFICIENT",
     "BASELIGHT_BOOKMAKER_COVERAGE_INSUFFICIENT",
     "BASELIGHT_AH_LINE_BUCKET_COVERAGE_INSUFFICIENT",
-    "BASELIGHT_COMPETITION_STRATA_INSUFFICIENT"
+    "BASELIGHT_COMPETITION_STRATA_INSUFFICIENT",
+    "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING"
   ],
   "bookmaker_count": 0,
   "candidate": false,
@@ -14,8 +15,10 @@
   "fold_count": 0,
   "folds": [],
   "formal_recommendation": false,
-  "generated_at_utc": "2026-06-23T21:03:25Z",
+  "generated_at_utc": "2026-06-23T21:56:34Z",
+  "limited_extract_status": "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING",
   "line_bucket_count": 0,
+  "mcp_probe_status": "PASS",
   "observation_count": 0,
   "remaining_limitations": [
     "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
@@ -24,6 +27,7 @@
   ],
   "resolved_if_pass": [],
   "sample_path": null,
+  "sample_path_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
   "schema_version": "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_V1",
   "settlement_distribution": {},
   "status": "INSUFFICIENT_SAMPLE"

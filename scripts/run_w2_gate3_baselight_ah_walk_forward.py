@@ -22,6 +22,14 @@ DEFAULT_SAMPLE_DIR = Path(
 MANIFEST_PATH = REPORTS / "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
 WALK_FORWARD_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
 RESULT_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+PRESERVED_MANIFEST_FIELDS = {
+    "extraction_attempt_status",
+    "mcp_effective_page_size",
+    "mcp_probe_path",
+    "mcp_sql_tool_name",
+    "sample_file_exists",
+    "sample_path_external",
+}
 
 
 def discover_sample(sample_path: str | None) -> Path | None:
@@ -43,6 +51,9 @@ def discover_sample(sample_path: str | None) -> Path | None:
 
 def write_reports(sample_path: Path | None) -> tuple[dict, dict]:
     generated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    previous_manifest = {}
+    if MANIFEST_PATH.is_file():
+        previous_manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     observations = []
     errors = {}
     if sample_path is not None:
@@ -61,7 +72,16 @@ def write_reports(sample_path: Path | None) -> tuple[dict, dict]:
             "normalization_errors": errors,
         }
     )
+    for field in PRESERVED_MANIFEST_FIELDS:
+        if field in previous_manifest and field not in manifest:
+            manifest[field] = previous_manifest[field]
     walk_forward = build_walk_forward(observations)
+    if manifest.get("extraction_attempt_status") == "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING":
+        walk_forward["limited_extract_status"] = manifest["extraction_attempt_status"]
+        walk_forward["mcp_probe_status"] = "PASS"
+        walk_forward["sample_path_external"] = manifest.get("sample_path_external")
+        if "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING" not in walk_forward["blockers"]:
+            walk_forward["blockers"].append("BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING")
     walk_forward["generated_at_utc"] = generated_at
     walk_forward["sample_path"] = str(sample_path) if sample_path else None
     walk_forward["collected_at_precision"] = "DATE_ONLY"

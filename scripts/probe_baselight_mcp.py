@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -17,8 +16,8 @@ REPORT_JSON = ROOT / "reports/W2_BASELIGHT_MCP_PROBE.json"
 REPORT_MD = ROOT / "reports/W2_BASELIGHT_MCP_PROBE.md"
 ENDPOINT = "https://api.baselight.app/mcp"
 ENV_NAME = "BASELIGHT_API_KEY"
-ODDS_SQL = "SELECT * FROM @blt.ultimate_soccer_dataset.match_betting_odds LIMIT 5;"
-MATCHES_SQL = "SELECT * FROM @blt.ultimate_soccer_dataset.matches LIMIT 5;"
+ODDS_SQL = 'SELECT * FROM "@blt.ultimate_soccer_dataset.match_betting_odds" LIMIT 5'
+MATCHES_SQL = 'SELECT * FROM "@blt.ultimate_soccer_dataset.matches" LIMIT 5'
 
 
 def utc_now() -> str:
@@ -30,9 +29,41 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def raw_dir() -> Path:
-    base = Path(tempfile.gettempdir()) / f"w2_baselight_mcp_probe_{int(time.time())}"
+    base = Path("/tmp") / f"w2_baselight_mcp_probe_{int(time.time())}"  # noqa: S108
     base.mkdir(parents=True, exist_ok=True)
     return base
+
+
+def parse_mcp_body(body: str) -> dict[str, Any]:
+    text = body.strip()
+    if not text:
+        return {"error": {"status": 0, "message": "MCP_EMPTY_RESPONSE"}}
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict):
+        return parsed
+    event_payloads: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("data:"):
+            continue
+        payload = stripped.removeprefix("data:").strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            event = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            event_payloads.append(event)
+    if event_payloads:
+        for event in reversed(event_payloads):
+            if "result" in event or "error" in event:
+                return event
+        return event_payloads[-1]
+    return {"error": {"status": 0, "message": "MCP_RESPONSE_PARSE_ERROR"}}
 
 
 class McpProbe:
@@ -79,7 +110,7 @@ class McpProbe:
         )
         if status >= 400:
             return {"error": {"status": status, "message": "MCP_HTTP_ERROR"}}
-        return json.loads(body)
+        return parse_mcp_body(body)
 
 
 def summarize_schema(schema: dict[str, Any] | None) -> dict[str, Any]:
@@ -109,13 +140,16 @@ def tool_summaries(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def detect_sql_tool(tools: list[dict[str, Any]]) -> dict[str, Any] | None:
     for tool in tools:
+        if tool.get("name") == "baselight_sdk_query_execute":
+            return tool
+    for tool in tools:
         name = str(tool.get("name", "")).lower()
         description = str(tool.get("description", "")).lower()
         schema = tool.get("inputSchema") if isinstance(tool.get("inputSchema"), dict) else {}
         properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
         property_names = " ".join(str(prop).lower() for prop in properties)
         text = " ".join([name, description, property_names])
-        if "sql" in text or "query" in text:
+        if "sql" in text and "execute" in text:
             return tool
     return None
 
@@ -255,6 +289,34 @@ def live_flag_required_report(api_key_present: bool) -> dict[str, Any]:
     }
 
 
+def live_error_report(
+    status: str,
+    output_dir: Path | None,
+    api_key_present: bool = True,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "W2_BASELIGHT_MCP_PROBE_V1",
+        "generated_at_utc": utc_now(),
+        "mcp_endpoint": ENDPOINT,
+        "api_key_present": api_key_present,
+        "status": status,
+        "tools_discovered": [],
+        "sql_tool_detected": False,
+        "sql_tool_name": None,
+        "odds_limit_query_status": status,
+        "matches_limit_query_status": status,
+        "query_row_counts": {
+            "match_betting_odds": 0,
+            "matches": 0,
+        },
+        "raw_response_dir": str(output_dir) if output_dir else None,
+        "no_full_data_download": True,
+        "no_secret_logged": True,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -277,15 +339,21 @@ def main() -> int:
 
     output_dir = raw_dir()
     probe = McpProbe(ENDPOINT, api_key, output_dir)
-    initialize = probe.request(
-        "initialize",
-        {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "w2-baselight-mcp-probe", "version": "1"},
-        },
-    )
-    tools_response = probe.request("tools/list")
+    try:
+        initialize = probe.request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "w2-baselight-mcp-probe", "version": "1"},
+            },
+        )
+        tools_response = probe.request("tools/list")
+    except (OSError, json.JSONDecodeError) as exc:
+        report = live_error_report(type(exc).__name__, output_dir)
+        write_reports(report)
+        print(report["status"])
+        return 1
     tools = []
     if isinstance(tools_response.get("result"), dict):
         maybe_tools = tools_response["result"].get("tools")

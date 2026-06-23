@@ -29,9 +29,15 @@
     "limited_extract_fixture_count": 0,
     "limited_extract_manifest_path": "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
     "limited_extract_row_count": 0,
-    "limited_extract_status": "INSUFFICIENT_SAMPLE",
+    "limited_extract_status": "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING",
     "match_table": "matches",
-    "next_action": "BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD",
+    "mcp_matches_limit_query_status": "PASS",
+    "mcp_odds_limit_query_status": "PASS",
+    "mcp_probe_path": "reports/W2_BASELIGHT_MCP_PROBE.json",
+    "mcp_probe_status": "PASS",
+    "mcp_sql_tool_detected": true,
+    "mcp_sql_tool_name": "baselight_sdk_query_execute",
+    "next_action": "OPTIMIZE_BASELIGHT_LIMITED_AH_EXTRACT_QUERY_OR_EXPORT_SAMPLE",
     "odds_table": "match_betting_odds",
     "remaining_limitations": [
       "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
@@ -39,6 +45,8 @@
       "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
     ],
     "resolved_by_baselight_limited_backtest": [],
+    "sample_path_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
+    "sample_sha256": null,
     "settled_ah_fixture_count": 10858,
     "status": "CONDITIONAL_GATE3_CANDIDATE"
   },
@@ -48,7 +56,8 @@
     "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
     "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
     "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED",
-    "BASELIGHT_LIMITED_AH_SAMPLE_REQUIRED"
+    "BASELIGHT_LIMITED_AH_SAMPLE_REQUIRED",
+    "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING"
   ],
   "candidate": false,
   "captured_at_phase_coverage": {

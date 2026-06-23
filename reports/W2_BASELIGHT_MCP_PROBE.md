@@ -1,13 +1,14 @@
 # W2 Baselight MCP Probe
 
-Generated at: `2026-06-23T21:21:10Z`
+Generated at: `2026-06-23T21:40:31Z`
 
 - MCP endpoint: `https://api.baselight.app/mcp`
-- api_key_present: `false`
-- tools_discovered: `0`
-- sql_tool_detected: `false`
-- odds_limit_query_status: `BASELIGHT_API_KEY_REQUIRED`
-- matches_limit_query_status: `BASELIGHT_API_KEY_REQUIRED`
+- api_key_present: `true`
+- tools_discovered: `9`
+- sql_tool_detected: `true`
+- sql_tool_name: `baselight_sdk_query_execute`
+- odds_limit_query_status: `PASS`
+- matches_limit_query_status: `PASS`
 - no_full_data_download: `true`
 - no_secret_logged: `true`
 - candidate: `false`

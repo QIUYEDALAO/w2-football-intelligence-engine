@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 27
+handoff_version: 28
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -50,16 +50,22 @@ gate3_baselight_match_table: matches
 gate3_baselight_settled_ah_fixture_count: 10858
 gate3_baselight_collected_at_precision: DATE_ONLY
 gate3_baselight_next_action: BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD
-gate3_baselight_limited_extract_status: INSUFFICIENT_SAMPLE
+gate3_baselight_limited_extract_status: BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING
 gate3_baselight_limited_extract_manifest_path: reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json
 gate3_baselight_ah_walk_forward_status: INSUFFICIENT_SAMPLE
 gate3_baselight_ah_walk_forward_path: reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json
+gate3_baselight_sample_path_external: /Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl
+gate3_baselight_sample_sha256: null
 gate3_baselight_remaining_limitations:
   - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
   - PRECISE_PHASE_COVERAGE_UNAVAILABLE
   - EXPORT_AND_RETENTION_POLICY_UNVERIFIED
-gate3_baselight_mcp_probe_status: BASELIGHT_API_KEY_REQUIRED
+gate3_baselight_mcp_probe_status: PASS
 gate3_baselight_mcp_probe_path: reports/W2_BASELIGHT_MCP_PROBE.json
+gate3_baselight_mcp_sql_tool_detected: true
+gate3_baselight_mcp_sql_tool_name: baselight_sdk_query_execute
+gate3_baselight_mcp_odds_limit_query_status: PASS
+gate3_baselight_mcp_matches_limit_query_status: PASS
 gate3_baselight_api_key_required: true
 gate3_baselight_full_extract_status: NOT_STARTED
 gate3_blockers:
@@ -346,7 +352,15 @@ A read-only MCP probe script was added for Baselight access discovery:
 
 The script reads `BASELIGHT_API_KEY` only from the process environment, sends it only as the `x-api-key` request header, and never writes the value to Git reports, logs, or raw response files. Raw MCP responses, if produced, are written only under `/tmp`.
 
-Current result: `gate3_baselight_mcp_probe_status=BASELIGHT_API_KEY_REQUIRED` because the current Codex process did not have `BASELIGHT_API_KEY` set. No Baselight table query was executed, no full data was downloaded, and no sample data was committed. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
+Current result: `gate3_baselight_mcp_probe_status=PASS`. The live MCP probe discovered 9 tools, selected `baselight_sdk_query_execute`, and completed LIMIT 5 checks for `match_betting_odds` and `matches` with `api_key_present=true` and no key material written to reports. The follow-on limited AH extract remains blocked as `BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING`: both the single-query join and smaller fixture-batch AH odds queries stayed pending beyond the bounded polling window. No full data was downloaded, no sample data was committed, and Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
+
+## 0.11 Gate3 Baselight Limited AH Live Extract Attempt
+
+Using the live MCP probe, W2 attempted the authorized limited AH extract into the external non-Git path:
+
+- `/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl`
+
+Result: `gate3_baselight_limited_extract_status=BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING`. The MCP LIMIT checks passed, but the limited AH odds extraction queries remained pending even after reducing odds batches to five fixtures. W2 therefore did not create a sample file, did not run a positive walk-forward, and did not resolve `HISTORICAL_AH_BASELINE_BACKTEST_MISSING` or `AH_WALK_FORWARD_EVIDENCE_MISSING`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`.
 
 ## 1. 新会话启动协议
 
