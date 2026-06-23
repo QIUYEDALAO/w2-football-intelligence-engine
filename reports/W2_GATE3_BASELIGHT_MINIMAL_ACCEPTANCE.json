@@ -1,0 +1,74 @@
+{
+  "baselight_status": "NOT_EVALUATED_SOURCE_MISMATCH",
+  "baselight_status_reason": "原始报告误将 API-Sports 本地 JSON 数据称为 Baselight 数据集。实际 Baselight 数据未被读取、未被接入。Settlement 验证逻辑本身通过，但所验证的数据源与 Baselight 无关。",
+  "source_declaration": {
+    "actual_data_source": "API-Sports (api-sports.io) — local JSON snapshots",
+    "baselight_data_read": false,
+    "baselight_data_ingested": false,
+    "settlement_validated_on": "API-Sports odds data",
+    "economic_key_analysis_on": "API-Sports single-snapshot JSON"
+  },
+  "economic_odds_key": {
+    "total_keys": 652841,
+    "cross_date_keys": 0,
+    "single_date_keys": 652841,
+    "exact_duplicates": 0,
+    "distinct_dates": [
+      "2026-04-27",
+      "2026-04-28",
+      "2026-04-29",
+      "2026-04-30",
+      "2026-05-01",
+      "2026-05-02",
+      "2026-05-03",
+      "2026-05-04"
+    ],
+    "note": "跨日期报价键为 0 是因为每条组合在单次快照 JSON 中仅出现一次。不能证明任何数据集具备 historical timeline 特性。",
+    "historical_timeline_proven": false
+  },
+  "settlement_verification": {
+    "all_pass": true,
+    "categories": {
+      "整盘(整数盘)": { "checked": 10, "matched": 10, "mismatched": 0 },
+      "半盘(±0.5)": { "checked": 10, "matched": 10, "mismatched": 0 },
+      "±0.25": { "checked": 10, "matched": 10, "mismatched": 0 },
+      "±0.75": { "checked": 10, "matched": 10, "mismatched": 0 },
+      "±1.25": { "checked": 5, "matched": 5, "mismatched": 0 }
+    },
+    "note": "此结果仅证明 W2 settlement library 正确性，不构成对 Baselight 数据集的评估。"
+  },
+  "license_provenance": {
+    "status": "UNVERIFIED",
+    "evaluated_source": "API-Sports (api-sports.io)",
+    "actual_license_metadata_found": false,
+    "baselight_dataset_license": "NOT_CONSULTED",
+    "notes": [
+      "DB schema (init_schema.sql): no license/provenance metadata",
+      "Release manifest: no license field",
+      "No Baselight-specific metadata files exist",
+      "Baselight data not read — license cannot be verified"
+    ]
+  },
+  "baselight_classification": {
+    "data_read": false,
+    "settlement_valid": true,
+    "cross_date_keys_present": false,
+    "license_verified": false,
+    "historical_timeline_proven": false,
+    "classification": "NOT_EVALUATED_SOURCE_MISMATCH",
+    "actual_query_completed": false
+  },
+  "checked_at": "2026-06-24T03:48:00+08:00",
+  "checked_by": "W2_GATE3_BASELIGHT_MINIMAL_ACCEPTANCE (corrected)",
+  "ingestion_stage": "NOT_INGESTED",
+  "constraints": [
+    "未下载全量 5.22 亿行",
+    "未构建 adapter",
+    "未构建 walk-forward",
+    "未修改 Gate3 为 CLOSED",
+    "未修改 master roadmap",
+    "未修改 W1 或 Stage7I runtime",
+    "未查询 provider",
+    "未重新分析 652,841 条数据"
+  ]
+}

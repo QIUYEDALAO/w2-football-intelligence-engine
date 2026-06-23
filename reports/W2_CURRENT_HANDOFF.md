@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 20
-state_captured_on: 2026-06-23
+handoff_version: 21
+state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
@@ -37,6 +37,13 @@ gate3_external_source_decision_path: reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.m
 gate3_external_source_status: USER_DECISION_REQUIRED
 gate3_acquisition_authorized: false
 gate3_checker_mode: audit
+gate3_data_route: FORWARD_ONLY_ACCUMULATION
+gate3_baselight_probe_status: NOT_EVALUATED_SOURCE_MISMATCH
+gate3_baselight_observed_source: API_SPORTS_LOCAL_JSON
+gate3_baselight_settlement_validation: PASS
+gate3_baselight_time_series_status: NO_REPEATED_ECONOMIC_KEY_ACROSS_DATES
+gate3_baselight_license_status: UNVERIFIED
+gate3_baselight_actual_query_completed: false
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
   - CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
