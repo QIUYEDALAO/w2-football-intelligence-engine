@@ -1,0 +1,4287 @@
+{
+  "allowed_classifications": [
+    "ARCHIVE",
+    "DELETE_LATER",
+    "MIGRATE_DATA",
+    "PORT",
+    "REFERENCE"
+  ],
+  "files": [
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "无法高置信归入迁移或重写范围，先作为 W1 Legacy 杂项归档并进入复核队列。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": ".gitignore",
+      "w2_destination": "legacy/archive"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "文档/报告作为 W2 设计、排错和历史研究参考，不进入生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "README.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_ah_recommendation_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_backtest_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_calibration_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_competition_scope.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_confidence_adjustment_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_decision_card_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_decision_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_factor_sample_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_fivedim_lite_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_forward_ledger_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_international_dataset_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_international_odds_extension_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_ledger_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_match_card_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_odds_extension_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_odds_movement_thresholds.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_primary_read_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 中的数据契约和校验思想可迁移到 W2，但字段需重设并避免 W1 静态耦合。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_prospective_audit_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_recommendation_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "DEFAULT_RHO 的来源和校准说明可作为市场基准研究参考，但参数不得默认照搬到 W2。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_rho_provenance.json",
+      "w2_destination": "calibration/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_scout_autopilot_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 SCOUT 协议、honesty_label 和 independent_edge=false 可供 W2 设计参考，但旧推荐协议和提示口径不得直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_scout_policy.json",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_scout_schedule_policy.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 策略和阈值配置可供 W2 设计参考，但参数不得默认迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "config/w1_team_aliases.json",
+      "w2_destination": "docs/reference/policies"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "fixture alias 对迁移有价值，但未经 W2 provider 映射确认，必须复核冲突和重复。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/fixture_aliases.json",
+      "w2_destination": "data_migration/fixture_identity"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/historical/rho_calibration_real.csv",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/historical/rho_calibration_template.csv",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "人工阵容可作为 W2 lineup staging 数据，但需标注人工来源并重新映射 fixture/team/player ID。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/manual_lineups/1539001.json",
+      "w2_destination": "data_migration/lineups"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "人工阵容可作为 W2 lineup staging 数据，但需标注人工来源并重新映射 fixture/team/player ID。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/manual_lineups/66456942.json",
+      "w2_destination": "data_migration/lineups"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/ledger/w1_ledger_group_stage_round1.csv",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489369_mexico_vs_south-africa.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489369_mexico_vs_south-africa.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489370_usa_vs_paraguay.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489370_usa_vs_paraguay.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489371_brazil_vs_morocco.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489371_brazil_vs_morocco.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489372_haiti_vs_scotland.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489372_haiti_vs_scotland.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489373_qatar_vs_switzerland.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489373_qatar_vs_switzerland.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489374_germany_vs_cura-ao.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489374_germany_vs_cura-ao.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489375_ivory-coast_vs_ecuador.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489375_ivory-coast_vs_ecuador.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489376_netherlands_vs_japan.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489376_netherlands_vs_japan.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489377_belgium_vs_egypt.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489377_belgium_vs_egypt.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489378_iran_vs_new-zealand.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489378_iran_vs_new-zealand.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489379_saudi-arabia_vs_uruguay.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489379_saudi-arabia_vs_uruguay.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489380_spain_vs_cape-verde-islands.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489380_spain_vs_cape-verde-islands.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489381_argentina_vs_algeria.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489381_argentina_vs_algeria.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489382_austria_vs_jordan.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489382_austria_vs_jordan.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489383_france_vs_senegal.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489383_france_vs_senegal.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489384_england_vs_croatia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489384_england_vs_croatia.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489385_ghana_vs_panama.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489385_ghana_vs_panama.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489386_uzbekistan_vs_colombia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489386_uzbekistan_vs_colombia.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1538999_south-korea_vs_czech-republic.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1538999_south-korea_vs_czech-republic.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539000_canada_vs_bosnia-and-herzegovina.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539000_canada_vs_bosnia-and-herzegovina.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539001_australia_vs_t-rkiye.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539001_australia_vs_t-rkiye.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539002_sweden_vs_tunisia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539002_sweden_vs_tunisia.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539003_portugal_vs_congo-dr.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539003_portugal_vs_congo-dr.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539016_iraq_vs_norway.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539016_iraq_vs_norway.md",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489387_canada_vs_qatar.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489388_mexico_vs_south-korea.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489389_brazil_vs_haiti.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489390_scotland_vs_morocco.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489391_usa_vs_australia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489392_ecuador_vs_cura-ao.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489393_germany_vs_ivory-coast.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489394_tunisia_vs_japan.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489395_belgium_vs_iran.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489396_new-zealand_vs_egypt.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489397_spain_vs_saudi-arabia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489398_uruguay_vs_cape-verde-islands.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489399_argentina_vs_austria.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489400_jordan_vs_algeria.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489401_norway_vs_senegal.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489402_england_vs_ghana.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489403_panama_vs_croatia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489404_portugal_vs_uzbekistan.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539004_czechia_vs_south-africa.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539005_switzerland_vs_bosnia-and-herzegovina.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539006_t-rkiye_vs_paraguay.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539007_netherlands_vs_sweden.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539008_colombia_vs_congo-dr.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539017_france_vs_iraq.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489405_morocco_vs_haiti.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489406_scotland_vs_brazil.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489407_south-africa_vs_south-korea.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489408_switzerland_vs_canada.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489409_cura-ao_vs_ivory-coast.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489410_ecuador_vs_germany.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489411_paraguay_vs_australia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489412_tunisia_vs_netherlands.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489413_cape-verde-islands_vs_saudi-arabia.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489414_egypt_vs_iran.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489415_new-zealand_vs_belgium.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489416_norway_vs_france.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489417_uruguay_vs_spain.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489418_algeria_vs_austria.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489419_colombia_vs_portugal.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489420_croatia_vs_ghana.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489421_jordan_vs_argentina.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489422_panama_vs_england.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539009_bosnia-and-herzegovina_vs_qatar.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539010_czechia_vs_mexico.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539011_japan_vs_sweden.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539012_t-rkiye_vs_usa.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539013_congo-dr_vs_uzbekistan.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "比赛卡包含 fixture、盘口、阵容和上下文线索，可迁移为 W2 staging 数据，但不得作为最终 schema 直接导入。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539074_senegal_vs_iraq.json",
+      "w2_destination": "data_migration/match_cards"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "赛果属于 W2 results 数据域，迁移前需校验来源、去重和赛后字段边界。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/results/round1_results.json",
+      "w2_destination": "data_migration/results"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_fixture_details_20260610_1445.csv",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_fixture_details_20260610_1445.json",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "数据资产可能属于 W2 staging，但来源、schema、赛前/赛后边界需复核。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_snapshot_summary.json",
+      "w2_destination": "data_migration/staging"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "球队、场馆、分组等静态资料对 W2 有用，但需重新验证来源和 ID 映射。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/static/world_cup_2026_groups.json",
+      "w2_destination": "data_migration/reference_data"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "球队、场馆、分组等静态资料对 W2 有用，但需重新验证来源和 ID 映射。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "data/static/world_cup_2026_venues.json",
+      "w2_destination": "data_migration/reference_data"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_BACKTEST_AND_DATA_SPINE_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_DRAW_CALIBRATION_RESEARCH_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_FORWARD_LEDGER_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_INTERNATIONAL_BACKTEST_DATASET_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_OUTPUT_LAYER_SAFE_VIEW_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_P0_CONSISTENCY_AND_AUDIT_REFRESH_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_PRODUCTION_LITE.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_PROJECT_REPORT_FOR_EXPERT_REVIEW.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_RECOMMENDATION_OUTPUT_POLICY.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_REPORT_TEMPLATES.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_RHO_CALIBRATION_INTEGRATION_SPEC.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_RUNTIME_ARTIFACT_POLICY_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_S1B_ODDS_EXTENSION_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_TEAM_STRENGTH_PROTOTYPE_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_UI_REUSE_POLICY.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_VISUAL_DASHBOARD.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 文档可作为 W2 设计参考，不直接进入生产。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "docs/W1_WATCHER_POLICY.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "示例文件仅帮助理解 W1 数据契约，不直接迁移为 W2 生产数据。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "examples/w1_match_card_sample.json",
+      "w2_destination": "docs/reference/examples"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "示例文件仅帮助理解 W1 数据契约，不直接迁移为 W2 生产数据。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "examples/w1_match_card_sample.md",
+      "w2_destination": "docs/reference/examples"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "无法高置信归入迁移或重写范围，先作为 W1 Legacy 杂项归档并进入复核队列。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "locks/.gitkeep",
+      "w2_destination": "legacy/archive"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "无法高置信归入迁移或重写范围，先作为 W1 Legacy 杂项归档并进入复核队列。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "logs/.gitkeep",
+      "w2_destination": "legacy/archive"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_CONFIDENCE_ADJUSTMENT_POLICY.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DASHBOARD_DECLUTTER_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DASHBOARD_DIRECTOR_COMPACT_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DASHBOARD_RUNTIME_EMBED_BOUNDARY_FIX_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DASHBOARD_TEMPLATE_DATA_SPLIT_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DRAW_CALIBRATION_RESEARCH_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_DRAW_CALIBRATION_RESEARCH_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_EXPERT_PROJECT_REPORT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT_V2.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT_V3.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FACTOR_LAMBDA_DATA_INVENTORY_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FIVEDIM_DATA_SUPPORT_VALIDATION.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FIVEDIM_HISTORICAL_VALIDATION.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_A_IMPLEMENTATION.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_A_SPEC.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_B_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FORWARD_LEDGER_AND_S2_PROTOTYPE_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FORWARD_LEDGER_PROSPECTIVE_RUN_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_INTERNATIONAL_DATASET_QUALITY_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_LEDGER_PROSPECTIVE_AUDIT_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_LOCAL_ODDS_2026_QUALITY_CHECK.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_LOCAL_ODDS_HISTORICAL_QUALITY_CHECK.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_OPPORTUNITY_SELECTOR_PHASE_A_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_OPPORTUNITY_SELECTOR_PHASE_A_SPEC.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_OU_COVERAGE_PROBE_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_P0_CONSISTENCY_AND_AUDIT_REFRESH_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_PREDICT_OVERLAY_SPLIT_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_PRIMARY_READ_DISPLAY_WIRING_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_PRIMARY_READ_SELECTOR_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_RECOMMENDATION_ACCURACY_AUDIT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "历史报告图表作为审计证据归档。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_RHO_REAL_OU_CALIBRATION_RELIABILITY.png",
+      "w2_destination": "legacy/archive/reports"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_RHO_REAL_OU_CALIBRATION_REPORT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_RUNTIME_ARTIFACT_TRIAGE_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_RUNTIME_CHECKER_CLEANUP_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_S0_SAFE_OUTPUT_AND_S1B_SEED_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_S1B_ODDS_EXTENSION_V1_RESULT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCORE_MATRIX_BATCH_REPORT.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_AUTOPILOT_RUNBOOK.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_AUTOPILOT_TASKS.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_COMPLETION_CHECKLIST.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_EXECUTION_SPEC.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_G1_R_REVIEW_CONVERGENCE.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_G1_S1_RESULT.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_G2_AUTOPILOT_AI_FIRST_RESULT.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_MVP_RESULT.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_R1_1_SCRIPT_MODE_RESULT.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_REFRAME_READ_REVIEW_RESULT.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_SCHEDULER_RUNBOOK.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_T5_ANALYST_AND_FETCH_SPEC.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_TECHNICIAN_HANDOFF.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "SCOUT 相关文档可供 W2 设计和复盘参考，但旧协议不得直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_SCOUT_TECH_HANDOFF.md",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_UPGRADE_REPORT_EXPERT_REVISION.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/W1_YESTERDAY_4_MATCH_POSTMATCH_AUDIT_V1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "W1 Dashboard 当前产物作为冻结证据保留，不作为 W2 前端或数据接口。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/dashboard/W1_LIVE_DASHBOARD.md",
+      "w2_destination": "legacy/archive/dashboard"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "冻结时 Dashboard 结果作为 W1 Legacy 证据永久封存；页面需求和字段经验仅可参考。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/dashboard/W1_VISUAL_DASHBOARD.html",
+      "w2_destination": "legacy/archive/dashboard"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/data_audit/w1_data_source_audit.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/data_audit/w1_missing_resolution_pack.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/data_audit/w1_missing_source_verification.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/data_audit/w1_smoke_test_report.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/match_previews/W1_GROUP_STAGE_ROUND1_INITIAL_CARDS.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/match_previews/W1_GROUP_STAGE_ROUND1_REAL_FIXTURE_CARDS.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/match_previews/W1_WATCHER_STATUS.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_backtest_1x2_only_baseline_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_backtest_1x2_only_baseline_v1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_backtest_full_pipeline_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_backtest_full_pipeline_v1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_candidate_offline_eval_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_candidate_offline_eval_v1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_draw_calibration_research_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_full_pipeline_anomaly_review_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_new_score_distribution.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_ou_coverage_probe_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_recommendation_accuracy_audit.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_rho_provenance_candidate.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_rho_real_ou_calibration.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_team_strength_prototype_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_team_strength_prototype_v1.md",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "历史报告用于设计、错误复盘和业务理解，默认不进入 W2 生产运行路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "reports/w1_yesterday_4_match_postmatch_audit_v1.json",
+      "w2_destination": "docs/reference"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 契约可迁移为 W2 validation idea，但需按新数据模型重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "schemas/w1_fivedim_card_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "schema 契约可迁移为 W2 validation idea，但需按新数据模型重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "STRUCTURE_AND_SCHEMA_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "schemas/w1_scout_bundle_schema.json",
+      "w2_destination": "normalization/schema_contracts"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/audit_w1_recommendation_accuracy.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "静态 JSON/Dashboard 生产架构和硬编码球队、场馆、中文名不进入 W2；字段经验仅作参考。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "FULL_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/build_w1_dashboard_data.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_anomaly_review.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_backtest_spine.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_click_to_predict.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_confidence_adjustment.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_dashboard_backend_predict_integration.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_dashboard_data_binding.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_dashboard_runtime_embed_boundary.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_decision_card.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_draw_calibration_research.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_early_prediction_mode.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_environment_context.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_factor_sample.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_fivedim_data_support_report.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_fivedim_lite.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_fixture_universe.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_forward_ledger.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_forward_prospective_run.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_full_pipeline_backtest.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_host_no_qualifier_history.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_international_dataset.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_lineup_api_binding.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_manual_lineup_override.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_market_probability_panel.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_match_stage_gate.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_odds_extension.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_odds_movement_monitor.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_odds_movement_status_consistency.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_odds_movement_threshold_calibration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_odds_snapshot_collection.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_opportunity_phase_a.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_ou_coverage.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_output_safe_view.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_post_match_calibration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_post_match_result_sync.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_post_match_result_update.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_predict_overlay_split.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_primary_read.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "checker 中的校验规则可能迁移为 W2 validation rule，但需剥离 W1 固定路径、固定数量和静态 Dashboard 假设。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_production_lite.py",
+      "w2_destination": "monitoring/validation"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_recommendation_accuracy_audit.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "checker 中的校验规则可能迁移为 W2 validation rule，但需剥离 W1 固定路径、固定数量和静态 Dashboard 假设。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_recommendation_output_policy.py",
+      "w2_destination": "monitoring/validation"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "checker 中的校验规则可能迁移为 W2 validation rule，但需剥离 W1 固定路径、固定数量和静态 Dashboard 假设。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_recommendation_policy.py",
+      "w2_destination": "monitoring/validation"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_report_templates.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_rho_calibration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_rho_real_ou_calibration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_round1_initial_cards.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_round1_real_fixture_cards.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "checker 中的校验规则可能迁移为 W2 validation rule，但需剥离 W1 固定路径、固定数量和静态 Dashboard 假设。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_runtime_artifact_policy.py",
+      "w2_destination": "monitoring/validation"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_safe_view.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_score_matrix.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_score_matrix_batch.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_scout.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_scout_autopilot.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_scout_backtest.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_scout_calibration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_scout_scheduler.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_team_name_reconciliation.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_team_sample_sparsity.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_team_strength_prototype.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "该 checker 绑定 W1 静态 Dashboard、固定 fixture 或旧运行链路；W2 应重写同类验收。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_visual_dashboard.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_watcher.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "阶段验收 checker 可供理解 W1 质量门，但不默认迁移运行方式。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/check_w1_weather_integration.py",
+      "w2_destination": "docs/reference/checkers"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/convert_footballdata_league_csv_to_rho.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/inspect_w1_dashboard_fixture.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/merge_w1_odds_extension.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/normalize_w1_international_dataset.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/probe_w1_ou_coverage.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/review_w1_full_pipeline_anomaly.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/run_w1_dashboard.sh",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/run_w1_local_with_scheduler.sh",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/run_w1_scout_cycle.sh",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/snapshot_w1_forward_ledger.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_ah_cover.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_ah_settlement.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_backtest_engine.py",
+      "w2_destination": "backtest"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_backtest_full_pipeline.py",
+      "w2_destination": "backtest"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_candidate_builder.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_candidate_offline_eval.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_confidence_adjustment.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_decision_card.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_draw_calibration_research.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_factor_sample_builder.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_factor_validation.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_fetch_scout_api_data.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_fivedim_lite.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_forward_lock_pre_match_view.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_forward_post_match_audit.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_forward_prospective_report.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "DELETE_LATER",
+      "classification_reason": "本地 127.0.0.1 服务、文件式 job progress、旧系统 API key bridge 和 Dashboard rebuild 调用不应迁移到 W2。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "FULL_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_local_predict_server.py",
+      "w2_destination": "no_target"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "原始盘口不可变存储、每 bookmaker 独立保存、写入时不去水不聚合的思想应迁移到 W2，但目录和实现需重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "FULL_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_odds_snapshot_collector.py",
+      "w2_destination": "ingestion/odds"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_odds_snapshot_store.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_primary_read_builder.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_recommendation_policy.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_result_sync.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_results_overlay.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_rho_calibration.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "Dixon-Coles 市场基准、1X2 去水、OU 推导总进球均有 W2 价值，但整个 W1 引擎不得原样复制。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "FULL_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_score_engine.py",
+      "w2_destination": "models/market_baseline"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_score_matrix_batch.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "DeepSeek/OpenAI-compatible 调用和 checker 保护经验可参考；W1 推荐提示词、默认市场跟随协议和旧字段不进入 W2。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "FULL_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_analyst.py",
+      "w2_destination": "docs/reference/scout"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_backtest.py",
+      "w2_destination": "backtest"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_bundle.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_calibration.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_embed.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_fetch_api_football.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "PORT",
+      "classification_reason": "脚本包含 W2 可复用的流程思想或纯函数片段，但必须按 W2 架构重写。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_ledger.py",
+      "w2_destination": "monitoring"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_market_debug.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_review.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_scout_scheduler.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_team_strength_prototype.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_watcher.sh",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "REFERENCE",
+      "classification_reason": "W1 脚本可作为实现经验参考；未证明为纯函数前不直接迁移。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "TARGETED_TEXT_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "scripts/w1_weather_client.py",
+      "w2_destination": "docs/reference/source"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "审计 JSONL 可作为 W2 legacy audit evidence，但历史 AI 输出需标记未验证且不得作为推荐标签。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "state/scout_audit.jsonl",
+      "w2_destination": "data_migration/audit_events"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "历史 SCOUT 调用、记忆、校准或缓存默认作为 W1 历史输出归档，不进入 W2 正式推荐路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DIRECTORY_RULE_WITH_OVERRIDE",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "state/scout_lessons.md",
+      "w2_destination": "legacy/archive/scout"
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "classification_reason": "赛前锁定记录有审计价值，可作为 W2 legacy evidence 导入，但不得作为正式训练真值。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "state/scout_lock.jsonl",
+      "w2_destination": "data_migration/prematch_locks"
+    },
+    {
+      "classification": "ARCHIVE",
+      "classification_reason": "历史 SCOUT 调用、记忆、校准或缓存默认作为 W1 历史输出归档，不进入 W2 正式推荐路径。",
+      "evidence": [
+        "reports/legacy_classification/2026-06-21/02_FILE_CLASSIFICATION.json"
+      ],
+      "excluded": false,
+      "method": "DATASET_SAMPLE_REVIEW",
+      "migration_status": "PREEXISTING_W1_CLASSIFICATION",
+      "relative_path": "state/scout_track_record.json",
+      "w2_destination": "legacy/archive/scout"
+    }
+  ],
+  "generated_at_utc": "2026-06-23T16:26:59Z",
+  "schema_version": "W2_GATE0_W1_ASSET_CLASSIFICATION_V1",
+  "source_priority": [
+    "W1 legacy classification artifact where current tracked path is covered",
+    "deterministic current audit path/purpose rules",
+    "sensitive path exclusion without content read"
+  ],
+  "summary_counts": {
+    "ARCHIVE": 8,
+    "DELETE_LATER": 12,
+    "MIGRATE_DATA": 110,
+    "PORT": 25,
+    "REFERENCE": 200
+  },
+  "w1_head": "e92ffb119540797c7025007e492db73b66059288",
+  "w1_tracked_file_count": 355
+}

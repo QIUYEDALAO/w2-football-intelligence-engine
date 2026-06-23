@@ -1,0 +1,2523 @@
+{
+  "expected_path_found": false,
+  "files": [
+    {
+      "classification": "ARCHIVE",
+      "relative_path": ".gitignore",
+      "sensitive_excluded": false,
+      "sha256": "1cf5e0e638d18be21239176109478cff7166d3d2beea36570302ebf01704d33d",
+      "size": 577
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "README.md",
+      "sensitive_excluded": false,
+      "sha256": "3c21257737b99ac5e593765bd699db11d6224c5e6f7455a081b2bd99a7691d80",
+      "size": 1790
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_ah_recommendation_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "a9d2f7daf089accc28ae42459704492de2b22fd097733c084b4f115cc07463b8",
+      "size": 1470
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_backtest_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "c6d4dd6245f20bfbe1a596a0e51363bea1d02a7166e41d195454738ac1445a45",
+      "size": 805
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_calibration_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "4ce599cc932cdfa5be9021061ed2365ce2cf1edf7d8aa038dd8e5c64564fb7e5",
+      "size": 912
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_competition_scope.json",
+      "sensitive_excluded": false,
+      "sha256": "b93a81e5890b2e39579e5e8f47959292406eee125b53f322c2e2f2454b5329ad",
+      "size": 683
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_confidence_adjustment_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "427048ca01af60d5de66da0fb94e7da737d4aae316438c8c4f8ce795099965e8",
+      "size": 2456
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_decision_card_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "244aa94f4807e2a74ecf2e9fb6e5f79e74d518d082e9de366fecc1bf648d893d",
+      "size": 933
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_decision_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "547b64b68ae09c8697445e75aeb7e3e52561515a80a6dc4d23e6ca7042bec909",
+      "size": 7470
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_factor_sample_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "57b643106ea0760d9536d5c9808c573d3660d36b7702813276c82c2ac55c8a8f",
+      "size": 3113
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_fivedim_lite_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "cec5a793abf93622f8969c844bea4dcff8f26677d955a3298e7d5c2e2460775d",
+      "size": 3072
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_forward_ledger_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "9210e77005fe5a20fbfbaec910e72dd5cc0217721d3ef797d1242f2d239cee9a",
+      "size": 2346
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_international_dataset_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "05e29fa25c220decf2be48d8565b4950d1b60cf36728db8afd94bdf35858a97c",
+      "size": 4984
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_international_odds_extension_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "33b37dfd08affe3f780d45205deaa5338386011877ef8a13844da590a3d552be",
+      "size": 3421
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_ledger_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "7de4c4e1cb3eb3706e360c4baa6562eb9322e8f867d646eef8fe469bedb65a68",
+      "size": 3650
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_match_card_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "93166bc0275ab18f23345d545483d65016476e59bbb018fa354c720ab53dbd56",
+      "size": 38420
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_odds_extension_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "b49503788fa7a70dda200e8f57558d7df413f26659bcaac42179b96b1a96475a",
+      "size": 2581
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_odds_movement_thresholds.json",
+      "sensitive_excluded": false,
+      "sha256": "fdb1ab6c0a2e26094bd998c508c8d8dea667aab2b47b9495d4111ff3b47d89f4",
+      "size": 1563
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_primary_read_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "77a00ebcc44caa847b1a544b75d96ff5da17eb858951d8646559b86e12ef52af",
+      "size": 2600
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "config/w1_prospective_audit_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "a06865272e330ff6726da6d815f64195e546d190093d5aae1e208c97c42d3166",
+      "size": 4218
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_recommendation_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "b32f5e12edefce7eddfd7d1e227685583d8fb67f98d7517f84547d6945e91234",
+      "size": 1393
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_rho_provenance.json",
+      "sensitive_excluded": false,
+      "sha256": "cb24d525f90f40ca9c75059adfaae0a3b099263bf354337eef1fa8f6668c3b5b",
+      "size": 486
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_scout_autopilot_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "881252d92e94acbef47550df92b4275842a613bc67ca492e019d60a0ea335206",
+      "size": 2842
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_scout_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "f40628ee619fc436dd634319b6fe858f8e0d52e1ab5b613a02a7e2736b272bb3",
+      "size": 4515
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_scout_schedule_policy.json",
+      "sensitive_excluded": false,
+      "sha256": "d7ec19503c6c60903e7c8759fdfaff943e7900026782837e480966ff619aacc3",
+      "size": 1321
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "config/w1_team_aliases.json",
+      "sensitive_excluded": false,
+      "sha256": "315d28dd04b272ebc7284918f77ce5ed074da530feb0babd1c17854823bd101b",
+      "size": 48452
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/fixture_aliases.json",
+      "sensitive_excluded": false,
+      "sha256": "7d720206f4d3d0d14acc968f32ff1a935999ed1134a708ce4f1452d63e54c11e",
+      "size": 103
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/historical/rho_calibration_real.csv",
+      "sensitive_excluded": false,
+      "sha256": "2e213a8f7ca0bd1a8c91305807b678db43a73542f662a5929c36ef146b61c69a",
+      "size": 815018
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/historical/rho_calibration_template.csv",
+      "sensitive_excluded": false,
+      "sha256": "ad63581de0017039cbd0fcdc9e304aa6b93e9601369a5a2c63b024203f05fefa",
+      "size": 306
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/manual_lineups/1539001.json",
+      "sensitive_excluded": false,
+      "sha256": "9a515752fff43146d73d1cf1d888d24180d3bc740a5482119cd7e5711d9b7db5",
+      "size": 1826
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/manual_lineups/66456942.json",
+      "sensitive_excluded": false,
+      "sha256": "aacdb955bc3eece9303cebb155b590a7513bd96ce11eda3570e28797fb335175",
+      "size": 1827
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/ledger/w1_ledger_group_stage_round1.csv",
+      "sensitive_excluded": false,
+      "sha256": "015d2d072f02734c3e85b0555ee36f012ed07228346754b67e30c87d19a8de1e",
+      "size": 13769
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489369_mexico_vs_south-africa.json",
+      "sensitive_excluded": false,
+      "sha256": "f0bac4e20115db317fbb4923526394150b9ebe5e551d55ac75901559c730f2f6",
+      "size": 7315
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489369_mexico_vs_south-africa.md",
+      "sensitive_excluded": false,
+      "sha256": "127c02eb52bb0be51499da3bccf18421ee09fc4f8a4e0ac1bf31a072e09a13d1",
+      "size": 1288
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489370_usa_vs_paraguay.json",
+      "sensitive_excluded": false,
+      "sha256": "f0cbfa2017233be2da71188fe68c0a82d9f4508f98c9b266dff2a992180fecbd",
+      "size": 7061
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489370_usa_vs_paraguay.md",
+      "sensitive_excluded": false,
+      "sha256": "76ab066d67da79a161ff50e668fd6fa0a8c28d4541aba208ddf7d99149a91a43",
+      "size": 1244
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489371_brazil_vs_morocco.json",
+      "sensitive_excluded": false,
+      "sha256": "b7e877afa4b90d1bf919d9a06cffab7d0bf59afc4fa969e896bb63c413dea7a9",
+      "size": 7071
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489371_brazil_vs_morocco.md",
+      "sensitive_excluded": false,
+      "sha256": "659cc134b0aefe00af73113ade81cb7b7ba8d3b3a24a8b3c13ac06149f06ef7b",
+      "size": 1257
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489372_haiti_vs_scotland.json",
+      "sensitive_excluded": false,
+      "sha256": "8e4202c9a624f07cc86d1a12d2f855285fc1b29e50e7ac461d53f7315813701b",
+      "size": 7306
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489372_haiti_vs_scotland.md",
+      "sensitive_excluded": false,
+      "sha256": "adcb4273eb347a7ba39e80e420d7df428ebb8ac8299a9ca5ecbc00dfd3cca9b3",
+      "size": 1277
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489373_qatar_vs_switzerland.json",
+      "sensitive_excluded": false,
+      "sha256": "6f2c0e8ee3d46568301764cfb4c19951c9866bfe561b4152303c6dc12bdf193b",
+      "size": 14958
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489373_qatar_vs_switzerland.md",
+      "sensitive_excluded": false,
+      "sha256": "99bea8673bca7e4cfdef316b824ca64f69e1065d8338b5c9b28d605bfce99983",
+      "size": 1291
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489374_germany_vs_cura-ao.json",
+      "sensitive_excluded": false,
+      "sha256": "bd866f63590f8f2a919726baa7040d5cc4ffa343771244377fa724db7b362a8b",
+      "size": 14619
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489374_germany_vs_cura-ao.md",
+      "sensitive_excluded": false,
+      "sha256": "61ead4997656b534e279f398156aab26b4b507389f8d0ae6ff4d05154e8937ad",
+      "size": 1245
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489375_ivory-coast_vs_ecuador.json",
+      "sensitive_excluded": false,
+      "sha256": "5c98d44918b47f3140282f8e98f3b71af9494f118f4badc091c2ee22fab3fe25",
+      "size": 14580
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489375_ivory-coast_vs_ecuador.md",
+      "sensitive_excluded": false,
+      "sha256": "5f75b7a0ee4ad829f526509b0dded33f58ae6eeeaea1886983c1d8e9d7b67a87",
+      "size": 1263
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489376_netherlands_vs_japan.json",
+      "sensitive_excluded": false,
+      "sha256": "1bbfadf88a9d12873c23ace24accca76c93ecae18df412d56b0c0ba988ed527a",
+      "size": 14501
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489376_netherlands_vs_japan.md",
+      "sensitive_excluded": false,
+      "sha256": "0c022578a40705eb154a9e6199d389e438d1577044914e79c297505d03fd2f2e",
+      "size": 1244
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489377_belgium_vs_egypt.json",
+      "sensitive_excluded": false,
+      "sha256": "7d677de15d810be4349ecb61c5d244f3e41199f7a8ec705089d4e373084dc302",
+      "size": 7055
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489377_belgium_vs_egypt.md",
+      "sensitive_excluded": false,
+      "sha256": "b53f13b527b4f2195793e2aecd8380e8cb758e5ad5400a3b62af09eb86d9ac7a",
+      "size": 1240
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489378_iran_vs_new-zealand.json",
+      "sensitive_excluded": false,
+      "sha256": "68819bf3c1effd744277a1ac6103a323e2838d298738fdcdd8a2631e13fb00c5",
+      "size": 7063
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489378_iran_vs_new-zealand.md",
+      "sensitive_excluded": false,
+      "sha256": "358725d2d730eb2e4777f0497a69feb9120df69d597f3f97f8d1866df4bb5f8f",
+      "size": 1248
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489379_saudi-arabia_vs_uruguay.json",
+      "sensitive_excluded": false,
+      "sha256": "f4c407b69b4021146b794338ec8145f4354159433f4843b3b085c07173bbbbdc",
+      "size": 7311
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489379_saudi-arabia_vs_uruguay.md",
+      "sensitive_excluded": false,
+      "sha256": "3acbe4ef5c7fc7589e55fbfb10a3ba525fceeed8ea1efc6ca0ea1c22f4534398",
+      "size": 1283
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489380_spain_vs_cape-verde-islands.json",
+      "sensitive_excluded": false,
+      "sha256": "ebb09f8bd7464cb1c2d975b88db8656890986b897d875cd22bf873490e49cc20",
+      "size": 7309
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489380_spain_vs_cape-verde-islands.md",
+      "sensitive_excluded": false,
+      "sha256": "0282731bdef842d037d1791f8ef48cbb8b2343098c5900afe8c101dbf1c33252",
+      "size": 1290
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489381_argentina_vs_algeria.json",
+      "sensitive_excluded": false,
+      "sha256": "8cfa584f5da581a29865b7c89424ba02cc2648e73df0475027ed73136688a132",
+      "size": 7069
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489381_argentina_vs_algeria.md",
+      "sensitive_excluded": false,
+      "sha256": "cfe1f9e290fbbec0237f6516acceeb28b6df6e6f8536d7e5fbee147b4b1f8a24",
+      "size": 1254
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489382_austria_vs_jordan.json",
+      "sensitive_excluded": false,
+      "sha256": "c50b6407449cfe46bedc65259437848df38fdcb8a27d4a8b5d438287e352a360",
+      "size": 7074
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489382_austria_vs_jordan.md",
+      "sensitive_excluded": false,
+      "sha256": "f8663357c76d23683ddf953c13ae372930f9abf83c21e016138450ea13273dc7",
+      "size": 1259
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489383_france_vs_senegal.json",
+      "sensitive_excluded": false,
+      "sha256": "b31b202d68dcbc3c1e26d38e5cc147a82542a08aa9052d4bbaffc8a2eb4242d7",
+      "size": 7072
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489383_france_vs_senegal.md",
+      "sensitive_excluded": false,
+      "sha256": "d414c4b83ea5fa6f1a19ffd2f83b8f21c8d9ee519abc7102374659af99adeb7b",
+      "size": 1257
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489384_england_vs_croatia.json",
+      "sensitive_excluded": false,
+      "sha256": "f43d28a38a93b34e9768a8384e5b0a3c7bd9add9c1e13b397ce99bd63c5d3087",
+      "size": 7057
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489384_england_vs_croatia.md",
+      "sensitive_excluded": false,
+      "sha256": "4549c113fc9748e87c8f10820222b249ce47f8fa398b26437d83e61b5728669f",
+      "size": 1242
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489385_ghana_vs_panama.json",
+      "sensitive_excluded": false,
+      "sha256": "9aa7124c9eb0302ccc5059eb366807ac064428a99b3e90a439e86ecfc86163cb",
+      "size": 7055
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489385_ghana_vs_panama.md",
+      "sensitive_excluded": false,
+      "sha256": "8e67e64b59f3336caba9b33846271e95f7386b3abf01e02775ce78351a84c78f",
+      "size": 1240
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489386_uzbekistan_vs_colombia.json",
+      "sensitive_excluded": false,
+      "sha256": "45d72ea58f0a2f98215b97df3f8c7d6918850017caf53677b0deb5b671b660f0",
+      "size": 7070
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1489386_uzbekistan_vs_colombia.md",
+      "sensitive_excluded": false,
+      "sha256": "57f6372156d9a660b67050cc3dc9ee8e2110c42e2a447311d1844233d62b8179",
+      "size": 1256
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1538999_south-korea_vs_czech-republic.json",
+      "sensitive_excluded": false,
+      "sha256": "7e20146e51d6a3c0ff55ff2d4beba4992d09135025044d348b52795b203caff0",
+      "size": 15972
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1538999_south-korea_vs_czech-republic.md",
+      "sensitive_excluded": false,
+      "sha256": "c36c86bb194f71dc9a372af8f40dc98e80eb5f2791f6c719504c399470ee38d0",
+      "size": 1259
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539000_canada_vs_bosnia-and-herzegovina.json",
+      "sensitive_excluded": false,
+      "sha256": "213de2cbdd15a97e1e37f9873d59ff71356b5fb42ef8d4fc62d04f2e7416b55f",
+      "size": 7302
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539000_canada_vs_bosnia-and-herzegovina.md",
+      "sensitive_excluded": false,
+      "sha256": "76b243945e6d0dc202c51affb4641f8cb52fa33d683818d956e77fe0f85dce6b",
+      "size": 1283
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539001_australia_vs_t-rkiye.json",
+      "sensitive_excluded": false,
+      "sha256": "7bddb5a972650082ea9ae8db3ae3cfd51f6ccdf1e0ec61cd3392ce103a84f07a",
+      "size": 10280
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539001_australia_vs_t-rkiye.md",
+      "sensitive_excluded": false,
+      "sha256": "19406252268976fda9ae87cdac231ec0708cd88c1592500b68b64aa2f3cc2e32",
+      "size": 1247
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539002_sweden_vs_tunisia.json",
+      "sensitive_excluded": false,
+      "sha256": "d6d59f7b7ce621e5d0a7ad5a09589f08dc157c4b71b0047b37469802ee82ce29",
+      "size": 14623
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539002_sweden_vs_tunisia.md",
+      "sensitive_excluded": false,
+      "sha256": "c3c58f53fd91acea87cd8e55e541738a5d839253de18be762e751b43c88ea019",
+      "size": 1247
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539003_portugal_vs_congo-dr.json",
+      "sensitive_excluded": false,
+      "sha256": "7e85a9b42a8229fc73f5cb4e6ec35fc6a224434dddaacd8df7ab6c6a2c7d54b6",
+      "size": 7061
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539003_portugal_vs_congo-dr.md",
+      "sensitive_excluded": false,
+      "sha256": "9bee47735281fb239a1cb1a1bcaf68fd3b5c8588edfab95d318dc458dcf98b90",
+      "size": 1245
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539016_iraq_vs_norway.json",
+      "sensitive_excluded": false,
+      "sha256": "a17852b7cd144c33ea5ac16f952d2eb3307c65040d870047e07d1459afe609cb",
+      "size": 7061
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round1/fixture_1539016_iraq_vs_norway.md",
+      "sensitive_excluded": false,
+      "sha256": "71a9de4fe036feb15eac234634cb74d2f94aeadf065ae323020bb420f989c265",
+      "size": 1243
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489387_canada_vs_qatar.json",
+      "sensitive_excluded": false,
+      "sha256": "5307119a926c78fd7293eef7ccc070371fca951c80740d2c082ef065872fa701",
+      "size": 4422
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489388_mexico_vs_south-korea.json",
+      "sensitive_excluded": false,
+      "sha256": "ee3e20cc99cfdef586e7998ec26996f04a34559989554503db95ff9372bf4a78",
+      "size": 4431
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489389_brazil_vs_haiti.json",
+      "sensitive_excluded": false,
+      "sha256": "a30086f4d13401ae92ebdccd8fe61b4b888d96831a0477e0069814ee0fa014e4",
+      "size": 4437
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489390_scotland_vs_morocco.json",
+      "sensitive_excluded": false,
+      "sha256": "498ac7008538a6820aa796cf7e596c10d66f07bb736a1f7d5c7979612cdc53b1",
+      "size": 4429
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489391_usa_vs_australia.json",
+      "sensitive_excluded": false,
+      "sha256": "70781f2dba57aa15569d73162e3e57b8766b159aed86dc689d9c198b2d466cea",
+      "size": 4422
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489392_ecuador_vs_cura-ao.json",
+      "sensitive_excluded": false,
+      "sha256": "0e8ddeda8fc1fe022eff64a5020276ff8d71518ba95bb335b8350af342f72fe3",
+      "size": 4437
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489393_germany_vs_ivory-coast.json",
+      "sensitive_excluded": false,
+      "sha256": "51e58c459c5cf11c62f7b659e7d0851f25ab72ef30bcc1579d8b1558ca9988f7",
+      "size": 4426
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489394_tunisia_vs_japan.json",
+      "sensitive_excluded": false,
+      "sha256": "0cf4cb5190099b3e7b51ead898587db06613e9d3f992de8eeeefad3701ee7613",
+      "size": 4423
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489395_belgium_vs_iran.json",
+      "sensitive_excluded": false,
+      "sha256": "120d87d1a93221798b72d255f5cbafb7fec6615ddb036061c2eedcababa74043",
+      "size": 4423
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489396_new-zealand_vs_egypt.json",
+      "sensitive_excluded": false,
+      "sha256": "719277fb51bbd99c9bd01baef3315a5ae95771f8a64eca66d68f2f26db89da05",
+      "size": 4425
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489397_spain_vs_saudi-arabia.json",
+      "sensitive_excluded": false,
+      "sha256": "481f71df6805c74a5c01842890e84bc6b1b36d348f00d3f6412068cb8470ba1b",
+      "size": 4434
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489398_uruguay_vs_cape-verde-islands.json",
+      "sensitive_excluded": false,
+      "sha256": "8431c88e66f4828b023d6cc9ed06e28b67104dd9b7a9d9bacfc02bd022501cd8",
+      "size": 4438
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489399_argentina_vs_austria.json",
+      "sensitive_excluded": false,
+      "sha256": "e3c92dc49df2694f674fa122f348bc40b82534a68a78a7de320bc96d09322d8b",
+      "size": 4425
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489400_jordan_vs_algeria.json",
+      "sensitive_excluded": false,
+      "sha256": "aa7531299c8786275fe3ffa4b0a70fc377bc03b5966f5fa65f12463ed77952a2",
+      "size": 4443
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489401_norway_vs_senegal.json",
+      "sensitive_excluded": false,
+      "sha256": "6b94d23b8d0f014ee862ec916be46bf19aeffaf1127cb7620d8040e08175b817",
+      "size": 4439
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489402_england_vs_ghana.json",
+      "sensitive_excluded": false,
+      "sha256": "7021dc88458e8e7af66b5614c18320fd1212873999bd7926186f7d80ee6c95cc",
+      "size": 4426
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489403_panama_vs_croatia.json",
+      "sensitive_excluded": false,
+      "sha256": "297c79ad9b9bd4f095f7c536d5f94774507d0a37e73e811ea038233b6e26fe1f",
+      "size": 4418
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1489404_portugal_vs_uzbekistan.json",
+      "sensitive_excluded": false,
+      "sha256": "c8a2d052578b33eae471e5835f54381b89b2806ddb6b8b49bf6edca1c4d9e797",
+      "size": 4428
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539004_czechia_vs_south-africa.json",
+      "sensitive_excluded": false,
+      "sha256": "d9f9ac062dcda0ff997d0147029fd40dcf05ffcac09257cf1f5c77ab4591fdea",
+      "size": 4440
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539005_switzerland_vs_bosnia-and-herzegovina.json",
+      "sensitive_excluded": false,
+      "sha256": "b7492d2653376455701c49aabef4ad25559796f49eaf61e52fa4e5909d4aa305",
+      "size": 4446
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539006_t-rkiye_vs_paraguay.json",
+      "sensitive_excluded": false,
+      "sha256": "93d09c48f0ec450252e5110a26bc21983a20eeca2915b32e7eeae1a91219831f",
+      "size": 4445
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539007_netherlands_vs_sweden.json",
+      "sensitive_excluded": false,
+      "sha256": "3cdfea44372f9e3c15c4de0474a5c646052cd0d92709e0b7898fadc019923b0b",
+      "size": 4426
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539008_colombia_vs_congo-dr.json",
+      "sensitive_excluded": false,
+      "sha256": "3dabb144100569fb9dc88eaf8dd241518c761689931848b61deaaf2212f39622",
+      "size": 4431
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round2/fixture_1539017_france_vs_iraq.json",
+      "sensitive_excluded": false,
+      "sha256": "b19cf8a5ba0de9d974b5ae52fefb31e0c727840a00f37867cb0130aa664743c4",
+      "size": 4436
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489405_morocco_vs_haiti.json",
+      "sensitive_excluded": false,
+      "sha256": "4e24b6dda14a15d8a08f1eb961f0294bfd6009271393f94ae53f17298f0aac6b",
+      "size": 4432
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489406_scotland_vs_brazil.json",
+      "sensitive_excluded": false,
+      "sha256": "f5e3fe5c09ed3070f52b4ab1bb36a3efae9f6f89ffb1e73dc8a6c5e8b0f13848",
+      "size": 4427
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489407_south-africa_vs_south-korea.json",
+      "sensitive_excluded": false,
+      "sha256": "676ee03b0293df1bd8829608b7ae09fae5f4fd6fd8cdf9f0c50a97ed72d5eecd",
+      "size": 4436
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489408_switzerland_vs_canada.json",
+      "sensitive_excluded": false,
+      "sha256": "5f2e7bd2b2ec4a39eccf5d0b980ad47c6aa738d3e00aaaaeb9366e5e4782d9d5",
+      "size": 4426
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489409_cura-ao_vs_ivory-coast.json",
+      "sensitive_excluded": false,
+      "sha256": "5e6b19a46fa72965ab775ce91467b060fb15cf92980dc82eb51bef34ad0a2aee",
+      "size": 4448
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489410_ecuador_vs_germany.json",
+      "sensitive_excluded": false,
+      "sha256": "dddce4448ba1711ef6fbee6a1bcff09aae92a4c08727a0bfb6cda3a07cc3d853",
+      "size": 4440
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489411_paraguay_vs_australia.json",
+      "sensitive_excluded": false,
+      "sha256": "0a89569f60fa2b075ac51395a95874c6ea17280b1c5da88fff256743024902e0",
+      "size": 4445
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489412_tunisia_vs_netherlands.json",
+      "sensitive_excluded": false,
+      "sha256": "6d7333f28a1f397e8ab0aa68e8cde809357fa9740dd3b8582fda7929f8a456cb",
+      "size": 4438
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489413_cape-verde-islands_vs_saudi-arabia.json",
+      "sensitive_excluded": false,
+      "sha256": "c803011d2bb84b8f1f48ef8607e5219d3b7846b6b31899f86a4583c57c3069c2",
+      "size": 4440
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489414_egypt_vs_iran.json",
+      "sensitive_excluded": false,
+      "sha256": "3fac62e0e856ef9aab1ae8386373888a77fd845b4a25cf31defc9ac893a259db",
+      "size": 4417
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489415_new-zealand_vs_belgium.json",
+      "sensitive_excluded": false,
+      "sha256": "809c473ffdf7738917ebfa78e59f8e36dff1bae8d3ec1755f0e37b84de2e6ba2",
+      "size": 4426
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489416_norway_vs_france.json",
+      "sensitive_excluded": false,
+      "sha256": "03b58dd38d3a48dfc0e303c08715e27765f1ff51e1cdb895c0613eb4082fb50e",
+      "size": 4425
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489417_uruguay_vs_spain.json",
+      "sensitive_excluded": false,
+      "sha256": "4e631e1b67ae26811d2814101932d794d7cc002900b47f48612311fd4775f464",
+      "size": 4424
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489418_algeria_vs_austria.json",
+      "sensitive_excluded": false,
+      "sha256": "16775709c4d44c14eb4144e2961d67f56377e65261d7ff59758fc8f46337b6de",
+      "size": 4435
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489419_colombia_vs_portugal.json",
+      "sensitive_excluded": false,
+      "sha256": "45c64a27f4447359affc3b1d7f2b877c21fd1b3253184fe03ca16ecd71f66a20",
+      "size": 4427
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489420_croatia_vs_ghana.json",
+      "sensitive_excluded": false,
+      "sha256": "97a6f52bd0328766fcd8df74b25fe5cdf1129937fe2e3c3eb5a3f38352342b6b",
+      "size": 4438
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489421_jordan_vs_argentina.json",
+      "sensitive_excluded": false,
+      "sha256": "4521c0e62327e070ce0c45f929179af97ab65f172a81bcfd6915d8708cc12771",
+      "size": 4425
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1489422_panama_vs_england.json",
+      "sensitive_excluded": false,
+      "sha256": "53fdd03ced29465072e8f61e7e071b7708fe1a9b47ef58d0236172b9105b95c4",
+      "size": 4437
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539009_bosnia-and-herzegovina_vs_qatar.json",
+      "sensitive_excluded": false,
+      "sha256": "bbf472bfa9ed5c222fa143de8ed32536d3b9384a8204992b195dd9f51944e09c",
+      "size": 4437
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539010_czechia_vs_mexico.json",
+      "sensitive_excluded": false,
+      "sha256": "ac429d31ef5bbba7f5980b71f1e82e0065a3ef5c9d71f1a9d449905673693a84",
+      "size": 4429
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539011_japan_vs_sweden.json",
+      "sensitive_excluded": false,
+      "sha256": "e1cb32953b2b0bdce5be2f54748a46dbd9fc725f52a59b67004a9c0e9822c56e",
+      "size": 4418
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539012_t-rkiye_vs_usa.json",
+      "sensitive_excluded": false,
+      "sha256": "7cf415cd4fd96742cb97608db7eaf2c6d76cc6d667613909cd0ac78edeabe191",
+      "size": 4427
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539013_congo-dr_vs_uzbekistan.json",
+      "sensitive_excluded": false,
+      "sha256": "f895d834c9cc6f53ecac14e8567ebaa5ce82572e1e96fcc7411735180cebe5a1",
+      "size": 4440
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/processed/match_cards/group_stage_round3/fixture_1539074_senegal_vs_iraq.json",
+      "sensitive_excluded": false,
+      "sha256": "49ed026182d705eaf56a994ab7cf1298067446f1e0b74b14e2920cbdf4139614",
+      "size": 4419
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/results/round1_results.json",
+      "sensitive_excluded": false,
+      "sha256": "2582692897d354e022e79e36d74574422b8188bf88daceba20f8ac600d76abaf",
+      "size": 3515
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_fixture_details_20260610_1445.csv",
+      "sensitive_excluded": false,
+      "sha256": "1a8b7f2bee76c0d1856d46b47bfbc94e1307613410d7fe254e147dc8af4b80f2",
+      "size": 17296
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_fixture_details_20260610_1445.json",
+      "sensitive_excluded": false,
+      "sha256": "3fa5e97688ad19f693d7496e2db7e63bcc43f24d94a3700b51205c28bb2b0801",
+      "size": 32026
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/snapshots/group_stage_round1/w1_round1_snapshot_summary.json",
+      "sensitive_excluded": false,
+      "sha256": "9041c5e1c2a43252a2b2f803425d43b7f7b0b08a3c251827c64ddc533d954c42",
+      "size": 1770
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/static/world_cup_2026_groups.json",
+      "sensitive_excluded": false,
+      "sha256": "1541c75251be0caca3f8ad86cf9fc519bec4d4f0d126dda9977574aed8f30d9a",
+      "size": 20578
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "data/static/world_cup_2026_venues.json",
+      "sensitive_excluded": false,
+      "sha256": "f322bebb1ee78857e0d22ebbdaff34ac8ac2a8501f34918cfbe60ef0dced1bbb",
+      "size": 3918
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_BACKTEST_AND_DATA_SPINE_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "3e769b59d99d5bddb14ad308ecc06b4348f745fc5213aba6388d5230e53401f3",
+      "size": 2894
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_DRAW_CALIBRATION_RESEARCH_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "a87cd462c5ab2017f635a0c48c5c3bb7447e43257e1bf55618428353a9255c94",
+      "size": 5677
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_FORWARD_LEDGER_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "dbc5ef2176367450b0ee5ff598ba31efc4dd91b6cb6c4c86fdd6bd41d62cd628",
+      "size": 2464
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "816a42fbeb16663653e64612a87e1eb00b308df87852acd63103661899836fc8",
+      "size": 2197
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_INTERNATIONAL_BACKTEST_DATASET_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "20474ed36722f964127e9e840636f0290e6f7e6356fa8045517e90f0bfb0cf33",
+      "size": 3499
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_OUTPUT_LAYER_SAFE_VIEW_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "3aeba05d3c123f77097285c0459a8560f07c3ed506559061795a8e8074cf9297",
+      "size": 2988
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_P0_CONSISTENCY_AND_AUDIT_REFRESH_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "4b679968846d63b5852afd08d5ad47730cef3019a6b0d71745a57842da3b558a",
+      "size": 11295
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_PRODUCTION_LITE.md",
+      "sensitive_excluded": false,
+      "sha256": "8f29c20bbba27328f2dba2e29566515b080753bbf2919790208044587da0fd1a",
+      "size": 4719
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_PROJECT_REPORT_FOR_EXPERT_REVIEW.md",
+      "sensitive_excluded": false,
+      "sha256": "8f9c43e9b2e1dadb40ab5af79c577894cf67897a020766fcbb598bd2e8d5f1df",
+      "size": 7542
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_RECOMMENDATION_OUTPUT_POLICY.md",
+      "sensitive_excluded": false,
+      "sha256": "4e28458fef2a57217243aa24fd2a94b57bb8e7228243dd547eaf338ab3c13a3e",
+      "size": 1764
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_REPORT_TEMPLATES.md",
+      "sensitive_excluded": false,
+      "sha256": "2adb7f1dc7d79c0da6cf91d96d6d8efa9f8e6a2059aba97f3a5baeb5a6170211",
+      "size": 3865
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_RHO_CALIBRATION_INTEGRATION_SPEC.md",
+      "sensitive_excluded": false,
+      "sha256": "9c8bbefba0482ca1eda4c5b0704b3bbe0587efeaba97163fe8359f326f0330ca",
+      "size": 8730
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_RUNTIME_ARTIFACT_POLICY_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "805d61bee0086d0cfc472c643793ac64aae450cfa8aa347a9d858c32734c6b7d",
+      "size": 4227
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_S1B_ODDS_EXTENSION_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "05d26d446355fb6be39711daf8d8f30b3f78d931ee7f4a3ef9a4cd090f7253dc",
+      "size": 2599
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_TEAM_STRENGTH_PROTOTYPE_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "510c56c72aa7aa9bfd31dcb79e5e3ede476a8561f8827f0c045e98b815c4fa91",
+      "size": 2178
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_UI_REUSE_POLICY.md",
+      "sensitive_excluded": false,
+      "sha256": "2f3c0e6738c47c3c431ac1866da0bb4f3f97caddb10d6c7d4892abaf16d8d58c",
+      "size": 1559
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_VISUAL_DASHBOARD.md",
+      "sensitive_excluded": false,
+      "sha256": "57868935bbe6473735c3d84dc1bf7d3e4101f22f519ed3380c3419824388e242",
+      "size": 2520
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "docs/W1_WATCHER_POLICY.md",
+      "sensitive_excluded": false,
+      "sha256": "0d48631feacf765161c2a2ba8824034d968617deec5e8be7808a08f7571234a0",
+      "size": 1226
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "examples/w1_match_card_sample.json",
+      "sensitive_excluded": false,
+      "sha256": "d0244c939178328b6fdce684866e142739669347126bfa848e8a7519bda833d0",
+      "size": 6562
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "examples/w1_match_card_sample.md",
+      "sensitive_excluded": false,
+      "sha256": "511dddcdb710e5b5ef9d652257141106d3c125f36eee8ba126e0d68ce3425abf",
+      "size": 1907
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "locks/.gitkeep",
+      "sensitive_excluded": false,
+      "sha256": "793637c696865b0a2594106d5bce2b9afa055ff67e85c8b1dccb2b5e77344549",
+      "size": 36
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "logs/.gitkeep",
+      "sensitive_excluded": false,
+      "sha256": "f290808990aa899079447df281114197933520f90c004461ac1941b58e9488dc",
+      "size": 35
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_CONFIDENCE_ADJUSTMENT_POLICY.md",
+      "sensitive_excluded": false,
+      "sha256": "d461e49f43fbfb0010598fbdf5e1bd796077ebedc58fe8bd919b04af5f82d4f9",
+      "size": 3895
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DASHBOARD_DECLUTTER_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "0f226c99ca5fa60aee719f9dc841feb540ab1fdde0e2a0402a754f3e61e996cb",
+      "size": 5987
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DASHBOARD_DIRECTOR_COMPACT_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "839ab1a0db06d9b80ae923a0a34d4c93d2d2c93f895a0debc0fc7da7840eda08",
+      "size": 4354
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DASHBOARD_RUNTIME_EMBED_BOUNDARY_FIX_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "bff4cdf25e74c276ae687b3f3f256c42c54650978f3b3022aa80c4dcb3dada49",
+      "size": 4007
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DASHBOARD_TEMPLATE_DATA_SPLIT_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "482fe195c77db0f56eb1c140f096b48144944f340955eb3930ed77edb0bba417",
+      "size": 9062
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DRAW_CALIBRATION_RESEARCH_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "334d73622e37337cade68b8a74f1e44f75deaa8d9e793dff91db209cea07ba99",
+      "size": 2425
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_DRAW_CALIBRATION_RESEARCH_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "d7e01821cb2b41dea73a4b7b2f7d1422dda0d2c3c08a2ca0d21742a800c2842b",
+      "size": 6137
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_EXPERT_PROJECT_REPORT.md",
+      "sensitive_excluded": false,
+      "sha256": "d1feb5b4dec145e698048929a49ac101df9e8d57d62984f7eb7d21908d1be524",
+      "size": 23216
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT.md",
+      "sensitive_excluded": false,
+      "sha256": "73403aabfc28e1bcb63334eb64f86af6fe5ec514430a9fc8e149f09222af02d0",
+      "size": 17280
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT_V2.md",
+      "sensitive_excluded": false,
+      "sha256": "7c6095ae197e0bd669952b4717fdcd52f968dc6ef784c64fe8c5348e18386e01",
+      "size": 8844
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_EXPERT_REVIEW_REPORT_V3.md",
+      "sensitive_excluded": false,
+      "sha256": "9f7a0c0cd1dcc34dd4cf355d74484491412de30216f0d0fab6d902936ae2fcf7",
+      "size": 13626
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FACTOR_LAMBDA_DATA_INVENTORY_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "bdf2ed809841456099db11552652aaab5aad94d18dbf993a4695831921280ae7",
+      "size": 8963
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FIVEDIM_DATA_SUPPORT_VALIDATION.md",
+      "sensitive_excluded": false,
+      "sha256": "c489f2b9a3d81b4a5decdb47757b21b62f00d18a3577441927b68eea22284b2e",
+      "size": 43875
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FIVEDIM_HISTORICAL_VALIDATION.md",
+      "sensitive_excluded": false,
+      "sha256": "ee0c0ab5ee1ffda85525e980da450ec75fce95f9552525eefea0b3e720a905fc",
+      "size": 4881
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_A_IMPLEMENTATION.md",
+      "sensitive_excluded": false,
+      "sha256": "b2839f0242fc0de255e89a1157b23dcf28912bd212c98397ced5a88beed16b98",
+      "size": 5625
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_A_SPEC.md",
+      "sensitive_excluded": false,
+      "sha256": "dbd982f860aa1fb1c49b58dc4b63582e5818149f98328736895b425ac97f5260",
+      "size": 11579
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FIVEDIM_LITE_STAGE_B_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "0b8b17e6a0624e396062c32edf850647c2e41e12c650a5270d656773f9f2c955",
+      "size": 7097
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FORWARD_LEDGER_AND_S2_PROTOTYPE_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "b13e7578ccfa378c79976f1bd5e5594321e21e0f143709ab3de26ab5c9c09491",
+      "size": 6219
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FORWARD_LEDGER_PROSPECTIVE_RUN_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "c32a20ce2be0fd17b44d0e9bd6f48e9c3f190a70f6cbcb6420e6a6071ecca17d",
+      "size": 4628
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "8ad5be866bf1a995ac59d6ed1a0c038d4cebb832492529e0d3add27536424923",
+      "size": 2707
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_FULL_PIPELINE_ANOMALY_REVIEW_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "b37dc6770edf279da6a4b3983735710145e36bcb9cc047e7926594cf7dcdbbc1",
+      "size": 4851
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_INTERNATIONAL_DATASET_QUALITY_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "3c8b3c14219d9bdfd51addd92de2a703a77fc42d8ab6523ecadcc87ba8c03ba6",
+      "size": 2578
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_LEDGER_PROSPECTIVE_AUDIT_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "ac9a1bef218cbb06b3e679a01907301876c5c666b1115c37b32e5dfcaf9a4bea",
+      "size": 3266
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_LOCAL_ODDS_2026_QUALITY_CHECK.md",
+      "sensitive_excluded": false,
+      "sha256": "33d794af76c4529e2e460956b6bb66c188dc6807804acdd83f4b905b6823a848",
+      "size": 4749
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_LOCAL_ODDS_HISTORICAL_QUALITY_CHECK.md",
+      "sensitive_excluded": false,
+      "sha256": "dbfef4c03743e323e7f0a0581d622a222a04fce323755b7af6f66361ad2f5a2e",
+      "size": 4828
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_OPPORTUNITY_SELECTOR_PHASE_A_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "b29cc8277897570fa07e66f1729c7abee1664fed18a47ba69e97616284465d85",
+      "size": 3267
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_OPPORTUNITY_SELECTOR_PHASE_A_SPEC.md",
+      "sensitive_excluded": false,
+      "sha256": "29e4068538eef6209a3e47e49ac6020a16b986ae061b40c2c18f5fedc970c303",
+      "size": 12951
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_OU_COVERAGE_PROBE_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "19dfb546a19725f81e64b5c1c3cd6585795ee198e49ebd95a80e9c3d30b49886",
+      "size": 1019
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_P0_CONSISTENCY_AND_AUDIT_REFRESH_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "82129da1eabb345a2aa52c7c70927ef16a969bf6f8f55057f8282cbafea75e34",
+      "size": 7890
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_PREDICT_OVERLAY_SPLIT_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "94af35ef08303b750ee9961ed0aa0dbe4ad0758c329d22e76feeb322ed78fb31",
+      "size": 8908
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_PRIMARY_READ_DISPLAY_WIRING_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "ae76e919ca0ce7635400daf1552138f60785ac591df04f2ecf5090babc510874",
+      "size": 3054
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_PRIMARY_READ_SELECTOR_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "d20f784e5fad9c22336ab84b3c29c733f634c0c88ce26f22dcfefacba12d6cbd",
+      "size": 4586
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_RECOMMENDATION_ACCURACY_AUDIT.md",
+      "sensitive_excluded": false,
+      "sha256": "c4992d7a8745ed05d7de0feb1e29f1c2e32408a84c4ef62067e805720ea0b573",
+      "size": 4483
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "reports/W1_RHO_REAL_OU_CALIBRATION_RELIABILITY.png",
+      "sensitive_excluded": false,
+      "sha256": "53668760eff7e26ef7a5f2d214e1346e4440b8812f33eb4d268f3803f37f6269",
+      "size": 6747
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_RHO_REAL_OU_CALIBRATION_REPORT.md",
+      "sensitive_excluded": false,
+      "sha256": "570a41dda032f568afbe0cfb734de1ca038bd0a1fb084a6e48de30fac295fe71",
+      "size": 3190
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_RUNTIME_ARTIFACT_TRIAGE_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "0cd9046610253e37f51b5a3d2ad5b84e2fb8a60942fa3a864cd44fd8d97451cc",
+      "size": 6397
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_RUNTIME_CHECKER_CLEANUP_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "f4ef2b24053e1b8391a631fc90476dc9e51f3d1e850cbc41dd73fa87de69a5ad",
+      "size": 8137
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_S0_SAFE_OUTPUT_AND_S1B_SEED_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "c0fbef5f7e206386878e37801a2698439d0345ecc986a0ebfa089b27df7dd663",
+      "size": 6330
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_S1B_ODDS_EXTENSION_V1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "b53a71cfa62fad11a9f6032d6b3ca9c939129c91699dd84f4d7c59fb699c4ba8",
+      "size": 5435
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCORE_MATRIX_BATCH_REPORT.md",
+      "sensitive_excluded": false,
+      "sha256": "4caa0358c0389a03b4a8f1a074a86070ffbfedc4515c65c6724e4ec2e24995fe",
+      "size": 27350
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_AUTOPILOT_RUNBOOK.md",
+      "sensitive_excluded": false,
+      "sha256": "078abacaaabb62bb62d094875f25014112d9d560523aae249bf6c1e52f716d37",
+      "size": 4134
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_AUTOPILOT_TASKS.md",
+      "sensitive_excluded": false,
+      "sha256": "a0966aa5b5e2610d632f66e80198d80fe4c5b922a87fc84a8e8c0e9faba27bac",
+      "size": 6152
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_COMPLETION_CHECKLIST.md",
+      "sensitive_excluded": false,
+      "sha256": "620b2495ed9caa3e017696d4bc7a02f1afe91fbd2f2a18197906de814d277164",
+      "size": 4396
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_EXECUTION_SPEC.md",
+      "sensitive_excluded": false,
+      "sha256": "0f15b78667994ae402a5c2c02fecfaf51df33dd5f58057aecaabb8d2af328457",
+      "size": 7875
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_G1_R_REVIEW_CONVERGENCE.md",
+      "sensitive_excluded": false,
+      "sha256": "cde3517879b6082d213464e2e4cf1b07869f8d5eaf1e43007f461902503cd031",
+      "size": 9065
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_G1_S1_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "96ab625b4e13532702835a2db5efe7244104360b4dcdc521645ad7e2dac53198",
+      "size": 2679
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_G2_AUTOPILOT_AI_FIRST_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "6478b03523d20820d88615c51935b290c271539ae4e6e3b8124aa3a6d1763fd4",
+      "size": 3278
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_MVP_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "0d8f163529394d58d591505ac5074d1c3b8711e79e6758777aa85aeabc890cf5",
+      "size": 5101
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_R1_1_SCRIPT_MODE_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "fa2d3b62a05f262791fc3b5c816e6b6c40a2682364d2c0f92344f4ebf877c1d1",
+      "size": 3768
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_REFRAME_READ_REVIEW_RESULT.md",
+      "sensitive_excluded": false,
+      "sha256": "b82b2e16c7714acff1bae4e8f3273acf887daeb0cac4344672f7a5c7aeda35ad",
+      "size": 4130
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_SCHEDULER_RUNBOOK.md",
+      "sensitive_excluded": false,
+      "sha256": "b0e3dd80174535c8d98bb486daadf5d52c4c9fda9f09eabab53a41430928accf",
+      "size": 3700
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_T5_ANALYST_AND_FETCH_SPEC.md",
+      "sensitive_excluded": false,
+      "sha256": "d74ed066e12c7536b1450336082fbcbfb6eb1e57ab0c3b1470364120de4f9924",
+      "size": 9368
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_TECHNICIAN_HANDOFF.md",
+      "sensitive_excluded": false,
+      "sha256": "ae997f0ce284ec81861e5932e588751cc8b37cd267eabd6034847ecbf81d2dd2",
+      "size": 5538
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_SCOUT_TECH_HANDOFF.md",
+      "sensitive_excluded": false,
+      "sha256": "c313e807ae2bfa3d08bf24f81e3a5e153d469d9199029f31a471a5258b7951c5",
+      "size": 6110
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_UPGRADE_REPORT_EXPERT_REVISION.md",
+      "sensitive_excluded": false,
+      "sha256": "d0f5db6b61a92e26586e2f51c4601d6b5b72c1bdec46ed84d606e2bd3d3b2a7c",
+      "size": 9836
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/W1_YESTERDAY_4_MATCH_POSTMATCH_AUDIT_V1.md",
+      "sensitive_excluded": false,
+      "sha256": "32c3d5e57b05495ae89041defef806049d0033dfc0837e4878a64f05102690d1",
+      "size": 6614
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "reports/dashboard/W1_LIVE_DASHBOARD.md",
+      "sensitive_excluded": false,
+      "sha256": "b0ade71e21272e274b958d37d2c0ea0d204ad7e1800eee8c73679bd1348ad580",
+      "size": 1210
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "reports/dashboard/W1_VISUAL_DASHBOARD.html",
+      "sensitive_excluded": false,
+      "sha256": "a8291938d08f44dea8ae8a7c0dc147085e8a69ecfd980f1e2b62b23ccea8fc24",
+      "size": 2380968
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/data_audit/w1_data_source_audit.md",
+      "sensitive_excluded": false,
+      "sha256": "d60e62c9a141e890ab5c1976d45a25265b535750e798d849991001354c663202",
+      "size": 8519
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/data_audit/w1_missing_resolution_pack.md",
+      "sensitive_excluded": false,
+      "sha256": "f2cdea4cbc8f0564d603b090c34e217cf50a5d4c34ba4a78a07b37fc3f767081",
+      "size": 7386
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/data_audit/w1_missing_source_verification.md",
+      "sensitive_excluded": false,
+      "sha256": "da8a4436fa86b8839b1f3b12f0e9dde97150832902ec8d60ea69ce1b6f147549",
+      "size": 4145
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/data_audit/w1_smoke_test_report.md",
+      "sensitive_excluded": false,
+      "sha256": "397b23d22e36af9647bf9e0b231793b695a138d683e49254d07783257dd4ca5a",
+      "size": 5156
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/match_previews/W1_GROUP_STAGE_ROUND1_INITIAL_CARDS.md",
+      "sensitive_excluded": false,
+      "sha256": "bd3f4b4198f21538bb4c02a3757c05cc3fb7b2987c1e7818ba085160851af471",
+      "size": 2077
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/match_previews/W1_GROUP_STAGE_ROUND1_REAL_FIXTURE_CARDS.md",
+      "sensitive_excluded": false,
+      "sha256": "a2a7d8ab0f2ad5f81975f98325bc287a7b91397f877222c02f565f1b7504cecf",
+      "size": 3884
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/match_previews/W1_WATCHER_STATUS.md",
+      "sensitive_excluded": false,
+      "sha256": "9a7114da309e44cdec7d0ca72685d1699464aa171b2311f5e4ad685f7193637d",
+      "size": 992
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_backtest_1x2_only_baseline_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "b9ec21fef49b43193b479c3ec71823d51a9f5ed3c8c30e00328c90afa3467235",
+      "size": 6131
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_backtest_1x2_only_baseline_v1.md",
+      "sensitive_excluded": false,
+      "sha256": "dac11ab8895a2666b6fa3853fe291bf470a8d8846fee70c92c20c3f6cf508460",
+      "size": 978
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_backtest_full_pipeline_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "02fd67d71b1b1b76ef6533dd366ed836b86e028775e6ab5a3e53fda4ce8ec2c2",
+      "size": 4287
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_backtest_full_pipeline_v1.md",
+      "sensitive_excluded": false,
+      "sha256": "db55fc06f28411b7aa4aedd13d1151e0e5ef09e2258d6e8d46bd13ee4c90d8a3",
+      "size": 1157
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_candidate_offline_eval_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "ec6886f88537551d8706e01c89a68875f06ac43df7b70df2e2b34f07816e199b",
+      "size": 4441
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_candidate_offline_eval_v1.md",
+      "sensitive_excluded": false,
+      "sha256": "2031165a3c718bd17647ab2b27daef3e504cd3264b808777c62ddaf6a9a4d162",
+      "size": 1801
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_draw_calibration_research_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "8750cc9cdf0ac864bf488bb0ffe6364a2fc24a37b6fae27e1f69295191bb8c0d",
+      "size": 8588
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_full_pipeline_anomaly_review_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "527d99ae645936ec9946ea9d40d0e1bda560d5bfbf0291678406fa4de6766322",
+      "size": 9955
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_new_score_distribution.json",
+      "sensitive_excluded": false,
+      "sha256": "25e19da073d89b2ad49e5f3dcd6ba291e5de3db862fb4e70a4cdfa4e528148b5",
+      "size": 89274
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_ou_coverage_probe_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "8bde0a46eee3bc3352ec97a2f8c21ddc8c28b23cbcff1c67005094ad550205d4",
+      "size": 1588
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_recommendation_accuracy_audit.json",
+      "sensitive_excluded": false,
+      "sha256": "764487b022e72f0fefc444475f53350d6bfb319d9db9dd8ef531982786f26405",
+      "size": 20862
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_rho_provenance_candidate.json",
+      "sensitive_excluded": false,
+      "sha256": "2f5897d2260c6a6a08a81ff05908a45c0e4fd465127cff32a1062d41e6dee5c3",
+      "size": 796
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_rho_real_ou_calibration.json",
+      "sensitive_excluded": false,
+      "sha256": "e0641a79b663acdb58479ce334285566421a3a226079df48e64a003d4b54dcfe",
+      "size": 2220
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_team_strength_prototype_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "75c5339823ce7ab2ee690ff054e82b59e023f090e6efd36aac9195ed61713bf4",
+      "size": 3210
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_team_strength_prototype_v1.md",
+      "sensitive_excluded": false,
+      "sha256": "9bfc637be324ffee20ba34d23a8264f7291e03aca9d73140fce75b1fa983fd53",
+      "size": 1344
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "reports/w1_yesterday_4_match_postmatch_audit_v1.json",
+      "sensitive_excluded": false,
+      "sha256": "ab0e1f5ddbcb4c8aae2d1cccfd837168cf1981b24418694278032e7413856819",
+      "size": 10538
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "schemas/w1_fivedim_card_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "c8cfcd191e25f915d998c234b40d6c7c6928f714555491d8959ad72e45b4202c",
+      "size": 2124
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "schemas/w1_scout_bundle_schema.json",
+      "sensitive_excluded": false,
+      "sha256": "21fc547f700e9d4324f95d6fd0b48b92272f61de91c9ecc3dfc7b6299c1d8bd4",
+      "size": 2939
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/audit_w1_recommendation_accuracy.py",
+      "sensitive_excluded": false,
+      "sha256": "a6fafa0fcaa6b9613ca6e3a694ab42f2ff25fc963927c8152a91cb15126b401a",
+      "size": 15846
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/build_w1_dashboard_data.py",
+      "sensitive_excluded": false,
+      "sha256": "5e3aef9d40bd948d36141250e26941c05ce19a5b5df94e22e2ca74c032b84020",
+      "size": 148414
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_anomaly_review.py",
+      "sensitive_excluded": false,
+      "sha256": "183082fa488bcc9d4bd6139f352d5e19cd96b040dd048b6e941e9a9f2404306d",
+      "size": 3528
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_backtest_spine.py",
+      "sensitive_excluded": false,
+      "sha256": "3d462ea737926ad527b7101a9a4142648b8671a388a2f99f1ebc1d9dbb78229c",
+      "size": 2379
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_click_to_predict.py",
+      "sensitive_excluded": false,
+      "sha256": "34cf69ec3e4eb2ae0a612978783f8451f37e4c12de4f4870ee00d563d5003646",
+      "size": 12444
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_confidence_adjustment.py",
+      "sensitive_excluded": false,
+      "sha256": "2adeab6b1484079bf9207c1c20cdcba94f4b7f5ec62a81119289cbcb74e5d26c",
+      "size": 5876
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_dashboard_backend_predict_integration.py",
+      "sensitive_excluded": false,
+      "sha256": "f239e8a30091d351ddb0de72610f25fbdfde87bbbf6164cb7ae511f598e15377",
+      "size": 5260
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_dashboard_data_binding.py",
+      "sensitive_excluded": false,
+      "sha256": "8ab4466a28342d245c1fc79560e036f10a2bb9628101797f2ce1312d095e2fac",
+      "size": 27126
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_dashboard_runtime_embed_boundary.py",
+      "sensitive_excluded": false,
+      "sha256": "13b7541c26e053173a12f3dd9b67eebeb3f7fbcd0e617fe5bb13663c41d223ce",
+      "size": 6754
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_decision_card.py",
+      "sensitive_excluded": false,
+      "sha256": "3dc43cdc21358bf7e6e314f92db9b999e638ab9d198e8976ff368fbc25551620",
+      "size": 6448
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_draw_calibration_research.py",
+      "sensitive_excluded": false,
+      "sha256": "eb82d259a9593ffa9cfaafa0f577958330ed492ac49dfd2f82031206fd0afd47",
+      "size": 7252
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_early_prediction_mode.py",
+      "sensitive_excluded": false,
+      "sha256": "5254f2eb609aec1192240d243751ec6a1306df3b4852414b9109cdfcf8cedb96",
+      "size": 6966
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_environment_context.py",
+      "sensitive_excluded": false,
+      "sha256": "d59d1f0c252c1a1003b3031893f68c91e77842d532f8d85473076f8b9629517c",
+      "size": 7842
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_factor_sample.py",
+      "sensitive_excluded": false,
+      "sha256": "ca5ec35b17d476a3d9b1f4c3481ece4bf4a8b53102e72b429be4772f106ee82a",
+      "size": 4639
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_fivedim_data_support_report.py",
+      "sensitive_excluded": false,
+      "sha256": "b91633b8668033f8db5610525a4c81d688903bd935bf23e8085992bf62abc821",
+      "size": 3369
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_fivedim_lite.py",
+      "sensitive_excluded": false,
+      "sha256": "65f960fda851122b8bb820e087479515ce89e5d51243c6a91bcc8dabe008c642",
+      "size": 11355
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_fixture_universe.py",
+      "sensitive_excluded": false,
+      "sha256": "04327d278b288633844119b447af0e8216ca9c6083a85db18c9d1bdb950de924",
+      "size": 4688
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_forward_ledger.py",
+      "sensitive_excluded": false,
+      "sha256": "4a200b5ec44bb90613b142deee86d7da35e1ae8199061cf0f699547a5e67e9db",
+      "size": 2641
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_forward_prospective_run.py",
+      "sensitive_excluded": false,
+      "sha256": "e5d8723e206ad36940a23150621382086e3dc3df66f9a11e8617ea89e939d876",
+      "size": 8357
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_full_pipeline_backtest.py",
+      "sensitive_excluded": false,
+      "sha256": "96756124503bd1ec9d8cbf1190142ec2502f072c08150adb0040dc79270d97ca",
+      "size": 8616
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_host_no_qualifier_history.py",
+      "sensitive_excluded": false,
+      "sha256": "0b299a844d1d051024d139cc1173995fd70b7f1e9fea1d3aac41ab93ad913000",
+      "size": 2140
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_international_dataset.py",
+      "sensitive_excluded": false,
+      "sha256": "daa2ab4827fe6c45bb30a364c7280eab221465d332cfda58bc9b348c8b16cff9",
+      "size": 3650
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_lineup_api_binding.py",
+      "sensitive_excluded": false,
+      "sha256": "4962bc890e54393e750971e0e686f617bc3ac4919c7e9c7d3b1011409dc4aefa",
+      "size": 5745
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_manual_lineup_override.py",
+      "sensitive_excluded": false,
+      "sha256": "90c4641ae9d4285297b2c28aa940eabee1169b98408e046e7508f33547e41693",
+      "size": 10393
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_market_probability_panel.py",
+      "sensitive_excluded": false,
+      "sha256": "562914b91a4c3f25e9544594c0b5535d99f192ae6668edb999638dcff685c38e",
+      "size": 8623
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_match_stage_gate.py",
+      "sensitive_excluded": false,
+      "sha256": "9fc9d260fe2617cb181823893a991564621f1308338093796c78095346affab4",
+      "size": 4462
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_odds_extension.py",
+      "sensitive_excluded": false,
+      "sha256": "cc9fd8fb4d76d084150bf2e32d4032c56a0e7a171bb466fa40ed9f3a94219833",
+      "size": 7300
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_odds_movement_monitor.py",
+      "sensitive_excluded": false,
+      "sha256": "59305acb0086796d884ccf455dbbf0b077a34bee198f7c177f0b0b04538210c6",
+      "size": 7191
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_odds_movement_status_consistency.py",
+      "sensitive_excluded": false,
+      "sha256": "a0321ff213d64e50b35d1ef8e37bd9255cdb8fcca7dfb91ffe30c68e7a069d33",
+      "size": 7308
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_odds_movement_threshold_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "c205d69f1f5c4153951a9f388f2aab98227220b70029250e9e5ad4fa09e78eb2",
+      "size": 6653
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_odds_snapshot_collection.py",
+      "sensitive_excluded": false,
+      "sha256": "ce6d7c5edaddc99e3b94936bb771805bc701ae2e8da25a8ea121a3fb1661d17d",
+      "size": 4460
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_opportunity_phase_a.py",
+      "sensitive_excluded": false,
+      "sha256": "a664fbf68b020e39aafb5c813770bcbe773151bc662edafc180023e9a27c9402",
+      "size": 8726
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_ou_coverage.py",
+      "sensitive_excluded": false,
+      "sha256": "e4d1508fb06f94555fa0c7604eb6b8ab6f2d27467eb57cba1cf25a38487572b9",
+      "size": 2367
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_output_safe_view.py",
+      "sensitive_excluded": false,
+      "sha256": "56f3d1574f35cac28fa90920ba5c42d42c2de4b191667c77dd84042b49026f65",
+      "size": 4642
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_post_match_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "ff1d8b58ab1b56ba1bbf53a50f7ef2ce45ddb63bcdf41477889d6ca75df25a18",
+      "size": 4263
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_post_match_result_sync.py",
+      "sensitive_excluded": false,
+      "sha256": "e2591cdb8d317765daac18a48baa07f61fd3b41057ecd807053beab75e166e27",
+      "size": 5321
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_post_match_result_update.py",
+      "sensitive_excluded": false,
+      "sha256": "e5164b1c415144f3dacce0c426ea8a3da969be423f3cd5203fcd09c678172c57",
+      "size": 7180
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_predict_overlay_split.py",
+      "sensitive_excluded": false,
+      "sha256": "b75982368be77341f2671ad316648523b377556b8fdf4b8cb7577684d7a79e24",
+      "size": 5602
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_primary_read.py",
+      "sensitive_excluded": false,
+      "sha256": "91a789bd9b322f5f0400f1cdce935ab0f038f51198c74e7b6630832afa75478c",
+      "size": 6051
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/check_w1_production_lite.py",
+      "sensitive_excluded": false,
+      "sha256": "e78da78bd8c9724d5cbc64f0ad473394de9b6ab16b37516174f1c5cbb4deec37",
+      "size": 13268
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_recommendation_accuracy_audit.py",
+      "sensitive_excluded": false,
+      "sha256": "18d820337c812eae99e5c908ae38f848342589ee1cb7019687d91b3740735fd2",
+      "size": 3716
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/check_w1_recommendation_output_policy.py",
+      "sensitive_excluded": false,
+      "sha256": "25b15d2f3b1f4208ae010800a7ac364b97715f953e30fd3e7b236a5494809421",
+      "size": 9624
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/check_w1_recommendation_policy.py",
+      "sensitive_excluded": false,
+      "sha256": "0a55f2203bbeb66003afcdf95270b5dd88bfe6e2f20f481d629980b238e63d19",
+      "size": 17953
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_report_templates.py",
+      "sensitive_excluded": false,
+      "sha256": "f3c242bd9c976c58edb439ce9884da0b16227e2a60e4eadfc7e17204a129758e",
+      "size": 4177
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_rho_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "c119781eb093f17702e5db31f06256a252426ac9f909a9794acbdbdad2df70ad",
+      "size": 8962
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_rho_real_ou_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "2bbce4fe4132fb006e19704fbdf667830c8862625a59a64e3cc55444c4b858b1",
+      "size": 5985
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_round1_initial_cards.py",
+      "sensitive_excluded": false,
+      "sha256": "1df2e9ae974051d7a5e38d39d5dd4753368bdb2447d5d8edf16bc6bb042730cd",
+      "size": 7862
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_round1_real_fixture_cards.py",
+      "sensitive_excluded": false,
+      "sha256": "490dca9b3e2b8accb44a5194ba72cef351b0c51c8c88ce5bc19d5140286813f4",
+      "size": 11386
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/check_w1_runtime_artifact_policy.py",
+      "sensitive_excluded": false,
+      "sha256": "1c9431401c29bacabf3c9e5364abd3a552239a348fff82b9838118930e2d9cff",
+      "size": 4826
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_safe_view.py",
+      "sensitive_excluded": false,
+      "sha256": "2bf459d07eb23de6e01513d1b4ac3ec8bc8bb707cd216a7a8a326f4eb7236937",
+      "size": 289
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_score_matrix.py",
+      "sensitive_excluded": false,
+      "sha256": "915233b2b36ccfa16311310a3eb22bb29dcc63f0246b6611aa32c2d496cd9160",
+      "size": 6439
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_score_matrix_batch.py",
+      "sensitive_excluded": false,
+      "sha256": "5ec09b19a7f65288984e6a7956d8c627e9f1db84c35d2eae9d72f8ec087784a7",
+      "size": 5127
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_scout.py",
+      "sensitive_excluded": false,
+      "sha256": "0e2f29b2a0b7c16f0ac8cb1a06565cad0b88c17a76ae7c0e8950f0defb0e82ac",
+      "size": 76883
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_scout_autopilot.py",
+      "sensitive_excluded": false,
+      "sha256": "b91559602f4ec313b95e26ad77f740fb0da505d7adc621e0614f06698d36b588",
+      "size": 31337
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_scout_backtest.py",
+      "sensitive_excluded": false,
+      "sha256": "763114dd21d85c07071db490c772457a830fd10c8c33adbb94db7d50e98006d8",
+      "size": 5254
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_scout_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "57e66371390841dca73c2fbec59ac73eff4ad84740097359b3507550b7de7a8a",
+      "size": 3794
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_scout_scheduler.py",
+      "sensitive_excluded": false,
+      "sha256": "9a305538d7a2bdd92a73d28b19cbeee740c1f9451ca726f6d774ffb2bfc20601",
+      "size": 10477
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_team_name_reconciliation.py",
+      "sensitive_excluded": false,
+      "sha256": "efc21f0a7b4ce20967c841c20597c2ac69861a5eb2f951cffcde6394e5e67e2a",
+      "size": 3260
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_team_sample_sparsity.py",
+      "sensitive_excluded": false,
+      "sha256": "c9ef51e659587ded7ea46a2d424274e56ad2eb67381b0580399f073acbe37d31",
+      "size": 3880
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_team_strength_prototype.py",
+      "sensitive_excluded": false,
+      "sha256": "e5a0c0659d13bc4616f0240a2aead3cd606407d33f372c2fb1bb53471585afd0",
+      "size": 3207
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/check_w1_visual_dashboard.py",
+      "sensitive_excluded": false,
+      "sha256": "28ba25fd1f6accec6e57c0dafabaaae86db9354c3b36e18ef78d56c3717eae18",
+      "size": 65384
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_watcher.py",
+      "sensitive_excluded": false,
+      "sha256": "11fcebe057d95f62e5800b732d84f0b87a2504539b431c7752f007a2bf9cef7e",
+      "size": 7443
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/check_w1_weather_integration.py",
+      "sensitive_excluded": false,
+      "sha256": "43bf071e05230712fbea1ecf2f04b088d4d3e0bdb401f583edf7ac87e297203f",
+      "size": 7078
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/convert_footballdata_league_csv_to_rho.py",
+      "sensitive_excluded": false,
+      "sha256": "415281e7c08356ab1067b3316e7a58ca3c24e909de5dca78ab05622973250789",
+      "size": 6152
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/inspect_w1_dashboard_fixture.py",
+      "sensitive_excluded": false,
+      "sha256": "9a89e9a7be593cdcd3f01093a2b858c6300ee68ff5ba29ad4eed34f92012a647",
+      "size": 10631
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/merge_w1_odds_extension.py",
+      "sensitive_excluded": false,
+      "sha256": "fe35cf7affeb0b38a51dc0b5bd85c1e02cbaa07ea5e9c14f68252981fe70b0f5",
+      "size": 12535
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/normalize_w1_international_dataset.py",
+      "sensitive_excluded": false,
+      "sha256": "42ffadff5904fca9cb8b41d65523ce2f52748b7e75af2e35e6ab55bd55a169a6",
+      "size": 15756
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/probe_w1_ou_coverage.py",
+      "sensitive_excluded": false,
+      "sha256": "724c408505a39a043203323cbe6a800606d5ec59667893d07a3c86bce61feda3",
+      "size": 4760
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/review_w1_full_pipeline_anomaly.py",
+      "sensitive_excluded": false,
+      "sha256": "a7aa8803feb17e4282f9b2d407c0dc07c76bca2f2c45559d4083f02c435ee867",
+      "size": 7853
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/run_w1_dashboard.sh",
+      "sensitive_excluded": false,
+      "sha256": "41ead6b0aa820666d01fe586d190c245f5837f7a4861918eecc13610cd2995cb",
+      "size": 2080
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/run_w1_local_with_scheduler.sh",
+      "sensitive_excluded": false,
+      "sha256": "7c6c1a45eff004328d64f6378827975cbb9c356321a5deb7f5f0d2fc7fd94a11",
+      "size": 2167
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/run_w1_scout_cycle.sh",
+      "sensitive_excluded": false,
+      "sha256": "4f7b2c41b3c6f0d854bb13f6ad227c4c653cf44b7eed8b9784d4b9b9c554ab46",
+      "size": 24543
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/snapshot_w1_forward_ledger.py",
+      "sensitive_excluded": false,
+      "sha256": "c1765b31844411ce1fb66a0cb70cc349d74eec9587f34e3933077465ff8bea50",
+      "size": 6152
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_ah_cover.py",
+      "sensitive_excluded": false,
+      "sha256": "0c34dfcddb3a80bcf395ff6ab66a5a46d0006aa7542f726c815954ac5aae409e",
+      "size": 4682
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_ah_settlement.py",
+      "sensitive_excluded": false,
+      "sha256": "899052f511cf8a88c50d08578caef473db0b939aa17a7a4d67a6454b264ff4a4",
+      "size": 4432
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_backtest_engine.py",
+      "sensitive_excluded": false,
+      "sha256": "0a4ed71c9f666e6e67ce1e838429d4e77222717bd595dcc92f402b26d56c6969",
+      "size": 9289
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_backtest_full_pipeline.py",
+      "sensitive_excluded": false,
+      "sha256": "32358bce4dfdba15d7c839837843889701642ad9ac24b78f22ee65b80bc05170",
+      "size": 15351
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_candidate_builder.py",
+      "sensitive_excluded": false,
+      "sha256": "db40afb388e132269f1c36f2c2b6ef8492fd562f43d940af8d708ca119b532e1",
+      "size": 9854
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_candidate_offline_eval.py",
+      "sensitive_excluded": false,
+      "sha256": "7f1ad47ad187c62ef529b4c353899f7abaa43973974599defc215c06ecf68dd5",
+      "size": 7383
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_confidence_adjustment.py",
+      "sensitive_excluded": false,
+      "sha256": "922b57c6f3a50b7bb18230540437b791d8fbda5ed54a53e5bf74a4a5472495ab",
+      "size": 5521
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_decision_card.py",
+      "sensitive_excluded": false,
+      "sha256": "12f8b99c24a1369e1957c9698160558142019fc66d07693a0caa0e7124d69aa8",
+      "size": 28944
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_draw_calibration_research.py",
+      "sensitive_excluded": false,
+      "sha256": "45d1110eed4596f3309fa370d9505a56c35d8084fbb79ce728c1c01f26efb55b",
+      "size": 20195
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_factor_sample_builder.py",
+      "sensitive_excluded": false,
+      "sha256": "191a321a03ea07120d286abf4f52608ebd2013a340d134cdfad7fe2dba313a48",
+      "size": 9791
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_factor_validation.py",
+      "sensitive_excluded": false,
+      "sha256": "0a5bc9c9e77719dd35a9401f86884d0953833ef63c863e45843b906939eca700",
+      "size": 6355
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_fetch_scout_api_data.py",
+      "sensitive_excluded": false,
+      "sha256": "40e5734bae875c143f9d043d878a5f26e7e5bf1b96bd87a67fd8577f966ae92a",
+      "size": 1294
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_fivedim_lite.py",
+      "sensitive_excluded": false,
+      "sha256": "c36f7b13002819380469bfddb1f5609b2e496cb5f9a75e45a0ccc7cf2132ad8c",
+      "size": 13064
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_forward_lock_pre_match_view.py",
+      "sensitive_excluded": false,
+      "sha256": "fa764a1859f0a6fa36ce5392419d44efaf162ddfbc59f47c21e20873e1f07fe7",
+      "size": 4504
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_forward_post_match_audit.py",
+      "sensitive_excluded": false,
+      "sha256": "2d03f272379e18f16f041fd93a2dfb22f62704bc52d041ffc94af9bdc7a82132",
+      "size": 5849
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_forward_prospective_report.py",
+      "sensitive_excluded": false,
+      "sha256": "6276e4924764aac19d3c7b4fe1cf4f1d5cb6681492d62bd65b60319bc2243380",
+      "size": 2928
+    },
+    {
+      "classification": "DELETE_LATER",
+      "relative_path": "scripts/w1_local_predict_server.py",
+      "sensitive_excluded": false,
+      "sha256": "34a50b5d5781dbdd9b880207909a115ad0725d83ecb310ba9468502a2e111c26",
+      "size": 79704
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_odds_snapshot_collector.py",
+      "sensitive_excluded": false,
+      "sha256": "0b065cf499017da1f85f0f468f5afb9c3652da0ada3b430e0a3c3bf74bca819d",
+      "size": 10022
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_odds_snapshot_store.py",
+      "sensitive_excluded": false,
+      "sha256": "2fb89439add5c77ae3bdf923b18c3f9e0592bba4ad5cabaa1a1e9ea848379f17",
+      "size": 11098
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_primary_read_builder.py",
+      "sensitive_excluded": false,
+      "sha256": "c0f6eb6bf67b5bae5e5c9693f7e7ecff6cd5cdb98baa8532e5072a03db67574e",
+      "size": 6144
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_recommendation_policy.py",
+      "sensitive_excluded": false,
+      "sha256": "01693934ee1c3930277aef3704d1f840f9a798afeef1fdce14b395255c19b90a",
+      "size": 52827
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_result_sync.py",
+      "sensitive_excluded": false,
+      "sha256": "0c6d29e0f8d3edcbc97b7b3a5e093a571740beb30d3d259edf313872846b8360",
+      "size": 6764
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_results_overlay.py",
+      "sensitive_excluded": false,
+      "sha256": "e0f914cc5cecbdedbcca6493ddc975ea7d080303ee5bafc5d05a4d09439c34dd",
+      "size": 1811
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_rho_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "5d084fd8adc5ba3de91e9e9e9fb61864b4d2c21bf54c4c53970e72d186e6e42a",
+      "size": 32802
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_score_engine.py",
+      "sensitive_excluded": false,
+      "sha256": "dec0b95253af712436962f194d4e605bf78673e5f6af059f035fb21077ff3ce8",
+      "size": 16240
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_score_matrix_batch.py",
+      "sensitive_excluded": false,
+      "sha256": "0980387b2b944bb689410af039bed114ba5ce117900b507be23df2ac2ff0af38",
+      "size": 12112
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_analyst.py",
+      "sensitive_excluded": false,
+      "sha256": "09a711a0564ad1d32572e47b5239732e4ed2a5705120f7afcd6bc9789a5183c5",
+      "size": 77536
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_scout_backtest.py",
+      "sensitive_excluded": false,
+      "sha256": "2a7e831374918046b9212ea1675d0813ae789ce4365844d6e00b8c68d554023a",
+      "size": 16821
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_bundle.py",
+      "sensitive_excluded": false,
+      "sha256": "852f2783d2d6457f0b847dfac73bad790fa2950a6e5d05e4dc1a93094e83558e",
+      "size": 29522
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_calibration.py",
+      "sensitive_excluded": false,
+      "sha256": "5c085b41347a44435756d779335b98982ce8fb08fd6df6e111c07d0c77a9f231",
+      "size": 9621
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_embed.py",
+      "sensitive_excluded": false,
+      "sha256": "002290d38d64e14c01e58d263f6a042b5372a66e8491413824279568fee46280",
+      "size": 16735
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_fetch_api_football.py",
+      "sensitive_excluded": false,
+      "sha256": "7050ac7e9a4819af4866368faafcd60e2e2d266d156c9de2b36eeec83fef6d63",
+      "size": 33915
+    },
+    {
+      "classification": "PORT",
+      "relative_path": "scripts/w1_scout_ledger.py",
+      "sensitive_excluded": false,
+      "sha256": "51c90d1994e28927063bc758f7fd2e612b9f3534937b9206a0a2a4b0b8a8e8e9",
+      "size": 8047
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_market_debug.py",
+      "sensitive_excluded": false,
+      "sha256": "e7abb2aab420cee736f1b60e36209ad0c3bd86412fc1682cbc337e13dfc886e1",
+      "size": 24919
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_review.py",
+      "sensitive_excluded": false,
+      "sha256": "14d3ccc920e3749165c26571a7a911d3d36df81672cd05bbf5c61064defb1fd9",
+      "size": 7506
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_scout_scheduler.py",
+      "sensitive_excluded": false,
+      "sha256": "79abb23cd97ea76a9d5021be7e58202ba5d2cc0d3e92cc335fbeb9c9d0c010fb",
+      "size": 17919
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_team_strength_prototype.py",
+      "sensitive_excluded": false,
+      "sha256": "1ac7f395263a55de4584c30ae61fcf5596e51c7e71478f11cf90e27c6625bb6a",
+      "size": 11603
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_watcher.sh",
+      "sensitive_excluded": false,
+      "sha256": "bfd7509f3a6fca99e4bd2e6d96868a61c31ebc1a30499fcb1adc8fb79ca171c0",
+      "size": 13787
+    },
+    {
+      "classification": "REFERENCE",
+      "relative_path": "scripts/w1_weather_client.py",
+      "sensitive_excluded": false,
+      "sha256": "6baa5ce97d51953c15df1e46e7cfe029983aa976090732f5a5dad47892303e5b",
+      "size": 4391
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "state/scout_audit.jsonl",
+      "sensitive_excluded": false,
+      "sha256": "bc19881f147e764d2b271b51a87bff5c88e1a734cea5957ed66aabca0f7ea54d",
+      "size": 9801
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "state/scout_lessons.md",
+      "sensitive_excluded": false,
+      "sha256": "ed53656123b4b4e36dec887a80451b68c140450f3dd2f65e08bd0d3530341e8b",
+      "size": 972
+    },
+    {
+      "classification": "MIGRATE_DATA",
+      "relative_path": "state/scout_lock.jsonl",
+      "sensitive_excluded": false,
+      "sha256": "b10d852a347373bcbebb51f24d72a0fd37ee121863b86abd70b2dde4834b6c7f",
+      "size": 66347
+    },
+    {
+      "classification": "ARCHIVE",
+      "relative_path": "state/scout_track_record.json",
+      "sensitive_excluded": false,
+      "sha256": "5eb8db287665303a066d9eb17120aa6fb714d1d8943d7cb4ef0233ee3dae0258",
+      "size": 1242
+    }
+  ],
+  "generated_at_utc": "2026-06-23T16:26:59Z",
+  "schema_version": "W2_GATE0_W1_SHA256_MANIFEST_V1",
+  "sensitive_exclusion_policy": "path-only exclusion for sensitive runtime/config material patterns",
+  "tracked_file_count": 355,
+  "w1_actual_path": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine",
+  "w1_branch": "w1-scout-reframe-review-c5a4d09",
+  "w1_expected_path": "/Users/liudehua/.openclaw/workspace/w1-world-cup-engine",
+  "w1_head": "e92ffb119540797c7025007e492db73b66059288",
+  "w1_remote": [
+    "origin\tgit@github.com:QIUYEDALAO/w1-world-cup-engine.git (fetch)",
+    "origin\tgit@github.com:QIUYEDALAO/w1-world-cup-engine.git (push)"
+  ],
+  "w1_repo_root": "/Users/liudehua/.openclaw/workspace/w1_world_cup_engine",
+  "w1_status_short": [
+    "M README.md",
+    "?? W1_LEGACY_STATUS.md",
+    "?? data/results/world_cup_2026_results.json",
+    "?? docs/W1_LEGACY_CHANGE_POLICY.md",
+    "?? docs/W1_LEGACY_FREEZE_REPORT.md",
+    "?? reports/P0_BASELINE_SUMMARY.md",
+    "?? reports/W1_SCOUT_MEMORY_AND_TELEMETRY_TASKS.md",
+    "?? reports/W1_SCOUT_REFRAME_TASKS.md",
+    "?? reports/legacy_baseline/",
+    "?? reports/legacy_classification/",
+    "?? reports/legacy_decisions/",
+    "?? scripts/audit_w1_odds_collection_continuity.py",
+    "?? scripts/build_w1_legacy_decision_register.py",
+    "?? scripts/check_w1_legacy_baseline.py",
+    "?? scripts/check_w1_legacy_classification.py",
+    "?? scripts/check_w1_legacy_decisions.py",
+    "?? scripts/check_w1_legacy_freeze.py",
+    "?? scripts/classify_w1_legacy_files.py"
+  ]
+}

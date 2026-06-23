@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 16
+handoff_version: 17
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -19,6 +19,17 @@ roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
 active_execution_package: Stage7I-R1B2
 execution_package_is_not_master_phase: true
+gate0_audit_path: reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md
+gate0_manifest_path: reports/W2_GATE0_W1_SHA256_MANIFEST.json
+gate0_classification_path: reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json
+gate0_status: PARTIAL
+gate0_blockers:
+  - EXPECTED_W1_PATH_NOT_FOUND
+  - W1_TAG_W1_LEGACY_FINAL_MISSING
+  - W1_WORKTREE_NOT_CLEAN
+  - W1_LEGACY_STATUS_UNTRACKED
+  - W1_CURRENT_HEAD_DIFFERS_FROM_LEGACY_BASELINE_HEAD
+  - FULL_W1_BACKUP_NOT_VERIFIED
 stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
 parallel_mainline_status: FUTURE_DATA_REFRESH_IMPLEMENTATION_COMPLETED
 future_refresh_hardening_status: OPERATIONAL_HARDENING_COMPLETED
@@ -174,6 +185,16 @@ handoff_file_tracked: true
 执行包名称（例如 Stage7I、Stage10E、Patch、Release Train）不等于 master
 roadmap 阶段编号。当前 Stage7I-R1B2 是 active execution package，不能被解读为
 master roadmap Stage 7 已完成。
+
+## 0.2 Gate0 Legacy Closure Evidence
+
+Gate0 was re-audited from W2 on 2026-06-24 with W1 treated as read-only. The audit generated:
+
+- `reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md`
+- `reports/W2_GATE0_W1_SHA256_MANIFEST.json`
+- `reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json`
+
+Result: `gate0_status=PARTIAL`. The audit improves tracked-file SHA256 and classification evidence, but does not close Gate0 because the audited W1 repository lacks the `w1-legacy-final` tag, has a dirty worktree, has an untracked `W1_LEGACY_STATUS.md`, differs from the recorded legacy baseline HEAD, and lacks a complete current backup verification. Stage7I, Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
 
 ## 1. 新会话启动协议
 

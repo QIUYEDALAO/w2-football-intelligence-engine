@@ -42,13 +42,17 @@
   "gates": {
     "0": {
       "evidence": [
-        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt",
-        "reports/W2_CURRENT_HANDOFF.md"
+        "reports/W2_CURRENT_HANDOFF.md",
+        "reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md",
+        "reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json",
+        "reports/W2_GATE0_W1_SHA256_MANIFEST.json",
+        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt"
       ],
       "missing_requirements": [
-        "W1 tag w1-legacy-final not verified",
-        "Full backup completion not verified",
-        "Full W1 asset classification not verified"
+        "W1 tag w1-legacy-final not present in audited W1 repo.",
+        "W1 worktree is not clean and legacy status file is untracked.",
+        "Current W1 HEAD differs from recorded legacy baseline HEAD.",
+        "Full current W1 backup coverage and checksum verification not proven."
       ],
       "name": "Legacy 冻结",
       "status": "PARTIAL"
@@ -128,22 +132,32 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-23T16:11:14.253926Z",
+  "generated_at_utc": "2026-06-23T16:26:59Z",
   "phases": {
     "0": {
       "blockers": [
-        "W1 tag w1-legacy-final not verified in current repository evidence",
-        "W1 full asset inventory and backup completion not proven in current evidence"
+        "EXPECTED_W1_PATH_NOT_FOUND",
+        "W1_TAG_W1_LEGACY_FINAL_MISSING",
+        "W1_WORKTREE_NOT_CLEAN",
+        "W1_LEGACY_STATUS_UNTRACKED",
+        "W1_CURRENT_HEAD_DIFFERS_FROM_LEGACY_BASELINE_HEAD",
+        "FULL_W1_BACKUP_NOT_VERIFIED"
       ],
       "evidence": [
+        "reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md",
+        "reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json",
+        "reports/W2_GATE0_W1_SHA256_MANIFEST.json",
+        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt",
         "reports/W2_STAGE1_W1_READONLY_AUDIT.txt",
         "reports/W2_STAGE2_W1_READONLY_AUDIT.txt",
-        "reports/W2_STAGE3_W1_READONLY_AUDIT.txt",
-        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt"
+        "reports/W2_STAGE3_W1_READONLY_AUDIT.txt"
       ],
       "name": "冻结 W1，并保全现有资产",
       "next_actions": [
-        "Verify W1 tag, backup, and full asset classification before Gate0 closure"
+        "Resolve W1 path naming mismatch or document canonical W1 path.",
+        "Create/verify W1 legacy final tag in an explicitly approved W1 maintenance window.",
+        "Track or archive W1 legacy status evidence under approved W1 governance.",
+        "Verify complete W1 backup coverage and checksum manifest before Gate0 closure."
       ],
       "status": "PARTIAL"
     },
