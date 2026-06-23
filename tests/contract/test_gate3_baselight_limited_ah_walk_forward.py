@@ -16,6 +16,7 @@ from w2.markets.baselight_limited_ah import (
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
 WALK_FORWARD = ROOT / "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
+RESULT = ROOT / "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 
 
@@ -97,23 +98,36 @@ def test_limited_ah_parser_settles_and_keeps_fixture_level_folds(tmp_path: Path)
     assert sum(fold["fixture_count"] for fold in walk_forward["folds"]) == 25
 
 
-def test_limited_ah_cli_does_not_fake_backtest_pass() -> None:
-    result = subprocess.run(
-        [sys.executable, "scripts/run_w2_gate3_baselight_ah_walk_forward.py"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    walk_forward = json.loads(WALK_FORWARD.read_text(encoding="utf-8"))
-    handoff = HANDOFF.read_text(encoding="utf-8")
+def test_limited_ah_cli_does_not_fake_backtest_pass(tmp_path: Path) -> None:
+    previous_manifest = MANIFEST.read_text(encoding="utf-8")
+    previous_walk_forward = WALK_FORWARD.read_text(encoding="utf-8")
+    previous_result = RESULT.read_text(encoding="utf-8")
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/run_w2_gate3_baselight_ah_walk_forward.py",
+                "--sample-path",
+                str(tmp_path / "w2-baselight-contract-sample-does-not-exist.jsonl"),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        walk_forward = json.loads(WALK_FORWARD.read_text(encoding="utf-8"))
+        handoff = HANDOFF.read_text(encoding="utf-8")
+    finally:
+        MANIFEST.write_text(previous_manifest, encoding="utf-8")
+        WALK_FORWARD.write_text(previous_walk_forward, encoding="utf-8")
+        RESULT.write_text(previous_result, encoding="utf-8")
 
     assert result.returncode == 0, result.stderr
     assert manifest["status"] == "INSUFFICIENT_SAMPLE"
     assert manifest["large_sample_committed"] is False
     assert walk_forward["status"] == "INSUFFICIENT_SAMPLE"
-    assert walk_forward["fixture_count"] < 500
+    assert walk_forward["fixture_count"] == 0
     assert "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL" in walk_forward["blockers"]
     assert "handoff_version: 29" in handoff
     assert "candidate: false" in handoff
