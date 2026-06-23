@@ -1,0 +1,376 @@
+{
+  "asian_handicap": {
+    "closure_blocker": "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "functional_validation": {
+      "matrix_pricing_available": true,
+      "quarter_settlement_available": true,
+      "source": "Stage4B real snapshot"
+    },
+    "historical_ah_status": "FORWARD_ONLY",
+    "status": "PARTIAL_FORWARD_ONLY"
+  },
+  "blockers": [
+    "AH_WALK_FORWARD_EVIDENCE_MISSING",
+    "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS",
+    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS"
+  ],
+  "candidate": false,
+  "formal_recommendation": false,
+  "gate": 3,
+  "generated_at_utc": "2026-06-23T16:41:27Z",
+  "leakage_audit": {
+    "closing_odds_not_used_for_early_phase": true,
+    "historical_ah_fabricated": false,
+    "movement_non_captured_at_guard": [
+      "MOVEMENT_DISABLED_FOR_NON_CAPTURED_AT"
+    ],
+    "status": "PASS_WITH_DATA_COVERAGE_LIMITATIONS"
+  },
+  "market_quality": {
+    "bookmaker_count": 14,
+    "consensus_effective_bookmakers": 14,
+    "consensus_status": "READY",
+    "movement_features": {
+      "captured_at_status": "WARN_ONLY",
+      "cross_market_consistency": "WARN_ONLY",
+      "lineup_before_after_hook": true,
+      "non_captured_at_guard": [
+        "MOVEMENT_DISABLED_FOR_NON_CAPTURED_AT"
+      ],
+      "threshold_status": "CALIBRATION_REQUIRED"
+    },
+    "single_bookmaker_formal_consensus": false,
+    "status": "READY"
+  },
+  "next_actions": [
+    "Acquire or verify historical AH market dataset before Gate3 closure.",
+    "Add captured-at multi-phase market history if Gate3 is expected to authorize early phase market movement claims.",
+    "Keep closure mode failing until all mandatory requirements are PASS and blockers are empty."
+  ],
+  "one_x_two": {
+    "devig_methods": [
+      "LOGARITHMIC",
+      "POWER",
+      "PROPORTIONAL",
+      "SHIN"
+    ],
+    "method_selection_policy": "train_validation_only_test_final_report",
+    "sample_count": 1074,
+    "selected_method": "POWER",
+    "snapshot_semantics": "UNKNOWN_PREMATCH_AGGREGATE",
+    "status": "PASS_WITH_LIMITATIONS",
+    "test_metrics": {
+      "brier": 0.484818,
+      "ece": 0.059862,
+      "log_loss": 0.817356,
+      "reliability_bins": [
+        {
+          "accuracy": 0.307692,
+          "bin": 3.0,
+          "confidence": 0.373682,
+          "count": 26.0,
+          "weight": 0.12093023255813953
+        },
+        {
+          "accuracy": 0.405405,
+          "bin": 4.0,
+          "confidence": 0.449213,
+          "count": 37.0,
+          "weight": 0.17209302325581396
+        },
+        {
+          "accuracy": 0.37931,
+          "bin": 5.0,
+          "confidence": 0.548997,
+          "count": 29.0,
+          "weight": 0.13488372093023257
+        },
+        {
+          "accuracy": 0.583333,
+          "bin": 6.0,
+          "confidence": 0.645073,
+          "count": 24.0,
+          "weight": 0.11162790697674418
+        },
+        {
+          "accuracy": 0.685714,
+          "bin": 7.0,
+          "confidence": 0.746084,
+          "count": 35.0,
+          "weight": 0.16279069767441862
+        },
+        {
+          "accuracy": 0.861111,
+          "bin": 8.0,
+          "confidence": 0.853272,
+          "count": 36.0,
+          "weight": 0.16744186046511628
+        },
+        {
+          "accuracy": 0.928571,
+          "bin": 9.0,
+          "confidence": 0.954849,
+          "count": 28.0,
+          "weight": 0.13023255813953488
+        }
+      ],
+      "rps": 0.156605,
+      "sample_count": 215,
+      "strata": {
+        "competition:WorldCup2026Qualifiers": {
+          "count": 215,
+          "log_loss": 0.817356
+        },
+        "favorite_strength:balanced": {
+          "count": 45,
+          "log_loss": 1.097925
+        },
+        "favorite_strength:moderate_favorite": {
+          "count": 47,
+          "log_loss": 1.104411
+        },
+        "favorite_strength:strong_favorite": {
+          "count": 123,
+          "log_loss": 0.605021
+        },
+        "year:2025": {
+          "count": 199,
+          "log_loss": 0.813028
+        },
+        "year:2026": {
+          "count": 16,
+          "log_loss": 0.871195
+        }
+      }
+    }
+  },
+  "recommendation_output": false,
+  "repository_head_relation": "current as of containing commit",
+  "requirements": {
+    "G3-1-1X2_CONSENSUS_DEVIG_REPRODUCIBLE": {
+      "blocker_codes": [],
+      "evidence": [
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "src/w2/markets/devig.py",
+        "src/w2/markets/consensus.py"
+      ],
+      "limitations": [
+        "1X2 source semantics are UNKNOWN_PREMATCH_AGGREGATE, so this supports aggregate or closing-like baseline only, not early phase market movement."
+      ],
+      "metrics": {
+        "devig_methods": [
+          "LOGARITHMIC",
+          "POWER",
+          "PROPORTIONAL",
+          "SHIN"
+        ],
+        "method_selection_policy": "train_validation_only_test_final_report",
+        "sample_count": 1074,
+        "selected_method": "POWER",
+        "test_brier": 0.484818,
+        "test_ece": 0.059862,
+        "test_log_loss": 0.817356,
+        "test_rps": 0.156605
+      },
+      "status": "PASS"
+    },
+    "G3-2-AH_CONSENSUS_PRICING_SETTLEMENT": {
+      "blocker_codes": [
+        "HISTORICAL_AH_BASELINE_BACKTEST_MISSING"
+      ],
+      "evidence": [
+        "reports/W2_STAGE6_MARKET_QUALITY.json",
+        "src/w2/markets/poisson.py",
+        "src/w2/domain/odds.py",
+        "reports/W2_STAGE5B_MARKET_COVERAGE.json"
+      ],
+      "limitations": [
+        "AH mechanics are implemented and functionally validated, but historical AH dataset/backtest is absent and remains FORWARD_ONLY."
+      ],
+      "metrics": {
+        "historical_ah_fabricated": false,
+        "historical_ah_status": "FORWARD_ONLY",
+        "matrix_pricing_available": true,
+        "quarter_settlement_available": true
+      },
+      "status": "PARTIAL"
+    },
+    "G3-3-OU_CONSENSUS_DEVIG_REPRODUCIBLE": {
+      "blocker_codes": [],
+      "evidence": [
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "src/w2/markets/devig.py",
+        "src/w2/markets/poisson.py"
+      ],
+      "limitations": [
+        "OU evidence is a W1 historical World Cup closing subset, not a multi-phase captured-at dataset."
+      ],
+      "metrics": {
+        "fit_failures": 0,
+        "lines_used": [
+          "0.5",
+          "1.5",
+          "2.5",
+          "3.5",
+          "4.5"
+        ],
+        "sample_count": 128,
+        "snapshot_semantics": "CLOSING"
+      },
+      "status": "PASS"
+    },
+    "G3-4-COMPLETE_OU_LADDER_FITTING_BACKTEST": {
+      "blocker_codes": [],
+      "evidence": [
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "scripts/run_stage6_market_backtest.py"
+      ],
+      "limitations": [
+        "Ladder implementation and residual reports exist; A/B result does not establish broader production readiness because evidence is limited to closing World Cup subset."
+      ],
+      "metrics": {
+        "ab_winner": "MEDIAN_LINE",
+        "fit_failures": 0,
+        "fixture_diagnostic_count": 128,
+        "ladder_mean_absolute_under25_error": 0.491762,
+        "median_line_mean_absolute_under25_error": 0.485559,
+        "sample_count": 128
+      },
+      "status": "PASS"
+    },
+    "G3-5-STRICT_SPLIT_OR_WALK_FORWARD_EVIDENCE": {
+      "blocker_codes": [
+        "AH_WALK_FORWARD_EVIDENCE_MISSING"
+      ],
+      "evidence": [
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json"
+      ],
+      "limitations": [
+        "1X2 and OU have split/walk-forward evidence; AH historical baseline has no backtest."
+      ],
+      "metrics": {
+        "one_x_two_split_policy": "chronological_plus_walk_forward",
+        "ou_walk_forward": {
+          "fold_count": 96,
+          "initial_train_size": 32
+        }
+      },
+      "status": "PARTIAL"
+    },
+    "G3-6-DATA_SOURCE_AND_SNAPSHOT_SEMANTICS_CLEAR": {
+      "blocker_codes": [
+        "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS",
+        "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS"
+      ],
+      "evidence": [
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "reports/W2_STAGE5B_MARKET_COVERAGE.json",
+        "docs/adr/ADR-0006-market-baseline.md"
+      ],
+      "limitations": [
+        "Semantics are explicit but insufficient to close a production gate for early phase market movement or historical AH."
+      ],
+      "metrics": {
+        "closing_odds_not_used_for_early_phase": true,
+        "one_x_two_snapshot_semantics": "UNKNOWN_PREMATCH_AGGREGATE",
+        "ou_snapshot_semantics": "CLOSING"
+      },
+      "status": "PARTIAL"
+    },
+    "G3-7-REPRODUCIBLE_RESULTS": {
+      "blocker_codes": [],
+      "evidence": [
+        "scripts/run_stage6_market_backtest.py",
+        "scripts/check_w2_stage6_market.py",
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json"
+      ],
+      "limitations": [
+        "Reproducibility depends on checked-in W2 reports and read-only W1 historical source paths captured by Stage5B manifests."
+      ],
+      "metrics": {
+        "api_quota_used": 0,
+        "network_used": false,
+        "stage6_checker": "PASS under make verify"
+      },
+      "status": "PASS"
+    },
+    "G3-8-LEAKAGE_GUARDS": {
+      "blocker_codes": [],
+      "evidence": [
+        "reports/W2_STAGE5B_MARKET_COVERAGE.json",
+        "docs/markets/W2_MARKET_MOVEMENT_FEATURES_V1.md",
+        "src/w2/markets/movement.py"
+      ],
+      "limitations": [
+        "Leakage guards pass for the audited reports; they do not replace missing captured-at historical market coverage."
+      ],
+      "metrics": {
+        "closing_odds_not_used_for_early_phase": true,
+        "non_captured_at_guard": [
+          "MOVEMENT_DISABLED_FOR_NON_CAPTURED_AT"
+        ]
+      },
+      "status": "PASS"
+    },
+    "G3-9-NO_RECOMMENDATION_OR_INDEPENDENT_ADVANTAGE_CLAIM": {
+      "blocker_codes": [],
+      "evidence": [
+        "reports/W2_STAGE6_RESULT.md",
+        "reports/W2_STAGE6_MARKET_QUALITY.json",
+        "docs/adr/ADR-0006-market-baseline.md"
+      ],
+      "limitations": [],
+      "metrics": {
+        "candidate": false,
+        "formal_recommendation": false,
+        "recommendation_output": false
+      },
+      "status": "PASS"
+    }
+  },
+  "schema_version": "W2_GATE3_MARKET_BASELINE_DECISION_V1",
+  "status": "PARTIAL",
+  "totals": {
+    "dataset": "W1 historical World Cup closing OU subset",
+    "dixon_coles_market_baseline": {
+      "btts_log_score": 0.691712,
+      "exact_score_log_score": 2.854905,
+      "market_reproduction_residual": 0.053483,
+      "one_x_two_brier": 0.573217,
+      "one_x_two_log_loss": 0.972542,
+      "ou_log_score": 0.685826,
+      "rho_policy": "W1_RHO_REFERENCE_CANDIDATE_ONLY",
+      "sample_count": 128,
+      "walk_forward": {
+        "fold_count": 96,
+        "initial_train_size": 32
+      }
+    },
+    "status": "PASS_WITH_CLOSING_SUBSET_LIMITATION",
+    "summary": {
+      "ab_winner": "MEDIAN_LINE",
+      "fit_failures": 0,
+      "ladder_mean_absolute_under25_error": 0.491762,
+      "lines_used": [
+        "0.5",
+        "1.5",
+        "2.5",
+        "3.5",
+        "4.5"
+      ],
+      "median_line_mean_absolute_under25_error": 0.485559,
+      "sample_count": 128,
+      "snapshot_semantics": "CLOSING"
+    }
+  },
+  "warn_only": [
+    "CALIBRATION_REQUIRED",
+    "STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY",
+    "OU_CLOSING_SUBSET_ONLY",
+    "ONE_X_TWO_UNKNOWN_PREMATCH_AGGREGATE"
+  ]
+}

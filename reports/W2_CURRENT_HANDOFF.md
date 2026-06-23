@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 17
+handoff_version: 18
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -23,6 +23,15 @@ gate0_audit_path: reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md
 gate0_manifest_path: reports/W2_GATE0_W1_SHA256_MANIFEST.json
 gate0_classification_path: reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json
 gate0_status: PARTIAL
+gate3_audit_path: reports/W2_GATE3_MARKET_BASELINE_AUDIT.md
+gate3_decision_path: reports/W2_GATE3_MARKET_BASELINE_DECISION.json
+gate3_status: PARTIAL
+gate3_checker_mode: audit
+gate3_blockers:
+  - AH_WALK_FORWARD_EVIDENCE_MISSING
+  - CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
+  - HISTORICAL_AH_BASELINE_BACKTEST_MISSING
+  - UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS
 gate0_blockers:
   - EXPECTED_W1_PATH_NOT_FOUND
   - W1_TAG_W1_LEGACY_FINAL_MISSING
@@ -195,6 +204,15 @@ Gate0 was re-audited from W2 on 2026-06-24 with W1 treated as read-only. The aud
 - `reports/W2_GATE0_W1_ASSET_CLASSIFICATION.json`
 
 Result: `gate0_status=PARTIAL`. The audit improves tracked-file SHA256 and classification evidence, but does not close Gate0 because the audited W1 repository lacks the `w1-legacy-final` tag, has a dirty worktree, has an untracked `W1_LEGACY_STATUS.md`, differs from the recorded legacy baseline HEAD, and lacks a complete current backup verification. Stage7I, Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
+
+## 0.3 Gate3 Market Baseline Closure Audit
+
+Gate3 was audited from W2 without provider calls, deployment, migration, model tuning, candidate output, or formal recommendation output. Evidence was written to:
+
+- `reports/W2_GATE3_MARKET_BASELINE_AUDIT.md`
+- `reports/W2_GATE3_MARKET_BASELINE_DECISION.json`
+
+Result: `gate3_status=PARTIAL`. Stage6 implementation remains complete, but Gate3 production closure is blocked by missing historical AH baseline/backtest, limited `UNKNOWN_PREMATCH_AGGREGATE` 1X2 semantics, `CLOSING`-only OU subset evidence, and `CALIBRATION_REQUIRED` movement thresholds. Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
 
 ## 1. 新会话启动协议
 
