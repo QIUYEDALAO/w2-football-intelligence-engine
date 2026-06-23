@@ -1,0 +1,101 @@
+{
+  "candidate": false,
+  "duplicate_count": 0,
+  "excluded_closing_leakage_count": 0,
+  "formal_recommendation": false,
+  "generated_at_utc": "2026-06-23T17:06:56Z",
+  "mapping_conflict_count": 0,
+  "missing_captured_at_count": 35053,
+  "phases": {
+    "Closing": {
+      "bookmaker_count": 14,
+      "fixture_count": 15,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 28071,
+        "ONE_X_TWO": 5345,
+        "TOTALS": 35290
+      },
+      "observation_count": 68706
+    },
+    "T-10m": {
+      "bookmaker_count": 14,
+      "fixture_count": 15,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 27473,
+        "ONE_X_TWO": 5230,
+        "TOTALS": 34545
+      },
+      "observation_count": 67248
+    },
+    "T-12h": {
+      "bookmaker_count": 14,
+      "fixture_count": 1,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 595,
+        "ONE_X_TWO": 111,
+        "TOTALS": 716
+      },
+      "observation_count": 1422
+    },
+    "T-1h": {
+      "bookmaker_count": 14,
+      "fixture_count": 12,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 21677,
+        "ONE_X_TWO": 4091,
+        "TOTALS": 27154
+      },
+      "observation_count": 52922
+    },
+    "T-24h": {
+      "bookmaker_count": 0,
+      "fixture_count": 0,
+      "market_coverage": {},
+      "observation_count": 0
+    },
+    "T-30m": {
+      "bookmaker_count": 14,
+      "fixture_count": 15,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 25729,
+        "ONE_X_TWO": 4889,
+        "TOTALS": 32339
+      },
+      "observation_count": 62957
+    },
+    "T-3h": {
+      "bookmaker_count": 14,
+      "fixture_count": 8,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 11765,
+        "ONE_X_TWO": 2201,
+        "TOTALS": 14569
+      },
+      "observation_count": 28535
+    },
+    "T-48h": {
+      "bookmaker_count": 0,
+      "fixture_count": 0,
+      "market_coverage": {},
+      "observation_count": 0
+    },
+    "T-6h": {
+      "bookmaker_count": 14,
+      "fixture_count": 6,
+      "market_coverage": {
+        "ASIAN_HANDICAP": 5916,
+        "ONE_X_TWO": 1097,
+        "TOTALS": 7294
+      },
+      "observation_count": 14307
+    },
+    "T-72h": {
+      "bookmaker_count": 0,
+      "fixture_count": 0,
+      "market_coverage": {},
+      "observation_count": 0
+    }
+  },
+  "schema_version": "W2_GATE3_PHASE_COVERAGE_V1",
+  "status": "CAPTURED_AT_AVAILABLE"
+}

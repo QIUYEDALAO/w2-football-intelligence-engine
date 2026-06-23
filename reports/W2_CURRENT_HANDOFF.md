@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 18
+handoff_version: 19
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -26,6 +26,11 @@ gate0_status: PARTIAL
 gate3_audit_path: reports/W2_GATE3_MARKET_BASELINE_AUDIT.md
 gate3_decision_path: reports/W2_GATE3_MARKET_BASELINE_DECISION.json
 gate3_status: PARTIAL
+gate3_historical_source_inventory_path: reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json
+gate3_phase_coverage_path: reports/W2_GATE3_PHASE_COVERAGE.json
+gate3_ah_walk_forward_path: reports/W2_GATE3_AH_WALK_FORWARD.json
+gate3_historical_build_result_path: reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md
+gate3_historical_data_status: NO_USABLE_INTERNAL_HISTORICAL_AH_DATA
 gate3_checker_mode: audit
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
@@ -213,6 +218,17 @@ Gate3 was audited from W2 without provider calls, deployment, migration, model t
 - `reports/W2_GATE3_MARKET_BASELINE_DECISION.json`
 
 Result: `gate3_status=PARTIAL`. Stage6 implementation remains complete, but Gate3 production closure is blocked by missing historical AH baseline/backtest, limited `UNKNOWN_PREMATCH_AGGREGATE` 1X2 semantics, `CLOSING`-only OU subset evidence, and `CALIBRATION_REQUIRED` movement thresholds. Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
+
+## 0.4 Gate3 Historical Market Evidence Build
+
+Gate3 historical market evidence was built from existing W1/W2 assets without provider calls, deployment, migration, runtime mutation, or W1 modification. Outputs:
+
+- `reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json`
+- `reports/W2_GATE3_PHASE_COVERAGE.json`
+- `reports/W2_GATE3_AH_WALK_FORWARD.json`
+- `reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md`
+
+Result: `gate3_status=PARTIAL`. Captured-at market coverage exists, but no usable settled internal historical AH data was found, so AH baseline/walk-forward remains missing. Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
 
 ## 1. 新会话启动协议
 

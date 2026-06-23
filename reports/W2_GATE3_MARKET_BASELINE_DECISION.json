@@ -1,24 +1,48 @@
 {
   "asian_handicap": {
     "closure_blocker": "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "exclusion_reasons": {
+      "NO_RESULT_FOR_CAPTURED_AT_AH": 43847
+    },
     "functional_validation": {
       "matrix_pricing_available": true,
       "quarter_settlement_available": true,
       "source": "Stage4B real snapshot"
     },
     "historical_ah_status": "FORWARD_ONLY",
-    "status": "PARTIAL_FORWARD_ONLY"
+    "historical_build_path": "reports/W2_GATE3_AH_WALK_FORWARD.json",
+    "historical_build_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
+    "status": "PARTIAL_NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
   },
   "blockers": [
     "AH_WALK_FORWARD_EVIDENCE_MISSING",
-    "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS",
-    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
-    "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS"
+    "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
+    "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
+    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING"
   ],
   "candidate": false,
+  "captured_at_phase_coverage": {
+    "captured_at_observations": 227391,
+    "excluded_closing_leakage_count": 0,
+    "missing_captured_at_count": 35053,
+    "path": "reports/W2_GATE3_PHASE_COVERAGE.json",
+    "phase_fixture_counts": {
+      "Closing": 15,
+      "T-10m": 15,
+      "T-12h": 1,
+      "T-1h": 12,
+      "T-24h": 0,
+      "T-30m": 15,
+      "T-3h": 8,
+      "T-48h": 0,
+      "T-6h": 6,
+      "T-72h": 0
+    },
+    "status": "CAPTURED_AT_AVAILABLE"
+  },
   "formal_recommendation": false,
   "gate": 3,
-  "generated_at_utc": "2026-06-23T16:41:27Z",
+  "generated_at_utc": "2026-06-23T17:01:02Z",
   "leakage_audit": {
     "closing_odds_not_used_for_early_phase": true,
     "historical_ah_fabricated": false,
@@ -44,9 +68,9 @@
     "status": "READY"
   },
   "next_actions": [
-    "Acquire or verify historical AH market dataset before Gate3 closure.",
-    "Add captured-at multi-phase market history if Gate3 is expected to authorize early phase market movement claims.",
-    "Keep closure mode failing until all mandatory requirements are PASS and blockers are empty."
+    "Use the generated source inventory to decide whether internal captured-at snapshots are sufficient for future settled phase backtests.",
+    "Acquire or approve an external/internal historical AH odds source with settled results before Gate3 closure.",
+    "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence."
   ],
   "one_x_two": {
     "devig_methods": [
@@ -189,8 +213,10 @@
         "AH mechanics are implemented and functionally validated, but historical AH dataset/backtest is absent and remains FORWARD_ONLY."
       ],
       "metrics": {
+        "captured_at_ah_without_result": 43847,
         "historical_ah_fabricated": false,
         "historical_ah_status": "FORWARD_ONLY",
+        "historical_build_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
         "matrix_pricing_available": true,
         "quarter_settlement_available": true
       },
@@ -241,7 +267,8 @@
     },
     "G3-5-STRICT_SPLIT_OR_WALK_FORWARD_EVIDENCE": {
       "blocker_codes": [
-        "AH_WALK_FORWARD_EVIDENCE_MISSING"
+        "AH_WALK_FORWARD_EVIDENCE_MISSING",
+        "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING"
       ],
       "evidence": [
         "reports/W2_STAGE6_1X2_BACKTEST.json",
@@ -251,6 +278,8 @@
         "1X2 and OU have split/walk-forward evidence; AH historical baseline has no backtest."
       ],
       "metrics": {
+        "ah_walk_forward_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
+        "captured_at_phase_coverage_status": "CAPTURED_AT_AVAILABLE",
         "one_x_two_split_policy": "chronological_plus_walk_forward",
         "ou_walk_forward": {
           "fold_count": 96,
@@ -261,8 +290,8 @@
     },
     "G3-6-DATA_SOURCE_AND_SNAPSHOT_SEMANTICS_CLEAR": {
       "blocker_codes": [
-        "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS",
-        "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS"
+        "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
+        "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION"
       ],
       "evidence": [
         "reports/W2_STAGE6_1X2_BACKTEST.json",
@@ -271,10 +300,13 @@
         "docs/adr/ADR-0006-market-baseline.md"
       ],
       "limitations": [
-        "Semantics are explicit but insufficient to close a production gate for early phase market movement or historical AH."
+        "CAPTURED_AT coverage exists from internal snapshots, but settled phase-specific backtest evidence is still missing.",
+        "Historical OU performance evidence remains based on closing subset."
       ],
       "metrics": {
+        "captured_at_phase_coverage_status": "CAPTURED_AT_AVAILABLE",
         "closing_odds_not_used_for_early_phase": true,
+        "excluded_closing_leakage_count": 0,
         "one_x_two_snapshot_semantics": "UNKNOWN_PREMATCH_AGGREGATE",
         "ou_snapshot_semantics": "CLOSING"
       },
@@ -310,6 +342,8 @@
       ],
       "metrics": {
         "closing_odds_not_used_for_early_phase": true,
+        "excluded_closing_leakage_count": 0,
+        "invalid_or_unusable_observations": 35053,
         "non_captured_at_guard": [
           "MOVEMENT_DISABLED_FOR_NON_CAPTURED_AT"
         ]
@@ -333,6 +367,11 @@
     }
   },
   "schema_version": "W2_GATE3_MARKET_BASELINE_DECISION_V1",
+  "source_inventory": {
+    "path": "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
+    "source_count": 55,
+    "source_errors": []
+  },
   "status": "PARTIAL",
   "totals": {
     "dataset": "W1 historical World Cup closing OU subset",
@@ -369,8 +408,9 @@
   },
   "warn_only": [
     "CALIBRATION_REQUIRED",
-    "STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY",
+    "CAPTURED_AT_COVERAGE_WITHOUT_SETTLED_BACKTEST",
+    "ONE_X_TWO_UNKNOWN_PREMATCH_AGGREGATE",
     "OU_CLOSING_SUBSET_ONLY",
-    "ONE_X_TWO_UNKNOWN_PREMATCH_AGGREGATE"
+    "STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY"
   ]
 }

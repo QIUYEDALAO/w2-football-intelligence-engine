@@ -1,0 +1,1 @@
+{"audit":{"endpoint":"odds"},"payload":{"parameters":{"fixture":"fx2"},"response":[{"bookmakers":[{"name":"BookC","bets":[{"name":"Match Winner","values":[{"value":"Home","odd":"2.00"},{"value":"Draw","odd":"3.10"},{"value":"Away","odd":"3.80"}]},{"name":"Goals Over/Under","values":[{"value":"Over 2.5","odd":"1.95"},{"value":"Under 2.5","odd":"1.85"}]}]}]}]}}

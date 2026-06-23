@@ -109,3 +109,25 @@ Gate3 cannot be `CLOSED` while any of the following remains true:
 ## Recommendation
 
 Keep Master Phase 6 implementation evidence as `COMPLETE`, but keep Gate3 as `PARTIAL`. Do not allow Gate3 closure until historical AH and broader as-of market evidence are available and all mandatory requirements pass closure mode.
+
+
+## Historical Market Evidence Build Update
+
+Generated at: `2026-06-23T17:01:02Z`
+
+The historical market build discovered and normalized existing internal/W1 market assets without provider calls or runtime mutation.
+
+- Source inventory: `reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json`
+- Phase coverage: `reports/W2_GATE3_PHASE_COVERAGE.json`
+- AH walk-forward: `reports/W2_GATE3_AH_WALK_FORWARD.json`
+- Build result: `reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md`
+
+Results:
+
+- Source count: `55`
+- Captured-at phase coverage status: `CAPTURED_AT_AVAILABLE`
+- Closing leakage into early phases: `0`
+- AH walk-forward status: `NO_USABLE_INTERNAL_HISTORICAL_AH_DATA`
+- Gate3 status after build: `PARTIAL`
+
+The build resolves the earlier lack of captured-at market coverage inventory, but it does not close Gate3 because captured-at observations do not yet have sufficient settled phase-specific backtest evidence and historical AH remains without usable settled internal data.

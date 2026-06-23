@@ -47,6 +47,20 @@
       "name": "Gate3 market baseline closure audit",
       "notes": "Audit separates Stage6 implementation completion from Gate3 production closure.",
       "status": "COMPLETED_PARTIAL_DECISION"
+    },
+    {
+      "evidence": [
+        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "reports/W2_GATE3_PHASE_COVERAGE.json",
+        "reports/W2_GATE3_AH_WALK_FORWARD.json"
+      ],
+      "mapped_master_phases": [
+        "5",
+        "6"
+      ],
+      "name": "Gate3 historical market evidence build",
+      "notes": "Internal assets normalized; no usable settled historical AH data found.",
+      "status": "COMPLETED_PARTIAL_DECISION"
     }
   ],
   "candidate": false,
@@ -90,18 +104,22 @@
     },
     "3": {
       "evidence": [
-        "reports/W2_STAGE6_RESULT.md",
-        "reports/W2_STAGE6_1X2_BACKTEST.json",
-        "reports/W2_STAGE6_OU_BACKTEST.json",
-        "reports/W2_STAGE6_MARKET_QUALITY.json",
+        "reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
         "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
+        "reports/W2_GATE3_PHASE_COVERAGE.json",
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_MARKET_QUALITY.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "reports/W2_STAGE6_RESULT.md"
       ],
       "missing_requirements": [
-        "Historical AH baseline/backtest is missing and AH remains FORWARD_ONLY.",
-        "1X2 source semantics are UNKNOWN_PREMATCH_AGGREGATE and do not support early-phase as-of claims.",
-        "OU evidence is limited to a 128-match CLOSING subset.",
-        "Movement thresholds remain CALIBRATION_REQUIRED."
+        "Historical AH baseline/backtest remains missing.",
+        "AH walk-forward evidence remains missing.",
+        "Captured-at phase coverage exists, but settled phase-specific backtest evidence is missing.",
+        "Historical OU backtest remains closing-subset limited."
       ],
       "name": "市场基准",
       "status": "PARTIAL"
@@ -150,7 +168,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-23T16:41:27Z",
+  "generated_at_utc": "2026-06-23T17:01:02Z",
   "phases": {
     "0": {
       "blockers": [
@@ -348,11 +366,15 @@
     "5": {
       "blockers": [],
       "evidence": [
+        "reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
+        "reports/W2_GATE3_PHASE_COVERAGE.json",
         "reports/W2_STAGE5A_RESULT.md",
+        "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json",
+        "reports/W2_STAGE5B_NATIONAL_DATA_QUALITY.json",
         "reports/W2_STAGE5B_RESULT.md",
         "reports/W2_STAGE5B_SOURCE_MANIFEST.json",
-        "reports/W2_STAGE5B_NATIONAL_DATA_QUALITY.json",
-        "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json",
         "scripts/check_w2_stage5_asof.py",
         "scripts/check_w2_stage5b.py"
       ],
@@ -365,8 +387,12 @@
     "6": {
       "blockers": [],
       "evidence": [
+        "reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
         "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
         "reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
+        "reports/W2_GATE3_PHASE_COVERAGE.json",
         "reports/W2_STAGE6_1X2_BACKTEST.json",
         "reports/W2_STAGE6_MARKET_QUALITY.json",
         "reports/W2_STAGE6_OU_BACKTEST.json",
@@ -376,8 +402,8 @@
       ],
       "name": "建立市场分析层",
       "next_actions": [
-        "Keep Stage6 implementation COMPLETE while treating Gate3 as separate production readiness gate.",
-        "Add historical AH baseline/backtest and captured-at market history before Gate3 closure."
+        "Keep implementation COMPLETE but Gate3 PARTIAL until settled AH and phase-specific backtest evidence exist.",
+        "Use generated historical market inventory for source acquisition decision."
       ],
       "status": "COMPLETE"
     },

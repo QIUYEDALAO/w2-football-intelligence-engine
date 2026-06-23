@@ -45,7 +45,7 @@ def write_future_refresh_payload(root: Path) -> None:
     fixture = {
         "fixture": {
             "id": 1489404,
-            "date": "2026-06-23T17:00:00+00:00",
+            "date": "2026-12-31T17:00:00+00:00",
             "status": {"short": "NS"},
             "venue": {"name": "Future Venue"},
         },
@@ -64,7 +64,7 @@ def write_future_refresh_payload(root: Path) -> None:
             [
                 {
                     "fixture_id": "1489404",
-                    "captured_at": "2026-06-23T10:00:00Z",
+                    "captured_at": "2026-12-31T10:00:00Z",
                     "bookmaker_count": 14,
                     "quality": "READY",
                 }
@@ -85,8 +85,8 @@ def write_future_refresh_payload(root: Path) -> None:
                     "selection": "HOME",
                     "line": None,
                     "decimal_odds": "1.80",
-                    "captured_at": "2026-06-23T10:00:00Z",
-                    "provider_updated_at": "2026-06-23T09:59:00Z",
+                    "captured_at": "2026-12-31T10:00:00Z",
+                    "provider_updated_at": "2026-12-31T09:59:00Z",
                 },
                 {
                     "observation_id": "obs-2",
@@ -98,8 +98,8 @@ def write_future_refresh_payload(root: Path) -> None:
                     "selection": "OVER",
                     "line": "2.5",
                     "decimal_odds": "1.92",
-                    "captured_at": "2026-06-23T10:01:00Z",
-                    "provider_updated_at": "2026-06-23T10:00:00Z",
+                    "captured_at": "2026-12-31T10:01:00Z",
+                    "provider_updated_at": "2026-12-31T10:00:00Z",
                 },
             ]
         ),
