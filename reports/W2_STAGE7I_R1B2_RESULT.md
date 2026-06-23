@@ -271,13 +271,49 @@ Runtime evidence generated:
 - Raw payload hash: present
 - Remaining provider quota: `299`
 
-Collector decision:
+Quota authority correction:
 
-- `stage7i_lifecycle_capture_status=BLOCKED_QUOTA_BELOW_RESERVE`
+- Previous blocker root cause: `x-ratelimit-remaining` was incorrectly treated
+  as daily quota.
+- Corrected semantics:
+  - `x-ratelimit-requests-remaining`: daily quota
+  - `x-apisports-requests-remaining`: daily quota
+  - `response.requests.remaining`: daily quota from status payload
+  - `x-ratelimit-remaining`: burst/short-window quota only
+- Status probe: `2026-06-23T12:23:45.969614Z`
+- Sanitized header names only were recorded; no key or auth header was printed.
+- Daily remaining: `6925`
+- Daily source: `x-ratelimit-requests-remaining`
+- Burst remaining: `299`
+- Burst source: `x-ratelimit-remaining`
+
+Collector decision after quota fix:
+
+- `stage7i_lifecycle_capture_status=ACTIVE`
 - Reserve policy: `1500`
-- Collector process: not started
-- Reason: provider remaining quota was below reserve after the first sanitized
-  request audit
+- Collector wrapper PID: `1549476`
+- Lifecycle lock:
+  `/opt/w2/shared/runtime/stage7i/lifecycle-1489404.lock`
+- Lifecycle lock holder: `1549476`
+- Tooling dir:
+  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_dd98498_quota`
+- Tooling archive SHA256:
+  `09fb26f5bb2f5003d8f0d86f613e61188855bcfcbf8025b33c78515ddac80914`
+- Observer PID/PGID/global lock unchanged.
+
+First synced lifecycle evidence:
+
+- `fixture_status.jsonl`: `1`
+- `market_observations.jsonl`: `1`
+- `result_status.jsonl`: `0`
+- `request_audit.jsonl`: `2`
+- Fixture provider status: `NS`
+- Market bookmaker count: `14`
+- Market live: `false`
+- Market suspended: `false`
+- Latest daily remaining: `6923`
+- Latest burst remaining: `298`
+- Latest daily source: `x-ratelimit-requests-remaining`
 
 Final evidence builder output:
 

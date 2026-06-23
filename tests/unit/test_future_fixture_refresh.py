@@ -20,26 +20,42 @@ NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
 
 class FakeApiFootballClient:
-    def __init__(self, *, remaining: int = 7000, status_code: int = 200) -> None:
+    def __init__(
+        self,
+        *,
+        remaining: int = 7000,
+        status_code: int = 200,
+        burst_remaining: int | None = None,
+        daily_header: str = "x-ratelimit-requests-remaining",
+        include_status_daily_payload: bool = True,
+    ) -> None:
         self.remaining = remaining
         self.status_code = status_code
+        self.burst_remaining = burst_remaining
+        self.daily_header = daily_header
+        self.include_status_daily_payload = include_status_daily_payload
         self.calls: list[tuple[str, dict[str, str]]] = []
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         self.calls.append((endpoint, params))
         payload = self.payload(endpoint, params)
+        headers = {self.daily_header: str(self.remaining)}
+        if self.burst_remaining is not None:
+            headers["x-ratelimit-remaining"] = str(self.burst_remaining)
         return LiveApiFootballResponse(
             endpoint=endpoint,
             params=params,
             status_code=self.status_code,
             elapsed_ms=7,
             payload=payload,
-            headers={"x-ratelimit-requests-remaining": str(self.remaining)},
+            headers=headers,
             captured_at=NOW,
         )
 
     def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
         if endpoint == "status":
+            if not self.include_status_daily_payload:
+                return {"response": {"requests": {}}}
             return {"response": {"requests": {"remaining": self.remaining}}}
         if endpoint == "fixtures":
             return {
@@ -152,6 +168,39 @@ def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
     assert result.blockers == ["QUOTA_BELOW_RESERVE"]
     assert result.fixture_count == 0
     assert (tmp_path / "future_refresh_audit.json").is_file()
+
+
+def test_future_refresh_daily_quota_is_not_burst_quota(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(remaining=6774, burst_remaining=299)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.blockers == []
+    assert result.remaining_quota == 6774
+
+
+def test_future_refresh_burst_only_is_daily_unknown(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(
+        remaining=299,
+        daily_header="x-ratelimit-remaining",
+        include_status_daily_payload=False,
+    )
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.blockers == ["DAILY_QUOTA_UNKNOWN"]
 
 
 def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:

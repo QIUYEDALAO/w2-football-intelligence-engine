@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 12
+handoff_version: 13
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -64,12 +64,23 @@ stage7i_successor_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260
 stage7i_successor_started_at_utc: 2026-06-23T09:59:44.331436Z
 stage7i_successor_expected_end_utc: 2026-06-24T09:59:44.331436Z
 stage7i_successor_run_status: IN_PROGRESS
-stage7i_lifecycle_capture_status: BLOCKED_QUOTA_BELOW_RESERVE
-stage7i_lifecycle_collector_identity: NOT_STARTED_QUOTA_BELOW_RESERVE
-stage7i_lifecycle_probe_request_count: 1
-stage7i_lifecycle_probe_remaining_quota: 299
+stage7i_lifecycle_capture_status: ACTIVE
+stage7i_lifecycle_collector_identity: wrapper_pid_1549476
+stage7i_lifecycle_collector_runtime_tooling: /opt/w2/shared/runtime/stage7i/tooling/lifecycle_dd98498_quota
+stage7i_lifecycle_collector_lock: /opt/w2/shared/runtime/stage7i/lifecycle-1489404.lock
+stage7i_lifecycle_collector_lock_holder: 1549476
+stage7i_lifecycle_probe_request_count: 2
+stage7i_lifecycle_probe_remaining_quota: 6923
+stage7i_lifecycle_quota_daily_remaining: 6923
+stage7i_lifecycle_quota_burst_remaining: 298
+stage7i_lifecycle_quota_daily_source: x-ratelimit-requests-remaining
+stage7i_lifecycle_quota_burst_source: x-ratelimit-remaining
+stage7i_lifecycle_quota_observed_at: 2026-06-23T12:23:45.969614Z
 stage7i_lifecycle_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle
 stage7i_lifecycle_final_evidence: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle/final_evidence.in_progress.json
+stage7i_lifecycle_fixture_evidence_count: 1
+stage7i_lifecycle_market_evidence_count: 1
+stage7i_lifecycle_market_bookmaker_count: 14
 actual_kickoff_status: PENDING
 closing_status: PENDING
 final_evidence_status: IN_PROGRESS

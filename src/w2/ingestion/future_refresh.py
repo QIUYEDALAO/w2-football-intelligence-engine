@@ -16,6 +16,7 @@ from redis.exceptions import RedisError
 
 from w2.config import Settings, get_settings
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
+from w2.providers.quota import parse_api_football_quota
 
 
 class FutureRefreshError(RuntimeError):
@@ -131,25 +132,6 @@ def write_raw_once(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
         write_json_atomic(path, payload)
-
-
-def provider_remaining_quota(response: LiveApiFootballResponse) -> int | None:
-    for key in (
-        "x-ratelimit-requests-remaining",
-        "X-RateLimit-Requests-Remaining",
-        "x-ratelimit-remaining",
-    ):
-        value = response.headers.get(key)
-        if value is None:
-            continue
-        try:
-            return int(value)
-        except ValueError:
-            continue
-    try:
-        return int(response.payload["response"]["requests"]["remaining"])
-    except (KeyError, TypeError, ValueError):
-        return None
 
 
 def response_count(payload: dict[str, Any]) -> int:
@@ -648,7 +630,12 @@ class FutureFixtureRefreshService:
                     self.sleep(0.2 * (2 ** (attempt - 1)))
                     continue
                 raise FutureRefreshError(exc.__class__.__name__) from exc
-            remaining = provider_remaining_quota(response)
+            quota = parse_api_football_quota(
+                headers=response.headers,
+                payload=response.payload,
+                observed_at=response.captured_at,
+            )
+            remaining = quota.daily_remaining
             self._latest_remaining = remaining
             status = response.status_code
             self._audit.append(
@@ -660,6 +647,11 @@ class FutureFixtureRefreshService:
                     "elapsed_ms": response.elapsed_ms,
                     "captured_at_utc": iso(response.captured_at),
                     "remaining_quota": remaining,
+                    "daily_remaining": quota.daily_remaining,
+                    "burst_remaining": quota.burst_remaining,
+                    "quota_observed_at": iso(quota.observed_at),
+                    "daily_source": quota.daily_source,
+                    "burst_source": quota.burst_source,
                     "response_count": response_count(response.payload),
                     "payload_sha256": sha256_payload(response.payload),
                     "error_code": None if status < 400 else f"PROVIDER_HTTP_{status}",
@@ -668,7 +660,7 @@ class FutureFixtureRefreshService:
             if status in {401, 403}:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             if remaining is None:
-                raise FutureRefreshError("PROVIDER_REMAINING_QUOTA_UNKNOWN")
+                raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
             if remaining < self.config.quota_reserve:
                 raise FutureRefreshError("QUOTA_BELOW_RESERVE")
             if status == 429 and attempt < max_attempts:

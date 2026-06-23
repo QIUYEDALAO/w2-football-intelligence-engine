@@ -8,10 +8,11 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 from uuid import uuid4
 
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
+from w2.providers.quota import parse_api_football_quota
 
 PREMATCH_STATUS = {"NS", "TBD", "PST"}
 LIVE_STATUS = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "IN_PROGRESS"}
@@ -125,29 +126,6 @@ def write_raw_once(raw_dir: Path, endpoint: str, payload: dict[str, Any]) -> tup
     path = raw_dir / f"{endpoint}_{raw_hash}.json"
     write_json_once(path, payload)
     return raw_hash, path
-
-
-def provider_remaining(response: LiveApiFootballResponse) -> int | None:
-    for key, value in response.headers.items():
-        if key.lower() in {
-            "x-ratelimit-requests-remaining",
-            "x-ratelimit-remaining",
-            "x-apisports-requests-remaining",
-        }:
-            try:
-                return int(value)
-            except ValueError:
-                return None
-    requests = response.payload.get("response", {}).get("requests")
-    if isinstance(requests, dict):
-        remaining = requests.get("remaining")
-        if remaining is None:
-            return None
-        try:
-            return int(cast(str | int, remaining))
-        except (TypeError, ValueError):
-            return None
-    return None
 
 
 def fixture_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -308,7 +286,12 @@ class Stage7ILifecycleCollector:
             raise Stage7ILifecycleError("REQUEST_BUDGET_EXHAUSTED")
         self.request_count += 1
         response = self.client.request_live(endpoint, params)
-        self.remaining_quota = provider_remaining(response)
+        quota = parse_api_football_quota(
+            headers=response.headers,
+            payload=response.payload,
+            observed_at=response.captured_at,
+        )
+        self.remaining_quota = quota.daily_remaining
         raw_hash, raw_path = write_raw_once(self.raw_dir, endpoint, response.payload)
         append_jsonl_once(
             self.lifecycle_dir / "request_audit.jsonl",
@@ -321,6 +304,11 @@ class Stage7ILifecycleCollector:
                 "elapsed_ms": response.elapsed_ms,
                 "captured_at_utc": iso(response.captured_at),
                 "remaining_quota": self.remaining_quota,
+                "daily_remaining": quota.daily_remaining,
+                "burst_remaining": quota.burst_remaining,
+                "quota_observed_at": iso(quota.observed_at),
+                "daily_source": quota.daily_source,
+                "burst_source": quota.burst_source,
                 "raw_payload_sha256": raw_hash,
                 "raw_path": str(raw_path),
                 "candidate": False,
@@ -335,7 +323,10 @@ class Stage7ILifecycleCollector:
         if response.status_code >= 400:
             self.blockers.append(f"PROVIDER_HTTP_{response.status_code}")
             raise Stage7ILifecycleError(f"PROVIDER_HTTP_{response.status_code}")
-        if self.remaining_quota is not None and self.remaining_quota < self.config.quota_reserve:
+        if self.remaining_quota is None:
+            self.blockers.append("DAILY_QUOTA_UNKNOWN")
+            raise Stage7ILifecycleError("DAILY_QUOTA_UNKNOWN")
+        if self.remaining_quota < self.config.quota_reserve:
             self.blockers.append("QUOTA_BELOW_RESERVE")
             raise Stage7ILifecycleError("QUOTA_BELOW_RESERVE")
         return response

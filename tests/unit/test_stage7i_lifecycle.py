@@ -29,24 +29,31 @@ class FakeLifecycleClient:
         fixture_status: str = "NS",
         actual_kickoff: str | None = None,
         odds_payload_suffix: str = "a",
+        burst_remaining: int | None = None,
+        daily_header: str = "x-ratelimit-requests-remaining",
     ) -> None:
         self.status_code = status_code
         self.remaining = remaining
         self.fixture_status = fixture_status
         self.actual_kickoff = actual_kickoff
         self.odds_payload_suffix = odds_payload_suffix
+        self.burst_remaining = burst_remaining
+        self.daily_header = daily_header
         self.calls: list[str] = []
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         self.calls.append(endpoint)
         payload = self.payload(endpoint)
+        headers = {self.daily_header: str(self.remaining)}
+        if self.burst_remaining is not None:
+            headers["x-ratelimit-remaining"] = str(self.burst_remaining)
         return LiveApiFootballResponse(
             endpoint=endpoint,
             params=params,
             status_code=self.status_code,
             elapsed_ms=4,
             payload=payload,
-            headers={"x-ratelimit-requests-remaining": str(self.remaining)},
+            headers=headers,
             captured_at=NOW + timedelta(seconds=len(self.calls)),
         )
 
@@ -148,6 +155,48 @@ def test_provider_401_stops_without_retry(tmp_path: Path) -> None:
     else:  # pragma: no cover
         raise AssertionError("401 unexpectedly passed")
     assert client.calls == ["fixtures"]
+
+
+def test_lifecycle_daily_quota_uses_daily_not_burst(tmp_path: Path) -> None:
+    client = FakeLifecycleClient(remaining=6774, burst_remaining=299)
+    result = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=NOW,
+    ).probe_once()
+
+    assert result.remaining_quota == 6774
+    assert result.blockers == []
+    audit = read_jsonl(tmp_path / "lifecycle/request_audit.jsonl")[0]
+    assert audit["daily_remaining"] == 6774
+    assert audit["burst_remaining"] == 299
+
+
+def test_lifecycle_low_daily_quota_blocks_even_with_burst(tmp_path: Path) -> None:
+    client = FakeLifecycleClient(remaining=1499, burst_remaining=299)
+    collector = Stage7ILifecycleCollector(config=config(tmp_path), client=client, now=NOW)
+
+    try:
+        collector.probe_once()
+    except RuntimeError as exc:
+        assert "QUOTA_BELOW_RESERVE" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("low daily quota unexpectedly passed")
+
+
+def test_lifecycle_burst_only_is_daily_unknown(tmp_path: Path) -> None:
+    client = FakeLifecycleClient(
+        remaining=299,
+        daily_header="x-ratelimit-remaining",
+    )
+    collector = Stage7ILifecycleCollector(config=config(tmp_path), client=client, now=NOW)
+
+    try:
+        collector.probe_once()
+    except RuntimeError as exc:
+        assert "DAILY_QUOTA_UNKNOWN" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("burst-only quota unexpectedly passed")
 
 
 def test_actual_kickoff_requires_internal_provider_field() -> None:
