@@ -1,0 +1,51 @@
+{
+  "provider": "the_odds_api_public_doc_schema_fixture",
+  "source_note": "Synthetic fixture shaped from The Odds API public historical endpoint documentation; not acquired historical data.",
+  "timestamp": "2021-11-25T12:00:00Z",
+  "previous_timestamp": "2021-11-25T11:55:00Z",
+  "next_timestamp": "2021-11-25T12:05:00Z",
+  "data": [
+    {
+      "id": "event_schema_001",
+      "sport_key": "soccer_epl",
+      "sport_title": "EPL",
+      "commence_time": "2021-11-25T20:00:00Z",
+      "home_team": "Schema Home",
+      "away_team": "Schema Away",
+      "bookmakers": [
+        {
+          "key": "book_a",
+          "title": "Book A",
+          "last_update": "2021-11-25T11:59:30Z",
+          "markets": [
+            {
+              "key": "h2h",
+              "last_update": "2021-11-25T11:59:30Z",
+              "outcomes": [
+                {"name": "Schema Home", "price": 2.1},
+                {"name": "Draw", "price": 3.2},
+                {"name": "Schema Away", "price": 3.4}
+              ]
+            },
+            {
+              "key": "spreads",
+              "last_update": "2021-11-25T11:59:30Z",
+              "outcomes": [
+                {"name": "Schema Home", "price": 1.91, "point": -0.75},
+                {"name": "Schema Away", "price": 1.95, "point": 0.75}
+              ]
+            },
+            {
+              "key": "totals",
+              "last_update": "2021-11-25T11:59:30Z",
+              "outcomes": [
+                {"name": "Over", "price": 1.9, "point": 2.75},
+                {"name": "Under", "price": 1.96, "point": 2.75}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

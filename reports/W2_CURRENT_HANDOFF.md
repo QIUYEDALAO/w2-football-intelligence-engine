@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 19
+handoff_version: 20
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -31,6 +31,11 @@ gate3_phase_coverage_path: reports/W2_GATE3_PHASE_COVERAGE.json
 gate3_ah_walk_forward_path: reports/W2_GATE3_AH_WALK_FORWARD.json
 gate3_historical_build_result_path: reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md
 gate3_historical_data_status: NO_USABLE_INTERNAL_HISTORICAL_AH_DATA
+gate3_external_source_requirements_path: docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md
+gate3_external_source_comparison_path: reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json
+gate3_external_source_decision_path: reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md
+gate3_external_source_status: USER_DECISION_REQUIRED
+gate3_acquisition_authorized: false
 gate3_checker_mode: audit
 gate3_blockers:
   - AH_WALK_FORWARD_EVIDENCE_MISSING
@@ -229,6 +234,17 @@ Gate3 historical market evidence was built from existing W1/W2 assets without pr
 - `reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md`
 
 Result: `gate3_status=PARTIAL`. Captured-at market coverage exists, but no usable settled internal historical AH data was found, so AH baseline/walk-forward remains missing. Gate4, Gate5, `candidate=false`, and `formal_recommendation=false` remain unchanged.
+
+
+## 0.5 Gate3 External Historical Odds Source Decision
+
+Gate3 external historical odds source decision materials were prepared from public provider websites and public documentation only. No provider was contacted, no account/trial was created, no purchase was made, no commercial terms were accepted, no external API was called, and no non-public data was downloaded. Outputs:
+
+- `docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md`
+- `reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json`
+- `reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md`
+
+Result: `gate3_external_source_status=USER_DECISION_REQUIRED`. Gate3 remains `PARTIAL` because internal historical AH data is exhausted and no external source acquisition is authorized. The user must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change. Gate4, Gate5, Gate6, `candidate=false`, and `formal_recommendation=false` remain unchanged.
 
 ## 1. 新会话启动协议
 

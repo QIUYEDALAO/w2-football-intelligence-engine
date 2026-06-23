@@ -1,0 +1,1109 @@
+{
+  "candidate": false,
+  "decision": {
+    "acquisition_authorized": false,
+    "alternative_provider": "thestatsapi",
+    "alternative_provider_scope": "football_specific_trial_candidate_only_after_user_approval",
+    "blockers": [
+      "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED",
+      "USER_APPROVAL_REQUIRED_FOR_TRIAL_OR_PURCHASE",
+      "LICENSE_AND_RETENTION_REVIEW_REQUIRED",
+      "SOCCER_AH_OU_SAMPLE_REQUIRED"
+    ],
+    "contract_acceptance_authorized": false,
+    "provider_contact_authorized": false,
+    "purchase_authorized": false,
+    "recommended_provider": "the_odds_api",
+    "recommended_provider_scope": "schema_and_small_paid_trial_candidate_only_after_user_approval",
+    "requires_user_approval": true,
+    "route_a_external_source": "USER_APPROVAL_REQUIRED",
+    "route_b_forward_only_accumulation": "AVAILABLE_BUT_GATE3_REMAINS_PARTIAL_LONG_TERM",
+    "status": "DECISION_REQUIRED"
+  },
+  "formal_recommendation": false,
+  "generated_at_utc": "2026-06-23T17:34:29Z",
+  "providers": [
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "USER_TRIAL_OR_PURCHASE_APPROVAL_REQUIRED",
+        "LICENSE_REVIEW_REQUIRED",
+        "SOCCER_AH_OU_SAMPLE_REQUIRED"
+      ],
+      "bookmaker_coverage": "multi-region bookmakers; exact historical bookmaker list by soccer competition requires trial verification",
+      "bulk_export_api": "API snapshot endpoint; bulk economics require paid-plan review",
+      "commercial_use_status": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "competition_coverage": "broad sports and soccer league coverage publicly listed; exact World Cup/national-team historical AH/OU coverage requires trial verification",
+      "cost_classification": "PAID_PLAN_REQUIRED",
+      "data_fit_score": 64,
+      "historical_depth": "featured markets from 2020-06-06; additional markets from 2023-05-03 per public docs",
+      "integration_effort": "MEDIUM",
+      "licensing_risk": "MEDIUM_UNKNOWN_UNTIL_TERMS_REVIEW",
+      "licensing_terms_public_degree": "terms/pricing public in general; W2 retention/model-backtest rights require user-approved review",
+      "market_coverage": "h2h, spreads, totals are documented generally; public soccer examples found for h2h, not complete soccer AH/OU proof",
+      "official_documentation_sources": [
+        "https://the-odds-api.com/historical-odds-data/",
+        "https://the-odds-api.com/liveapi/guides/v4/"
+      ],
+      "opening_intermediate_closing_coverage": "snapshots at documented intervals; opening/closing derivation possible only if earliest/latest snapshot rules are approved and tested",
+      "overall_recommendation": "TRIAL_CANDIDATE_REQUIRES_APPROVAL",
+      "provider_id": "the_odds_api",
+      "provider_name": "The Odds API Historical Odds",
+      "provider_type": "multi_bookmaker_odds_api",
+      "public_evidence_summary": "Official docs state historical odds snapshots include events and bookmaker odds at a point in time; featured markets are available from 2020-06-06 with 10-minute snapshots and 5-minute snapshots from 2022-09, on paid plans. Public examples include EPL/Bundesliga h2h samples and NFL h2h/spreads/totals schema examples.",
+      "public_pricing": "PAID_PLAN_REQUIRED",
+      "public_sample_availability": "PUBLIC_SAMPLE_DOCUMENTED",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "point field present in spreads/totals examples",
+            "status": "PARTIAL"
+          },
+          "bookmaker": {
+            "evidence": "bookmakers array in public schema",
+            "status": "PASS"
+          },
+          "canonical_selection": {
+            "evidence": "outcomes names can map",
+            "status": "PASS"
+          },
+          "captured_at": {
+            "evidence": "historical timestamp/snapshot date",
+            "status": "PASS"
+          },
+          "competition": {
+            "evidence": "sport_key/sport_title in schema",
+            "status": "PASS"
+          },
+          "decimal_odds": {
+            "evidence": "oddsFormat decimal documented",
+            "status": "PASS"
+          },
+          "final_result": {
+            "evidence": "scores/results API separate; joined historical result proof needed",
+            "status": "PARTIAL"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "event/team names available; W2 ID mapping trial required",
+            "status": "PARTIAL"
+          },
+          "home_away_team_identity": {
+            "evidence": "home_team/away_team in public schema",
+            "status": "PASS"
+          },
+          "ingested_at": {
+            "evidence": "W2-controlled ingestion field",
+            "status": "PASS"
+          },
+          "kickoff_utc": {
+            "evidence": "commence_time in public schema",
+            "status": "PASS"
+          },
+          "live": {
+            "evidence": "historical snapshots are point-in-time; live flag semantics need trial",
+            "status": "PARTIAL"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "h2h/spreads/totals documented; soccer AH/OU sample not verified",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "derivable by earliest/latest snapshots, not explicit proof",
+            "status": "PARTIAL"
+          },
+          "provider": {
+            "evidence": "official provider identity and endpoint docs",
+            "status": "PASS"
+          },
+          "provider_event_time": {
+            "evidence": "last_update/timestamp fields",
+            "status": "PASS"
+          },
+          "provider_fixture_id": {
+            "evidence": "public response schema includes event ids",
+            "status": "PASS"
+          },
+          "raw_market_label": {
+            "evidence": "market key retained",
+            "status": "PASS"
+          },
+          "season": {
+            "evidence": "derivable from sport/date; explicit season needs trial check",
+            "status": "PARTIAL"
+          },
+          "settlement_semantics": {
+            "evidence": "W2 can settle if result linked; provider settlement not primary",
+            "status": "PARTIAL"
+          },
+          "source_license": {
+            "evidence": "must review paid terms before use",
+            "status": "UNKNOWN"
+          },
+          "source_payload_hash": {
+            "evidence": "W2 can hash raw JSON responses",
+            "status": "PASS"
+          },
+          "stable_event_id": {
+            "evidence": "event id",
+            "status": "PASS"
+          },
+          "suspended": {
+            "evidence": "not confirmed in public historical sample docs",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {
+          "btts": "UNKNOWN",
+          "exchange_liquidity": "FAIL",
+          "signed_manifest": "UNKNOWN"
+        },
+        "SHOULD": {
+          "bulk_export_or_batch": "PARTIAL",
+          "national_team_coverage": "UNKNOWN",
+          "public_schema_or_sample": "PASS",
+          "snapshot_cadence": "PASS",
+          "top_five_league_coverage": "PARTIAL"
+        }
+      },
+      "result_linkage": "scores/results API exists separately; exact historical result linkage for W2 needs trial proof",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "DOC_SCHEMA_FIXTURE_COMPATIBLE_NOT_FORMAL_DATA",
+      "stable_fixture_ids": "event ids present in public schema examples",
+      "technical_fit_score": 78,
+      "timestamp_semantics": "historical endpoint date returns closest snapshot equal to or earlier than requested timestamp",
+      "unknown_fields": [
+        "national-team historical AH/OU coverage",
+        "fixture/result linkage",
+        "license retention rights",
+        "actual paid quota economics"
+      ],
+      "update_frequency": "historical snapshots documented at 10-minute or 5-minute cadence by era"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "NOT_BOOKMAKER_PANEL",
+        "ACCOUNT_PURCHASE_FLOW_REQUIRED",
+        "LICENSE_REVIEW_REQUIRED"
+      ],
+      "bookmaker_coverage": "single exchange, not bookmaker panel",
+      "bulk_export_api": "download/filter workflow after account/purchase",
+      "commercial_use_status": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "competition_coverage": "exchange market coverage, not guaranteed W2 competition coverage",
+      "cost_classification": "PURCHASE_OR_ACCOUNT_FLOW_REQUIRED",
+      "data_fit_score": 42,
+      "historical_depth": "near-complete exchange markets since APING era per public guide; exact soccer scope requires account flow",
+      "integration_effort": "HIGH",
+      "licensing_risk": "MEDIUM_UNKNOWN_UNTIL_TERMS_REVIEW",
+      "licensing_terms_public_degree": "requires account/purchase review",
+      "market_coverage": "exchange markets; 1X2/OU likely by market availability, AH coverage uncertain",
+      "official_documentation_sources": [
+        "https://developer.betfair.com/historical-data-services-api/",
+        "https://betfair-datascientists.github.io/data/usingHistoricDataSite/"
+      ],
+      "opening_intermediate_closing_coverage": "time-stamped traded market history",
+      "overall_recommendation": "REFERENCE_ONLY",
+      "provider_id": "betfair_historical_data",
+      "provider_name": "Betfair Historical Data",
+      "provider_type": "exchange_historical_data",
+      "public_evidence_summary": "Official pages describe time-stamped Exchange price and market data, settlement details, filters, and backtesting uses; data requires purchase/download by Betfair customers, with samples available through the historic data site flow.",
+      "public_pricing": "PURCHASE_OR_FREE_TIER_FLOW_REQUIRES_ACCOUNT",
+      "public_sample_availability": "SAMPLES_REQUIRE_ACCOUNT_OR_PURCHASE_FLOW",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "exchange-only, not bookmaker-level panel",
+            "status": "FAIL"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "time-stamped exchange data",
+            "status": "PASS"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "market settlement details described",
+            "status": "PASS"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "market-specific availability not publicly proven for W2 scope",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "source_license": {
+            "evidence": "account/purchase terms required",
+            "status": "UNKNOWN"
+          },
+          "source_payload_hash": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {
+          "exchange_liquidity": "PASS",
+          "traded_volume": "PASS"
+        },
+        "SHOULD": {
+          "bulk_export_or_batch": "PASS",
+          "national_team_coverage": "UNKNOWN",
+          "snapshot_cadence": "PASS",
+          "top_five_league_coverage": "UNKNOWN"
+        }
+      },
+      "result_linkage": "market settlements described publicly",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "stable_fixture_ids": "exchange market/event identifiers likely, W2 mapping effort high",
+      "technical_fit_score": 55,
+      "timestamp_semantics": "exchange tick/time-series timestamps",
+      "unknown_fields": [
+        "bookmaker-panel requirement",
+        "AH football coverage",
+        "license retention rights",
+        "download schema without account"
+      ],
+      "update_frequency": "historical market stream granularity, tier-dependent"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "CONTACT_REQUIRED",
+        "SOCCER_SCOPE_UNKNOWN",
+        "LICENSE_REVIEW_REQUIRED"
+      ],
+      "bookmaker_coverage": "multiple legal sportsbooks listed, mostly US-facing",
+      "bulk_export_api": "API, S3 bucket, or custom delivery described",
+      "commercial_use_status": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "competition_coverage": "major sports; soccer-specific W2 scope unknown from public page",
+      "cost_classification": "CONTACT_REQUIRED",
+      "data_fit_score": 50,
+      "historical_depth": "from 2019 for major sports per public page",
+      "integration_effort": "MEDIUM_HIGH",
+      "licensing_risk": "HIGH_CONTACT_REQUIRED",
+      "licensing_terms_public_degree": "contact sales / terms review required",
+      "market_coverage": "moneylines/spreads/totals generally; soccer AH/OU unknown",
+      "official_documentation_sources": [
+        "https://sportsdata.io/live-odds-api",
+        "https://sportsdata.io/historical-odds"
+      ],
+      "opening_intermediate_closing_coverage": "opening, closing, and all price changes described",
+      "overall_recommendation": "REFERENCE_ONLY",
+      "provider_id": "sportsdataio",
+      "provider_name": "SportsDataIO Historical Odds / Vault",
+      "provider_type": "commercial_odds_data_provider",
+      "public_evidence_summary": "Official pages describe opening/closing lines, all price changes in between, pre-game/in-play/historical odds, line movement timestamps, API/S3/custom delivery, and historical coverage from 2019 for major sports; public pages are US-sports focused and soccer/national-team scope needs sales clarification.",
+      "public_pricing": "CONTACT_REQUIRED",
+      "public_sample_availability": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "sportsbooks listed",
+            "status": "PASS"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "line movement timestamps",
+            "status": "PASS"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "spreads/totals described, soccer AH unknown",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "opening/closing and price changes described",
+            "status": "PASS"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "source_license": {
+            "evidence": "sales/terms required",
+            "status": "UNKNOWN"
+          },
+          "source_payload_hash": {
+            "evidence": "W2 can hash delivered API/S3 payloads",
+            "status": "PASS"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {},
+        "SHOULD": {
+          "bulk_export_or_batch": "PASS",
+          "national_team_coverage": "UNKNOWN",
+          "snapshot_cadence": "UNKNOWN",
+          "top_five_league_coverage": "UNKNOWN"
+        }
+      },
+      "result_linkage": "settlement verification/feed linkage described",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "stable_fixture_ids": "official data provider IDs implied, exact export unknown",
+      "technical_fit_score": 70,
+      "timestamp_semantics": "line movement timestamps described",
+      "unknown_fields": [
+        "soccer and national-team coverage",
+        "AH quarter line support",
+        "public schema",
+        "license retention rights"
+      ],
+      "update_frequency": "UNKNOWN_PUBLIC"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "USER_TRIAL_APPROVAL_REQUIRED",
+        "LICENSE_REVIEW_REQUIRED",
+        "PUBLIC_SAMPLE_UNAVAILABLE"
+      ],
+      "bookmaker_coverage": "100+ sportsbooks claimed",
+      "bulk_export_api": "API; bulk historical export unknown",
+      "commercial_use_status": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "competition_coverage": "soccer listed generally, W2 competitions unknown",
+      "cost_classification": "UNKNOWN_PUBLIC",
+      "data_fit_score": 55,
+      "historical_depth": "full price history claimed, exact start date unknown publicly",
+      "integration_effort": "MEDIUM",
+      "licensing_risk": "MEDIUM_UNKNOWN_UNTIL_TERMS_REVIEW",
+      "licensing_terms_public_degree": "UNKNOWN_PENDING_ACCOUNT_REVIEW",
+      "market_coverage": "odds snapshots and results; AH/OU by soccer market needs verification",
+      "official_documentation_sources": [
+        "https://developer.opticodds.com/docs/odds-api-getting-started-guide"
+      ],
+      "opening_intermediate_closing_coverage": "full price history with every movement tracked claimed",
+      "overall_recommendation": "TRIAL_CANDIDATE_REQUIRES_APPROVAL",
+      "provider_id": "opticodds",
+      "provider_name": "OpticOdds API",
+      "provider_type": "multi_sportsbook_odds_api",
+      "public_evidence_summary": "Official docs describe 100+ sportsbooks, 25+ sports, fixtures, odds snapshots, streaming, results, bet grading, and full price history with every movement tracked. Historical depth, soccer national-team coverage, and license rights need account/trial review.",
+      "public_pricing": "UNKNOWN_PUBLIC",
+      "public_sample_availability": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "100+ sportsbooks claimed",
+            "status": "PASS"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "snapshots/streaming, historical exact semantics unknown",
+            "status": "PARTIAL"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "results and bet grading described",
+            "status": "PASS"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "odds coverage claimed, soccer AH/OU needs proof",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "bet grading described",
+            "status": "PASS"
+          },
+          "source_license": {
+            "evidence": "terms review required",
+            "status": "UNKNOWN"
+          },
+          "source_payload_hash": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {
+          "bet_grading": "PASS"
+        },
+        "SHOULD": {
+          "bulk_export_or_batch": "UNKNOWN",
+          "national_team_coverage": "UNKNOWN",
+          "snapshot_cadence": "PARTIAL",
+          "top_five_league_coverage": "UNKNOWN"
+        }
+      },
+      "result_linkage": "results and bet grading described",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "stable_fixture_ids": "fixtures endpoint exists",
+      "technical_fit_score": 72,
+      "timestamp_semantics": "real-time snapshots/streaming implied; historical semantics require trial",
+      "unknown_fields": [
+        "historical start date",
+        "soccer AH/OU line support",
+        "license retention rights",
+        "bulk export"
+      ],
+      "update_frequency": "real-time streaming described"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "CONTACT_REQUIRED",
+        "PUBLIC_SCHEMA_UNAVAILABLE",
+        "LICENSE_REVIEW_REQUIRED"
+      ],
+      "bookmaker_coverage": "sportsbook feed implied, exact public list unknown",
+      "bulk_export_api": "custom API endpoints/premium access described",
+      "commercial_use_status": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "competition_coverage": "major leagues and soccer mentioned, exact W2 coverage unknown",
+      "cost_classification": "CONTACT_REQUIRED",
+      "data_fit_score": 48,
+      "historical_depth": "complete historical odds feed claimed, dates not publicly specified",
+      "integration_effort": "MEDIUM_HIGH",
+      "licensing_risk": "HIGH_CONTACT_REQUIRED",
+      "licensing_terms_public_degree": "CONTACT_REQUIRED",
+      "market_coverage": "moneylines, spreads, totals, player props, live odds; soccer AH/OU needs proof",
+      "official_documentation_sources": [
+        "https://oddsjam.com/odds-api"
+      ],
+      "opening_intermediate_closing_coverage": "opening/closing/live line changes claimed",
+      "overall_recommendation": "REFERENCE_ONLY",
+      "provider_id": "oddsjam",
+      "provider_name": "OddsJam Odds API",
+      "provider_type": "commercial_odds_feed",
+      "public_evidence_summary": "Official page describes pre-game/in-play odds, soccer coverage, complete historical odds feed with closing lines, opening odds, and live line changes across all markets, but premium access/pricing is contact-based and public schema is unavailable.",
+      "public_pricing": "CONTACT_REQUIRED",
+      "public_sample_availability": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "sportsbook feed claimed",
+            "status": "PARTIAL"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "line changes claimed",
+            "status": "PARTIAL"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "not public",
+            "status": "UNKNOWN"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "spreads/totals mentioned; soccer AH unknown",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "opening/closing/live line changes claimed",
+            "status": "PASS"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "source_license": {
+            "evidence": "contact/terms required",
+            "status": "UNKNOWN"
+          },
+          "source_payload_hash": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {},
+        "SHOULD": {
+          "bulk_export_or_batch": "PARTIAL",
+          "national_team_coverage": "UNKNOWN",
+          "snapshot_cadence": "UNKNOWN",
+          "top_five_league_coverage": "UNKNOWN"
+        }
+      },
+      "result_linkage": "UNKNOWN_PUBLIC",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "stable_fixture_ids": "UNKNOWN_PUBLIC",
+      "technical_fit_score": 62,
+      "timestamp_semantics": "line changes implied, schema unknown",
+      "unknown_fields": [
+        "schema",
+        "fixture IDs",
+        "result linkage",
+        "license rights",
+        "football AH quarter lines"
+      ],
+      "update_frequency": "low latency claimed"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "USER_TRIAL_APPROVAL_REQUIRED",
+        "LICENSE_REVIEW_REQUIRED",
+        "PUBLIC_SAMPLE_UNAVAILABLE"
+      ],
+      "bookmaker_coverage": "Bet365, Pinnacle, Betfair Exchange, Kambi listed",
+      "bulk_export_api": "REST API, bulk unknown",
+      "commercial_use_status": "PAID_PLANS_COMMERCIAL_USE_PUBLICLY_STATED",
+      "competition_coverage": "150 competitions by default, more on request; exact World Cup/national-team scope unknown",
+      "cost_classification": "PAID_TRIAL_OR_PLAN_REQUIRED",
+      "data_fit_score": 60,
+      "historical_depth": "10 years of historical match data claimed; historical odds depth unclear",
+      "integration_effort": "MEDIUM",
+      "licensing_risk": "MEDIUM_TERMS_REVIEW_REQUIRED",
+      "licensing_terms_public_degree": "paid plan commercial usage stated, detailed retention terms need review",
+      "market_coverage": "1X2, Asian handicap, totals, BTTS, DNB, corners listed",
+      "official_documentation_sources": [
+        "https://www.thestatsapi.com/"
+      ],
+      "opening_intermediate_closing_coverage": "opening and closing lines included; intermediate timeline unclear",
+      "overall_recommendation": "TRIAL_CANDIDATE_REQUIRES_APPROVAL",
+      "provider_id": "thestatsapi",
+      "provider_name": "TheStatsAPI Football Odds",
+      "provider_type": "football_specific_odds_and_stats_api",
+      "public_evidence_summary": "Official page describes football pre-match/live odds from Bet365, Pinnacle, Betfair Exchange and Kambi, 1X2, Asian handicap, totals, BTTS, fixtures/results/stats, 10 years of historical match data, and paid plans allowing commercial usage; odds historical depth and raw timeline schema require trial.",
+      "public_pricing": "PUBLIC_PLANS_FREE_TRIAL_AVAILABLE_BUT_NOT_AUTHORIZED",
+      "public_sample_availability": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "redistribution_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "specific books listed",
+            "status": "PASS"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "live realtime odds; historical timestamps need proof",
+            "status": "PARTIAL"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "fixtures/results included",
+            "status": "PASS"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "1X2/AH/totals listed",
+            "status": "PASS"
+          },
+          "opening_closing_semantics": {
+            "evidence": "opening/closing listed; intermediate unclear",
+            "status": "PARTIAL"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "source_license": {
+            "evidence": "commercial use on paid plans stated, retention needs terms review",
+            "status": "PARTIAL"
+          },
+          "source_payload_hash": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {
+          "btts": "PASS"
+        },
+        "SHOULD": {
+          "bulk_export_or_batch": "UNKNOWN",
+          "national_team_coverage": "UNKNOWN",
+          "snapshot_cadence": "UNKNOWN",
+          "top_five_league_coverage": "PARTIAL"
+        }
+      },
+      "result_linkage": "fixtures/results/stats included",
+      "retention_restrictions": "UNKNOWN_PENDING_TERMS_REVIEW",
+      "schema_probe_status": "PUBLIC_SAMPLE_UNAVAILABLE",
+      "stable_fixture_ids": "fixtures/results API implied",
+      "technical_fit_score": 74,
+      "timestamp_semantics": "live realtime odds; historical captured-at semantics unclear",
+      "unknown_fields": [
+        "historical odds depth",
+        "intermediate captured-at snapshots",
+        "retention terms",
+        "exact competition scope"
+      ],
+      "update_frequency": "live realtime during eligible matches"
+    },
+    {
+      "approved_for_gate3": false,
+      "blockers": [
+        "INTERNAL_HISTORICAL_AH_EXHAUSTED",
+        "FORWARD_ONLY_ACCUMULATION_REQUIRED"
+      ],
+      "bookmaker_coverage": "bookmakers/odds endpoint exists",
+      "bulk_export_api": "API; historical bulk backfill not enough for Gate3 AH closure in current evidence",
+      "commercial_use_status": "EXISTING_W2_PROVIDER_ONLY",
+      "competition_coverage": "broad football competitions",
+      "cost_classification": "EXISTING_PROVIDER_QUOTA",
+      "data_fit_score": 35,
+      "historical_depth": "several years / 15+ years depending API-Sports public page; exact odds history scope not proven by W2",
+      "integration_effort": "LOW_EXISTING_ADAPTER",
+      "licensing_risk": "LOW_FOR_EXISTING_CAPTURE_HIGH_FOR_HISTORICAL_CLOSURE_ASSUMPTIONS",
+      "licensing_terms_public_degree": "already used for W2 live collection; historical closure still limited",
+      "market_coverage": "pre-match and live odds; W2 evidence has AH rows without settled historical AH labels",
+      "official_documentation_sources": [
+        "https://www.api-football.com/",
+        "https://api-sports.io/"
+      ],
+      "opening_intermediate_closing_coverage": "current capture possible through W2 ledger; historical captured-at backfill insufficient",
+      "overall_recommendation": "FORWARD_ONLY_SUPPLEMENT",
+      "provider_id": "api_football_current",
+      "provider_name": "API-Football / API-Sports current W2 provider",
+      "provider_type": "current_live_and_prematch_provider",
+      "public_evidence_summary": "Official pages describe broad football coverage, historical data, pre-match and live odds. W2 internal Gate3 evidence already found captured-at odds but no usable settled internal historical AH backtest data.",
+      "public_pricing": "EXISTING_PROVIDER",
+      "public_sample_availability": "N/A_EXISTING_PROVIDER",
+      "redistribution_restrictions": "W2_INTERNAL_ONLY",
+      "requirement_results": {
+        "MUST": {
+          "ah_ou_line": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "bookmaker": {
+            "evidence": "W2 captured bookmaker odds",
+            "status": "PASS"
+          },
+          "canonical_selection": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "captured_at": {
+            "evidence": "W2 append-only captured-at ledger",
+            "status": "PASS"
+          },
+          "competition": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "decimal_odds": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "final_result": {
+            "evidence": "fixture/results endpoints",
+            "status": "PASS"
+          },
+          "fixture_mapping_evidence": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "home_away_team_identity": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "ingested_at": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "kickoff_utc": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "live": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "market_1x2_ah_ou": {
+            "evidence": "W2 captured markets but historical AH settled backtest absent",
+            "status": "PARTIAL"
+          },
+          "opening_closing_semantics": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_event_time": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "provider_fixture_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "raw_market_label": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "season": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "settlement_semantics": {
+            "evidence": "W2 can settle future observations, historical AH no settled sample",
+            "status": "PARTIAL"
+          },
+          "source_license": {
+            "evidence": "existing provider only; not a new historical source approval",
+            "status": "PARTIAL"
+          },
+          "source_payload_hash": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "stable_event_id": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          },
+          "suspended": {
+            "evidence": "not publicly verified",
+            "status": "UNKNOWN"
+          }
+        },
+        "OPTIONAL": {},
+        "SHOULD": {
+          "bulk_export_or_batch": "PARTIAL",
+          "national_team_coverage": "PASS_FORWARD_ONLY",
+          "snapshot_cadence": "PASS_FORWARD_ONLY",
+          "top_five_league_coverage": "PASS_FORWARD_ONLY"
+        }
+      },
+      "result_linkage": "fixtures/results available",
+      "retention_restrictions": "EXISTING_USAGE_POLICY",
+      "schema_probe_status": "N/A_EXISTING_PROVIDER",
+      "stable_fixture_ids": "fixture ids used by W2",
+      "technical_fit_score": 68,
+      "timestamp_semantics": "provider update/captured-at available for W2 live capture",
+      "unknown_fields": [
+        "settled historical AH phase labels",
+        "complete multi-season AH walk-forward data"
+      ],
+      "update_frequency": "live events updated frequently per public page"
+    }
+  ],
+  "requirements_path": "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
+  "requirements_version": 1,
+  "research_boundary": {
+    "commercial_terms_accepted": false,
+    "non_public_data_used": false,
+    "provider_api_called": false,
+    "provider_contacted": false,
+    "public_sources_only": true,
+    "purchase_authorized": false,
+    "trial_account_created": false
+  }
+}

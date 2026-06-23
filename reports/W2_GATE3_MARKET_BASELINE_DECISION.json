@@ -1,4 +1,5 @@
 {
+  "acquisition_not_authorized": true,
   "asian_handicap": {
     "closure_blocker": "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
     "exclusion_reasons": {
@@ -18,7 +19,8 @@
     "AH_WALK_FORWARD_EVIDENCE_MISSING",
     "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
     "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
-    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING"
+    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED"
   ],
   "candidate": false,
   "captured_at_phase_coverage": {
@@ -40,9 +42,14 @@
     },
     "status": "CAPTURED_AT_AVAILABLE"
   },
+  "external_source_comparison_path": "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
+  "external_source_decision_path": "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
+  "external_source_decision_status": "USER_DECISION_REQUIRED",
+  "external_source_requirements_path": "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
   "formal_recommendation": false,
   "gate": 3,
-  "generated_at_utc": "2026-06-23T17:01:02Z",
+  "generated_at_utc": "2026-06-23T17:35:29Z",
+  "internal_historical_ah_exhausted": true,
   "leakage_audit": {
     "closing_odds_not_used_for_early_phase": true,
     "historical_ah_fabricated": false,
@@ -70,7 +77,9 @@
   "next_actions": [
     "Use the generated source inventory to decide whether internal captured-at snapshots are sufficient for future settled phase backtests.",
     "Acquire or approve an external/internal historical AH odds source with settled results before Gate3 closure.",
-    "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence."
+    "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence.",
+    "User must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change.",
+    "Do not acquire or ingest external historical odds until user approval and license review are complete."
   ],
   "one_x_two": {
     "devig_methods": [
@@ -406,6 +415,7 @@
       "snapshot_semantics": "CLOSING"
     }
   },
+  "user_decision_required": true,
   "warn_only": [
     "CALIBRATION_REQUIRED",
     "CAPTURED_AT_COVERAGE_WITHOUT_SETTLED_BACKTEST",
