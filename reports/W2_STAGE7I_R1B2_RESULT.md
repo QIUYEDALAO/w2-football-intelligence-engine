@@ -414,3 +414,93 @@ Observer continuity after collector restore:
 
 Gate5 remains `OPEN`. Actual kickoff, closing observation, settlement,
 evaluation, and final Shadow DB audit remain pending and must not be fabricated.
+
+## Lifecycle Budget Preflight Fix
+
+The active lifecycle collector was audited after continuity restore. The
+collector command line still used a fixed `--request-budget 80`; current
+evidence had already consumed `3` request attempts, and the projected remaining
+need exceeded the fixed remaining budget. Daily provider quota was sufficient,
+but the collector-local request budget was not.
+
+Budget preflight decision:
+
+- Configured request budget before fix: `80`
+- Consumed attempts before fix: `3`
+- Remaining budget before fix: `77`
+- Projected required requests: greater than remaining budget
+- Daily remaining quota: `6899`
+- Quota reserve: `1500`
+- Decision: `BUDGET_PREFLIGHT=FAIL_FIXED`
+
+Local fix:
+
+- Collector CLI now defaults request budget to `AUTO` instead of `80`.
+- Effective request budget is fixed once per collector instance from current
+  consumed attempts plus projected remaining PREMATCH/LIVE evidence needs.
+- Each `collector_instances.jsonl` row records budget preflight details.
+- `collector_exits.jsonl` is append-only and records budget state at exit.
+- `request_audit.jsonl` now records every provider attempt, even when a replayed
+  raw payload is identical and the raw payload file remains idempotent.
+
+Validation:
+
+- Target lifecycle tests: `23 passed`
+- Full pytest: `197 passed`
+- `scripts/check_w2_all.py`: `PASS`
+- Ruff: `PASS`
+- Mypy: `PASS`
+- Secret scan: `PASS`
+- `git diff --check`: `PASS`
+
+Runtime collector rollover:
+
+- Previous v4 collector host/container PID: `1675903` / `22947`
+- Signal: container `TERM`
+- Exit result: natural exit after 2 seconds
+- New collector host/container PID: `1678226` / `23041`
+- New tooling dir:
+  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_74999d0_budget_v5`
+- New container tooling dir:
+  `/tmp/w2_stage7i_lifecycle_tooling_budget_v5`
+- Tooling archive SHA256:
+  `4560c3295390850a83c4224912ad228dce54955210ba578b16a15578765a1e21`
+- Tooling manifest SHA256:
+  `a025acc386da7580d10c03975b78cf53fe2a945020ea93d4817de9f907713d5c`
+- Lifecycle lock holder: `1678226`
+- Observer PID/PGID unchanged: `1435421` / `1435396`
+- Observer global lock holder unchanged: `1435421`
+
+New v5 collector budget preflight:
+
+- `configured_request_budget=AUTO`
+- `consumed_attempts=5`
+- `effective_request_budget=103`
+- `projected_required=98`
+- `remaining_budget=98`
+- `request_budget_sufficient=true`
+- Latest daily remaining: `6790`
+- Quota reserve: `1500`
+- Daily capacity after reserve: `5290`
+- Daily quota sufficient: `true`
+
+Evidence after v5 startup:
+
+- `fixture_status.jsonl`: `1`
+- `market_observations.jsonl`: `2`
+- `result_status.jsonl`: `0`
+- `request_audit.jsonl`: `7`
+- `collector_instances.jsonl`: `4`
+- `collector_exits.jsonl`: `2`
+- Latest fixture status: `NS`
+- Latest market status: `live=false`, `suspended=false`, `14` bookmakers
+- Final evidence builder status: `IN_PROGRESS`
+- Final evidence blockers:
+  - `OBSERVER_SUMMARY_NOT_COMPLETE`
+  - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
+  - `PENDING_ACTUAL_KICKOFF`
+- Candidate: `false`
+- Formal recommendation: `false`
+
+No actual kickoff, closing observation, settlement, evaluation, or final Shadow
+DB audit was inferred or fabricated. Gate5 remains `OPEN`.

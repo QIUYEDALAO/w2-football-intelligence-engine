@@ -119,7 +119,29 @@ def test_lifecycle_collector_appends_once_for_same_payload(tmp_path: Path) -> No
     assert second.market_events == 0
     assert len(read_jsonl(tmp_path / "lifecycle/fixture_status.jsonl")) == 1
     assert len(read_jsonl(tmp_path / "lifecycle/market_observations.jsonl")) == 1
+    assert len(read_jsonl(tmp_path / "lifecycle/request_audit.jsonl")) == 4
     assert len(list((tmp_path / "lifecycle/raw").glob("*.json"))) == 2
+
+
+def test_request_audit_counts_replayed_payload_attempts(tmp_path: Path) -> None:
+    client = FakeLifecycleClient()
+
+    Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=NOW,
+    ).probe_once()
+    Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=NOW,
+    ).probe_once()
+
+    request_rows = read_jsonl(tmp_path / "lifecycle/request_audit.jsonl")
+    raw_files = list((tmp_path / "lifecycle/raw").glob("*.json"))
+    assert len(request_rows) == 4
+    assert len(raw_files) == 2
+    assert len({row["event_id"] for row in request_rows}) == 4
 
 
 def test_lifecycle_collector_appends_new_market_payload(tmp_path: Path) -> None:
@@ -279,6 +301,27 @@ def test_run_loop_shutdown_request_writes_audit_without_requests(tmp_path: Path)
     lock.release()
 
 
+def test_run_loop_shutdown_request_appends_collector_exit_event(tmp_path: Path) -> None:
+    cfg = config(tmp_path / "runs/run-1")
+    collector = Stage7ILifecycleCollector(
+        config=cfg,
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+    collector.stop_requested = True
+    collector.stop_signal = "SIGTERM"
+
+    collector.run_loop()
+
+    exits = read_jsonl(cfg.runtime_dir / "lifecycle/collector_exits.jsonl")
+    assert len(exits) == 1
+    assert exits[0]["exit_reason"] == "SHUTDOWN_REQUESTED"
+    assert exits[0]["budget_preflight"]["configured_request_budget"] == "AUTO"
+    assert exits[0]["budget_preflight"]["request_budget_sufficient"] is True
+    assert exits[0]["candidate"] is False
+    assert exits[0]["formal_recommendation"] is False
+
+
 def test_lifecycle_restart_never_deletes_existing_evidence(tmp_path: Path) -> None:
     lifecycle = tmp_path / "lifecycle"
     lifecycle.mkdir()
@@ -352,6 +395,73 @@ def test_request_budget_counts_existing_audit_on_restart(tmp_path: Path) -> None
         raise AssertionError("exhausted restart budget unexpectedly passed")
 
 
+def test_auto_request_budget_covers_projected_runtime_need(tmp_path: Path) -> None:
+    lifecycle = tmp_path / "lifecycle"
+    lifecycle.mkdir()
+    (lifecycle / "request_audit.jsonl").write_text(
+        json.dumps({"event_id": "request-1"}) + "\n",
+        encoding="utf-8",
+    )
+    collector = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+
+    preflight = collector.budget_preflight(now=NOW)
+
+    assert preflight["configured_request_budget"] == "AUTO"
+    assert preflight["consumed_attempts"] == 1
+    assert preflight["remaining_budget"] >= preflight["projected_required"]
+    assert collector.effective_request_budget() == (
+        preflight["consumed_attempts"] + preflight["projected_required"]
+    )
+
+
+def test_auto_request_budget_is_fixed_for_collector_instance(tmp_path: Path) -> None:
+    collector = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+    initial_budget = collector.effective_request_budget()
+
+    Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=FakeLifecycleClient(),
+        now=NOW,
+    ).probe_once()
+
+    assert collector.effective_request_budget() == initial_budget
+
+
+def test_explicit_request_budget_can_still_block_restart(tmp_path: Path) -> None:
+    lifecycle = tmp_path / "lifecycle"
+    lifecycle.mkdir()
+    (lifecycle / "request_audit.jsonl").write_text(
+        json.dumps({"event_id": "request-1"}) + "\n",
+        encoding="utf-8",
+    )
+    cfg = LifecycleConfig(
+        runtime_dir=tmp_path,
+        fixture_id="1489404",
+        scheduled_kickoff_utc=KICKOFF,
+        request_budget=1,
+    )
+    collector = Stage7ILifecycleCollector(
+        config=cfg,
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+
+    try:
+        collector.probe_once()
+    except RuntimeError as exc:
+        assert "REQUEST_BUDGET_EXHAUSTED" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("explicit exhausted budget unexpectedly passed")
+
+
 def test_projected_budget_reports_consumed_attempts(tmp_path: Path) -> None:
     lifecycle = tmp_path / "lifecycle"
     lifecycle.mkdir()
@@ -368,6 +478,7 @@ def test_projected_budget_reports_consumed_attempts(tmp_path: Path) -> None:
 
     assert projection["consumed_attempts"] == 1
     assert projection["projected_required"] > 80
+    assert projection["remaining_budget"] >= projection["projected_required"]
 
 
 def test_actual_kickoff_requires_internal_provider_field() -> None:

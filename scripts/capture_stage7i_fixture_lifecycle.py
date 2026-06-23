@@ -26,7 +26,7 @@ def main() -> int:
     parser.add_argument("--scheduled-kickoff-utc", required=True)
     parser.add_argument("--source-revision", default="LOCAL_UNDEPLOYED")
     parser.add_argument("--quota-reserve", type=int, default=1500)
-    parser.add_argument("--request-budget", type=int, default=80)
+    parser.add_argument("--request-budget", type=int, default=None)
     parser.add_argument("--interval-seconds", type=int, default=300)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()

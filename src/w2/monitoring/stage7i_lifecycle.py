@@ -36,7 +36,7 @@ class LifecycleConfig:
     fixture_id: str
     scheduled_kickoff_utc: datetime
     quota_reserve: int = 1500
-    request_budget: int = 80
+    request_budget: int | None = None
     interval_seconds: int = 300
     source_revision: str = "LOCAL_UNDEPLOYED"
 
@@ -226,6 +226,7 @@ class Stage7ILifecycleCollector:
         self.lifecycle_dir = config.runtime_dir / "lifecycle"
         self.raw_dir = self.lifecycle_dir / "raw"
         self.request_count = self.consumed_attempts()
+        self._effective_request_budget = self._calculate_effective_request_budget(now=self.now)
         self.remaining_quota: int | None = None
         self.blockers: list[str] = []
         self.stop_requested = False
@@ -240,18 +241,55 @@ class Stage7ILifecycleCollector:
     def consumed_attempts(self) -> int:
         return len(read_jsonl(self.lifecycle_dir / "request_audit.jsonl"))
 
-    def projected_budget(self, *, now: datetime | None = None) -> dict[str, int]:
+    def _projected_required(self, *, now: datetime | None = None) -> int:
         current = now or utc_now()
         kickoff = self.config.scheduled_kickoff_utc
         seconds_to_kickoff = max(0, int((kickoff - current).total_seconds()))
         remaining_prematch_cycles = (seconds_to_kickoff // self.config.interval_seconds) + 1
         live_cycles = (4 * 60 * 60) // self.config.interval_seconds
-        projected = remaining_prematch_cycles * 2 + live_cycles + 4
+        return remaining_prematch_cycles * 2 + live_cycles + 4
+
+    def projected_budget(self, *, now: datetime | None = None) -> dict[str, Any]:
+        projected = self._projected_required(now=now)
         consumed = self.consumed_attempts()
+        effective = self.effective_request_budget()
         return {
+            "configured_request_budget": (
+                "AUTO" if self.config.request_budget is None else self.config.request_budget
+            ),
+            "effective_request_budget": effective,
             "projected_required": projected,
             "consumed_attempts": consumed,
-            "remaining_budget": max(0, self.config.request_budget - consumed),
+            "remaining_budget": max(0, effective - consumed),
+        }
+
+    def _calculate_effective_request_budget(self, *, now: datetime | None = None) -> int:
+        if self.config.request_budget is not None:
+            return self.config.request_budget
+        projected = self._projected_required(now=now)
+        return self.consumed_attempts() + projected
+
+    def effective_request_budget(self) -> int:
+        return self._effective_request_budget
+
+    def budget_preflight(self, *, now: datetime | None = None) -> dict[str, Any]:
+        projection = self.projected_budget(now=now)
+        projected_required = int(projection["projected_required"])
+        remaining_budget = int(projection["remaining_budget"])
+        daily_capacity = (
+            None
+            if self.remaining_quota is None
+            else self.remaining_quota - self.config.quota_reserve
+        )
+        return {
+            **projection,
+            "daily_remaining": self.remaining_quota,
+            "quota_reserve": self.config.quota_reserve,
+            "daily_capacity_after_reserve": daily_capacity,
+            "request_budget_sufficient": remaining_budget >= projected_required,
+            "daily_quota_sufficient": (
+                None if daily_capacity is None else daily_capacity >= projected_required
+            ),
         }
 
     def start_metadata(self) -> None:
@@ -261,7 +299,7 @@ class Stage7ILifecycleCollector:
                 "fixture_id": self.config.fixture_id,
                 "scheduled_kickoff_utc": iso(self.config.scheduled_kickoff_utc),
                 "started_at_utc": iso(self.now),
-                "request_budget": self.config.request_budget,
+                "request_budget": self.effective_request_budget(),
                 "budget_projection": self.projected_budget(now=self.now),
                 "quota_reserve": self.config.quota_reserve,
                 "candidate": False,
@@ -280,6 +318,7 @@ class Stage7ILifecycleCollector:
                 "tooling_sha": os.environ.get("W2_STAGE7I_TOOLING_SHA", "UNKNOWN"),
                 "lock_path": str(lock_path),
                 "state": "RUNNING",
+                "budget_preflight": self.budget_preflight(),
                 "candidate": False,
                 "formal_recommendation": False,
             },
@@ -404,6 +443,30 @@ class Stage7ILifecycleCollector:
                 "exit_reason": reason,
                 "received_signal": self.stop_signal,
                 "request_count": self.consumed_attempts(),
+                "budget_preflight": self.budget_preflight(),
+                "evidence_deleted": False,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+        )
+        append_jsonl_once(
+            self.lifecycle_dir / "collector_exits.jsonl",
+            {
+                "event_id": stable_event_id(
+                    "collector-exit",
+                    self.config.fixture_id,
+                    self.instance_id,
+                    reason,
+                    self.stop_signal,
+                ),
+                "fixture_id": self.config.fixture_id,
+                "pid": os.getpid(),
+                "collector_instance_id": self.instance_id,
+                "exited_at_utc": iso(utc_now()),
+                "exit_reason": reason,
+                "received_signal": self.stop_signal,
+                "request_count": self.consumed_attempts(),
+                "budget_preflight": self.budget_preflight(),
                 "evidence_deleted": False,
                 "candidate": False,
                 "formal_recommendation": False,
@@ -443,7 +506,7 @@ class Stage7ILifecycleCollector:
         if self.stop_requested:
             raise Stage7ILifecycleError("COLLECTOR_SHUTDOWN_REQUESTED")
         self.request_count = self.consumed_attempts()
-        if self.request_count >= self.config.request_budget:
+        if self.request_count >= self.effective_request_budget():
             raise Stage7ILifecycleError("REQUEST_BUDGET_EXHAUSTED")
         self.request_count += 1
         response = self.client.request_live(endpoint, params)
@@ -457,7 +520,13 @@ class Stage7ILifecycleCollector:
         append_jsonl_once(
             self.lifecycle_dir / "request_audit.jsonl",
             {
-                "event_id": stable_event_id("request", endpoint, params, raw_hash),
+                "event_id": stable_event_id(
+                    "request",
+                    endpoint,
+                    params,
+                    raw_hash,
+                    iso(response.captured_at),
+                ),
                 "endpoint": endpoint,
                 "params": dict(params),
                 "fixture_id": self.config.fixture_id,
