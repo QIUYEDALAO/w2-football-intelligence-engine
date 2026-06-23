@@ -1,0 +1,412 @@
+{
+  "active_execution_packages": [
+    {
+      "evidence": [
+        "reports/W2_STAGE7I_R1B2_RESULT.md"
+      ],
+      "mapped_master_phases": [
+        "7",
+        "9"
+      ],
+      "name": "Stage7I-R1B2",
+      "notes": "successor forward observation continues; not a master phase",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "evidence": [
+        "reports/W2_FUTURE_REFRESH_HARDENING_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
+      "name": "future-refresh hardening",
+      "notes": "not deployed to staging to preserve active Stage7I revision continuity",
+      "status": "IMPLEMENTED_PENDING_DEPLOYMENT"
+    },
+    {
+      "evidence": [
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "10"
+      ],
+      "name": "Stage10E dashboard redesign",
+      "notes": "not deployed",
+      "status": "DELAYED"
+    }
+  ],
+  "candidate": false,
+  "formal_recommendation": false,
+  "gates": {
+    "0": {
+      "evidence": [
+        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "missing_requirements": [
+        "W1 tag w1-legacy-final not verified",
+        "Full backup completion not verified",
+        "Full W1 asset classification not verified"
+      ],
+      "name": "Legacy 冻结",
+      "status": "PARTIAL"
+    },
+    "1": {
+      "evidence": [
+        "reports/W2_STAGE2_RESULT.md",
+        "scripts/check_w2_all.py",
+        "GitHub CI success recorded in reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "missing_requirements": [],
+      "name": "工程底座",
+      "status": "COMPLETE"
+    },
+    "2": {
+      "evidence": [
+        "reports/W2_STAGE4B_RESULT.md",
+        "reports/W2_STAGE4B_DATA_QUALITY.json"
+      ],
+      "missing_requirements": [],
+      "name": "数据底座",
+      "status": "CLOSED"
+    },
+    "3": {
+      "evidence": [
+        "reports/W2_STAGE6_RESULT.md",
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json"
+      ],
+      "missing_requirements": [
+        "Master-plan Gate3 also requires market baseline readiness as production gate; current status does not authorize model tuning beyond approved packages"
+      ],
+      "name": "市场基准",
+      "status": "PARTIAL"
+    },
+    "4": {
+      "evidence": [
+        "reports/W2_STAGE7_GATE4_DECISION.json",
+        "reports/W2_STAGE7C_GATE4_DECISION.json",
+        "reports/W2_STAGE7F_GATE4_DECISION.json",
+        "reports/W2_STAGE8_GATE4_AUDIT.json"
+      ],
+      "missing_requirements": [
+        "Forward holdout not sufficient for promotion",
+        "Independent model not approved for formal recommendations",
+        "AH remains blocked/forward-only"
+      ],
+      "name": "独立模型",
+      "status": "OPEN"
+    },
+    "5": {
+      "evidence": [
+        "reports/W2_STAGE7I_R1B2_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "missing_requirements": [
+        "Successor observation not complete",
+        "Closing observation and settlement/evaluation not complete",
+        "Final Shadow DB audit not PASS",
+        "Gate5 decision not made"
+      ],
+      "name": "推荐策略",
+      "status": "OPEN"
+    },
+    "6": {
+      "evidence": [
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "missing_requirements": [
+        "Gate4 not closed",
+        "Gate5 not closed",
+        "Production approval absent",
+        "Production release disabled",
+        "W2 has not replaced W1"
+      ],
+      "name": "生产切换",
+      "status": "NOT_READY"
+    }
+  },
+  "generated_at_utc": "2026-06-23T16:11:14.253926Z",
+  "phases": {
+    "0": {
+      "blockers": [
+        "W1 tag w1-legacy-final not verified in current repository evidence",
+        "W1 full asset inventory and backup completion not proven in current evidence"
+      ],
+      "evidence": [
+        "reports/W2_STAGE1_W1_READONLY_AUDIT.txt",
+        "reports/W2_STAGE2_W1_READONLY_AUDIT.txt",
+        "reports/W2_STAGE3_W1_READONLY_AUDIT.txt",
+        "reports/W2_STAGE12A_W1_READONLY_AUDIT.txt"
+      ],
+      "name": "冻结 W1，并保全现有资产",
+      "next_actions": [
+        "Verify W1 tag, backup, and full asset classification before Gate0 closure"
+      ],
+      "status": "PARTIAL"
+    },
+    "1": {
+      "blockers": [],
+      "evidence": [
+        "docs/product/W2_PRODUCT_CHARTER_V1.md",
+        "docs/product/W2_STATE_MODEL_V1.md",
+        "docs/product/W2_MARKET_SCOPE_V1.md",
+        "docs/product/W2_PREDICTION_TIMELINE_V1.md",
+        "docs/ai/W2_DEEPSEEK_ROLE_BOUNDARY_V1.md",
+        "reports/W2_STAGE1_RESULT.md"
+      ],
+      "name": "确定 W2 产品边界",
+      "next_actions": [
+        "Keep product boundary synced when master scope changes"
+      ],
+      "status": "COMPLETE"
+    },
+    "10": {
+      "blockers": [
+        "Stage10E dashboard redesign/deployment is delayed",
+        "Live dashboard/read-model deployment state is not complete in current handoff"
+      ],
+      "evidence": [
+        "reports/W2_STAGE10A_RESULT.md",
+        "docs/api/W2_READ_API_V1.md",
+        "docs/api/W2_OPERATIONS_READ_API_V1.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "name": "建立 API 与管理后台",
+      "next_actions": [
+        "Deploy pending dashboard/read-model work only after approved release train and active observer constraints"
+      ],
+      "status": "PARTIAL"
+    },
+    "11": {
+      "blockers": [
+        "Production deployment remains disabled",
+        "External alerting remains disabled"
+      ],
+      "evidence": [
+        "reports/W2_STAGE11A_RESULT.md",
+        "reports/W2_STAGE11A_SECURITY_AUDIT.json",
+        "reports/W2_STAGE11A_BACKUP_RESTORE.json",
+        "docs/security/W2_SECURITY_BASELINE_V1.md",
+        "docs/operations/W2_SLO_POLICY_V1.md"
+      ],
+      "name": "部署、监控和安全",
+      "next_actions": [
+        "Keep backup/restore and monitoring drills current before production cutover"
+      ],
+      "status": "PARTIAL"
+    },
+    "12": {
+      "blockers": [
+        "Migration approval checkpoint not closed",
+        "W1 remains frozen/read-only; migration not production-applied"
+      ],
+      "evidence": [
+        "reports/W2_STAGE12A_RESULT.md",
+        "reports/W2_STAGE12A_SOURCE_INVENTORY.json",
+        "reports/W2_STAGE12A_QUARANTINE.json",
+        "reports/W2_STAGE12A_MIGRATION_DRY_RUN.json"
+      ],
+      "name": "W1 数据迁移与 W2 影子运行",
+      "next_actions": [
+        "Require explicit approval before any real migration or production replacement"
+      ],
+      "status": "PARTIAL"
+    },
+    "13": {
+      "blockers": [
+        "World Cup shadow runtime disabled pending Gate4/Gate5",
+        "World Cup strategy remains NOT_AVAILABLE_GATE4"
+      ],
+      "evidence": [
+        "reports/W2_STAGE13A_RESULT.md",
+        "reports/W2_STAGE13A_READINESS.json",
+        "config/competitions/world_cup_2026.v1.json",
+        "docs/operations/WORLD_CUP_2026_PROFILE.md"
+      ],
+      "name": "世界杯运行方案",
+      "next_actions": [
+        "Do not treat World Cup readiness as production strategy availability"
+      ],
+      "status": "PARTIAL"
+    },
+    "14": {
+      "blockers": [
+        "Club market dataset remains PARTIAL",
+        "League strategy blocked by Gate4"
+      ],
+      "evidence": [
+        "reports/W2_STAGE14A_RESULT.md",
+        "reports/W2_STAGE14A_COVERAGE.json",
+        "reports/W2_STAGE14A_READINESS.json",
+        "docs/leagues/W2_LEAGUE_ONBOARDING_V1.md"
+      ],
+      "name": "五大联赛及热门一级联赛扩展",
+      "next_actions": [
+        "Keep league strategy disabled until model and shadow Gates close"
+      ],
+      "status": "PARTIAL"
+    },
+    "15": {
+      "blockers": [
+        "Operational autorun disabled pending approval",
+        "Production release disabled",
+        "External alerting disabled"
+      ],
+      "evidence": [
+        "reports/W2_STAGE15A_RESULT.md",
+        "reports/W2_STAGE15A_OPERATIONS.json",
+        "reports/W2_STAGE15A_RELEASE_READINESS.json",
+        "docs/operations/W2_RELEASE_AND_ROLLBACK_V1.md"
+      ],
+      "name": "长期运营制度",
+      "next_actions": [
+        "Use local/staging governance cycles; require user approval for production release"
+      ],
+      "status": "PARTIAL"
+    },
+    "2": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE2_RESULT.md",
+        "pyproject.toml",
+        "Makefile",
+        ".github/workflows/ci.yml",
+        "scripts/check_w2_all.py"
+      ],
+      "name": "建立 W2 工程底座",
+      "next_actions": [
+        "Maintain CI and engineering baseline"
+      ],
+      "status": "COMPLETE"
+    },
+    "3": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE3_RESULT.md",
+        "docs/data/W2_DOMAIN_MODEL_V1.md",
+        "docs/data/W2_IDENTITY_AND_TIME_POLICY_V1.md",
+        "docs/data/W2_ODDS_AND_SETTLEMENT_V1.md",
+        "scripts/check_w2_stage3_data_model.py"
+      ],
+      "name": "建立统一足球数据模型",
+      "next_actions": [
+        "Continue regression checks for schema and settlement semantics"
+      ],
+      "status": "COMPLETE"
+    },
+    "4": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE4A_RESULT.md",
+        "reports/W2_STAGE4B_RESULT.md",
+        "reports/W2_STAGE4B_DATA_QUALITY.json",
+        "reports/W2_STAGE4B_REQUEST_AUDIT.json",
+        "scripts/check_w2_stage4_ingestion.py",
+        "scripts/check_w2_stage4b_live_smoke.py"
+      ],
+      "name": "立即建立正式数据采集系统",
+      "next_actions": [
+        "Deploy pending future-refresh hardening only after active Stage7I continuity allows"
+      ],
+      "status": "COMPLETE"
+    },
+    "5": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE5A_RESULT.md",
+        "reports/W2_STAGE5B_RESULT.md",
+        "reports/W2_STAGE5B_SOURCE_MANIFEST.json",
+        "reports/W2_STAGE5B_NATIONAL_DATA_QUALITY.json",
+        "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json",
+        "scripts/check_w2_stage5_asof.py",
+        "scripts/check_w2_stage5b.py"
+      ],
+      "name": "建立历史训练与回测数据集",
+      "next_actions": [
+        "Refresh source coverage when new approved historical data is added"
+      ],
+      "status": "COMPLETE"
+    },
+    "6": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE6_RESULT.md",
+        "reports/W2_STAGE6_1X2_BACKTEST.json",
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "reports/W2_STAGE6_MARKET_QUALITY.json",
+        "scripts/check_w2_stage6_market.py"
+      ],
+      "name": "建立市场分析层",
+      "next_actions": [
+        "Keep AH/OU settlement and value engine regression coverage current"
+      ],
+      "status": "COMPLETE"
+    },
+    "7": {
+      "blockers": [
+        "Gate4 remains OPEN/PENDING; independent model not promoted",
+        "Stage7I successor observation still IN_PROGRESS",
+        "Actual kickoff, closing, settlement/evaluation, and final Shadow DB audit not complete for fixture 1489404"
+      ],
+      "evidence": [
+        "reports/W2_STAGE7_RESULT.md",
+        "reports/W2_STAGE7B_RESULT.md",
+        "reports/W2_STAGE7C_RESULT.md",
+        "reports/W2_STAGE7D_RESULT.md",
+        "reports/W2_STAGE7E_RESULT.md",
+        "reports/W2_STAGE7F_RESULT.md",
+        "reports/W2_STAGE7G_RESULT.md",
+        "reports/W2_STAGE7I_R1B2_RESULT.md"
+      ],
+      "name": "建立独立概率模型",
+      "next_actions": [
+        "Continue Stage7I-R1B2 evidence monitoring until observer completes naturally",
+        "Do not generate formal recommendation before Gate4 closure"
+      ],
+      "status": "IN_PROGRESS"
+    },
+    "8": {
+      "blockers": [],
+      "evidence": [
+        "reports/W2_STAGE8_RESULT.md",
+        "reports/W2_STAGE8_REPLAY_SUMMARY.json",
+        "reports/W2_STAGE8_MODEL_COMPARISON.json",
+        "reports/W2_STAGE8_GATE4_AUDIT.json",
+        "scripts/check_w2_stage8_replay.py"
+      ],
+      "name": "建立完整回测系统",
+      "next_actions": [
+        "Use replay only under frozen data/model versions"
+      ],
+      "status": "COMPLETE"
+    },
+    "9": {
+      "blockers": [
+        "Gate5 remains OPEN",
+        "Shadow strategy replacement evidence is not complete",
+        "Stage7I lifecycle evidence is still collecting"
+      ],
+      "evidence": [
+        "docs/adr/ADR-0015-w1-migration-shadow-foundation.md",
+        "docs/shadow/W2_SHADOW_COMPARISON_V1.md",
+        "reports/W2_STAGE12A_SHADOW_COMPARISON.json",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "name": "建立比赛筛选和推荐引擎",
+      "next_actions": [
+        "Complete Stage7I final evidence and independent Gate5 decision before strategy replacement"
+      ],
+      "status": "PARTIAL"
+    }
+  },
+  "repository_head_relation": "current as of containing commit",
+  "roadmap_version": 1,
+  "warnings": [
+    "Do not infer master phase completion from execution package names",
+    "Do not infer Gate5 from observer existence",
+    "Do not infer Gate6 from staging availability"
+  ]
+}

@@ -6,13 +6,19 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 15
+handoff_version: 16
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
 active_stage_package: Stage7I-R1B2 successor forward observation in progress
+master_roadmap_path: docs/W2_MASTER_ROADMAP.md
+master_roadmap_version: 1
+roadmap_status_path: reports/W2_ROADMAP_STATUS.json
+roadmap_status_relation: current as of containing commit
+active_execution_package: Stage7I-R1B2
+execution_package_is_not_master_phase: true
 stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
 parallel_mainline_status: FUTURE_DATA_REFRESH_IMPLEMENTATION_COMPLETED
 future_refresh_hardening_status: OPERATIONAL_HARDENING_COMPLETED
@@ -153,6 +159,21 @@ repository_head_before_handoff: b98d3e3cdf19c47d5da25d5e681936970c75856c
 handoff_file_added_on: 2026-06-23
 handoff_file_tracked: true
 ```
+
+## 0.1 权威文件层级
+
+1. `docs/W2_MASTER_ROADMAP.md`
+   - 项目总目标、阶段、Gate 和禁止事项。
+2. `reports/W2_ROADMAP_STATUS.json`
+   - 各阶段与 Gate 的动态进度。
+3. `reports/W2_CURRENT_HANDOFF.md`
+   - 当前 SHA、runtime、BLOCKER 和恢复点。
+4. 聊天记录
+   - 只作补充，不作为长期事实源。
+
+执行包名称（例如 Stage7I、Stage10E、Patch、Release Train）不等于 master
+roadmap 阶段编号。当前 Stage7I-R1B2 是 active execution package，不能被解读为
+master roadmap Stage 7 已完成。
 
 ## 1. 新会话启动协议
 
