@@ -36,9 +36,19 @@ def candidate(
         "fixture_id": fixture_id,
         "status": status,
         "scheduled_kickoff_utc": kickoff,
-        "provider_mapping": {"reliable": reliable, "conflict": conflict},
+        "provider_mapping": {
+            "reliable": reliable,
+            "conflict": conflict,
+            "source": "unit-test",
+            "evidence_sha256": "a" * 64,
+        },
         "market_observation": {
+            "market": "ONE_X_TWO",
             "captured_at_utc": captured_at,
+            "source": "unit-test",
+            "provenance": {"fixture_id": fixture_id},
+            "freshness_limit_seconds": 3600,
+            "evidence_sha256": "b" * 64,
             "fresh": fresh,
             "bookmaker_count": bookmaker_count,
         },
@@ -50,6 +60,7 @@ def selection_payload(fixture_id: str = "200001") -> dict[str, object]:
         "generated_at_utc": "2026-06-23T10:00:00Z",
         "source": "W2_STAGING_PROVIDER_DATA",
         "policy": {},
+        "candidates": [candidate(fixture_id)],
         "selected_fixture": candidate(fixture_id),
         "rejected_candidates": [],
         "candidate": False,
@@ -215,13 +226,16 @@ def test_selector_rejects_invalid_candidates_and_non_localhost(tmp_path: Path) -
     input_path = write_json(
         tmp_path / "fixtures.json",
         {
+            "source": "W2_STAGING_PROVIDER_DATA",
             "candidates": [
                 candidate("1489401"),
                 candidate("200001", kickoff="2026-06-23T10:10:00Z"),
                 candidate("200002", reliable=False),
                 candidate("200003", fresh=False),
                 candidate("200004", captured_at="2026-06-23T10:01:00Z"),
-            ]
+            ],
+            "candidate": False,
+            "formal_recommendation": False,
         },
     )
     result = run_cli(
@@ -247,20 +261,23 @@ def test_selector_sorts_deterministically(tmp_path: Path) -> None:
     input_path = write_json(
         tmp_path / "fixtures.json",
         {
+            "source": "W2_STAGING_PROVIDER_DATA",
             "candidates": [
                 candidate(
                     "200002",
-                    kickoff="2026-06-24T06:00:00Z",
+                    kickoff="2026-06-23T22:00:00Z",
                     captured_at="2026-06-23T09:55:00Z",
                     bookmaker_count=3,
                 ),
                 candidate(
                     "200001",
-                    kickoff="2026-06-24T06:00:00Z",
+                    kickoff="2026-06-23T22:00:00Z",
                     captured_at="2026-06-23T09:59:00Z",
                     bookmaker_count=2,
                 ),
-            ]
+            ],
+            "candidate": False,
+            "formal_recommendation": False,
         },
     )
     result = run_cli(
@@ -281,7 +298,15 @@ def test_selector_sorts_deterministically(tmp_path: Path) -> None:
 
 
 def test_selector_detects_active_global_lock(tmp_path: Path) -> None:
-    input_path = write_json(tmp_path / "fixtures.json", {"candidates": [candidate("200001")]})
+    input_path = write_json(
+        tmp_path / "fixtures.json",
+        {
+            "source": "W2_STAGING_PROVIDER_DATA",
+            "candidates": [candidate("200001", kickoff="2026-06-23T22:00:00Z")],
+            "candidate": False,
+            "formal_recommendation": False,
+        },
+    )
     lock_path = tmp_path / "observer-global.lock"
     with lock_path.open("w", encoding="utf-8") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

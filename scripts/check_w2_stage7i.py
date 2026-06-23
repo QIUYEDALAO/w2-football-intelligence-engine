@@ -70,6 +70,7 @@ def validate_static_files() -> None:
         "scripts/run_stage7i_observer.py",
         "scripts/check_w2_stage7i.py",
         "scripts/select_stage7i_successor.py",
+        "scripts/build_stage7i_successor_candidates.py",
         "docs/runbooks/STAGE7I_24H_OBSERVATION.md",
         "reports/W2_STAGE7I_OBSERVATION_START.json",
         "reports/W2_STAGE7I_RESULT.md",

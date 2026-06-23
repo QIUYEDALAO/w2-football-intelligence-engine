@@ -27,12 +27,44 @@ The observer is copied to:
 
 `/opt/w2/shared/runtime/stage7i/run_stage7i_observer.py`
 
-R1B is split into two steps:
+R1B is split into three steps:
 
 - `Stage7I-R1B1 successor tooling readiness`: code, tests, and documentation
   only. It does not select a real fixture and does not start an observer.
-- `Stage7I-R1B2 dynamic successor selection and observer bootstrap`: performs
-  the actual local/staging selection and starts a new observer when approved.
+- `Stage7I-R1B2A live selection contract closure`: proves the staging
+  `/v1/fixtures` response shape, builds the candidate manifest contract, and
+  keeps selection dry-run only. It does not choose a formal successor fixture
+  and does not start an observer.
+- `Stage7I-R1B2B dynamic successor selection and observer bootstrap`: copies
+  the CI-validated tooling to staging, performs the actual local/staging
+  selection, and starts a new observer when approved.
+
+## Candidate Manifest Builder
+
+`/v1/fixtures` returns a `FixtureSummary` intended for read API and dashboard
+display. It is not a complete Stage7I candidate manifest because it does not
+prove provider mapping reliability or market evidence by itself.
+
+Build a manifest with explicit fixture, mapping, and market evidence:
+
+```bash
+python3 scripts/build_stage7i_successor_candidates.py \
+  --api-base http://127.0.0.1:18000 \
+  --mapping-input /path/to/provider-mapping-evidence.json \
+  --market-input /path/to/market-observation-evidence.json \
+  --output /tmp/stage7i-successor-candidates.json
+```
+
+The builder is read-only. It does not start an observer, write the database, or
+read `.env`. Evidence must contain:
+
+- provider mapping source, confidence, conflict state, and evidence SHA;
+- market source/provenance, captured time, bookmaker count, live/suspended
+  flags, freshness limit, and evidence SHA;
+- `candidate=false` and `formal_recommendation=false`.
+
+Missing mapping evidence, missing market evidence, missing freshness policy, or
+missing evidence SHA is a rejection reason, not something the builder infers.
 
 ## Successor Selector
 
@@ -40,24 +72,35 @@ The selector is dry-run by default and is read-only:
 
 ```bash
 python3 scripts/select_stage7i_successor.py \
-  --api-base http://127.0.0.1:18000 \
+  --candidate-manifest /tmp/stage7i-successor-candidates.json \
   --output /tmp/stage7i-successor-selection.json
 ```
 
-For hermetic tests, use `--input-json`. Non-localhost API URLs are rejected.
+For hermetic tests, `--input-json` is accepted as an alias for a candidate
+manifest. Raw `FixtureSummary` responses are rejected. Non-localhost API URLs
+are rejected.
 
 The selector requires:
 
 - `status=NS`;
-- kickoff later than `now + min_pre_kickoff_minutes`;
-- kickoff earlier than `run_end - min_post_kickoff_hours`;
+- kickoff later than `now + 6h`;
+- kickoff earlier than `run_end - 6h`;
 - reliable provider mapping with no conflict;
 - real and fresh pre-match market observation;
+- mapping and market evidence SHA values;
 - no active Stage7I global observer lock;
+- no active legacy Stage7I observer PID under the runtime root;
 - fixture is not the archived fixture `1489401`.
 
 The selector does not use team popularity, external schedules, score sites, or
-hardcoded fixture IDs.
+hardcoded fixture IDs. Dry-run mode must not create a global lock file, runtime
+directory, or selection/start evidence; only an explicit `--output` file may be
+written.
+
+The 6h/6h observation window is a Stage7I evidence policy, not an odds or model
+threshold. It exists to cover multiple pre-match market observations, closing,
+actual kickoff, the full match, result synchronization, settlement/evaluation,
+and final audit. Do not lower it automatically when no fixture qualifies.
 
 ## Start Command
 

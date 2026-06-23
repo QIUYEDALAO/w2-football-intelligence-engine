@@ -4,15 +4,15 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 RUN01_ARCHIVE_FIXTURE = "1489401"
 DEFAULT_GLOBAL_LOCK = Path("/opt/w2/shared/runtime/stage7i/observer-global.lock")
+DEFAULT_RUNTIME_ROOT = Path("/opt/w2/shared/runtime/stage7i")
 UTC = timezone.utc  # noqa: UP017 - local python3 can be 3.9 while project runtime is 3.12.
 
 
@@ -50,24 +50,31 @@ def validate_localhost_api(url: str) -> str:
     return url.rstrip("/")
 
 
-def load_candidates(args: argparse.Namespace) -> dict[str, Any]:
-    if args.input_json:
-        return json.loads(args.input_json.read_text(encoding="utf-8"))
-    api_base = validate_localhost_api(args.api_base)
-    request = Request(  # noqa: S310 - localhost-only guard above.
-        f"{api_base}/v1/fixtures?page_size=100",
-        method="GET",
-    )
-    try:
-        with urlopen(request, timeout=10) as response:  # noqa: S310 - localhost-only guard above.
-            return json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError) as exc:
-        raise SelectionError(f"localhost API request failed: {exc}") from exc
+def load_manifest(args: argparse.Namespace) -> dict[str, Any]:
+    path = args.candidate_manifest or args.input_json
+    if not path:
+        validate_localhost_api(args.api_base)
+        raise SelectionError(
+            "candidate manifest required; build it with build_stage7i_successor_candidates.py"
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise SelectionError("candidate manifest must be a JSON object")
+    if payload.get("source") != "W2_STAGING_PROVIDER_DATA":
+        raise SelectionError("candidate manifest source must be W2_STAGING_PROVIDER_DATA")
+    if payload.get("candidate") is not False or payload.get("formal_recommendation") is not False:
+        raise SelectionError("candidate manifest must keep candidate/formal false")
+    if "candidates" not in payload:
+        raise SelectionError(
+            "candidate manifest required; FixtureSummary response is not sufficient"
+        )
+    return payload
 
 
 def global_lock_active(path: Path) -> bool:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+", encoding="utf-8") as handle:
+    if not path.exists():
+        return False
+    with path.open("r+", encoding="utf-8") as handle:
         locked_here = False
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -83,12 +90,36 @@ def global_lock_active(path: Path) -> bool:
     return False
 
 
+def process_is_active(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    result = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "pid="],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def legacy_observer_active(runtime_root: Path) -> bool:
+    if not runtime_root.exists():
+        return False
+    for path in runtime_root.rglob("observer.pid"):
+        try:
+            pid = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        if process_is_active(pid):
+            return True
+    return False
+
+
 def iter_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    for key in ("candidates", "fixtures", "items", "data"):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
-    raise SelectionError("input must contain a candidates/fixtures/items/data list")
+    value = payload.get("candidates")
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    raise SelectionError("candidate manifest must contain a candidates list")
 
 
 def reject(reason: str) -> dict[str, str]:
@@ -125,6 +156,11 @@ def evaluate_candidate(
         reasons.append("PROVIDER_MAPPING_MISSING")
     elif mapping.get("conflict") is True:
         reasons.append("PROVIDER_MAPPING_CONFLICT")
+    else:
+        if not mapping.get("source"):
+            reasons.append("PROVIDER_MAPPING_SOURCE_MISSING")
+        if not mapping.get("evidence_sha256"):
+            reasons.append("PROVIDER_MAPPING_EVIDENCE_SHA_MISSING")
     market = item.get("market_observation")
     if not isinstance(market, dict):
         reasons.append("MARKET_OBSERVATION_MISSING")
@@ -132,13 +168,25 @@ def evaluate_candidate(
     else:
         try:
             captured = parse_utc(market.get("captured_at_utc"), "market captured_at")
-            if captured > now:
-                reasons.append("MARKET_CAPTURED_AT_FUTURE")
+            if captured >= now:
+                reasons.append("MARKET_CAPTURED_AT_NOT_BEFORE_SELECTION")
         except SelectionError:
             reasons.append("MARKET_CAPTURED_AT_INVALID")
             captured = now
-        if market.get("fresh") is not True:
+        age_seconds = max(0, int((now - captured).total_seconds()))
+        limit = market.get("freshness_limit_seconds")
+        if not isinstance(limit, int) or limit <= 0:
+            reasons.append("MARKET_FRESHNESS_POLICY_MISSING")
+        elif age_seconds > limit:
             reasons.append("MARKET_STALE")
+        if not market.get("source") or not market.get("provenance"):
+            reasons.append("MARKET_SOURCE_MISSING")
+        if not market.get("evidence_sha256"):
+            reasons.append("MARKET_EVIDENCE_SHA_MISSING")
+        if market.get("live") is True:
+            reasons.append("MARKET_LIVE")
+        if market.get("suspended") is True:
+            reasons.append("MARKET_SUSPENDED")
         if int(market.get("bookmaker_count", 0)) <= 0:
             reasons.append("MARKET_BOOKMAKER_COVERAGE_MISSING")
     if reasons:
@@ -166,20 +214,23 @@ def evaluate_candidate(
 def build_selection(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     now = parse_utc(args.now_utc, "now_utc") if args.now_utc else datetime.now(UTC)
     run_end = now + timedelta(hours=args.observation_hours)
-    payload = load_candidates(args)
+    payload = load_manifest(args)
     rejected: list[dict[str, Any]] = []
     eligible: list[dict[str, Any]] = []
     lock_active = global_lock_active(args.global_lock_path)
+    legacy_active = legacy_observer_active(args.runtime_root)
     for item in iter_candidates(payload):
         fixture_id = str(item.get("fixture_id") or item.get("id") or "")
-        if lock_active:
+        if lock_active or legacy_active:
             rejected.append({"fixture_id": fixture_id, "reasons": ["ACTIVE_GLOBAL_OBSERVER_LOCK"]})
+            if legacy_active:
+                rejected[-1]["reasons"] = ["ACTIVE_STAGE7I_OBSERVER"]
             continue
         selected, reasons = evaluate_candidate(
             item,
             now=now,
             run_end=run_end,
-            min_pre=timedelta(minutes=args.min_pre_kickoff_minutes),
+            min_pre=timedelta(hours=args.min_pre_kickoff_hours),
             min_post=timedelta(hours=args.min_post_kickoff_hours),
         )
         if selected is None:
@@ -209,10 +260,12 @@ def build_selection(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "source": "W2_STAGING_PROVIDER_DATA",
         "policy": {
             "observation_hours": args.observation_hours,
-            "min_pre_kickoff_minutes": args.min_pre_kickoff_minutes,
+            "min_pre_kickoff_hours": args.min_pre_kickoff_hours,
             "min_post_kickoff_hours": args.min_post_kickoff_hours,
             "archive_fixture_excluded": RUN01_ARCHIVE_FIXTURE,
             "global_lock_path": str(args.global_lock_path),
+            "runtime_root": str(args.runtime_root),
+            "candidate_manifest_required": True,
         },
         "selected_fixture": selected,
         "rejected_candidates": rejected,
@@ -229,11 +282,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Dry-run select a Stage7I successor fixture.")
     parser.add_argument("--api-base", default="http://127.0.0.1:18000")
     parser.add_argument("--input-json", type=Path)
+    parser.add_argument("--candidate-manifest", type=Path)
     parser.add_argument("--now-utc")
     parser.add_argument("--observation-hours", type=float, default=24)
-    parser.add_argument("--min-pre-kickoff-minutes", type=int, default=30)
-    parser.add_argument("--min-post-kickoff-hours", type=float, default=2)
+    parser.add_argument("--min-pre-kickoff-hours", type=float, default=6)
+    parser.add_argument("--min-post-kickoff-hours", type=float, default=6)
     parser.add_argument("--global-lock-path", type=Path, default=DEFAULT_GLOBAL_LOCK)
+    parser.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
