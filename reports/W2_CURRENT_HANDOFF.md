@@ -6,14 +6,14 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 8
+handoff_version: 9
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
-active_stage_package: Stage7I-R1B2 dynamic successor selection and observer bootstrap
-stage7i_status: BLOCKED_NO_ELIGIBLE_SUCCESSOR_FIXTURE
+active_stage_package: Stage7I-R1B2 successor forward observation in progress
+stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
 ci_patch1_status: REMOTE_CI_FAILED_ALEMBIC_SMOKE
 ci_patch2_status: REMOTE_CI_SUCCESS
 server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
@@ -49,8 +49,14 @@ stage7i_run_01_forward_complete: false
 stage7i_run_01_gate5_eligible: false
 stage7i_same_fixture_restart_allowed: false
 stage7i_successor_fixture_required: true
-stage7i_successor_fixture_id: null
-stage7i_successor_run_status: NOT_STARTED
+stage7i_successor_fixture_id: 1489404
+stage7i_successor_kickoff_utc: 2026-06-23T17:00:00Z
+stage7i_successor_observer_pid: 1435421
+stage7i_successor_observer_pgid: 1435396
+stage7i_successor_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404
+stage7i_successor_started_at_utc: 2026-06-23T09:59:44.331436Z
+stage7i_successor_expected_end_utc: 2026-06-24T09:59:44.331436Z
+stage7i_successor_run_status: IN_PROGRESS
 stage7i_server_revision_baseline: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 stage7i_r1b1_commit: 54a498c701af0e754645cf51658e45683fa6352a
 stage7i_r1b1_ci_run: 28009675284
@@ -78,9 +84,14 @@ stage7i_r1b2_legacy_observer_old_pids:
 stage7i_r1b2_legacy_observer_old_pgid: 723782
 stage7i_r1b2_legacy_observer_sample_count: 177
 stage7i_r1b2_legacy_observer_completed: false
-stage7i_r1b2_candidate_manifest_count: 0
-stage7i_r1b2_selection_blocker: NO_ELIGIBLE_SUCCESSOR_FIXTURE
-stage7i_r1b2_observer_started: false
+stage7i_r1b2_provider_recovery_request_count: 3
+stage7i_r1b2_provider_recovery_future_candidate_count: 4
+stage7i_r1b2_candidate_manifest_count: 1
+stage7i_r1b2_selection_blocker: null
+stage7i_r1b2_observer_started: true
+stage7i_r1b2_observer_first_sample_count: 1
+stage7i_r1b2_bootstrap_check: PASS
+stage7i_r1b2_tooling_fix: typed_alembic_revision_parser_and_legacy_runtime_dir_compat
 repository_head_relation: handoff is current as of its containing Git commit
 containing_commit_ci_source: GitHub Actions status for the containing commit
 repository_branch_at_capture: chore/stage7i-24h-observation
@@ -318,7 +329,7 @@ Secondary：
 
 目标：
 
-fixture `1489401` 的观察已归档为 `BLOCKED_NON_QUALIFYING`。R1B1 tooling commit `54a498c701af0e754645cf51658e45683fa6352a` 已通过 GitHub Actions run `28009675284`。R1B2A contract commit `7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc` 已通过 GitHub Actions run `28010736953`。R1B2 主线已按用户批准优雅终止 legacy observer PID `723787/723789`，并追加 runtime audit。随后用内部 read API 与显式空 mapping/market evidence 构建 candidate manifest，结果 candidate_count=0，selector 返回 `NO_ELIGIBLE_SUCCESSOR_FIXTURE`。因此本阶段 BLOCKED，未选择 successor fixture，未启动 global-lock observer。
+fixture `1489401` 的观察已归档为 `BLOCKED_NON_QUALIFYING`。R1B1 tooling commit `54a498c701af0e754645cf51658e45683fa6352a` 已通过 GitHub Actions run `28009675284`。R1B2A contract commit `7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc` 已通过 GitHub Actions run `28010736953`。R1B2 主线已按用户批准优雅终止 legacy observer PID `723787/723789`，并追加 runtime audit。随后确认当前 staging scheduler 仍为 heartbeat-only，read model 只剩过期 fixture 摘要，不能直接形成 successor manifest。R1B2 使用现有 `ApiFootballClient` provider path 做受控 live recovery，3 次只读请求恢复 4 个未来 World Cup fixture，其中 fixture `1489404` 有 14 家 bookmaker 市场证据。builder 产出 1 个合格 candidate，selector 动态选择 `1489404`，global-lock observer 已启动并写入首个 forward sample。
 
 Run 01 archive:
 
@@ -330,13 +341,24 @@ Run 01 archive:
 - gate5_eligible=false
 - same_fixture_restart_allowed=false
 - successor_fixture_required=true
-- successor_fixture_id=null
-- successor_run_status=NOT_STARTED
+- successor_fixture_id=1489404
+- successor_kickoff_utc=2026-06-23T17:00:00Z
+- successor_run_status=IN_PROGRESS
+- successor_observer_pid=1435421
+- successor_observer_pgid=1435396
+- successor_runtime_dir=/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404
+- successor_started_at_utc=2026-06-23T09:59:44.331436Z
+- successor_expected_end_utc=2026-06-24T09:59:44.331436Z
 - legacy_observer_terminated=true
 - legacy_observer_sample_count=177
-- candidate_manifest_count=0
-- selection_blocker=NO_ELIGIBLE_SUCCESSOR_FIXTURE
-- observer_started=false
+- provider_recovery_request_count=3
+- provider_recovery_future_candidate_count=4
+- candidate_manifest_count=1
+- selection_blocker=null
+- observer_started=true
+- first_sample_count=1
+- bootstrap_check=PASS
+- ordinary_tooling_fixes=typed Alembic revision parser; legacy runtime_dir compatibility
 - tooling_fixture_binding=DYNAMIC
 - archive_fixture_id=1489401
 - expected_alembic_head=0017_create_stage9a_shadow_strategy
@@ -351,7 +373,7 @@ Run 01 archive:
 1. 任何变更前核对 staging revision。
 2. 核对 `w2-staging.service`、6 个长期容器、API health/readiness、Web 和 Stage7I observer。
 3. 保护不可变 `as_of_time` 和 forward 时间边界。
-4. successor fixture 必须从 W2 staging/provider 数据动态选择，不得硬编码；当前内部 candidate manifest 为空时必须保持 BLOCKED，不产生 runtime selection/start evidence。
+4. successor fixture 必须从 W2 staging/provider 数据动态选择，不得硬编码；当前 successor `1489404` 仍需完成完整 24h forward lifecycle before Gate5 evidence.
 5. 定义最后一笔赛前观测时，区分 scheduled kickoff 与 actual kickoff。
 6. 禁止把赛后事实回填为赛前 forward evidence。
 7. RETROSPECTIVE replay 与 FORWARD evidence 必须分别归档和表述。
@@ -362,10 +384,7 @@ Run 01 archive:
 ## 10. 当前 BLOCKER / 未完成
 
 - Gate5 尚未关闭。
-- `SUCCESSOR_FIXTURE_NOT_SELECTED`
-- `SUCCESSOR_OBSERVATION_NOT_STARTED`
-- `NO_ELIGIBLE_SUCCESSOR_FIXTURE`
-- `CANDIDATE_MANIFEST_EMPTY`
+- Stage7I successor 24h observation 尚未完成。
 - `ACTUAL_KICKOFF_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
 - `CLOSING_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
 - `SETTLEMENT_EVALUATION_NOT_CAPTURED`

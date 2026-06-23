@@ -123,8 +123,8 @@ def migration_heads(current: Path) -> list[str]:
     down_revisions: set[str] = set()
     if not versions.exists():
         return []
-    revision_re = re.compile(r"^revision\s*=\s*['\"]([^'\"]+)['\"]")
-    down_re = re.compile(r"^down_revision\s*=\s*(.+)$")
+    revision_re = re.compile(r"^revision(?:\s*:\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]")
+    down_re = re.compile(r"^down_revision(?:\s*:\s*[^=]+)?\s*=\s*(.+)$")
     for path in versions.glob("*.py"):
         for line in path.read_text(encoding="utf-8").splitlines():
             revision_match = revision_re.match(line.strip())
@@ -720,6 +720,7 @@ def run_observer(
         {
             "status": "IN_PROGRESS",
             "fixture_id": fixture_id,
+            "runtime_dir": str(runtime),
             "scheduled_kickoff_utc": scheduled_kickoff_utc,
             "baseline_revision": resolved_baseline,
             "expected_alembic_head": expected_alembic_head,

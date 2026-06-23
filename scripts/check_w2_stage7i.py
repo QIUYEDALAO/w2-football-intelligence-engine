@@ -196,7 +196,12 @@ def validate_bootstrap(
     require_str(payload, "baseline_revision")
     require_str(payload, "expected_alembic_head")
     require_str(payload, "observer_id")
-    require_str(payload, "runtime_dir")
+    runtime_dir = payload.get("runtime_dir")
+    if not isinstance(runtime_dir, str) or not runtime_dir:
+        selection_path_value = payload.get("selection_json_path")
+        if not isinstance(selection_path_value, str) or not selection_path_value:
+            raise Stage7ICheckError("runtime_dir or selection_json_path must be present")
+        payload["runtime_dir"] = str(Path(selection_path_value).parent)
     if payload.get("global_lock_path") != GLOBAL_LOCK_PATH:
         raise Stage7ICheckError("bootstrap must use global Stage7I lock")
     require_str(payload, "selection_sha256")

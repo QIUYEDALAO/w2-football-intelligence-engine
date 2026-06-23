@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fcntl
+import importlib.util
 import json
 import subprocess
 import sys
@@ -9,6 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = sys.executable
 EXPECTED_HEAD = "0017_create_stage9a_shadow_strategy"
+
+OBSERVER_SPEC = importlib.util.spec_from_file_location(
+    "run_stage7i_observer",
+    ROOT / "scripts/run_stage7i_observer.py",
+)
+assert OBSERVER_SPEC is not None and OBSERVER_SPEC.loader is not None
+OBSERVER = importlib.util.module_from_spec(OBSERVER_SPEC)
+OBSERVER_SPEC.loader.exec_module(OBSERVER)
 
 
 def run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -19,6 +28,23 @@ def write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def test_observer_migration_head_parser_accepts_typed_alembic_fields(tmp_path: Path) -> None:
+    versions = tmp_path / "migrations" / "versions"
+    versions.mkdir(parents=True)
+    (versions / "0001_base.py").write_text(
+        'revision: str = "0001_base"\n'
+        "down_revision: str | None = None\n",
+        encoding="utf-8",
+    )
+    (versions / "0002_head.py").write_text(
+        'revision: str = "0017_create_stage9a_shadow_strategy"\n'
+        'down_revision: str | None = "0001_base"\n',
+        encoding="utf-8",
+    )
+
+    assert OBSERVER.migration_heads(tmp_path) == [EXPECTED_HEAD]
 
 
 def candidate(
@@ -122,6 +148,26 @@ def test_bootstrap_accepts_dynamic_successor_fixture_ids(tmp_path: Path) -> None
             ]
         )
         assert result.returncode == 0, result.stderr
+
+
+def test_bootstrap_accepts_legacy_start_without_runtime_dir(tmp_path: Path) -> None:
+    payload = bootstrap_payload(tmp_path, "200001")
+    payload.pop("runtime_dir")
+    start = write_json(tmp_path / "legacy-start.json", payload)
+
+    result = run_cli(
+        [
+            PYTHON,
+            "scripts/check_w2_stage7i.py",
+            "--mode",
+            "bootstrap",
+            "--expected-fixture-id",
+            "200001",
+            str(start),
+        ]
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_bootstrap_rejects_archived_fixture_and_bad_flags(tmp_path: Path) -> None:
