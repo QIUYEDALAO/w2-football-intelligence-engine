@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 23
+handoff_version: 24
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -122,6 +122,15 @@ stage7i_successor_started_at_utc: 2026-06-23T09:59:44.331436Z
 stage7i_successor_expected_end_utc: 2026-06-24T09:59:44.331436Z
 stage7i_successor_run_status: IN_PROGRESS
 stage7i_lifecycle_capture_status: ACTIVE_CONTINUITY_RESTORED
+stage7i_lifecycle_continuity_audit_status: OBSERVER_ACTIVE_COLLECTOR_INACTIVE
+stage7i_lifecycle_continuity_audit_path: reports/W2_STAGE7I_LIFECYCLE_CONTINUITY_AUDIT.md
+stage7i_lifecycle_continuity_blocker: STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE
+stage7i_lifecycle_continuity_observer_pid: 1435421
+stage7i_lifecycle_continuity_observer_pgid: 1435396
+stage7i_lifecycle_continuity_collector_count: 0
+stage7i_lifecycle_continuity_lifecycle_lock_exists: true
+stage7i_lifecycle_continuity_lifecycle_lock_holder: null
+stage7i_lifecycle_continuity_final_evidence_status: IN_PROGRESS
 stage7i_lifecycle_collector_identity: host_pid_1678226_container_pid_23041
 stage7i_lifecycle_collector_runtime_tooling: /opt/w2/shared/runtime/stage7i/tooling/lifecycle_74999d0_budget_v5
 stage7i_lifecycle_collector_container_tooling: /tmp/w2_stage7i_lifecycle_tooling_budget_v5
@@ -275,6 +284,13 @@ Two untracked Baselight draft files were classified as unfinished local drafts b
 `/Users/liudehua/.openclaw/workspace/w2_untracked_archive/20260623T200711Z/`
 
 The archive manifest records original paths, SHA256, size, mode, and mtime. After archiving, local `make verify`, secret scan, and `git diff --check` passed. Gate3 state, Stage7I runtime, W1, deployment, and `.env` were not changed.
+
+
+## 0.7 Stage7I Lifecycle Continuity Audit
+
+A read-only continuity audit found the Stage7I observer still alive with PID/PGID `1435421/1435396`, the runtime directory present, and observations still present. The lifecycle collector process was not active (`collector_count=0`). The lifecycle lock file exists but has no holder. `final_evidence.in_progress.json` remains `IN_PROGRESS` with blockers including actual kickoff source unavailable and pending actual kickoff. Result evidence, lifecycle summary, and collector exit evidence are absent.
+
+Result: `OBSERVER_ACTIVE_COLLECTOR_INACTIVE`. BLOCKER: `STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE`. No restart, signal, deployment, runtime write, `.env` read, or W1 modification was performed.
 
 ## 1. 新会话启动协议
 
