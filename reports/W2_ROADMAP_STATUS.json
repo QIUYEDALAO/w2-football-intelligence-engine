@@ -195,7 +195,9 @@
         "Baselight limited AH sample file has not been provided to W2.",
         "Baselight AH walk-forward remains INSUFFICIENT_SAMPLE.",
         "Baselight MCP probe passed, but limited AH extract queries remained PENDING.",
-        "Baselight limited AH sample file remains unavailable to W2."
+        "Baselight limited AH sample file remains unavailable to W2.",
+        "Baselight MCP probe passed and micro-batch wrote a partial AH sample, but only 15 fixtures were available in the current extract.",
+        "Historical AH baseline/backtest remains missing until a >=500 fixture sample passes."
       ],
       "name": "\u5e02\u573a\u57fa\u51c6",
       "status": "PARTIAL"
@@ -244,7 +246,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-23T21:53:36Z",
+  "generated_at_utc": "2026-06-23T22:17:22Z",
   "phases": {
     "0": {
       "blockers": [

@@ -28,6 +28,7 @@ PREFERRED_COMPETITIONS = [
     "UEFA Champions League",
     "UEFA Europa League",
 ]
+MAX_PENDING_POLLS = 20
 
 
 def utc_now() -> str:
@@ -173,7 +174,7 @@ def wait_for_results(
     limit: int,
     offset: int,
 ) -> tuple[int, list[str], list[list[Any]]]:
-    for _ in range(10):
+    for _ in range(MAX_PENDING_POLLS):
         parsed = parse_text_content(
             client.call_tool(
                 "baselight_sdk_get_results",
@@ -254,7 +255,7 @@ def sql_string(value: str) -> str:
 
 def build_fixture_sql(max_fixtures: int) -> str:
     competitions = ", ".join(sql_string(item) for item in PREFERRED_COMPETITIONS)
-    return f"""  # noqa: S608 - controlled constants and numeric LIMIT only.
+    return f"""
 WITH preferred_matches AS (
     SELECT
         m.match_id,
@@ -304,9 +305,70 @@ LIMIT {max_fixtures}
 """.strip()
 
 
+def build_ah_match_id_sql(max_fixtures: int) -> str:
+    return f"""
+SELECT
+    match_id
+FROM "@blt.ultimate_soccer_dataset.match_betting_odds"
+WHERE
+    market = 'Asian Handicap'
+    AND odds_type = 'pre_match'
+    AND odds > 1
+    AND regexp_matches(CAST(outcome AS VARCHAR), '[+-]?[0-9]+(\\\\.[0-9]+)?')
+GROUP BY match_id
+ORDER BY match_id
+LIMIT {max_fixtures}
+""".strip()
+
+
+def build_match_metadata_sql(match_ids: list[str]) -> str:
+    ids = ", ".join(sql_string(match_id) for match_id in match_ids)
+    return f"""
+SELECT
+    match_id,
+    competition_name AS competition,
+    CAST(season_year AS VARCHAR) AS season,
+    kickoff_timestamp AS kickoff_utc,
+    home_team_id,
+    home_team_name,
+    away_team_id,
+    away_team_name,
+    status,
+    home_score,
+    away_score
+FROM "@blt.ultimate_soccer_dataset.matches"
+WHERE
+    match_id IN ({ids})
+    AND home_score IS NOT NULL
+    AND away_score IS NOT NULL
+ORDER BY kickoff_timestamp, match_id
+""".strip()
+
+
 def build_odds_sql(match_ids: list[str]) -> str:
     ids = ", ".join(sql_string(match_id) for match_id in match_ids)
-    return f"""  # noqa: S608 - match IDs are SQL-escaped literals from Baselight rows.
+    return f"""
+WITH ranked_odds AS (
+SELECT
+    match_id,
+    bookmaker,
+    market,
+    outcome,
+    odds,
+    odds_type,
+    collected_at,
+    ROW_NUMBER() OVER (
+        PARTITION BY match_id
+        ORDER BY bookmaker, outcome, collected_at
+    ) AS row_rank
+FROM "@blt.ultimate_soccer_dataset.match_betting_odds"
+WHERE
+    match_id IN ({ids})
+    AND market = 'Asian Handicap'
+    AND odds_type = 'pre_match'
+    AND odds > 1
+    AND regexp_matches(CAST(outcome AS VARCHAR), '[+-]?[0-9]+(\\\\.[0-9]+)?')
+)
 SELECT
     match_id,
     bookmaker,
@@ -315,13 +377,8 @@ SELECT
     odds,
     odds_type,
     collected_at
-FROM "@blt.ultimate_soccer_dataset.match_betting_odds"
-WHERE
-    match_id IN ({ids})
-    AND market = 'Asian Handicap'
-    AND odds_type = 'pre_match'
-    AND odds > 1
-    AND regexp_matches(CAST(outcome AS VARCHAR), '[+-]?[0-9]+(\\\\.[0-9]+)?')
+FROM ranked_odds
+WHERE row_rank <= 50
 ORDER BY match_id, bookmaker, outcome, collected_at
 """.strip()
 
@@ -363,21 +420,36 @@ def main() -> int:
     )
     fixture_columns, fixture_rows, fixture_total = execute_sql_rows(
         client,
-        build_fixture_sql(args.max_fixtures),
+        build_ah_match_id_sql(args.max_fixtures),
         effective_page_size,
         args.max_fixtures,
     )
-    fixtures = row_dicts(fixture_columns, fixture_rows)
     if args.output.exists():
         args.output.unlink()
-    fixture_by_id = {str(row["match_id"]): row for row in fixtures}
+    candidate_match_ids = [
+        str(row["match_id"])
+        for row in row_dicts(fixture_columns, fixture_rows)
+        if row.get("match_id")
+    ]
     written = 0
     batch_size = 5
-    match_ids = list(fixture_by_id)
-    for start in range(0, len(match_ids), batch_size):
+    for start in range(0, len(candidate_match_ids), batch_size):
         if written >= args.max_rows:
             break
-        batch = match_ids[start : start + batch_size]
+        batch = candidate_match_ids[start : start + batch_size]
+        match_columns, match_rows, _ = execute_sql_rows(
+            client,
+            build_match_metadata_sql(batch),
+            effective_page_size,
+            len(batch),
+        )
+        fixture_by_id = {
+            str(row["match_id"]): row
+            for row in row_dicts(match_columns, match_rows)
+            if row.get("match_id")
+        }
+        if not fixture_by_id:
+            continue
         odds_columns, odds_rows, _ = execute_sql_rows(
             client,
             build_odds_sql(batch),
@@ -413,7 +485,8 @@ def main() -> int:
         written += write_rows(args.output, columns, rows, append=written > 0)
     print(
         "BASELIGHT_LIMITED_AH_EXTRACT_COMPLETE "
-        f"rows={written} fixture_candidates={len(fixtures)} fixture_total={fixture_total} "
+        f"rows={written} fixture_candidates={len(candidate_match_ids)} "
+        f"fixture_total={fixture_total} "
         f"effective_page_size={effective_page_size} raw_response_dir={output_dir}"
     )
     return 0

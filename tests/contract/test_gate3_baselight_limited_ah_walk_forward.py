@@ -97,7 +97,7 @@ def test_limited_ah_parser_settles_and_keeps_fixture_level_folds(tmp_path: Path)
     assert sum(fold["fixture_count"] for fold in walk_forward["folds"]) == 25
 
 
-def test_limited_ah_cli_reports_missing_sample_without_faking_backtest() -> None:
+def test_limited_ah_cli_does_not_fake_backtest_pass() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/run_w2_gate3_baselight_ah_walk_forward.py"],
         cwd=ROOT,
@@ -111,11 +111,10 @@ def test_limited_ah_cli_reports_missing_sample_without_faking_backtest() -> None
 
     assert result.returncode == 0, result.stderr
     assert manifest["status"] == "INSUFFICIENT_SAMPLE"
-    assert manifest["sample_sha256"] is None
     assert manifest["large_sample_committed"] is False
     assert walk_forward["status"] == "INSUFFICIENT_SAMPLE"
-    assert walk_forward["fixture_count"] == 0
+    assert walk_forward["fixture_count"] < 500
     assert "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL" in walk_forward["blockers"]
-    assert "handoff_version: 28" in handoff
+    assert "handoff_version: 29" in handoff
     assert "candidate: false" in handoff
     assert "formal_recommendation: false" in handoff

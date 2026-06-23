@@ -20,16 +20,21 @@
     "ah_walk_forward_result_path": "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md",
     "ah_walk_forward_status": "INSUFFICIENT_SAMPLE",
     "ai_schema_probe_path": "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+    "async_job_recovery_status": "FOUND_DONE_AND_PENDING_JOBS_IN_TMP",
     "can_resolve_if_backtest_passes": [
       "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
       "AH_WALK_FORWARD_EVIDENCE_MISSING"
     ],
     "collected_at_precision": "DATE_ONLY",
+    "get_results_status": "PARTIAL_SAMPLE_WRITTEN",
     "license_status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED",
-    "limited_extract_fixture_count": 0,
+    "limited_extract_bookmaker_count": 4,
+    "limited_extract_competition_count": 15,
+    "limited_extract_fixture_count": 15,
+    "limited_extract_line_bucket_count": 11,
     "limited_extract_manifest_path": "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
-    "limited_extract_row_count": 0,
-    "limited_extract_status": "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING",
+    "limited_extract_row_count": 750,
+    "limited_extract_status": "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT",
     "match_table": "matches",
     "mcp_matches_limit_query_status": "PASS",
     "mcp_odds_limit_query_status": "PASS",
@@ -37,7 +42,9 @@
     "mcp_probe_status": "PASS",
     "mcp_sql_tool_detected": true,
     "mcp_sql_tool_name": "baselight_sdk_query_execute",
-    "next_action": "OPTIMIZE_BASELIGHT_LIMITED_AH_EXTRACT_QUERY_OR_EXPORT_SAMPLE",
+    "micro_batch_enabled": true,
+    "micro_batch_status": "PARTIAL_SAMPLE_INSUFFICIENT",
+    "next_action": "OBTAIN_LARGER_BASELIGHT_AH_SAMPLE_OR_OPTIMIZE_MICRO_BATCH_EXTRACTION",
     "odds_table": "match_betting_odds",
     "remaining_limitations": [
       "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
@@ -46,7 +53,7 @@
     ],
     "resolved_by_baselight_limited_backtest": [],
     "sample_path_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
-    "sample_sha256": null,
+    "sample_sha256": "3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb",
     "settled_ah_fixture_count": 10858,
     "status": "CONDITIONAL_GATE3_CANDIDATE"
   },
@@ -57,7 +64,10 @@
     "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
     "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED",
     "BASELIGHT_LIMITED_AH_SAMPLE_REQUIRED",
-    "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING"
+    "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING",
+    "BASELIGHT_MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT",
+    "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL",
+    "BASELIGHT_BOOKMAKER_COVERAGE_INSUFFICIENT"
   ],
   "candidate": false,
   "captured_at_phase_coverage": {

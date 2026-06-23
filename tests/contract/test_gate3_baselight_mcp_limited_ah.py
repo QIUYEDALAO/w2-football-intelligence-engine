@@ -34,17 +34,20 @@ def test_limited_extract_blocker_keeps_gate3_partial() -> None:
     decision = json.loads(DECISION.read_text(encoding="utf-8"))
     handoff = HANDOFF.read_text(encoding="utf-8")
 
-    assert manifest["extraction_attempt_status"] == "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING"
-    assert manifest["sample_file_exists"] is False
-    assert manifest["row_count"] == 0
+    assert manifest["extraction_attempt_status"] == "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
+    assert manifest["sample_file_exists"] is True
+    assert manifest["row_count"] == 750
+    assert manifest["fixture_count"] == 15
     assert walk_forward["status"] == "INSUFFICIENT_SAMPLE"
-    assert "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING" in walk_forward["blockers"]
+    assert "BASELIGHT_MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT" in walk_forward["blockers"]
     assert decision["status"] == "PARTIAL"
     assert decision["baselight"]["limited_extract_status"] == (
-        "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING"
+        "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
     )
     assert decision["baselight"]["ah_walk_forward_status"] == "INSUFFICIENT_SAMPLE"
-    assert decision["baselight"]["sample_sha256"] is None
+    assert decision["baselight"]["sample_sha256"] == (
+        "3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb"
+    )
     assert "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE" in decision["baselight"][
         "remaining_limitations"
     ]
@@ -54,6 +57,6 @@ def test_limited_extract_blocker_keeps_gate3_partial() -> None:
     assert "EXPORT_AND_RETENTION_POLICY_UNVERIFIED" in decision["baselight"][
         "remaining_limitations"
     ]
-    assert "handoff_version: 28" in handoff
+    assert "handoff_version: 29" in handoff
     assert "candidate=false" in handoff
     assert "formal_recommendation=false" in handoff

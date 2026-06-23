@@ -189,9 +189,15 @@ def build_manifest(
     fixtures = {obs.match_id for obs in observations}
     bookmakers = {obs.bookmaker for obs in observations}
     buckets = {line_bucket(obs.line) for obs in observations}
+    has_minimum_sample = (
+        len(fixtures) >= MIN_FIXTURES
+        and len(bookmakers) >= MIN_BOOKMAKERS
+        and len(buckets) >= MIN_LINE_BUCKETS
+        and len(competitions) >= MIN_STRATA
+    )
     return {
         "schema_version": "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST_V1",
-        "status": "READY_FOR_WALK_FORWARD" if observations else "INSUFFICIENT_SAMPLE",
+        "status": "READY_FOR_WALK_FORWARD" if has_minimum_sample else "INSUFFICIENT_SAMPLE",
         "sample_path": str(sample_path) if sample_path else None,
         "sample_sha256": sha256_file(sample_path) if sample_path else None,
         "row_count": len(observations),

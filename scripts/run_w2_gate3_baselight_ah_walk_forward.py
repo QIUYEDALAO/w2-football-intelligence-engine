@@ -23,10 +23,14 @@ MANIFEST_PATH = REPORTS / "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
 WALK_FORWARD_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
 RESULT_PATH = REPORTS / "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
 PRESERVED_MANIFEST_FIELDS = {
+    "async_job_recovery_status",
     "extraction_attempt_status",
+    "get_results_status",
     "mcp_effective_page_size",
     "mcp_probe_path",
     "mcp_sql_tool_name",
+    "micro_batch_enabled",
+    "micro_batch_status",
     "sample_file_exists",
     "sample_path_external",
 }
@@ -76,6 +80,19 @@ def write_reports(sample_path: Path | None) -> tuple[dict, dict]:
         if field in previous_manifest and field not in manifest:
             manifest[field] = previous_manifest[field]
     walk_forward = build_walk_forward(observations)
+    micro_batch_status = manifest.get("micro_batch_status")
+    if (
+        micro_batch_status == "PARTIAL_SAMPLE_INSUFFICIENT"
+        or manifest.get("extraction_attempt_status") == "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
+    ):
+        manifest["micro_batch_enabled"] = manifest.get("micro_batch_enabled", True)
+        manifest["micro_batch_status"] = "PARTIAL_SAMPLE_INSUFFICIENT"
+        walk_forward["limited_extract_status"] = manifest.get("extraction_attempt_status")
+        walk_forward["mcp_probe_status"] = "PASS"
+        walk_forward["sample_path_external"] = manifest.get("sample_path_external")
+        blocker = "BASELIGHT_MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
+        if blocker not in walk_forward["blockers"]:
+            walk_forward["blockers"].append(blocker)
     if manifest.get("extraction_attempt_status") == "BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING":
         walk_forward["limited_extract_status"] = manifest["extraction_attempt_status"]
         walk_forward["mcp_probe_status"] = "PASS"

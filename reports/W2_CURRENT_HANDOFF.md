@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 28
+handoff_version: 29
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -50,12 +50,20 @@ gate3_baselight_match_table: matches
 gate3_baselight_settled_ah_fixture_count: 10858
 gate3_baselight_collected_at_precision: DATE_ONLY
 gate3_baselight_next_action: BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD
-gate3_baselight_limited_extract_status: BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING
+gate3_baselight_limited_extract_status: MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT
 gate3_baselight_limited_extract_manifest_path: reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json
 gate3_baselight_ah_walk_forward_status: INSUFFICIENT_SAMPLE
 gate3_baselight_ah_walk_forward_path: reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json
 gate3_baselight_sample_path_external: /Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl
-gate3_baselight_sample_sha256: null
+gate3_baselight_sample_sha256: 3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb
+gate3_baselight_async_job_recovery_status: FOUND_DONE_AND_PENDING_JOBS_IN_TMP
+gate3_baselight_get_results_status: PARTIAL_SAMPLE_WRITTEN
+gate3_baselight_micro_batch_status: PARTIAL_SAMPLE_INSUFFICIENT
+gate3_baselight_sample_row_count: 750
+gate3_baselight_sample_fixture_count: 15
+gate3_baselight_sample_bookmaker_count: 4
+gate3_baselight_sample_line_bucket_count: 11
+gate3_baselight_sample_competition_count: 15
 gate3_baselight_remaining_limitations:
   - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
   - PRECISE_PHASE_COVERAGE_UNAVAILABLE
@@ -360,7 +368,7 @@ Using the live MCP probe, W2 attempted the authorized limited AH extract into th
 
 - `/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl`
 
-Result: `gate3_baselight_limited_extract_status=BASELIGHT_LIMITED_AH_EXTRACT_QUERY_PENDING`. The MCP LIMIT checks passed, but the limited AH odds extraction queries remained pending even after reducing odds batches to five fixtures. W2 therefore did not create a sample file, did not run a positive walk-forward, and did not resolve `HISTORICAL_AH_BASELINE_BACKTEST_MISSING` or `AH_WALK_FORWARD_EVIDENCE_MISSING`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`.
+Result: `gate3_baselight_limited_extract_status=MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT`. W2 inspected `/tmp` MCP raw responses for existing Baselight job IDs, recovered DONE/PENDING job evidence, and used `baselight_sdk_get_results` plus a micro-batch fallback. The fallback wrote an external JSONL sample, but it contains only 750 rows across 15 fixtures, 4 bookmakers, 11 line buckets, and 15 competition/season strata, so the walk-forward remains `INSUFFICIENT_SAMPLE`. W2 did not commit the sample file and did not resolve `HISTORICAL_AH_BASELINE_BACKTEST_MISSING` or `AH_WALK_FORWARD_EVIDENCE_MISSING`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`.
 
 ## 1. 新会话启动协议
 

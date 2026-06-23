@@ -1,15 +1,15 @@
 # W2 Gate3 Baselight AH Walk-Forward Result
 
-Generated at: `2026-06-23T21:56:34Z`
+Generated at: `2026-06-23T22:20:42Z`
 
 STATUS=INSUFFICIENT_SAMPLE
-SAMPLE_PATH=MISSING
-ROW_COUNT=0
-FIXTURE_COUNT=0
-BOOKMAKER_COUNT=0
-LINE_BUCKET_COUNT=0
-COMPETITION_COUNT=0
-FOLD_COUNT=0
+SAMPLE_PATH=/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl
+ROW_COUNT=750
+FIXTURE_COUNT=15
+BOOKMAKER_COUNT=4
+LINE_BUCKET_COUNT=11
+COMPETITION_COUNT=15
+FOLD_COUNT=5
 candidate=false
 formal_recommendation=false
 
