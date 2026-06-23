@@ -331,3 +331,86 @@ Final evidence builder output:
 
 No actual kickoff, closing, settlement, evaluation, or Shadow DB completion was
 fabricated. Gate5 remains `OPEN`.
+
+## Lifecycle Continuity Fix
+
+This continuation preserved the active Stage7I observer and restored exactly one
+fixture lifecycle collector for fixture `1489404`. No deployment, migration,
+service restart, container restart, `.env` read, W1 change, candidate output, or
+formal recommendation output was performed.
+
+Local code fixes:
+
+- `Stage7ILifecycleCollector` now resumes request budget from existing
+  `request_audit.jsonl` rows instead of trusting a fresh process counter.
+- PREMATCH, LIVE, FINAL, and provider blocked states are separated so LIVE does
+  not terminate the collector and FINAL result evidence is retrospective.
+- Delayed kickoff is handled by provider fixture status; scheduled kickoff is
+  not used as actual kickoff evidence.
+- SIGTERM/SIGINT graceful shutdown support records append-only
+  `shutdown_audit.jsonl` and `collector_exit.json`, releases the lifecycle lock,
+  and does not delete evidence.
+- Collector instance metadata now records PID, fixture, lock path, state, and
+  tooling SHA.
+
+Residual process classification:
+
+- `1549505`: container shell wrapper, sleeping, child `1549517`, no lifecycle
+  lock fd.
+- `1549517`: real Python lifecycle collector for fixture `1489404`, sleeping,
+  container PID `18924`, no lifecycle lock fd.
+- Lifecycle lock cross-check before termination: free.
+- Action: `kill -TERM 18924` from inside `w2-staging-api-1` as root, using shell
+  builtin `kill`.
+- Result: Python collector exited after 1 second.
+- No `SIGKILL`, `pkill`, service restart, or container restart was used.
+
+Restored collector:
+
+- Host PID: `1615152`
+- Container PID: `20993`
+- Command: `capture_stage7i_fixture_lifecycle.py`
+- Runtime source revision:
+  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+- Host tooling dir:
+  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_08e84d1_continuity_v2`
+- Container tooling dir:
+  `/tmp/w2_stage7i_lifecycle_tooling_continuity_v2`
+- Tooling archive SHA256:
+  `88c8fa90af7951e14c8f9e81e5c89ba4885fb5fa205c5ba5715c61188e8befaa`
+- Tooling manifest SHA256:
+  `1d7cbb47f632dad10565f6017e4861075fd76a982d1156495078419f69408981`
+- Release-runtime lifecycle lock:
+  `/opt/w2/releases/23c89be4d2a32019d8d21bb9b102ae0b7ca15c16/infra/compose/runtime/stage7i/lifecycle-1489404.lock`
+- Release-runtime lifecycle lock holder: `1615152`
+- Shared runtime sync: append-only merge from release runtime into
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle`
+
+Current synced lifecycle evidence:
+
+- `fixture_status.jsonl`: `1`
+- `market_observations.jsonl`: `2`
+- `result_status.jsonl`: `0`
+- `request_audit.jsonl`: `3`
+- `collector_instances.jsonl`: `1`
+- Latest endpoint: `odds`
+- Latest daily quota remaining: `6899`
+- Latest burst quota remaining: `298`
+- Daily quota source: `x-ratelimit-requests-remaining`
+- Fixture lifecycle state: `PREMATCH`
+- Candidate: `false`
+- Formal recommendation: `false`
+
+Observer continuity after collector restore:
+
+- Observer PID: `1435421`
+- Observer PGID: `1435396`
+- Observer count: `1`
+- Observer global lock holder: `1435421`
+- Runtime dir unchanged:
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
+- Server revision unchanged:
+  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+
+Gate5 remains `OPEN`. Actual kickoff, closing observation, settlement,
+evaluation, and final Shadow DB audit remain pending and must not be fabricated.

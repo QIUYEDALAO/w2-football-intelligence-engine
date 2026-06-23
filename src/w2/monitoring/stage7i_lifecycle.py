@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from w2.providers.quota import parse_api_football_quota
 PREMATCH_STATUS = {"NS", "TBD", "PST"}
 LIVE_STATUS = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "IN_PROGRESS"}
 FINAL_STATUS = {"FT", "AET", "PEN"}
+BLOCKED_STATUS = {"CANC", "ABD", "AWD", "WO"}
 
 
 class Stage7ILifecycleError(RuntimeError):
@@ -49,6 +51,8 @@ class LifecycleProbeResult:
     request_count: int
     remaining_quota: int | None
     blockers: list[str]
+    state: str = "UNKNOWN"
+    completed: bool = False
 
 
 def utc_now() -> datetime:
@@ -221,9 +225,34 @@ class Stage7ILifecycleCollector:
         self.sleep = sleep or time.sleep
         self.lifecycle_dir = config.runtime_dir / "lifecycle"
         self.raw_dir = self.lifecycle_dir / "raw"
-        self.request_count = 0
+        self.request_count = self.consumed_attempts()
         self.remaining_quota: int | None = None
         self.blockers: list[str] = []
+        self.stop_requested = False
+        self.stop_signal: str | None = None
+        self.instance_id = stable_event_id(
+            "collector-instance",
+            config.fixture_id,
+            os.getpid(),
+            iso(utc_now()),
+        )
+
+    def consumed_attempts(self) -> int:
+        return len(read_jsonl(self.lifecycle_dir / "request_audit.jsonl"))
+
+    def projected_budget(self, *, now: datetime | None = None) -> dict[str, int]:
+        current = now or utc_now()
+        kickoff = self.config.scheduled_kickoff_utc
+        seconds_to_kickoff = max(0, int((kickoff - current).total_seconds()))
+        remaining_prematch_cycles = (seconds_to_kickoff // self.config.interval_seconds) + 1
+        live_cycles = (4 * 60 * 60) // self.config.interval_seconds
+        projected = remaining_prematch_cycles * 2 + live_cycles + 4
+        consumed = self.consumed_attempts()
+        return {
+            "projected_required": projected,
+            "consumed_attempts": consumed,
+            "remaining_budget": max(0, self.config.request_budget - consumed),
+        }
 
     def start_metadata(self) -> None:
         write_json_once(
@@ -233,7 +262,24 @@ class Stage7ILifecycleCollector:
                 "scheduled_kickoff_utc": iso(self.config.scheduled_kickoff_utc),
                 "started_at_utc": iso(self.now),
                 "request_budget": self.config.request_budget,
+                "budget_projection": self.projected_budget(now=self.now),
                 "quota_reserve": self.config.quota_reserve,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+        )
+
+    def _record_instance_metadata(self, *, lock_path: Path) -> None:
+        append_jsonl_once(
+            self.lifecycle_dir / "collector_instances.jsonl",
+            {
+                "event_id": self.instance_id,
+                "fixture_id": self.config.fixture_id,
+                "pid": os.getpid(),
+                "started_at_utc": iso(utc_now()),
+                "tooling_sha": os.environ.get("W2_STAGE7I_TOOLING_SHA", "UNKNOWN"),
+                "lock_path": str(lock_path),
+                "state": "RUNNING",
                 "candidate": False,
                 "formal_recommendation": False,
             },
@@ -244,12 +290,13 @@ class Stage7ILifecycleCollector:
         fixture_response = self._request("fixtures", {"id": self.config.fixture_id})
         fixture_status_value = fixture_status(fixture_response.payload)
         fixture_events = self._record_fixture_status(fixture_response)
+        state = self._state_from_status(fixture_status_value)
         market_events = 0
         result_events = 0
-        if fixture_status_value in PREMATCH_STATUS:
+        if state == "PREMATCH":
             odds_response = self._request("odds", {"fixture": self.config.fixture_id})
-            market_events = self._record_market(odds_response)
-        else:
+            market_events = self._record_market(odds_response, state=state)
+        if state in {"LIVE", "FINAL", "BLOCKED"}:
             result_events = self._record_result_status(fixture_response)
         return LifecycleProbeResult(
             status="BLOCKED" if self.blockers else "OK",
@@ -260,28 +307,142 @@ class Stage7ILifecycleCollector:
             request_count=self.request_count,
             remaining_quota=self.remaining_quota,
             blockers=list(self.blockers),
+            state=state,
+            completed=state in {"FINAL", "BLOCKED"},
         )
 
     def run_loop(self) -> None:
-        lock = FileLock(
+        lock_path = (
             self.config.runtime_dir.parent.parent / f"lifecycle-{self.config.fixture_id}.lock"
         )
+        lock = FileLock(lock_path)
         if not lock.acquire():
             raise Stage7ILifecycleError("LIFECYCLE_COLLECTOR_ALREADY_RUNNING")
+        previous_handlers: dict[int, Any] = {}
         try:
+            previous_handlers = self._install_signal_handlers()
             self.start_metadata()
+            self._record_instance_metadata(lock_path=lock_path)
             (self.lifecycle_dir / "collector.pid").write_text(str(os.getpid()) + "\n")
+            exit_reason = "UNKNOWN"
             while True:
+                if self.stop_requested:
+                    exit_reason = "SHUTDOWN_REQUESTED"
+                    self._record_shutdown_request()
+                    break
                 result = self.probe_once()
                 if result.blockers:
+                    exit_reason = "BLOCKED"
                     break
-                if result.fixture_status not in PREMATCH_STATUS:
+                if result.completed:
+                    exit_reason = "COMPLETED"
+                    self._write_summary(result)
                     break
-                self.sleep(self.config.interval_seconds)
+                if self._sleep_or_stop(self.config.interval_seconds):
+                    exit_reason = "SHUTDOWN_REQUESTED"
+                    self._record_shutdown_request()
+                    break
+            self._write_collector_exit(exit_reason)
         finally:
+            self._restore_signal_handlers(previous_handlers)
             lock.release()
 
+    def _install_signal_handlers(self) -> dict[int, Any]:
+        previous: dict[int, Any] = {}
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous[signum] = signal.getsignal(signum)
+            signal.signal(signum, self._handle_signal)
+        return previous
+
+    def _restore_signal_handlers(self, previous: dict[int, Any]) -> None:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+    def _handle_signal(self, signum: int, _frame: Any) -> None:
+        self.stop_requested = True
+        self.stop_signal = signal.Signals(signum).name
+
+    def _sleep_or_stop(self, seconds: int) -> bool:
+        deadline = time.monotonic() + seconds
+        while not self.stop_requested:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            self.sleep(min(1.0, remaining))
+        return True
+
+    def _record_shutdown_request(self) -> None:
+        append_jsonl_once(
+            self.lifecycle_dir / "shutdown_audit.jsonl",
+            {
+                "event_id": stable_event_id(
+                    "shutdown",
+                    self.config.fixture_id,
+                    self.instance_id,
+                    self.stop_signal,
+                ),
+                "fixture_id": self.config.fixture_id,
+                "pid": os.getpid(),
+                "collector_instance_id": self.instance_id,
+                "received_signal": self.stop_signal,
+                "shutdown_at_utc": iso(utc_now()),
+                "stopped_new_provider_requests": True,
+                "evidence_deleted": False,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+        )
+
+    def _write_collector_exit(self, reason: str) -> None:
+        write_json_once(
+            self.lifecycle_dir / "collector_exit.json",
+            {
+                "fixture_id": self.config.fixture_id,
+                "pid": os.getpid(),
+                "collector_instance_id": self.instance_id,
+                "exited_at_utc": iso(utc_now()),
+                "exit_reason": reason,
+                "received_signal": self.stop_signal,
+                "request_count": self.consumed_attempts(),
+                "evidence_deleted": False,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+        )
+
+    def _state_from_status(self, status: str | None) -> str:
+        if status in PREMATCH_STATUS:
+            return "PREMATCH"
+        if status in LIVE_STATUS:
+            return "LIVE"
+        if status in FINAL_STATUS:
+            return "FINAL"
+        if status in BLOCKED_STATUS:
+            return "BLOCKED"
+        return "UNKNOWN"
+
+    def _write_summary(self, result: LifecycleProbeResult) -> None:
+        write_json_once(
+            self.lifecycle_dir / "collector_summary.json",
+            {
+                "fixture_id": self.config.fixture_id,
+                "completed_at_utc": iso(utc_now()),
+                "state": result.state,
+                "fixture_status": result.fixture_status,
+                "request_count": result.request_count,
+                "remaining_quota": result.remaining_quota,
+                "blockers": result.blockers,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+        )
+        if result.state == "FINAL":
+            (self.lifecycle_dir / "COLLECTOR_COMPLETED").write_text(iso(utc_now()) + "\n")
+
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        if self.stop_requested:
+            raise Stage7ILifecycleError("COLLECTOR_SHUTDOWN_REQUESTED")
+        self.request_count = self.consumed_attempts()
         if self.request_count >= self.config.request_budget:
             raise Stage7ILifecycleError("REQUEST_BUDGET_EXHAUSTED")
         self.request_count += 1
@@ -335,6 +496,8 @@ class Stage7ILifecycleCollector:
         payload_hash = sha256_payload(response.payload)
         actual, actual_source = provider_actual_kickoff(response.payload)
         status = fixture_status(response.payload)
+        state = self._state_from_status(status)
+        category = "FORWARD" if state == "PREMATCH" else "RETROSPECTIVE"
         event = {
             "event_id": stable_event_id("fixture_status", self.config.fixture_id, payload_hash),
             "fixture_id": self.config.fixture_id,
@@ -345,17 +508,18 @@ class Stage7ILifecycleCollector:
             "actual_kickoff_utc": iso(actual) if actual else None,
             "actual_kickoff_source": actual_source,
             "raw_payload_sha256": payload_hash,
-            "evidence_category": "FORWARD",
+            "state": state,
+            "evidence_category": category,
             "candidate": False,
             "formal_recommendation": False,
         }
         return int(append_jsonl_once(self.lifecycle_dir / "fixture_status.jsonl", event))
 
-    def _record_market(self, response: LiveApiFootballResponse) -> int:
+    def _record_market(self, response: LiveApiFootballResponse, *, state: str) -> int:
         payload_hash = sha256_payload(response.payload)
         count = bookmaker_count(response.payload)
         live_or_suspended = has_live_or_suspended_market(response.payload)
-        if response.captured_at >= self.config.scheduled_kickoff_utc:
+        if state != "PREMATCH" or live_or_suspended:
             return 0
         event = {
             "event_id": stable_event_id("market", self.config.fixture_id, payload_hash),
@@ -364,6 +528,7 @@ class Stage7ILifecycleCollector:
             "captured_at_utc": iso(response.captured_at),
             "provider_updated_at_utc": self._provider_market_updated_at(response.payload),
             "bookmaker_count": count,
+            "state": state,
             "live": live_or_suspended,
             "suspended": live_or_suspended,
             "raw_payload_sha256": payload_hash,
@@ -376,7 +541,7 @@ class Stage7ILifecycleCollector:
     def _record_result_status(self, response: LiveApiFootballResponse) -> int:
         payload_hash = sha256_payload(response.payload)
         status = fixture_status(response.payload)
-        category = "RETROSPECTIVE" if status in FINAL_STATUS else "FORWARD"
+        state = self._state_from_status(status)
         event = {
             "event_id": stable_event_id("result_status", self.config.fixture_id, payload_hash),
             "fixture_id": self.config.fixture_id,
@@ -385,7 +550,8 @@ class Stage7ILifecycleCollector:
             "provider_status": status,
             "confirmed": status in FINAL_STATUS,
             "raw_payload_sha256": payload_hash,
-            "evidence_category": category,
+            "state": state,
+            "evidence_category": "RETROSPECTIVE",
             "candidate": False,
             "formal_recommendation": False,
         }

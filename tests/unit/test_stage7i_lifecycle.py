@@ -31,6 +31,7 @@ class FakeLifecycleClient:
         odds_payload_suffix: str = "a",
         burst_remaining: int | None = None,
         daily_header: str = "x-ratelimit-requests-remaining",
+        statuses: list[str] | None = None,
     ) -> None:
         self.status_code = status_code
         self.remaining = remaining
@@ -39,6 +40,7 @@ class FakeLifecycleClient:
         self.odds_payload_suffix = odds_payload_suffix
         self.burst_remaining = burst_remaining
         self.daily_header = daily_header
+        self.statuses = statuses or []
         self.calls: list[str] = []
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -59,10 +61,11 @@ class FakeLifecycleClient:
 
     def payload(self, endpoint: str) -> dict[str, Any]:
         if endpoint == "fixtures":
+            status = self.statuses.pop(0) if self.statuses else self.fixture_status
             fixture: dict[str, Any] = {
                 "id": 1489404,
                 "date": "2026-06-23T17:00:00+00:00",
-                "status": {"short": self.fixture_status},
+                "status": {"short": status},
                 "periods": {},
             }
             if self.actual_kickoff:
@@ -197,6 +200,174 @@ def test_lifecycle_burst_only_is_daily_unknown(tmp_path: Path) -> None:
         assert "DAILY_QUOTA_UNKNOWN" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("burst-only quota unexpectedly passed")
+
+
+def test_lifecycle_live_state_does_not_request_odds_or_exit(tmp_path: Path) -> None:
+    client = FakeLifecycleClient(fixture_status="1H")
+    result = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=NOW,
+    ).probe_once()
+    result_event = read_jsonl(tmp_path / "lifecycle/result_status.jsonl")[0]
+    fixture_event = read_jsonl(tmp_path / "lifecycle/fixture_status.jsonl")[0]
+
+    assert client.calls == ["fixtures"]
+    assert result.state == "LIVE"
+    assert result.completed is False
+    assert result_event["evidence_category"] == "RETROSPECTIVE"
+    assert fixture_event["evidence_category"] == "RETROSPECTIVE"
+
+
+def test_lifecycle_final_state_records_result_and_completes(tmp_path: Path) -> None:
+    client = FakeLifecycleClient(fixture_status="FT")
+    result = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=NOW,
+    ).probe_once()
+    result_event = read_jsonl(tmp_path / "lifecycle/result_status.jsonl")[0]
+
+    assert client.calls == ["fixtures"]
+    assert result.state == "FINAL"
+    assert result.completed is True
+    assert result_event["confirmed"] is True
+    assert result_event["evidence_category"] == "RETROSPECTIVE"
+
+
+def test_run_loop_final_state_writes_exit_and_releases_lock(tmp_path: Path) -> None:
+    cfg = config(tmp_path / "runs/run-1")
+    collector = Stage7ILifecycleCollector(
+        config=cfg,
+        client=FakeLifecycleClient(fixture_status="FT"),
+        now=NOW,
+    )
+
+    collector.run_loop()
+
+    lifecycle = cfg.runtime_dir / "lifecycle"
+    exit_payload = json.loads((lifecycle / "collector_exit.json").read_text())
+    lock = FileLock(tmp_path / "lifecycle-1489404.lock")
+    assert exit_payload["exit_reason"] == "COMPLETED"
+    assert exit_payload["candidate"] is False
+    assert lock.acquire()
+    lock.release()
+
+
+def test_run_loop_shutdown_request_writes_audit_without_requests(tmp_path: Path) -> None:
+    cfg = config(tmp_path / "runs/run-1")
+    collector = Stage7ILifecycleCollector(
+        config=cfg,
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+    collector.stop_requested = True
+    collector.stop_signal = "SIGTERM"
+
+    collector.run_loop()
+
+    lifecycle = cfg.runtime_dir / "lifecycle"
+    shutdown = read_jsonl(lifecycle / "shutdown_audit.jsonl")[0]
+    exit_payload = json.loads((lifecycle / "collector_exit.json").read_text())
+    lock = FileLock(tmp_path / "lifecycle-1489404.lock")
+    assert shutdown["stopped_new_provider_requests"] is True
+    assert shutdown["evidence_deleted"] is False
+    assert exit_payload["exit_reason"] == "SHUTDOWN_REQUESTED"
+    assert exit_payload["received_signal"] == "SIGTERM"
+    assert collector.request_count == 0
+    assert lock.acquire()
+    lock.release()
+
+
+def test_lifecycle_restart_never_deletes_existing_evidence(tmp_path: Path) -> None:
+    lifecycle = tmp_path / "lifecycle"
+    lifecycle.mkdir()
+    existing = json.dumps({"event_id": "existing", "fixture_id": "1489404"}) + "\n"
+    (lifecycle / "fixture_status.jsonl").write_text(existing, encoding="utf-8")
+
+    Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=FakeLifecycleClient(),
+        now=NOW,
+    ).probe_once()
+
+    rows = read_jsonl(lifecycle / "fixture_status.jsonl")
+    assert rows[0]["event_id"] == "existing"
+    assert len(rows) == 2
+
+
+def test_delayed_kickoff_prematch_after_scheduled_time_allows_odds(
+    tmp_path: Path,
+) -> None:
+    delayed_now = KICKOFF + timedelta(minutes=10)
+    client = FakeLifecycleClient(fixture_status="NS")
+    result = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=client,
+        now=delayed_now,
+    ).probe_once()
+
+    assert client.calls == ["fixtures", "odds"]
+    assert result.market_events == 1
+    assert read_jsonl(tmp_path / "lifecycle/market_observations.jsonl")[0][
+        "evidence_category"
+    ] == "FORWARD"
+
+
+def test_request_budget_counts_existing_audit_on_restart(tmp_path: Path) -> None:
+    lifecycle = tmp_path / "lifecycle"
+    lifecycle.mkdir()
+    (lifecycle / "request_audit.jsonl").write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "event_id": f"request-{index}",
+                    "fixture_id": "1489404",
+                    "endpoint": "fixtures",
+                    "status_code": 200,
+                }
+            )
+            for index in range(2)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = LifecycleConfig(
+        runtime_dir=tmp_path,
+        fixture_id="1489404",
+        scheduled_kickoff_utc=KICKOFF,
+        request_budget=2,
+    )
+    collector = Stage7ILifecycleCollector(
+        config=cfg,
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+
+    try:
+        collector.probe_once()
+    except RuntimeError as exc:
+        assert "REQUEST_BUDGET_EXHAUSTED" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("exhausted restart budget unexpectedly passed")
+
+
+def test_projected_budget_reports_consumed_attempts(tmp_path: Path) -> None:
+    lifecycle = tmp_path / "lifecycle"
+    lifecycle.mkdir()
+    (lifecycle / "request_audit.jsonl").write_text(
+        json.dumps({"event_id": "request-1"}) + "\n",
+        encoding="utf-8",
+    )
+    collector = Stage7ILifecycleCollector(
+        config=config(tmp_path),
+        client=FakeLifecycleClient(),
+        now=NOW,
+    )
+    projection = collector.projected_budget(now=NOW)
+
+    assert projection["consumed_attempts"] == 1
+    assert projection["projected_required"] > 80
 
 
 def test_actual_kickoff_requires_internal_provider_field() -> None:
