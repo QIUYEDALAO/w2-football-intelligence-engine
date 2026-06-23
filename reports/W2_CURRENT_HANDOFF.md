@@ -1,0 +1,266 @@
+# W2 Football Intelligence Engine — Current Handoff
+
+> **跨会话权威交接文件。** 新会话必须先读本文件，再规划、修改、部署或验收。
+> 本文件保存“最后已确认状态”，但任何变更前仍须核对受影响的仓库与 staging 实态。
+
+## 0. 机器可读摘要
+
+```yaml
+handoff_version: 1
+state_captured_on: 2026-06-22
+project: W2 Football Intelligence Engine
+workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
+legacy_project: W1
+legacy_policy: frozen_read_only
+active_stage_package: Stage7I forward observation and evidence continuity
+server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+alembic_head: 0017_create_stage9a_shadow_strategy
+deployment_freeze: ACTIVE
+gate5: OPEN
+candidate: false
+formal_recommendation: false
+stage10e_deployed: false
+repository_branch_at_capture: chore/stage7i-24h-observation
+repository_head_before_handoff: b98d3e3cdf19c47d5da25d5e681936970c75856c
+handoff_file_added_on: 2026-06-23
+handoff_file_tracked: true
+```
+
+## 1. 新会话启动协议
+
+新会话第一条指令：
+
+> 请先读取 `reports/W2_CURRENT_HANDOFF.md`，然后继续按阶段包推进。
+
+执行顺序：
+
+1. 先读本文件。
+2. 把本文件作为最后已确认基线，而不是未经核验的实时真相。
+3. 变更前核对相关仓库 SHA、服务器 revision、服务、容器、migration 与 gate 状态。
+4. 优先保持当前主线阶段包连续性，不把延期 redesign 混入紧急 runtime 包。
+5. 阶段状态、SHA、服务器状态、报告路径或 BLOCKER 变化后，同步更新本文件。
+6. 代码阶段包应在同一提交中更新本文件；纯运维阶段应在验收后尽快提交 docs-only handoff 更新。
+7. 详细历史证据放阶段报告；本文件只保留最新有效状态。
+8. 本文件不得保存 `.env` 内容、密钥、token、密码或私密 payload。
+
+状态可信度优先级：
+
+1. 已现场验证的仓库和 staging 实态
+2. 本文件
+3. 聊天历史
+
+## 2. 不可突破的项目边界
+
+- W1 已冻结为 **Legacy**，仅作历史参考。
+- 不得给 W1 新增功能。
+- 不得修改 W1。
+- 不得把 retrospective 冒充 forward。
+- 不得启用 DeepSeek。
+- 不得启用 `CANDIDATE`。
+- Gate4 / Gate5 未通过前不得输出正式 `RECOMMEND`。
+- 不得削弱 shadow write、correlation、lock、settlement、evaluation 或 recommendation 安全边界。
+- `DEPLOYMENT_FREEZE=ACTIVE`，除非经批准的阶段包明确变更。
+
+## 3. 授权与必须确认事项
+
+本项目的 staging 常规部署已授权自动同意，不再逐次询问。
+
+以下操作必须停止并取得明确确认：
+
+- production 变更
+- 破坏性 migration
+- 删除数据或不可逆数据重写
+- 权限、密钥、凭据、secret 或 `.env` 变更
+- 外部通知
+- 资金、交易或投注
+
+同时遵守第 11 节的阶段停止条件。
+
+## 4. 最后已确认的 staging 基线
+
+- 首尔 staging：`ubuntu@43.155.208.138`
+- Server current revision：`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+- `w2-staging.service`：`enabled / active`
+- 长期容器：`6` 个，全部 `healthy`
+- API `/health`：`200`
+- API `/ready`：`200`
+- Web：`200`
+- 公网业务端口：无，仅 SSH
+- 本机 Web 隧道：`http://127.0.0.1:18080`
+- 本机 API 隧道：`http://127.0.0.1:18000`
+- `.env`：mode `600`；不得读取或打印内容
+- Alembic：`0017_create_stage9a_shadow_strategy (head)`
+- 新 migration：无
+- `DEPLOYMENT_FREEZE=ACTIVE`
+- Patch2 override：`COMPLETED`
+
+## 5. Release Train 2 / Patch2
+
+状态：**COMPLETED**
+
+已验证：
+
+- `w2-shadow-cycle` PATH 问题已修复
+- console scripts 可直接执行
+- Shadow dry-run：`PASS`
+- FORWARD cycle：连续两次 `PASS`
+- `forward_lock_count=0`
+- RETROSPECTIVE replay：`PASS`
+- Shadow DB audit：无 candidate / lock / settlement / evaluation 脏写入
+- Gate5 preflight：`PASS`，但 Gate5 仍未关闭
+- Ops API 与 Web `/api/ops/...` 代理：JSON `200`
+- Stage7I observer 已启动
+- Observer 容器：`dc3961afb019`
+
+权威报告：
+
+`/opt/w2/shared/runtime/deployments/20260622T232712Z_release_train_2_patch2_COMPLETED.json`
+
+不得把 Patch2 重跑包装为新进展；只有在确认回归后，才能另开范围明确的新 patch。
+
+## 6. Runtime Patch 本地历史
+
+- Patch1 commit：`dd96c79dd3a3798148a0fa6bb6cb21cb90a7951d`
+- Patch2 最终服务器 revision：`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+
+## 7. Stage10E Dashboard redesign — 延期支线
+
+本地 redesign 已完成，但未部署：
+
+- Worktree：`/tmp/w2-stage10e-dashboard-redesign`
+- Branch：`feat/stage10e-dashboard-redesign`
+- Commit：`5c9cf2e74cb6cb2b11e59a8cfe8bb10f6ce93115`
+- staging Web `http://127.0.0.1:18080`：仍是旧版 dashboard
+- 部署决策：放入下一次 Release Train
+
+不得把 Stage10E 部署混入紧急 Stage7I / runtime evidence 包。
+
+## 8. 当前比赛研究卡
+
+### Norway vs Senegal
+
+- Competition：世界杯 Group I
+- Fixture ID：`1489401`
+- Scheduled kickoff：`2026-06-23T00:00:00Z`
+- 北京时间：`2026-06-23 08:00`
+- AH main line：Norway `-0.5` / Senegal `+0.5`
+- OU main line：`2.5`
+- Norway win：`44.30%`
+- Draw：`24.96%`
+- Senegal win：`30.74%`
+- Expected goals：Norway `1.55`，Senegal `1.25`
+
+Primary：
+
+- Senegal 1X2 @ `3.50`
+- Bookmaker：Dafabet
+- Model fair odds：`3.253`
+- Adjusted minimum odds：`3.367`
+- Risk-adjusted EV：`+4.10%`
+- Published grade：`C`
+- Action：`WATCH`
+
+Secondary：
+
+- `null`
+- 原因：correlation policy 缺失
+
+正式状态：
+
+- `formal_recommendation=false`
+- `candidate=false`
+
+直接判断：
+
+- 主看 Senegal 胜，价格必须 `>= 3.37`
+- 比分优先：
+  1. Norway 1-2 Senegal
+  2. Norway 1-1 Senegal
+  3. Norway 2-1 Senegal
+  4. Norway 2-2 Senegal
+- 这是研究级 `WATCH`，不是正式 `RECOMMEND`
+
+## 9. 当前主线阶段包
+
+### Stage7I — Forward observation and evidence continuity
+
+目标：
+
+为 fixture `1489401` 保持干净、可审计的 forward evidence chain，同时不启用 candidate 或正式 recommendation。
+
+连续性检查：
+
+1. 任何变更前核对 staging revision。
+2. 核对 `w2-staging.service`、6 个长期容器、API health/readiness、Web 和 Stage7I observer。
+3. 保护不可变 `as_of_time` 和 forward 时间边界。
+4. 定义最后一笔赛前观测时，区分 scheduled kickoff 与 actual kickoff。
+5. 禁止把赛后事实回填为赛前 forward evidence。
+6. RETROSPECTIVE replay 与 FORWARD evidence 必须分别归档和表述。
+7. 完整赛程生命周期后审计 candidate、lock、settlement、evaluation 写入。
+8. 只有验证过的 forward evidence 才能进入 Gate5 evidence package。
+9. Gate5 满足全部独立验收条件前保持 OPEN。
+
+## 10. 当前 BLOCKER / 未完成
+
+- Gate5 尚未关闭。
+- Fixture `1489401` 的完整 forward lifecycle evidence 尚未在本文件中记录为完成。
+- Actual kickoff 与最后有效赛前观测尚未在本文件中记录。
+- 赛后 settlement / evaluation 证据尚未在本文件中记录。
+- Stage7I 最终 Shadow DB audit 尚未在本文件中记录。
+- Stage10E 按计划尚未部署。
+
+## 11. Stage7I 停止条件
+
+出现任一情况，停止自动推进：
+
+- staging revision 与预期基线不一致且来源不明
+- actual kickoff 无法可靠确定，并会影响 evidence boundary
+- observer 不健康、反复重启或有无法解释的数据断档
+- 合法事件边界前出现 settlement / evaluation 写入
+- 出现未知 candidate、lock、recommendation、settlement 或 evaluation 写入
+- `candidate` 或 `formal_recommendation` 意外变为 `true`
+- 需要新 migration 或破坏性 migration
+- 需要权限、凭据、密钥、secret、`.env` 或公网端口变更
+- 涉及 production、删除数据、外部通知、资金、交易或投注
+
+## 12. Handoff 维护契约
+
+以下任一项变化时，必须更新本文件：
+
+- repository / mainline commit SHA
+- staging deployed revision
+- active branch / worktree
+- active stage package
+- service / container health baseline
+- migration head
+- deployment freeze
+- Gate4 / Gate5 状态
+- observer identity / status
+- fixture lifecycle 状态
+- 最新完成的 deployment / stage report 路径
+- BLOCKER / stop condition
+- Stage10E 等延期包状态
+
+每个阶段包验收结束前：
+
+1. 用最新值替换已失效状态，不在本文件堆积时间流水账。
+2. 记录权威 commit SHA 或报告路径。
+3. 记录验收结果和剩余 BLOCKER。
+4. 确认 W1 未修改。
+5. 确认 retrospective 未冒充 forward。
+6. 除非后续 gate 经明确批准改变策略，否则确认 `candidate=false`、`formal_recommendation=false`。
+
+## 13. 固定回复结构
+
+阶段级回复继续使用：
+
+1. 当前任务清单
+2. 已完成
+3. 未完成
+4. 风险
+5. 自动修复和验证
+6. 阶段验收
+7. 停止条件
+8. 最终报告
+
+执行中间只报告有效增量和必要指令；阶段完成后再输出完整验收。
