@@ -6,13 +6,14 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 4
+handoff_version: 5
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
-active_stage_package: Stage7I forward observation and evidence continuity
+active_stage_package: Stage7I successor forward observation recovery
+stage7i_status: READY_FOR_SUCCESSOR_FIXTURE
 ci_patch1_status: REMOTE_CI_FAILED_ALEMBIC_SMOKE
 ci_patch2_status: REMOTE_CI_SUCCESS
 server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
@@ -41,6 +42,16 @@ ci_patch2_remote_result: success
 ci_patch2_validated_refs:
   - main
   - chore/stage7i-24h-observation
+stage7i_run_01_fixture_id: 1489401
+stage7i_run_01_status: BLOCKED_NON_QUALIFYING
+stage7i_run_01_observer_pid: 343187
+stage7i_run_01_forward_complete: false
+stage7i_run_01_gate5_eligible: false
+stage7i_same_fixture_restart_allowed: false
+stage7i_successor_fixture_required: true
+stage7i_successor_fixture_id: null
+stage7i_successor_run_status: NOT_STARTED
+stage7i_server_revision_baseline: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 repository_head_relation: handoff is current as of its containing Git commit
 containing_commit_ci_source: GitHub Actions status for the containing commit
 repository_branch_at_capture: chore/stage7i-24h-observation
@@ -274,31 +285,47 @@ Secondary：
 
 ## 9. 当前主线阶段包
 
-### Stage7I — Forward observation and evidence continuity
+### Stage7I — Successor forward observation recovery
 
 目标：
 
-为 fixture `1489401` 保持干净、可审计的 forward evidence chain，同时不启用 candidate 或正式 recommendation。
+fixture `1489401` 的观察已归档为 `BLOCKED_NON_QUALIFYING`。下一步是选择尚未开球的 successor fixture，重新建立干净、可审计的 forward evidence chain，同时不启用 candidate 或正式 recommendation。
+
+Run 01 archive:
+
+- Fixture：`1489401`
+- Scheduled kickoff：`2026-06-23T00:00:00Z`
+- Observer PID：`343187`
+- Status：`BLOCKED_NON_QUALIFYING`
+- forward_complete=false
+- gate5_eligible=false
+- same_fixture_restart_allowed=false
+- successor_fixture_required=true
+- successor_fixture_id=null
+- successor_run_status=NOT_STARTED
 
 连续性检查：
 
 1. 任何变更前核对 staging revision。
 2. 核对 `w2-staging.service`、6 个长期容器、API health/readiness、Web 和 Stage7I observer。
 3. 保护不可变 `as_of_time` 和 forward 时间边界。
-4. 定义最后一笔赛前观测时，区分 scheduled kickoff 与 actual kickoff。
-5. 禁止把赛后事实回填为赛前 forward evidence。
-6. RETROSPECTIVE replay 与 FORWARD evidence 必须分别归档和表述。
-7. 完整赛程生命周期后审计 candidate、lock、settlement、evaluation 写入。
-8. 只有验证过的 forward evidence 才能进入 Gate5 evidence package。
-9. Gate5 满足全部独立验收条件前保持 OPEN。
+4. successor fixture 必须从 W2 staging/provider 数据动态选择，不得硬编码。
+5. 定义最后一笔赛前观测时，区分 scheduled kickoff 与 actual kickoff。
+6. 禁止把赛后事实回填为赛前 forward evidence。
+7. RETROSPECTIVE replay 与 FORWARD evidence 必须分别归档和表述。
+8. 完整赛程生命周期后审计 candidate、lock、settlement、evaluation 写入。
+9. 只有验证过的 forward evidence 才能进入 Gate5 evidence package。
+10. Gate5 满足全部独立验收条件前保持 OPEN。
 
 ## 10. 当前 BLOCKER / 未完成
 
 - Gate5 尚未关闭。
-- Fixture `1489401` 的完整 forward lifecycle evidence 尚未在本文件中记录为完成。
-- Actual kickoff 与最后有效赛前观测尚未在本文件中记录。
-- 赛后 settlement / evaluation 证据尚未在本文件中记录。
-- Stage7I 最终 Shadow DB audit 尚未在本文件中记录。
+- `SUCCESSOR_FIXTURE_NOT_SELECTED`
+- `SUCCESSOR_OBSERVATION_NOT_STARTED`
+- `ACTUAL_KICKOFF_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
+- `CLOSING_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
+- `SETTLEMENT_EVALUATION_NOT_CAPTURED`
+- `FINAL_SHADOW_DB_AUDIT_PENDING`
 - Stage10E 按计划尚未部署。
 
 ## 11. Stage7I 停止条件

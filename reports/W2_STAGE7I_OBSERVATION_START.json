@@ -1,0 +1,57 @@
+{
+  "stage": "W2-STAGE7I",
+  "status": "BLOCKED_NON_QUALIFYING",
+  "observer_status": "BLOCKED_NON_QUALIFYING",
+  "branch": "chore/stage7i-24h-observation",
+  "repository_head": "7f195410ca060a2e7c909656404df3c87d350181",
+  "captured_at_utc": "2026-06-23T01:22:20Z",
+  "fixture_id": "1489401",
+  "scheduled_kickoff_at": "2026-06-23T00:00:00Z",
+  "scheduled_kickoff_utc": "2026-06-23T00:00:00Z",
+  "observer_pid": 343187,
+  "expected_server_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "server_current_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "server_current_matches_expected": true,
+  "candidate": false,
+  "formal_recommendation": false,
+  "blocker_codes": [
+    "OBSERVER_INTERRUPTED_BY_APPROVED_DEPLOYMENT",
+    "OBSERVATION_WINDOW_INCOMPLETE",
+    "CURRENT_REVISION_CHANGED",
+    "FORWARD_LIFECYCLE_NOT_CONTINUOUS"
+  ],
+  "evidence_classification": {
+    "forward_complete": false,
+    "retrospective_allowed": true,
+    "gate5_eligible": false
+  },
+  "recovery_policy": {
+    "same_fixture_restart_allowed": false,
+    "successor_fixture_required": true,
+    "successor_fixture_selection": "W2_STAGING_PROVIDER_DATA_DYNAMIC",
+    "successor_fixture_id": null,
+    "successor_run_status": "NOT_STARTED"
+  },
+  "original_observation": {
+    "baseline_revision": "b98d3e3cdf19c47d5da25d5e681936970c75856c",
+    "observer_pid": 343187,
+    "started_at_utc": "2026-06-22T10:38:07.164113Z",
+    "expected_end_utc": "2026-06-23T10:38:07.164113Z",
+    "sample_count": 93,
+    "interruption_report": "/opt/w2/shared/runtime/stage7i/INTERRUPTED_BY_APPROVED_STAGE10C_DEPLOYMENT.json",
+    "interruption_reason": "APPROVED_STAGE10C_DEPLOYMENT"
+  },
+  "current_runtime_observation": {
+    "observer_pid": 723789,
+    "baseline_revision": "397fdfad607efbc1d2fcbdbe0ca305d7a8fcce64",
+    "started_at_utc": "2026-06-22T18:39:40.683254Z",
+    "expected_end_utc": "2026-06-23T18:39:40.683254Z",
+    "sample_count_observed_at_capture": 81,
+    "latest_sample_utc": "2026-06-23T01:20:05.980014Z",
+    "latest_sample_blockers": [
+      "CURRENT_REVISION_CHANGED"
+    ],
+    "runtime_dir": "/opt/w2/shared/runtime/stage7i/runs/stage7i_20260622T183939Z_397fdfa",
+    "qualifies_for_fixture_1489401_forward_evidence": false
+  }
+}
