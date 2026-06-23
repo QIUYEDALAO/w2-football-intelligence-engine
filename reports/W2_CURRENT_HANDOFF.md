@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 29
+handoff_version: 30
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -59,6 +59,9 @@ gate3_baselight_sample_sha256: 3fb354f40dd286652ded0f703e01575f8c66924774c53dfeb
 gate3_baselight_async_job_recovery_status: FOUND_DONE_AND_PENDING_JOBS_IN_TMP
 gate3_baselight_get_results_status: PARTIAL_SAMPLE_WRITTEN
 gate3_baselight_micro_batch_status: PARTIAL_SAMPLE_INSUFFICIENT
+gate3_baselight_micro_batch_v2_status: BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING
+gate3_baselight_extraction_method: MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN
+gate3_baselight_state_file_external: /Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/extract_state.json
 gate3_baselight_sample_row_count: 750
 gate3_baselight_sample_fixture_count: 15
 gate3_baselight_sample_bookmaker_count: 4
@@ -716,3 +719,9 @@ Run 01 archive:
 8. 最终报告
 
 执行中间只报告有效增量和必要指令；阶段完成后再输出完整验收。
+
+## 0.12 Gate3 Baselight Micro-Batch Expansion v2
+
+W2 reran the live Baselight MCP probe and confirmed `baselight_sdk_query_execute` with LIMIT 5 checks still passing. The extractor used `MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN`: competition-scoped matches seed queries completed, then AH odds were requested by match_id without joining `matches`. The existing external sample was preserved and resume state was written outside Git, but the first single-fixture AH odds query remained pending/timeout under bounded polling. No additional rows were appended.
+
+Result: `gate3_baselight_limited_extract_status=MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT`, `gate3_baselight_micro_batch_v2_status=BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING`, and `gate3_baselight_ah_walk_forward_status=INSUFFICIENT_SAMPLE`. Sample remains 750 rows, 15 fixtures, 4 bookmakers, 11 line buckets, and 15 competitions, so Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.

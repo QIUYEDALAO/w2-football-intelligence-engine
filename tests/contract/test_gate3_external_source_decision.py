@@ -108,7 +108,7 @@ def test_purchase_contact_contract_and_gate3_are_not_authorized() -> None:
     assert decision["status"] == "PARTIAL"
     assert decision["external_source_decision_status"] == "USER_DECISION_REQUIRED"
     assert decision["acquisition_not_authorized"] is True
-    assert "handoff_version: 29" in handoff
+    assert "handoff_version: 30" in handoff
     assert "gate3_acquisition_authorized: false" in handoff
     assert "roadmap_version: 1" in roadmap
     assert "candidate: false" in handoff

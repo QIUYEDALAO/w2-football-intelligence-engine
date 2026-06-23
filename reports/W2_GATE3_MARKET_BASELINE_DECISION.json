@@ -26,6 +26,7 @@
       "AH_WALK_FORWARD_EVIDENCE_MISSING"
     ],
     "collected_at_precision": "DATE_ONLY",
+    "extraction_method": "MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN",
     "get_results_status": "PARTIAL_SAMPLE_WRITTEN",
     "license_status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED",
     "limited_extract_bookmaker_count": 4,
@@ -44,17 +45,21 @@
     "mcp_sql_tool_name": "baselight_sdk_query_execute",
     "micro_batch_enabled": true,
     "micro_batch_status": "PARTIAL_SAMPLE_INSUFFICIENT",
-    "next_action": "OBTAIN_LARGER_BASELIGHT_AH_SAMPLE_OR_OPTIMIZE_MICRO_BATCH_EXTRACTION",
+    "micro_batch_v2_status": "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING",
+    "next_action": "OBTAIN_LARGER_BASELIGHT_AH_SAMPLE_OR_BASELIGHT_SUPPORT_FOR_FAST_MATCH_ID_ODDS_FILTER",
     "odds_table": "match_betting_odds",
     "remaining_limitations": [
       "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+      "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS",
+      "EXPORT_AND_RETENTION_POLICY_UNVERIFIED",
       "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
-      "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+      "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS"
     ],
     "resolved_by_baselight_limited_backtest": [],
     "sample_path_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
     "sample_sha256": "3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb",
     "settled_ah_fixture_count": 10858,
+    "single_fixture_query_status": "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING",
     "status": "CONDITIONAL_GATE3_CANDIDATE"
   },
   "blockers": [

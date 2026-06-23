@@ -229,6 +229,7 @@ def write_reports(report: dict[str, Any]) -> None:
         f"- api_key_present: `{str(report['api_key_present']).lower()}`",
         f"- tools_discovered: `{len(report['tools_discovered'])}`",
         f"- sql_tool_detected: `{str(report['sql_tool_detected']).lower()}`",
+        f"- sql_tool_name: `{report['sql_tool_name']}`",
         f"- odds_limit_query_status: `{report['odds_limit_query_status']}`",
         f"- matches_limit_query_status: `{report['matches_limit_query_status']}`",
         f"- no_full_data_download: `{str(report['no_full_data_download']).lower()}`",

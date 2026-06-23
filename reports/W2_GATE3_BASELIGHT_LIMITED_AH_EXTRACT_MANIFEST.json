@@ -1,20 +1,28 @@
 {
+  "attempted_competition_count": 15,
   "bookmaker_count": 4,
   "candidate": false,
   "collected_at_precision": "DATE_ONLY",
   "competition_count": 15,
+  "completed_competition_count": 15,
   "extraction_attempt_status": "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT",
+  "extraction_method": "MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN",
+  "fixture_batch_attempt_count": 5,
   "fixture_count": 15,
   "formal_recommendation": false,
-  "generated_at_utc": "2026-06-23T22:20:42Z",
+  "generated_at_utc": "2026-06-23T22:58:13Z",
   "large_sample_committed": false,
+  "last_fixture_batch_reason": "MCP_REQUEST_ERROR",
+  "last_fixture_batch_status": "PENDING_OR_FAILED",
   "line_bucket_count": 11,
   "mcp_effective_page_size": 100,
   "mcp_probe_path": "reports/W2_BASELIGHT_MCP_PROBE.json",
   "mcp_sql_tool_name": "baselight_sdk_query_execute",
   "micro_batch_enabled": true,
   "micro_batch_status": "PARTIAL_SAMPLE_INSUFFICIENT",
+  "micro_batch_v2_status": "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING",
   "normalization_errors": {},
+  "pending_competition_count": 0,
   "remaining_limitations": [
     "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
     "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
@@ -28,9 +36,11 @@
   "sample_sha256": "3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb",
   "schema_version": "W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST_V1",
   "season_count": 3,
+  "single_fixture_query_status": "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING",
   "source_tables": {
     "matches": "@blt.ultimate_soccer_dataset.matches",
     "odds": "@blt.ultimate_soccer_dataset.match_betting_odds"
   },
+  "state_file_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/extract_state.json",
   "status": "INSUFFICIENT_SAMPLE"
 }

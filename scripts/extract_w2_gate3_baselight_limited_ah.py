@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import time
@@ -20,6 +21,7 @@ DEFAULT_OUTPUT = Path(
     "/Users/liudehua/.openclaw/workspace/"
     "w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl"
 )
+DEFAULT_STATE = DEFAULT_OUTPUT.parent / "extract_state.json"
 PREFERRED_COMPETITIONS = [
     "Premier League",
     "Serie A",
@@ -27,8 +29,33 @@ PREFERRED_COMPETITIONS = [
     "La Liga",
     "UEFA Champions League",
     "UEFA Europa League",
+    "Ligue 1",
+    "Eredivisie",
+    "Major League Soccer",
+    "UEFA Europa Conference League",
 ]
-MAX_PENDING_POLLS = 20
+MAX_PENDING_SECONDS = 180
+PENDING_POLL_SECONDS = 15
+REQUEST_TIMEOUT_SECONDS = 20
+OUTPUT_COLUMNS = [
+    "match_id",
+    "competition",
+    "season",
+    "kickoff_utc",
+    "home_team_id",
+    "home_team_name",
+    "away_team_id",
+    "away_team_name",
+    "status",
+    "home_score",
+    "away_score",
+    "bookmaker",
+    "market",
+    "outcome",
+    "odds",
+    "odds_type",
+    "collected_at",
+]
 
 
 def utc_now() -> str:
@@ -81,6 +108,27 @@ class BaselightMcpClient:
         self.output_dir = output_dir
         self.counter = 0
 
+    def read_response_text(self, response: Any) -> str:
+        chunks: list[bytes] = []
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            line = response.readline()
+            if not line:
+                break
+            chunks.append(line)
+            decoded = b"".join(chunks).decode("utf-8", errors="replace")
+            if line.strip().startswith(b"data:") and (
+                '"result"' in decoded or '"error"' in decoded
+            ):
+                break
+            if not decoded.lstrip().startswith("data:") and (
+                '"result"' in decoded or '"error"' in decoded
+            ):
+                break
+        if not chunks:
+            raise TimeoutError("MCP_RESPONSE_TIMEOUT")
+        return b"".join(chunks).decode("utf-8", errors="replace")
+
     def request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         self.counter += 1
         body = json.dumps(
@@ -104,13 +152,21 @@ class BaselightMcpClient:
         try:
             with urllib.request.urlopen(  # noqa: S310 - endpoint validated as HTTPS.
                 request,
-                timeout=90,
+                timeout=REQUEST_TIMEOUT_SECONDS,
             ) as response:
-                payload = response.read().decode("utf-8", errors="replace")
+                payload = self.read_response_text(response)
                 status = response.status
         except urllib.error.HTTPError as exc:
             payload = exc.read().decode("utf-8", errors="replace")
             status = exc.code
+        except (OSError, TimeoutError, urllib.error.URLError) as exc:
+            return {
+                "error": {
+                    "status": None,
+                    "message": "MCP_REQUEST_ERROR",
+                    "error_type": type(exc).__name__,
+                }
+            }
         (self.output_dir / f"{self.counter:04d}_{method.replace('/', '_')}.json").write_text(
             payload,
             encoding="utf-8",
@@ -174,7 +230,8 @@ def wait_for_results(
     limit: int,
     offset: int,
 ) -> tuple[int, list[str], list[list[Any]]]:
-    for _ in range(MAX_PENDING_POLLS):
+    deadline = time.monotonic() + MAX_PENDING_SECONDS
+    while time.monotonic() < deadline:
         parsed = parse_text_content(
             client.call_tool(
                 "baselight_sdk_get_results",
@@ -190,6 +247,7 @@ def wait_for_results(
             return total, columns, rows
         if not next_job_id:
             break
+        time.sleep(PENDING_POLL_SECONDS)
     raise RuntimeError("BASELIGHT_QUERY_STILL_PENDING")
 
 
@@ -213,6 +271,71 @@ def row_dicts(columns: list[str], rows: list[list[Any]]) -> list[dict[str, Any]]
         {column: row[index] if index < len(row) else None for index, column in enumerate(columns)}
         for row in rows
     ]
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def economic_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (
+        str(row.get("match_id", "")),
+        str(row.get("bookmaker", "")),
+        str(row.get("market", "")),
+        str(row.get("outcome", "")),
+        str(row.get("collected_at", "")),
+    )
+
+
+def load_state(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"state_error": "STATE_JSON_INVALID"}
+    return payload if isinstance(payload, dict) else {}
+
+
+def write_state(path: Path, state: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state["updated_at_utc"] = utc_now()
+    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def sample_stats(path: Path) -> dict[str, Any]:
+    rows = read_jsonl(path)
+    fixtures = {str(row.get("match_id", "")) for row in rows if row.get("match_id")}
+    bookmakers = {str(row.get("bookmaker", "")) for row in rows if row.get("bookmaker")}
+    competitions = {str(row.get("competition", "")) for row in rows if row.get("competition")}
+    line_buckets: set[str] = set()
+    for row in rows:
+        outcome = str(row.get("outcome", ""))
+        marker = None
+        for piece in outcome.replace("(", " ").replace(")", " ").split():
+            try:
+                value = abs(float(piece))
+            except ValueError:
+                continue
+            marker = "4+" if value >= 4 else str(value).rstrip("0").rstrip(".")
+            break
+        if marker:
+            line_buckets.add(marker)
+    digest = hashlib.sha256()
+    if path.is_file():
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return {
+        "row_count": len(rows),
+        "fixture_count": len(fixtures),
+        "bookmaker_count": len(bookmakers),
+        "competition_count": len(competitions),
+        "line_bucket_count": len(line_buckets),
+        "sample_sha256": digest.hexdigest() if path.is_file() else None,
+    }
 
 
 def execute_sql_rows(
@@ -253,44 +376,13 @@ def sql_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def build_fixture_sql(max_fixtures: int) -> str:
-    competitions = ", ".join(sql_string(item) for item in PREFERRED_COMPETITIONS)
+def build_competition_seed_sql(competition: str, limit: int = 150) -> str:
     return f"""
-WITH preferred_matches AS (
-    SELECT
-        m.match_id,
-        m.competition_name AS competition,
-        CAST(m.season_year AS VARCHAR) AS season,
-        m.kickoff_timestamp AS kickoff_utc,
-        m.home_team_id,
-        m.home_team_name,
-        m.away_team_id,
-        m.away_team_name,
-        m.status,
-        m.home_score,
-        m.away_score,
-        ROW_NUMBER() OVER (
-            PARTITION BY m.competition_name, CAST(m.season_year AS VARCHAR)
-            ORDER BY m.kickoff_timestamp, m.match_id
-        ) AS fixture_rank
-    FROM "@blt.ultimate_soccer_dataset.matches" m
-    WHERE
-        lower(CAST(m.status AS VARCHAR)) IN (
-            'match finished',
-            'finished',
-            'ft',
-            'aet',
-            'pen'
-        )
-        AND m.home_score IS NOT NULL
-        AND m.away_score IS NOT NULL
-        AND m.competition_name IN ({competitions})
-)
 SELECT
     match_id,
-    competition,
-    season,
-    kickoff_utc,
+    competition_name AS competition,
+    CAST(season_year AS VARCHAR) AS season,
+    kickoff_timestamp AS kickoff_utc,
     home_team_id,
     home_team_name,
     away_team_id,
@@ -298,10 +390,20 @@ SELECT
     status,
     home_score,
     away_score
-FROM preferred_matches
-WHERE fixture_rank <= 250
-ORDER BY competition, season, kickoff_utc, match_id
-LIMIT {max_fixtures}
+FROM "@blt.ultimate_soccer_dataset.matches"
+WHERE
+    competition_name = {sql_string(competition)}
+    AND home_score IS NOT NULL
+    AND away_score IS NOT NULL
+    AND lower(CAST(status AS VARCHAR)) IN (
+        'match finished',
+        'finished',
+        'ft',
+        'aet',
+        'pen'
+    )
+ORDER BY kickoff_timestamp, match_id
+LIMIT {limit}
 """.strip()
 
 
@@ -391,6 +493,11 @@ def main() -> int:
     parser.add_argument("--max-fixtures", type=int, default=1000)
     parser.add_argument("--max-rows", type=int, default=250000)
     parser.add_argument("--page-size", type=int, default=5000)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE)
+    parser.add_argument("--target-fixtures", type=int, default=500)
+    parser.add_argument("--max-new-fixtures", type=int, default=700)
+    parser.add_argument("--fixture-batch-size", type=int, default=3)
     args = parser.parse_args()
 
     api_key = os.environ.get(ENV_NAME)
@@ -418,75 +525,134 @@ def main() -> int:
             "clientInfo": {"name": "w2-baselight-limited-ah-extract", "version": "1"},
         },
     )
-    fixture_columns, fixture_rows, fixture_total = execute_sql_rows(
-        client,
-        build_ah_match_id_sql(args.max_fixtures),
-        effective_page_size,
-        args.max_fixtures,
-    )
-    if args.output.exists():
+    existing_rows = read_jsonl(args.output) if args.resume else []
+    existing_keys = {economic_key(row) for row in existing_rows}
+    existing_fixtures = {
+        str(row.get("match_id", "")) for row in existing_rows if row.get("match_id")
+    }
+    if args.output.exists() and not args.resume:
         args.output.unlink()
-    candidate_match_ids = [
-        str(row["match_id"])
-        for row in row_dicts(fixture_columns, fixture_rows)
-        if row.get("match_id")
-    ]
-    written = 0
-    batch_size = 5
-    for start in range(0, len(candidate_match_ids), batch_size):
-        if written >= args.max_rows:
+    state = load_state(args.state_file)
+    state.setdefault("schema_version", "W2_BASELIGHT_MICRO_BATCH_EXTRACT_STATE_V2")
+    state.setdefault("method", "MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN")
+    state.setdefault("attempted_competitions", [])
+    state.setdefault("pending_competitions", [])
+    state.setdefault("completed_competitions", [])
+    state.setdefault("fixture_batches", [])
+    state["raw_response_dir"] = str(output_dir)
+    candidate_fixtures: list[dict[str, Any]] = []
+    for competition in PREFERRED_COMPETITIONS:
+        candidate_count = len({str(row.get("match_id")) for row in candidate_fixtures})
+        if len(existing_fixtures) + candidate_count >= args.max_new_fixtures:
             break
-        batch = candidate_match_ids[start : start + batch_size]
-        match_columns, match_rows, _ = execute_sql_rows(
-            client,
-            build_match_metadata_sql(batch),
-            effective_page_size,
-            len(batch),
-        )
-        fixture_by_id = {
-            str(row["match_id"]): row
-            for row in row_dicts(match_columns, match_rows)
-            if row.get("match_id")
-        }
-        if not fixture_by_id:
+        state["attempted_competitions"].append(competition)
+        try:
+            seed_columns, seed_rows, _ = execute_sql_rows(
+                client,
+                build_competition_seed_sql(competition),
+                effective_page_size,
+                150,
+            )
+        except RuntimeError as exc:
+            state["pending_competitions"].append(
+                {"competition": competition, "reason": str(exc), "observed_at_utc": utc_now()}
+            )
+            write_state(args.state_file, state)
             continue
-        odds_columns, odds_rows, _ = execute_sql_rows(
-            client,
-            build_odds_sql(batch),
-            effective_page_size,
-            args.max_rows - written,
+        seed_records = row_dicts(seed_columns, seed_rows)
+        state["completed_competitions"].append(
+            {"competition": competition, "seed_count": len(seed_records)}
         )
+        for record in seed_records:
+            match_id = str(record.get("match_id", ""))
+            if not match_id or match_id in existing_fixtures:
+                continue
+            candidate_fixtures.append(record)
+    write_state(args.state_file, state)
+    written = 0
+    appended_fixtures: set[str] = set()
+    batch_size = max(1, min(args.fixture_batch_size, 3))
+    start = 0
+    while start < len(candidate_fixtures):
+        current_stats = sample_stats(args.output)
+        if (
+            current_stats["fixture_count"] >= args.target_fixtures
+            and current_stats["bookmaker_count"] >= 5
+            and current_stats["line_bucket_count"] >= 8
+            and current_stats["competition_count"] >= 5
+        ):
+            break
+        if current_stats["row_count"] >= args.max_rows:
+            break
+        batch_records = candidate_fixtures[start : start + batch_size]
+        batch = [str(row["match_id"]) for row in batch_records if row.get("match_id")]
+        fixture_by_id = {str(row["match_id"]): row for row in batch_records if row.get("match_id")}
+        if not batch:
+            start += batch_size
+            continue
+        try:
+            odds_columns, odds_rows, _ = execute_sql_rows(
+                client,
+                build_odds_sql(batch),
+                effective_page_size,
+                args.max_rows - current_stats["row_count"],
+            )
+        except RuntimeError as exc:
+            retryable = (
+                "BASELIGHT_QUERY_STILL_PENDING" in str(exc)
+                or "MCP_REQUEST_ERROR" in str(exc)
+            )
+            if batch_size > 1 and retryable:
+                batch_size = 1
+                continue
+            state["fixture_batches"].append(
+                {
+                    "match_ids": batch,
+                    "status": "PENDING_OR_FAILED",
+                    "reason": str(exc),
+                    "observed_at_utc": utc_now(),
+                }
+            )
+            write_state(args.state_file, state)
+            if batch_size == 1 and retryable:
+                print("BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING")
+                return 3
+            start += batch_size
+            continue
         combined_rows: list[dict[str, Any]] = []
         for odds in row_dicts(odds_columns, odds_rows):
             fixture = fixture_by_id.get(str(odds.get("match_id")))
             if fixture is None:
                 continue
-            combined_rows.append({**fixture, **odds})
-        columns = [
-            "match_id",
-            "competition",
-            "season",
-            "kickoff_utc",
-            "home_team_id",
-            "home_team_name",
-            "away_team_id",
-            "away_team_name",
-            "status",
-            "home_score",
-            "away_score",
-            "bookmaker",
-            "market",
-            "outcome",
-            "odds",
-            "odds_type",
-            "collected_at",
-        ]
-        rows = [[row.get(column) for column in columns] for row in combined_rows]
-        written += write_rows(args.output, columns, rows, append=written > 0)
+            row = {**fixture, **odds}
+            key = economic_key(row)
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+            combined_rows.append(row)
+            if row.get("match_id"):
+                appended_fixtures.add(str(row["match_id"]))
+        rows = [[row.get(column) for column in OUTPUT_COLUMNS] for row in combined_rows]
+        written += write_rows(args.output, OUTPUT_COLUMNS, rows, append=args.output.exists())
+        state["fixture_batches"].append(
+            {
+                "match_ids": batch,
+                "status": "APPENDED",
+                "new_rows": len(rows),
+                "observed_at_utc": utc_now(),
+            }
+        )
+        write_state(args.state_file, state)
+        start += batch_size
+    final_stats = sample_stats(args.output)
+    state["final_stats"] = final_stats
+    state["new_rows_written"] = written
+    state["new_fixtures_written"] = len(appended_fixtures)
+    write_state(args.state_file, state)
     print(
         "BASELIGHT_LIMITED_AH_EXTRACT_COMPLETE "
-        f"rows={written} fixture_candidates={len(candidate_match_ids)} "
-        f"fixture_total={fixture_total} "
+        f"new_rows={written} total_rows={final_stats['row_count']} "
+        f"total_fixtures={final_stats['fixture_count']} "
         f"effective_page_size={effective_page_size} raw_response_dir={output_dir}"
     )
     return 0

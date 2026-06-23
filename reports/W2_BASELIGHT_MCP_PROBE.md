@@ -1,6 +1,6 @@
 # W2 Baselight MCP Probe
 
-Generated at: `2026-06-23T21:40:31Z`
+Generated at: `2026-06-23T22:54:41Z`
 
 - MCP endpoint: `https://api.baselight.app/mcp`
 - api_key_present: `true`
