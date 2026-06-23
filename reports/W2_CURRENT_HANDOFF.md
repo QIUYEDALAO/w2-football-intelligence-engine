@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 21
+handoff_version: 22
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -92,6 +92,14 @@ ci_patch2_remote_result: success
 ci_patch2_validated_refs:
   - main
   - chore/stage7i-24h-observation
+ci_baselight_correction_commit: 3f8cb84793100e994665e28ce720a85b6979a963
+ci_baselight_correction_run_id: 28052676101
+ci_baselight_correction_result: failure
+ci_baselight_correction_failed_step: Pytest
+ci_baselight_correction_failure_type: HARDCODED_VERSION_DRIFT
+ci_baselight_correction_fix_commit: 3f8cb847 + 2-test contract fix in ci_reconciliation
+ci_baselight_correction_fixed_local: true
+ci_baselight_correction_unrelated_ruff_errors: 52_pre_existing
 stage7i_run_01_fixture_id: 1489401
 stage7i_run_01_status: BLOCKED_NON_QUALIFYING
 stage7i_run_01_observer_pid: 343187
