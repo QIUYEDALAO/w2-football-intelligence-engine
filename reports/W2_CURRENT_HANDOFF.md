@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 11
+handoff_version: 12
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -16,6 +16,9 @@ active_stage_package: Stage7I-R1B2 successor forward observation in progress
 stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
 parallel_mainline_status: FUTURE_DATA_REFRESH_IMPLEMENTATION_COMPLETED
 future_refresh_hardening_status: OPERATIONAL_HARDENING_COMPLETED
+future_refresh_hardening_commit: 8e467e657836641975294aeea12066cc125307f7
+future_refresh_hardening_ci_run: 28022797264
+future_refresh_hardening_ci_result: success
 pending_staging_deployment: true
 pending_deployment_reason: preserve active Stage7I revision continuity
 ci_patch1_status: REMOTE_CI_FAILED_ALEMBIC_SMOKE
@@ -61,6 +64,15 @@ stage7i_successor_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260
 stage7i_successor_started_at_utc: 2026-06-23T09:59:44.331436Z
 stage7i_successor_expected_end_utc: 2026-06-24T09:59:44.331436Z
 stage7i_successor_run_status: IN_PROGRESS
+stage7i_lifecycle_capture_status: BLOCKED_QUOTA_BELOW_RESERVE
+stage7i_lifecycle_collector_identity: NOT_STARTED_QUOTA_BELOW_RESERVE
+stage7i_lifecycle_probe_request_count: 1
+stage7i_lifecycle_probe_remaining_quota: 299
+stage7i_lifecycle_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle
+stage7i_lifecycle_final_evidence: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle/final_evidence.in_progress.json
+actual_kickoff_status: PENDING
+closing_status: PENDING
+final_evidence_status: IN_PROGRESS
 stage7i_server_revision_baseline: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 stage7i_r1b1_commit: 54a498c701af0e754645cf51658e45683fa6352a
 stage7i_r1b1_ci_run: 28009675284

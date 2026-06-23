@@ -210,6 +210,57 @@ Deployment policy while a Stage7I observer is active:
 - no service restart, compose recreation, migration, or `/opt/w2/current`
   switch is allowed for this package.
 
+## Lifecycle Evidence Collector
+
+The base observer records runtime continuity. If it does not persist
+fixture-specific provider lifecycle evidence, use the independent lifecycle
+collector without touching the observer global lock.
+
+Allowed local/staging files:
+
+- `src/w2/monitoring/stage7i_lifecycle.py`
+- `scripts/capture_stage7i_fixture_lifecycle.py`
+- `scripts/build_stage7i_final_evidence.py`
+
+Runtime evidence lives under the active observer run:
+
+`/opt/w2/shared/runtime/stage7i/runs/<run_id>/lifecycle/`
+
+The collector must use its own lock:
+
+`/opt/w2/shared/runtime/stage7i/lifecycle-<fixture_id>.lock`
+
+This lock must not replace, release, or contend with:
+
+`/opt/w2/shared/runtime/stage7i/observer-global.lock`
+
+Lifecycle evidence files:
+
+- `collector_start.json`
+- `collector.pid`
+- `fixture_status.jsonl`
+- `market_observations.jsonl`
+- `result_status.jsonl`
+- `request_audit.jsonl`
+- `raw/`
+- `collector.log`
+
+All events are append-only and use stable event IDs. Raw payload files are
+named by SHA256 and must not be overwritten. The collector records
+`candidate=false` and `formal_recommendation=false`.
+
+Actual kickoff can only come from a provider/internal field explicitly
+representing real kickoff, such as a provider period start field. Do not use
+scheduled kickoff, first observed status transition, local poll time, or any
+external site as actual kickoff.
+
+Closing is resolved only after actual kickoff is confirmed internally. It is the
+last market observation strictly before actual kickoff with `live=false`,
+`suspended=false`, positive bookmaker count, and raw payload hash evidence.
+
+If quota is below reserve, stop the lifecycle collector and preserve request
+audit evidence. Do not lower the reserve to obtain a sample.
+
 ## Pass Criteria
 
 - Current revision remains unchanged.

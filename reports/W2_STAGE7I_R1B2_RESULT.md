@@ -218,3 +218,80 @@ No rollback is required. The active observer is the intended R1B2 successor
 process. Staging code, services, containers, database schema, deployment
 revision, W1, sensitive values, GitHub settings, and production configuration
 were not modified.
+
+## Lifecycle Evidence Capture Readiness
+
+This continuation audited whether the active Stage7I observer already captures
+fixture-specific lifecycle evidence for fixture `1489404`.
+
+Observer continuity at audit time:
+
+- Observer PID: `1435421`
+- Observer PGID: `1435396`
+- Runtime dir:
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
+- Global lock holder: `1435421`
+- Observer count: `1`
+- Server revision: `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+- API/Web health: `OK`
+- Public business ports: none
+- `.env`: mode `600`; content not read
+
+Observer evidence audit found that `observations.jsonl` records service health,
+quota summaries, forward counters, Gate state, and scheduler heartbeat. It does
+not persist fixture-specific provider status, market payload hash, provider
+market update time, result status, actual kickoff source, or closing resolver
+evidence. A separate lifecycle collector was therefore required.
+
+Implemented local tooling:
+
+- `src/w2/monitoring/stage7i_lifecycle.py`
+- `scripts/capture_stage7i_fixture_lifecycle.py`
+- `scripts/build_stage7i_final_evidence.py`
+
+The tooling was validated locally, copied to versioned runtime tooling, and
+checked by SHA256 before runtime use:
+
+- Tooling dir:
+  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_8e467e6`
+- Tooling archive SHA256:
+  `2e25edb6bfbdad1cab60069a8a359d16d8374d8c8d64a5061e3b2bb82e4026de`
+
+A single `--once` lifecycle probe was attempted through the staging API
+container so the existing `ApiFootballClient` and injected runtime environment
+were used without printing credentials or reading `.env`.
+
+Runtime evidence generated:
+
+- Lifecycle dir:
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle`
+- `request_audit.jsonl`: `1` event
+- Last endpoint: `fixtures`
+- HTTP status: `200`
+- Raw payload hash: present
+- Remaining provider quota: `299`
+
+Collector decision:
+
+- `stage7i_lifecycle_capture_status=BLOCKED_QUOTA_BELOW_RESERVE`
+- Reserve policy: `1500`
+- Collector process: not started
+- Reason: provider remaining quota was below reserve after the first sanitized
+  request audit
+
+Final evidence builder output:
+
+- File:
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle/final_evidence.in_progress.json`
+- Status: `IN_PROGRESS`
+- Actual kickoff status: `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
+- Closing status: `PENDING_ACTUAL_KICKOFF`
+- Blockers:
+  - `OBSERVER_SUMMARY_NOT_COMPLETE`
+  - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
+  - `PENDING_ACTUAL_KICKOFF`
+- Candidate: `false`
+- Formal recommendation: `false`
+
+No actual kickoff, closing, settlement, evaluation, or Shadow DB completion was
+fabricated. Gate5 remains `OPEN`.

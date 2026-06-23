@@ -71,6 +71,8 @@ def validate_static_files() -> None:
         "scripts/check_w2_stage7i.py",
         "scripts/select_stage7i_successor.py",
         "scripts/build_stage7i_successor_candidates.py",
+        "scripts/capture_stage7i_fixture_lifecycle.py",
+        "scripts/build_stage7i_final_evidence.py",
         "docs/runbooks/STAGE7I_24H_OBSERVATION.md",
         "reports/W2_STAGE7I_OBSERVATION_START.json",
         "reports/W2_STAGE7I_RESULT.md",
@@ -94,6 +96,15 @@ def validate_static_files() -> None:
         raise Stage7ICheckError("observer must not use shell=True")
     if "runtime/stage7i/" not in read(ROOT / ".gitignore"):
         raise Stage7ICheckError("runtime/stage7i must be gitignored")
+    lifecycle = read(ROOT / "src/w2/monitoring/stage7i_lifecycle.py")
+    for token in [
+        "ACTUAL_KICKOFF_SOURCE_UNAVAILABLE",
+        "LAST_PRE_ACTUAL_KICKOFF_NON_LIVE_NON_SUSPENDED_MARKET",
+        "candidate",
+        "formal_recommendation",
+    ]:
+        if token not in lifecycle:
+            raise Stage7ICheckError(f"lifecycle module missing token {token}")
 
 
 def validate_archive(path: Path) -> dict[str, Any]:
