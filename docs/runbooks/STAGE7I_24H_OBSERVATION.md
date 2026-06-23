@@ -27,29 +27,65 @@ The observer is copied to:
 
 `/opt/w2/shared/runtime/stage7i/run_stage7i_observer.py`
 
-Start it once with `flock` and `nohup`:
+R1B is split into two steps:
+
+- `Stage7I-R1B1 successor tooling readiness`: code, tests, and documentation
+  only. It does not select a real fixture and does not start an observer.
+- `Stage7I-R1B2 dynamic successor selection and observer bootstrap`: performs
+  the actual local/staging selection and starts a new observer when approved.
+
+## Successor Selector
+
+The selector is dry-run by default and is read-only:
 
 ```bash
-flock -n /opt/w2/shared/runtime/stage7i/observer.lock \
-  nohup python3 /opt/w2/shared/runtime/stage7i/run_stage7i_observer.py \
-  --current-dir /opt/w2/current \
-  >/opt/w2/shared/runtime/stage7i/nohup.out 2>&1 &
+python3 scripts/select_stage7i_successor.py \
+  --api-base http://127.0.0.1:18000 \
+  --output /tmp/stage7i-successor-selection.json
 ```
 
-If the lock is already held, do not start another observer.
+For hermetic tests, use `--input-json`. Non-localhost API URLs are rejected.
 
-When a new observation is intentionally started after an approved release train,
-write it to a new runtime subdirectory and pass the intended release revision
-explicitly:
+The selector requires:
+
+- `status=NS`;
+- kickoff later than `now + min_pre_kickoff_minutes`;
+- kickoff earlier than `run_end - min_post_kickoff_hours`;
+- reliable provider mapping with no conflict;
+- real and fresh pre-match market observation;
+- no active Stage7I global observer lock;
+- fixture is not the archived fixture `1489401`.
+
+The selector does not use team popularity, external schedules, score sites, or
+hardcoded fixture IDs.
+
+## Start Command
+
+All runs must use one global singleton lock:
+
+`/opt/w2/shared/runtime/stage7i/observer-global.lock`
+
+The Python observer also acquires this lock internally with non-blocking
+`fcntl.flock`; external `flock` is optional belt-and-braces, not the only
+protection.
+
+Start a successor observer only in R1B2 after a valid selection JSON exists:
 
 ```bash
-flock -n /opt/w2/shared/runtime/stage7i/runs/<run_id>/observer.lock \
+flock -n /opt/w2/shared/runtime/stage7i/observer-global.lock \
   nohup python3 /opt/w2/shared/runtime/stage7i/run_stage7i_observer.py \
   --runtime-dir /opt/w2/shared/runtime/stage7i/runs/<run_id> \
   --current-dir /opt/w2/current \
+  --fixture-id <selected_fixture_id> \
+  --scheduled-kickoff-utc <selected_fixture_kickoff_utc> \
   --baseline-revision <current_deployment_revision> \
+  --expected-alembic-head 0017_create_stage9a_shadow_strategy \
+  --selection-json /opt/w2/shared/runtime/stage7i/runs/<run_id>/selection.json \
+  --global-lock-path /opt/w2/shared/runtime/stage7i/observer-global.lock \
   >/opt/w2/shared/runtime/stage7i/runs/<run_id>/nohup.out 2>&1 &
 ```
+
+If the lock is already held, do not start another observer.
 
 ## Safety Rules
 
@@ -66,6 +102,11 @@ flock -n /opt/w2/shared/runtime/stage7i/runs/<run_id>/observer.lock \
   fixture and do not backfill it into forward evidence.
 - An interrupted run for an already-started fixture must be archived as
   `BLOCKED_NON_QUALIFYING`.
+- Do not infer actual kickoff from polling time, scheduled kickoff, or status
+  transitions. If no internal source exists, record
+  `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`.
+- Closing can only be derived after an internally sourced actual kickoff exists,
+  and only from the last real market observation strictly before actual kickoff.
 
 ## Pass Criteria
 

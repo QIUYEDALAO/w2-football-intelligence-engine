@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
 import re
@@ -20,9 +22,9 @@ SERVICES = ["postgres", "redis", "api", "worker", "scheduler", "web"]
 CONTAINERS = {name: f"w2-staging-{name}-1" for name in SERVICES}
 DEFAULT_RUNTIME = Path("/opt/w2/shared/runtime/stage7i")
 DEFAULT_CURRENT = Path("/opt/w2/current")
+DEFAULT_GLOBAL_LOCK = Path("/opt/w2/shared/runtime/stage7i/observer-global.lock")
 SAMPLE_INTERVAL_SECONDS = 300
 OBSERVATION_SECONDS = 24 * 60 * 60
-EXPECTED_HEAD = "0016_create_stage15a_operational_governance"
 
 
 def utc_now() -> datetime:
@@ -62,6 +64,10 @@ def write_json(path: Path, payload: Any) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(content, encoding="utf-8")
     tmp.replace(path)
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -109,6 +115,92 @@ def current_revision(current: Path, baseline_revision: str) -> dict[str, Any]:
         "error": link_err if link_code != 0 else None,
         "matches_baseline": revision == baseline_revision,
     }
+
+
+def migration_heads(current: Path) -> list[str]:
+    versions = current / "migrations" / "versions"
+    revisions: set[str] = set()
+    down_revisions: set[str] = set()
+    if not versions.exists():
+        return []
+    revision_re = re.compile(r"^revision\s*=\s*['\"]([^'\"]+)['\"]")
+    down_re = re.compile(r"^down_revision\s*=\s*(.+)$")
+    for path in versions.glob("*.py"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            revision_match = revision_re.match(line.strip())
+            if revision_match:
+                revisions.add(revision_match.group(1))
+            down_match = down_re.match(line.strip())
+            if down_match:
+                raw = down_match.group(1)
+                for match in re.finditer(r"['\"]([^'\"]+)['\"]", raw):
+                    down_revisions.add(match.group(1))
+    return sorted(revisions - down_revisions)
+
+
+def alembic_head_status(current: Path, expected_head: str) -> dict[str, Any]:
+    heads = migration_heads(current)
+    return {
+        "expected_head": expected_head,
+        "heads": heads,
+        "matches_expected": expected_head in heads,
+    }
+
+
+def parse_utc(value: str, field: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field} must be ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    return parsed.astimezone(UTC)
+
+
+def validate_selection(
+    selection_json: Path,
+    *,
+    fixture_id: str,
+    scheduled_kickoff_utc: str,
+) -> dict[str, Any]:
+    payload = load_json(selection_json, None)
+    if not isinstance(payload, dict):
+        raise ValueError("selection JSON must be an object")
+    if payload.get("source") != "W2_STAGING_PROVIDER_DATA":
+        raise ValueError("selection source must be W2_STAGING_PROVIDER_DATA")
+    if payload.get("candidate") is not False or payload.get("formal_recommendation") is not False:
+        raise ValueError("selection must keep candidate/formal false")
+    selected = payload.get("selected_fixture")
+    if not isinstance(selected, dict):
+        raise ValueError("selection selected_fixture must be an object")
+    if str(selected.get("fixture_id")) != fixture_id:
+        raise ValueError("selection fixture_id does not match CLI")
+    if selected.get("scheduled_kickoff_utc") != scheduled_kickoff_utc:
+        raise ValueError("selection scheduled kickoff does not match CLI")
+    if selected.get("status") != "NS":
+        raise ValueError("selection fixture status must be NS")
+    kickoff = parse_utc(scheduled_kickoff_utc, "scheduled_kickoff_utc")
+    generated = parse_utc(str(payload.get("generated_at_utc")), "generated_at_utc")
+    if kickoff <= generated:
+        raise ValueError("selected kickoff has already occurred")
+    mapping = selected.get("provider_mapping")
+    if (
+        not isinstance(mapping, dict)
+        or mapping.get("reliable") is not True
+        or mapping.get("conflict") is True
+    ):
+        raise ValueError("selection provider mapping must be reliable and conflict-free")
+    market = selected.get("market_observation")
+    if not isinstance(market, dict):
+        raise ValueError("selection market_observation must be an object")
+    captured = parse_utc(str(market.get("captured_at_utc")), "market captured_at_utc")
+    if captured > generated:
+        raise ValueError("market captured_at must not be in the future")
+    if market.get("fresh") is not True:
+        raise ValueError("market observation must be fresh")
+    if int(market.get("bookmaker_count", 0)) <= 0:
+        raise ValueError("market observation must include bookmakers")
+    return payload
 
 
 def systemd_state() -> dict[str, Any]:
@@ -364,6 +456,8 @@ def collect_sample(
     current: Path,
     state: dict[str, Any],
     baseline_revision: str,
+    fixture_id: str,
+    scheduled_kickoff_utc: str,
 ) -> dict[str, Any]:
     now = utc_now()
     containers = container_states()
@@ -375,6 +469,7 @@ def collect_sample(
     }
     sample = {
         "timestamp_utc": iso(now),
+        "fixture": fixture_sample(current, fixture_id, scheduled_kickoff_utc, now),
         "current": current_revision(current, baseline_revision),
         "systemd": systemd_state(),
         "containers": containers,
@@ -391,6 +486,55 @@ def collect_sample(
     }
     sample["blockers"] = evaluate_blockers(sample, initial_counts, state)
     return sample
+
+
+def fixture_sample(
+    current: Path,
+    fixture_id: str,
+    scheduled_kickoff_utc: str,
+    now: datetime,
+) -> dict[str, Any]:
+    fixture_payload = load_json(current / "runtime/stage7e/fixtures.json", {})
+    market_payload = load_json(current / "runtime/stage7e/market_snapshots.json", [])
+    result_payload = load_json(current / "runtime/stage7e/result_events.json", [])
+    fixture_status = None
+    actual_kickoff_source = "ACTUAL_KICKOFF_SOURCE_UNAVAILABLE"
+    market_observations: list[dict[str, Any]] = []
+    if isinstance(market_payload, list):
+        market_observations = [
+            item
+            for item in market_payload
+            if isinstance(item, dict) and str(item.get("fixture_id")) == fixture_id
+        ]
+    result_events = [
+        item
+        for item in result_payload
+        if isinstance(item, dict) and str(item.get("fixture_id")) == fixture_id
+    ] if isinstance(result_payload, list) else []
+    if isinstance(fixture_payload, dict):
+        raw_status = fixture_payload.get(fixture_id)
+        if isinstance(raw_status, dict):
+            fixture_status = raw_status.get("status")
+    last_market_before_now = None
+    for item in market_observations:
+        captured = item.get("captured_at_utc") or item.get("captured_at")
+        if not isinstance(captured, str):
+            continue
+        try:
+            captured_dt = parse_utc(captured, "market.captured_at")
+        except ValueError:
+            continue
+        if captured_dt <= now:
+            last_market_before_now = captured
+    return {
+        "fixture_id": fixture_id,
+        "scheduled_kickoff_utc": scheduled_kickoff_utc,
+        "fixture_status": fixture_status,
+        "actual_kickoff_source": actual_kickoff_source,
+        "last_market_observation_before_now": last_market_before_now,
+        "market_observation_count": len(market_observations),
+        "result_event_count": len(result_events),
+    }
 
 
 def evaluate_blockers(
@@ -441,6 +585,11 @@ def summarize(
     expected_end: datetime,
     completed: bool,
     baseline_revision: str,
+    fixture_id: str,
+    scheduled_kickoff_utc: str,
+    expected_alembic_head: str,
+    selection_json: Path,
+    selection_sha256: str,
 ) -> dict[str, Any]:
     observations = runtime / "observations.jsonl"
     samples: list[dict[str, Any]] = []
@@ -462,6 +611,11 @@ def summarize(
     latest = samples[-1] if samples else {}
     summary = {
         "baseline_revision": baseline_revision,
+        "fixture_id": fixture_id,
+        "scheduled_kickoff_utc": scheduled_kickoff_utc,
+        "expected_alembic_head": expected_alembic_head,
+        "selection_json_path": str(selection_json),
+        "selection_sha256": selection_sha256,
         "started_at_utc": iso(started_at),
         "expected_end_utc": iso(expected_end),
         "completed_at_utc": iso(utc_now()) if completed else None,
@@ -515,9 +669,25 @@ def run_observer(
     interval: int,
     duration: int,
     once: bool,
-    baseline_revision: str | None,
+    baseline_revision: str,
+    fixture_id: str,
+    scheduled_kickoff_utc: str,
+    expected_alembic_head: str,
+    selection_json: Path,
+    global_lock_path: Path,
 ) -> int:
     runtime.mkdir(parents=True, exist_ok=True)
+    global_lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_handle = global_lock_path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("OBSERVATION_ALREADY_RUNNING", file=sys.stderr)
+        return 2
+    lock_handle.seek(0)
+    lock_handle.truncate()
+    lock_handle.write(f"{os.getpid()}\n")
+    lock_handle.flush()
     pid_path = runtime / "observer.pid"
     if pid_path.exists():
         try:
@@ -527,18 +697,56 @@ def run_observer(
         if existing_pid != os.getpid() and process_is_running(existing_pid):
             print("OBSERVATION_ALREADY_RUNNING", file=sys.stderr)
             return 2
+    selection = validate_selection(
+        selection_json,
+        fixture_id=fixture_id,
+        scheduled_kickoff_utc=scheduled_kickoff_utc,
+    )
+    selection_hash = sha256_file(selection_json)
+    kickoff = parse_utc(scheduled_kickoff_utc, "scheduled_kickoff_utc")
+    if kickoff <= utc_now():
+        raise ValueError("scheduled kickoff has already occurred")
     resolved_baseline = resolve_baseline_revision(current, baseline_revision)
+    revision = current_revision(current, resolved_baseline)
+    if not revision.get("matches_baseline"):
+        raise ValueError("current revision does not match baseline")
+    alembic = alembic_head_status(current, expected_alembic_head)
+    if not alembic["matches_expected"]:
+        raise ValueError("Alembic head does not match expected head")
     started_at = utc_now()
     expected_end = started_at + timedelta(seconds=duration)
     write_json(
         runtime / "start.json",
         {
+            "status": "IN_PROGRESS",
+            "fixture_id": fixture_id,
+            "scheduled_kickoff_utc": scheduled_kickoff_utc,
             "baseline_revision": resolved_baseline,
+            "expected_alembic_head": expected_alembic_head,
+            "alembic": alembic,
+            "selection_json_path": str(selection_json),
+            "selection_sha256": selection_hash,
+            "selection_source": selection.get("source"),
+            "global_lock_path": str(global_lock_path),
+            "lock_holder_pid": os.getpid(),
+            "observer_id": f"stage7i-{fixture_id}-{os.getpid()}",
             "started_at_utc": iso(started_at),
+            "observer_started_at_utc": iso(started_at),
             "expected_end_utc": iso(expected_end),
             "interval_seconds": interval,
             "duration_seconds": duration,
             "pid": os.getpid(),
+            "candidate": False,
+            "formal_recommendation": False,
+            "gate5_eligible": False,
+            "evidence_classification": "FORWARD_OBSERVATION",
+            "initial_sample": {
+                "fixture_id": fixture_id,
+                "captured_at_utc": iso(started_at),
+                "candidate": False,
+                "formal_recommendation": False,
+                "actual_kickoff_source": "ACTUAL_KICKOFF_SOURCE_UNAVAILABLE",
+            },
         },
     )
     (runtime / "observer.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
@@ -546,7 +754,14 @@ def run_observer(
     completed = False
     try:
         while True:
-            sample = collect_sample(runtime, current, state, resolved_baseline)
+            sample = collect_sample(
+                runtime,
+                current,
+                state,
+                resolved_baseline,
+                fixture_id,
+                scheduled_kickoff_utc,
+            )
             append_jsonl(runtime / "observations.jsonl", sample)
             append_jsonl(
                 runtime / "observer.log",
@@ -568,7 +783,18 @@ def run_observer(
                 break
             time.sleep(interval)
     finally:
-        summary = summarize(runtime, started_at, expected_end, completed, resolved_baseline)
+        summary = summarize(
+            runtime,
+            started_at,
+            expected_end,
+            completed,
+            resolved_baseline,
+            fixture_id,
+            scheduled_kickoff_utc,
+            expected_alembic_head,
+            selection_json,
+            selection_hash,
+        )
         if completed:
             completed_content = json.dumps(summary, sort_keys=True) + "\n"
             (runtime / "COMPLETED").write_text(
@@ -584,7 +810,12 @@ def main() -> int:
     parser.add_argument("--current-dir", type=Path, default=DEFAULT_CURRENT)
     parser.add_argument("--interval-seconds", type=int, default=SAMPLE_INTERVAL_SECONDS)
     parser.add_argument("--duration-seconds", type=int, default=OBSERVATION_SECONDS)
-    parser.add_argument("--baseline-revision", default=DEFAULT_BASELINE_REVISION)
+    parser.add_argument("--fixture-id", required=True)
+    parser.add_argument("--scheduled-kickoff-utc", required=True)
+    parser.add_argument("--baseline-revision", required=True)
+    parser.add_argument("--expected-alembic-head", required=True)
+    parser.add_argument("--selection-json", type=Path, required=True)
+    parser.add_argument("--global-lock-path", type=Path, default=DEFAULT_GLOBAL_LOCK)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     return run_observer(
@@ -594,6 +825,11 @@ def main() -> int:
         args.duration_seconds,
         args.once,
         args.baseline_revision,
+        args.fixture_id,
+        args.scheduled_kickoff_utc,
+        args.expected_alembic_head,
+        args.selection_json,
+        args.global_lock_path,
     )
 
 
