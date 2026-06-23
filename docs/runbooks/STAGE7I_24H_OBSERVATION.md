@@ -151,6 +151,50 @@ If the lock is already held, do not start another observer.
 - Closing can only be derived after an internally sourced actual kickoff exists,
   and only from the last real market observation strictly before actual kickoff.
 
+## Parallel Mainline: Future Fixture Refresh
+
+Stage7I evidence collection can continue while the mainline code adds the
+future fixture refresh implementation. Do not deploy this implementation while a
+revision-continuity observer is active.
+
+The formal runtime entries are:
+
+- scheduler: `apps/scheduler/main.py`
+- worker: `apps/worker/celery_app.py`
+
+The refresh path is:
+
+1. `apps.scheduler.main.future_fixture_refresh_tick()` checks
+   `W2_FUTURE_FIXTURE_REFRESH_ENABLED`.
+2. When explicitly enabled, it calls
+   `w2.ingestion.future_refresh.run_future_fixture_refresh()`.
+3. The service uses the existing `ApiFootballClient.request_live` adapter.
+4. The service writes append-safe runtime artifacts under
+   `runtime/future_refresh/`.
+5. The read API repository merges
+   `runtime/future_refresh/read_model/fixtures.json`,
+   `provider_status.json`, and `market_snapshots.json`.
+
+The refresh service enforces:
+
+- API-Football credential use only through `ApiFootballClient`;
+- no direct URL/key concatenation in scheduler or worker code;
+- request budget;
+- quota reserve;
+- retry/backoff with circuit breaker;
+- raw payload SHA256;
+- provider mapping evidence;
+- pre-match market snapshot evidence;
+- idempotent raw payload writes;
+- failure audit with `candidate=false` and `formal_recommendation=false`.
+
+Deployment policy while a Stage7I observer is active:
+
+- code, tests, checker, reports, commit, push, and CI are allowed;
+- staging deployment is pending until the active observer naturally completes;
+- no service restart, compose recreation, migration, or `/opt/w2/current`
+  switch is allowed for this package.
+
 ## Pass Criteria
 
 - Current revision remains unchanged.

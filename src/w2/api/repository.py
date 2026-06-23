@@ -27,6 +27,10 @@ def load_json(path: Path, default: Any) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def future_refresh_read_model() -> Path:
+    return RUNTIME / "future_refresh/read_model"
+
+
 class ReadModelRepository:
     def stage7e_usage(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_API_USAGE.json", {}))
@@ -46,6 +50,10 @@ class ReadModelRepository:
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
+        for item in load_json(future_refresh_read_model() / "fixtures.json", {}).get("items", []):
+            fixture_id = str(item.get("fixture", {}).get("id"))
+            if fixture_id and fixture_id != "None":
+                fixtures[fixture_id] = item
         for path in sorted((RUNTIME / "stage7c/raw").glob("*_fixtures.json")):
             payload = load_json(path, {}).get("payload", {})
             for item in payload.get("response", []):
@@ -58,7 +66,14 @@ class ReadModelRepository:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
 
     def market_snapshots(self) -> list[dict[str, Any]]:
-        return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/market_snapshots.json", []))
+        snapshots = cast(
+            list[dict[str, Any]],
+            load_json(future_refresh_read_model() / "market_snapshots.json", []),
+        )
+        snapshots.extend(
+            cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/market_snapshots.json", []))
+        )
+        return snapshots
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
@@ -225,6 +240,7 @@ class ReadModelService:
         }
 
     def data_health(self) -> dict[str, Any]:
+        future_audit = load_json(RUNTIME / "future_refresh/future_refresh_audit.json", {})
         usage = self.repository.stage7e_usage()
         scheduler = self.repository.stage7e_scheduler()
         gate = load_json(REPORTS / "W2_STAGE7E_FIRST_LIVE_CYCLE.json", {}).get("gate", {})
@@ -234,13 +250,26 @@ class ReadModelService:
             age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
         return {
             "stale_data_count": 0,
-            "provider_status": "READY" if usage.get("remaining_quota") else "UNKNOWN",
+            "provider_status": (
+                "READY"
+                if future_audit.get("remaining_quota") or usage.get("remaining_quota")
+                else "UNKNOWN"
+            ),
             "forward_cycle_age_seconds": age,
             "gate4_progress": gate,
             "generated_at": datetime.now(UTC),
         }
 
     def provider_status(self) -> dict[str, Any]:
+        projected = load_json(future_refresh_read_model() / "provider_status.json", {})
+        if projected:
+            return {
+                "provider": "api_football",
+                "status": projected.get("status", "READY"),
+                "remaining_quota": projected.get("remaining_quota"),
+                "credential_status": "PRESENT",
+                "last_request_status": projected.get("last_request_status"),
+            }
         usage = self.repository.stage7e_usage()
         audit = usage.get("audit") or []
         last = audit[-1] if audit else {}

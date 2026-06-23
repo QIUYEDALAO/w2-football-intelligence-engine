@@ -39,6 +39,53 @@ def write_fixture_payload(root: Path) -> None:
     (raw / "test_fixtures.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def write_future_refresh_payload(root: Path) -> None:
+    read_model = root / "future_refresh/read_model"
+    read_model.mkdir(parents=True)
+    fixture = {
+        "fixture": {
+            "id": 1489404,
+            "date": "2026-06-23T17:00:00+00:00",
+            "status": {"short": "NS"},
+            "venue": {"name": "Future Venue"},
+        },
+        "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+        "teams": {
+            "home": {"id": 3001, "name": "Future Home"},
+            "away": {"id": 3002, "name": "Future Away"},
+        },
+    }
+    (read_model / "fixtures.json").write_text(
+        json.dumps({"items": [fixture]}),
+        encoding="utf-8",
+    )
+    (read_model / "market_snapshots.json").write_text(
+        json.dumps(
+            [
+                {
+                    "fixture_id": "1489404",
+                    "captured_at": "2026-06-23T10:00:00Z",
+                    "bookmaker_count": 14,
+                    "quality": "READY",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (read_model / "provider_status.json").write_text(
+        json.dumps(
+            {
+                "provider": "api_football",
+                "status": "READY",
+                "remaining_quota": 6323,
+                "credential_status": "PRESENT",
+                "last_request_status": 200,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_public_read_endpoints_schema_and_etag() -> None:
     client = TestClient(app)
     response = client.get("/v1/fixtures?page=1&page_size=2&timezone=UTC")
@@ -74,6 +121,22 @@ def test_fixture_filters_detail_probabilities_and_errors(
     assert model["probability_type"] == "independent_model_probability"
     assert client.get("/v1/fixtures/not-a-fixture").status_code == 404
     assert client.get("/v1/fixtures?page_size=101").status_code == 422
+
+
+def test_future_refresh_read_model_feeds_fixtures_and_provider_status(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    write_future_refresh_payload(tmp_path)
+    monkeypatch.setattr(repository, "RUNTIME", tmp_path)
+    client = TestClient(app)
+
+    fixtures = client.get("/v1/fixtures?page_size=10&status=NS&timezone=UTC").json()["items"]
+    assert [item["fixture_id"] for item in fixtures] == ["1489404"]
+    detail = client.get("/v1/fixtures/1489404").json()
+    assert detail["bookmaker_count"] == 14
+    provider = client.get("/v1/providers/status").json()
+    assert provider["remaining_quota"] == 6323
 
 
 def test_operations_read_only_and_production_disabled(monkeypatch) -> None:

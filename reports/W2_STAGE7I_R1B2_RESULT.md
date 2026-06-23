@@ -123,11 +123,56 @@ Confirmed during R1B2:
 - Active observer count before bootstrap: `0`
 - Global lock before bootstrap: absent or unlocked
 
+## Parallel Mainline Future Refresh Implementation
+
+While the successor observer continues on staging revision
+`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`, the mainline code now includes the
+future fixture refresh implementation. This work is code-only and is not
+deployed to staging until the active Stage7I observer naturally completes.
+
+Formal runtime entries:
+
+- Scheduler: `apps/scheduler/main.py`
+- Worker: `apps/worker/celery_app.py`
+
+Implementation:
+
+- `src/w2/ingestion/future_refresh.py`
+- `apps.scheduler.main.future_fixture_refresh_tick`
+- `apps.worker.celery_app.future_fixture_refresh`
+- `runtime/future_refresh/` is gitignored
+- read API repository merges `runtime/future_refresh/read_model` fixtures,
+  provider status, and market snapshots
+
+Safety and quality controls:
+
+- uses existing `ApiFootballClient.request_live`
+- no direct external URL/key construction in scheduler or worker
+- request budget
+- quota reserve
+- retry/backoff with circuit breaker
+- raw payload SHA256
+- provider mapping evidence
+- pre-match market snapshot evidence
+- idempotent raw writes
+- failure audit
+- `candidate=false`
+- `formal_recommendation=false`
+
+Deployment status:
+
+- `pending_staging_deployment=true`
+- reason: preserve active Stage7I revision continuity
+- no migration added
+- no service restart performed
+- no `/opt/w2/current` switch performed
+
 ## Validation
 
 Executed locally before commit:
 
 - `uv run pytest -q tests/unit/test_stage7i_successor_tooling.py`
+- `uv run pytest -q tests/unit/test_future_fixture_refresh.py tests/unit/test_runtime.py tests/unit/test_stage10a_read_api.py`
 - `uv run python scripts/check_w2_stage7i.py --mode bootstrap --expected-fixture-id 1489404 /tmp/w2-stage7i-bootstrap-verify/start.local.json`
 - `make verify`
 - `uv run python tests/secret_scan.py`
