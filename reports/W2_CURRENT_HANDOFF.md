@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 22
+handoff_version: 23
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -100,6 +100,12 @@ ci_baselight_correction_failure_type: HARDCODED_VERSION_DRIFT
 ci_baselight_correction_fix_commit: 3f8cb847 + 2-test contract fix in ci_reconciliation
 ci_baselight_correction_fixed_local: true
 ci_baselight_correction_unrelated_ruff_errors: 52_pre_existing
+local_untracked_baselight_drafts_archived: true
+local_untracked_baselight_archive_dir: /Users/liudehua/.openclaw/workspace/w2_untracked_archive/20260623T200711Z
+local_untracked_baselight_archive_manifest: /Users/liudehua/.openclaw/workspace/w2_untracked_archive/20260623T200711Z/MANIFEST.txt
+local_verify_after_archive: PASS
+remote_ci_baselight_correction_run: 28053133417
+remote_ci_baselight_correction_result: success
 stage7i_run_01_fixture_id: 1489401
 stage7i_run_01_status: BLOCKED_NON_QUALIFYING
 stage7i_run_01_observer_pid: 343187
@@ -260,6 +266,15 @@ Gate3 external historical odds source decision materials were prepared from publ
 - `reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md`
 
 Result: `gate3_external_source_status=USER_DECISION_REQUIRED`. Gate3 remains `PARTIAL` because internal historical AH data is exhausted and no external source acquisition is authorized. The user must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change. Gate4, Gate5, Gate6, `candidate=false`, and `formal_recommendation=false` remain unchanged.
+
+
+## 0.6 Local Baselight Draft Triage
+
+Two untracked Baselight draft files were classified as unfinished local drafts because they were not part of the successful remote commit tree and caused local `make verify` to fail through Ruff scanning. They were moved outside the repository without deletion to:
+
+`/Users/liudehua/.openclaw/workspace/w2_untracked_archive/20260623T200711Z/`
+
+The archive manifest records original paths, SHA256, size, mode, and mtime. After archiving, local `make verify`, secret scan, and `git diff --check` passed. Gate3 state, Stage7I runtime, W1, deployment, and `.env` were not changed.
 
 ## 1. 新会话启动协议
 
