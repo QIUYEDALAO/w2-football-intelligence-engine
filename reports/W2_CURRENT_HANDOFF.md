@@ -6,13 +6,14 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 1
-state_captured_on: 2026-06-22
+handoff_version: 2
+state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
 active_stage_package: Stage7I forward observation and evidence continuity
+ci_patch1_status: LOCAL_REPAIR_READY_PENDING_NEW_REMOTE_CI
 server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 alembic_head: 0017_create_stage9a_shadow_strategy
 deployment_freeze: ACTIVE
@@ -20,6 +21,16 @@ gate5: OPEN
 candidate: false
 formal_recommendation: false
 stage10e_deployed: false
+github_repository: QIUYEDALAO/w2-football-intelligence-engine
+github_remote: github-w2
+repository_main_branch: main
+repository_main_before_ci_patch1: 6a67e984b3af7700567133f7a2b1e53c700d9616
+github_default_branch_observed: chore/stage7i-24h-observation
+prior_ci_run_id: 27993426548
+prior_ci_result: failure
+prior_ci_failed_step: Pytest
+repository_head_relation: handoff is current as of its containing Git commit
+containing_commit_ci_source: GitHub Actions status for the containing commit
 repository_branch_at_capture: chore/stage7i-24h-observation
 repository_head_before_handoff: b98d3e3cdf19c47d5da25d5e681936970c75856c
 handoff_file_added_on: 2026-06-23
@@ -134,6 +145,31 @@ handoff_file_tracked: true
 - 部署决策：放入下一次 Release Train
 
 不得把 Stage10E 部署混入紧急 Stage7I / runtime evidence 包。
+
+## 7A. CI-Patch1 — baseline Pytest repair
+
+状态：**LOCAL_REPAIR_READY_PENDING_NEW_REMOTE_CI**
+
+CI-Patch1 是 Stage7I 继续推进前的 GitHub baseline 阻塞修复，不改变 Stage7I 作为当前主线阶段包的地位。
+
+已知输入：
+
+- GitHub repository：`QIUYEDALAO/w2-football-intelligence-engine`
+- Remote：`github-w2`
+- Main branch：`main`
+- Main before patch：`6a67e984b3af7700567133f7a2b1e53c700d9616`
+- GitHub default branch observed：`chore/stage7i-24h-observation`
+- Prior CI run：`27993426548`
+- Prior CI result：`failure`
+- Prior failed step：`Pytest`
+
+本地修复范围：
+
+- Secret scan 对 handoff 安全说明文字的误报。
+- Clean checkout 中 Stage10A read API 无 runtime fixture fallback。
+- Clean checkout 中 Stage14A league audit 无 runtime Stage5B raw data fallback。
+
+本文件不得填写尚未知的新 commit SHA；新远端 CI 是否成功必须以后续 GitHub Actions 状态为准。
 
 ## 8. 当前比赛研究卡
 

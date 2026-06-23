@@ -59,6 +59,9 @@ ALLOWLIST = (
     "printing secrets",
     "SECRETS_AND_ENVIRONMENTS",
     "Secrets and Environments",
+    "本文件不得保存 `.env` 内容、密钥、token、密码或私密 payload",
+    "权限、密钥、凭据、secret 或 `.env` 变更",
+    "需要权限、凭据、密钥、secret、`.env` 或公网端口变更",
 )
 SKIP_PARTS = {
     ".git",

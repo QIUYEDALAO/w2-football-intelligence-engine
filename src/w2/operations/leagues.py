@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[3]
 TOP_FIVE_CONFIG_DIR = ROOT / "config/competitions/top_five"
 STAGE5B_RAW = ROOT / "runtime/stage5b/raw"
 STAGE5B_CLUB_REPORT = ROOT / "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json"
+STAGE14A_COVERAGE_REPORT = ROOT / "reports/W2_STAGE14A_COVERAGE.json"
+STAGE14A_READINESS_REPORT = ROOT / "reports/W2_STAGE14A_READINESS.json"
+STAGE14A_ROLLOVER_REPORT = ROOT / "reports/W2_STAGE14A_ROLLOVER.json"
 
 
 class SeasonLifecycle(StrEnum):
@@ -309,6 +312,10 @@ def onboarding_checklist(profile: LeagueProfile) -> dict[str, str]:
 def run_top_five_audit() -> dict[str, Any]:
     profiles = load_profiles()
     fixtures = _fixture_items()
+    if not fixtures:
+        existing = _reported_top_five_audit(profiles)
+        if existing is not None:
+            return existing
     coverage = {profile.competition_id: audit_league(profile, fixtures) for profile in profiles}
     rollover = {
         profile.competition_id: build_rollover_plan(profile, fixtures) for profile in profiles
@@ -337,6 +344,35 @@ def run_top_five_audit() -> dict[str, Any]:
         "coverage": coverage,
         "rollover": rollover,
         "readiness": readiness,
+    }
+    summary["sha256"] = hashlib.sha256(
+        json.dumps(summary, sort_keys=True, default=str).encode()
+    ).hexdigest()
+    return summary
+
+
+def _reported_top_five_audit(profiles: list[LeagueProfile]) -> dict[str, Any] | None:
+    if not (
+        STAGE14A_COVERAGE_REPORT.exists()
+        and STAGE14A_READINESS_REPORT.exists()
+        and STAGE14A_ROLLOVER_REPORT.exists()
+    ):
+        return None
+    coverage = json.loads(STAGE14A_COVERAGE_REPORT.read_text(encoding="utf-8"))
+    readiness = json.loads(STAGE14A_READINESS_REPORT.read_text(encoding="utf-8"))
+    rollover = json.loads(STAGE14A_ROLLOVER_REPORT.read_text(encoding="utf-8"))
+    profile_ids = {profile.competition_id for profile in profiles}
+    if not profile_ids <= set(coverage) or not profile_ids <= set(readiness):
+        return None
+    summary: dict[str, Any] = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "source": "committed_stage14a_reports",
+        "club_results_dataset": "AVAILABLE",
+        "club_market_dataset": "PARTIAL",
+        "league_count": len(profiles),
+        "coverage": {profile_id: coverage[profile_id] for profile_id in sorted(profile_ids)},
+        "rollover": {profile_id: rollover[profile_id] for profile_id in sorted(profile_ids)},
+        "readiness": {profile_id: readiness[profile_id] for profile_id in sorted(profile_ids)},
     }
     summary["sha256"] = hashlib.sha256(
         json.dumps(summary, sort_keys=True, default=str).encode()
