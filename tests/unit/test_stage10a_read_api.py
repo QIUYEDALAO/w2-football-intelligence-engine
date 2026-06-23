@@ -6,7 +6,37 @@ from pathlib import Path
 from apps.api.main import app
 from fastapi.testclient import TestClient
 
+import w2.api.repository as repository
 from w2.config import get_settings
+
+
+def write_fixture_payload(root: Path) -> None:
+    raw = root / "stage7c/raw"
+    raw.mkdir(parents=True)
+    payload = {
+        "payload": {
+            "response": [
+                {
+                    "fixture": {
+                        "id": 900001,
+                        "date": "2026-06-23T00:00:00+00:00",
+                        "status": {"short": "NS"},
+                        "venue": {"name": "Test Venue"},
+                    },
+                    "league": {
+                        "id": 1,
+                        "name": "World Cup",
+                        "round": "Test Round",
+                    },
+                    "teams": {
+                        "home": {"id": 1001, "name": "Test Home"},
+                        "away": {"id": 1002, "name": "Test Away"},
+                    },
+                }
+            ]
+        }
+    }
+    (raw / "test_fixtures.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_public_read_endpoints_schema_and_etag() -> None:
@@ -24,7 +54,11 @@ def test_public_read_endpoints_schema_and_etag() -> None:
     assert cached.status_code == 304
 
 
-def test_fixture_filters_detail_probabilities_and_errors() -> None:
+def test_fixture_filters_detail_probabilities_and_errors(
+    tmp_path: Path, monkeypatch
+) -> None:
+    write_fixture_payload(tmp_path)
+    monkeypatch.setattr(repository, "RUNTIME", tmp_path)
     client = TestClient(app)
     fixtures = client.get(
         "/v1/fixtures?page_size=1&status=NS&timezone=Asia/Shanghai"

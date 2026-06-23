@@ -9,7 +9,7 @@ description = "W2 Stage 2 engineering foundation for football intelligence."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "alembic>=1.13,<2",
+  "alembic>=1.14,<2",
   "celery>=5.4,<6",
   "fastapi>=0.115,<1",
   "psycopg[binary]>=3.2,<4",
