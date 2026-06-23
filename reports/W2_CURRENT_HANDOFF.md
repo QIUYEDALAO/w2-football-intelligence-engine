@@ -6,14 +6,14 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 7
+handoff_version: 8
 state_captured_on: 2026-06-23
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
-active_stage_package: Stage7I-R1B2A live selection contract closure
-stage7i_status: LIVE_SELECTION_CONTRACT_PENDING_CONTAINING_COMMIT_CI
+active_stage_package: Stage7I-R1B2 dynamic successor selection and observer bootstrap
+stage7i_status: BLOCKED_NO_ELIGIBLE_SUCCESSOR_FIXTURE
 ci_patch1_status: REMOTE_CI_FAILED_ALEMBIC_SMOKE
 ci_patch2_status: REMOTE_CI_SUCCESS
 server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
@@ -67,6 +67,20 @@ stage7i_candidate_manifest_required: true
 stage7i_selection_min_pre_kickoff_hours: 6
 stage7i_selection_min_post_kickoff_hours: 6
 stage7i_r1b2a_ci_source: GitHub Actions status for the containing commit
+stage7i_r1b2a_commit: 7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc
+stage7i_r1b2a_ci_run: 28010736953
+stage7i_r1b2a_ci_result: success
+stage7i_r1b2a_status: COMPLETED
+stage7i_r1b2_legacy_observer_terminated: true
+stage7i_r1b2_legacy_observer_old_pids:
+  - 723787
+  - 723789
+stage7i_r1b2_legacy_observer_old_pgid: 723782
+stage7i_r1b2_legacy_observer_sample_count: 177
+stage7i_r1b2_legacy_observer_completed: false
+stage7i_r1b2_candidate_manifest_count: 0
+stage7i_r1b2_selection_blocker: NO_ELIGIBLE_SUCCESSOR_FIXTURE
+stage7i_r1b2_observer_started: false
 repository_head_relation: handoff is current as of its containing Git commit
 containing_commit_ci_source: GitHub Actions status for the containing commit
 repository_branch_at_capture: chore/stage7i-24h-observation
@@ -300,11 +314,11 @@ Secondary：
 
 ## 9. 当前主线阶段包
 
-### Stage7I-R1B2A — Live selection contract closure
+### Stage7I-R1B2 — Dynamic successor selection and observer bootstrap
 
 目标：
 
-fixture `1489401` 的观察已归档为 `BLOCKED_NON_QUALIFYING`。R1B1 tooling commit `54a498c701af0e754645cf51658e45683fa6352a` 已通过 GitHub Actions run `28009675284`。当前阶段是 R1B2A live selection contract closure：证明 staging `FixtureSummary` 不能直接作为 successor candidate，建立 candidate manifest builder 与 selector 契约，并保持 dry-run only。R1B2A 不选择真实 successor fixture、不启动或停止 observer。下一步 R1B2B 才能复制 CI 通过的 tooling 到 staging，从 W2 staging/provider evidence 动态选择尚未开球的 successor fixture，并重新建立干净、可审计的 forward evidence chain，同时不启用 candidate 或正式 recommendation。
+fixture `1489401` 的观察已归档为 `BLOCKED_NON_QUALIFYING`。R1B1 tooling commit `54a498c701af0e754645cf51658e45683fa6352a` 已通过 GitHub Actions run `28009675284`。R1B2A contract commit `7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc` 已通过 GitHub Actions run `28010736953`。R1B2 主线已按用户批准优雅终止 legacy observer PID `723787/723789`，并追加 runtime audit。随后用内部 read API 与显式空 mapping/market evidence 构建 candidate manifest，结果 candidate_count=0，selector 返回 `NO_ELIGIBLE_SUCCESSOR_FIXTURE`。因此本阶段 BLOCKED，未选择 successor fixture，未启动 global-lock observer。
 
 Run 01 archive:
 
@@ -318,6 +332,11 @@ Run 01 archive:
 - successor_fixture_required=true
 - successor_fixture_id=null
 - successor_run_status=NOT_STARTED
+- legacy_observer_terminated=true
+- legacy_observer_sample_count=177
+- candidate_manifest_count=0
+- selection_blocker=NO_ELIGIBLE_SUCCESSOR_FIXTURE
+- observer_started=false
 - tooling_fixture_binding=DYNAMIC
 - archive_fixture_id=1489401
 - expected_alembic_head=0017_create_stage9a_shadow_strategy
@@ -332,7 +351,7 @@ Run 01 archive:
 1. 任何变更前核对 staging revision。
 2. 核对 `w2-staging.service`、6 个长期容器、API health/readiness、Web 和 Stage7I observer。
 3. 保护不可变 `as_of_time` 和 forward 时间边界。
-4. successor fixture 必须从 W2 staging/provider 数据动态选择，不得硬编码；R1B2A 仅关闭 live selection contract，不产生 runtime selection/start evidence。
+4. successor fixture 必须从 W2 staging/provider 数据动态选择，不得硬编码；当前内部 candidate manifest 为空时必须保持 BLOCKED，不产生 runtime selection/start evidence。
 5. 定义最后一笔赛前观测时，区分 scheduled kickoff 与 actual kickoff。
 6. 禁止把赛后事实回填为赛前 forward evidence。
 7. RETROSPECTIVE replay 与 FORWARD evidence 必须分别归档和表述。
@@ -345,7 +364,8 @@ Run 01 archive:
 - Gate5 尚未关闭。
 - `SUCCESSOR_FIXTURE_NOT_SELECTED`
 - `SUCCESSOR_OBSERVATION_NOT_STARTED`
-- `STAGE7I_R1B2A_CONTAINING_COMMIT_CI_PENDING`
+- `NO_ELIGIBLE_SUCCESSOR_FIXTURE`
+- `CANDIDATE_MANIFEST_EMPTY`
 - `ACTUAL_KICKOFF_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
 - `CLOSING_NOT_CAPTURED_BY_CONTINUOUS_FORWARD_RUN`
 - `SETTLEMENT_EVALUATION_NOT_CAPTURED`
