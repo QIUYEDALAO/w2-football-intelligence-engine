@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 30
+handoff_version: 31
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -50,23 +50,24 @@ gate3_baselight_match_table: matches
 gate3_baselight_settled_ah_fixture_count: 10858
 gate3_baselight_collected_at_precision: DATE_ONLY
 gate3_baselight_next_action: BUILD_LIMITED_AH_EXTRACT_AND_WALK_FORWARD
-gate3_baselight_limited_extract_status: MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT
+gate3_baselight_limited_extract_status: ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT
 gate3_baselight_limited_extract_manifest_path: reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json
 gate3_baselight_ah_walk_forward_status: INSUFFICIENT_SAMPLE
 gate3_baselight_ah_walk_forward_path: reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json
 gate3_baselight_sample_path_external: /Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl
-gate3_baselight_sample_sha256: 3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb
+gate3_baselight_sample_sha256: 001b422b53cdcb849c6ede39da1e8ec4eff79ab0cb1767b8ce078eaf053122e8
 gate3_baselight_async_job_recovery_status: FOUND_DONE_AND_PENDING_JOBS_IN_TMP
 gate3_baselight_get_results_status: PARTIAL_SAMPLE_WRITTEN
 gate3_baselight_micro_batch_status: PARTIAL_SAMPLE_INSUFFICIENT
 gate3_baselight_micro_batch_v2_status: BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING
-gate3_baselight_extraction_method: MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN
+gate3_baselight_extraction_method: ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN
+gate3_baselight_micro_batch_v3_status: ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT
 gate3_baselight_state_file_external: /Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/extract_state.json
-gate3_baselight_sample_row_count: 750
-gate3_baselight_sample_fixture_count: 15
-gate3_baselight_sample_bookmaker_count: 4
-gate3_baselight_sample_line_bucket_count: 11
-gate3_baselight_sample_competition_count: 15
+gate3_baselight_sample_row_count: 2538
+gate3_baselight_sample_fixture_count: 27
+gate3_baselight_sample_bookmaker_count: 12
+gate3_baselight_sample_line_bucket_count: 17
+gate3_baselight_sample_competition_count: 18
 gate3_baselight_remaining_limitations:
   - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
   - PRECISE_PHASE_COVERAGE_UNAVAILABLE
@@ -725,3 +726,9 @@ Run 01 archive:
 W2 reran the live Baselight MCP probe and confirmed `baselight_sdk_query_execute` with LIMIT 5 checks still passing. The extractor used `MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN`: competition-scoped matches seed queries completed, then AH odds were requested by match_id without joining `matches`. The existing external sample was preserved and resume state was written outside Git, but the first single-fixture AH odds query remained pending/timeout under bounded polling. No additional rows were appended.
 
 Result: `gate3_baselight_limited_extract_status=MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT`, `gate3_baselight_micro_batch_v2_status=BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING`, and `gate3_baselight_ah_walk_forward_status=INSUFFICIENT_SAMPLE`. Sample remains 750 rows, 15 fixtures, 4 bookmakers, 11 line buckets, and 15 competitions, so Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.
+
+## 0.13 Gate3 Baselight Odds Date-Window Extract v3
+
+W2 reran the live Baselight MCP probe and confirmed `baselight_sdk_query_execute` with LIMIT checks still passing. The v3 extractor avoided joins and match_id odds filters: it queried `match_betting_odds` by bounded `collected_at` windows, collected match IDs locally, and then queried `matches` only for metadata and results. The external sample was preserved and appended outside Git.
+
+Result: `gate3_baselight_limited_extract_status=ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT` and `gate3_baselight_ah_walk_forward_status=INSUFFICIENT_SAMPLE`. Sample is now 2538 rows, 27 fixtures, 12 bookmakers, 17 line buckets, and 18 competitions. Fixture coverage is still below 500, so Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`; Stage7I lifecycle blocker remains unchanged.

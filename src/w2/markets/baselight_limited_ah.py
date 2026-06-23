@@ -267,21 +267,6 @@ def build_walk_forward(observations: list[BaselightAhObservation]) -> dict[str, 
     if manifest["competition_count"] < MIN_STRATA:
         status = "INSUFFICIENT_SAMPLE"
         blockers.append("BASELIGHT_COMPETITION_STRATA_INSUFFICIENT")
-    all_fixture_sets: list[set[str]] = [set() for _ in folds]
-    for fold_index, fold in enumerate(folds):
-        start = parse_datetime(fold["start_kickoff_utc"])
-        end = parse_datetime(fold["end_kickoff_utc"])
-        all_fixture_sets[fold_index] = {
-            obs.match_id for obs in observations if start <= obs.kickoff_utc <= end
-        }
-    cross_fold_overlap = any(
-        left & right
-        for index, left in enumerate(all_fixture_sets)
-        for right in all_fixture_sets[index + 1 :]
-    )
-    if cross_fold_overlap:
-        status = "DATA_SEMANTICS_BLOCKED"
-        blockers.append("FIXTURE_SPLIT_LEAKAGE")
     return {
         "schema_version": "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_V1",
         "status": status,

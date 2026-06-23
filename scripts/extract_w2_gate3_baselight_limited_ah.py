@@ -9,7 +9,7 @@ import os
 import time
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -101,16 +101,17 @@ def parse_mcp_body(body: str) -> dict[str, Any]:
 
 
 class BaselightMcpClient:
-    def __init__(self, api_key: str, output_dir: Path) -> None:
+    def __init__(self, api_key: str, output_dir: Path, request_timeout_seconds: int) -> None:
         if not ENDPOINT.startswith("https://"):
             raise ValueError("Baselight endpoint must use https")
         self.api_key = api_key
         self.output_dir = output_dir
         self.counter = 0
+        self.request_timeout_seconds = request_timeout_seconds
 
     def read_response_text(self, response: Any) -> str:
         chunks: list[bytes] = []
-        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
+        deadline = time.monotonic() + self.request_timeout_seconds
         while time.monotonic() < deadline:
             line = response.readline()
             if not line:
@@ -152,7 +153,7 @@ class BaselightMcpClient:
         try:
             with urllib.request.urlopen(  # noqa: S310 - endpoint validated as HTTPS.
                 request,
-                timeout=REQUEST_TIMEOUT_SECONDS,
+                timeout=self.request_timeout_seconds,
             ) as response:
                 payload = self.read_response_text(response)
                 status = response.status
@@ -376,6 +377,42 @@ def sql_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def sql_timestamp(value: datetime) -> str:
+    return value.strftime("TIMESTAMP '%Y-%m-%d %H:%M:%S'")
+
+
+def outcome_has_line(value: Any) -> bool:
+    text = str(value)
+    for piece in text.replace("(", " ").replace(")", " ").split():
+        try:
+            float(piece)
+        except ValueError:
+            continue
+        return True
+    return False
+
+
+def build_odds_date_window_sql(start: datetime, end: datetime, limit: int) -> str:
+    return f"""
+SELECT
+    match_id,
+    bookmaker,
+    market,
+    outcome,
+    odds,
+    odds_type,
+    collected_at
+FROM "@blt.ultimate_soccer_dataset.match_betting_odds"
+WHERE
+    collected_at >= {sql_timestamp(start)}
+    AND collected_at < {sql_timestamp(end)}
+    AND market = 'Asian Handicap'
+    AND odds_type = 'pre_match'
+    AND odds > 1
+LIMIT {limit}
+""".strip()
+
+
 def build_competition_seed_sql(competition: str, limit: int = 150) -> str:
     return f"""
 SELECT
@@ -447,6 +484,144 @@ ORDER BY kickoff_timestamp, match_id
 """.strip()
 
 
+def combine_odds_with_matches(
+    odds_rows: list[dict[str, Any]],
+    match_rows: list[dict[str, Any]],
+    existing_keys: set[tuple[str, str, str, str, str]],
+) -> tuple[list[dict[str, Any]], set[str]]:
+    fixture_by_id = {
+        str(row["match_id"]): row
+        for row in match_rows
+        if row.get("match_id")
+        and row.get("home_score") is not None
+        and row.get("away_score") is not None
+    }
+    combined_rows: list[dict[str, Any]] = []
+    fixture_ids: set[str] = set()
+    for odds in odds_rows:
+        if not outcome_has_line(odds.get("outcome")):
+            continue
+        fixture = fixture_by_id.get(str(odds.get("match_id")))
+        if fixture is None:
+            continue
+        row = {**fixture, **odds}
+        key = economic_key(row)
+        if key in existing_keys:
+            continue
+        existing_keys.add(key)
+        combined_rows.append(row)
+        fixture_ids.add(str(row["match_id"]))
+    return combined_rows, fixture_ids
+
+
+def append_combined_rows(
+    output: Path,
+    rows_to_append: list[dict[str, Any]],
+    existing_keys: set[tuple[str, str, str, str, str]],
+) -> int:
+    rows = [[row.get(column) for column in OUTPUT_COLUMNS] for row in rows_to_append]
+    for row in rows_to_append:
+        existing_keys.add(economic_key(row))
+    return write_rows(output, OUTPUT_COLUMNS, rows, append=output.exists())
+
+
+def run_odds_date_window_strategy(
+    client: BaselightMcpClient,
+    args: argparse.Namespace,
+    state: dict[str, Any],
+    existing_keys: set[tuple[str, str, str, str, str]],
+    effective_page_size: int,
+) -> tuple[int, set[str]]:
+    state["method"] = "ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN"
+    state.setdefault("date_windows", [])
+    written = 0
+    appended_fixtures: set[str] = set()
+    start_date = datetime.fromisoformat(args.start_date).replace(tzinfo=UTC)
+    match_batch_size = max(1, min(args.fixture_batch_size, 100))
+    for index in range(args.max_date_windows):
+        current_stats = sample_stats(args.output)
+        if (
+            current_stats["fixture_count"] >= args.target_fixtures
+            and current_stats["bookmaker_count"] >= 5
+            and current_stats["line_bucket_count"] >= 8
+            and current_stats["competition_count"] >= 5
+        ):
+            break
+        if current_stats["row_count"] >= args.max_rows:
+            break
+        window_end = start_date - timedelta(days=index * args.date_window_days)
+        window_start = window_end - timedelta(days=args.date_window_days)
+        window_record = {
+            "window_start_utc": window_start.isoformat().replace("+00:00", "Z"),
+            "window_end_utc": window_end.isoformat().replace("+00:00", "Z"),
+            "status": "STARTED",
+            "observed_at_utc": utc_now(),
+        }
+        try:
+            odds_columns, odds_raw_rows, _ = execute_sql_rows(
+                client,
+                build_odds_date_window_sql(window_start, window_end, min(args.page_size, 5000)),
+                effective_page_size,
+                min(args.max_rows - current_stats["row_count"], 5000),
+            )
+        except RuntimeError as exc:
+            window_record.update({"status": "PENDING_OR_FAILED", "reason": str(exc)})
+            state["date_windows"].append(window_record)
+            write_state(args.state_file, state)
+            continue
+        odds_rows = [
+            row
+            for row in row_dicts(odds_columns, odds_raw_rows)
+            if row.get("match_id") and outcome_has_line(row.get("outcome"))
+        ]
+        match_ids = sorted({str(row["match_id"]) for row in odds_rows})
+        window_written = 0
+        window_fixtures: set[str] = set()
+        for start in range(0, len(match_ids), match_batch_size):
+            batch = match_ids[start : start + match_batch_size]
+            try:
+                match_columns, match_raw_rows, _ = execute_sql_rows(
+                    client,
+                    build_match_metadata_sql(batch),
+                    effective_page_size,
+                    len(batch),
+                )
+            except RuntimeError as exc:
+                state.setdefault("metadata_batches", []).append(
+                    {
+                        "match_ids": batch,
+                        "status": "PENDING_OR_FAILED",
+                        "reason": str(exc),
+                        "observed_at_utc": utc_now(),
+                    }
+                )
+                write_state(args.state_file, state)
+                continue
+            batch_set = set(batch)
+            batch_odds = [row for row in odds_rows if str(row.get("match_id")) in batch_set]
+            combined_rows, fixture_ids = combine_odds_with_matches(
+                batch_odds,
+                row_dicts(match_columns, match_raw_rows),
+                existing_keys,
+            )
+            window_written += append_combined_rows(args.output, combined_rows, existing_keys)
+            window_fixtures.update(fixture_ids)
+            appended_fixtures.update(fixture_ids)
+        written += window_written
+        window_record.update(
+            {
+                "status": "APPENDED",
+                "odds_row_count": len(odds_rows),
+                "match_id_count": len(match_ids),
+                "new_rows": window_written,
+                "new_fixtures": len(window_fixtures),
+            }
+        )
+        state["date_windows"].append(window_record)
+        write_state(args.state_file, state)
+    return written, appended_fixtures
+
+
 def build_odds_sql(match_ids: list[str]) -> str:
     ids = ", ".join(sql_string(match_id) for match_id in match_ids)
     return f"""
@@ -488,6 +663,11 @@ ORDER BY match_id, bookmaker, outcome, collected_at
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true")
+    parser.add_argument(
+        "--strategy",
+        choices=["match_seed", "odds_date_window"],
+        default="odds_date_window",
+    )
     parser.add_argument("--sql-file", type=Path, default=DEFAULT_SQL)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--max-fixtures", type=int, default=1000)
@@ -498,6 +678,14 @@ def main() -> int:
     parser.add_argument("--target-fixtures", type=int, default=500)
     parser.add_argument("--max-new-fixtures", type=int, default=700)
     parser.add_argument("--fixture-batch-size", type=int, default=3)
+    parser.add_argument("--date-window-days", type=int, default=1)
+    parser.add_argument("--max-date-windows", type=int, default=60)
+    parser.add_argument(
+        "--start-date",
+        default=datetime.now(UTC).date().isoformat(),
+        help="UTC date used as the exclusive end of the first odds window.",
+    )
+    parser.add_argument("--per-query-timeout-seconds", type=int, default=180)
     args = parser.parse_args()
 
     api_key = os.environ.get(ENV_NAME)
@@ -516,7 +704,11 @@ def main() -> int:
         print(f"MCP_PAGE_SIZE_CAPPED={effective_page_size}")
     args.sql_file.read_text(encoding="utf-8")
     output_dir = raw_dir()
-    client = BaselightMcpClient(api_key, output_dir)
+    client = BaselightMcpClient(
+        api_key,
+        output_dir,
+        max(1, min(args.per_query_timeout_seconds, 180)),
+    )
     client.request(
         "initialize",
         {
@@ -540,6 +732,28 @@ def main() -> int:
     state.setdefault("completed_competitions", [])
     state.setdefault("fixture_batches", [])
     state["raw_response_dir"] = str(output_dir)
+    state["strategy"] = args.strategy
+    if args.strategy == "odds_date_window":
+        written, appended_fixtures = run_odds_date_window_strategy(
+            client,
+            args,
+            state,
+            existing_keys,
+            effective_page_size,
+        )
+        final_stats = sample_stats(args.output)
+        state["final_stats"] = final_stats
+        state["new_rows_written"] = written
+        state["new_fixtures_written"] = len(appended_fixtures)
+        write_state(args.state_file, state)
+        print(
+            "BASELIGHT_LIMITED_AH_EXTRACT_COMPLETE "
+            f"strategy=odds_date_window new_rows={written} "
+            f"total_rows={final_stats['row_count']} "
+            f"total_fixtures={final_stats['fixture_count']} "
+            f"effective_page_size={effective_page_size} raw_response_dir={output_dir}"
+        )
+        return 0
     candidate_fixtures: list[dict[str, Any]] = []
     for competition in PREFERRED_COMPETITIONS:
         candidate_count = len({str(row.get("match_id")) for row in candidate_fixtures})

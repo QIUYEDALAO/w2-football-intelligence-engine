@@ -34,28 +34,30 @@ def test_limited_extract_blocker_keeps_gate3_partial() -> None:
     decision = json.loads(DECISION.read_text(encoding="utf-8"))
     handoff = HANDOFF.read_text(encoding="utf-8")
 
-    assert manifest["extraction_attempt_status"] == "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
-    assert manifest["extraction_method"] == "MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN"
-    assert manifest["micro_batch_v2_status"] == "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING"
+    assert manifest["extraction_attempt_status"] == "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT"
+    assert manifest["extraction_method"] == "ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN"
+    assert manifest["micro_batch_v3_status"] == "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT"
     assert manifest["sample_file_exists"] is True
-    assert manifest["row_count"] == 750
-    assert manifest["fixture_count"] == 15
+    assert manifest["row_count"] == 2538
+    assert manifest["fixture_count"] == 27
+    assert manifest["bookmaker_count"] == 12
+    assert manifest["line_bucket_count"] == 17
+    assert manifest["competition_count"] == 18
     assert walk_forward["status"] == "INSUFFICIENT_SAMPLE"
-    assert "BASELIGHT_MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT" in walk_forward["blockers"]
-    assert "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING" in walk_forward["blockers"]
+    assert "BASELIGHT_ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT" in walk_forward["blockers"]
     assert decision["status"] == "PARTIAL"
     assert decision["baselight"]["limited_extract_status"] == (
-        "MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT"
+        "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT"
     )
     assert decision["baselight"]["ah_walk_forward_status"] == "INSUFFICIENT_SAMPLE"
     assert decision["baselight"]["extraction_method"] == (
-        "MATCH_SEED_PLUS_ODDS_MICRO_BATCH_NO_JOIN"
+        "ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN"
     )
-    assert decision["baselight"]["micro_batch_v2_status"] == (
-        "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING"
+    assert decision["baselight"]["micro_batch_v3_status"] == (
+        "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT"
     )
     assert decision["baselight"]["sample_sha256"] == (
-        "3fb354f40dd286652ded0f703e01575f8c66924774c53dfebf055a89ad599edb"
+        "001b422b53cdcb849c6ede39da1e8ec4eff79ab0cb1767b8ce078eaf053122e8"
     )
     assert "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE" in decision["baselight"][
         "remaining_limitations"
@@ -66,6 +68,6 @@ def test_limited_extract_blocker_keeps_gate3_partial() -> None:
     assert "EXPORT_AND_RETENTION_POLICY_UNVERIFIED" in decision["baselight"][
         "remaining_limitations"
     ]
-    assert "handoff_version: 30" in handoff
+    assert "handoff_version: 31" in handoff
     assert "candidate=false" in handoff
     assert "formal_recommendation=false" in handoff
