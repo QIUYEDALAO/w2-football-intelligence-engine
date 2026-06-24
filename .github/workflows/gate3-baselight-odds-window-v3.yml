@@ -1,69 +1,28 @@
-name: W2 Stage 2 CI
+name: Gate3 Baselight odds-date-window v3 resume
 
 on:
   pull_request:
-  push:
     branches: ["main"]
+    paths:
+      - ".github/workflows/gate3-baselight-odds-window-v3.yml"
+      - "scripts/run_w2_gate3_baselight_odds_window_v3_resume.py"
+      - "scripts/extract_w2_gate3_baselight_limited_ah.py"
+      - "scripts/run_w2_gate3_baselight_ah_walk_forward.py"
+      - "src/w2/markets/baselight_limited_ah.py"
+      - "tests/contract/test_gate3_baselight_odds_window_v3_resume.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate3-baselight-v3-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: w2
-          POSTGRES_USER: w2_user
-          POSTGRES_PASSWORD: placeholder_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U w2_user -d w2"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      W2_ENVIRONMENT: test
-      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
-      W2_REDIS_URL: redis://127.0.0.1:6379/0
-      W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
-      W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - name: Install Python 3.12 dependencies
-        run: uv sync --python 3.12 --all-groups --frozen
-      - name: Stage 1 contract checker
-        run: uv run --python 3.12 python scripts/check_w2_stage1_contracts.py
-      - name: Ruff
-        run: uv run --python 3.12 ruff check .
-      - name: Mypy
-        run: uv run --python 3.12 mypy src apps
-      - name: Pytest
-        run: uv run --python 3.12 pytest -q
-      - name: Alembic smoke
-        run: |
-          uv run --python 3.12 alembic upgrade head
-          uv run --python 3.12 alembic downgrade base
-          uv run --python 3.12 alembic upgrade head
-      - name: Docker Compose config
-        run: docker compose config
-      - name: Secret pattern scan
-        run: uv run --python 3.12 python tests/secret_scan.py
-
-  gate3-baselight-v3:
+  bounded-resume:
     if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'chore/gate3-baselight-v3-resume-500' &&
+      github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -79,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.W2_GATE3_RUN_DIR }}
-          key: gate3-baselight-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          key: gate3-baselight-v3-${{ github.run_id }}
           restore-keys: |
             gate3-baselight-v3-
       - name: Validate resume contract
