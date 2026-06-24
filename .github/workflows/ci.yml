@@ -59,3 +59,21 @@ jobs:
         run: docker compose config
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
+  staging-parity:
+    runs-on: ubuntu-latest
+    env:
+      W2_ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Future refresh staging parity
+        run: |
+          uv run --python 3.12 pytest -q \
+            tests/integration/test_future_refresh_staging_parity.py \
+            tests/integration/test_future_refresh_e2e_smoke.py
+      - name: Future refresh staging contract
+        run: uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
