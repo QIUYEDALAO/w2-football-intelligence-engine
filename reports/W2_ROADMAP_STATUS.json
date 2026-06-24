@@ -197,6 +197,20 @@
       "name": "Release Train 3A-R2A policy mount static repair",
       "notes": "Adds read-only /app/config/policies submount for staging worker and scheduler so the versioned future-refresh policy is available despite the shared /app/config mount. No deployment or migration in R2A.",
       "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+    },
+    {
+      "evidence": [
+        "reports/W2_RELEASE_TRAIN_3A_R2_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R2_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
+      "name": "Release Train 3A-R2B staging retry deployment",
+      "notes": "Target revision 371a9cb deployed without migration. Policy mount contract passed and scheduler auto-dispatched one task, but worker failed with PermissionError before writing task audit; rollback to 23c89be completed and health passed.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE"
     }
   ],
   "candidate": false,
@@ -327,7 +341,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-24T20:31:32.589435Z",
+  "generated_at_utc": "2026-06-24T20:39:06.178162Z",
   "phases": {
     "0": {
       "blockers": [

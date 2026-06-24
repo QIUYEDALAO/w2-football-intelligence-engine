@@ -86,7 +86,7 @@ def test_handoff_and_master_roadmap_boundaries_are_preserved() -> None:
     handoff = HANDOFF.read_text(encoding="utf-8")
     roadmap = ROADMAP.read_text(encoding="utf-8")
 
-    assert "handoff_version: 38" in handoff
+    assert "handoff_version: 39" in handoff
     assert "gate3_historical_source_inventory_path:" in handoff
     assert "gate3_external_source_decision_path:" in handoff
     assert "candidate: false" in handoff

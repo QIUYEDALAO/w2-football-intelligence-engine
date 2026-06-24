@@ -1,0 +1,84 @@
+{
+  "candidate": false,
+  "classification": "ROLLED_BACK_CONTRACT_FAILURE",
+  "deployment": {
+    "current_revision_after_switch": "371a9cb8618e7f47324e6ea9a2c9be35ca63199e",
+    "migration_service_run": false,
+    "postgres_recreated": false,
+    "redis_recreated": false,
+    "services_recreated": [
+      "api",
+      "worker",
+      "scheduler",
+      "web"
+    ]
+  },
+  "deployment_freeze_status": "ACTIVE",
+  "dispatch": {
+    "manual_tick_called": false,
+    "source": "scheduler_auto_dispatch",
+    "status": "QUEUED",
+    "task_id_observed": "future-refresh:world_cup_2026:2026:20260624T203000Z:003173bb-644a-4ea0-9074-05d4e0e92d84",
+    "task_key": "future-refresh:world_cup_2026:2026:20260624T203000Z"
+  },
+  "env_content_read": false,
+  "formal_recommendation": false,
+  "gate3": "PARTIAL",
+  "gate5": "OPEN",
+  "migration_executed": false,
+  "next_action": "Repair staging runtime mount writable path/permissions for non-root worker before next release train retry.",
+  "policy_verification": {
+    "candidate_enabled": false,
+    "competition_id": "world_cup_2026",
+    "deepseek_enabled": false,
+    "external_alerting": false,
+    "future_refresh_enabled": true,
+    "policy_enabled": true,
+    "production_release": false,
+    "recommendation_enabled": false,
+    "scheduler_contract_ready": true,
+    "scheduler_policy_sha256": "700389aefeb2c5f77e9fb0c35a3695775512fad16c74cf2bf0090f0eddedaf27",
+    "worker_policy_sha256": "700389aefeb2c5f77e9fb0c35a3695775512fad16c74cf2bf0090f0eddedaf27"
+  },
+  "preflight": {
+    "active_stage7i_observer_or_collector": false,
+    "alembic_head": "0017_create_stage9a_shadow_strategy",
+    "api_health": "PASS",
+    "api_ready": "PASS",
+    "containers_healthy": 6,
+    "env_stat_mode": "600",
+    "public_business_ports_closed": true,
+    "staging_revision_before": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+    "systemd_active": true,
+    "systemd_enabled": true,
+    "web": "PASS"
+  },
+  "previous_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "recorded_at_utc": "2026-06-24T20:39:06.178162Z",
+  "release_train_id": "W2-RELEASE-TRAIN-3A-R2B",
+  "result": "ROLLED_BACK_CONTRACT_FAILURE",
+  "rollback": {
+    "alembic_head": "0017_create_stage9a_shadow_strategy",
+    "api_health": "PASS",
+    "api_ready": "PASS",
+    "completed": true,
+    "containers_healthy": 6,
+    "current_revision_after_rollback": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+    "public_business_ports_closed": true,
+    "web": "PASS"
+  },
+  "rollback_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "stage10e_deployed": false,
+  "stage7i_observer_or_collector_started": false,
+  "target_revision": "371a9cb8618e7f47324e6ea9a2c9be35ca63199e",
+  "w1_modified": false,
+  "worker_task": {
+    "failure": "PermissionError(13, Permission denied)",
+    "future_refresh_audit_created": false,
+    "registered": true,
+    "runtime_mount_permissions": "drwxr-xr-x root root",
+    "runtime_mount_source": "/opt/w2/releases/371a9cb8618e7f47324e6ea9a2c9be35ca63199e/infra/compose/runtime",
+    "status": "FAILED",
+    "task_audit_created": false
+  }
+}

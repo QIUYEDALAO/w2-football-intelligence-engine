@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 38
-handoff_correction: RELEASE_TRAIN_3A_R2A_POLICY_MOUNT_REPAIR_RECORDED
+handoff_version: 39
+handoff_correction: RELEASE_TRAIN_3A_R2B_RETRY_ROLLBACK_RECORDED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R2A policy mount static repair
-active_execution_package: Release Train 3A-R2A policy mount static repair
+active_stage_package: Release Train 3A-R2B staging retry deployment
+active_execution_package: Release Train 3A-R2B staging retry deployment
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -178,8 +178,25 @@ release_train_3a_r2_repair_api_web_policy_mount: false
 release_train_3a_r2_repair_static_checker: PASS
 release_train_3a_r2_repair_targeted_tests: PASS
 release_train_3a_r2_repair_staging_revision_unchanged: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r2_deployment_record_path: reports/W2_RELEASE_TRAIN_3A_R2_DEPLOYMENT.json
+release_train_3a_r2_result_path: reports/W2_RELEASE_TRAIN_3A_R2_RESULT.md
+release_train_3a_r2_status: ROLLED_BACK_CONTRACT_FAILURE
+release_train_3a_r2_target_revision: 371a9cb8618e7f47324e6ea9a2c9be35ca63199e
+release_train_3a_r2_previous_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r2_policy_contract_ready: true
+release_train_3a_r2_dispatch_status: QUEUED
+release_train_3a_r2_manual_tick_called: false
+release_train_3a_r2_worker_registered_task: true
+release_train_3a_r2_worker_task_status: FAILED_PERMISSION_DENIED
+release_train_3a_r2_task_audit_status: NOT_CREATED
+release_train_3a_r2_failure: FUTURE_REFRESH_RUNTIME_PERMISSION_DENIED
+release_train_3a_r2_runtime_mount_source: /opt/w2/releases/371a9cb8618e7f47324e6ea9a2c9be35ca63199e/infra/compose/runtime
+release_train_3a_r2_runtime_mount_permissions: drwxr-xr-x root root
+release_train_3a_r2_rollback_completed: true
+release_train_3a_r2_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r2_post_rollback_health: PASS
 pending_staging_deployment: true
-pending_deployment_reason: retry staging with versioned read-only future-refresh policy mount after R2A CI success
+pending_deployment_reason: repair future-refresh runtime audit writability for non-root worker before next retry
 future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 
