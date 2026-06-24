@@ -1,0 +1,108 @@
+name: Gate3 Baselight odds-date-window v3 resume
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/gate3-baselight-odds-window-v3.yml"
+      - "scripts/run_w2_gate3_baselight_odds_window_v3_resume.py"
+      - "scripts/extract_w2_gate3_baselight_limited_ah.py"
+      - "scripts/run_w2_gate3_baselight_ah_walk_forward.py"
+      - "src/w2/markets/baselight_limited_ah.py"
+      - "tests/contract/test_gate3_baselight_odds_window_v3_resume.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate3-baselight-v3-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bounded-resume:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BASELIGHT_API_KEY: ${{ secrets.BASELIGHT_API_KEY }}
+      W2_GATE3_RUN_DIR: ${{ runner.temp }}/w2_gate3_baselight_v3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Restore external sample checkpoint
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.W2_GATE3_RUN_DIR }}
+          key: gate3-baselight-v3-${{ github.run_id }}
+          restore-keys: |
+            gate3-baselight-v3-
+      - name: Validate resume contract
+        run: >-
+          uv run --python 3.12 pytest -q
+          tests/contract/test_gate3_baselight_odds_window_v3_resume.py
+      - name: Run bounded extraction and limited walk-forward
+        id: gate3
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$W2_GATE3_RUN_DIR/reports"
+          uv run --python 3.12 python \
+            scripts/run_w2_gate3_baselight_odds_window_v3_resume.py \
+            --live \
+            --resume \
+            --output "$W2_GATE3_RUN_DIR/baselight_limited_ah.jsonl" \
+            --state-file "$W2_GATE3_RUN_DIR/extract_state.json" \
+            --reports-dir "$W2_GATE3_RUN_DIR/reports" \
+            --target-fixtures 500 \
+            --max-rows 250000 \
+            --query-limit 5000 \
+            --rows-per-bookmaker 2 \
+            --metadata-batch-size 100 \
+            --date-window-days 7 \
+            --max-date-windows 120 \
+            --per-query-timeout-seconds 180
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Emit sanitized aggregate evidence
+        if: always()
+        shell: bash
+        run: |
+          for path in \
+            "$W2_GATE3_RUN_DIR/reports/W2_GATE3_BASELIGHT_ODDS_DATE_WINDOW_V3_RUN.json" \
+            "$W2_GATE3_RUN_DIR/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json" \
+            "$W2_GATE3_RUN_DIR/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json" \
+            "$W2_GATE3_RUN_DIR/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+          do
+            if [[ -f "$path" ]]; then
+              echo "===== BEGIN $(basename "$path") ====="
+              cat "$path"
+              echo "===== END $(basename "$path") ====="
+            fi
+          done
+      - name: Upload aggregate reports only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate3-baselight-v3-aggregate-reports
+          path: ${{ env.W2_GATE3_RUN_DIR }}/reports
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Enforce target
+        if: always()
+        shell: bash
+        run: |
+          exit_code="${{ steps.gate3.outputs.exit_code }}"
+          if [[ -z "$exit_code" ]]; then
+            echo "GATE3_BASELIGHT_RUN_DID_NOT_START"
+            exit 1
+          fi
+          if [[ "$exit_code" != "0" ]]; then
+            echo "GATE3_BASELIGHT_TARGET_NOT_REACHED exit_code=$exit_code"
+            exit "$exit_code"
+          fi
