@@ -1,7 +1,12 @@
 {
   "acquisition_not_authorized": true,
   "asian_handicap": {
-    "closure_blocker": "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "closure_blocker": null,
+    "evidence": [
+      "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+      "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+      "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+    ],
     "exclusion_reasons": {
       "NO_RESULT_FOR_CAPTURED_AT_AH": 43847
     },
@@ -10,10 +15,25 @@
       "quarter_settlement_available": true,
       "source": "Stage4B real snapshot"
     },
-    "historical_ah_status": "FORWARD_ONLY",
-    "historical_build_path": "reports/W2_GATE3_AH_WALK_FORWARD.json",
-    "historical_build_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
-    "status": "PARTIAL_NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
+    "historical_ah_status": "BASELIGHT_LIMITED_WALK_FORWARD_PASS",
+    "historical_build_path": "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+    "historical_build_status": "PASS_LIMITED_WALK_FORWARD",
+    "limitations": [
+      "Baselight collected_at precision is DATE_ONLY and cannot support intraday phase claims.",
+      "Platform export/retention policy remains unverified."
+    ],
+    "metrics": {
+      "bookmaker_count": 13,
+      "candidate": false,
+      "competition_count": 42,
+      "fixture_count": 502,
+      "fold_count": 5,
+      "formal_recommendation": false,
+      "line_bucket_count": 17,
+      "row_count": 72082,
+      "status": "PASS_LIMITED_WALK_FORWARD"
+    },
+    "status": "PASS_WITH_DATE_ONLY_LIMITATIONS"
   },
   "baselight": {
     "ah_walk_forward_path": "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
@@ -27,7 +47,9 @@
     ],
     "collected_at_precision": "DATE_ONLY",
     "extraction_method": "ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN",
+    "fold_count": 5,
     "get_results_status": "PARTIAL_SAMPLE_WRITTEN",
+    "historical_ah_status": "BASELIGHT_LIMITED_WALK_FORWARD_PASS",
     "license_status": "DATASET_CC_BY_4_0_PLATFORM_EXPORT_UNVERIFIED",
     "limited_extract_bookmaker_count": 13,
     "limited_extract_competition_count": 42,
@@ -47,7 +69,7 @@
     "micro_batch_status": "PARTIAL_SAMPLE_INSUFFICIENT",
     "micro_batch_v2_status": "BASELIGHT_SINGLE_FIXTURE_QUERY_PENDING",
     "micro_batch_v3_status": "PASS_LIMITED_WALK_FORWARD",
-    "next_action": "RUN_GATE3_CLOSURE_CHECKER_WITH_BASELIGHT_EVIDENCE_WHILE_RETAINING_DATE_ONLY_LIMITATIONS",
+    "next_action": "RUN_GATE3_CLOSURE_CHECKER_WITH_REMAINING_DATE_ONLY_PHASE_OU_1X2_EXPORT_LIMITATIONS",
     "odds_table": "match_betting_odds",
     "rate_limit_handling": "MCP_HTTP_429_BACKOFF_AND_RETRY_WITHOUT_COMPLETING_WINDOW",
     "remaining_limitations": [
@@ -70,7 +92,6 @@
   "blockers": [
     "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
     "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
-    "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED",
     "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
     "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
     "EXPORT_AND_RETENTION_POLICY_UNVERIFIED",
@@ -107,11 +128,11 @@
   ],
   "external_source_comparison_path": "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
   "external_source_decision_path": "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
-  "external_source_decision_status": "USER_DECISION_REQUIRED",
+  "external_source_decision_status": "FORWARD_ONLY_ACCUMULATION_SELECTED",
   "external_source_requirements_path": "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
   "formal_recommendation": false,
   "gate": 3,
-  "generated_at_utc": "2026-06-23T21:00:24Z",
+  "generated_at_utc": "2026-06-24T18:53:21Z",
   "internal_historical_ah_exhausted": true,
   "leakage_audit": {
     "closing_odds_not_used_for_early_phase": true,
@@ -138,13 +159,9 @@
     "status": "READY"
   },
   "next_actions": [
-    "Use the generated source inventory to decide whether internal captured-at snapshots are sufficient for future settled phase backtests.",
-    "Acquire or approve an external/internal historical AH odds source with settled results before Gate3 closure.",
-    "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence.",
-    "User must choose provider trial/procurement evaluation, forward-only accumulation, or an explicit Gate3 scope change.",
-    "Do not acquire or ingest external historical odds until user approval and license review are complete.",
-    "Build Baselight limited AH extract and walk-forward backtest.",
-    "User must provide the limited Baselight AH sample file before walk-forward can pass."
+    "Run Gate3 closure checker; expect failure until retained DATE-only, precise phase, OU closing-subset, 1X2 aggregate, and export/retention limitations are resolved.",
+    "Do not relabel Baselight DATE_ONLY odds as T-1h/T-30m/T-10m captured-at evidence.",
+    "Do not relabel closing-only or aggregate sources as early-phase captured-at evidence."
   ],
   "one_x_two": {
     "devig_methods": [
@@ -274,27 +291,35 @@
       "status": "PASS"
     },
     "G3-2-AH_CONSENSUS_PRICING_SETTLEMENT": {
-      "blocker_codes": [
-        "HISTORICAL_AH_BASELINE_BACKTEST_MISSING"
-      ],
+      "blocker_codes": [],
       "evidence": [
         "reports/W2_STAGE6_MARKET_QUALITY.json",
         "src/w2/markets/poisson.py",
         "src/w2/domain/odds.py",
-        "reports/W2_STAGE5B_MARKET_COVERAGE.json"
+        "reports/W2_STAGE5B_MARKET_COVERAGE.json",
+        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "limitations": [
-        "AH mechanics are implemented and functionally validated, but historical AH dataset/backtest is absent and remains FORWARD_ONLY."
+        "AH mechanics are implemented and functionally validated; historical AH walk-forward is supported by Baselight limited DATE_ONLY sample.",
+        "Baselight DATE_ONLY precision limits intraday phase claims and exact closing claims.",
+        "Baselight platform export/retention policy remains unverified."
       ],
       "metrics": {
+        "baselight_bookmaker_count": 13,
+        "baselight_competition_count": 42,
+        "baselight_fixture_count": 502,
+        "baselight_fold_count": 5,
+        "baselight_line_bucket_count": 17,
         "captured_at_ah_without_result": 43847,
         "historical_ah_fabricated": false,
-        "historical_ah_status": "FORWARD_ONLY",
-        "historical_build_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
+        "historical_ah_status": "BASELIGHT_LIMITED_WALK_FORWARD_PASS",
+        "historical_build_status": "PASS_LIMITED_WALK_FORWARD",
         "matrix_pricing_available": true,
         "quarter_settlement_available": true
       },
-      "status": "PARTIAL"
+      "status": "PASS"
     },
     "G3-3-OU_CONSENSUS_DEVIG_REPRODUCIBLE": {
       "blocker_codes": [],
@@ -340,19 +365,25 @@
       "status": "PASS"
     },
     "G3-5-STRICT_SPLIT_OR_WALK_FORWARD_EVIDENCE": {
-      "blocker_codes": [
-        "AH_WALK_FORWARD_EVIDENCE_MISSING",
-        "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING"
-      ],
+      "blocker_codes": [],
       "evidence": [
         "reports/W2_STAGE6_1X2_BACKTEST.json",
-        "reports/W2_STAGE6_OU_BACKTEST.json"
+        "reports/W2_STAGE6_OU_BACKTEST.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "limitations": [
-        "1X2 and OU have split/walk-forward evidence; AH historical baseline has no backtest."
+        "1X2 and OU have split/walk-forward evidence under their documented source semantics.",
+        "AH walk-forward is supported by Baselight limited DATE_ONLY sample.",
+        "Captured-at phase backtest limitations are tracked under G3-6 data source and snapshot semantics."
       ],
       "metrics": {
-        "ah_walk_forward_status": "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA",
+        "ah_walk_forward_status": "PASS_LIMITED_WALK_FORWARD",
+        "baselight_bookmaker_count": 13,
+        "baselight_competition_count": 42,
+        "baselight_fixture_count": 502,
+        "baselight_fold_count": 5,
+        "baselight_line_bucket_count": 17,
         "captured_at_phase_coverage_status": "CAPTURED_AT_AVAILABLE",
         "one_x_two_split_policy": "chronological_plus_walk_forward",
         "ou_walk_forward": {
@@ -360,12 +391,15 @@
           "initial_train_size": 32
         }
       },
-      "status": "PARTIAL"
+      "status": "PASS"
     },
     "G3-6-DATA_SOURCE_AND_SNAPSHOT_SEMANTICS_CLEAR": {
       "blocker_codes": [
         "CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING",
-        "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION"
+        "CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION",
+        "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
+        "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
+        "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
       ],
       "evidence": [
         "reports/W2_STAGE6_1X2_BACKTEST.json",
@@ -375,9 +409,13 @@
       ],
       "limitations": [
         "CAPTURED_AT coverage exists from internal snapshots, but settled phase-specific backtest evidence is still missing.",
-        "Historical OU performance evidence remains based on closing subset."
+        "Historical OU performance evidence remains based on closing subset.",
+        "Baselight DATE_ONLY precision cannot support T-1h/T-30m/T-10m phase claims or exact closing timestamp claims.",
+        "Baselight platform export/retention policy remains unverified."
       ],
       "metrics": {
+        "baselight_collected_at_precision": "DATE_ONLY",
+        "baselight_export_retention_policy": "UNVERIFIED",
         "captured_at_phase_coverage_status": "CAPTURED_AT_AVAILABLE",
         "closing_odds_not_used_for_early_phase": true,
         "excluded_closing_leakage_count": 0,
@@ -480,7 +518,7 @@
       "snapshot_semantics": "CLOSING"
     }
   },
-  "user_decision_required": true,
+  "user_decision_required": false,
   "warn_only": [
     "CALIBRATION_REQUIRED",
     "CAPTURED_AT_COVERAGE_WITHOUT_SETTLED_BACKTEST",

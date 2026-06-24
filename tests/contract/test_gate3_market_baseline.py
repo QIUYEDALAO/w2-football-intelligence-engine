@@ -41,16 +41,31 @@ def test_ou_ladder_metrics_and_residual_evidence_are_present() -> None:
     assert totals["dixon_coles_market_baseline"]["walk_forward"]["fold_count"] > 0
 
 
-def test_historical_ah_forward_only_blocks_closure() -> None:
+def test_historical_ah_baselight_walk_forward_pass_with_retained_limitations() -> None:
     payload = load_decision()
 
     assert payload["status"] == "PARTIAL"
-    assert payload["asian_handicap"]["historical_ah_status"] == "FORWARD_ONLY"
+    assert payload["asian_handicap"]["historical_ah_status"] == (
+        "BASELIGHT_LIMITED_WALK_FORWARD_PASS"
+    )
+    assert payload["asian_handicap"]["historical_build_status"] == "PASS_LIMITED_WALK_FORWARD"
+    assert payload["asian_handicap"]["closure_blocker"] is None
+    assert payload["requirements"]["G3-2-AH_CONSENSUS_PRICING_SETTLEMENT"]["status"] == "PASS"
+    assert payload["requirements"]["G3-5-STRICT_SPLIT_OR_WALK_FORWARD_EVIDENCE"][
+        "status"
+    ] == "PASS"
+    assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" not in payload["blockers"]
+    assert "AH_WALK_FORWARD_EVIDENCE_MISSING" not in payload["blockers"]
+    assert "EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED" not in payload["blockers"]
     assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in payload["baselight"][
         "resolved_by_baselight_limited_backtest"
     ]
+    assert "AH_WALK_FORWARD_EVIDENCE_MISSING" in payload["baselight"][
+        "resolved_by_baselight_limited_backtest"
+    ]
     assert "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE" in payload["blockers"]
-    assert payload["requirements"]["G3-2-AH_CONSENSUS_PRICING_SETTLEMENT"]["status"] == "PARTIAL"
+    assert "PRECISE_PHASE_COVERAGE_UNAVAILABLE" in payload["blockers"]
+    assert "EXPORT_AND_RETENTION_POLICY_UNVERIFIED" in payload["blockers"]
 
 
 def test_no_recommendation_candidate_or_formal_output() -> None:

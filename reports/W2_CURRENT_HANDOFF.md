@@ -6,7 +6,7 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 33
+handoff_version: 34
 handoff_correction: STAGE7I_FINAL_AUDIT_DOCUMENTATION_RECONCILED
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Stage7I final audit reconciled; recovery decision pending
-active_execution_package: Stage7I recovery or successor decision
+active_stage_package: Gate3 closure decision reconciliation
+active_execution_package: Gate3 closure decision reconciliation
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -59,7 +59,7 @@ gate3_baselight_odds_table: match_betting_odds
 gate3_baselight_match_table: matches
 gate3_baselight_settled_ah_fixture_count: 10858
 gate3_baselight_collected_at_precision: DATE_ONLY
-gate3_baselight_next_action: RUN_GATE3_CLOSURE_CHECKER_WITH_BASELIGHT_EVIDENCE_WHILE_RETAINING_DATE_ONLY_LIMITATIONS
+gate3_baselight_next_action: RETAIN_GATE3_PARTIAL_UNTIL_DATE_ONLY_PHASE_OU_1X2_EXPORT_LIMITATIONS_RESOLVE
 gate3_baselight_limited_extract_status: ODDS_DATE_WINDOW_SAMPLE_READY
 gate3_baselight_limited_extract_manifest_path: reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json
 gate3_baselight_ah_walk_forward_status: PASS_LIMITED_WALK_FORWARD
@@ -83,6 +83,14 @@ gate3_baselight_full_extract_status: NOT_STARTED
 gate3_baselight_resolved_by_limited_backtest:
   - HISTORICAL_AH_BASELINE_BACKTEST_MISSING
   - AH_WALK_FORWARD_EVIDENCE_MISSING
+gate3_ah_historical_status: BASELIGHT_LIMITED_WALK_FORWARD_PASS
+gate3_ah_blockers_resolved:
+  - HISTORICAL_AH_BASELINE_BACKTEST_MISSING
+  - AH_WALK_FORWARD_EVIDENCE_MISSING
+gate3_external_source_decision_blocker_resolved: true
+gate3_closure_audit_checker: PASS
+gate3_closure_checker: EXPECTED_FAIL_REMAINING_LIMITATIONS
+gate3_closure_reconciliation_status: COMPLETED_PARTIAL_DECISION
 gate3_baselight_remaining_limitations:
   - BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE
   - PRECISE_PHASE_COVERAGE_UNAVAILABLE
@@ -167,10 +175,25 @@ original_workspace_last_known_dirty:
 original_workspace_dirty_files_included_in_stage7i_final_commit: false
 ```
 
+## 0.1 权威文件层级
+
+1. `docs/W2_MASTER_ROADMAP.md`
+   - 项目总目标、阶段、Gate 和禁止事项。
+2. `reports/W2_ROADMAP_STATUS.json`
+   - 各阶段与 Gate 的动态进度。
+3. `reports/W2_CURRENT_HANDOFF.md`
+   - 当前 SHA、runtime、BLOCKER 和恢复点。
+4. 聊天记录
+   - 只作补充，不作为长期事实源。
+
+执行包名称不等于 master roadmap 阶段编号。当前 Gate3 closure decision
+reconciliation 是 active execution package，不能被解读为 Gate3 已关闭。
+
 ## 1. 当前任务清单
 
 ### 已完成
 
+- Gate3 closure decision reconciliation。
 - Stage7I 24h final observation read-only audit。
 - 更新 handoff v33、roadmap status 与 R1B2 result。
 - 新增 final audit report、decision 和合同测试。

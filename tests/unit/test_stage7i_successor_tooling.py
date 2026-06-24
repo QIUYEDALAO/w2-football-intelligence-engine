@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = sys.executable
 EXPECTED_HEAD = "0017_create_stage9a_shadow_strategy"
+FUTURE_KICKOFF_UTC = "2099-06-24T12:00:00Z"
 
 OBSERVER_SPEC = importlib.util.spec_from_file_location(
     "run_stage7i_observer",
@@ -49,7 +50,7 @@ def test_observer_migration_head_parser_accepts_typed_alembic_fields(tmp_path: P
 
 def candidate(
     fixture_id: str,
-    kickoff: str = "2026-06-24T12:00:00Z",
+    kickoff: str = FUTURE_KICKOFF_UTC,
     *,
     status: str = "NS",
     reliable: bool = True,
@@ -99,7 +100,7 @@ def bootstrap_payload(tmp_path: Path, fixture_id: str = "200001") -> dict[str, o
     return {
         "status": "IN_PROGRESS",
         "fixture_id": fixture_id,
-        "scheduled_kickoff_utc": "2026-06-24T12:00:00Z",
+        "scheduled_kickoff_utc": FUTURE_KICKOFF_UTC,
         "observer_started_at_utc": "2026-06-23T10:01:00Z",
         "baseline_revision": "abc123",
         "expected_alembic_head": EXPECTED_HEAD,
@@ -395,7 +396,7 @@ def test_observer_once_writes_fixture_specific_state_and_global_lock(tmp_path: P
             "--fixture-id",
             "200001",
             "--scheduled-kickoff-utc",
-            "2026-06-24T12:00:00Z",
+            FUTURE_KICKOFF_UTC,
             "--baseline-revision",
             "abc123",
             "--expected-alembic-head",

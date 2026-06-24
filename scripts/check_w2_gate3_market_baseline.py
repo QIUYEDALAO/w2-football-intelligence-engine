@@ -42,6 +42,13 @@ def require(condition: bool, message: str) -> None:
         fail(message)
 
 
+def require_existing_paths(paths: Any, context: str) -> None:
+    require(isinstance(paths, list), f"{context} evidence paths must be a list")
+    for raw in paths:
+        require(isinstance(raw, str) and raw, f"{context} evidence path must be a string")
+        require((ROOT / raw).exists(), f"{context} evidence path missing: {raw}")
+
+
 def validate_common(payload: dict[str, Any]) -> None:
     require(payload.get("gate") == 3, "gate must be 3")
     require(payload.get("status") in {"PARTIAL", "BLOCKED", "CLOSED"}, "invalid Gate3 status")
@@ -84,8 +91,42 @@ def validate_common(payload: dict[str, Any]) -> None:
     require(summary.get("residuals") is None, "OU residuals belong in fixture diagnostics report")
     require(summary.get("snapshot_semantics") == "CLOSING", "OU semantics must be CLOSING")
     ah = payload.get("asian_handicap", {})
-    require(ah.get("historical_ah_status") == "FORWARD_ONLY",
-            "historical AH must remain FORWARD_ONLY until real backtest exists")
+    require(
+        ah.get("historical_ah_status") == "BASELIGHT_LIMITED_WALK_FORWARD_PASS",
+        "historical AH must use Baselight limited walk-forward PASS evidence",
+    )
+    require(ah.get("historical_build_status") == "PASS_LIMITED_WALK_FORWARD",
+            "historical AH build status must be PASS_LIMITED_WALK_FORWARD")
+    require(ah.get("closure_blocker") is None,
+            "historical AH closure blocker must be cleared after Baselight PASS")
+    require_existing_paths(ah.get("evidence"), "historical AH")
+    ah_metrics = ah.get("metrics", {})
+    require(ah_metrics.get("fixture_count", 0) >= 500,
+            "Baselight AH fixture_count must be at least 500")
+    require(ah_metrics.get("fold_count", 0) >= 5,
+            "Baselight AH fold_count must be at least 5")
+    require(ah_metrics.get("bookmaker_count", 0) >= 5,
+            "Baselight AH bookmaker_count must be at least 5")
+    require(ah_metrics.get("line_bucket_count", 0) >= 8,
+            "Baselight AH line_bucket_count must be at least 8")
+    require(ah_metrics.get("competition_count", 0) >= 5,
+            "Baselight AH competition_count must be at least 5")
+    require(ah_metrics.get("candidate") is False, "Baselight AH candidate must be false")
+    require(ah_metrics.get("formal_recommendation") is False,
+            "Baselight AH formal_recommendation must be false")
+    baselight = payload.get("baselight", {})
+    require(baselight.get("ah_walk_forward_status") == "PASS_LIMITED_WALK_FORWARD",
+            "Baselight AH walk-forward status must PASS")
+    require(baselight.get("limited_extract_fixture_count", 0) >= 500,
+            "Baselight limited fixture_count must be at least 500")
+    require(baselight.get("fold_count", 0) >= 5,
+            "Baselight fold_count must be at least 5")
+    require("HISTORICAL_AH_BASELINE_BACKTEST_MISSING" not in payload.get("blockers", []),
+            "resolved AH historical blocker must not remain at top level")
+    require("AH_WALK_FORWARD_EVIDENCE_MISSING" not in payload.get("blockers", []),
+            "resolved AH walk-forward blocker must not remain at top level")
+    require("EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED" not in payload.get("blockers", []),
+            "resolved external source decision blocker must not remain at top level")
     leakage = payload.get("leakage_audit", {})
     require(leakage.get("closing_odds_not_used_for_early_phase") is True,
             "closing odds early-phase guard missing")

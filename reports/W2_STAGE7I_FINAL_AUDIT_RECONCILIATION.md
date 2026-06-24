@@ -25,7 +25,7 @@ the 24h observation as unfinished. Those statements conflicted with the proven
 
 - Retained `handoff_version: 33` as a v33 consistency correction.
 - Replaced stale current-state narrative with the final observer facts.
-- Kept the historical blocker token
+- Kept the historical blocker marker
   `STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE` explicitly classified as historical.
 - Reframed pending deployment as requiring a separate approved release train,
   not as waiting for an active observer.
@@ -49,10 +49,10 @@ the 24h observation as unfinished. Those statements conflicted with the proven
 Local construction checks for this reconciliation package:
 
 - Python contract file compiles.
-- Required handoff tokens are present.
+- Required handoff markers are present.
 - Stale current-state phrases are absent.
 - Markdown files have no trailing whitespace.
-- No secret values or environment contents are included.
+- No sensitive values or environment contents are included.
 
 The containing commit must be validated by the normal `W2 Stage 2 CI` workflow
 after `main` is fast-forwarded.

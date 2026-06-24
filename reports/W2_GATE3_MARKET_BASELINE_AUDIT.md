@@ -1,12 +1,12 @@
 # W2 Gate3 Market Baseline Closure Audit
 
-Generated at: `2026-06-23T16:41:27Z`
+Generated at: `2026-06-25T00:00:00Z`
 
 ## Decision
 
 Gate3 status remains `PARTIAL`.
 
-Stage6 implementation is complete as a market-analysis layer, but Gate3 is a production readiness gate. The audited evidence does not close Gate3 because historical AH baseline/backtest evidence is absent, 1X2 prices are `UNKNOWN_PREMATCH_AGGREGATE`, OU evidence is a limited `CLOSING` subset, and movement thresholds remain `CALIBRATION_REQUIRED`.
+Stage6 implementation is complete as a market-analysis layer, but Gate3 is a production readiness gate. Baselight limited AH evidence now resolves the historical AH baseline/walk-forward blocker. Gate3 still does not close because Baselight is `DATE_ONLY`, precise intraday phase claims remain unavailable, 1X2 prices are `UNKNOWN_PREMATCH_AGGREGATE`, OU evidence is a limited `CLOSING` subset, and Baselight export/retention policy remains unverified.
 
 ## Scope And Boundaries
 
@@ -26,11 +26,11 @@ Stage6 implementation is complete as a market-analysis layer, but Gate3 is a pro
 - Blockers: None
 ### G3-2-AH_CONSENSUS_PRICING_SETTLEMENT
 
-- Status: `PARTIAL`
-- Evidence: `reports/W2_STAGE6_MARKET_QUALITY.json`, `src/w2/markets/poisson.py`, `src/w2/domain/odds.py`, `reports/W2_STAGE5B_MARKET_COVERAGE.json`
-- Metrics: `{"historical_ah_fabricated": false, "historical_ah_status": "FORWARD_ONLY", "matrix_pricing_available": true, "quarter_settlement_available": true}`
-- Limitations: AH mechanics are implemented and functionally validated, but historical AH dataset/backtest is absent and remains FORWARD_ONLY.
-- Blockers: HISTORICAL_AH_BASELINE_BACKTEST_MISSING
+- Status: `PASS`
+- Evidence: `reports/W2_STAGE6_MARKET_QUALITY.json`, `src/w2/markets/poisson.py`, `src/w2/domain/odds.py`, `reports/W2_STAGE5B_MARKET_COVERAGE.json`, `reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json`, `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json`, `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md`
+- Metrics: `{"historical_ah_fabricated": false, "historical_ah_status": "BASELIGHT_LIMITED_WALK_FORWARD_PASS", "historical_build_status": "PASS_LIMITED_WALK_FORWARD", "baselight_fixture_count": 502, "baselight_fold_count": 5, "baselight_bookmaker_count": 13, "baselight_line_bucket_count": 17, "baselight_competition_count": 42, "matrix_pricing_available": true, "quarter_settlement_available": true}`
+- Limitations: AH mechanics are implemented and functionally validated; historical AH walk-forward is supported by Baselight limited `DATE_ONLY` sample. Intraday phase and exact closing claims remain unsupported.
+- Blockers: None
 ### G3-3-OU_CONSENSUS_DEVIG_REPRODUCIBLE
 
 - Status: `PASS`
@@ -47,18 +47,18 @@ Stage6 implementation is complete as a market-analysis layer, but Gate3 is a pro
 - Blockers: None
 ### G3-5-STRICT_SPLIT_OR_WALK_FORWARD_EVIDENCE
 
-- Status: `PARTIAL`
-- Evidence: `reports/W2_STAGE6_1X2_BACKTEST.json`, `reports/W2_STAGE6_OU_BACKTEST.json`
-- Metrics: `{"one_x_two_split_policy": "chronological_plus_walk_forward", "ou_walk_forward": {"fold_count": 96, "initial_train_size": 32}}`
-- Limitations: 1X2 and OU have split/walk-forward evidence; AH historical baseline has no backtest.
-- Blockers: AH_WALK_FORWARD_EVIDENCE_MISSING
+- Status: `PASS`
+- Evidence: `reports/W2_STAGE6_1X2_BACKTEST.json`, `reports/W2_STAGE6_OU_BACKTEST.json`, `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json`, `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md`
+- Metrics: `{"one_x_two_split_policy": "chronological_plus_walk_forward", "ou_walk_forward": {"fold_count": 96, "initial_train_size": 32}, "ah_walk_forward_status": "PASS_LIMITED_WALK_FORWARD", "baselight_fixture_count": 502, "baselight_fold_count": 5, "baselight_bookmaker_count": 13, "baselight_line_bucket_count": 17, "baselight_competition_count": 42}`
+- Limitations: 1X2 and OU have split/walk-forward evidence under their documented source semantics; AH walk-forward is supported by Baselight limited `DATE_ONLY` sample. Captured-at phase backtest limitations are tracked under G3-6.
+- Blockers: None
 ### G3-6-DATA_SOURCE_AND_SNAPSHOT_SEMANTICS_CLEAR
 
 - Status: `PARTIAL`
 - Evidence: `reports/W2_STAGE6_1X2_BACKTEST.json`, `reports/W2_STAGE6_OU_BACKTEST.json`, `reports/W2_STAGE5B_MARKET_COVERAGE.json`, `docs/adr/ADR-0006-market-baseline.md`
 - Metrics: `{"closing_odds_not_used_for_early_phase": true, "one_x_two_snapshot_semantics": "UNKNOWN_PREMATCH_AGGREGATE", "ou_snapshot_semantics": "CLOSING"}`
-- Limitations: Semantics are explicit but insufficient to close a production gate for early phase market movement or historical AH.
-- Blockers: UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS, CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS
+- Limitations: Semantics are explicit but insufficient to close a production gate for early phase market movement. Baselight `DATE_ONLY` precision cannot support T-1h/T-30m/T-10m or exact closing timestamp claims, and export/retention policy remains unverified.
+- Blockers: UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS, CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS, CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING, BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE, PRECISE_PHASE_COVERAGE_UNAVAILABLE, EXPORT_AND_RETENTION_POLICY_UNVERIFIED
 ### G3-7-REPRODUCIBLE_RESULTS
 
 - Status: `PASS`
@@ -85,11 +85,12 @@ Stage6 implementation is complete as a market-analysis layer, but Gate3 is a pro
 
 Gate3 cannot be `CLOSED` while any of the following remains true:
 
-- Historical AH baseline/backtest does not exist: `true`.
-- Stage4B single forward snapshot is the only AH market validation: `true`.
+- Historical AH Baselight limited walk-forward passed: `true`.
+- Stage4B single forward snapshot is no longer the only AH market validation: `false`.
 - 1X2 semantics are `UNKNOWN_PREMATCH_AGGREGATE`: `true`.
 - OU semantics are `CLOSING` subset only: `true`.
-- Movement thresholds require calibration: `true`.
+- Baselight intraday timestamp precision is unavailable: `true`.
+- Baselight export/retention policy is unverified: `true`.
 - Recommendation output is disabled: `true`.
 
 ## WARN_ONLY
@@ -98,17 +99,23 @@ Gate3 cannot be `CLOSED` while any of the following remains true:
 - `STAGE4B_MARKET_MOVEMENT_SAMPLE_ONLY`
 - `OU_CLOSING_SUBSET_ONLY`
 - `ONE_X_TWO_UNKNOWN_PREMATCH_AGGREGATE`
+- `BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE`
+- `PRECISE_PHASE_COVERAGE_UNAVAILABLE`
+- `EXPORT_AND_RETENTION_POLICY_UNVERIFIED`
 
 ## BLOCKER
 
-- `AH_WALK_FORWARD_EVIDENCE_MISSING`
+- `CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING`
+- `BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE`
 - `CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS`
-- `HISTORICAL_AH_BASELINE_BACKTEST_MISSING`
+- `CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION`
+- `EXPORT_AND_RETENTION_POLICY_UNVERIFIED`
+- `PRECISE_PHASE_COVERAGE_UNAVAILABLE`
 - `UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS`
 
 ## Recommendation
 
-Keep Master Phase 6 implementation evidence as `COMPLETE`, but keep Gate3 as `PARTIAL`. Do not allow Gate3 closure until historical AH and broader as-of market evidence are available and all mandatory requirements pass closure mode.
+Keep Master Phase 6 implementation evidence as `COMPLETE`, but keep Gate3 as `PARTIAL`. Historical AH blockers are resolved by Baselight limited walk-forward evidence; do not allow Gate3 closure until retained `DATE_ONLY`, precise phase, OU closing-subset, 1X2 aggregate, and export/retention limitations are resolved and all mandatory requirements pass closure mode.
 
 
 ## Historical Market Evidence Build Update
@@ -131,3 +138,47 @@ Results:
 - Gate3 status after build: `PARTIAL`
 
 The build resolves the earlier lack of captured-at market coverage inventory, but it does not close Gate3 because captured-at observations do not yet have sufficient settled phase-specific backtest evidence and historical AH remains without usable settled internal data.
+
+## Baselight Closure Reconciliation
+
+Generated at: `2026-06-25T00:00:00Z`
+
+Baselight limited AH evidence has since reached the minimum sample thresholds
+for an AH historical walk-forward reconciliation:
+
+- Extract manifest:
+  `reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json`
+- Walk-forward result:
+  `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json`
+- Human-readable result:
+  `reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md`
+- Rows: `72082`
+- Fixtures: `502`
+- Folds: `5`
+- Bookmakers: `13`
+- Line buckets: `17`
+- Competitions: `42`
+- Candidate: `false`
+- Formal recommendation: `false`
+
+Resolved blockers:
+
+- `HISTORICAL_AH_BASELINE_BACKTEST_MISSING`
+- `AH_WALK_FORWARD_EVIDENCE_MISSING`
+- `EXTERNAL_HISTORICAL_AH_SOURCE_DECISION_REQUIRED`
+
+Retained blockers:
+
+- `CAPTURED_AT_PHASE_BACKTEST_RESULTS_MISSING`
+- `CLOSING_ONLY_HISTORICAL_OU_BACKTEST_LIMITATION`
+- `BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE`
+- `PRECISE_PHASE_COVERAGE_UNAVAILABLE`
+- `EXPORT_AND_RETENTION_POLICY_UNVERIFIED`
+- `CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS`
+- `UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS`
+
+Checker expectations:
+
+- Audit mode: `PASS`
+- Closure mode: expected failure while Gate3 remains `PARTIAL` with retained
+  limitations.
