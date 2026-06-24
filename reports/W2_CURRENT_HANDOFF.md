@@ -6,18 +6,18 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 32
+handoff_version: 33
 state_captured_on: 2026-06-24
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
 legacy_policy: frozen_read_only
-active_stage_package: Gate3 Baselight date-window sample expansion
+active_stage_package: Stage7I 24h final observation audit
 master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_execution_package: Gate3 Baselight date-window sample expansion
+active_execution_package: Stage7I 24h final observation audit
 execution_package_is_not_master_phase: true
 gate0_audit_path: reports/W2_GATE0_LEGACY_CLOSURE_AUDIT.md
 gate0_manifest_path: reports/W2_GATE0_W1_SHA256_MANIFEST.json
@@ -99,7 +99,7 @@ gate0_blockers:
   - W1_LEGACY_STATUS_UNTRACKED
   - W1_CURRENT_HEAD_DIFFERS_FROM_LEGACY_BASELINE_HEAD
   - FULL_W1_BACKUP_NOT_VERIFIED
-stage7i_status: SUCCESSOR_OBSERVATION_IN_PROGRESS
+stage7i_status: BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP
 parallel_mainline_status: FUTURE_DATA_REFRESH_IMPLEMENTATION_COMPLETED
 future_refresh_hardening_status: OPERATIONAL_HARDENING_COMPLETED
 future_refresh_hardening_commit: 8e467e657836641975294aeea12066cc125307f7
@@ -163,52 +163,45 @@ stage7i_successor_observer_pgid: 1435396
 stage7i_successor_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404
 stage7i_successor_started_at_utc: 2026-06-23T09:59:44.331436Z
 stage7i_successor_expected_end_utc: 2026-06-24T09:59:44.331436Z
-stage7i_successor_run_status: IN_PROGRESS
-stage7i_lifecycle_capture_status: ACTIVE_CONTINUITY_RESTORED
-stage7i_lifecycle_continuity_audit_status: OBSERVER_ACTIVE_COLLECTOR_INACTIVE
-stage7i_lifecycle_continuity_audit_path: reports/W2_STAGE7I_LIFECYCLE_CONTINUITY_AUDIT.md
-stage7i_lifecycle_continuity_blocker: STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE
-stage7i_lifecycle_continuity_observer_pid: 1435421
-stage7i_lifecycle_continuity_observer_pgid: 1435396
-stage7i_lifecycle_continuity_collector_count: 0
-stage7i_lifecycle_continuity_lifecycle_lock_exists: true
-stage7i_lifecycle_continuity_lifecycle_lock_holder: null
-stage7i_lifecycle_continuity_final_evidence_status: IN_PROGRESS
-stage7i_lifecycle_collector_identity: host_pid_1678226_container_pid_23041
-stage7i_lifecycle_collector_runtime_tooling: /opt/w2/shared/runtime/stage7i/tooling/lifecycle_74999d0_budget_v5
-stage7i_lifecycle_collector_container_tooling: /tmp/w2_stage7i_lifecycle_tooling_budget_v5
-stage7i_lifecycle_collector_tooling_sha: a025acc386da7580d10c03975b78cf53fe2a945020ea93d4817de9f907713d5c
-stage7i_lifecycle_collector_lock: /opt/w2/releases/23c89be4d2a32019d8d21bb9b102ae0b7ca15c16/infra/compose/runtime/stage7i/lifecycle-1489404.lock
-stage7i_lifecycle_collector_lock_holder: 1678226
-stage7i_lifecycle_shared_runtime_sync: APPEND_ONLY_MERGED
-stage7i_lifecycle_probe_request_count: 7
-stage7i_lifecycle_probe_remaining_quota: 6790
-stage7i_lifecycle_quota_daily_remaining: 6790
-stage7i_lifecycle_quota_burst_remaining: 298
-stage7i_lifecycle_quota_daily_source: x-ratelimit-requests-remaining
-stage7i_lifecycle_quota_burst_source: x-ratelimit-remaining
-stage7i_lifecycle_quota_observed_at: 2026-06-23T15:05:58.147308Z
-stage7i_lifecycle_budget_preflight: PASS
-stage7i_lifecycle_configured_request_budget: AUTO
-stage7i_lifecycle_effective_request_budget: 103
-stage7i_lifecycle_consumed_attempts_at_v5_start: 5
-stage7i_lifecycle_projected_required_at_v5_start: 98
-stage7i_lifecycle_remaining_budget_at_v5_start: 98
-stage7i_lifecycle_daily_capacity_after_reserve: 5290
-stage7i_lifecycle_runtime_dir: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle
-stage7i_lifecycle_final_evidence: /opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle/final_evidence.in_progress.json
-stage7i_lifecycle_fixture_evidence_count: 1
-stage7i_lifecycle_market_evidence_count: 2
-stage7i_lifecycle_market_bookmaker_count: 14
-stage7i_lifecycle_result_evidence_count: 0
-stage7i_lifecycle_request_audit_append_only_attempt_counting: true
-stage7i_lifecycle_collector_exits_append_only: true
-stage7i_lifecycle_residual_pid_classification: stale_python_collectors_terminated_with_container_term
-stage7i_lifecycle_graceful_shutdown_support: true
-stage7i_lifecycle_current_state: PREMATCH
-actual_kickoff_status: PENDING
-closing_status: PENDING
-final_evidence_status: IN_PROGRESS
+stage7i_successor_run_status: BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP
+stage7i_final_observation_audit_path: reports/W2_STAGE7I_FINAL_OBSERVATION_AUDIT.md
+stage7i_final_observation_decision_path: reports/W2_STAGE7I_FINAL_OBSERVATION_DECISION.json
+stage7i_final_observation_decision: BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP
+stage7i_final_observer_historical_pid: 1435421
+stage7i_final_observer_historical_pgid: 1435396
+stage7i_final_observer_process_alive_after_window: false
+stage7i_final_observer_completed_marker: true
+stage7i_final_observer_summary_exists: true
+stage7i_final_observer_completed_at_utc: 2026-06-24T10:01:11.955864Z
+stage7i_final_observer_sample_count: 289
+stage7i_final_observer_coverage_seconds: 86487
+stage7i_final_observer_max_gap_seconds: 300.338218
+stage7i_final_observer_revision_stable: true
+stage7i_final_lifecycle_collector_active: false
+stage7i_final_lifecycle_gap: true
+stage7i_final_lifecycle_fixture_evidence_count: 1
+stage7i_final_lifecycle_market_evidence_count: 2
+stage7i_final_lifecycle_result_evidence_count: 0
+stage7i_final_lifecycle_request_audit_count: 7
+stage7i_final_actual_kickoff_status: ACTUAL_KICKOFF_SOURCE_UNAVAILABLE
+stage7i_final_actual_kickoff_utc: null
+stage7i_final_closing_status: PENDING_ACTUAL_KICKOFF
+stage7i_final_closing_observation_utc: null
+stage7i_final_result_status: MISSING
+stage7i_final_settlement_evaluation_status: NOT_RUN_NO_RESULT
+stage7i_final_shadow_db_audit: PENDING
+stage7i_final_checker_result: FAIL
+stage7i_final_checker_blocker: final status must be COMPLETED
+stage7i_final_gate5_eligible: false
+stage7i_final_no_provider_calls: true
+stage7i_final_no_runtime_writes: true
+stage7i_final_no_signal_sent: true
+stage7i_final_no_deploy_or_restart: true
+stage7i_final_candidate: false
+stage7i_final_formal_recommendation: false
+actual_kickoff_status: ACTUAL_KICKOFF_SOURCE_UNAVAILABLE
+closing_status: PENDING_ACTUAL_KICKOFF
+final_evidence_status: BLOCKED
 stage7i_server_revision_baseline: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 stage7i_r1b1_commit: 54a498c701af0e754645cf51658e45683fa6352a
 stage7i_r1b1_ci_run: 28009675284
@@ -380,6 +373,29 @@ Using the live MCP probe, W2 attempted the authorized limited AH extract into th
 - `/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl`
 
 Result: `gate3_baselight_limited_extract_status=MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT`. W2 inspected `/tmp` MCP raw responses for existing Baselight job IDs, recovered DONE/PENDING job evidence, and used `baselight_sdk_get_results` plus a micro-batch fallback. The fallback wrote an external JSONL sample, but it contains only 750 rows across 15 fixtures, 4 bookmakers, 11 line buckets, and 15 competition/season strata, so the walk-forward remains `INSUFFICIENT_SAMPLE`. W2 did not commit the sample file and did not resolve `HISTORICAL_AH_BASELINE_BACKTEST_MISSING` or `AH_WALK_FORWARD_EVIDENCE_MISSING`. Gate3 remains `PARTIAL`; Gate5 remains `OPEN`; `candidate=false`; `formal_recommendation=false`.
+
+## 0.12 Stage7I 24h Final Observation Audit
+
+Stage7I final observation was audited read-only after the expected end of the
+successor run. The observer naturally exited, wrote `COMPLETED`, and produced
+`summary.json`.
+
+Audit outputs:
+
+- `reports/W2_STAGE7I_FINAL_OBSERVATION_AUDIT.md`
+- `reports/W2_STAGE7I_FINAL_OBSERVATION_DECISION.json`
+
+Result: `BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`. The observer side of the 24h
+run completed with 289 samples, coverage above 24 hours, stable staging
+revision, healthy containers, localhost-only API/Web, and no public business
+ports. The lifecycle collector was inactive before the fixture lifecycle
+completed, leaving no legal internal actual kickoff source, no closing
+observation, no final result evidence, no settlement/evaluation, and no final
+Shadow DB audit. The final checker therefore fails and Gate5 remains `OPEN`.
+
+No signal, restart, deployment, provider request, staging runtime write, `.env`
+read, W1 modification, candidate output, or formal recommendation output was
+performed.
 
 ## 1. 新会话启动协议
 

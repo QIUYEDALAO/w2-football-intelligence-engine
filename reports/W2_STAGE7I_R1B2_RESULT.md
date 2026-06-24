@@ -10,12 +10,13 @@
 - Gate5: `OPEN`
 - Candidate output: `false`
 - Formal recommendation output: `false`
-- Final status: `SUCCESSOR_OBSERVATION_IN_PROGRESS`
+- Final status: `BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`
 
 R1B2 closed the legacy observer conflict, recovered future provider fixture
 evidence, selected a dynamic successor fixture, synchronized runtime tooling, and
-started a global-lock Stage7I observer. The stage does not claim Gate5 closure or
-24-hour completion.
+started a global-lock Stage7I observer. The observer later completed its 24-hour
+window, but the lifecycle collector gap makes the run non-qualifying for Gate5.
+The stage does not claim Gate5 closure.
 
 ## Legacy Observer Disposition
 
@@ -504,3 +505,55 @@ Evidence after v5 startup:
 
 No actual kickoff, closing observation, settlement, evaluation, or final Shadow
 DB audit was inferred or fabricated. Gate5 remains `OPEN`.
+
+## Final Observation Audit
+
+The Stage7I 24-hour observer was audited read-only after its expected end.
+
+Final observer evidence:
+
+- Runtime dir:
+  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
+- Historical PID/PGID: `1435421` / `1435396`
+- Process after audit buffer: not alive
+- `COMPLETED`: present
+- `summary.json`: present
+- Started at: `2026-06-23T09:59:44.331436Z`
+- Completed at: `2026-06-24T10:01:11.955864Z`
+- Sample count: `289`
+- Coverage seconds: `86487.295089`
+- Max sample gap: `300.338218` seconds
+- Revision stable: `true`
+- Latest server revision:
+  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+
+Lifecycle evidence at final audit:
+
+- Collector active: `false`
+- `fixture_status.jsonl`: `1`
+- `market_observations.jsonl`: `2`
+- `result_status.jsonl`: `0`
+- `request_audit.jsonl`: `7`
+- Last market observation: `2026-06-23T13:24:35.678215Z`
+- Last market bookmaker count: `14`
+- Last market live/suspended: `false` / `false`
+
+Final evidence builder result from a local `/tmp` snapshot:
+
+- Status: `BLOCKED`
+- Blockers:
+  - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
+  - `PENDING_ACTUAL_KICKOFF`
+
+Final checker result:
+
+- `FAIL`
+- Summary: `final status must be COMPLETED`
+
+Classification:
+
+`BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`
+
+Gate5 remains `OPEN`. No actual kickoff, closing observation, result,
+settlement/evaluation, or Shadow DB audit was inferred from scheduled kickoff,
+poll time, or any external source.
