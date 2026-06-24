@@ -21,6 +21,12 @@ from w2.infrastructure.persistence.forward_ops_models import (
     ForwardSchedulerRunModel,
     ForwardStateTransitionModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import (
+    FutureMarketObservationModel,
+    FutureRefreshRunAuditModel,
+    FutureRefreshTaskAuditModel,
+    RawPayloadModel,
+)
 from w2.infrastructure.persistence.governance_models import (
     DependencyRiskModel,
     OperationsCheckResultModel,
@@ -142,6 +148,9 @@ __all__ = [
     "DependencyRiskModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
+    "FutureMarketObservationModel",
+    "FutureRefreshRunAuditModel",
+    "FutureRefreshTaskAuditModel",
     "ForwardCycleCheckpointModel",
     "ForwardEvaluationModel",
     "ForwardCycleRunModel",
@@ -190,6 +199,7 @@ __all__ = [
     "PromotionRelegationMappingModel",
     "QuotaUsageModel",
     "RawPayloadReferenceModel",
+    "RawPayloadModel",
     "ReadModelCheckpointModel",
     "ReleaseAuditModel",
     "ReleaseCandidateModel",

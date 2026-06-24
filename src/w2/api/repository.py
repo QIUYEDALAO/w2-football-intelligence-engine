@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -29,6 +30,13 @@ def load_json(path: Path, default: Any) -> Any:
 
 def future_refresh_read_model() -> Path:
     return RUNTIME / "future_refresh/read_model"
+
+
+def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
+    try:
+        return FutureRefreshDbRepository()
+    except Exception:
+        return None
 
 
 def parse_provider_time(value: Any) -> datetime | None:
@@ -59,6 +67,15 @@ class ReadModelRepository:
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                for item in db_repository.fixture_payloads():
+                    fixture_id = str(item.get("fixture", {}).get("id"))
+                    if fixture_id and fixture_id != "None":
+                        fixtures[fixture_id] = item
+            except Exception:
+                fixtures = {}
         for item in load_json(future_refresh_read_model() / "fixtures.json", {}).get("items", []):
             fixture_id = str(item.get("fixture", {}).get("id"))
             if fixture_id and fixture_id != "None":
@@ -75,9 +92,18 @@ class ReadModelRepository:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
 
     def market_snapshots(self) -> list[dict[str, Any]]:
-        snapshots = cast(
-            list[dict[str, Any]],
-            load_json(future_refresh_read_model() / "market_snapshots.json", []),
+        snapshots: list[dict[str, Any]] = []
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                snapshots.extend(db_repository.market_snapshots())
+            except Exception:
+                snapshots = []
+        snapshots.extend(
+            cast(
+                list[dict[str, Any]],
+                load_json(future_refresh_read_model() / "market_snapshots.json", []),
+            )
         )
         snapshots.extend(
             cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/market_snapshots.json", []))
@@ -85,6 +111,14 @@ class ReadModelRepository:
         return snapshots
 
     def future_market_observations(self) -> list[dict[str, Any]]:
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                rows = db_repository.latest_market_observations()
+                if rows:
+                    return rows
+            except Exception:
+                rows = []
         return cast(
             list[dict[str, Any]],
             load_json(future_refresh_read_model() / "latest_market_observations.json", []),
@@ -346,6 +380,30 @@ class ReadModelService:
         }
 
     def provider_status(self) -> dict[str, Any]:
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                projected_db = db_repository.provider_status()
+            except Exception:
+                projected_db = {}
+            if projected_db:
+                last_success_db = parse_provider_time(
+                    projected_db.get("last_successful_refresh_at")
+                )
+                return {
+                    "provider": "api_football",
+                    "status": projected_db.get("status", "READY"),
+                    "remaining_quota": projected_db.get("remaining_quota"),
+                    "credential_status": "PRESENT",
+                    "last_request_status": projected_db.get("last_request_status"),
+                    "last_successful_refresh_at": last_success_db,
+                    "refresh_age_seconds": (
+                        int((datetime.now(UTC) - last_success_db).total_seconds())
+                        if last_success_db is not None
+                        else None
+                    ),
+                    "blockers": projected_db.get("blockers", []),
+                }
         projected = load_json(future_refresh_read_model() / "provider_status.json", {})
         if projected:
             last_success = parse_provider_time(projected.get("last_successful_refresh_at"))

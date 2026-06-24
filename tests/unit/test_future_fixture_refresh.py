@@ -124,7 +124,7 @@ class FakeApiFootballClient:
 
 def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
-    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
     service = FutureFixtureRefreshService(
         client=client,
         config=config,
@@ -157,7 +157,7 @@ def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> 
 
 def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
     client = FakeApiFootballClient(remaining=1499)
-    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
     result = FutureFixtureRefreshService(
         client=client,
         config=config,
@@ -172,7 +172,7 @@ def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
 
 def test_future_refresh_daily_quota_is_not_burst_quota(tmp_path: Path) -> None:
     client = FakeApiFootballClient(remaining=6774, burst_remaining=299)
-    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
 
     result = FutureFixtureRefreshService(
         client=client,
@@ -191,7 +191,7 @@ def test_future_refresh_burst_only_is_daily_unknown(tmp_path: Path) -> None:
         daily_header="x-ratelimit-remaining",
         include_status_daily_payload=False,
     )
-    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
 
     result = FutureFixtureRefreshService(
         client=client,
@@ -205,7 +205,7 @@ def test_future_refresh_burst_only_is_daily_unknown(tmp_path: Path) -> None:
 
 def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
-    config = FutureRefreshConfig(runtime_root=tmp_path, request_budget=1)
+    config = FutureRefreshConfig(runtime_root=tmp_path, request_budget=1, persistence="file")
     result = FutureFixtureRefreshService(
         client=client,
         config=config,
@@ -219,7 +219,7 @@ def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
 
 def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
     client = FakeApiFootballClient(status_code=401)
-    config = FutureRefreshConfig(runtime_root=tmp_path)
+    config = FutureRefreshConfig(runtime_root=tmp_path, persistence="file")
     result = FutureFixtureRefreshService(
         client=client,
         config=config,
@@ -317,6 +317,7 @@ def test_future_refresh_task_writes_audit_and_blocks_duplicate_bucket(tmp_path: 
         runtime_root=tmp_path,
         client=FakeApiFootballClient(),
         now=NOW,
+        persistence="file",
     )
 
     assert audit.status == "ALREADY_RUNNING"
