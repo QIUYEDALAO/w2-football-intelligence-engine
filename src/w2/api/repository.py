@@ -493,7 +493,11 @@ class ReadModelService:
             rows = [
                 row
                 for row in rows
-                if not (row["status"] == "NS" and row["kickoff_utc"] < now)
+                if not (
+                    row["status"] == "NS"
+                    and row["kickoff_utc"] < now
+                    and row.get("last_captured") is None
+                )
             ]
         if competition_id:
             rows = [row for row in rows if row["competition_id"] == competition_id]
