@@ -7,6 +7,9 @@ apps/web/dist
 runtime
 data/raw
 data/processed
+reports
+logs
+cache
 .env
 .env.*
 __pycache__
