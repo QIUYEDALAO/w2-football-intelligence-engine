@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 40
-handoff_correction: RELEASE_TRAIN_3A_R3A_RUNTIME_MOUNT_REPAIR_RECORDED
+handoff_version: 41
+handoff_correction: RELEASE_TRAIN_3A_R3B_RETRY_ROLLBACK_RECORDED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R3A canonical runtime mount repair
-active_execution_package: Release Train 3A-R3A canonical runtime mount repair
+active_stage_package: Release Train 3A-R3B staging retry deployment
+active_execution_package: Release Train 3A-R3B staging retry deployment
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -205,8 +205,25 @@ release_train_3a_r3_worker_runtime_healthcheck: NO_SIDE_EFFECT_WRITABILITY_CONTR
 release_train_3a_r3_static_checker: PASS
 release_train_3a_r3_targeted_tests: PASS
 release_train_3a_r3_staging_revision_unchanged: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r3_deployment_record_path: reports/W2_RELEASE_TRAIN_3A_R3_DEPLOYMENT.json
+release_train_3a_r3_result_path: reports/W2_RELEASE_TRAIN_3A_R3_RESULT.md
+release_train_3a_r3_status: ROLLED_BACK_CONTRACT_FAILURE
+release_train_3a_r3_target_revision: 5e1179f2502e6fe78c7a0a58c81dcacf9341dc53
+release_train_3a_r3_previous_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r3_failure: SHARED_RUNTIME_NOT_WRITABLE_FOR_NON_ROOT_WORKER
+release_train_3a_r3_target_scheduler_started: false
+release_train_3a_r3_provider_called: false
+release_train_3a_r3_worker_uid: 10001
+release_train_3a_r3_worker_is_root: false
+release_train_3a_r3_runtime_source: /opt/w2/releases/5e1179f2502e6fe78c7a0a58c81dcacf9341dc53/runtime
+release_train_3a_r3_runtime_source_resolved: /opt/w2/shared/runtime
+release_train_3a_r3_worker_runtime_writable: false
+release_train_3a_r3_rollback_completed: true
+release_train_3a_r3_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r3_post_rollback_health: PASS
+release_train_3a_r3_next_action_requires_user_approval: true
 pending_staging_deployment: true
-pending_deployment_reason: retry staging with canonical release-root shared runtime mount after R3A CI success
+pending_deployment_reason: choose approved shared runtime writability strategy for non-root worker before next retry
 future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 

@@ -1,0 +1,79 @@
+{
+  "candidate": false,
+  "deployment_freeze_status": "ACTIVE",
+  "deployment_order": {
+    "built_services": [
+      "api",
+      "worker",
+      "scheduler",
+      "web"
+    ],
+    "migration_service_run": false,
+    "postgres_recreated": false,
+    "recreated_before_worker_contract": [
+      "api",
+      "worker",
+      "web"
+    ],
+    "redis_recreated": false,
+    "release_created": true,
+    "release_runtime_symlink": "/opt/w2/shared/runtime",
+    "target_scheduler_recreated": false
+  },
+  "env_content_read": false,
+  "failure": "SHARED_RUNTIME_NOT_WRITABLE_FOR_NON_ROOT_WORKER",
+  "formal_recommendation": false,
+  "gate3": "PARTIAL",
+  "gate5": "OPEN",
+  "migration_executed": false,
+  "next_action": "Choose an approved shared runtime writability strategy for uid 10001 without chmod/chown/ACL changes, root worker, or 0777 workaround in this package.",
+  "next_action_requires_user_approval": true,
+  "preflight": {
+    "active_stage7i_observer_or_collector": false,
+    "alembic_head": "0017_create_stage9a_shadow_strategy",
+    "api_health": "PASS",
+    "api_ready": "PASS",
+    "containers_healthy": 6,
+    "env_stat_mode": "600",
+    "public_business_ports_closed": true,
+    "shared_runtime_mode_owner": "drwx------ ubuntu ubuntu",
+    "shared_runtime_resolved": "/opt/w2/shared/runtime",
+    "staging_revision_before": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+    "systemd_active": true,
+    "systemd_enabled": true,
+    "web": "PASS"
+  },
+  "previous_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "recorded_at_utc": "2026-06-24T21:03:54.232496Z",
+  "release_train_id": "W2-RELEASE-TRAIN-3A-R3B",
+  "result": "ROLLED_BACK_CONTRACT_FAILURE",
+  "rollback": {
+    "alembic_head": "0017_create_stage9a_shadow_strategy",
+    "api_health": "PASS",
+    "api_ready": "PASS",
+    "completed": true,
+    "containers_healthy": 6,
+    "current_revision_after_rollback": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+    "public_business_ports_closed": true,
+    "web": "PASS"
+  },
+  "rollback_revision": "23c89be4d2a32019d8d21bb9b102ae0b7ca15c16",
+  "stage10e_deployed": false,
+  "stage7i_observer_or_collector_started": false,
+  "target_revision": "5e1179f2502e6fe78c7a0a58c81dcacf9341dc53",
+  "w1_modified": false,
+  "worker_pre_dispatch_contract": {
+    "container_is_root": false,
+    "container_uid": 10001,
+    "policy_sha256": "700389aefeb2c5f77e9fb0c35a3695775512fad16c74cf2bf0090f0eddedaf27",
+    "provider_called": false,
+    "runtime_is_dir": true,
+    "runtime_source": "/opt/w2/releases/5e1179f2502e6fe78c7a0a58c81dcacf9341dc53/runtime",
+    "runtime_source_resolved": "/opt/w2/shared/runtime",
+    "runtime_writable": false,
+    "scheduler_started": false,
+    "task_registered": true,
+    "worker_health_status": "starting",
+    "worker_healthy_before_contract": false
+  }
+}

@@ -61,7 +61,7 @@ def test_final_checker_failure_blocks_gate5() -> None:
 def test_handoff_records_v33_and_no_recommendation_flags() -> None:
     handoff = HANDOFF.read_text(encoding="utf-8")
 
-    assert "handoff_version: 40" in handoff
+    assert "handoff_version: 41" in handoff
     assert "stage7i_status: BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP" in handoff
     assert "gate5: OPEN" in handoff
     assert "candidate: false" in handoff

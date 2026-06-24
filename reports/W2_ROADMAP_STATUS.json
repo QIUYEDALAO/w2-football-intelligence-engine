@@ -228,6 +228,20 @@
       "name": "Release Train 3A-R3A canonical runtime mount repair",
       "notes": "Standalone staging runtime source changed from infra/compose/runtime to release-root ../../runtime so the container mount resolves through the release runtime symlink to /opt/w2/shared/runtime. Worker healthcheck now verifies runtime writability without writing files.",
       "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+    },
+    {
+      "evidence": [
+        "reports/W2_RELEASE_TRAIN_3A_R3_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R3_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
+      "name": "Release Train 3A-R3B staging retry deployment",
+      "notes": "Target revision 5e1179f deployed without migration. Worker pre-dispatch contract showed /app/runtime resolves to /opt/w2/shared/runtime but is not writable for non-root uid 10001; target scheduler was not started, no provider call was made, and rollback to 23c89be completed.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE"
     }
   ],
   "candidate": false,
@@ -358,7 +372,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-24T20:55:11.072095Z",
+  "generated_at_utc": "2026-06-24T21:03:54.232496Z",
   "phases": {
     "0": {
       "blockers": [
