@@ -124,6 +124,14 @@ from w2.infrastructure.persistence.replay_models import (
     ReplayEventModel,
     ReplayRunModel,
 )
+from w2.infrastructure.persistence.shadow_strategy_models import (
+    ShadowStrategyCandidateModel,
+    ShadowStrategyEvaluationModel,
+    ShadowStrategyEventModel,
+    ShadowStrategyLockModel,
+    ShadowStrategyRunModel,
+    ShadowStrategySettlementModel,
+)
 from w2.infrastructure.persistence.tournament_models import (
     TournamentOperationsPlanModel,
     TournamentProfileModel,
@@ -216,6 +224,12 @@ __all__ = [
     "SeasonRolloverPlanModel",
     "SecurityAuditEventModel",
     "SettlementModel",
+    "ShadowStrategyCandidateModel",
+    "ShadowStrategyEvaluationModel",
+    "ShadowStrategyEventModel",
+    "ShadowStrategyLockModel",
+    "ShadowStrategyRunModel",
+    "ShadowStrategySettlementModel",
     "ShadowComparisonRecordModel",
     "ShadowRunModel",
     "SloEvaluationModel",
