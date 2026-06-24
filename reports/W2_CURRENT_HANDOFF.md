@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 39
-handoff_correction: RELEASE_TRAIN_3A_R2B_RETRY_ROLLBACK_RECORDED
+handoff_version: 40
+handoff_correction: RELEASE_TRAIN_3A_R3A_RUNTIME_MOUNT_REPAIR_RECORDED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R2B staging retry deployment
-active_execution_package: Release Train 3A-R2B staging retry deployment
+active_stage_package: Release Train 3A-R3A canonical runtime mount repair
+active_execution_package: Release Train 3A-R3A canonical runtime mount repair
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -195,8 +195,18 @@ release_train_3a_r2_runtime_mount_permissions: drwxr-xr-x root root
 release_train_3a_r2_rollback_completed: true
 release_train_3a_r2_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 release_train_3a_r2_post_rollback_health: PASS
+release_train_3a_r3_repair_result_path: reports/W2_RELEASE_TRAIN_3A_R3_REPAIR_RESULT.md
+release_train_3a_r3_repair_status: IMPLEMENTED_PENDING_RETRY_DEPLOYMENT
+release_train_3a_r3_root_cause: STANDALONE_COMPOSE_RUNTIME_SOURCE_RESOLVED_INSIDE_INFRA_COMPOSE
+future_refresh_runtime_mount: RELEASE_ROOT_SHARED_RUNTIME_SYMLINK
+release_train_3a_r3_standalone_runtime_source: ../../runtime
+release_train_3a_r3_lite_runtime_source: ./runtime
+release_train_3a_r3_worker_runtime_healthcheck: NO_SIDE_EFFECT_WRITABILITY_CONTRACT
+release_train_3a_r3_static_checker: PASS
+release_train_3a_r3_targeted_tests: PASS
+release_train_3a_r3_staging_revision_unchanged: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 pending_staging_deployment: true
-pending_deployment_reason: repair future-refresh runtime audit writability for non-root worker before next retry
+pending_deployment_reason: retry staging with canonical release-root shared runtime mount after R3A CI success
 future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 

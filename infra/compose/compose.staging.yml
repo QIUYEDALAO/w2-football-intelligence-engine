@@ -92,7 +92,7 @@ services:
     ports:
       - "127.0.0.1:18000:8000"
     volumes:
-      - ./runtime:/app/runtime
+      - ../../runtime:/app/runtime
       - ./config:/app/config
     environment:
       W2_ENVIRONMENT: staging
@@ -146,7 +146,7 @@ services:
       - "--loglevel=INFO"
       - "--concurrency=1"
     volumes:
-      - ./runtime:/app/runtime
+      - ../../runtime:/app/runtime
       - ./config:/app/config
       - ../../config/policies:/app/config/policies:ro
     environment:
@@ -171,7 +171,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"]
+      test: ["CMD", "uv", "run", "python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime'); assert os.access('/app/runtime', os.W_OK)"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -196,7 +196,7 @@ services:
       - "-m"
       - "apps.scheduler.main"
     volumes:
-      - ./runtime:/app/runtime
+      - ../../runtime:/app/runtime
       - ./config:/app/config
       - ../../config/policies:/app/config/policies:ro
     environment:

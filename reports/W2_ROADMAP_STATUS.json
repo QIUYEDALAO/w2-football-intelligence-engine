@@ -211,6 +211,23 @@
       "name": "Release Train 3A-R2B staging retry deployment",
       "notes": "Target revision 371a9cb deployed without migration. Policy mount contract passed and scheduler auto-dispatched one task, but worker failed with PermissionError before writing task audit; rollback to 23c89be completed and health passed.",
       "status": "ROLLED_BACK_CONTRACT_FAILURE"
+    },
+    {
+      "evidence": [
+        "infra/compose/compose.staging.yml",
+        "infra/compose/staging-lite.override.yml",
+        "scripts/check_w2_future_refresh_staging_contract.py",
+        "tests/contract/test_future_refresh_staging_runtime_mount.py",
+        "reports/W2_RELEASE_TRAIN_3A_R3_REPAIR_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
+      "name": "Release Train 3A-R3A canonical runtime mount repair",
+      "notes": "Standalone staging runtime source changed from infra/compose/runtime to release-root ../../runtime so the container mount resolves through the release runtime symlink to /opt/w2/shared/runtime. Worker healthcheck now verifies runtime writability without writing files.",
+      "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
     }
   ],
   "candidate": false,
@@ -341,7 +358,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-24T20:39:06.178162Z",
+  "generated_at_utc": "2026-06-24T20:55:11.072095Z",
   "phases": {
     "0": {
       "blockers": [
