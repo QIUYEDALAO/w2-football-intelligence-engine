@@ -77,7 +77,7 @@ def test_handoff_v34_and_no_recommendation_flags() -> None:
     payload = load_decision()
     handoff = HANDOFF.read_text(encoding="utf-8")
 
-    assert "handoff_version: 35" in handoff
+    assert "handoff_version: 36" in handoff
     assert "gate3_ah_historical_status: BASELIGHT_LIMITED_WALK_FORWARD_PASS" in handoff
     assert "gate3_closure_audit_checker: PASS" in handoff
     assert "gate3_closure_checker: EXPECTED_FAIL_REMAINING_LIMITATIONS" in handoff

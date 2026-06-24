@@ -214,6 +214,8 @@ services:
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
       W2_DEEPSEEK_ENABLED: "false"
       W2_RECOMMENDATION_ENABLED: "false"
       W2_CANDIDATE_ENABLED: "false"
@@ -228,7 +230,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready; assert 'heartbeat' in heartbeat(); assert future_fixture_refresh_contract_ready()"]
       interval: 30s
       timeout: 10s
       retries: 3

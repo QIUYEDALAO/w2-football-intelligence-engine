@@ -2,17 +2,35 @@
   "active_execution_packages": [
     {
       "evidence": [
-        "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
-        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "infra/compose/compose.staging.yml",
+        "infra/compose/staging-lite.override.yml",
+        "scripts/check_w2_future_refresh_staging_contract.py",
+        "tests/contract/test_future_refresh_staging_enablement.py",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md"
       ],
       "mapped_master_phases": [
         "4",
         "10"
       ],
+      "name": "Release Train 3A-R1 scheduler enablement repair",
+      "notes": "Static staging-only repair implemented. Scheduler default remains fail-closed; retry deployment is pending and not performed in this package.",
+      "status": "REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+    },
+    {
+      "evidence": [
+        "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
       "name": "Release Train 3A future-refresh hardening staging deployment",
-      "notes": "Target revision fcfba088 deployed to staging without migration and health passed, but scheduler future-refresh dispatch was disabled; rollback to 23c89be completed and health passed.",
-      "status": "ROLLED_BACK_CONTRACT_FAILURE"
+      "notes": "Release Train 3A target deployment rolled back because scheduler dispatch was disabled. R1 static repair now wires staging scheduler future-refresh enablement and is pending retry deployment after CI.",
+      "status": "REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
     },
     {
       "evidence": [
@@ -211,7 +229,8 @@
         "reports/W2_BASELIGHT_MCP_PROBE.json",
         "reports/W2_BASELIGHT_MCP_PROBE.md",
         "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql",
-        "reports/W2_RELEASE_TRAIN_3A_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md"
       ],
       "missing_requirements": [
         "Captured-at phase coverage exists, but settled phase-specific backtest evidence is missing.",
@@ -246,7 +265,8 @@
       "evidence": [
         "reports/W2_STAGE7I_R1B2_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md",
-        "reports/W2_RELEASE_TRAIN_3A_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md"
       ],
       "missing_requirements": [
         "Successor observation completed, but lifecycle collector gap left actual kickoff unavailable",
@@ -272,7 +292,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-24T19:14:08Z",
+  "generated_at_utc": "2026-06-25T00:00:00Z",
   "phases": {
     "0": {
       "blockers": [
@@ -321,7 +341,8 @@
       "blockers": [
         "Stage10E dashboard redesign/deployment is delayed",
         "Live dashboard/read-model deployment state is not complete in current handoff",
-        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container"
+        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
+        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair"
       ],
       "evidence": [
         "reports/W2_STAGE10A_RESULT.md",
@@ -329,11 +350,13 @@
         "docs/api/W2_OPERATIONS_READ_API_V1.md",
         "reports/W2_CURRENT_HANDOFF.md",
         "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
-        "reports/W2_RELEASE_TRAIN_3A_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "scripts/check_w2_future_refresh_staging_contract.py"
       ],
       "name": "建立 API 与管理后台",
       "next_actions": [
-        "Repair scheduler future-refresh enablement before another approved staging release train",
+        "Run approved Release Train 3A-R1 staging retry deployment after CI success",
         "Deploy pending dashboard/read-model work only after approved release train and active observer constraints"
       ],
       "status": "PARTIAL"
@@ -457,7 +480,8 @@
     },
     "4": {
       "blockers": [
-        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container"
+        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
+        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair"
       ],
       "evidence": [
         "reports/W2_STAGE4A_RESULT.md",
@@ -467,11 +491,13 @@
         "scripts/check_w2_stage4_ingestion.py",
         "scripts/check_w2_stage4b_live_smoke.py",
         "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
-        "reports/W2_RELEASE_TRAIN_3A_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "scripts/check_w2_future_refresh_staging_contract.py"
       ],
       "name": "立即建立正式数据采集系统",
       "next_actions": [
-        "Repair scheduler future-refresh enablement before another approved staging release train",
+        "Run approved Release Train 3A-R1 staging retry deployment after CI success",
         "Deploy pending future-refresh hardening only after active Stage7I continuity allows"
       ],
       "status": "COMPLETE"

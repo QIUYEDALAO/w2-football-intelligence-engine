@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 35
-handoff_correction: RELEASE_TRAIN_3A_ROLLBACK_RECORDED
+handoff_version: 36
+handoff_correction: RELEASE_TRAIN_3A_R1_REPAIR_IMPLEMENTED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A future-refresh hardening staging deployment
-active_execution_package: Release Train 3A future-refresh hardening staging deployment
+active_stage_package: Release Train 3A-R1 scheduler enablement repair
+active_execution_package: Release Train 3A-R1 scheduler enablement repair
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -152,9 +152,16 @@ release_train_3a_migration_executed: false
 release_train_3a_stage10e_deployed: false
 release_train_3a_stage7i_successor_started: false
 release_train_3a_env_content_read: false
+release_train_3a_repair_result_path: reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md
+release_train_3a_repair_status: IMPLEMENTED_PENDING_RETRY_DEPLOYMENT
+release_train_3a_repair_root_cause: STAGING_SCHEDULER_ENABLE_FLAG_NOT_WIRED
+release_train_3a_repair_paths:
+  - infra/compose/compose.staging.yml
+  - infra/compose/staging-lite.override.yml
+future_refresh_scheduler_enablement: EXPLICIT_STAGING_ONLY
 pending_staging_deployment: true
-pending_deployment_reason: repair scheduler future-refresh enablement before another approved release train
-future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
+pending_deployment_reason: Release Train 3A-R1 retry after repair CI success
+future_refresh_deployment_status: REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT
 stage10e_deployed: false
 
 gate5: OPEN
@@ -210,6 +217,9 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 - Target API/Web/container health passed, but future-refresh dispatch contract failed.
 - Rollback to `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16` completed successfully.
 - Post-rollback API/Web/container/port/Alembic checks passed.
+- Release Train 3A-R1 static scheduler enablement repair implemented.
+- Staging scheduler compose now explicitly enables future-refresh dispatch for `world_cup_2026`.
+- Scheduler default code remains fail-closed when the env flag is absent.
 - Gate3 closure decision reconciliation。
 - Stage7I 24h final observation read-only audit。
 - 更新 handoff v33、roadmap status 与 R1B2 result。
@@ -223,7 +233,7 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 
 - `FUTURE_REFRESH_SCHEDULER_DISPATCH_DISABLED`: target scheduler container did not have `W2_FUTURE_FIXTURE_REFRESH_ENABLED`; `future_fixture_refresh_tick()` returned `DISABLED`.
 - Future-refresh append-only market ledger and read model were not verified in staging because scheduler dispatch did not occur.
-- Release Train 3A repair is required before another staging deployment attempt.
+- Release Train 3A-R1 retry deployment remains pending; this package did not deploy.
 - lifecycle collector 在完整比赛生命周期前已 inactive，且未恢复。
 - actual kickoff 没有合法内部来源。
 - closing observation 无法合法确定。
@@ -284,6 +294,11 @@ health passed, but the future-refresh scheduler contract failed because the
 scheduler path was disabled in the container. The release was rolled back to
 `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`.
 
+Release Train 3A-R1 implemented the static repair only. It wires future-refresh
+enablement explicitly into the staging scheduler compose definitions and adds a
+no-side-effect scheduler health contract. It did not deploy, restart, migrate, or
+touch staging runtime.
+
 本 final audit、Release Train 3A 尝试与文档更新均未：
 
 - 恢复 lifecycle collector；
@@ -295,8 +310,8 @@ scheduler path was disabled in the container. The release was rolled back to
 - 修改 W1；
 - 启用 candidate 或正式 recommendation。
 
-`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 需要先修复 scheduler
-enablement，再进入后续单独批准的 release train。Stage10E 仍未部署，不得与
+`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 的静态修复已经完成，
+需要在 CI 成功后进入后续单独批准的 retry deployment。Stage10E 仍未部署，不得与
 Stage7I recovery 混合。
 
 ## 5. 新会话启动协议
@@ -314,9 +329,9 @@ Stage7I recovery 混合。
 
 当前自动推进停止在：
 
-`RELEASE_TRAIN_3A_REPAIR_REQUIRED`
+`RELEASE_TRAIN_3A_R1_RETRY_DEPLOYMENT_PENDING`
 
-下一步是修复 scheduler future-refresh enablement 并重新提交一个明确的
-Release Train 3A repair 包。Stage7I recovery/successor 仍必须另开阶段包，并在
+下一步是在本修复 CI 成功后执行 Release Train 3A-R1 staging retry deployment。
+Stage7I recovery/successor 仍必须另开阶段包，并在
 开始 runtime/provider 动作前取得明确批准。当前非运行态工作可以继续做静态审计、
 测试与规划，但不得宣称 Gate5 closure。
