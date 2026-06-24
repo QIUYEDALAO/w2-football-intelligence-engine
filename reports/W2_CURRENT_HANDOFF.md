@@ -6,9 +6,9 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 34
-handoff_correction: STAGE7I_FINAL_AUDIT_DOCUMENTATION_RECONCILED
-state_captured_on: 2026-06-24
+handoff_version: 35
+handoff_correction: RELEASE_TRAIN_3A_ROLLBACK_RECORDED
+state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Gate3 closure decision reconciliation
-active_execution_package: Gate3 closure decision reconciliation
+active_stage_package: Release Train 3A future-refresh hardening staging deployment
+active_execution_package: Release Train 3A future-refresh hardening staging deployment
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -140,9 +140,21 @@ stage7i_recovery_or_successor_requires_explicit_approval: true
 server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 alembic_head: 0017_create_stage9a_shadow_strategy
 deployment_freeze: ACTIVE
+release_train_3a_deployment_record_path: reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json
+release_train_3a_result_path: reports/W2_RELEASE_TRAIN_3A_RESULT.md
+release_train_3a_status: ROLLED_BACK_CONTRACT_FAILURE
+release_train_3a_target_revision: fcfba08824f42917d30bc8d0742ea99d2fc18349
+release_train_3a_previous_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_failure: FUTURE_REFRESH_SCHEDULER_DISPATCH_DISABLED
+release_train_3a_rollback_completed: true
+release_train_3a_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_migration_executed: false
+release_train_3a_stage10e_deployed: false
+release_train_3a_stage7i_successor_started: false
+release_train_3a_env_content_read: false
 pending_staging_deployment: true
-pending_deployment_reason: separate approved release train required; Stage7I observer is no longer active
-future_refresh_deployment_status: PENDING_APPROVED_RELEASE_TRAIN
+pending_deployment_reason: repair scheduler future-refresh enablement before another approved release train
+future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 
 gate5: OPEN
@@ -155,7 +167,7 @@ repository_main_branch: main
 github_default_branch_observed: chore/stage7i-24h-observation
 repository_parent_before_reconciliation: f6cb856eeaafdfafe0fd314c390d14faafe8e486
 repository_head_relation: handoff is current as of containing commit
-latest_ci_run_id: 28091440346
+latest_ci_run_id: 28122483166
 latest_ci_workflow: W2 Stage 2 CI
 latest_ci_result: success
 
@@ -193,6 +205,11 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 
 ### 已完成
 
+- Release Train 3A future-refresh hardening staging deployment attempt.
+- Target revision `fcfba08824f42917d30bc8d0742ea99d2fc18349` was built and started on staging without running migration.
+- Target API/Web/container health passed, but future-refresh dispatch contract failed.
+- Rollback to `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16` completed successfully.
+- Post-rollback API/Web/container/port/Alembic checks passed.
 - Gate3 closure decision reconciliation。
 - Stage7I 24h final observation read-only audit。
 - 更新 handoff v33、roadmap status 与 R1B2 result。
@@ -204,6 +221,9 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 
 ### 未完成 / BLOCKER
 
+- `FUTURE_REFRESH_SCHEDULER_DISPATCH_DISABLED`: target scheduler container did not have `W2_FUTURE_FIXTURE_REFRESH_ENABLED`; `future_fixture_refresh_tick()` returned `DISABLED`.
+- Future-refresh append-only market ledger and read model were not verified in staging because scheduler dispatch did not occur.
+- Release Train 3A repair is required before another staging deployment attempt.
 - lifecycle collector 在完整比赛生命周期前已 inactive，且未恢复。
 - actual kickoff 没有合法内部来源。
 - closing observation 无法合法确定。
@@ -257,18 +277,27 @@ closing-only OU 与 unknown pre-match aggregate 限制仍保留。
 `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`，Alembic head 为
 `0017_create_stage9a_shadow_strategy`。
 
-本 final audit 与文档勘误均未：
+Release Train 3A attempted to deploy `fcfba08824f42917d30bc8d0742ea99d2fc18349`
+to staging. The deployment avoided production, migration, Stage10E, Stage7I
+successor startup, permissions changes, sensitive-material changes, and W1 changes. Target
+health passed, but the future-refresh scheduler contract failed because the
+scheduler path was disabled in the container. The release was rolled back to
+`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`.
+
+本 final audit、Release Train 3A 尝试与文档更新均未：
 
 - 恢复 lifecycle collector；
 - 调用 provider；
 - 发送 signal；
-- 部署或重启；
+- 保留目标部署；
 - 写 staging runtime；
 - 读取 `.env`；
 - 修改 W1；
 - 启用 candidate 或正式 recommendation。
 
-`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 与 Stage10E 仍只允许进入后续单独批准的 release train，不得与 Stage7I recovery 混合。
+`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 需要先修复 scheduler
+enablement，再进入后续单独批准的 release train。Stage10E 仍未部署，不得与
+Stage7I recovery 混合。
 
 ## 5. 新会话启动协议
 
@@ -285,6 +314,9 @@ closing-only OU 与 unknown pre-match aggregate 限制仍保留。
 
 当前自动推进停止在：
 
-`STAGE7I_RECOVERY_OR_SUCCESSOR_DECISION_REQUIRED`
+`RELEASE_TRAIN_3A_REPAIR_REQUIRED`
 
-可选后续必须另开阶段包，并在开始 runtime/provider 动作前取得明确批准。当前非运行态工作可以继续做静态审计、测试与规划，但不得宣称 Gate5 closure。
+下一步是修复 scheduler future-refresh enablement 并重新提交一个明确的
+Release Train 3A repair 包。Stage7I recovery/successor 仍必须另开阶段包，并在
+开始 runtime/provider 动作前取得明确批准。当前非运行态工作可以继续做静态审计、
+测试与规划，但不得宣称 Gate5 closure。

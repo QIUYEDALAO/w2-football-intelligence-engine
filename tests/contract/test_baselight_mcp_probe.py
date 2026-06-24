@@ -30,7 +30,7 @@ def test_baselight_mcp_probe_report_is_desensitized() -> None:
 def test_handoff_records_mcp_probe_without_closing_gate3() -> None:
     handoff = HANDOFF.read_text(encoding="utf-8")
 
-    assert "handoff_version: 34" in handoff
+    assert "handoff_version: 35" in handoff
     assert "gate3_baselight_mcp_probe_path: reports/W2_BASELIGHT_MCP_PROBE.json" in handoff
     assert "gate3_baselight_api_key_required: true" in handoff
     assert "gate3_baselight_full_extract_status: NOT_STARTED" in handoff
