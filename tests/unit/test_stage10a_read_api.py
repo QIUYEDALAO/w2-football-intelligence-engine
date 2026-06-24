@@ -19,7 +19,7 @@ def write_fixture_payload(root: Path) -> None:
                 {
                     "fixture": {
                         "id": 900001,
-                        "date": "2026-06-24T00:00:00+00:00",
+                        "date": "2026-12-31T00:00:00+00:00",
                         "status": {"short": "NS"},
                         "venue": {"name": "Test Venue"},
                     },
