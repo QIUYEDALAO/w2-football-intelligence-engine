@@ -49,7 +49,24 @@ jobs:
       - name: Mypy
         run: uv run --python 3.12 mypy src apps
       - name: Pytest
-        run: uv run --python 3.12 pytest -q
+        id: pytest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv run --python 3.12 pytest -q --junitxml=pytest-diagnostics.xml \
+            2>&1 | tee pytest-diagnostics.log
+      - name: Upload Pytest diagnostics
+        if: steps.pytest.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-diagnostics
+          path: |
+            pytest-diagnostics.xml
+            pytest-diagnostics.log
+          retention-days: 1
+      - name: Enforce Pytest
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
       - name: Alembic smoke
         run: |
           uv run --python 3.12 alembic upgrade head
