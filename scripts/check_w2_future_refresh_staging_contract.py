@@ -16,6 +16,11 @@ COMPOSE_FILES = [
     ROOT / "infra/compose/compose.staging.yml",
     ROOT / "infra/compose/staging-lite.override.yml",
 ]
+EXPECTED_POLICY_MOUNT_SOURCES = {
+    ROOT / "infra/compose/compose.staging.yml": "../../config/policies",
+    ROOT / "infra/compose/staging-lite.override.yml": "./config/policies",
+}
+POLICY_MOUNT_TARGET = "/app/config/policies"
 POLICY = ROOT / "config/policies/future_fixture_refresh.v1.json"
 SCHEDULER = ROOT / "apps/scheduler/main.py"
 FORBIDDEN_TRUE_FLAGS = {
@@ -67,6 +72,8 @@ def load_compose_subset(text: str) -> dict[str, Any]:
                 services[current_service].setdefault("environment", {})
             elif current_section == "ports":
                 services[current_service].setdefault("ports", [])
+            elif current_section == "volumes":
+                services[current_service].setdefault("volumes", [])
             elif current_section == "healthcheck":
                 services[current_service].setdefault("healthcheck", {})
             continue
@@ -76,6 +83,9 @@ def load_compose_subset(text: str) -> dict[str, Any]:
         elif current_section == "ports" and line.startswith("      - "):
             port = parse_scalar(line.split("-", 1)[1])
             services[current_service].setdefault("ports", []).append(port)
+        elif current_section == "volumes" and line.startswith("      - "):
+            volume = parse_scalar(line.split("-", 1)[1])
+            services[current_service].setdefault("volumes", []).append(volume)
         elif current_section == "healthcheck" and line.strip().startswith("test:"):
             _, value = line.strip().split(":", 1)
             services[current_service].setdefault("healthcheck", {})["test"] = ast.literal_eval(
@@ -84,13 +94,18 @@ def load_compose_subset(text: str) -> dict[str, Any]:
     return {"services": services}
 
 
-def service_env(compose: dict[str, Any], service: str) -> dict[str, Any]:
+def service_definition(compose: dict[str, Any], service: str) -> dict[str, Any]:
     services = compose.get("services")
     if not isinstance(services, dict):
         fail("compose services missing")
     definition = services.get(service)
     if not isinstance(definition, dict):
         fail(f"{service} service missing")
+    return definition
+
+
+def service_env(compose: dict[str, Any], service: str) -> dict[str, Any]:
+    definition = service_definition(compose, service)
     env = definition.get("environment")
     if not isinstance(env, dict):
         fail(f"{service} environment missing")
@@ -98,12 +113,7 @@ def service_env(compose: dict[str, Any], service: str) -> dict[str, Any]:
 
 
 def service_healthcheck(compose: dict[str, Any], service: str) -> list[Any]:
-    services = compose.get("services")
-    if not isinstance(services, dict):
-        fail("compose services missing")
-    definition = services.get(service)
-    if not isinstance(definition, dict):
-        fail(f"{service} service missing")
+    definition = service_definition(compose, service)
     healthcheck = definition.get("healthcheck")
     if not isinstance(healthcheck, dict):
         fail(f"{service} healthcheck missing")
@@ -111,6 +121,57 @@ def service_healthcheck(compose: dict[str, Any], service: str) -> list[Any]:
     if not isinstance(test, list):
         fail(f"{service} healthcheck test must be list")
     return test
+
+
+def service_volumes(compose: dict[str, Any], service: str) -> list[Any]:
+    definition = service_definition(compose, service)
+    volumes = definition.get("volumes", [])
+    if not isinstance(volumes, list):
+        fail(f"{service} volumes missing")
+    return volumes
+
+
+def split_volume(volume: Any) -> tuple[str, str, str | None]:
+    if isinstance(volume, str):
+        parts = volume.split(":")
+        if len(parts) < 2:
+            fail(f"invalid volume mount: {volume}")
+        mode = parts[2] if len(parts) > 2 else None
+        return parts[0], parts[1], mode
+    if isinstance(volume, dict):
+        source = str(volume.get("source") or volume.get("src") or "")
+        target = str(volume.get("target") or volume.get("dst") or volume.get("destination") or "")
+        read_only = volume.get("read_only")
+        mode = "ro" if read_only is True else str(volume.get("mode") or "")
+        return source, target, mode or None
+    fail(f"unsupported volume mount shape: {volume!r}")
+
+
+def assert_policy_mount(path: Path, compose: dict[str, Any]) -> None:
+    expected_source = EXPECTED_POLICY_MOUNT_SOURCES[path]
+    for service in ("worker", "scheduler"):
+        matches = [
+            split_volume(volume)
+            for volume in service_volumes(compose, service)
+            if split_volume(volume)[1] == POLICY_MOUNT_TARGET
+        ]
+        if len(matches) != 1:
+            fail(f"{path}: {service} must have exactly one policy mount")
+        source, target, mode = matches[0]
+        if source != expected_source:
+            fail(f"{path}: {service} policy mount source mismatch")
+        if target != POLICY_MOUNT_TARGET:
+            fail(f"{path}: {service} policy mount target mismatch")
+        if mode != "ro":
+            fail(f"{path}: {service} policy mount must be read-only")
+    for service in ("api", "web"):
+        mounts = [
+            split_volume(volume)
+            for volume in service_volumes(compose, service)
+            if split_volume(volume)[1] == POLICY_MOUNT_TARGET
+        ]
+        if mounts:
+            fail(f"{path}: {service} must not mount scheduler policy")
 
 
 def assert_ports_not_public(compose: dict[str, Any], path: Path) -> None:
@@ -123,6 +184,7 @@ def assert_ports_not_public(compose: dict[str, Any], path: Path) -> None:
 
 def assert_compose(path: Path) -> None:
     compose = load_yaml(path)
+    assert_policy_mount(path, compose)
     scheduler_env = service_env(compose, "scheduler")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED") != "true":
         fail(f"{path}: scheduler future refresh enable flag missing")

@@ -155,6 +155,7 @@ services:
     volumes:
       - ./runtime:/app/runtime
       - ./config:/app/config
+      - ./config/policies:/app/config/policies:ro
     environment:
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
@@ -206,6 +207,7 @@ services:
     volumes:
       - ./runtime:/app/runtime
       - ./config:/app/config
+      - ./config/policies:/app/config/policies:ro
     environment:
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2

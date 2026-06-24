@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 37
-handoff_correction: RELEASE_TRAIN_3A_R1_RETRY_ROLLBACK_RECORDED
+handoff_version: 38
+handoff_correction: RELEASE_TRAIN_3A_R2A_POLICY_MOUNT_REPAIR_RECORDED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R1 staging retry deployment
-active_execution_package: Release Train 3A-R1 staging retry deployment
+active_stage_package: Release Train 3A-R2A policy mount static repair
+active_execution_package: Release Train 3A-R2A policy mount static repair
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -168,8 +168,18 @@ release_train_3a_r1_rollback_completed: true
 release_train_3a_r1_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 release_train_3a_r1_dispatch_status: NOT_ATTEMPTED_HEALTH_CONTRACT_FAILED
 release_train_3a_r1_task_audit_status: NOT_CREATED
+release_train_3a_r2_repair_result_path: reports/W2_RELEASE_TRAIN_3A_R2_REPAIR_RESULT.md
+release_train_3a_r2_repair_status: IMPLEMENTED_PENDING_RETRY_DEPLOYMENT
+release_train_3a_r2_repair_root_cause: VERSIONED_POLICY_NOT_AVAILABLE_IN_STAGING_CONTAINERS
+release_train_3a_r2_repair_policy_mount_target: /app/config/policies
+release_train_3a_r2_repair_policy_mount_mode: read_only
+release_train_3a_r2_repair_scheduler_worker_policy_mount: true
+release_train_3a_r2_repair_api_web_policy_mount: false
+release_train_3a_r2_repair_static_checker: PASS
+release_train_3a_r2_repair_targeted_tests: PASS
+release_train_3a_r2_repair_staging_revision_unchanged: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 pending_staging_deployment: true
-pending_deployment_reason: repair future-refresh policy availability under staging config mount before next retry
+pending_deployment_reason: retry staging with versioned read-only future-refresh policy mount after R2A CI success
 future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 

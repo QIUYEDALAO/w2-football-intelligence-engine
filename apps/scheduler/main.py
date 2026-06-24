@@ -22,10 +22,13 @@ def future_fixture_refresh_enabled() -> bool:
 def future_fixture_refresh_contract_ready() -> bool:
     if not future_fixture_refresh_enabled():
         return False
-    from w2.ingestion.future_refresh import config_from_policy
+    from w2.ingestion.future_refresh import FutureRefreshError, config_from_policy
 
     competition_id = os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
-    config = config_from_policy(competition_id=competition_id)
+    try:
+        config = config_from_policy(competition_id=competition_id)
+    except (FutureRefreshError, OSError, ValueError):
+        return False
     return config.enabled and config.competition_id == competition_id
 
 

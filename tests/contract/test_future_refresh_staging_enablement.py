@@ -25,6 +25,10 @@ def env_for(path: Path, service: str) -> dict[str, Any]:
     return load_compose(path)["services"][service]["environment"]
 
 
+def volumes_for(path: Path, service: str) -> list[str]:
+    return [str(volume) for volume in load_compose(path)["services"][service].get("volumes", [])]
+
+
 def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
@@ -32,6 +36,27 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
         for service in ("api", "web", "worker"):
             assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in env_for(path, service)
+
+
+def test_staging_compose_mounts_versioned_policy_for_worker_and_scheduler_only() -> None:
+    expected_sources = {
+        ROOT / "infra/compose/compose.staging.yml": "../../config/policies",
+        ROOT / "infra/compose/staging-lite.override.yml": "./config/policies",
+    }
+    for path in COMPOSE_PATHS:
+        for service in ("worker", "scheduler"):
+            mounts = [
+                volume
+                for volume in volumes_for(path, service)
+                if ":/app/config/policies:" in volume
+            ]
+            assert mounts == [f"{expected_sources[path]}:/app/config/policies:ro"]
+        for service in ("api", "web"):
+            assert not [
+                volume
+                for volume in volumes_for(path, service)
+                if ":/app/config/policies:" in volume
+            ]
 
 
 def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None:
@@ -91,6 +116,14 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
 
     assert future_fixture_refresh_contract_ready()
     assert runtime_path.exists() is before_exists
+
+
+def test_health_contract_fails_closed_when_policy_is_missing(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.chdir(tmp_path)
+
+    assert not future_fixture_refresh_contract_ready()
 
 
 def test_scheduler_healthcheck_contains_enablement_contract() -> None:
