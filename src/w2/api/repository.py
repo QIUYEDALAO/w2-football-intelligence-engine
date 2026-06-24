@@ -36,6 +36,7 @@ from w2.operations.tournament import (
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
+DEFAULT_RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 
@@ -68,6 +69,8 @@ def parse_provider_time(value: Any) -> datetime | None:
 
 class ReadModelRepository:
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
+        if RUNTIME != DEFAULT_RUNTIME:
+            return []
         try:
             engine = create_engine()
             with Session(engine) as session:
@@ -485,6 +488,13 @@ class ReadModelService:
             rows = [row for row in rows if row["kickoff_utc"] >= date_from.astimezone(UTC)]
         if date_to:
             rows = [row for row in rows if row["kickoff_utc"] <= date_to.astimezone(UTC)]
+        if date_from is None and date_to is None:
+            now = datetime.now(UTC)
+            rows = [
+                row
+                for row in rows
+                if not (row["status"] == "NS" and row["kickoff_utc"] < now)
+            ]
         if competition_id:
             rows = [row for row in rows if row["competition_id"] == competition_id]
         if status:
@@ -696,6 +706,11 @@ class ReadModelService:
                     for item in self.repository.market_snapshots()
                     if item["fixture_id"] == fixture_id
                 ]
+                observations = [
+                    item
+                    for item in self.repository.future_market_observations()
+                    if item["fixture_id"] == fixture_id
+                ]
                 locks = [
                     item
                     for item in self.repository.forward_locks()
@@ -706,13 +721,26 @@ class ReadModelService:
                         "request_id": "",
                         "venue": item.get("fixture", {}).get("venue", {}).get("name"),
                         "bookmaker_count": max(
-                            [snapshot.get("bookmaker_count", 0) for snapshot in snapshots] or [0]
+                            [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
+                            + [len({str(item.get("bookmaker_id")) for item in observations})]
+                            or [0]
                         ),
                         "market_coverage": {
-                            "ONE_X_TWO": bool(snapshots),
-                            "ASIAN_HANDICAP": False,
-                            "TOTALS": False,
-                            "BTTS": False,
+                            "ONE_X_TWO": any(
+                                item.get("canonical_market") == "ONE_X_TWO"
+                                for item in observations
+                            )
+                            or bool(snapshots),
+                            "ASIAN_HANDICAP": any(
+                                item.get("canonical_market") == "ASIAN_HANDICAP"
+                                for item in observations
+                            ),
+                            "TOTALS": any(
+                                item.get("canonical_market") == "TOTALS" for item in observations
+                            ),
+                            "BTTS": any(
+                                item.get("canonical_market") == "BTTS" for item in observations
+                            ),
                         },
                         "forward_decision": locks[0]["decision"] if locks else "SKIP",
                         "provenance": {
@@ -807,7 +835,13 @@ class ReadModelService:
                         "closing": False,
                     }
                 )
-        return sorted(points, key=lambda item: item["captured_at"])
+        return sorted(
+            points,
+            key=lambda item: (
+                item["captured_at"],
+                0 if item.get("bookmaker") else 1,
+            ),
+        )
 
     def market_probabilities(self, fixture_id: str) -> dict[str, Any]:
         dashboard = self.repository.dashboard_fixture(fixture_id)
@@ -884,8 +918,13 @@ class ReadModelService:
         age = None
         if finished:
             age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
+        stale_count = 0
+        for item in self.repository.fixture_payloads():
+            row = self._fixture_summary(item, "UTC")
+            if row["status"] == "NS" and row["kickoff_utc"] < datetime.now(UTC):
+                stale_count += 1
         return {
-            "stale_data_count": 0,
+            "stale_data_count": stale_count,
             "provider_status": (
                 "READY"
                 if future_audit.get("remaining_quota") or usage.get("remaining_quota")
