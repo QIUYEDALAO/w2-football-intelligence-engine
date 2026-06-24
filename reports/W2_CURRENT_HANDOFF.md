@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 36
-handoff_correction: RELEASE_TRAIN_3A_R1_REPAIR_IMPLEMENTED
+handoff_version: 37
+handoff_correction: RELEASE_TRAIN_3A_R1_RETRY_ROLLBACK_RECORDED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R1 scheduler enablement repair
-active_execution_package: Release Train 3A-R1 scheduler enablement repair
+active_stage_package: Release Train 3A-R1 staging retry deployment
+active_execution_package: Release Train 3A-R1 staging retry deployment
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -159,9 +159,18 @@ release_train_3a_repair_paths:
   - infra/compose/compose.staging.yml
   - infra/compose/staging-lite.override.yml
 future_refresh_scheduler_enablement: EXPLICIT_STAGING_ONLY
+release_train_3a_r1_deployment_record_path: reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json
+release_train_3a_r1_result_path: reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md
+release_train_3a_r1_status: ROLLED_BACK_CONTRACT_FAILURE
+release_train_3a_r1_target_revision: 2d80e04b52af2b6ec957c554968c2c60a3a0cec0
+release_train_3a_r1_failure: FUTURE_REFRESH_POLICY_INVALID
+release_train_3a_r1_rollback_completed: true
+release_train_3a_r1_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
+release_train_3a_r1_dispatch_status: NOT_ATTEMPTED_HEALTH_CONTRACT_FAILED
+release_train_3a_r1_task_audit_status: NOT_CREATED
 pending_staging_deployment: true
-pending_deployment_reason: Release Train 3A-R1 retry after repair CI success
-future_refresh_deployment_status: REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT
+pending_deployment_reason: repair future-refresh policy availability under staging config mount before next retry
+future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
 stage10e_deployed: false
 
 gate5: OPEN
@@ -220,6 +229,8 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 - Release Train 3A-R1 static scheduler enablement repair implemented.
 - Staging scheduler compose now explicitly enables future-refresh dispatch for `world_cup_2026`.
 - Scheduler default code remains fail-closed when the env flag is absent.
+- Release Train 3A-R1 staging retry attempted and rolled back after scheduler health contract failed.
+- Post-rollback staging health passed on `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`.
 - Gate3 closure decision reconciliation。
 - Stage7I 24h final observation read-only audit。
 - 更新 handoff v33、roadmap status 与 R1B2 result。
@@ -233,7 +244,9 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 
 - `FUTURE_REFRESH_SCHEDULER_DISPATCH_DISABLED`: target scheduler container did not have `W2_FUTURE_FIXTURE_REFRESH_ENABLED`; `future_fixture_refresh_tick()` returned `DISABLED`.
 - Future-refresh append-only market ledger and read model were not verified in staging because scheduler dispatch did not occur.
-- Release Train 3A-R1 retry deployment remains pending; this package did not deploy.
+- Release Train 3A-R1 retry deployment was attempted and rolled back; a follow-up config policy availability repair is pending.
+- Release Train 3A-R1 retry failed because the staging scheduler could not load the future-refresh policy from the mounted config path: `FUTURE_REFRESH_POLICY_INVALID`.
+- Next repair must make `config/policies/future_fixture_refresh.v1.json` available to the staging scheduler without migration, `.env` reads, or production changes.
 - lifecycle collector 在完整比赛生命周期前已 inactive，且未恢复。
 - actual kickoff 没有合法内部来源。
 - closing observation 无法合法确定。
@@ -299,6 +312,13 @@ enablement explicitly into the staging scheduler compose definitions and adds a
 no-side-effect scheduler health contract. It did not deploy, restart, migrate, or
 touch staging runtime.
 
+Release Train 3A-R1 retry deployment attempted `2d80e04b52af2b6ec957c554968c2c60a3a0cec0`
+on staging. API, worker, and web became healthy, but scheduler health failed with
+`FUTURE_REFRESH_POLICY_INVALID`, so dispatch was not attempted and no task audit
+or provider request was created for the validation path. The release was rolled
+back to `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`, and post-rollback health
+passed.
+
 本 final audit、Release Train 3A 尝试与文档更新均未：
 
 - 恢复 lifecycle collector；
@@ -310,8 +330,9 @@ touch staging runtime.
 - 修改 W1；
 - 启用 candidate 或正式 recommendation。
 
-`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 的静态修复已经完成，
-需要在 CI 成功后进入后续单独批准的 retry deployment。Stage10E 仍未部署，不得与
+`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 的 scheduler enablement
+修复已经完成，但 staging retry 暴露出 config mount policy availability gap。
+Stage10E 仍未部署，不得与
 Stage7I recovery 混合。
 
 ## 5. 新会话启动协议
@@ -329,9 +350,10 @@ Stage7I recovery 混合。
 
 当前自动推进停止在：
 
-`RELEASE_TRAIN_3A_R1_RETRY_DEPLOYMENT_PENDING`
+`RELEASE_TRAIN_3A_R2_CONFIG_POLICY_AVAILABILITY_REPAIR_REQUIRED`
 
-下一步是在本修复 CI 成功后执行 Release Train 3A-R1 staging retry deployment。
+下一步是修复 staging scheduler 的 future-refresh policy availability，再进入新的
+approved retry deployment。
 Stage7I recovery/successor 仍必须另开阶段包，并在
 开始 runtime/provider 动作前取得明确批准。当前非运行态工作可以继续做静态审计、
 测试与规划，但不得宣称 Gate5 closure。

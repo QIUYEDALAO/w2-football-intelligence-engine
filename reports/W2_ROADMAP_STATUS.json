@@ -2,20 +2,36 @@
   "active_execution_packages": [
     {
       "evidence": [
-        "infra/compose/compose.staging.yml",
-        "infra/compose/staging-lite.override.yml",
-        "scripts/check_w2_future_refresh_staging_contract.py",
-        "tests/contract/test_future_refresh_staging_enablement.py",
-        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md"
       ],
       "mapped_master_phases": [
         "4",
         "10"
       ],
+      "name": "Release Train 3A-R1 staging retry deployment",
+      "notes": "Target revision 2d80e04 deployed without migration. Scheduler health contract failed with FUTURE_REFRESH_POLICY_INVALID because the policy file was unavailable through staging config mount; rollback to 23c89be completed and health passed.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE"
+    },
+    {
+      "evidence": [
+        "infra/compose/compose.staging.yml",
+        "infra/compose/staging-lite.override.yml",
+        "scripts/check_w2_future_refresh_staging_contract.py",
+        "tests/contract/test_future_refresh_staging_enablement.py",
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "reports/W2_CURRENT_HANDOFF.md",
+        "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
       "name": "Release Train 3A-R1 scheduler enablement repair",
-      "notes": "Static staging-only repair implemented. Scheduler default remains fail-closed; retry deployment is pending and not performed in this package.",
-      "status": "REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+      "notes": "Static scheduler enablement repair passed CI, but staging retry failed because scheduler could not load future-refresh policy from mounted config; rollback completed.",
+      "status": "RETRY_ROLLED_BACK_CONFIG_POLICY_GAP"
     },
     {
       "evidence": [
@@ -230,7 +246,8 @@
         "reports/W2_BASELIGHT_MCP_PROBE.md",
         "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
-        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
       ],
       "missing_requirements": [
         "Captured-at phase coverage exists, but settled phase-specific backtest evidence is missing.",
@@ -266,7 +283,8 @@
         "reports/W2_STAGE7I_R1B2_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
-        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
       ],
       "missing_requirements": [
         "Successor observation completed, but lifecycle collector gap left actual kickoff unavailable",
@@ -292,7 +310,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-25T00:00:00Z",
+  "generated_at_utc": "2026-06-24T20:11:51Z",
   "phases": {
     "0": {
       "blockers": [
@@ -342,7 +360,8 @@
         "Stage10E dashboard redesign/deployment is delayed",
         "Live dashboard/read-model deployment state is not complete in current handoff",
         "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
-        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair"
+        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair",
+        "Release Train 3A-R1 rolled back because scheduler future-refresh policy was unavailable through staging config mount"
       ],
       "evidence": [
         "reports/W2_STAGE10A_RESULT.md",
@@ -352,11 +371,13 @@
         "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
-        "scripts/check_w2_future_refresh_staging_contract.py"
+        "scripts/check_w2_future_refresh_staging_contract.py",
+        "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
       ],
       "name": "建立 API 与管理后台",
       "next_actions": [
-        "Run approved Release Train 3A-R1 staging retry deployment after CI success",
+        "Repair staging scheduler future-refresh policy availability before another approved retry deployment",
         "Deploy pending dashboard/read-model work only after approved release train and active observer constraints"
       ],
       "status": "PARTIAL"
@@ -481,7 +502,8 @@
     "4": {
       "blockers": [
         "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
-        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair"
+        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair",
+        "Release Train 3A-R1 rolled back because scheduler future-refresh policy was unavailable through staging config mount"
       ],
       "evidence": [
         "reports/W2_STAGE4A_RESULT.md",
@@ -493,11 +515,13 @@
         "reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
-        "scripts/check_w2_future_refresh_staging_contract.py"
+        "scripts/check_w2_future_refresh_staging_contract.py",
+        "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
       ],
       "name": "立即建立正式数据采集系统",
       "next_actions": [
-        "Run approved Release Train 3A-R1 staging retry deployment after CI success",
+        "Repair staging scheduler future-refresh policy availability before another approved retry deployment",
         "Deploy pending future-refresh hardening only after active Stage7I continuity allows"
       ],
       "status": "COMPLETE"
