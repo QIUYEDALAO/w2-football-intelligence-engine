@@ -173,7 +173,8 @@ class BaselightMcpClient:
             encoding="utf-8",
         )
         if status >= 400:
-            return {"error": {"status": status, "message": "MCP_HTTP_ERROR"}}
+            message = "MCP_HTTP_429" if status == 429 else "MCP_HTTP_ERROR"
+            return {"error": {"status": status, "message": message}}
         return parse_mcp_body(payload)
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -202,7 +203,12 @@ def parse_text_content(response: dict[str, Any]) -> dict[str, Any]:
 
 def table_payload(parsed: dict[str, Any]) -> tuple[str | None, int, list[str], list[list[Any]]]:
     if "error" in parsed:
-        raise RuntimeError(str(parsed["error"].get("message", "MCP_TOOL_ERROR")))
+        error = parsed["error"]
+        message = str(error.get("message", "MCP_TOOL_ERROR"))
+        status = error.get("status")
+        if status is not None:
+            raise RuntimeError(f"{message}:{status}")
+        raise RuntimeError(message)
     result_id = parsed.get("resultId") or parsed.get("jobId")
     state = str(parsed.get("state", "")).upper()
     if state and state not in {"DONE", "COMPLETED", "SUCCESS"}:
@@ -381,6 +387,49 @@ def sql_timestamp(value: datetime) -> str:
     return value.strftime("TIMESTAMP '%Y-%m-%d %H:%M:%S'")
 
 
+def parse_utc_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def date_window_key(window: dict[str, Any]) -> tuple[str, str] | None:
+    start = window.get("window_start_utc")
+    end = window.get("window_end_utc")
+    if isinstance(start, str) and isinstance(end, str):
+        return (start, end)
+    return None
+
+
+def processed_date_window_keys(state: dict[str, Any]) -> set[tuple[str, str]]:
+    windows = state.get("date_windows", [])
+    if not isinstance(windows, list):
+        return set()
+    failed_counts: dict[tuple[str, str], int] = {}
+    keys: set[tuple[str, str]] = set()
+    for window in windows:
+        if not isinstance(window, dict):
+            continue
+        key = date_window_key(window)
+        if key is None:
+            continue
+        status = window.get("status")
+        if status in {"APPENDED", "NO_DATA"}:
+            keys.add(key)
+        elif status == "PENDING_OR_FAILED" and "MCP_HTTP" not in str(window.get("reason", "")):
+            failed_counts[key] = failed_counts.get(key, 0) + 1
+    keys.update(key for key, count in failed_counts.items() if count >= 2)
+    return keys
+
+
+def next_date_window_end(state: dict[str, Any], fallback_date: str) -> datetime:
+    starts = [parse_utc_datetime(start) for start, _ in processed_date_window_keys(state)]
+    if starts:
+        return min(starts)
+    return datetime.fromisoformat(fallback_date).replace(tzinfo=UTC)
+
+
 def outcome_has_line(value: Any) -> bool:
     text = str(value)
     for piece in text.replace("(", " ").replace(")", " ").split():
@@ -514,6 +563,49 @@ def combine_odds_with_matches(
     return combined_rows, fixture_ids
 
 
+def fetch_match_metadata_with_fallback(
+    client: BaselightMcpClient,
+    match_ids: list[str],
+    initial_batch_size: int,
+    effective_page_size: int,
+    state: dict[str, Any],
+    state_file: Path,
+) -> tuple[list[dict[str, Any]], int]:
+    records: list[dict[str, Any]] = []
+    batch_size = max(1, min(initial_batch_size, 100))
+    index = 0
+    while index < len(match_ids):
+        batch = match_ids[index : index + batch_size]
+        try:
+            match_columns, match_raw_rows, _ = execute_sql_rows(
+                client,
+                build_match_metadata_sql(batch),
+                effective_page_size,
+                len(batch),
+            )
+        except RuntimeError as exc:
+            if batch_size > 5:
+                batch_size = 5
+                continue
+            if batch_size > 1:
+                batch_size = 1
+                continue
+            state.setdefault("metadata_batches", []).append(
+                {
+                    "match_ids": batch,
+                    "status": "PENDING_OR_FAILED",
+                    "reason": str(exc),
+                    "observed_at_utc": utc_now(),
+                }
+            )
+            write_state(state_file, state)
+            index += 1
+            continue
+        records.extend(row_dicts(match_columns, match_raw_rows))
+        index += batch_size
+    return records, batch_size
+
+
 def append_combined_rows(
     output: Path,
     rows_to_append: list[dict[str, Any]],
@@ -536,9 +628,13 @@ def run_odds_date_window_strategy(
     state.setdefault("date_windows", [])
     written = 0
     appended_fixtures: set[str] = set()
-    start_date = datetime.fromisoformat(args.start_date).replace(tzinfo=UTC)
+    processed_windows = processed_date_window_keys(state)
+    start_date = next_date_window_end(state, args.start_date)
     match_batch_size = max(1, min(args.fixture_batch_size, 100))
-    for index in range(args.max_date_windows):
+    consecutive_no_growth = 0
+    checked_windows = 0
+    cursor_end = start_date
+    while checked_windows < args.max_date_windows:
         current_stats = sample_stats(args.output)
         if (
             current_stats["fixture_count"] >= args.target_fixtures
@@ -549,11 +645,19 @@ def run_odds_date_window_strategy(
             break
         if current_stats["row_count"] >= args.max_rows:
             break
-        window_end = start_date - timedelta(days=index * args.date_window_days)
+        window_end = cursor_end
         window_start = window_end - timedelta(days=args.date_window_days)
+        window_key = (
+            window_start.isoformat().replace("+00:00", "Z"),
+            window_end.isoformat().replace("+00:00", "Z"),
+        )
+        cursor_end = window_start
+        checked_windows += 1
+        if window_key in processed_windows:
+            continue
         window_record = {
-            "window_start_utc": window_start.isoformat().replace("+00:00", "Z"),
-            "window_end_utc": window_end.isoformat().replace("+00:00", "Z"),
+            "window_start_utc": window_key[0],
+            "window_end_utc": window_key[1],
             "status": "STARTED",
             "observed_at_utc": utc_now(),
         }
@@ -565,9 +669,20 @@ def run_odds_date_window_strategy(
                 min(args.max_rows - current_stats["row_count"], 5000),
             )
         except RuntimeError as exc:
+            if "MCP_HTTP_429" in str(exc):
+                window_record.update({"status": "RATE_LIMITED", "reason": str(exc)})
+                state["date_windows"].append(window_record)
+                state["stop_reason"] = "BASELIGHT_RATE_LIMIT_BACKOFF_REQUIRED"
+                write_state(args.state_file, state)
+                break
             window_record.update({"status": "PENDING_OR_FAILED", "reason": str(exc)})
             state["date_windows"].append(window_record)
             write_state(args.state_file, state)
+            consecutive_no_growth += 1
+            if consecutive_no_growth >= 10:
+                state["stop_reason"] = "BASELIGHT_DATE_WINDOWS_NO_GROWTH"
+                write_state(args.state_file, state)
+                break
             continue
         odds_rows = [
             row
@@ -577,40 +692,37 @@ def run_odds_date_window_strategy(
         match_ids = sorted({str(row["match_id"]) for row in odds_rows})
         window_written = 0
         window_fixtures: set[str] = set()
-        for start in range(0, len(match_ids), match_batch_size):
-            batch = match_ids[start : start + match_batch_size]
-            try:
-                match_columns, match_raw_rows, _ = execute_sql_rows(
-                    client,
-                    build_match_metadata_sql(batch),
-                    effective_page_size,
-                    len(batch),
-                )
-            except RuntimeError as exc:
-                state.setdefault("metadata_batches", []).append(
-                    {
-                        "match_ids": batch,
-                        "status": "PENDING_OR_FAILED",
-                        "reason": str(exc),
-                        "observed_at_utc": utc_now(),
-                    }
-                )
-                write_state(args.state_file, state)
-                continue
+        match_records, match_batch_size = fetch_match_metadata_with_fallback(
+            client,
+            match_ids,
+            match_batch_size,
+            effective_page_size,
+            state,
+            args.state_file,
+        )
+        match_records_by_id = {
+            str(row["match_id"]): row for row in match_records if row.get("match_id")
+        }
+        for start in range(0, len(match_ids), max(1, match_batch_size)):
+            batch = match_ids[start : start + max(1, match_batch_size)]
             batch_set = set(batch)
             batch_odds = [row for row in odds_rows if str(row.get("match_id")) in batch_set]
+            batch_matches = [
+                row for match_id, row in match_records_by_id.items() if match_id in batch_set
+            ]
             combined_rows, fixture_ids = combine_odds_with_matches(
                 batch_odds,
-                row_dicts(match_columns, match_raw_rows),
+                batch_matches,
                 existing_keys,
             )
             window_written += append_combined_rows(args.output, combined_rows, existing_keys)
             window_fixtures.update(fixture_ids)
             appended_fixtures.update(fixture_ids)
         written += window_written
+        window_status = "APPENDED" if window_written > 0 else "NO_DATA"
         window_record.update(
             {
-                "status": "APPENDED",
+                "status": window_status,
                 "odds_row_count": len(odds_rows),
                 "match_id_count": len(match_ids),
                 "new_rows": window_written,
@@ -619,6 +731,15 @@ def run_odds_date_window_strategy(
         )
         state["date_windows"].append(window_record)
         write_state(args.state_file, state)
+        processed_windows.add(window_key)
+        if window_fixtures:
+            consecutive_no_growth = 0
+        else:
+            consecutive_no_growth += 1
+            if consecutive_no_growth >= 10:
+                state["stop_reason"] = "BASELIGHT_DATE_WINDOWS_NO_GROWTH"
+                write_state(args.state_file, state)
+                break
     return written, appended_fixtures
 
 

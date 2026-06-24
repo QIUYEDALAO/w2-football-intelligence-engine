@@ -114,8 +114,8 @@
         "6"
       ],
       "name": "Gate3 Baselight limited AH extract and walk-forward",
-      "notes": "SQL generated; user sample file not present, so no formal walk-forward backtest was built. Gate3 remains PARTIAL.",
-      "status": "INSUFFICIENT_SAMPLE"
+      "notes": "Baselight MCP odds-date-window sample reached 502 fixtures and AH walk-forward passed; Gate3 remains PARTIAL due DATE-only/phase/export limitations.",
+      "status": "PASS_LIMITED_WALK_FORWARD"
     }
   ],
   "candidate": false,
@@ -183,29 +183,16 @@
         "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql"
       ],
       "missing_requirements": [
-        "Historical AH baseline/backtest remains missing.",
-        "AH walk-forward evidence remains missing.",
         "Captured-at phase coverage exists, but settled phase-specific backtest evidence is missing.",
         "Historical OU backtest remains closing-subset limited.",
-        "External historical AH source decision is required before Gate3 closure.",
-        "No external trial, purchase, contact, or license approval has been authorized.",
-        "Historical AH baseline/backtest remains missing until Baselight limited extract and walk-forward pass.",
         "Baselight DATE-only precision cannot support T-1h/T-30m/T-10m phase claims.",
         "Baselight platform export/retention policy remains unverified.",
-        "Baselight limited AH sample file has not been provided to W2.",
-        "Baselight AH walk-forward remains INSUFFICIENT_SAMPLE.",
-        "Baselight MCP probe passed, but limited AH extract queries remained PENDING.",
-        "Baselight limited AH sample file remains unavailable to W2.",
-        "Baselight MCP probe passed and micro-batch wrote a partial AH sample, but only 15 fixtures were available in the current extract.",
-        "Historical AH baseline/backtest remains missing until a >=500 fixture sample passes.",
-        "Baselight micro-batch v2 kept sample at 15 fixtures; fixture_count >=500 requirement is not met.",
-        "Baselight single-fixture AH odds query remained pending/timeout under bounded MCP polling.",
-        "Baselight odds date-window v3 expanded sample to 27 fixtures, but fixture_count >=500 requirement is not met."
+        "Baselight limited AH walk-forward passed, but Gate3 remains PARTIAL pending closure checker and retained phase/export limitations."
       ],
       "name": "\u5e02\u573a\u57fa\u51c6",
       "next_actions": [
-        "Obtain larger Baselight AH sample or provider-supported fast match_id odds filter before repeating walk-forward.",
-        "Obtain provider-supported Baselight bulk export or a larger date-window extract before repeating Gate3 AH walk-forward."
+        "Run Gate3 closure checker with Baselight limited AH walk-forward evidence.",
+        "Retain DATE-only, precise phase, and export/retention limitations until separately resolved."
       ],
       "status": "PARTIAL"
     },
@@ -253,7 +240,7 @@
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-23T23:37:36Z",
+  "generated_at_utc": "2026-06-24T02:20:00Z",
   "phases": {
     "0": {
       "blockers": [

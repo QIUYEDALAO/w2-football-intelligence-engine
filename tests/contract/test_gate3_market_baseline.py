@@ -46,7 +46,10 @@ def test_historical_ah_forward_only_blocks_closure() -> None:
 
     assert payload["status"] == "PARTIAL"
     assert payload["asian_handicap"]["historical_ah_status"] == "FORWARD_ONLY"
-    assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in payload["blockers"]
+    assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in payload["baselight"][
+        "resolved_by_baselight_limited_backtest"
+    ]
+    assert "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE" in payload["blockers"]
     assert payload["requirements"]["G3-2-AH_CONSENSUS_PRICING_SETTLEMENT"]["status"] == "PARTIAL"
 
 

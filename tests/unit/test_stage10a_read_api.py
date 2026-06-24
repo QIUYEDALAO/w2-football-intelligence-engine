@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from apps.api.main import app
@@ -13,13 +14,14 @@ from w2.config import get_settings
 def write_fixture_payload(root: Path) -> None:
     raw = root / "stage7c/raw"
     raw.mkdir(parents=True)
+    future_kickoff = (datetime.now(UTC) + timedelta(days=180)).replace(microsecond=0)
     payload = {
         "payload": {
             "response": [
                 {
                     "fixture": {
                         "id": 900001,
-                        "date": "2026-06-24T00:00:00+00:00",
+                        "date": future_kickoff.isoformat(),
                         "status": {"short": "NS"},
                         "venue": {"name": "Test Venue"},
                     },

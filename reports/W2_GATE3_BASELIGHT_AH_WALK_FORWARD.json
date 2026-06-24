@@ -1,108 +1,113 @@
 {
-  "blockers": [
-    "BASELIGHT_LIMITED_AH_SAMPLE_TOO_SMALL",
-    "BASELIGHT_MICRO_BATCH_PARTIAL_SAMPLE_INSUFFICIENT",
-    "BASELIGHT_ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT"
-  ],
-  "bookmaker_count": 12,
+  "blockers": [],
+  "bookmaker_count": 13,
   "candidate": false,
   "collected_at_precision": "DATE_ONLY",
-  "competition_count": 18,
-  "extraction_method": "ODDS_DATE_WINDOW_THEN_MATCHES_METADATA_NO_JOIN",
-  "fixture_count": 27,
+  "competition_count": 42,
+  "fixture_count": 502,
   "fold_count": 5,
   "folds": [
     {
-      "end_kickoff_utc": "2025-11-16T19:45:00Z",
-      "fixture_count": 6,
+      "end_kickoff_utc": "2026-04-17T18:00:00Z",
+      "fixture_count": 101,
       "fold": 1,
-      "observation_count": 300,
+      "observation_count": 13800,
       "settlement_distribution": {
-        "HALF_LOSS": 8,
-        "LOSS": 140,
-        "PUSH": 8,
-        "WIN": 144
+        "HALF_LOSS": 677,
+        "HALF_WIN": 640,
+        "LOSS": 6730,
+        "PUSH": 663,
+        "WIN": 5090
       },
       "start_kickoff_utc": "2025-05-31T23:30:00Z"
     },
     {
-      "end_kickoff_utc": "2026-04-26T14:00:00Z",
-      "fixture_count": 6,
+      "end_kickoff_utc": "2026-04-27T18:45:00Z",
+      "fixture_count": 101,
       "fold": 2,
-      "observation_count": 300,
+      "observation_count": 13201,
       "settlement_distribution": {
-        "HALF_WIN": 15,
-        "LOSS": 152,
-        "PUSH": 22,
-        "WIN": 111
+        "HALF_LOSS": 583,
+        "HALF_WIN": 571,
+        "LOSS": 6251,
+        "PUSH": 570,
+        "WIN": 5226
       },
-      "start_kickoff_utc": "2026-02-27T19:00:00Z"
+      "start_kickoff_utc": "2026-04-17T18:00:00Z"
     },
     {
-      "end_kickoff_utc": "2026-06-19T18:45:00Z",
-      "fixture_count": 6,
+      "end_kickoff_utc": "2026-05-13T19:00:00Z",
+      "fixture_count": 101,
       "fold": 3,
-      "observation_count": 619,
+      "observation_count": 13793,
       "settlement_distribution": {
-        "HALF_LOSS": 20,
-        "HALF_WIN": 19,
-        "LOSS": 285,
-        "PUSH": 19,
-        "WIN": 276
+        "HALF_LOSS": 657,
+        "HALF_WIN": 623,
+        "LOSS": 6546,
+        "PUSH": 628,
+        "WIN": 5339
       },
-      "start_kickoff_utc": "2026-04-27T17:00:00Z"
+      "start_kickoff_utc": "2026-04-27T19:00:00Z"
     },
     {
-      "end_kickoff_utc": "2026-06-20T19:00:00Z",
-      "fixture_count": 6,
+      "end_kickoff_utc": "2026-05-31T16:30:00Z",
+      "fixture_count": 101,
       "fold": 4,
-      "observation_count": 753,
+      "observation_count": 14677,
       "settlement_distribution": {
-        "HALF_LOSS": 33,
-        "HALF_WIN": 41,
-        "LOSS": 349,
-        "PUSH": 36,
-        "WIN": 294
+        "HALF_LOSS": 634,
+        "HALF_WIN": 586,
+        "LOSS": 7435,
+        "PUSH": 599,
+        "WIN": 5423
       },
-      "start_kickoff_utc": "2026-06-19T18:45:00Z"
+      "start_kickoff_utc": "2026-05-13T19:00:00Z"
     },
     {
-      "end_kickoff_utc": "2026-06-23T00:00:00Z",
-      "fixture_count": 3,
+      "end_kickoff_utc": "2026-06-23T03:00:00Z",
+      "fixture_count": 98,
       "fold": 5,
-      "observation_count": 566,
+      "observation_count": 16611,
       "settlement_distribution": {
-        "HALF_LOSS": 23,
-        "HALF_WIN": 16,
-        "LOSS": 386,
-        "PUSH": 20,
-        "WIN": 121
+        "HALF_LOSS": 679,
+        "HALF_WIN": 633,
+        "LOSS": 8801,
+        "PUSH": 646,
+        "WIN": 5852
       },
-      "start_kickoff_utc": "2026-06-21T00:00:00Z"
+      "start_kickoff_utc": "2026-05-31T16:30:00Z"
     }
   ],
   "formal_recommendation": false,
-  "generated_at_utc": "2026-06-23T23:37:36Z",
-  "limited_extract_status": "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT",
+  "generated_at_utc": "2026-06-24T02:20:00Z",
+  "limited_extract_status": "ODDS_DATE_WINDOW_SAMPLE_READY",
   "line_bucket_count": 17,
   "mcp_probe_status": "PASS",
-  "micro_batch_v3_status": "ODDS_DATE_WINDOW_PARTIAL_SAMPLE_INSUFFICIENT",
-  "observation_count": 2538,
+  "observation_count": 72082,
   "remaining_limitations": [
     "BASELIGHT_INTRADAY_TIMESTAMP_UNAVAILABLE",
     "PRECISE_PHASE_COVERAGE_UNAVAILABLE",
-    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED"
+    "EXPORT_AND_RETENTION_POLICY_UNVERIFIED",
+    "CLOSING_ONLY_OU_LIMITS_PHASE_CLAIMS",
+    "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS"
   ],
-  "resolved_if_pass": [],
+  "resolved_by_baselight_limited_backtest": [
+    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "AH_WALK_FORWARD_EVIDENCE_MISSING"
+  ],
+  "resolved_if_pass": [
+    "HISTORICAL_AH_BASELINE_BACKTEST_MISSING",
+    "AH_WALK_FORWARD_EVIDENCE_MISSING"
+  ],
   "sample_path": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
   "sample_path_external": "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl",
   "schema_version": "W2_GATE3_BASELIGHT_AH_WALK_FORWARD_V1",
   "settlement_distribution": {
-    "HALF_LOSS": 84,
-    "HALF_WIN": 91,
-    "LOSS": 1312,
-    "PUSH": 105,
-    "WIN": 946
+    "HALF_LOSS": 3230,
+    "HALF_WIN": 3053,
+    "LOSS": 35763,
+    "PUSH": 3106,
+    "WIN": 26930
   },
-  "status": "INSUFFICIENT_SAMPLE"
+  "status": "PASS_LIMITED_WALK_FORWARD"
 }

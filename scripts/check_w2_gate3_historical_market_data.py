@@ -69,7 +69,13 @@ def validate_common() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], d
         phase.get("excluded_closing_leakage_count", 0) == 0,
         "closing leakage into early phases must be zero",
     )
-    if ah.get("status") == "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA":
+    baselight_resolved = set(
+        decision.get("baselight", {}).get("resolved_by_baselight_limited_backtest", [])
+    )
+    if (
+        ah.get("status") == "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
+        and "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" not in baselight_resolved
+    ):
         require(
             "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in decision.get("blockers", []),
             "AH no-data status must keep historical AH blocker",

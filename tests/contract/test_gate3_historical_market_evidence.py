@@ -53,8 +53,12 @@ def test_ah_walk_forward_truthfully_reports_no_usable_internal_data() -> None:
     assert payload["status"] == "NO_USABLE_INTERNAL_HISTORICAL_AH_DATA"
     assert payload["sample_count"] == 0
     assert payload["fixture_count"] == 0
-    assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in decision["blockers"]
-    assert "AH_WALK_FORWARD_EVIDENCE_MISSING" in decision["blockers"]
+    assert "HISTORICAL_AH_BASELINE_BACKTEST_MISSING" in decision["baselight"][
+        "resolved_by_baselight_limited_backtest"
+    ]
+    assert "AH_WALK_FORWARD_EVIDENCE_MISSING" in decision["baselight"][
+        "resolved_by_baselight_limited_backtest"
+    ]
 
 
 def test_historical_checker_audit_passes_and_closure_fails() -> None:
@@ -82,7 +86,7 @@ def test_handoff_and_master_roadmap_boundaries_are_preserved() -> None:
     handoff = HANDOFF.read_text(encoding="utf-8")
     roadmap = ROADMAP.read_text(encoding="utf-8")
 
-    assert "handoff_version: 31" in handoff
+    assert "handoff_version: 32" in handoff
     assert "gate3_historical_source_inventory_path:" in handoff
     assert "gate3_external_source_decision_path:" in handoff
     assert "candidate: false" in handoff
