@@ -20,8 +20,9 @@ mutation was performed.
 
 ## Pending Runtime Step
 
-Append-only valuation supersession events and corrected Argentina/Austria runtime cards are pending
-explicit approval to run against `/opt/w2/shared/runtime/matchday/argentina-austria-20260622/`.
+Append-only valuation supersession events and corrected Argentina/Austria cards remain pending a
+controlled DB/local evidence path. The previous shared-runtime write step is intentionally not
+carried forward.
 
 ## Validation
 

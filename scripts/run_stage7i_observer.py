@@ -20,9 +20,11 @@ UTC = timezone.utc  # noqa: UP017 - server/local python3 may be older than proje
 DEFAULT_BASELINE_REVISION: str | None = None
 SERVICES = ["postgres", "redis", "api", "worker", "scheduler", "web"]
 CONTAINERS = {name: f"w2-staging-{name}-1" for name in SERVICES}
-DEFAULT_RUNTIME = Path("/opt/w2/shared/runtime/stage7i")
+DEFAULT_RUNTIME = Path(os.environ.get("W2_STAGE7I_RUNTIME_ROOT", "runtime/stage7i"))
 DEFAULT_CURRENT = Path("/opt/w2/current")
-DEFAULT_GLOBAL_LOCK = Path("/opt/w2/shared/runtime/stage7i/observer-global.lock")
+DEFAULT_GLOBAL_LOCK = Path(
+    os.environ.get("W2_STAGE7I_GLOBAL_LOCK", "runtime/stage7i/observer-global.lock")
+)
 SAMPLE_INTERVAL_SECONDS = 300
 OBSERVATION_SECONDS = 24 * 60 * 60
 

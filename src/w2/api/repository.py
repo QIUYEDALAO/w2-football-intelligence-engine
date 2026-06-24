@@ -1164,10 +1164,6 @@ class ReadModelService:
             "last_captured": self._optional_datetime(item.get("captured_at")),
         }
 
-    def _optional_string(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        return str(value)
 
     def _optional_datetime(self, value: Any) -> datetime | None:
         if value is None:
