@@ -1,559 +1,185 @@
-# W2 Stage7I-R1B2 Result
+# W2 Stage7I-R1B2 Final Result
 
 ## Summary
 
-- Stage package: W2-STAGE7I-R1B2 dynamic successor selection and observer bootstrap
-- Baseline commit: `7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc`
-- R1B2A CI run: `28010736953`
-- R1B2A CI result: `success`
+- Stage package: `W2-STAGE7I-R1B2`
+- Baseline contract commit: `7126f7540e8171dab83c1e2f81ab9a2b6c04fbbc`
 - Staging revision: `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+- Successor fixture: `1489404`
+- Observer historical PID/PGID: `1435421 / 1435396`
+- Observer sample count: `289`
+- Observer coverage: `86487.295089s`
+- Revision stable: `true`
+- Final status: `BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`
 - Gate5: `OPEN`
 - Candidate output: `false`
 - Formal recommendation output: `false`
-- Final status: `BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`
 
-R1B2 closed the legacy observer conflict, recovered future provider fixture
-evidence, selected a dynamic successor fixture, synchronized runtime tooling, and
-started a global-lock Stage7I observer. The observer later completed its 24-hour
-window, but the lifecycle collector gap makes the run non-qualifying for Gate5.
-The stage does not claim Gate5 closure.
+R1B2 successfully selected and observed a dynamic successor fixture for more than
+24 hours on one stable staging revision. The run is not Gate5-qualifying because
+the independent lifecycle collector became inactive before the fixture lifecycle
+completed. Required actual-kickoff, closing, result, settlement/evaluation, and
+final Shadow DB evidence is therefore missing.
 
-## Legacy Observer Disposition
+## 1. Legacy Run Disposition
 
-User explicitly approved stopping the old Stage7I observer.
+The prior fixture `1489401` run was archived as `BLOCKED_NON_QUALIFYING`.
 
-- Old PIDs: `723787`, `723789`
-- Old PGID: `723782`
-- Signal: `TERM`
-- Stop result: exited after 1 second
-- Runtime dir:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260622T183939Z_397fdfa`
-- Runtime audit:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260622T183939Z_397fdfa/R1B2_LEGACY_TERMINATION_AUDIT.json`
+- Old observer PIDs: `723787`, `723789`
+- Old observer PGID: `723782`
 - Sample count: `177`
-- `COMPLETED` marker: absent
+- `COMPLETED`: absent
 - `summary.json`: absent
+- `forward_complete=false`
+- `gate5_eligible=false`
+- Same-fixture restart: forbidden
 - Candidate: `false`
 - Formal recommendation: `false`
 
-The old run remains non-qualifying for Gate5 forward evidence.
+The legacy observer was terminated only under the separately approved recovery
+work recorded by the earlier R1B2 evidence. No such signal or recovery action was
+performed during the final read-only audit.
 
-## Root Cause And Recovery
+## 2. Successor Selection And Bootstrap
 
-Read-model diagnosis found that staging `/v1/fixtures` only exposed an expired
-World Cup fixture summary (`1489399`, kickoff `2026-06-22T17:00:00Z`). Scheduler
-and worker inspection showed the deployed scheduler is heartbeat-only and the
-worker only exposes `w2.ping`; no deployed scheduled task refreshes future
-fixture read-model evidence.
+The successor was selected dynamically from W2 staging/provider evidence rather
+than hardcoded fixture data.
 
-Recovery used the existing W2 `ApiFootballClient` provider path inside the
-staging API container. No curl key construction, `.env` read, service restart,
-deployment, migration, W1 write, candidate output, or formal recommendation was
-performed.
-
-- Recovery dir:
-  `/opt/w2/shared/runtime/stage7i/r1b2_recovery/stage7i_r1b2_recovery_20260623T095348Z`
-- Provider requests: `3`
-- Future fixtures recovered: `4`
-- Future fixture IDs: `1489404`, `1489402`, `1489403`, `1539008`
-- Selected fixture market coverage: `14` bookmakers, `607` market rows
-- Quota after provider recovery: `7089`
-- Provider blockers: none
-
-## Candidate Manifest And Selection
-
-The R1B2 run used explicit `fixtures`, `mappings`, and `markets` evidence files.
-Fixture summaries alone were not accepted as candidate manifests.
-
-- Candidate manifest count: `1`
-- Rejected manifest rows: `3`
-- Selector exit: `0`
 - Selected fixture: `1489404`
 - Scheduled kickoff: `2026-06-23T17:00:00Z`
 - Selection source: `W2_STAGING_PROVIDER_DATA`
-- Candidate: `false`
-- Formal recommendation: `false`
+- Provider recovery requests used during the earlier bootstrap package: `3`
+- Future fixtures recovered: `4`
+- Selected-fixture bookmaker coverage: `14`
+- Candidate manifest count: `1`
 - Selector blocker: none
-
-## Runtime Tooling Fixes
-
-Two ordinary tooling issues were fixed before bootstrap validation:
-
-- `run_stage7i_observer.py` Alembic static parser now accepts typed Alembic
-  fields such as `revision: str = "..."`
-- `check_w2_stage7i.py` accepts legacy bootstrap `start.json` files without
-  `runtime_dir` by deriving it from `selection_json_path`; newer observer starts
-  now write `runtime_dir`
-
-Regression coverage was added in
-`tests/unit/test_stage7i_successor_tooling.py`.
-
-## Successor Observer Bootstrap
-
-- Runtime dir:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
-- Observer PID: `1435421`
-- Observer PGID: `1435396`
-- Observer started at: `2026-06-23T09:59:44.331436Z`
-- Expected end: `2026-06-24T09:59:44.331436Z`
-- Global lock: `/opt/w2/shared/runtime/stage7i/observer-global.lock`
-- First sample count: `1`
-- Latest sample timestamp: `2026-06-23T09:59:44.331763Z`
-- Latest sample blockers: none
-- Latest quota remaining: `6323`
 - Bootstrap checker: `PASS`
 
-Current gate state from the first sample:
+Observer runtime:
 
-- `GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING`
-- `GATE_4_AH=BLOCKED_FORWARD_ONLY`
-- `STAGE_9=BLOCKED`
-- `target_n=50`
-- `market_comparable_n=5`
-- `current_settled_n=0`
+`/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
 
-## Runtime Safety
-
-Confirmed during R1B2:
-
-- `w2-staging.service`: enabled and active
-- Long-running containers: healthy
-- API `/health` and `/ready`: OK
-- Public business ports: none
-- `.env`: mode `600`; content not read or printed
-- Active observer count before bootstrap: `0`
-- Global lock before bootstrap: absent or unlocked
-
-## Parallel Mainline Future Refresh Implementation
-
-While the successor observer continues on staging revision
-`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`, the mainline code now includes the
-future fixture refresh implementation and operational hardening. This work is
-code-only and is not deployed to staging until the active Stage7I observer
-naturally completes.
-
-Formal runtime entries:
-
-- Scheduler: `apps/scheduler/main.py`
-- Worker: `apps/worker/celery_app.py`
-
-Implementation:
-
-- `config/policies/future_fixture_refresh.v1.json`
-- `src/w2/ingestion/future_refresh.py`
-- `apps.scheduler.main.future_fixture_refresh_tick`
-- `apps.worker.celery_app.future_fixture_refresh`
-- `runtime/future_refresh/` is gitignored
-- read API repository merges `runtime/future_refresh/read_model` fixtures,
-  provider status, and append-only market ledger projections
-
-Safety and quality controls:
-
-- scheduler dispatches Celery only; provider calls run in worker context
-- deterministic task key:
-  `future-refresh:<competition_id>:<season>:<time-bucket>`
-- cross-process singleton lock with Redis preferred and file fallback
-- owner-marker lock release
-- task audit with task ID, key, owner, queue/start/finish time, status, and
-  summary
-- policy-driven competition/season/horizon; unregistered competitions do not
-  run
-- uses existing `ApiFootballClient.request_live`
-- no direct external URL/key construction in scheduler or worker
-- every real provider attempt counts against request budget
-- quota reserve
-- retry/backoff with 401/403 no-retry and 429 counted retry
-- raw payload SHA256
-- per-response request audit linked to each persisted raw payload
-- provider mapping evidence
-- append-only market observation ledger
-- stable observation identity dedup for replayed raw payloads
-- latest read model and odds timeline projected from the ledger
-- idempotent raw writes
-- failure audit
-- `candidate=false`
-- `formal_recommendation=false`
-
-Deployment status:
-
-- `pending_staging_deployment=true`
-- reason: preserve active Stage7I revision continuity
-- no migration added
-- no service restart performed
-- no `/opt/w2/current` switch performed
-
-## Validation
-
-Executed locally before commit:
-
-- `uv run pytest -q tests/unit/test_stage7i_successor_tooling.py`
-- `uv run pytest -q tests/unit/test_future_fixture_refresh.py tests/unit/test_runtime.py tests/unit/test_stage10a_read_api.py`
-- `uv run python scripts/check_w2_stage7i.py --mode bootstrap --expected-fixture-id 1489404 /tmp/w2-stage7i-bootstrap-verify/start.local.json`
-- `make verify`
-- `uv run python tests/secret_scan.py`
-- `git diff --check`
-
-Validation result:
-
-- Stage checkers through `make verify`: `PASS`
-- Ruff: `PASS`
-- Mypy: `PASS`
-- Pytest: `154 passed`
-- Stage7I bootstrap checker: `PASS`
-- Secret scan: `PASS`
-- `git diff --check`: `PASS`
-
-## Remaining Work
-
-- Stage7I successor 24-hour observation is still in progress.
-- Actual kickoff has not yet been captured by the continuous forward run.
-- Closing observation has not yet been captured by the continuous forward run.
-- Settlement and evaluation are not complete.
-- Final Shadow DB audit is pending.
-- Gate5 remains `OPEN`.
-- Stage10E remains undeployed by design.
-
-## Rollback
-
-No rollback is required. The active observer is the intended R1B2 successor
-process. Staging code, services, containers, database schema, deployment
-revision, W1, sensitive values, GitHub settings, and production configuration
-were not modified.
-
-## Lifecycle Evidence Capture Readiness
-
-This continuation audited whether the active Stage7I observer already captures
-fixture-specific lifecycle evidence for fixture `1489404`.
-
-Observer continuity at audit time:
-
-- Observer PID: `1435421`
-- Observer PGID: `1435396`
-- Runtime dir:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
-- Global lock holder: `1435421`
-- Observer count: `1`
-- Server revision: `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
-- API/Web health: `OK`
-- Public business ports: none
-- `.env`: mode `600`; content not read
-
-Observer evidence audit found that `observations.jsonl` records service health,
-quota summaries, forward counters, Gate state, and scheduler heartbeat. It does
-not persist fixture-specific provider status, market payload hash, provider
-market update time, result status, actual kickoff source, or closing resolver
-evidence. A separate lifecycle collector was therefore required.
-
-Implemented local tooling:
-
-- `src/w2/monitoring/stage7i_lifecycle.py`
-- `scripts/capture_stage7i_fixture_lifecycle.py`
-- `scripts/build_stage7i_final_evidence.py`
-
-The tooling was validated locally, copied to versioned runtime tooling, and
-checked by SHA256 before runtime use:
-
-- Tooling dir:
-  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_8e467e6`
-- Tooling archive SHA256:
-  `2e25edb6bfbdad1cab60069a8a359d16d8374d8c8d64a5061e3b2bb82e4026de`
-
-A single `--once` lifecycle probe was attempted through the staging API
-container so the existing `ApiFootballClient` and injected runtime environment
-were used without printing credentials or reading `.env`.
-
-Runtime evidence generated:
-
-- Lifecycle dir:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle`
-- `request_audit.jsonl`: `1` event
-- Last endpoint: `fixtures`
-- HTTP status: `200`
-- Raw payload hash: present
-- Remaining provider quota: `299`
-
-Quota authority correction:
-
-- Previous blocker root cause: `x-ratelimit-remaining` was incorrectly treated
-  as daily quota.
-- Corrected semantics:
-  - `x-ratelimit-requests-remaining`: daily quota
-  - `x-apisports-requests-remaining`: daily quota
-  - `response.requests.remaining`: daily quota from status payload
-  - `x-ratelimit-remaining`: burst/short-window quota only
-- Status probe: `2026-06-23T12:23:45.969614Z`
-- Sanitized header names only were recorded; no key or auth header was printed.
-- Daily remaining: `6925`
-- Daily source: `x-ratelimit-requests-remaining`
-- Burst remaining: `299`
-- Burst source: `x-ratelimit-remaining`
-
-Collector decision after quota fix:
-
-- `stage7i_lifecycle_capture_status=ACTIVE`
-- Reserve policy: `1500`
-- Collector wrapper PID: `1549476`
-- Lifecycle lock:
-  `/opt/w2/shared/runtime/stage7i/lifecycle-1489404.lock`
-- Lifecycle lock holder: `1549476`
-- Tooling dir:
-  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_dd98498_quota`
-- Tooling archive SHA256:
-  `09fb26f5bb2f5003d8f0d86f613e61188855bcfcbf8025b33c78515ddac80914`
-- Observer PID/PGID/global lock unchanged.
-
-First synced lifecycle evidence:
-
-- `fixture_status.jsonl`: `1`
-- `market_observations.jsonl`: `1`
-- `result_status.jsonl`: `0`
-- `request_audit.jsonl`: `2`
-- Fixture provider status: `NS`
-- Market bookmaker count: `14`
-- Market live: `false`
-- Market suspended: `false`
-- Latest daily remaining: `6923`
-- Latest burst remaining: `298`
-- Latest daily source: `x-ratelimit-requests-remaining`
-
-Final evidence builder output:
-
-- File:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle/final_evidence.in_progress.json`
-- Status: `IN_PROGRESS`
-- Actual kickoff status: `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
-- Closing status: `PENDING_ACTUAL_KICKOFF`
-- Blockers:
-  - `OBSERVER_SUMMARY_NOT_COMPLETE`
-  - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
-  - `PENDING_ACTUAL_KICKOFF`
-- Candidate: `false`
-- Formal recommendation: `false`
-
-No actual kickoff, closing, settlement, evaluation, or Shadow DB completion was
-fabricated. Gate5 remains `OPEN`.
-
-## Lifecycle Continuity Fix
-
-This continuation preserved the active Stage7I observer and restored exactly one
-fixture lifecycle collector for fixture `1489404`. No deployment, migration,
-service restart, container restart, `.env` read, W1 change, candidate output, or
-formal recommendation output was performed.
-
-Local code fixes:
-
-- `Stage7ILifecycleCollector` now resumes request budget from existing
-  `request_audit.jsonl` rows instead of trusting a fresh process counter.
-- PREMATCH, LIVE, FINAL, and provider blocked states are separated so LIVE does
-  not terminate the collector and FINAL result evidence is retrospective.
-- Delayed kickoff is handled by provider fixture status; scheduled kickoff is
-  not used as actual kickoff evidence.
-- SIGTERM/SIGINT graceful shutdown support records append-only
-  `shutdown_audit.jsonl` and `collector_exit.json`, releases the lifecycle lock,
-  and does not delete evidence.
-- Collector instance metadata now records PID, fixture, lock path, state, and
-  tooling SHA.
-
-Residual process classification:
-
-- `1549505`: container shell wrapper, sleeping, child `1549517`, no lifecycle
-  lock fd.
-- `1549517`: real Python lifecycle collector for fixture `1489404`, sleeping,
-  container PID `18924`, no lifecycle lock fd.
-- Lifecycle lock cross-check before termination: free.
-- Action: `kill -TERM 18924` from inside `w2-staging-api-1` as root, using shell
-  builtin `kill`.
-- Result: Python collector exited after 1 second.
-- No `SIGKILL`, `pkill`, service restart, or container restart was used.
-
-Restored collector:
-
-- Host PID: `1615152`
-- Container PID: `20993`
-- Command: `capture_stage7i_fixture_lifecycle.py`
-- Runtime source revision:
-  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
-- Host tooling dir:
-  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_08e84d1_continuity_v2`
-- Container tooling dir:
-  `/tmp/w2_stage7i_lifecycle_tooling_continuity_v2`
-- Tooling archive SHA256:
-  `88c8fa90af7951e14c8f9e81e5c89ba4885fb5fa205c5ba5715c61188e8befaa`
-- Tooling manifest SHA256:
-  `1d7cbb47f632dad10565f6017e4861075fd76a982d1156495078419f69408981`
-- Release-runtime lifecycle lock:
-  `/opt/w2/releases/23c89be4d2a32019d8d21bb9b102ae0b7ca15c16/infra/compose/runtime/stage7i/lifecycle-1489404.lock`
-- Release-runtime lifecycle lock holder: `1615152`
-- Shared runtime sync: append-only merge from release runtime into
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404/lifecycle`
-
-Current synced lifecycle evidence:
-
-- `fixture_status.jsonl`: `1`
-- `market_observations.jsonl`: `2`
-- `result_status.jsonl`: `0`
-- `request_audit.jsonl`: `3`
-- `collector_instances.jsonl`: `1`
-- Latest endpoint: `odds`
-- Latest daily quota remaining: `6899`
-- Latest burst quota remaining: `298`
-- Daily quota source: `x-ratelimit-requests-remaining`
-- Fixture lifecycle state: `PREMATCH`
-- Candidate: `false`
-- Formal recommendation: `false`
-
-Observer continuity after collector restore:
-
-- Observer PID: `1435421`
-- Observer PGID: `1435396`
-- Observer count: `1`
-- Observer global lock holder: `1435421`
-- Runtime dir unchanged:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
-- Server revision unchanged:
-  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
-
-Gate5 remains `OPEN`. Actual kickoff, closing observation, settlement,
-evaluation, and final Shadow DB audit remain pending and must not be fabricated.
-
-## Lifecycle Budget Preflight Fix
-
-The active lifecycle collector was audited after continuity restore. The
-collector command line still used a fixed `--request-budget 80`; current
-evidence had already consumed `3` request attempts, and the projected remaining
-need exceeded the fixed remaining budget. Daily provider quota was sufficient,
-but the collector-local request budget was not.
-
-Budget preflight decision:
-
-- Configured request budget before fix: `80`
-- Consumed attempts before fix: `3`
-- Remaining budget before fix: `77`
-- Projected required requests: greater than remaining budget
-- Daily remaining quota: `6899`
-- Quota reserve: `1500`
-- Decision: `BUDGET_PREFLIGHT=FAIL_FIXED`
-
-Local fix:
-
-- Collector CLI now defaults request budget to `AUTO` instead of `80`.
-- Effective request budget is fixed once per collector instance from current
-  consumed attempts plus projected remaining PREMATCH/LIVE evidence needs.
-- Each `collector_instances.jsonl` row records budget preflight details.
-- `collector_exits.jsonl` is append-only and records budget state at exit.
-- `request_audit.jsonl` now records every provider attempt, even when a replayed
-  raw payload is identical and the raw payload file remains idempotent.
-
-Validation:
-
-- Target lifecycle tests: `23 passed`
-- Full pytest: `197 passed`
-- `scripts/check_w2_all.py`: `PASS`
-- Ruff: `PASS`
-- Mypy: `PASS`
-- Secret scan: `PASS`
-- `git diff --check`: `PASS`
-
-Runtime collector rollover:
-
-- Previous v4 collector host/container PID: `1675903` / `22947`
-- Signal: container `TERM`
-- Exit result: natural exit after 2 seconds
-- New collector host/container PID: `1678226` / `23041`
-- New tooling dir:
-  `/opt/w2/shared/runtime/stage7i/tooling/lifecycle_74999d0_budget_v5`
-- New container tooling dir:
-  `/tmp/w2_stage7i_lifecycle_tooling_budget_v5`
-- Tooling archive SHA256:
-  `4560c3295390850a83c4224912ad228dce54955210ba578b16a15578765a1e21`
-- Tooling manifest SHA256:
-  `a025acc386da7580d10c03975b78cf53fe2a945020ea93d4817de9f907713d5c`
-- Lifecycle lock holder: `1678226`
-- Observer PID/PGID unchanged: `1435421` / `1435396`
-- Observer global lock holder unchanged: `1435421`
-
-New v5 collector budget preflight:
-
-- `configured_request_budget=AUTO`
-- `consumed_attempts=5`
-- `effective_request_budget=103`
-- `projected_required=98`
-- `remaining_budget=98`
-- `request_budget_sufficient=true`
-- Latest daily remaining: `6790`
-- Quota reserve: `1500`
-- Daily capacity after reserve: `5290`
-- Daily quota sufficient: `true`
-
-Evidence after v5 startup:
-
-- `fixture_status.jsonl`: `1`
-- `market_observations.jsonl`: `2`
-- `result_status.jsonl`: `0`
-- `request_audit.jsonl`: `7`
-- `collector_instances.jsonl`: `4`
-- `collector_exits.jsonl`: `2`
-- Latest fixture status: `NS`
-- Latest market status: `live=false`, `suspended=false`, `14` bookmakers
-- Final evidence builder status: `IN_PROGRESS`
-- Final evidence blockers:
-  - `OBSERVER_SUMMARY_NOT_COMPLETE`
-  - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
-  - `PENDING_ACTUAL_KICKOFF`
-- Candidate: `false`
-- Formal recommendation: `false`
-
-No actual kickoff, closing observation, settlement, evaluation, or final Shadow
-DB audit was inferred or fabricated. Gate5 remains `OPEN`.
-
-## Final Observation Audit
-
-The Stage7I 24-hour observer was audited read-only after its expected end.
-
-Final observer evidence:
-
-- Runtime dir:
-  `/opt/w2/shared/runtime/stage7i/runs/stage7i_20260623T095944Z_1489404`
-- Historical PID/PGID: `1435421` / `1435396`
-- Process after audit buffer: not alive
+- Started: `2026-06-23T09:59:44.331436Z`
+- Expected end: `2026-06-24T09:59:44.331436Z`
+- Completed: `2026-06-24T10:01:11.955864Z`
 - `COMPLETED`: present
 - `summary.json`: present
-- Started at: `2026-06-23T09:59:44.331436Z`
-- Completed at: `2026-06-24T10:01:11.955864Z`
+- Process after audit buffer: not alive
 - Sample count: `289`
-- Coverage seconds: `86487.295089`
-- Max sample gap: `300.338218` seconds
+- Coverage: `86487.295089s`
+- Maximum sample gap: `300.338218s`
+- Observation timestamps: strictly increasing
 - Revision stable: `true`
-- Latest server revision:
-  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
 
-Lifecycle evidence at final audit:
+## 3. Runtime Continuity Result
+
+The observer-side stability evidence passed the 24h duration and revision
+requirements:
+
+- `w2-staging.service`: enabled/active in the final summary
+- Long-running containers: healthy with unchanged restart counts
+- API/Web: localhost-only
+- Public business ports: none
+- Server revision remained
+  `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`
+- Alembic head remained `0017_create_stage9a_shadow_strategy`
+- Candidate: `false`
+- Formal recommendation: `false`
+
+The 24h observer completion is valid runtime-continuity evidence. It is not, by
+itself, complete fixture-lifecycle or Gate5 evidence.
+
+## 4. Lifecycle Evidence Gap
+
+Historical lifecycle continuity evidence recorded the blocker
+`STAGE7I_LIFECYCLE_COLLECTOR_INACTIVE`. At final audit time:
 
 - Collector active: `false`
 - `fixture_status.jsonl`: `1`
 - `market_observations.jsonl`: `2`
-- `result_status.jsonl`: `0`
 - `request_audit.jsonl`: `7`
+- `result_status.jsonl`: `0`
 - Last market observation: `2026-06-23T13:24:35.678215Z`
 - Last market bookmaker count: `14`
-- Last market live/suspended: `false` / `false`
+- Actual kickoff: `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
+- Closing: `PENDING_ACTUAL_KICKOFF`
+- Final result evidence: missing
+- Settlement/evaluation: `NOT_RUN_NO_RESULT`
+- Final Shadow DB audit: `PENDING`
 
-Final evidence builder result from a local `/tmp` snapshot:
+Scheduled kickoff, status-transition poll time, and external sources were not
+used as substitutes for legal internal actual-kickoff evidence.
 
-- Status: `BLOCKED`
-- Blockers:
+## 5. Final Builder And Checker
+
+The final evidence builder was run against a local `/tmp` snapshot of selected
+read-only staging evidence.
+
+- Builder status: `BLOCKED`
+- Builder blockers:
   - `ACTUAL_KICKOFF_SOURCE_UNAVAILABLE`
   - `PENDING_ACTUAL_KICKOFF`
 
-Final checker result:
+Final checker:
 
-- `FAIL`
-- Summary: `final status must be COMPLETED`
+```text
+W2 Stage7I check FAIL: final status must be COMPLETED
+```
 
-Classification:
+The checker failure is expected and fail-closed: the observer completed, but the
+fixture lifecycle evidence did not satisfy the final contract.
+
+## 6. Gate5 Decision
+
+Gate5 remains `OPEN`; this run is not eligible for Gate5 closure.
+
+Missing requirements:
+
+- legal internal actual kickoff;
+- closing observation strictly before actual kickoff;
+- final result evidence;
+- post-result settlement/evaluation;
+- final Shadow DB audit `PASS`;
+- final checker `PASS`.
+
+The run must not be relabeled, replayed, or supplemented retrospectively to
+become qualifying forward evidence.
+
+## 7. Safety Boundary
+
+The final observation audit did not:
+
+- recover the lifecycle collector;
+- call the provider;
+- send a signal;
+- deploy or restart services or containers;
+- write staging runtime data;
+- read `.env`;
+- modify W1;
+- enable candidate output;
+- enable formal recommendation output.
+
+## 8. Validation And CI
+
+Final audit package commit:
+
+`f6cb856eeaafdfafe0fd314c390d14faafe8e486`
+
+GitHub Actions:
+
+- Run: `28091440346`
+- Workflow: `W2 Stage 2 CI`
+- Result: `success`
+
+The package passed its targeted Stage7I contracts, full `make verify`
+(`249 passed`), Mypy, secret scan, JSON validation, and `git diff --check`.
+
+## 9. Recovery Point
+
+Final classification:
 
 `BLOCKED_NON_QUALIFYING_LIFECYCLE_GAP`
 
-Gate5 remains `OPEN`. No actual kickoff, closing observation, result,
-settlement/evaluation, or Shadow DB audit was inferred from scheduled kickoff,
-poll time, or any external source.
+Any lifecycle recovery or successor observation must be a separately approved
+stage package. The current run and its evidence gap cannot be reused to close
+Gate5.
