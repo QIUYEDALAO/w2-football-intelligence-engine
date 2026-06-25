@@ -40,6 +40,9 @@ FORBIDDEN_TRUE_FLAGS = {
     "W2_PRODUCTION_RELEASE",
     "W2_EXTERNAL_ALERTING",
 }
+ALLOWED_PUBLIC_PORTS = {
+    (ROOT / "infra/compose/compose.staging.yml", "web", "0.0.0.0:18080:8080"),
+}
 
 
 def fail(message: str) -> None:
@@ -232,11 +235,15 @@ def assert_worker_runtime_healthcheck(path: Path, compose: dict[str, Any]) -> No
         fail(f"{path}: worker runtime healthcheck must be side-effect free")
 
 
-def assert_ports_not_public(compose: dict[str, Any], path: Path) -> None:
+def assert_public_ports_allowlisted(compose: dict[str, Any], path: Path) -> None:
     for service, definition in compose.get("services", {}).items():
         for port in definition.get("ports", []) or []:
             value = str(port)
-            if value.startswith(("0.0.0.0:", ":::")):
+            if value.startswith(("0.0.0.0:", ":::")) and (
+                path,
+                str(service),
+                value,
+            ) not in ALLOWED_PUBLIC_PORTS:
                 fail(f"{path}: {service} exposes public port")
 
 
@@ -263,7 +270,7 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler healthcheck missing enablement contract")
     if "future_fixture_refresh_tick" in health or "send_task" in health:
         fail(f"{path}: scheduler healthcheck must not dispatch")
-    assert_ports_not_public(compose, path)
+    assert_public_ports_allowlisted(compose, path)
 
 
 def assert_policy() -> None:

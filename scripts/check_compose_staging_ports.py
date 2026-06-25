@@ -13,8 +13,10 @@ COMPOSE = (
     else Path("infra/compose/compose.staging.yml")
 )
 FORBIDDEN_PUBLIC = {
-    "0.0.0.0",  # noqa: S104 - forbidden value, not a bind target.
     "::",
+}
+ALLOWED_PUBLIC_BINDINGS = {
+    ("web", "0.0.0.0:18080:8080"),  # noqa: S104 - intentional public staging web.
 }
 FORBIDDEN_SHORT = {
     "8000:8000",
@@ -50,6 +52,10 @@ def service_ports(compose: dict[str, Any], service: str) -> list[str]:
 
 def assert_no_public_ports(ports: list[str], service: str) -> None:
     for port in ports:
+        if (service, port) in ALLOWED_PUBLIC_BINDINGS:
+            continue
+        if port.startswith("0.0.0.0:"):  # noqa: S104 - forbidden unless allowlisted above.
+            fail(f"{service} exposes public host binding")
         if any(port.startswith(f"{host}:") for host in FORBIDDEN_PUBLIC):
             fail(f"{service} exposes public host binding")
         if port in FORBIDDEN_SHORT:
@@ -65,8 +71,8 @@ def main() -> int:
     web_ports = service_ports(compose, "web")
     if api_ports != ["127.0.0.1:18000:8000"]:
         fail("api must bind exactly 127.0.0.1:18000:8000")
-    if web_ports != ["127.0.0.1:18080:8080"]:
-        fail("web must bind exactly 127.0.0.1:18080:8080")
+    if web_ports != ["0.0.0.0:18080:8080"]:
+        fail("web must bind exactly 0.0.0.0:18080:8080")
     for service, definition in services.items():
         ports = [normalize_port(port) for port in definition.get("ports", [])]
         assert_no_public_ports(ports, service)

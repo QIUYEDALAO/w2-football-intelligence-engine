@@ -52,3 +52,19 @@ def test_predeploy_contract_accepts_release_root_config_mount() -> None:
     compose = checker.load_yaml(STAGING_COMPOSE)
 
     checker.assert_config_mount(STAGING_COMPOSE, compose)
+
+
+def test_predeploy_contract_allows_only_public_staging_web() -> None:
+    checker = load_checker()
+    compose = checker.load_yaml(STAGING_COMPOSE)
+
+    checker.assert_public_ports_allowlisted(compose, STAGING_COMPOSE)
+
+
+def test_predeploy_contract_rejects_public_api_port() -> None:
+    checker = load_checker()
+    compose = checker.load_yaml(STAGING_COMPOSE)
+    compose["services"]["api"]["ports"] = ["0.0.0.0:18000:8000"]
+
+    with pytest.raises(SystemExit):
+        checker.assert_public_ports_allowlisted(compose, STAGING_COMPOSE)
