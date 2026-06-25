@@ -52,6 +52,7 @@ class CompetitionRegistryEntry:
     enabled: bool
     coverage_profile: CoverageProfile
     config_path: Path
+    provider_mapping: dict[str, str]
 
 
 class CompetitionRegistry:
@@ -99,5 +100,11 @@ class CompetitionRegistry:
                 enabled=bool(payload.get("enabled") is True),
                 coverage_profile=CoverageProfile.from_payload(coverage),
                 config_path=path,
+                provider_mapping={
+                    str(key): str(value)
+                    for key, value in (payload.get("provider_mapping") or {}).items()
+                }
+                if isinstance(payload.get("provider_mapping"), dict)
+                else {},
             )
         return entries

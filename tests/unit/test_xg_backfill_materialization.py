@@ -140,9 +140,32 @@ class FakeRepository:
     def fixture_payloads(self) -> list[dict[str, Any]]:
         return [
             {
-                "fixture": {"id": "target", "date": (NOW + timedelta(days=1)).isoformat()},
+                "fixture": {
+                    "id": "target",
+                    "date": (NOW + timedelta(days=1)).isoformat(),
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 1, "season": "2026"},
                 "teams": {"home": {"id": 10}, "away": {"id": 20}},
-            }
+            },
+            {
+                "fixture": {
+                    "id": "historical-raw-payload-must-not-pollute",
+                    "date": (NOW - timedelta(days=2)).isoformat(),
+                    "status": {"short": "FT"},
+                },
+                "league": {"id": 1, "season": "2026"},
+                "teams": {"home": {"id": 30}, "away": {"id": 40}},
+            },
+            {
+                "fixture": {
+                    "id": "non-whitelisted-future",
+                    "date": (NOW + timedelta(days=1)).isoformat(),
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 999, "season": "2026"},
+                "teams": {"home": {"id": 50}, "away": {"id": 60}},
+            },
         ]
 
     def save_raw_payload(

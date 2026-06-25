@@ -21,6 +21,8 @@ def test_only_world_cup_2026_is_enabled_in_competition_registry() -> None:
         world_cup.coverage_profile.xg
         == "API_FOOTBALL_FIXTURES_STATISTICS_AVAILABLE_CONTROLLED_LIVE"
     )
+    assert world_cup.provider_mapping["api_football_league_id"] == "1"
+    assert world_cup.provider_mapping["api_football_season"] == "2026"
 
     disabled = [entry for entry in registry.entries().values() if not entry.enabled]
     assert disabled
