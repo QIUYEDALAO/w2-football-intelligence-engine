@@ -65,14 +65,14 @@ def test_api_worker_scheduler_share_one_runtime_mount_per_compose() -> None:
         assert len(sources) == 1
 
 
-def test_worker_runtime_healthcheck_is_writable_and_side_effect_free() -> None:
+def test_worker_runtime_healthcheck_does_not_require_writable_runtime() -> None:
     for path in (STANDALONE, LITE):
         compose = load_compose(path)
         healthcheck = " ".join(
             str(item) for item in compose["services"]["worker"]["healthcheck"]["test"]
         )
         assert "os.path.isdir('/app/runtime')" in healthcheck
-        assert "os.access('/app/runtime', os.W_OK)" in healthcheck
+        assert "os.access('/app/runtime', os.W_OK)" not in healthcheck
         assert "open(" not in healthcheck
         assert "write(" not in healthcheck
         assert "mkdir" not in healthcheck
