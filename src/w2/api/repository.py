@@ -12,11 +12,6 @@ from sqlalchemy.orm import Session
 from w2.config import Environment, get_settings
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
-from w2.infrastructure.persistence.shadow_strategy_models import (
-    ShadowStrategyEvaluationModel,
-    ShadowStrategyLockModel,
-    ShadowStrategyRunModel,
-)
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
@@ -36,7 +31,6 @@ from w2.operations.tournament import (
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
-DEFAULT_RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 
@@ -69,8 +63,6 @@ def parse_provider_time(value: Any) -> datetime | None:
 
 class ReadModelRepository:
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
-        if RUNTIME != DEFAULT_RUNTIME:
-            return []
         try:
             engine = create_engine()
             with Session(engine) as session:
@@ -298,134 +290,6 @@ class ReadModelRepository:
     def release_readiness(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
 
-    def shadow_strategy_replay(self) -> dict[str, Any]:
-        try:
-            engine = create_engine()
-            with Session(engine) as session:
-                latest = session.scalars(
-                    select(ShadowStrategyRunModel).order_by(
-                        ShadowStrategyRunModel.started_at.desc()
-                    )
-                ).first()
-            if latest is None:
-                return {
-                    "run_state": "NO_RUN",
-                    "strategy_version": "W2_SHADOW_STRATEGY_V1",
-                    "decisions": [],
-                    "locks": [],
-                }
-            return {
-                "run_state": "COMPLETED_WITH_RESULTS"
-                if latest.status == "COMPLETED"
-                else latest.status,
-                "run_id": latest.run_id,
-                "strategy_version": latest.strategy_version,
-                "manifest_sha256": latest.manifest_sha256,
-                "started_at": latest.started_at,
-                "completed_at": latest.completed_at,
-                "payload": latest.payload,
-                "decisions": latest.payload.get("decisions", []),
-                "locks": self.shadow_strategy_locks(),
-            }
-        except Exception:
-            return {
-                "run_state": "ERROR",
-                "strategy_version": "W2_SHADOW_STRATEGY_V1",
-                "decisions": [],
-                "locks": [],
-            }
-
-    def shadow_strategy_status(self) -> dict[str, Any]:
-        replay = self.shadow_strategy_replay()
-        decisions = replay.get("decisions", [])
-        locks = self.shadow_strategy_locks()
-        decisions_count = len(decisions) if isinstance(decisions, list) else 0
-        locks_count = len(locks)
-        run_state = str(replay.get("run_state", "NO_RUN"))
-        return {
-            "status": run_state
-            if run_state != "COMPLETED_WITH_RESULTS"
-            else "SHADOW_READY",
-            "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
-            "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-            "gate5_status": "PROVISIONAL_BLOCKED_GATE4",
-            "formal_recommendation": False,
-            "candidate": False,
-            "decisions": decisions_count,
-            "locks": locks_count,
-            "latest_run_id": replay.get("run_id") if replay else None,
-        }
-
-    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
-        try:
-            engine = create_engine()
-            with Session(engine) as session:
-                rows = session.scalars(
-                    select(ShadowStrategyLockModel).order_by(
-                        ShadowStrategyLockModel.locked_at.desc()
-                    )
-                ).all()
-            return [
-                {
-                    "fixture_id": row.fixture_id,
-                    "phase": row.phase,
-                    "strategy_version": row.strategy_version,
-                    "decision_hash": row.decision_hash,
-                    "locked_at": row.locked_at,
-                    "payload": row.payload,
-                }
-                for row in rows
-            ]
-        except Exception:
-            return []
-
-    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
-        try:
-            engine = create_engine()
-            with Session(engine) as session:
-                rows = session.scalars(
-                    select(ShadowStrategyEvaluationModel).order_by(
-                        ShadowStrategyEvaluationModel.evaluated_at.desc()
-                    )
-                ).all()
-            if rows:
-                return [
-                    {
-                        "fixture_id": row.fixture_id,
-                        "phase": row.phase,
-                        "strategy_version": row.strategy_version,
-                        "evaluated_at": row.evaluated_at,
-                        **row.payload,
-                    }
-                    for row in rows
-                ]
-        except Exception:
-            return []
-        replay = self.shadow_strategy_replay()
-        decisions = replay.get("decisions", [])
-        if not isinstance(decisions, list):
-            return []
-        return [
-            {
-                "fixture_id": item.get("fixture_id"),
-                "phase": item.get("phase"),
-                "public_decision": item.get("public_decision"),
-                "published_grade": item.get("published_grade"),
-                "primary": item.get("primary"),
-                "secondary": item.get("secondary"),
-                "formal_recommendation": False,
-                "candidate": False,
-            }
-            for item in decisions
-            if isinstance(item, dict)
-        ]
-
-    def gate5_preflight(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_GATE5_PREFLIGHT.json", {}))
-
-    def w1_w2_shadow_comparison(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE12B_W1_W2_COMPARISON.json", {}))
-
     def _dashboard_fixture_to_provider_payload(self, item: dict[str, Any]) -> dict[str, Any]:
         return {
             "fixture": {
@@ -480,25 +344,22 @@ class ReadModelService:
         status: str | None = None,
         team_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        rows = [
-            self._fixture_summary(item, timezone)
-            for item in self.repository.fixture_payloads()
+        rows = []
+        is_dashboard: list[bool] = []
+        for item in self.repository.fixture_payloads():
+            rows.append(self._fixture_summary(item, timezone))
+            is_dashboard.append("_dashboard" in item)
+        now = datetime.now(UTC)
+        visible = [
+            row
+            for row, dash in zip(rows, is_dashboard, strict=False)
+            if dash or not (row["status"] == "NS" and row["kickoff_utc"] < now)
         ]
+        rows = visible
         if date_from:
             rows = [row for row in rows if row["kickoff_utc"] >= date_from.astimezone(UTC)]
         if date_to:
             rows = [row for row in rows if row["kickoff_utc"] <= date_to.astimezone(UTC)]
-        if date_from is None and date_to is None:
-            now = datetime.now(UTC)
-            rows = [
-                row
-                for row in rows
-                if not (
-                    row["status"] == "NS"
-                    and row["kickoff_utc"] < now
-                    and row.get("last_captured") is None
-                )
-            ]
         if competition_id:
             rows = [row for row in rows if row["competition_id"] == competition_id]
         if status:
@@ -710,41 +571,40 @@ class ReadModelService:
                     for item in self.repository.market_snapshots()
                     if item["fixture_id"] == fixture_id
                 ]
-                observations = [
-                    item
-                    for item in self.repository.future_market_observations()
-                    if item["fixture_id"] == fixture_id
-                ]
                 locks = [
                     item
                     for item in self.repository.forward_locks()
                     if item["fixture_id"] == fixture_id
                 ]
+                observations = [
+                    item
+                    for item in self.repository.future_market_observations()
+                    if str(item.get("fixture_id")) == fixture_id
+                ]
+                observed_markets: set[str] = {
+                    str(item["canonical_market"])
+                    for item in observations
+                    if item.get("canonical_market")
+                }
+                obs_bookmaker_ids: set[str] = {
+                    str(item["bookmaker_id"])
+                    for item in observations
+                    if item.get("bookmaker_id")
+                }
                 row.update(
                     {
                         "request_id": "",
                         "venue": item.get("fixture", {}).get("venue", {}).get("name"),
                         "bookmaker_count": max(
                             [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
-                            + [len({str(item.get("bookmaker_id")) for item in observations})]
+                            + [len(obs_bookmaker_ids)]
                             or [0]
                         ),
                         "market_coverage": {
-                            "ONE_X_TWO": any(
-                                item.get("canonical_market") == "ONE_X_TWO"
-                                for item in observations
-                            )
-                            or bool(snapshots),
-                            "ASIAN_HANDICAP": any(
-                                item.get("canonical_market") == "ASIAN_HANDICAP"
-                                for item in observations
-                            ),
-                            "TOTALS": any(
-                                item.get("canonical_market") == "TOTALS" for item in observations
-                            ),
-                            "BTTS": any(
-                                item.get("canonical_market") == "BTTS" for item in observations
-                            ),
+                            "ONE_X_TWO": bool(snapshots) or "ONE_X_TWO" in observed_markets,
+                            "ASIAN_HANDICAP": "ASIAN_HANDICAP" in observed_markets,
+                            "TOTALS": "TOTALS" in observed_markets,
+                            "BTTS": "BTTS" in observed_markets,
                         },
                         "forward_decision": locks[0]["decision"] if locks else "SKIP",
                         "provenance": {
@@ -770,6 +630,7 @@ class ReadModelService:
                     "selection": row["selection"],
                     "line": row.get("line"),
                     "decimal_odds": str(row.get("executable_odds")),
+                    "bookmaker": row.get("bookmaker"),
                     "bookmaker_count": int(row.get("available_bookmaker_count", 0)),
                     "first_seen": False,
                     "closing": False,
@@ -839,13 +700,7 @@ class ReadModelService:
                         "closing": False,
                     }
                 )
-        return sorted(
-            points,
-            key=lambda item: (
-                item["captured_at"],
-                0 if item.get("bookmaker") else 1,
-            ),
-        )
+        return sorted(points, key=lambda item: item["captured_at"])
 
     def market_probabilities(self, fixture_id: str) -> dict[str, Any]:
         dashboard = self.repository.dashboard_fixture(fixture_id)
@@ -923,9 +778,10 @@ class ReadModelService:
         if finished:
             age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
         stale_count = 0
+        now = datetime.now(UTC)
         for item in self.repository.fixture_payloads():
             row = self._fixture_summary(item, "UTC")
-            if row["status"] == "NS" and row["kickoff_utc"] < datetime.now(UTC):
+            if row["status"] == "NS" and row["kickoff_utc"] < now:
                 stale_count += 1
         return {
             "stale_data_count": stale_count,
@@ -954,6 +810,7 @@ class ReadModelService:
                 "refresh_age_seconds": None,
                 "blockers": [],
             }
+
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
@@ -1136,24 +993,6 @@ class ReadModelService:
             "policy": operations.get("retention", {}),
         }
 
-    def shadow_strategy_status(self) -> dict[str, Any]:
-        return self.repository.shadow_strategy_status()
-
-    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
-        return self.repository.shadow_strategy_locks()
-
-    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
-        return self.repository.shadow_strategy_evaluations()
-
-    def shadow_strategy_replay(self) -> dict[str, Any]:
-        return self.repository.shadow_strategy_replay()
-
-    def gate5_preflight(self) -> dict[str, Any]:
-        return self.repository.gate5_preflight()
-
-    def w1_w2_shadow_comparison(self) -> dict[str, Any]:
-        return self.repository.w1_w2_shadow_comparison()
-
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         if "_dashboard" in item:
             dashboard = cast(dict[str, Any], item["_dashboard"])
@@ -1207,6 +1046,10 @@ class ReadModelService:
             "last_captured": self._optional_datetime(item.get("captured_at")),
         }
 
+    def _optional_string(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value)
 
     def _optional_datetime(self, value: Any) -> datetime | None:
         if value is None:
@@ -1245,8 +1088,3 @@ class ReadModelService:
             "formal_recommendation": False,
             "candidate": False,
         }
-
-    def _optional_string(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        return str(value)

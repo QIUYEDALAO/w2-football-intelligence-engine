@@ -106,11 +106,7 @@ class MatchdaySnapshotProjector:
             "expected_goals": model.get("expected_goals", {}),
             "score_matrix_top": model.get("score_matrix_top", []),
             "value_rows": value_rows,
-            "all_market_ranking": self._all_market_ranking(value_rows),
-            "ah_ladder": self._ladder(value_rows, "ASIAN_HANDICAP"),
-            "ou_ladder": self._ladder(value_rows, "TOTALS"),
             "selected_value": decision.get("selected_value"),
-            **self._primary_direction(decision, value_rows),
             "risk_notes": quality.get("warnings", []),
             "source_manifest_sha256": sha256_bytes(manifest_bytes),
             "model_artifact_sha256": manifest.get("model_artifact_sha256"),
@@ -245,76 +241,6 @@ class MatchdaySnapshotProjector:
             if selection and probability is not None:
                 probabilities[selection] = float(probability)
         return probabilities
-
-    def _primary_direction(
-        self,
-        decision: dict[str, Any],
-        value_rows: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        selected = decision.get("selected_value") or {}
-        market = selected.get("market")
-        selection = selected.get("selection")
-        line = selected.get("line")
-        odds = selected.get("executable_odds")
-        fair = selected.get("model_fair_odds")
-        risk_ev = selected.get("net_edge_after_uncertainty")
-        return {
-            "primary_market": market,
-            "primary_selection": selection,
-            "primary_line": line,
-            "primary_executable_odds": odds,
-            "primary_hong_kong_odds": self._hk_display(odds),
-            "primary_model_fair_odds": fair,
-            "primary_risk_adjusted_ev": risk_ev,
-            "research_grade": self._grade_from_rows(value_rows),
-        }
-
-    def _all_market_ranking(self, value_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        rows = sorted(
-            value_rows,
-            key=lambda row: float(row.get("net_edge_after_uncertainty") or -999),
-            reverse=True,
-        )
-        return [
-            {
-                "market": row.get("market"),
-                "selection": row.get("selection"),
-                "line": row.get("line"),
-                "bookmaker": row.get("bookmaker_name"),
-                "executable_odds": row.get("executable_odds"),
-                "hong_kong_odds": self._hk_display(row.get("executable_odds")),
-                "model_fair_odds": row.get("model_fair_odds"),
-                "market_no_vig_odds": row.get("market_fair_odds"),
-                "risk_adjusted_ev": row.get("net_edge_after_uncertainty"),
-                "status": row.get("status"),
-                "qualifies_value": row.get("qualifies_value"),
-            }
-            for row in rows
-        ]
-
-    def _ladder(self, value_rows: list[dict[str, Any]], market: str) -> list[dict[str, Any]]:
-        return [row for row in self._all_market_ranking(value_rows) if row["market"] == market]
-
-    def _grade_from_rows(self, value_rows: list[dict[str, Any]]) -> str:
-        best = max(
-            (float(row.get("net_edge_after_uncertainty") or -999) for row in value_rows),
-            default=-999,
-        )
-        if best >= 0.05:
-            return "C"
-        if best >= 0.025:
-            return "C"
-        if best > 0:
-            return "C"
-        return "D"
-
-    def _hk_display(self, decimal_odds: Any) -> str | None:
-        if decimal_odds is None:
-            return None
-        try:
-            return str(round(float(decimal_odds) - 1.0, 4))
-        except (TypeError, ValueError):
-            return None
 
 
 def write_projection(engine: Engine, projection: DashboardProjection) -> None:
