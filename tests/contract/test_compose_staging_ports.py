@@ -29,7 +29,7 @@ def test_staging_web_public_binding_is_allowlisted() -> None:
     checker = load_checker()
     compose = load_compose()
 
-    assert checker.service_ports(compose, "web") == ["0.0.0.0:18080:8080"]
+    assert checker.service_ports(compose, "web") == ["0.0.0.0:80:8080"]
     checker.assert_no_public_ports(checker.service_ports(compose, "web"), "web")
 
 
