@@ -103,6 +103,32 @@ function cardPayload(payload: unknown): Record<string, unknown> {
   return asRecord(record.card ?? payload);
 }
 
+function fallbackCardFromFixture(fixture: unknown): Record<string, unknown> {
+  const record = asRecord(fixture);
+  const home = record.home_team_name ?? record.home_cn ?? record.home_team_id ?? "主队";
+  const away = record.away_team_name ?? record.away_cn ?? record.away_team_id ?? "客队";
+  return {
+    fixture_id: fxId(fixture),
+    kickoff_utc: record.kickoff_utc,
+    competition_cn: record.competition_name ?? "世界杯",
+    home_cn: String(home),
+    away_cn: String(away),
+    decision: "SKIP",
+    watch_level: 0,
+    bookmaker_intent: {
+      intent: "INSUFFICIENT_DATA",
+      label_cn: "数据加载中",
+    },
+    markets: MARKET_ORDER.map((market) => ({
+      market,
+      decision: "SKIP",
+    })),
+    risks_cn: ["正在加载分析卡，数据不足时保持 SKIP。"],
+    candidate: false,
+    formal_recommendation: false,
+  };
+}
+
 function marketPayload(market: unknown): Record<string, unknown> {
   return asRecord(market);
 }
@@ -266,15 +292,34 @@ function Dashboard() {
       try {
         setState("loading");
         const list = await getJSON(`${API_BASE}/fixtures?competition_id=${COMPETITION_ID}&page_size=80&status=NS&timezone=Asia/Shanghai&operational_date=${date}`);
-        const ids = asArray(list).filter((fixture) => isFixtureOnDate(fixture, date)).map(fxId).filter(Boolean);
-        if (ids.length === 0) {
+        const fixtures = asArray(list).filter((fixture) => isFixtureOnDate(fixture, date));
+        const ids = fixtures.map(fxId).filter(Boolean);
+        if (!ids.length) {
           setState("empty");
           return;
         }
-        const results = await Promise.all(ids.map((id) => getJSON(`${API_BASE}/fixtures/${id}/analysis-card`, 60000).catch(() => null)));
-        const ok = results.filter(Boolean).map(cardPayload);
-        setCards(ok);
-        setState(ok.length ? "ok" : "empty");
+        setCards(fixtures.map(fallbackCardFromFixture));
+        setState("ok");
+        ids.forEach((id, index) => {
+          getJSON(`${API_BASE}/fixtures/${id}/analysis-card`, 60000)
+            .then((payload) => {
+              const nextCard = cardPayload(payload);
+              setCards((current) => current.map((card, cardIndex) => (cardIndex === index ? nextCard : card)));
+            })
+            .catch(() => {
+              setCards((current) =>
+                current.map((card, cardIndex) =>
+                  cardIndex === index
+                    ? {
+                        ...card,
+                        bookmaker_intent: { intent: "INSUFFICIENT_DATA", label_cn: "数据暂不可用" },
+                        risks_cn: ["分析卡暂不可用，保持 SKIP。"],
+                      }
+                    : card,
+                ),
+              );
+            });
+        });
       } catch {
         setState("error");
       }
