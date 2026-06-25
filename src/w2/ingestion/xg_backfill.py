@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from w2.competitions.registry import CompetitionRegistry
 from w2.features.xg_materialization import (
     FINISHED_STATUS,
     TeamXgMatch,
@@ -116,9 +117,16 @@ class XgHistoryBackfillService:
         self.now = now or datetime.now(UTC)
         self._audit: list[dict[str, Any]] = []
         self._remaining_quota: int | None = None
+        entry = CompetitionRegistry().require_enabled(self.config.competition_id)
+        self._api_football_league_id = entry.provider_mapping.get("api_football_league_id")
+        self._api_football_season = entry.provider_mapping.get("api_football_season")
 
     def run(self) -> XgBackfillResult:
-        future_fixtures = self.repository.fixture_payloads()
+        future_fixtures = [
+            item
+            for item in self.repository.fixture_payloads()
+            if self._is_target_future_fixture(item)
+        ]
         team_ids = sorted(self._world_cup_team_ids(future_fixtures))
         historical_fixtures: dict[str, dict[str, Any]] = {}
         blockers: list[str] = []
@@ -227,6 +235,25 @@ class XgHistoryBackfillService:
                 if isinstance(team, dict) and team.get("id") is not None:
                     ids.add(str(team["id"]))
         return ids
+
+    def _is_target_future_fixture(self, item: dict[str, Any]) -> bool:
+        fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
+        league = item.get("league", {}) if isinstance(item, dict) else {}
+        if not isinstance(fixture, dict) or not isinstance(league, dict):
+            return False
+        if self._api_football_league_id is not None:
+            league_id = str(league.get("id") or "")
+            if league_id != self._api_football_league_id:
+                return False
+        if self._api_football_season is not None and league.get("season") is not None:
+            season = str(league.get("season") or "")
+            if season != self._api_football_season:
+                return False
+        status = fixture.get("status", {}) if isinstance(fixture.get("status"), dict) else {}
+        if status.get("short") in FINISHED_STATUS:
+            return False
+        kickoff = parse_utc(fixture.get("date"))
+        return kickoff is not None and kickoff > self.now
 
     def _finished_fixture_items(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         response = payload.get("response")
