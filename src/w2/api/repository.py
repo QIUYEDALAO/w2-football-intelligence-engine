@@ -40,6 +40,22 @@ RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 
+MARKET_LABELS_CN = {
+    "ASIAN_HANDICAP": "让球",
+    "TOTALS": "大小球",
+    "FIRST_HALF_GOALS": "半场进球",
+    "SCORE": "比分",
+}
+INTENT_LABELS_CN = {
+    "HOME_LEAN": "偏主队",
+    "AWAY_LEAN": "偏客队",
+    "OVER_LEAN": "偏大球",
+    "UNDER_LEAN": "偏小球",
+    "INSUFFICIENT_DATA": "数据不足",
+    "CONFLICTED": "分歧较大",
+    "LEAKAGE_BLOCKED": "防泄漏拦截",
+}
+
 
 def load_json(path: Path, default: Any) -> Any:
     try:
@@ -606,23 +622,35 @@ class ReadModelService:
             fixture = card.get("fixture", {})
             if str(fixture.get("fixture_id")) != fixture_id:
                 continue
+            context = self._analysis_context_from_flat_fixture(fixture)
             embedded = card.get("analysis_card")
             if isinstance(embedded, dict):
-                return self._normalize_analysis_card(embedded, fixture_id=fixture_id)
+                return self._normalize_analysis_card(
+                    embedded,
+                    fixture_id=fixture_id,
+                    fixture_context=context,
+                )
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
                 market_coverage=dict(fixture.get("market_coverage", {})),
                 source="matchday_card_without_analysis_payload",
+                fixture_context=context,
             )
         dashboard = self.repository.dashboard_fixture(fixture_id)
         if dashboard is not None:
+            context = self._analysis_context_from_flat_fixture(dashboard)
             embedded = dashboard.get("analysis_card")
             if isinstance(embedded, dict):
-                return self._normalize_analysis_card(embedded, fixture_id=fixture_id)
+                return self._normalize_analysis_card(
+                    embedded,
+                    fixture_id=fixture_id,
+                    fixture_context=context,
+                )
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
                 market_coverage=dict(dashboard.get("market_coverage", {})),
                 source="dashboard_without_analysis_payload",
+                fixture_context=context,
             )
         for item in self.repository.fixture_payloads():
             if str(item.get("fixture", {}).get("id")) == fixture_id:
@@ -641,6 +669,7 @@ class ReadModelService:
                     fixture_id=fixture_id,
                     market_coverage=coverage,
                     source="future_refresh_without_analysis_payload",
+                    fixture_context=self._analysis_context_from_provider_fixture(item),
                 )
         return None
 
@@ -782,10 +811,12 @@ class ReadModelService:
         payload: dict[str, Any],
         *,
         fixture_id: str,
+        fixture_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = dict(payload)
         normalized.setdefault("fixture_id", fixture_id)
         normalized.setdefault("disclaimer", DISCLAIMER)
+        normalized.setdefault("risks", normalized.get("risks_cn", []))
         normalized["candidate"] = False
         normalized["formal_recommendation"] = False
         markets = normalized.get("markets")
@@ -800,7 +831,7 @@ class ReadModelService:
                 for item in markets
                 if isinstance(item, dict)
             ]
-        return normalized
+        return self._decorate_analysis_card(normalized, fixture_context=fixture_context)
 
     def _fallback_analysis_card(
         self,
@@ -808,6 +839,7 @@ class ReadModelService:
         fixture_id: str,
         market_coverage: dict[str, Any],
         source: str,
+        fixture_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         markets = [
             self._analysis_market_skip(
@@ -825,22 +857,25 @@ class ReadModelService:
             self._analysis_market_skip("FIRST_HALF_GOALS", "HALF_GOAL_INPUT_UNAVAILABLE"),
             self._analysis_market_skip("SCORE", "SCORE_MATRIX_UNAVAILABLE"),
         ]
-        return {
-            "fixture_id": fixture_id,
-            "decision": "SKIP",
-            "markets": markets,
-            "bookmaker_intent": {
-                "intent": "INSUFFICIENT_DATA",
-                "confidence": 0.0,
-                "reason": "BOOKMAKER_INTENT_INPUT_UNAVAILABLE",
+        return self._decorate_analysis_card(
+            {
+                "fixture_id": fixture_id,
+                "decision": "SKIP",
+                "markets": markets,
+                "bookmaker_intent": {
+                    "intent": "INSUFFICIENT_DATA",
+                    "confidence": 0.0,
+                    "reason": "BOOKMAKER_INTENT_INPUT_UNAVAILABLE",
+                },
+                "risks": ["数据不足时保持 SKIP。"],
+                "attention_level": "LOW",
+                "source": source,
+                "disclaimer": DISCLAIMER,
+                "candidate": False,
+                "formal_recommendation": False,
             },
-            "risks": ["数据不足时保持 SKIP。"],
-            "attention_level": "LOW",
-            "source": source,
-            "disclaimer": DISCLAIMER,
-            "candidate": False,
-            "formal_recommendation": False,
-        }
+            fixture_context=fixture_context,
+        )
 
     def _analysis_market_skip(self, market: str, reason: str) -> dict[str, Any]:
         return {
@@ -855,6 +890,147 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
         }
+
+    def _decorate_analysis_card(
+        self,
+        card: dict[str, Any],
+        *,
+        fixture_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        decorated = dict(card)
+        if fixture_context:
+            for key, value in fixture_context.items():
+                decorated.setdefault(key, value)
+        decorated.setdefault("competition_cn", "世界杯")
+        decorated.setdefault("home_cn", decorated.get("home_team_name") or "主队")
+        decorated.setdefault("away_cn", decorated.get("away_team_name") or "客队")
+        decorated.setdefault("watch_level", self._watch_level(decorated))
+        decorated.setdefault("risks_cn", list(decorated.get("risks") or ["数据不足时保持 SKIP。"]))
+        decorated.setdefault("disclaimer_cn", DISCLAIMER)
+        decorated["candidate"] = False
+        decorated["formal_recommendation"] = False
+        decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
+            decorated.get("bookmaker_intent")
+        )
+        decorated["markets"] = [
+            self._decorate_analysis_market(item)
+            for item in decorated.get("markets", [])
+            if isinstance(item, dict)
+        ]
+        return decorated
+
+    def _decorate_bookmaker_intent(self, payload: Any) -> dict[str, Any]:
+        intent = dict(payload) if isinstance(payload, dict) else {}
+        intent_value = str(intent.get("intent") or "INSUFFICIENT_DATA")
+        intent["intent"] = intent_value
+        intent.setdefault("label_cn", INTENT_LABELS_CN.get(intent_value, intent_value))
+        intent.setdefault("opening_line", None)
+        intent.setdefault("current_line", None)
+        intent.setdefault("confidence", 0.0)
+        return intent
+
+    def _decorate_analysis_market(self, payload: dict[str, Any]) -> dict[str, Any]:
+        market = dict(payload)
+        market_name = str(market.get("market") or "UNKNOWN")
+        original_decision = str(market.get("decision") or "SKIP")
+        market["analysis_decision"] = original_decision
+        market["decision"] = "SKIP" if original_decision == "SKIP" else "PICK"
+        market["label_cn"] = MARKET_LABELS_CN.get(market_name, market_name)
+        market["lean_cn"] = self._lean_cn(market)
+        market["reason_cn"] = self._reason_cn(market)
+        market["risks_cn"] = list(market.get("risks") or ["数据不足时保持 SKIP。"])
+        market.setdefault("confidence", 0.0)
+        market.setdefault("reference_scores", self._reference_scores(market))
+        market["candidate"] = False
+        market["formal_recommendation"] = False
+        return market
+
+    def _analysis_context_from_flat_fixture(self, item: dict[str, Any]) -> dict[str, Any]:
+        competition = str(item.get("competition_name") or "世界杯")
+        stage = item.get("stage") or item.get("round") or item.get("group")
+        return {
+            "kickoff_utc": item.get("kickoff_utc"),
+            "competition_cn": f"{competition} · {stage}" if stage else competition,
+            "home_cn": item.get("home_team_name") or item.get("home_cn") or "主队",
+            "away_cn": item.get("away_team_name") or item.get("away_cn") or "客队",
+        }
+
+    def _analysis_context_from_provider_fixture(self, item: dict[str, Any]) -> dict[str, Any]:
+        league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
+        fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
+        teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
+        home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
+        away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
+        competition = str(league.get("name") or "世界杯")
+        stage = league.get("round")
+        return {
+            "kickoff_utc": fixture.get("date"),
+            "competition_cn": f"{competition} · {stage}" if stage else competition,
+            "home_cn": home.get("name") or "主队",
+            "away_cn": away.get("name") or "客队",
+        }
+
+    def _watch_level(self, card: dict[str, Any]) -> int:
+        if str(card.get("decision")) == "SKIP":
+            return 0
+        confidences = [
+            float(item.get("confidence", 0.0))
+            for item in card.get("markets", [])
+            if isinstance(item, dict) and item.get("decision") != "SKIP"
+        ]
+        confidence = max(confidences, default=0.0)
+        return max(1, min(4, round(confidence * 4)))
+
+    def _lean_cn(self, market: dict[str, Any]) -> str | None:
+        if market.get("decision") == "SKIP":
+            return None
+        tendency = str(market.get("tendency") or "")
+        line = market.get("line")
+        mapping = {
+            "HOME_AH": "主队方向",
+            "AWAY_AH": "客队方向",
+            "OVER": "大球",
+            "UNDER": "小球",
+            "1H_OVER": "半场有球",
+            "1H_UNDER": "半场谨慎",
+            "HOME": "主队方向",
+            "AWAY": "客队方向",
+            "DRAW": "平局方向",
+        }
+        label = mapping.get(tendency, tendency or None)
+        if label and line:
+            return f"{label} {line}"
+        return label
+
+    def _reason_cn(self, market: dict[str, Any]) -> str:
+        reasons = [str(item) for item in market.get("reasons", []) if item]
+        if reasons:
+            return " + ".join(reasons[:3])
+        if market.get("decision") == "SKIP":
+            return "数据不足，等待盘口快照与 xG 富集。"
+        return "多因素信号形成倾向。"
+
+    def _reference_scores(self, market: dict[str, Any]) -> list[dict[str, Any]]:
+        score_card = market.get("score_card")
+        if not isinstance(score_card, dict):
+            return []
+        scenarios = score_card.get("scenarios", [])
+        if not isinstance(scenarios, list):
+            return []
+        rows: list[dict[str, Any]] = []
+        for item in scenarios[:2]:
+            if not isinstance(item, dict):
+                continue
+            scoreline = item.get("scoreline")
+            if scoreline is None and {"home_goals", "away_goals"} <= set(item):
+                scoreline = f"{item['home_goals']}-{item['away_goals']}"
+            rows.append(
+                {
+                    "scoreline": str(scoreline),
+                    "conditional_probability": item.get("conditional_probability"),
+                }
+            )
+        return rows
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:
         dashboard = self.repository.dashboard_fixture(fixture_id)

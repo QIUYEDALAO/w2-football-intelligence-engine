@@ -22,6 +22,247 @@ button {
   padding: 24px;
 }
 
+.analysis-dashboard {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.analysis-pill {
+  border: 1px solid #e0b26c;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff7e8;
+  color: #7a3c00;
+  font-size: 13px;
+}
+
+.analysis-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d8dfdc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.analysis-filter button,
+.analysis-filter span,
+.analysis-filter label {
+  border: 1px solid #d8dfdc;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #fbfcfb;
+  color: #23302b;
+  font-size: 13px;
+}
+
+.analysis-filter button {
+  cursor: pointer;
+}
+
+.analysis-filter label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-filter input {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.analysis-list {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-card {
+  border: 1px solid #d8dfdc;
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: #fff;
+}
+
+.analysis-card-head,
+.market-main,
+.analysis-card-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.analysis-card-head span {
+  color: #62706a;
+  font-size: 13px;
+}
+
+.analysis-card-head strong {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #eaf5f0;
+  color: #1f6b54;
+  font-size: 12px;
+}
+
+.intent-strip {
+  margin: 14px 0;
+  border: 1px solid #cde0d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f0f7f4;
+  color: #245845;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.intent-strip.insufficient {
+  border-color: #d8dfdc;
+  background: #f4f6f5;
+  color: #62706a;
+}
+
+.analysis-markets {
+  display: grid;
+  gap: 10px;
+}
+
+.analysis-market {
+  border: 1px solid #e4e9e7;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfb;
+}
+
+.analysis-market.skip {
+  background: #f6f7f6;
+  color: #62706a;
+}
+
+.market-name {
+  display: grid;
+  gap: 2px;
+}
+
+.market-name span {
+  font-weight: 800;
+}
+
+.market-name small {
+  color: #728078;
+}
+
+.lean-badge,
+.skip-chip,
+.score-chip {
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.skip-chip {
+  background: #ecefed;
+  color: #62706a;
+}
+
+.tone-ah {
+  background: #e8f0ff;
+  color: #2250a5;
+}
+
+.tone-ou {
+  background: #e7f6eb;
+  color: #237344;
+}
+
+.tone-half,
+.tone-score,
+.tone-neutral {
+  background: #eef0f2;
+  color: #3c4850;
+}
+
+.confidence-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 51px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #8c9893;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.dot.filled {
+  border-color: #1f6b54;
+  background: #1f6b54;
+}
+
+.score-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.score-chip {
+  background: #eef0f2;
+  color: #3c4850;
+}
+
+.analysis-market p,
+.skip-note {
+  margin: 10px 0 0;
+  color: #4d5a54;
+  font-size: 14px;
+}
+
+.analysis-card-foot {
+  margin-top: 14px;
+  color: #8b2e22;
+  font-size: 13px;
+}
+
+.watch-level {
+  color: #7a3c00;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.analysis-disclaimer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  border: 1px solid #e0b26c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #fff7e8;
+  color: #7a3c00;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ops-topbar {
+  margin-top: 24px;
+}
+
 .topbar {
   display: flex;
   align-items: flex-start;
@@ -289,6 +530,10 @@ pre {
 }
 
 @media (max-width: 860px) {
+  .analysis-topbar,
+  .analysis-card-head,
+  .market-main,
+  .analysis-card-foot,
   .topbar,
   .two,
   .three,
@@ -298,6 +543,10 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .analysis-topbar,
+  .analysis-card-head,
+  .market-main,
+  .analysis-card-foot,
   .topbar {
     display: grid;
   }
