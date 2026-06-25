@@ -344,10 +344,18 @@ class ReadModelService:
         status: str | None = None,
         team_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        rows = [
-            self._fixture_summary(item, timezone)
-            for item in self.repository.fixture_payloads()
+        rows = []
+        is_dashboard: list[bool] = []
+        for item in self.repository.fixture_payloads():
+            rows.append(self._fixture_summary(item, timezone))
+            is_dashboard.append("_dashboard" in item)
+        now = datetime.now(UTC)
+        visible = [
+            row
+            for row, dash in zip(rows, is_dashboard)
+            if dash or not (row["status"] == "NS" and row["kickoff_utc"] < now)
         ]
+        rows = visible
         if date_from:
             rows = [row for row in rows if row["kickoff_utc"] >= date_from.astimezone(UTC)]
         if date_to:
@@ -568,18 +576,35 @@ class ReadModelService:
                     for item in self.repository.forward_locks()
                     if item["fixture_id"] == fixture_id
                 ]
+                observations = [
+                    item
+                    for item in self.repository.future_market_observations()
+                    if str(item.get("fixture_id")) == fixture_id
+                ]
+                observed_markets: set[str] = {
+                    str(item["canonical_market"])
+                    for item in observations
+                    if item.get("canonical_market")
+                }
+                obs_bookmaker_ids: set[str] = {
+                    str(item["bookmaker_id"])
+                    for item in observations
+                    if item.get("bookmaker_id")
+                }
                 row.update(
                     {
                         "request_id": "",
                         "venue": item.get("fixture", {}).get("venue", {}).get("name"),
                         "bookmaker_count": max(
-                            [snapshot.get("bookmaker_count", 0) for snapshot in snapshots] or [0]
+                            [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
+                            + [len(obs_bookmaker_ids)]
+                            or [0]
                         ),
                         "market_coverage": {
-                            "ONE_X_TWO": bool(snapshots),
-                            "ASIAN_HANDICAP": False,
-                            "TOTALS": False,
-                            "BTTS": False,
+                            "ONE_X_TWO": bool(snapshots) or "ONE_X_TWO" in observed_markets,
+                            "ASIAN_HANDICAP": "ASIAN_HANDICAP" in observed_markets,
+                            "TOTALS": "TOTALS" in observed_markets,
+                            "BTTS": "BTTS" in observed_markets,
                         },
                         "forward_decision": locks[0]["decision"] if locks else "SKIP",
                         "provenance": {
@@ -605,6 +630,7 @@ class ReadModelService:
                     "selection": row["selection"],
                     "line": row.get("line"),
                     "decimal_odds": str(row.get("executable_odds")),
+                    "bookmaker": row.get("bookmaker"),
                     "bookmaker_count": int(row.get("available_bookmaker_count", 0)),
                     "first_seen": False,
                     "closing": False,
@@ -751,8 +777,14 @@ class ReadModelService:
         age = None
         if finished:
             age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
+        stale_count = 0
+        now = datetime.now(UTC)
+        for item in self.repository.fixture_payloads():
+            row = self._fixture_summary(item, "UTC")
+            if row["status"] == "NS" and row["kickoff_utc"] < now:
+                stale_count += 1
         return {
-            "stale_data_count": 0,
+            "stale_data_count": stale_count,
             "provider_status": (
                 "READY"
                 if future_audit.get("remaining_quota") or usage.get("remaining_quota")
