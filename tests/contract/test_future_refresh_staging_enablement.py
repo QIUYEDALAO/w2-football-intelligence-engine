@@ -59,6 +59,22 @@ def test_staging_compose_mounts_versioned_policy_for_worker_and_scheduler_only()
             ]
 
 
+def test_staging_compose_mounts_full_config_for_runtime_services() -> None:
+    expected_sources = {
+        ROOT / "infra/compose/compose.staging.yml": "../../config",
+        ROOT / "infra/compose/staging-lite.override.yml": "./config",
+    }
+    assert (ROOT / "config/competitions/world_cup_2026.v1.json").is_file()
+    for path in COMPOSE_PATHS:
+        for service in ("api", "worker", "scheduler"):
+            mounts = [
+                volume
+                for volume in volumes_for(path, service)
+                if ":/app/config:" in volume
+            ]
+            assert mounts == [f"{expected_sources[path]}:/app/config:ro"]
+
+
 def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None:
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")

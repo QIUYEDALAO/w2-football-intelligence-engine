@@ -25,7 +25,12 @@ EXPECTED_RUNTIME_MOUNT_SOURCES = {
     ROOT / "infra/compose/staging-lite.override.yml": "./runtime",
 }
 POLICY_MOUNT_TARGET = "/app/config/policies"
+CONFIG_MOUNT_TARGET = "/app/config"
 RUNTIME_MOUNT_TARGET = "/app/runtime"
+EXPECTED_CONFIG_MOUNT_SOURCES = {
+    ROOT / "infra/compose/compose.staging.yml": "../../config",
+    ROOT / "infra/compose/staging-lite.override.yml": "./config",
+}
 POLICY = ROOT / "config/policies/future_fixture_refresh.v1.json"
 SCHEDULER = ROOT / "apps/scheduler/main.py"
 FORBIDDEN_TRUE_FLAGS = {
@@ -179,6 +184,27 @@ def assert_policy_mount(path: Path, compose: dict[str, Any]) -> None:
             fail(f"{path}: {service} must not mount scheduler policy")
 
 
+def assert_config_mount(path: Path, compose: dict[str, Any]) -> None:
+    expected_source = EXPECTED_CONFIG_MOUNT_SOURCES[path]
+    for service in ("api", "worker", "scheduler"):
+        matches = [
+            split_volume(volume)
+            for volume in service_volumes(compose, service)
+            if split_volume(volume)[1] == CONFIG_MOUNT_TARGET
+        ]
+        if len(matches) != 1:
+            fail(f"{path}: {service} must have exactly one full config mount")
+        source, target, mode = matches[0]
+        if source != expected_source:
+            fail(f"{path}: {service} config mount source mismatch")
+        if target != CONFIG_MOUNT_TARGET:
+            fail(f"{path}: {service} config mount target mismatch")
+        if mode != "ro":
+            fail(f"{path}: {service} config mount must be read-only")
+    if not (ROOT / "config/competitions/world_cup_2026.v1.json").is_file():
+        fail("world_cup_2026 competition registry config missing")
+
+
 def assert_runtime_mount(path: Path, compose: dict[str, Any]) -> None:
     expected_source = EXPECTED_RUNTIME_MOUNT_SOURCES[path]
     for service in ("api", "worker", "scheduler"):
@@ -216,6 +242,7 @@ def assert_ports_not_public(compose: dict[str, Any], path: Path) -> None:
 
 def assert_compose(path: Path) -> None:
     compose = load_yaml(path)
+    assert_config_mount(path, compose)
     assert_policy_mount(path, compose)
     assert_runtime_mount(path, compose)
     assert_worker_runtime_healthcheck(path, compose)

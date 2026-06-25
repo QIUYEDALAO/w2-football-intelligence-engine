@@ -98,7 +98,7 @@ services:
       - "127.0.0.1:18000:8000"
     volumes:
       - ./runtime:/app/runtime
-      - ./config:/app/config
+      - ./config:/app/config:ro
     environment:
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
@@ -154,7 +154,7 @@ services:
       - "--concurrency=1"
     volumes:
       - ./runtime:/app/runtime
-      - ./config:/app/config
+      - ./config:/app/config:ro
       - ./config/policies:/app/config/policies:ro
     environment:
       W2_ENVIRONMENT: staging
@@ -206,7 +206,7 @@ services:
       - "apps.scheduler.main"
     volumes:
       - ./runtime:/app/runtime
-      - ./config:/app/config
+      - ./config:/app/config:ro
       - ./config/policies:/app/config/policies:ro
     environment:
       W2_ENVIRONMENT: staging
