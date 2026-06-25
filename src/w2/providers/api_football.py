@@ -17,6 +17,13 @@ class LiveNetworkDisabledError(RuntimeError):
     pass
 
 
+API_FOOTBALL_HTTP_PATHS = {
+    "events": "fixtures/events",
+    "lineups": "fixtures/lineups",
+    "statistics": "fixtures/statistics",
+}
+
+
 @dataclass(frozen=True, kw_only=True)
 class LiveApiFootballResponse:
     endpoint: str
@@ -76,8 +83,9 @@ class ApiFootballClient:
             raise LiveNetworkDisabledError("provider credential is not visible to the process")
         query = urllib.parse.urlencode(params)
         suffix = f"?{query}" if query else ""
+        path = API_FOOTBALL_HTTP_PATHS.get(endpoint, endpoint)
         request = urllib.request.Request(  # noqa: S310
-            f"{self.base_url}/{endpoint}{suffix}",
+            f"{self.base_url}/{path}{suffix}",
             headers={self.auth_header_name: api_key},
         )
         started = time.monotonic()
