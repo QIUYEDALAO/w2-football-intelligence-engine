@@ -32,6 +32,7 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
+from w2.strategy.analysis_recommendation import DISCLAIMER
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -619,6 +620,49 @@ class ReadModelService:
             "candidate": False,
         }
 
+    def analysis_card(self, fixture_id: str) -> dict[str, Any] | None:
+        for card in self.repository.matchday_cards():
+            fixture = card.get("fixture", {})
+            if str(fixture.get("fixture_id")) != fixture_id:
+                continue
+            embedded = card.get("analysis_card")
+            if isinstance(embedded, dict):
+                return self._normalize_analysis_card(embedded, fixture_id=fixture_id)
+            return self._fallback_analysis_card(
+                fixture_id=fixture_id,
+                market_coverage=dict(fixture.get("market_coverage", {})),
+                source="matchday_card_without_analysis_payload",
+            )
+        dashboard = self.repository.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            embedded = dashboard.get("analysis_card")
+            if isinstance(embedded, dict):
+                return self._normalize_analysis_card(embedded, fixture_id=fixture_id)
+            return self._fallback_analysis_card(
+                fixture_id=fixture_id,
+                market_coverage=dict(dashboard.get("market_coverage", {})),
+                source="dashboard_without_analysis_payload",
+            )
+        for item in self.repository.fixture_payloads():
+            if str(item.get("fixture", {}).get("id")) == fixture_id:
+                observations = [
+                    row
+                    for row in self.repository.future_market_observations()
+                    if str(row.get("fixture_id")) == fixture_id
+                ]
+                coverage = {
+                    "ASIAN_HANDICAP": any(
+                        row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations
+                    ),
+                    "TOTALS": any(row.get("canonical_market") == "TOTALS" for row in observations),
+                }
+                return self._fallback_analysis_card(
+                    fixture_id=fixture_id,
+                    market_coverage=coverage,
+                    source="future_refresh_without_analysis_payload",
+                )
+        return None
+
     def market_ranking(self, fixture_id: str) -> list[dict[str, Any]]:
         for card in self.repository.matchday_cards():
             if str(card.get("fixture", {}).get("fixture_id")) == fixture_id:
@@ -693,6 +737,7 @@ class ReadModelService:
                     ),
                     "temporal_status": dashboard.get("temporal_status"),
                     "integrity_status": dashboard.get("integrity_status"),
+                    "analysis_card": self.analysis_card(fixture_id),
                 }
             )
             return row
@@ -745,10 +790,90 @@ class ReadModelService:
                             "probability_source": "stage7e_forward_holdout",
                         },
                         "risk_notes": [] if snapshots else ["market_not_comparable"],
+                        "analysis_card": self.analysis_card(fixture_id),
                     }
                 )
                 return row
         return None
+
+    def _normalize_analysis_card(
+        self,
+        payload: dict[str, Any],
+        *,
+        fixture_id: str,
+    ) -> dict[str, Any]:
+        normalized = dict(payload)
+        normalized.setdefault("fixture_id", fixture_id)
+        normalized.setdefault("disclaimer", DISCLAIMER)
+        normalized["candidate"] = False
+        normalized["formal_recommendation"] = False
+        markets = normalized.get("markets")
+        if isinstance(markets, list):
+            normalized["markets"] = [
+                {
+                    **dict(item),
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "disclaimer": dict(item).get("disclaimer", DISCLAIMER),
+                }
+                for item in markets
+                if isinstance(item, dict)
+            ]
+        return normalized
+
+    def _fallback_analysis_card(
+        self,
+        *,
+        fixture_id: str,
+        market_coverage: dict[str, Any],
+        source: str,
+    ) -> dict[str, Any]:
+        markets = [
+            self._analysis_market_skip(
+                "ASIAN_HANDICAP",
+                "AH_ANALYSIS_INPUT_UNAVAILABLE"
+                if market_coverage.get("ASIAN_HANDICAP")
+                else "AH_MARKET_UNAVAILABLE",
+            ),
+            self._analysis_market_skip(
+                "TOTALS",
+                "OU_ANALYSIS_INPUT_UNAVAILABLE"
+                if market_coverage.get("TOTALS")
+                else "OU_MARKET_UNAVAILABLE",
+            ),
+            self._analysis_market_skip("FIRST_HALF_GOALS", "HALF_GOAL_INPUT_UNAVAILABLE"),
+            self._analysis_market_skip("SCORE", "SCORE_MATRIX_UNAVAILABLE"),
+        ]
+        return {
+            "fixture_id": fixture_id,
+            "decision": "SKIP",
+            "markets": markets,
+            "bookmaker_intent": {
+                "intent": "INSUFFICIENT_DATA",
+                "confidence": 0.0,
+                "reason": "BOOKMAKER_INTENT_INPUT_UNAVAILABLE",
+            },
+            "risks": ["数据不足时保持 SKIP。"],
+            "attention_level": "LOW",
+            "source": source,
+            "disclaimer": DISCLAIMER,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+    def _analysis_market_skip(self, market: str, reason: str) -> dict[str, Any]:
+        return {
+            "market": market,
+            "decision": "SKIP",
+            "tendency": None,
+            "confidence": 0.0,
+            "reasons": [reason],
+            "risks": ["数据不足时保持 SKIP。"],
+            "invalidation_conditions": ["补齐 as-of 分析输入后重新评估"],
+            "disclaimer": DISCLAIMER,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:
         dashboard = self.repository.dashboard_fixture(fixture_id)

@@ -73,6 +73,7 @@ class FixtureDetailResponse(FixtureSummary):
     projector_generated_at: datetime | None = None
     temporal_status: str | None = None
     integrity_status: str | None = None
+    analysis_card: dict[str, Any] | None = None
 
 
 class OddsPoint(BaseModel):
@@ -132,6 +133,12 @@ class MatchdayCoverageResponse(BaseModel):
 
 
 class ResearchCardResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    card: dict[str, Any]
+
+
+class AnalysisCardResponse(BaseModel):
     request_id: str
     fixture_id: str
     card: dict[str, Any]

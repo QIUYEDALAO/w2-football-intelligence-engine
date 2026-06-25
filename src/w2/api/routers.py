@@ -13,6 +13,7 @@ from w2.api.cache import read_cache
 from w2.api.metrics import metrics
 from w2.api.repository import ReadModelService
 from w2.api.schemas import (
+    AnalysisCardResponse,
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
     DataHealthResponse,
@@ -240,6 +241,17 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
     card = service.research_card(fixture_id)
     if card is None:
         raise HTTPException(status_code=404, detail="research card not found")
+    return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
+
+
+@public_router.get(
+    "/fixtures/{fixture_id}/analysis-card",
+    response_model=AnalysisCardResponse,
+)
+def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
+    card = service.analysis_card(fixture_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="analysis card not found")
     return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
 
 
