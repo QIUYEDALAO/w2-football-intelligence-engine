@@ -49,7 +49,7 @@ def test_handoff_references_roadmap_and_status_sources() -> None:
 def test_roadmap_status_contains_complete_phase_and_gate_matrix() -> None:
     payload = json.loads(STATUS.read_text(encoding="utf-8"))
 
-    assert payload["roadmap_version"] == 1
+    assert payload["roadmap_version"] == 2
     assert set(payload["phases"]) == {str(index) for index in range(16)}
     assert set(payload["gates"]) == {str(index) for index in range(7)}
     for phase in payload["phases"].values():
