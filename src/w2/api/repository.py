@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
+from w2.features.engine import FeatureInputs, build_feature_set
+from w2.features.framework import FeatureContext
+from w2.features.live_factors import TeamXgSnapshot
+from w2.features.market_factors import BookmakerQuote
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.shadow_strategy_models import (
@@ -18,6 +26,7 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyRunModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.markets.movement import MarketSnapshot
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -32,7 +41,17 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
-from w2.strategy.analysis_recommendation import DISCLAIMER
+from w2.strategy.analysis_recommendation import (
+    DISCLAIMER,
+    AnalysisBuildInputs,
+    AnalysisMarket,
+    HalfGoalModelInput,
+    MarketAnalysis,
+    MultiMarketAnalysisCard,
+    build_multi_market_analysis,
+)
+from w2.strategy.bookmaker_intent import infer_bookmaker_intent
+from w2.strategy.score_scenarios import Direction
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -665,6 +684,13 @@ class ReadModelService:
                     ),
                     "TOTALS": any(row.get("canonical_market") == "TOTALS" for row in observations),
                 }
+                generated = self._db_analysis_card_from_fixture(item, observations)
+                if generated is not None:
+                    return self._normalize_analysis_card(
+                        generated,
+                        fixture_id=fixture_id,
+                        fixture_context=self._analysis_context_from_provider_fixture(item),
+                    )
                 return self._fallback_analysis_card(
                     fixture_id=fixture_id,
                     market_coverage=coverage,
@@ -672,6 +698,247 @@ class ReadModelService:
                     fixture_context=self._analysis_context_from_provider_fixture(item),
                 )
         return None
+
+    def _db_analysis_card_from_fixture(
+        self,
+        item: dict[str, Any],
+        observations: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        repository = future_refresh_db_repository()
+        if repository is None:
+            return None
+        fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
+        teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
+        home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
+        away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
+        fixture_id = str(fixture.get("id") or "")
+        kickoff = parse_provider_time(fixture.get("date"))
+        home_id = str(home.get("id") or "")
+        away_id = str(away.get("id") or "")
+        if not fixture_id or kickoff is None or not home_id or not away_id:
+            return None
+        context = FeatureContext(
+            fixture_id=fixture_id,
+            competition_id="world_cup_2026",
+            home_team_id=home_id,
+            away_team_id=away_id,
+            kickoff_at=kickoff,
+            as_of=min(datetime.now(UTC), kickoff),
+            stage_id="group",
+        )
+        snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
+        try:
+            snapshots = (
+                snapshot_reader(fixture_id=fixture_id) if callable(snapshot_reader) else []
+            )
+        except SQLAlchemyError:
+            snapshots = []
+        home_xg = [
+            self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
+            for row in snapshots
+            if str(row.get("team_id")) == home_id
+        ]
+        away_xg = [
+            self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
+            for row in snapshots
+            if str(row.get("team_id")) == away_id
+        ]
+        market_snapshots = self._market_snapshots_from_observations(observations)
+        bookmaker_quotes = self._bookmaker_quotes_from_observations(observations)
+        if not market_snapshots and not home_xg and not away_xg:
+            return None
+        registry = CompetitionRegistry()
+        coverage = registry.require_enabled("world_cup_2026").coverage_profile
+        feature_set = build_feature_set(
+            context=context,
+            inputs=FeatureInputs(
+                market_snapshots=market_snapshots,
+                bookmaker_quotes=bookmaker_quotes,
+                home_xg=home_xg,
+                away_xg=away_xg,
+            ),
+            registry=registry,
+        )
+        ah_snapshots = [row for row in market_snapshots if row.market == "ASIAN_HANDICAP"]
+        ou_snapshots = [row for row in market_snapshots if row.market == "TOTALS"]
+        ah_quotes = [row for row in bookmaker_quotes if row.market == "ASIAN_HANDICAP"]
+        ou_quotes = [row for row in bookmaker_quotes if row.market == "TOTALS"]
+        ah_intent = infer_bookmaker_intent(
+            context=context,
+            profile=coverage,
+            market_kind="AH",
+            snapshots=ah_snapshots,
+            quotes=ah_quotes,
+        )
+        ou_intent = infer_bookmaker_intent(
+            context=context,
+            profile=coverage,
+            market_kind="OU",
+            snapshots=ou_snapshots,
+            quotes=ou_quotes,
+        )
+        missing: set[AnalysisMarket] = set()
+        if not ah_snapshots:
+            missing.add(AnalysisMarket.ASIAN_HANDICAP)
+        if not ou_snapshots:
+            missing.add(AnalysisMarket.TOTALS)
+        latest_home_xg = max(home_xg, key=lambda row: row.observed_at, default=None)
+        latest_away_xg = max(away_xg, key=lambda row: row.observed_at, default=None)
+        half_goals: HalfGoalModelInput | None = None
+        score_matrix: dict[tuple[int, int], float] | None = None
+        score_direction: Direction | None = None
+        if latest_home_xg is None or latest_away_xg is None:
+            missing.update({AnalysisMarket.FIRST_HALF_GOALS, AnalysisMarket.SCORE})
+        else:
+            expected_home = max(
+                (latest_home_xg.xg_for + latest_away_xg.xg_against) / 2,
+                0.05,
+            )
+            expected_away = max(
+                (latest_away_xg.xg_for + latest_home_xg.xg_against) / 2,
+                0.05,
+            )
+            half_goals = HalfGoalModelInput(
+                expected_home_goals=expected_home,
+                expected_away_goals=expected_away,
+            )
+            score_matrix = self._poisson_score_matrix(expected_home, expected_away)
+            if expected_home > expected_away + 0.10:
+                score_direction = "HOME"
+            elif expected_away > expected_home + 0.10:
+                score_direction = "AWAY"
+            else:
+                score_direction = "DRAW"
+        card = build_multi_market_analysis(
+            fixture_id=fixture_id,
+            inputs=AnalysisBuildInputs(
+                ah_intent=ah_intent,
+                ou_intent=ou_intent,
+                feature_set=feature_set,
+                half_goals=half_goals,
+                score_matrix=score_matrix,
+                score_direction=score_direction,
+                missing_markets=frozenset(missing),
+            ),
+        )
+        return self._analysis_card_payload(card)
+
+    def _team_xg_feature_snapshot(
+        self,
+        row: dict[str, Any],
+        *,
+        observed_at_cap: datetime,
+    ) -> TeamXgSnapshot:
+        observed_at = parse_provider_time(row["as_of_time"]) or observed_at_cap
+        return TeamXgSnapshot(
+            team_id=str(row["team_id"]),
+            observed_at=min(observed_at, observed_at_cap),
+            xg_for=float(row["rolling_xg_for"]),
+            xg_against=float(row["rolling_xg_against"]),
+            goals_for=round(float(row["rolling_goals_for"])),
+            goals_against=round(float(row["rolling_goals_against"])),
+        )
+
+    def _market_snapshots_from_observations(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> list[MarketSnapshot]:
+        rows: list[MarketSnapshot] = []
+        for row in observations:
+            captured = parse_provider_time(row.get("captured_at"))
+            if captured is None:
+                continue
+            try:
+                price = Decimal(str(row["decimal_odds"]))
+                line = Decimal(str(row["line"])) if row.get("line") is not None else None
+            except (ArithmeticError, KeyError, TypeError, ValueError):
+                continue
+            rows.append(
+                MarketSnapshot(
+                    fixture_id=str(row["fixture_id"]),
+                    market=str(row["canonical_market"]),
+                    selection=str(row["selection"]),
+                    price=price,
+                    line=line,
+                    captured_at=captured,
+                    snapshot_semantics="CAPTURED_AT",
+                )
+            )
+        return rows
+
+    def _bookmaker_quotes_from_observations(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> list[BookmakerQuote]:
+        rows: list[BookmakerQuote] = []
+        for row in observations:
+            captured = parse_provider_time(row.get("captured_at"))
+            provider_updated = parse_provider_time(row.get("provider_last_update")) or captured
+            if captured is None or provider_updated is None:
+                continue
+            try:
+                decimal_odds = Decimal(str(row["decimal_odds"]))
+                line = Decimal(str(row["line"])) if row.get("line") is not None else None
+            except (ArithmeticError, KeyError, TypeError, ValueError):
+                continue
+            rows.append(
+                BookmakerQuote(
+                    bookmaker=str(row.get("bookmaker_name") or row.get("bookmaker_id")),
+                    market=str(row["canonical_market"]),
+                    selection=str(row["selection"]),
+                    decimal_odds=decimal_odds,
+                    line=line,
+                    captured_at=captured,
+                    provider_updated_at=provider_updated,
+                    suspended=bool(row.get("suspended")),
+                    live=bool(row.get("live")),
+                )
+            )
+        return rows
+
+    def _poisson_score_matrix(self, home_mu: float, away_mu: float) -> dict[tuple[int, int], float]:
+        matrix: dict[tuple[int, int], float] = {}
+        for home_goals in range(5):
+            for away_goals in range(5):
+                matrix[(home_goals, away_goals)] = (
+                    math.exp(-home_mu)
+                    * home_mu**home_goals
+                    / math.factorial(home_goals)
+                    * math.exp(-away_mu)
+                    * away_mu**away_goals
+                    / math.factorial(away_goals)
+                )
+        return matrix
+
+    def _analysis_card_payload(self, card: MultiMarketAnalysisCard) -> dict[str, Any]:
+        return {
+            "fixture_id": card.fixture_id,
+            "decision": card.decision.value,
+            "markets": [self._analysis_market_payload(row) for row in card.markets],
+            "bookmaker_intent": card.bookmaker_intent.as_dict(),
+            "risks": sorted({risk for market in card.markets for risk in market.risks}),
+            "source": "db_feature_materialized_analysis",
+            "disclaimer": DISCLAIMER,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+    def _analysis_market_payload(self, market: MarketAnalysis) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "market": market.market.value,
+            "decision": market.decision.value,
+            "tendency": market.tendency,
+            "confidence": market.confidence,
+            "reasons": list(market.reasons),
+            "risks": list(market.risks),
+            "invalidation_conditions": list(market.invalidation_conditions),
+            "disclaimer": market.disclaimer,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+        if market.score_card is not None:
+            payload["score_card"] = market.score_card.model_dump(mode="json")
+        return payload
 
     def market_ranking(self, fixture_id: str) -> list[dict[str, Any]]:
         for card in self.repository.matchday_cards():

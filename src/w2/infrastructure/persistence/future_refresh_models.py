@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -86,3 +86,49 @@ class RawPayloadModel(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     storage_uri: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class TeamXgMatchModel(Base):
+    __tablename__ = "team_xg_match"
+    __table_args__ = (
+        UniqueConstraint("fixture_id", "team_id", name="uq_team_xg_match_fixture_team"),
+        Index("ix_team_xg_match_team_kickoff", "team_id", "kickoff_at"),
+        Index("ix_team_xg_match_fixture", "fixture_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    opponent_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    xg_for: Mapped[float] = mapped_column(Float, nullable=False)
+    xg_against: Mapped[float] = mapped_column(Float, nullable=False)
+    goals_for: Mapped[int] = mapped_column(Integer, nullable=False)
+    goals_against: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class TeamXgRollingSnapshotModel(Base):
+    __tablename__ = "team_xg_rolling_snapshot"
+    __table_args__ = (
+        UniqueConstraint("team_id", "as_of_fixture_id", name="uq_team_xg_snapshot_fixture_team"),
+        Index("ix_team_xg_rolling_snapshot_team_asof", "team_id", "as_of_time"),
+    )
+
+    snapshot_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    match_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    rolling_xg_for: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_xg_against: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_goals_for: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_goals_against: Mapped[float] = mapped_column(Float, nullable=False)
+    regression_index: Mapped[float] = mapped_column(Float, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

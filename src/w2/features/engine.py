@@ -12,6 +12,7 @@ from w2.features.framework import (
     FeatureStatus,
     require_competition_enabled,
 )
+from w2.features.live_factors import TeamXgSnapshot, true_xg_factor
 from w2.features.market_factors import (
     BookmakerQuote,
     bookmaker_divergence_factor,
@@ -43,6 +44,8 @@ class FeatureInputs:
     away_ratings: list[TeamRatingSnapshot] = field(default_factory=list)
     home_values: list[TeamValueSnapshot] = field(default_factory=list)
     away_values: list[TeamValueSnapshot] = field(default_factory=list)
+    home_xg: list[TeamXgSnapshot] = field(default_factory=list)
+    away_xg: list[TeamXgSnapshot] = field(default_factory=list)
 
 
 def build_feature_set(
@@ -96,6 +99,12 @@ def build_feature_set(
             profile=coverage,
             home_values=inputs.home_values,
             away_values=inputs.away_values,
+        ),
+        true_xg_factor(
+            context=context,
+            profile=coverage,
+            home_xg=inputs.home_xg,
+            away_xg=inputs.away_xg,
         ),
     )
     status = (

@@ -290,7 +290,7 @@ assert {market["market"] for market in markets} == {
 for market in markets:
     assert market["candidate"] is False
     assert market["formal_recommendation"] is False
-    assert market["decision"] in {"SKIP", "WATCH", "ANALYSIS_PICK"}
+    assert market["decision"] in {"SKIP", "PICK"}
     assert market["risks"]
     if market["decision"] == "SKIP":
         assert any(

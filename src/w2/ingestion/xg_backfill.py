@@ -1,0 +1,335 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Protocol
+
+from w2.features.xg_materialization import (
+    FINISHED_STATUS,
+    TeamXgMatch,
+    materialize_rolling_xg,
+    parse_team_xg_matches,
+)
+from w2.ingestion.future_refresh import (
+    LiveApiFootballPort,
+    canonical_json,
+    fixture_id_from_payload,
+    iso,
+    parse_utc,
+    sanitize_params,
+    sha256_payload,
+)
+from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
+)
+from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
+from w2.providers.quota import parse_api_football_quota
+
+
+class XgBackfillError(RuntimeError):
+    pass
+
+
+class XgBackfillRepository(Protocol):
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        pass
+
+    def save_raw_payload(
+        self,
+        *,
+        sha256: str,
+        endpoint: str,
+        captured_at: datetime,
+        payload: dict[str, Any],
+    ) -> str:
+        pass
+
+    def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
+        pass
+
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        pass
+
+    def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
+        pass
+
+
+@dataclass(frozen=True, kw_only=True)
+class XgBackfillConfig:
+    competition_id: str = "world_cup_2026"
+    recent_match_count: int = 5
+    request_budget: int = 120
+    quota_reserve: int = 1500
+    min_rolling_matches: int = 3
+    max_rolling_matches: int = 5
+    source_revision: str = "LOCAL_UNDEPLOYED"
+
+
+@dataclass(frozen=True, kw_only=True)
+class XgBackfillResult:
+    generated_at_utc: datetime
+    team_count: int
+    historical_fixture_count: int
+    statistics_request_count: int
+    team_xg_match_rows: int
+    rolling_snapshot_rows: int
+    remaining_quota: int | None
+    blockers: list[str] = field(default_factory=list)
+    requests: list[dict[str, Any]] = field(default_factory=list)
+    candidate: bool = False
+    formal_recommendation: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "generated_at_utc": iso(self.generated_at_utc),
+            "team_count": self.team_count,
+            "historical_fixture_count": self.historical_fixture_count,
+            "statistics_request_count": self.statistics_request_count,
+            "team_xg_match_rows": self.team_xg_match_rows,
+            "rolling_snapshot_rows": self.rolling_snapshot_rows,
+            "remaining_quota": self.remaining_quota,
+            "blockers": self.blockers,
+            "requests": self.requests,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+
+class XgHistoryBackfillService:
+    def __init__(
+        self,
+        *,
+        client: LiveApiFootballPort | None = None,
+        repository: XgBackfillRepository | None = None,
+        config: XgBackfillConfig | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        self.client = client or ApiFootballClient(
+            allow_live=True,
+            allowed_live_endpoints=frozenset({"fixtures", "statistics", "status"}),
+        )
+        self.repository = repository or FutureRefreshDbRepository()
+        self.config = config or XgBackfillConfig()
+        self.now = now or datetime.now(UTC)
+        self._audit: list[dict[str, Any]] = []
+        self._remaining_quota: int | None = None
+
+    def run(self) -> XgBackfillResult:
+        future_fixtures = self.repository.fixture_payloads()
+        team_ids = sorted(self._world_cup_team_ids(future_fixtures))
+        historical_fixtures: dict[str, dict[str, Any]] = {}
+        blockers: list[str] = []
+        for team_id in team_ids:
+            if self._attempt_count() >= self.config.request_budget:
+                blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
+                break
+            response = self._request(
+                "fixtures",
+                {"team": team_id, "last": str(self.config.recent_match_count)},
+            )
+            if response.status_code >= 400:
+                blockers.append(f"HISTORICAL_FIXTURES_HTTP_{response.status_code}:{team_id}")
+                continue
+            self._save_raw(response)
+            for item in self._finished_fixture_items(response.payload):
+                historical_fixtures[fixture_id_from_payload(item)] = item
+        xg_rows: list[TeamXgMatch] = []
+        for fixture_id, fixture in sorted(historical_fixtures.items()):
+            if self._attempt_count() >= self.config.request_budget:
+                blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
+                break
+            response = self._request("statistics", {"fixture": fixture_id})
+            if response.status_code >= 400:
+                blockers.append(f"STATISTICS_HTTP_{response.status_code}:{fixture_id}")
+                continue
+            payload_hash = sha256_payload(response.payload)
+            self._save_raw(response)
+            xg_rows.extend(
+                parse_team_xg_matches(
+                    fixture_payload=fixture,
+                    statistics_payload=response.payload,
+                    captured_at=response.captured_at,
+                    raw_payload_sha256=payload_hash,
+                )
+            )
+        match_rows = [self._xg_match_dict(row) for row in xg_rows]
+        snapshot_rows = self._rolling_snapshot_rows(
+            future_fixtures=future_fixtures,
+            materialized_matches=xg_rows,
+        )
+        try:
+            upserted_matches = self.repository.upsert_team_xg_matches(match_rows)
+            upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshot_rows)
+        except FutureRefreshPersistenceError as exc:
+            raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        return XgBackfillResult(
+            generated_at_utc=self.now,
+            team_count=len(team_ids),
+            historical_fixture_count=len(historical_fixtures),
+            statistics_request_count=sum(
+                1 for item in self._audit if item["endpoint"] == "statistics"
+            ),
+            team_xg_match_rows=upserted_matches,
+            rolling_snapshot_rows=upserted_snapshots,
+            remaining_quota=self._remaining_quota,
+            blockers=blockers,
+            requests=self._audit,
+        )
+
+    def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        response = self.client.request_live(endpoint, params)
+        quota = parse_api_football_quota(
+            headers=response.headers,
+            payload=response.payload,
+            observed_at=response.captured_at,
+        )
+        self._remaining_quota = quota.daily_remaining
+        payload_hash = sha256_payload(response.payload)
+        self._audit.append(
+            {
+                "endpoint": endpoint,
+                "params": sanitize_params(params),
+                "status_code": response.status_code,
+                "elapsed_ms": response.elapsed_ms,
+                "captured_at_utc": iso(response.captured_at),
+                "payload_sha256": payload_hash,
+                "remaining_quota": quota.daily_remaining,
+                "candidate": False,
+                "formal_recommendation": False,
+            }
+        )
+        if quota.daily_remaining is not None and quota.daily_remaining < self.config.quota_reserve:
+            raise XgBackfillError("QUOTA_BELOW_RESERVE")
+        if response.status_code in {401, 403}:
+            return response
+        return response
+
+    def _save_raw(self, response: LiveApiFootballResponse) -> None:
+        self.repository.save_raw_payload(
+            sha256=sha256_payload(response.payload),
+            endpoint=response.endpoint,
+            captured_at=response.captured_at,
+            payload=response.payload,
+        )
+
+    def _attempt_count(self) -> int:
+        return len(self._audit)
+
+    def _world_cup_team_ids(self, fixtures: list[dict[str, Any]]) -> set[str]:
+        ids: set[str] = set()
+        for item in fixtures:
+            teams = item.get("teams", {}) if isinstance(item, dict) else {}
+            for side in ("home", "away"):
+                team = teams.get(side) if isinstance(teams, dict) else None
+                if isinstance(team, dict) and team.get("id") is not None:
+                    ids.add(str(team["id"]))
+        return ids
+
+    def _finished_fixture_items(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        response = payload.get("response")
+        if not isinstance(response, list):
+            return []
+        rows: list[dict[str, Any]] = []
+        for item in response:
+            if not isinstance(item, dict):
+                continue
+            fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
+            status = fixture.get("status", {}) if isinstance(fixture.get("status"), dict) else {}
+            kickoff = parse_utc(fixture.get("date"))
+            is_finished = status.get("short") in FINISHED_STATUS
+            if is_finished and kickoff is not None and kickoff < self.now:
+                rows.append(item)
+        return rows
+
+    def _rolling_snapshot_rows(
+        self,
+        *,
+        future_fixtures: list[dict[str, Any]],
+        materialized_matches: list[TeamXgMatch],
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for item in future_fixtures:
+            fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
+            fixture_id = str(fixture.get("id") or "")
+            kickoff = parse_utc(fixture.get("date"))
+            teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
+            if not fixture_id or kickoff is None:
+                continue
+            for side in ("home", "away"):
+                team_raw = teams.get(side) if isinstance(teams, dict) else None
+                team = team_raw if isinstance(team_raw, dict) else {}
+                team_id = str(team.get("id") or "")
+                if not team_id:
+                    continue
+                snapshot = materialize_rolling_xg(
+                    team_id=team_id,
+                    as_of_fixture_id=fixture_id,
+                    as_of_time=kickoff,
+                    matches=materialized_matches,
+                    window=self.config.max_rolling_matches,
+                    min_matches=self.config.min_rolling_matches,
+                )
+                if snapshot is not None:
+                    rows.append(
+                        {
+                            "snapshot_id": snapshot.snapshot_id,
+                            "team_id": snapshot.team_id,
+                            "as_of_fixture_id": snapshot.as_of_fixture_id,
+                            "as_of_time": iso(snapshot.as_of_time),
+                            "match_count": snapshot.match_count,
+                            "rolling_xg_for": snapshot.rolling_xg_for,
+                            "rolling_xg_against": snapshot.rolling_xg_against,
+                            "rolling_goals_for": snapshot.rolling_goals_for,
+                            "rolling_goals_against": snapshot.rolling_goals_against,
+                            "regression_index": snapshot.regression_index,
+                            "source_system": snapshot.source_system,
+                            "candidate": False,
+                            "formal_recommendation": False,
+                        }
+                    )
+        return rows
+
+    def _xg_match_dict(self, row: TeamXgMatch) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "fixture_id": row.fixture_id,
+            "team_id": row.team_id,
+            "opponent_team_id": row.opponent_team_id,
+            "kickoff_at": iso(row.kickoff_at),
+            "captured_at": iso(row.captured_at),
+            "xg_for": row.xg_for,
+            "xg_against": row.xg_against,
+            "goals_for": row.goals_for,
+            "goals_against": row.goals_against,
+            "raw_payload_sha256": row.raw_payload_sha256,
+            "source_system": row.source_system,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+
+def run_xg_history_backfill(
+    *,
+    client: LiveApiFootballPort | None = None,
+    repository: XgBackfillRepository | None = None,
+    now: datetime | None = None,
+) -> XgBackfillResult:
+    return XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        now=now,
+        config=XgBackfillConfig(
+            recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
+            request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
+            quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
+            source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
+        ),
+    ).run()
+
+
+def write_backfill_report(path: Path, result: XgBackfillResult) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(canonical_json(result.as_dict()) + "\n", encoding="utf-8")

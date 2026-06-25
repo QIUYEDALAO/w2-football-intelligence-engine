@@ -26,6 +26,8 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    TeamXgMatchModel,
+    TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.governance_models import (
     DependencyRiskModel,
@@ -251,6 +253,8 @@ __all__ = [
     "SyncCursorModel",
     "TeamModel",
     "TeamRatingModel",
+    "TeamXgMatchModel",
+    "TeamXgRollingSnapshotModel",
     "TournamentOperationsPlanModel",
     "TournamentProfileModel",
     "TournamentReadinessAuditModel",

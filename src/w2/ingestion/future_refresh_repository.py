@@ -14,6 +14,8 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    TeamXgMatchModel,
+    TeamXgRollingSnapshotModel,
 )
 
 
@@ -168,6 +170,152 @@ class FutureRefreshDbRepository:
                 if fixture_id and fixture_id != "None":
                     fixtures[fixture_id] = item
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
+
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == endpoint)
+                    .order_by(RawPayloadModel.captured_at)
+                )
+            )
+        return [
+            {
+                "sha256": row.sha256,
+                "endpoint": row.endpoint,
+                "captured_at": iso_z(row.captured_at),
+                "payload": dict(row.payload),
+            }
+            for row in rows
+        ]
+
+    def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
+        upserted = 0
+        with Session(self.engine) as session:
+            for row in matches:
+                model = TeamXgMatchModel(
+                    id=str(row["id"]),
+                    fixture_id=str(row["fixture_id"]),
+                    team_id=str(row["team_id"]),
+                    opponent_team_id=str(row["opponent_team_id"]),
+                    kickoff_at=parse_db_datetime(row["kickoff_at"]),
+                    captured_at=parse_db_datetime(row["captured_at"]),
+                    xg_for=float(row["xg_for"]),
+                    xg_against=float(row["xg_against"]),
+                    goals_for=int(row["goals_for"]),
+                    goals_against=int(row["goals_against"]),
+                    raw_payload_sha256=str(row["raw_payload_sha256"]),
+                    source_system=str(row["source_system"]),
+                    candidate=False,
+                    formal_recommendation=False,
+                )
+                session.merge(model)
+                upserted += 1
+            try:
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("TEAM_XG_MATCH_WRITE_FAILED") from exc
+        return upserted
+
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(TeamXgMatchModel).order_by(
+                        TeamXgMatchModel.team_id,
+                        TeamXgMatchModel.kickoff_at,
+                    )
+                )
+            )
+        return [
+            {
+                "id": row.id,
+                "fixture_id": row.fixture_id,
+                "team_id": row.team_id,
+                "opponent_team_id": row.opponent_team_id,
+                "kickoff_at": iso_z(row.kickoff_at),
+                "captured_at": iso_z(row.captured_at),
+                "xg_for": row.xg_for,
+                "xg_against": row.xg_against,
+                "goals_for": row.goals_for,
+                "goals_against": row.goals_against,
+                "raw_payload_sha256": row.raw_payload_sha256,
+                "source_system": row.source_system,
+                "candidate": False,
+                "formal_recommendation": False,
+            }
+            for row in rows
+        ]
+
+    def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
+        upserted = 0
+        with Session(self.engine) as session:
+            for row in snapshots:
+                session.merge(
+                    TeamXgRollingSnapshotModel(
+                        snapshot_id=str(row["snapshot_id"]),
+                        team_id=str(row["team_id"]),
+                        as_of_fixture_id=str(row["as_of_fixture_id"]),
+                        as_of_time=parse_db_datetime(row["as_of_time"]),
+                        match_count=int(row["match_count"]),
+                        rolling_xg_for=float(row["rolling_xg_for"]),
+                        rolling_xg_against=float(row["rolling_xg_against"]),
+                        rolling_goals_for=float(row["rolling_goals_for"]),
+                        rolling_goals_against=float(row["rolling_goals_against"]),
+                        regression_index=float(row["regression_index"]),
+                        source_system=str(row["source_system"]),
+                        candidate=False,
+                        formal_recommendation=False,
+                    )
+                )
+                upserted += 1
+            try:
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("TEAM_XG_SNAPSHOT_WRITE_FAILED") from exc
+        return upserted
+
+    def team_xg_rolling_snapshots(
+        self,
+        *,
+        fixture_id: str | None = None,
+        team_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        with Session(self.engine) as session:
+            query = select(TeamXgRollingSnapshotModel)
+            if fixture_id is not None:
+                query = query.where(TeamXgRollingSnapshotModel.as_of_fixture_id == fixture_id)
+            if team_id is not None:
+                query = query.where(TeamXgRollingSnapshotModel.team_id == team_id)
+            rows = list(
+                session.scalars(
+                    query.order_by(
+                        TeamXgRollingSnapshotModel.team_id,
+                        TeamXgRollingSnapshotModel.as_of_time,
+                    )
+                )
+            )
+        return [
+            {
+                "snapshot_id": row.snapshot_id,
+                "team_id": row.team_id,
+                "as_of_fixture_id": row.as_of_fixture_id,
+                "as_of_time": iso_z(row.as_of_time),
+                "match_count": row.match_count,
+                "rolling_xg_for": row.rolling_xg_for,
+                "rolling_xg_against": row.rolling_xg_against,
+                "rolling_goals_for": row.rolling_goals_for,
+                "rolling_goals_against": row.rolling_goals_against,
+                "regression_index": row.regression_index,
+                "source_system": row.source_system,
+                "candidate": False,
+                "formal_recommendation": False,
+            }
+            for row in rows
+        ]
 
     def market_snapshots(self) -> list[dict[str, Any]]:
         observations = self.latest_market_observations()

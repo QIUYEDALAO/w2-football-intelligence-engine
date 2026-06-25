@@ -220,6 +220,7 @@ def _feature_reasons(feature_set: FeatureSet) -> tuple[str, ...]:
         for item in feature_set.contributions
         if item.status == FeatureStatus.READY
     ]
+    ready.sort(key=lambda item: (0 if item.startswith("F9_TRUE_XG:") else 1, item))
     return tuple(ready[:4]) if ready else ("FEATURES_INSUFFICIENT",)
 
 
