@@ -116,6 +116,9 @@ from w2.infrastructure.persistence.operations_models import (
     SecurityAuditEventModel,
     SloEvaluationModel,
 )
+from w2.infrastructure.persistence.recommendation_lock_models import (
+    Gate5RecommendationLockEventModel,
+)
 from w2.infrastructure.persistence.replay_models import (
     AblationRunModel,
     EvaluationRecordModel,
@@ -164,6 +167,7 @@ __all__ = [
     "FutureMarketObservationModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
+    "Gate5RecommendationLockEventModel",
     "ForwardCycleCheckpointModel",
     "ForwardEvaluationModel",
     "ForwardCycleRunModel",
