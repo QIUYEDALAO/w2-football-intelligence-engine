@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from w2.api.repository import ReadModelService
+from w2.api import repository as api_repository
+from w2.api.repository import ReadModelRepository, ReadModelService
 
 
 class FakeRepository:
@@ -113,3 +114,102 @@ def test_fixture_detail_includes_analysis_card() -> None:
     assert detail is not None
     assert detail["analysis_card"]["fixture_id"] == "1489404"
     assert len(detail["analysis_card"]["markets"]) == 4
+
+
+class MixedFixtureRepository:
+    def matchday_cards(self) -> list[dict[str, Any]]:
+        return []
+
+    def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id == "dashboard-only":
+            return {"fixture_id": "dashboard-only", "market_coverage": {}}
+        return None
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "id": "db-world-cup-fixture",
+                    "date": "2026-06-26T18:00:00Z",
+                    "status": {"short": "NS"},
+                    "venue": {"name": "World Cup Venue"},
+                },
+                "league": {"id": "1", "name": "World Cup", "round": "Group Stage - 3"},
+                "teams": {
+                    "home": {"id": "10", "name": "Home"},
+                    "away": {"id": "20", "name": "Away"},
+                },
+            }
+        ]
+
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture_id": "db-world-cup-fixture",
+                "canonical_market": "ASIAN_HANDICAP",
+            },
+            {
+                "fixture_id": "db-world-cup-fixture",
+                "canonical_market": "TOTALS",
+            },
+        ]
+
+
+def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None:
+    service = ReadModelService(repository=cast(Any, MixedFixtureRepository()))
+
+    card = service.analysis_card("db-world-cup-fixture")
+
+    assert card is not None
+    assert card["fixture_id"] == "db-world-cup-fixture"
+    assert card["source"] == "future_refresh_without_analysis_payload"
+    assert card["candidate"] is False
+    assert card["formal_recommendation"] is False
+    assert {market["market"] for market in card["markets"]} == {
+        "ASIAN_HANDICAP",
+        "TOTALS",
+        "FIRST_HALF_GOALS",
+        "SCORE",
+    }
+    assert card["markets"][0]["reasons"] == ["AH_ANALYSIS_INPUT_UNAVAILABLE"]
+    assert card["markets"][1]["reasons"] == ["OU_ANALYSIS_INPUT_UNAVAILABLE"]
+
+
+def test_read_model_repository_merges_dashboard_and_db_fixtures(monkeypatch) -> None:
+    class DbRepository:
+        def fixture_payloads(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "fixture": {
+                        "id": "db-world-cup-fixture",
+                        "date": "2026-06-26T18:00:00Z",
+                    }
+                }
+            ]
+
+    repository = ReadModelRepository()
+    monkeypatch.setattr(
+        repository,
+        "dashboard_latest_fixtures",
+        lambda: [
+            {
+                "fixture_id": "dashboard-only",
+                "kickoff_utc": "2026-06-22T17:00:00Z",
+                "status": "NS",
+                "competition_id": "1",
+                "competition_name": "World Cup",
+                "home_team_id": "10",
+                "away_team_id": "20",
+                "home_team_name": "Home",
+                "away_team_name": "Away",
+            }
+        ],
+    )
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: DbRepository())
+
+    fixtures = repository.fixture_payloads()
+
+    assert {str(item["fixture"]["id"]) for item in fixtures} == {
+        "dashboard-only",
+        "db-world-cup-fixture",
+    }
