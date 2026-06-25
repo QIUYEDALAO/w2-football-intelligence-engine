@@ -272,6 +272,15 @@ type ShadowStrategyStatus = {
 };
 
 const staleMs = 15 * 60 * 1000;
+type ViteImportMeta = ImportMeta & { env?: { VITE_API_BASE_URL?: string } };
+const apiBaseUrl = ((import.meta as ViteImportMeta).env?.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+function resolveApiEndpoint(endpoint: string): string {
+  const normalized = endpoint
+    .replace(/^\/api\/v1(?=\/|\?|$)/, "/v1")
+    .replace(/^\/api\/ops(?=\/|\?|$)/, "/ops");
+  return `${apiBaseUrl}${normalized}`;
+}
 
 function emptyResource<T>(endpoint: string): Resource<T> {
   return {
@@ -313,7 +322,7 @@ function isStale(payload: unknown): boolean {
 async function loadJson<T>(endpoint: string): Promise<Resource<T>> {
   const requestId = crypto.randomUUID();
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(resolveApiEndpoint(endpoint), {
       headers: { Accept: "application/json", "X-Request-ID": requestId },
     });
     const text = await response.text();
@@ -437,7 +446,7 @@ function apiFixturesEndpoint(selectedDate: string): string {
     timezone: "Asia/Shanghai",
     operational_date: selectedDate,
   });
-  return `/api/v1/fixtures?${params.toString()}`;
+  return `/v1/fixtures?${params.toString()}`;
 }
 
 async function loadAnalysisDashboard(selectedDate: string): Promise<Resource<AnalysisDashboardData>> {
@@ -460,7 +469,7 @@ async function loadAnalysisDashboard(selectedDate: string): Promise<Resource<Ana
     };
   }
   const cards = await Promise.all(
-    todayFixtures.map((fixture) => loadJson<AnalysisCardResponse>(`/api/v1/fixtures/${fixture.fixture_id}/analysis-card`)),
+    todayFixtures.map((fixture) => loadJson<AnalysisCardResponse>(`/v1/fixtures/${fixture.fixture_id}/analysis-card`)),
   );
   return {
     status: cards.some((card) => card.status === "STALE") ? "STALE" : "SUCCESS",
@@ -727,9 +736,33 @@ function matchdayFixture(item: Record<string, unknown>): Fixture {
   };
 }
 
-function App() {
+function UserAnalysisApp() {
   const [selectedDate, setSelectedDate] = useState<string>(beijingToday());
   const [analysis, setAnalysis] = useState<Resource<AnalysisDashboardData>>(emptyResource(apiFixturesEndpoint(beijingToday())));
+
+  const loadAnalysis = useCallback(() => {
+    setAnalysis(emptyResource(apiFixturesEndpoint(selectedDate)));
+    loadAnalysisDashboard(selectedDate).then(setAnalysis);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadAnalysis();
+  }, [loadAnalysis]);
+
+  return (
+    <main className="shell user-shell">
+      <AnalysisDashboard
+        resource={analysis}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        onRetry={loadAnalysis}
+      />
+    </main>
+  );
+}
+
+function OperationsConsole() {
+  const [selectedDate, setSelectedDate] = useState<string>(beijingToday());
   const [fixtures, setFixtures] = useState<Resource<FixtureList>>(emptyResource(`/api/v1/matchday/${beijingToday()}`));
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Resource<FixtureDetail>>(emptyResource("/api/v1/fixtures/none"));
@@ -773,11 +806,6 @@ function App() {
     });
   }, [selectedDate]);
 
-  const loadAnalysis = useCallback(() => {
-    setAnalysis(emptyResource(apiFixturesEndpoint(selectedDate)));
-    loadAnalysisDashboard(selectedDate).then(setAnalysis);
-  }, [selectedDate]);
-
   const loadCommon = useCallback(() => {
     loadJson<ForwardStatus>("/api/v1/forward-holdout/status").then(setForward);
     loadJson<ProviderStatus>("/api/v1/providers/status").then(setProvider);
@@ -798,10 +826,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadAnalysis();
     loadFixtures();
     loadCommon();
-  }, [loadAnalysis, loadCommon, loadFixtures]);
+  }, [loadCommon, loadFixtures]);
 
   useEffect(() => {
     if (!selected) {
@@ -832,13 +859,6 @@ function App() {
 
   return (
     <main className="shell">
-      <AnalysisDashboard
-        resource={analysis}
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
-        onRetry={loadAnalysis}
-      />
-
       <header className="topbar ops-topbar">
         <div>
           <p className="kicker">W2 Operations Console</p>
@@ -1083,6 +1103,10 @@ function App() {
       </section>
     </main>
   );
+}
+
+function App() {
+  return window.location.pathname.startsWith("/ops") ? <OperationsConsole /> : <UserAnalysisApp />;
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(<App />);
