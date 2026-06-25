@@ -32,6 +32,7 @@ class LiveApiFootballResponse:
 class ApiFootballClient:
     api_key_env_name: str = "W2_API_FOOTBALL_API_KEY"
     allow_live: bool = False
+    allowed_live_endpoints: frozenset[str] | None = None
     provider: str = "api_football"
     base_url: str = "https://v3.football.api-sports.io"
     auth_header_name: str = "x-apisports-key"
@@ -43,6 +44,7 @@ class ApiFootballClient:
             raise LiveNetworkDisabledError(
                 "network is disabled unless --live is explicitly approved"
             )
+        self._require_endpoint_allowed(request.endpoint)
         raise LiveNetworkDisabledError("live API-Football execution is blocked in Stage 4A")
 
     def parse_fixture(self, endpoint: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -68,6 +70,7 @@ class ApiFootballClient:
             raise LiveNetworkDisabledError(
                 "network is disabled unless --live is explicitly approved"
             )
+        self._require_endpoint_allowed(endpoint)
         api_key = os.environ.get(self.api_key_env_name)
         if not api_key:
             raise LiveNetworkDisabledError("provider credential is not visible to the process")
@@ -112,6 +115,12 @@ class ApiFootballClient:
             for key, value in dict(headers).items()
             if str(key).lower() not in blocked
         }
+
+    def _require_endpoint_allowed(self, endpoint: str) -> None:
+        if self.allowed_live_endpoints is None:
+            return
+        if endpoint not in self.allowed_live_endpoints:
+            raise LiveNetworkDisabledError(f"live endpoint not approved: {endpoint}")
 
 
 @dataclass(frozen=True)

@@ -46,6 +46,9 @@ class CompetitionRefreshPolicy:
     scheduler_interval_seconds: int
     quota_reserve: int
     request_budget: int
+    feature_enrichment_enabled: bool
+    feature_enrichment_endpoints: tuple[str, ...]
+    feature_enrichment_request_budget: int
     max_fixture_candidates: int
     max_odds_requests: int
     market_freshness_seconds: int
@@ -64,6 +67,9 @@ class FutureRefreshConfig:
     quota_reserve: int = 1500
     market_freshness_seconds: int = 3600
     request_budget: int = 40
+    feature_enrichment_enabled: bool = False
+    feature_enrichment_endpoints: tuple[str, ...] = ("statistics", "lineups", "injuries")
+    feature_enrichment_request_budget: int = 0
     scheduler_interval_seconds: int = 900
     source_revision: str = "LOCAL_UNDEPLOYED"
     enabled: bool = True
@@ -76,6 +82,7 @@ class FutureRefreshResult:
     fixture_count: int
     mapping_count: int
     market_snapshot_count: int
+    feature_enrichment_payload_count: int
     ledger_appended_count: int
     request_count: int
     remaining_quota: int | None
@@ -201,6 +208,13 @@ def load_refresh_policy(
         for field_name, field_type in required.items():
             if not isinstance(item.get(field_name), field_type):
                 raise FutureRefreshError(f"FUTURE_REFRESH_POLICY_FIELD_INVALID:{field_name}")
+        enrichment_endpoints = item.get("feature_enrichment_endpoints", [])
+        if not isinstance(enrichment_endpoints, list) or not all(
+            isinstance(endpoint, str) for endpoint in enrichment_endpoints
+        ):
+            raise FutureRefreshError(
+                "FUTURE_REFRESH_POLICY_FIELD_INVALID:feature_enrichment_endpoints"
+            )
         return CompetitionRefreshPolicy(
             competition_id=competition_id,
             provider_league_id=item["provider_league_id"],
@@ -209,6 +223,9 @@ def load_refresh_policy(
             scheduler_interval_seconds=item["scheduler_interval_seconds"],
             quota_reserve=item["quota_reserve"],
             request_budget=item["request_budget"],
+            feature_enrichment_enabled=bool(item.get("feature_enrichment_enabled") is True),
+            feature_enrichment_endpoints=tuple(enrichment_endpoints),
+            feature_enrichment_request_budget=int(item.get("feature_enrichment_request_budget", 0)),
             max_fixture_candidates=item["max_fixture_candidates"],
             max_odds_requests=item["max_odds_requests"],
             market_freshness_seconds=item["market_freshness_seconds"],
@@ -235,6 +252,9 @@ def config_from_policy(
         quota_reserve=policy.quota_reserve,
         market_freshness_seconds=policy.market_freshness_seconds,
         request_budget=policy.request_budget,
+        feature_enrichment_enabled=policy.feature_enrichment_enabled,
+        feature_enrichment_endpoints=policy.feature_enrichment_endpoints,
+        feature_enrichment_request_budget=policy.feature_enrichment_request_budget,
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
@@ -555,8 +575,11 @@ class FutureFixtureRefreshService:
         now: datetime | None = None,
         sleep: Any | None = None,
     ) -> None:
-        self.client = client or ApiFootballClient(allow_live=True)
         self.config = config or config_from_policy()
+        self.client = client or ApiFootballClient(
+            allow_live=True,
+            allowed_live_endpoints=self._allowed_live_endpoints(self.config),
+        )
         self.now = now or utc_now()
         self.sleep = sleep or time.sleep
         self._attempt_count = 0
@@ -566,6 +589,15 @@ class FutureFixtureRefreshService:
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
 
+    def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
+        base = {"status", "fixtures", "odds"}
+        enrichment = (
+            set(config.feature_enrichment_endpoints)
+            if config.feature_enrichment_enabled
+            else set()
+        )
+        return frozenset(base | (enrichment & {"statistics", "lineups", "injuries"}))
+
     def run(self) -> FutureRefreshResult:
         blockers: list[str] = []
         if not self.config.enabled:
@@ -574,6 +606,7 @@ class FutureFixtureRefreshService:
                 fixture_count=0,
                 mapping_count=0,
                 market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
                 ledger_appended_count=0,
                 request_count=0,
                 remaining_quota=None,
@@ -596,7 +629,14 @@ class FutureFixtureRefreshService:
             )
             future_fixtures = self._future_fixtures(fixtures_response.payload)
             odds_responses = self._fetch_market_snapshots(future_fixtures)
-            result = self._persist(fixtures_response, future_fixtures, odds_responses, blockers)
+            enrichment_responses = self._fetch_feature_enrichment(future_fixtures)
+            result = self._persist(
+                fixtures_response,
+                future_fixtures,
+                odds_responses,
+                enrichment_responses,
+                blockers,
+            )
         except FutureRefreshError as exc:
             blockers.append(str(exc))
             result = FutureRefreshResult(
@@ -604,6 +644,7 @@ class FutureFixtureRefreshService:
                 fixture_count=0,
                 mapping_count=0,
                 market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
                 ledger_appended_count=0,
                 request_count=self._attempt_count,
                 remaining_quota=self._latest_remaining,
@@ -715,15 +756,51 @@ class FutureFixtureRefreshService:
                 odds.append((fixture_id, response))
         return odds
 
+    def _fetch_feature_enrichment(
+        self,
+        fixtures: list[dict[str, Any]],
+    ) -> list[tuple[str, str, LiveApiFootballResponse]]:
+        if not self.config.feature_enrichment_enabled:
+            return []
+        allowed = {"statistics", "lineups", "injuries"}
+        endpoints = [
+            endpoint
+            for endpoint in self.config.feature_enrichment_endpoints
+            if endpoint in allowed
+        ]
+        if not endpoints:
+            return []
+        budget = max(self.config.feature_enrichment_request_budget, 0)
+        if budget == 0:
+            return []
+        responses: list[tuple[str, str, LiveApiFootballResponse]] = []
+        for item in fixtures:
+            fixture_id = fixture_id_from_payload(item)
+            if not fixture_id:
+                continue
+            for endpoint in endpoints:
+                if len(responses) >= budget:
+                    return responses
+                response = self._request(endpoint, {"fixture": fixture_id})
+                responses.append((fixture_id, endpoint, response))
+        return responses
+
     def _persist(
         self,
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
+        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         if self.config.persistence == "db":
-            return self._persist_db(fixtures_response, fixtures, odds_responses, blockers)
+            return self._persist_db(
+                fixtures_response,
+                fixtures,
+                odds_responses,
+                enrichment_responses,
+                blockers,
+            )
         if self.config.persistence != "file":
             raise FutureRefreshError(
                 f"FUTURE_REFRESH_PERSISTENCE_INVALID:{self.config.persistence}"
@@ -756,6 +833,12 @@ class FutureFixtureRefreshService:
                     source_revision=self.config.source_revision,
                 )
             )
+        for fixture_id, endpoint, response in enrichment_responses:
+            payload_hash = sha256_payload(response.payload)
+            write_raw_once(
+                raw_dir / f"{endpoint}_{fixture_id}_{payload_hash}.json",
+                {"payload": response.payload, "audit": self._audit_for_payload(payload_hash)},
+            )
         appended = ledger.append_observations(observations)
         latest_rows = project_ledger_to_read_model(ledger=ledger, read_model_dir=read_model)
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
@@ -772,6 +855,7 @@ class FutureFixtureRefreshService:
             fixture_count=len(fixtures),
             mapping_count=len(mappings),
             market_snapshot_count=len(markets),
+            feature_enrichment_payload_count=len(enrichment_responses),
             ledger_appended_count=appended,
             request_count=self._attempt_count,
             remaining_quota=self._latest_remaining,
@@ -786,6 +870,7 @@ class FutureFixtureRefreshService:
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
+        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         repository = self._db_repository()
@@ -814,6 +899,14 @@ class FutureFixtureRefreshService:
                         source_revision=self.config.source_revision,
                     )
                 )
+            for _fixture_id, endpoint, response in enrichment_responses:
+                payload_hash = sha256_payload(response.payload)
+                repository.save_raw_payload(
+                    sha256=payload_hash,
+                    endpoint=endpoint,
+                    captured_at=response.captured_at,
+                    payload=response.payload,
+                )
             appended = repository.append_observations(observations)
             latest_rows = repository.latest_market_observations()
         except FutureRefreshPersistenceError as exc:
@@ -828,6 +921,7 @@ class FutureFixtureRefreshService:
             fixture_count=len(fixtures),
             mapping_count=len(mappings),
             market_snapshot_count=len(markets),
+            feature_enrichment_payload_count=len(enrichment_responses),
             ledger_appended_count=appended,
             request_count=self._attempt_count,
             remaining_quota=self._latest_remaining,
@@ -911,6 +1005,7 @@ class FutureFixtureRefreshService:
             "fixture_count": result.fixture_count,
             "mapping_count": result.mapping_count,
             "market_snapshot_count": result.market_snapshot_count,
+            "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
             "ledger_appended_count": result.ledger_appended_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
@@ -1028,6 +1123,7 @@ def run_future_refresh_task(
             "fixture_count": result.fixture_count,
             "mapping_count": result.mapping_count,
             "market_snapshot_count": result.market_snapshot_count,
+            "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
             "ledger_appended_count": result.ledger_appended_count,
             "request_count": result.request_count,
             "remaining_quota": result.remaining_quota,
