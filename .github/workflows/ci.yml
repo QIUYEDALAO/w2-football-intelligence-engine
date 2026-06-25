@@ -77,3 +77,22 @@ jobs:
         run: uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
+  predeploy-e2e:
+    runs-on: ubuntu-latest
+    env:
+      W2_ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Predeploy e2e staging smoke
+        run: bash scripts/run_predeploy_e2e_smoke.sh
+      - name: Predeploy e2e regression contracts
+        run: |
+          uv run --python 3.12 pytest -q \
+            tests/contract/test_predeploy_e2e_regressions.py \
+            tests/unit/test_analysis_card_api.py::test_read_model_repository_merges_dashboard_and_db_fixtures \
+            tests/unit/test_analysis_card_api.py::test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
