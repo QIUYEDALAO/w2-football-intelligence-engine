@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from apps.scheduler.main import future_fixture_refresh_tick, heartbeat
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from apps.scheduler import main as scheduler_main
+from apps.scheduler.main import (
+    fixture_refresh_gradient_interval_seconds,
+    future_fixture_refresh_tick,
+    heartbeat,
+)
 from apps.worker.celery_app import celery_app, future_fixture_refresh, ping
 
 from w2.config import Settings
@@ -37,6 +45,89 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
     assert str(result["task_key"]).startswith("future-refresh:world_cup_2026:2026:")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
+
+
+def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+
+    def fixture_payloads(seconds_until_kickoff: int) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "date": (now + timedelta(seconds=seconds_until_kickoff)).isoformat(),
+                    "status": {"short": "NS"},
+                }
+            }
+        ]
+
+    for seconds_until_kickoff, expected_interval in [
+        (72 * 60 * 60, 3600),
+        (24 * 60 * 60, 1800),
+        (6 * 60 * 60, 900),
+        (2 * 60 * 60, 300),
+        (30 * 60, 120),
+        (5 * 60, 60),
+    ]:
+        monkeypatch.setattr(
+            scheduler_main,
+            "future_refresh_fixture_payloads",
+            lambda seconds_until_kickoff=seconds_until_kickoff: fixture_payloads(
+                seconds_until_kickoff
+            ),
+        )
+        assert fixture_refresh_gradient_interval_seconds(now=now) == expected_interval
+
+
+def test_scheduler_refresh_interval_ignores_started_and_finished_fixtures(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda: [
+            {
+                "fixture": {
+                    "date": (now - timedelta(minutes=5)).isoformat(),
+                    "status": {"short": "NS"},
+                }
+            },
+            {
+                "fixture": {
+                    "date": (now + timedelta(minutes=5)).isoformat(),
+                    "status": {"short": "1H"},
+                }
+            },
+        ],
+    )
+
+    assert (
+        fixture_refresh_gradient_interval_seconds(
+            now=now,
+            default_interval_seconds=900,
+        )
+        == 3600
+    )
+
+
+def test_scheduler_refresh_interval_falls_back_when_db_unavailable(monkeypatch) -> None:
+    def unavailable_repository() -> list[dict[str, Any]]:
+        raise RuntimeError("db unavailable")
+
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        unavailable_repository,
+    )
+
+    assert (
+        fixture_refresh_gradient_interval_seconds(
+            now=datetime(2026, 6, 25, 12, tzinfo=UTC),
+            default_interval_seconds=777,
+        )
+        == 777
+    )
 
 
 def test_worker_future_refresh_task_is_registered() -> None:
