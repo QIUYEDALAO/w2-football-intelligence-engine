@@ -194,16 +194,14 @@ def assert_runtime_mount(path: Path, compose: dict[str, Any]) -> None:
             fail(f"{path}: {service} runtime mount source mismatch")
         if target != RUNTIME_MOUNT_TARGET:
             fail(f"{path}: {service} runtime mount target mismatch")
-        if mode == "ro":
-            fail(f"{path}: {service} runtime mount must be writable")
 
 
 def assert_worker_runtime_healthcheck(path: Path, compose: dict[str, Any]) -> None:
     health = " ".join(str(item) for item in service_healthcheck(compose, "worker"))
     if "os.path.isdir('/app/runtime')" not in health:
         fail(f"{path}: worker healthcheck must verify runtime directory")
-    if "os.access('/app/runtime', os.W_OK)" not in health:
-        fail(f"{path}: worker healthcheck must verify runtime writability")
+    if "os.access('/app/runtime', os.W_OK)" in health:
+        fail(f"{path}: worker healthcheck must not require runtime writability")
     if any(token in health for token in ("open(", "write(", "touch", "mkdir", "remove", "unlink")):
         fail(f"{path}: worker runtime healthcheck must be side-effect free")
 
