@@ -188,10 +188,11 @@ class ReadModelRepository:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE8_REPLAY_SUMMARY.json", {}))
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
-        dashboard = self.dashboard_latest_fixtures()
-        if dashboard:
-            return [self._dashboard_fixture_to_provider_payload(item) for item in dashboard]
         fixtures: dict[str, dict[str, Any]] = {}
+        for item in self.dashboard_latest_fixtures():
+            fixture_id = str(item.get("fixture_id"))
+            if fixture_id and fixture_id != "None":
+                fixtures[fixture_id] = self._dashboard_fixture_to_provider_payload(item)
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
