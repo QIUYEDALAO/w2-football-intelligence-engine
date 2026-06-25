@@ -1,0 +1,80 @@
+{
+  "package_id": "W2_PACKAGE_A",
+  "status": "STAGING_ACCEPTED",
+  "observed_at_utc": "2026-06-25T02:39:16Z",
+  "deployed_revision": "3e79fdfa34cdf13e3c1e71159625aaa2535a7b9f",
+  "migration_from": "0017_create_stage9a_shadow_strategy",
+  "migration_to": "0018_create_future_refresh_persistence",
+  "alembic_head": "0018_create_future_refresh_persistence",
+  "baseline_minimums": {
+    "future_market_observation": 65285,
+    "future_refresh_task_audit": 1,
+    "future_refresh_run_audit": 1,
+    "raw_payload": 11
+  },
+  "observed_counts": {
+    "future_market_observation": 71799,
+    "future_refresh_task_audit": 5,
+    "future_refresh_run_audit": 5,
+    "raw_payload": 16,
+    "distinct_observation_id": 71799,
+    "duplicate_observation_id": 0,
+    "completed_task": 5,
+    "completed_run": 5,
+    "candidate_true": 0,
+    "formal_recommendation_true": 0
+  },
+  "growth_since_initial_acceptance": {
+    "future_market_observation": 6514,
+    "future_refresh_task_audit": 4,
+    "future_refresh_run_audit": 4,
+    "raw_payload": 5
+  },
+  "observation_window": {
+    "min_captured_at": "2026-06-25T01:32:03.651795+00:00",
+    "max_captured_at": "2026-06-25T01:47:08.301919+00:00"
+  },
+  "classification": "EXPECTED_FORWARD_ACCUMULATION",
+  "latest_task_status": "COMPLETED",
+  "latest_task_finished_at": "2026-06-25T02:33:20.449576+00:00",
+  "latest_request_count": 12,
+  "latest_run_generated_at": "2026-06-25T02:32:01.498174+00:00",
+  "latest_run_request_count": 12,
+  "latest_run_fixture_count": 18,
+  "latest_run_market_snapshot_count": 10,
+  "scheduler_enabled": true,
+  "persistence": "POSTGRESQL",
+  "runtime_writable": false,
+  "runtime_writability_required": false,
+  "shared_runtime_blocker_resolved": true,
+  "candidate": false,
+  "formal_recommendation": false,
+  "system_readiness": {
+    "systemd_enabled": true,
+    "systemd_active": true,
+    "containers_healthy": true,
+    "api_health_status": 200,
+    "api_ready_status": 200,
+    "web_status": 200,
+    "read_endpoints_status": {
+      "/v1/fixtures": 200,
+      "/v1/providers/status": 200,
+      "/v1/data-health": 200,
+      "/v1/matchday/next-36-hours": 200,
+      "/ops/shadow-strategy/status": 200,
+      "/ops/shadow-strategy/locks": 200,
+      "/ops/w1-w2-shadow-comparison": 200
+    },
+    "business_ports_public": false,
+    "env_stat_mode": "600",
+    "env_stat_owner": "ubuntu",
+    "env_content_read": false,
+    "worker_uid": 10001
+  },
+  "w1_modified": false,
+  "production_deployed": false,
+  "rollback_performed": false,
+  "staging_deployed_in_this_closure": false,
+  "migration_run_in_this_closure": false,
+  "provider_called_in_this_closure": false
+}

@@ -2,6 +2,20 @@
   "active_execution_packages": [
     {
       "evidence": [
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.md",
+        "reports/W2_CURRENT_HANDOFF.md"
+      ],
+      "mapped_master_phases": [
+        "4",
+        "10"
+      ],
+      "name": "Package A staging acceptance closure",
+      "notes": "Package A A1-A5 are accepted on staging at 3e79fdfa with Alembic 0018. Future-refresh counts are dynamic forward accumulation and SHARED_RUNTIME_NOT_WRITABLE is resolved by PostgreSQL persistence; A6 object storage remains pending.",
+      "status": "STAGING_ACCEPTED"
+    },
+    {
+      "evidence": [
         "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
         "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md"
@@ -11,8 +25,8 @@
         "10"
       ],
       "name": "Release Train 3A-R1 staging retry deployment",
-      "notes": "Target revision 2d80e04 deployed without migration. Scheduler health contract failed with FUTURE_REFRESH_POLICY_INVALID because the policy file was unavailable through staging config mount; rollback to 23c89be completed and health passed.",
-      "status": "ROLLED_BACK_CONTRACT_FAILURE"
+      "notes": "Target revision 2d80e04 deployed without migration. Scheduler health contract failed with FUTURE_REFRESH_POLICY_INVALID because the policy file was unavailable through staging config mount; rollback to 23c89be completed and health passed. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE_HISTORICAL"
     },
     {
       "evidence": [
@@ -30,8 +44,8 @@
         "10"
       ],
       "name": "Release Train 3A-R1 scheduler enablement repair",
-      "notes": "Static scheduler enablement repair passed CI, but staging retry failed because scheduler could not load future-refresh policy from mounted config; rollback completed.",
-      "status": "RETRY_ROLLED_BACK_CONFIG_POLICY_GAP"
+      "notes": "Static scheduler enablement repair passed CI, but staging retry failed because scheduler could not load future-refresh policy from mounted config; rollback completed. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "RETRY_ROLLED_BACK_CONFIG_POLICY_GAP_HISTORICAL"
     },
     {
       "evidence": [
@@ -45,8 +59,8 @@
         "10"
       ],
       "name": "Release Train 3A future-refresh hardening staging deployment",
-      "notes": "Release Train 3A target deployment rolled back because scheduler dispatch was disabled. R1 static repair now wires staging scheduler future-refresh enablement and is pending retry deployment after CI.",
-      "status": "REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+      "notes": "Release Train 3A target deployment rolled back because scheduler dispatch was disabled. R1 static repair now wires staging scheduler future-refresh enablement and is pending retry deployment after CI. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "REPAIR_IMPLEMENTED_PENDING_RETRY_DEPLOYMENT_HISTORICAL"
     },
     {
       "evidence": [
@@ -77,15 +91,17 @@
     {
       "evidence": [
         "reports/W2_FUTURE_REFRESH_HARDENING_RESULT.md",
-        "reports/W2_CURRENT_HANDOFF.md"
+        "reports/W2_CURRENT_HANDOFF.md",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.md"
       ],
       "mapped_master_phases": [
         "4",
         "10"
       ],
       "name": "future-refresh hardening",
-      "notes": "not deployed to staging to preserve active Stage7I revision continuity",
-      "status": "IMPLEMENTED_PENDING_DEPLOYMENT"
+      "notes": "Accepted on staging as Package A A1-A5 with PostgreSQL persistence; forward collection is active. A6 object storage remains pending.",
+      "status": "STAGING_ACCEPTED"
     },
     {
       "evidence": [
@@ -195,8 +211,8 @@
         "10"
       ],
       "name": "Release Train 3A-R2A policy mount static repair",
-      "notes": "Adds read-only /app/config/policies submount for staging worker and scheduler so the versioned future-refresh policy is available despite the shared /app/config mount. No deployment or migration in R2A.",
-      "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+      "notes": "Adds read-only /app/config/policies submount for staging worker and scheduler so the versioned future-refresh policy is available despite the shared /app/config mount. No deployment or migration in R2A. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT_HISTORICAL"
     },
     {
       "evidence": [
@@ -209,8 +225,8 @@
         "10"
       ],
       "name": "Release Train 3A-R2B staging retry deployment",
-      "notes": "Target revision 371a9cb deployed without migration. Policy mount contract passed and scheduler auto-dispatched one task, but worker failed with PermissionError before writing task audit; rollback to 23c89be completed and health passed.",
-      "status": "ROLLED_BACK_CONTRACT_FAILURE"
+      "notes": "Target revision 371a9cb deployed without migration. Policy mount contract passed and scheduler auto-dispatched one task, but worker failed with PermissionError before writing task audit; rollback to 23c89be completed and health passed. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE_HISTORICAL"
     },
     {
       "evidence": [
@@ -226,8 +242,8 @@
         "10"
       ],
       "name": "Release Train 3A-R3A canonical runtime mount repair",
-      "notes": "Standalone staging runtime source changed from infra/compose/runtime to release-root ../../runtime so the container mount resolves through the release runtime symlink to /opt/w2/shared/runtime. Worker healthcheck now verifies runtime writability without writing files.",
-      "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT"
+      "notes": "Standalone staging runtime source changed from infra/compose/runtime to release-root ../../runtime so the container mount resolves through the release runtime symlink to /opt/w2/shared/runtime. Worker healthcheck now verifies runtime writability without writing files. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "IMPLEMENTED_PENDING_RETRY_DEPLOYMENT_HISTORICAL"
     },
     {
       "evidence": [
@@ -240,8 +256,8 @@
         "10"
       ],
       "name": "Release Train 3A-R3B staging retry deployment",
-      "notes": "Target revision 5e1179f deployed without migration. Worker pre-dispatch contract showed /app/runtime resolves to /opt/w2/shared/runtime but is not writable for non-root uid 10001; target scheduler was not started, no provider call was made, and rollback to 23c89be completed.",
-      "status": "ROLLED_BACK_CONTRACT_FAILURE"
+      "notes": "Target revision 5e1179f deployed without migration. Worker pre-dispatch contract showed /app/runtime resolves to /opt/w2/shared/runtime but is not writable for non-root uid 10001; target scheduler was not started, no provider call was made, and rollback to 23c89be completed. Retained as historical evidence; superseded by Package A staging acceptance.",
+      "status": "ROLLED_BACK_CONTRACT_FAILURE_HISTORICAL"
     }
   ],
   "candidate": false,
@@ -261,7 +277,7 @@
         "Current W1 HEAD differs from recorded legacy baseline HEAD.",
         "Full current W1 backup coverage and checksum verification not proven."
       ],
-      "name": "Legacy \u51bb\u7ed3",
+      "name": "Legacy 冻结",
       "status": "PARTIAL"
     },
     "1": {
@@ -271,7 +287,7 @@
         "GitHub CI success recorded in reports/W2_CURRENT_HANDOFF.md"
       ],
       "missing_requirements": [],
-      "name": "\u5de5\u7a0b\u5e95\u5ea7",
+      "name": "工程底座",
       "status": "COMPLETE"
     },
     "2": {
@@ -280,7 +296,7 @@
         "reports/W2_STAGE4B_DATA_QUALITY.json"
       ],
       "missing_requirements": [],
-      "name": "\u6570\u636e\u5e95\u5ea7",
+      "name": "数据底座",
       "status": "CLOSED"
     },
     "3": {
@@ -318,7 +334,7 @@
         "Baselight platform export/retention policy remains unverified.",
         "Baselight limited AH walk-forward passed; historical AH blockers are resolved, but Gate3 remains PARTIAL pending retained phase/export/OU/1X2 limitations."
       ],
-      "name": "\u5e02\u573a\u57fa\u51c6",
+      "name": "市场基准",
       "next_actions": [
         "Run Gate3 closure checker; expect failure until retained DATE-only, precise phase, OU closing-subset, 1X2 aggregate, and export/retention limitations are resolved.",
         "Do not relabel Baselight DATE_ONLY odds as T-1h/T-30m/T-10m captured-at evidence."
@@ -337,7 +353,7 @@
         "Independent model not approved for formal recommendations",
         "AH remains blocked/forward-only"
       ],
-      "name": "\u72ec\u7acb\u6a21\u578b",
+      "name": "独立模型",
       "status": "OPEN"
     },
     "5": {
@@ -346,7 +362,8 @@
         "reports/W2_CURRENT_HANDOFF.md",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
-        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json"
       ],
       "missing_requirements": [
         "Successor observation completed, but lifecycle collector gap left actual kickoff unavailable",
@@ -354,7 +371,7 @@
         "Final Shadow DB audit not PASS",
         "Gate5 decision not made"
       ],
-      "name": "\u63a8\u8350\u7b56\u7565",
+      "name": "推荐策略",
       "status": "OPEN"
     },
     "6": {
@@ -368,11 +385,11 @@
         "Production release disabled",
         "W2 has not replaced W1"
       ],
-      "name": "\u751f\u4ea7\u5207\u6362",
+      "name": "生产切换",
       "status": "NOT_READY"
     }
   },
-  "generated_at_utc": "2026-06-24T21:03:54.232496Z",
+  "generated_at_utc": "2026-06-25T02:39:16Z",
   "phases": {
     "0": {
       "blockers": [
@@ -392,7 +409,7 @@
         "reports/W2_STAGE2_W1_READONLY_AUDIT.txt",
         "reports/W2_STAGE3_W1_READONLY_AUDIT.txt"
       ],
-      "name": "\u51bb\u7ed3 W1\uff0c\u5e76\u4fdd\u5168\u73b0\u6709\u8d44\u4ea7",
+      "name": "冻结 W1，并保全现有资产",
       "next_actions": [
         "Resolve W1 path naming mismatch or document canonical W1 path.",
         "Create/verify W1 legacy final tag in an explicitly approved W1 maintenance window.",
@@ -411,7 +428,7 @@
         "docs/ai/W2_DEEPSEEK_ROLE_BOUNDARY_V1.md",
         "reports/W2_STAGE1_RESULT.md"
       ],
-      "name": "\u786e\u5b9a W2 \u4ea7\u54c1\u8fb9\u754c",
+      "name": "确定 W2 产品边界",
       "next_actions": [
         "Keep product boundary synced when master scope changes"
       ],
@@ -420,10 +437,7 @@
     "10": {
       "blockers": [
         "Stage10E dashboard redesign/deployment is delayed",
-        "Live dashboard/read-model deployment state is not complete in current handoff",
-        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
-        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair",
-        "Release Train 3A-R1 rolled back because scheduler future-refresh policy was unavailable through staging config mount"
+        "Live dashboard/read-model deployment state is not complete in current handoff"
       ],
       "evidence": [
         "reports/W2_STAGE10A_RESULT.md",
@@ -435,12 +449,14 @@
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
         "scripts/check_w2_future_refresh_staging_contract.py",
         "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
-        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.md"
       ],
-      "name": "\u5efa\u7acb API \u4e0e\u7ba1\u7406\u540e\u53f0",
+      "name": "建立 API 与管理后台",
       "next_actions": [
-        "Repair staging scheduler future-refresh policy availability before another approved retry deployment",
-        "Deploy pending dashboard/read-model work only after approved release train and active observer constraints"
+        "Keep Stage10E dashboard redesign/deployment separate from Package A acceptance.",
+        "Proceed to Stage7I lifecycle supervision B1+B2 as the next active package."
       ],
       "status": "PARTIAL"
     },
@@ -456,7 +472,7 @@
         "docs/security/W2_SECURITY_BASELINE_V1.md",
         "docs/operations/W2_SLO_POLICY_V1.md"
       ],
-      "name": "\u90e8\u7f72\u3001\u76d1\u63a7\u548c\u5b89\u5168",
+      "name": "部署、监控和安全",
       "next_actions": [
         "Keep backup/restore and monitoring drills current before production cutover"
       ],
@@ -473,7 +489,7 @@
         "reports/W2_STAGE12A_QUARANTINE.json",
         "reports/W2_STAGE12A_MIGRATION_DRY_RUN.json"
       ],
-      "name": "W1 \u6570\u636e\u8fc1\u79fb\u4e0e W2 \u5f71\u5b50\u8fd0\u884c",
+      "name": "W1 数据迁移与 W2 影子运行",
       "next_actions": [
         "Require explicit approval before any real migration or production replacement"
       ],
@@ -490,7 +506,7 @@
         "config/competitions/world_cup_2026.v1.json",
         "docs/operations/WORLD_CUP_2026_PROFILE.md"
       ],
-      "name": "\u4e16\u754c\u676f\u8fd0\u884c\u65b9\u6848",
+      "name": "世界杯运行方案",
       "next_actions": [
         "Do not treat World Cup readiness as production strategy availability"
       ],
@@ -507,7 +523,7 @@
         "reports/W2_STAGE14A_READINESS.json",
         "docs/leagues/W2_LEAGUE_ONBOARDING_V1.md"
       ],
-      "name": "\u4e94\u5927\u8054\u8d5b\u53ca\u70ed\u95e8\u4e00\u7ea7\u8054\u8d5b\u6269\u5c55",
+      "name": "五大联赛及热门一级联赛扩展",
       "next_actions": [
         "Keep league strategy disabled until model and shadow Gates close"
       ],
@@ -525,7 +541,7 @@
         "reports/W2_STAGE15A_RELEASE_READINESS.json",
         "docs/operations/W2_RELEASE_AND_ROLLBACK_V1.md"
       ],
-      "name": "\u957f\u671f\u8fd0\u8425\u5236\u5ea6",
+      "name": "长期运营制度",
       "next_actions": [
         "Use local/staging governance cycles; require user approval for production release"
       ],
@@ -540,7 +556,7 @@
         ".github/workflows/ci.yml",
         "scripts/check_w2_all.py"
       ],
-      "name": "\u5efa\u7acb W2 \u5de5\u7a0b\u5e95\u5ea7",
+      "name": "建立 W2 工程底座",
       "next_actions": [
         "Maintain CI and engineering baseline"
       ],
@@ -555,18 +571,14 @@
         "docs/data/W2_ODDS_AND_SETTLEMENT_V1.md",
         "scripts/check_w2_stage3_data_model.py"
       ],
-      "name": "\u5efa\u7acb\u7edf\u4e00\u8db3\u7403\u6570\u636e\u6a21\u578b",
+      "name": "建立统一足球数据模型",
       "next_actions": [
         "Continue regression checks for schema and settlement semantics"
       ],
       "status": "COMPLETE"
     },
     "4": {
-      "blockers": [
-        "Release Train 3A rolled back because scheduler future-refresh dispatch was disabled in target staging container",
-        "Release Train 3A-R1 retry deployment pending after scheduler enablement repair",
-        "Release Train 3A-R1 rolled back because scheduler future-refresh policy was unavailable through staging config mount"
-      ],
+      "blockers": [],
       "evidence": [
         "reports/W2_STAGE4A_RESULT.md",
         "reports/W2_STAGE4B_RESULT.md",
@@ -579,12 +591,14 @@
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
         "scripts/check_w2_future_refresh_staging_contract.py",
         "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
-        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
+        "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json",
+        "reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.md"
       ],
-      "name": "\u7acb\u5373\u5efa\u7acb\u6b63\u5f0f\u6570\u636e\u91c7\u96c6\u7cfb\u7edf",
+      "name": "立即建立正式数据采集系统",
       "next_actions": [
-        "Repair staging scheduler future-refresh policy availability before another approved retry deployment",
-        "Deploy pending future-refresh hardening only after active Stage7I continuity allows"
+        "Keep forward collection active under PostgreSQL persistence.",
+        "Complete Package A A6 object storage as a separate package."
       ],
       "status": "COMPLETE"
     },
@@ -612,7 +626,7 @@
         "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
         "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
-      "name": "\u5efa\u7acb\u5386\u53f2\u8bad\u7ec3\u4e0e\u56de\u6d4b\u6570\u636e\u96c6",
+      "name": "建立历史训练与回测数据集",
       "next_actions": [
         "Refresh source coverage when new approved historical data is added",
         "Resolve Gate3 external historical odds source decision before claiming historical AH closure.",
@@ -647,7 +661,7 @@
         "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
         "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
-      "name": "\u5efa\u7acb\u5e02\u573a\u5206\u6790\u5c42",
+      "name": "建立市场分析层",
       "next_actions": [
         "Keep implementation COMPLETE but Gate3 PARTIAL until retained DATE-only, precise phase, OU closing-subset, 1X2 aggregate, and export/retention limitations are resolved.",
         "Use Baselight limited AH PASS evidence for historical AH baseline claims only within DATE_ONLY limits.",
@@ -673,7 +687,7 @@
         "reports/W2_STAGE7I_FINAL_OBSERVATION_AUDIT.md",
         "reports/W2_STAGE7I_FINAL_OBSERVATION_DECISION.json"
       ],
-      "name": "\u5efa\u7acb\u72ec\u7acb\u6982\u7387\u6a21\u578b",
+      "name": "建立独立概率模型",
       "next_actions": [
         "Plan a separate approved Stage7I recovery or successor run; do not reuse the non-qualifying lifecycle gap as Gate5 evidence",
         "Do not generate formal recommendation before Gate4 closure"
@@ -689,7 +703,7 @@
         "reports/W2_STAGE8_GATE4_AUDIT.json",
         "scripts/check_w2_stage8_replay.py"
       ],
-      "name": "\u5efa\u7acb\u5b8c\u6574\u56de\u6d4b\u7cfb\u7edf",
+      "name": "建立完整回测系统",
       "next_actions": [
         "Use replay only under frozen data/model versions"
       ],
@@ -707,7 +721,7 @@
         "reports/W2_STAGE12A_SHADOW_COMPARISON.json",
         "reports/W2_CURRENT_HANDOFF.md"
       ],
-      "name": "\u5efa\u7acb\u6bd4\u8d5b\u7b5b\u9009\u548c\u63a8\u8350\u5f15\u64ce",
+      "name": "建立比赛筛选和推荐引擎",
       "next_actions": [
         "Plan a separate approved Stage7I recovery or successor run before any independent Gate5 decision"
       ],
@@ -720,5 +734,22 @@
     "Do not infer master phase completion from execution package names",
     "Do not infer Gate5 from observer existence",
     "Do not infer Gate6 from staging availability"
-  ]
+  ],
+  "package_a": {
+    "A1": "COMPLETE",
+    "A2": "COMPLETE_APPLIED",
+    "A3": "COMPLETE",
+    "A4": "COMPLETE",
+    "A5": "STAGING_ACCEPTED",
+    "A6": "PENDING_OBJECT_STORAGE",
+    "status": "STAGING_ACCEPTED",
+    "future_refresh_hardening": "STAGING_ACCEPTED",
+    "forward_collection": "ACTIVE",
+    "next_active_package": "Stage7I lifecycle supervision B1+B2",
+    "shared_runtime_not_writable_blocker": "RESOLVED_BY_DB_PERSISTENCE",
+    "counts_are_dynamic": true
+  },
+  "future_refresh_hardening": "STAGING_ACCEPTED",
+  "forward_collection": "ACTIVE",
+  "next_active_package": "Stage7I lifecycle supervision B1+B2"
 }

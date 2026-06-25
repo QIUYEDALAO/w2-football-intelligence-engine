@@ -77,6 +77,6 @@ def test_limited_extract_pass_keeps_gate3_partial_with_date_only_limits() -> Non
     assert "UNKNOWN_PREMATCH_AGGREGATE_LIMITS_AS_OF_CLAIMS" in decision["baselight"][
         "remaining_limitations"
     ]
-    assert "handoff_version: 41" in handoff
+    assert "handoff_version: 42" in handoff
     assert "candidate=false" in handoff
     assert "formal_recommendation=false" in handoff
