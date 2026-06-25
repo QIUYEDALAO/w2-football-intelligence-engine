@@ -23,12 +23,19 @@ class FixtureSummary(BaseModel):
     competition_id: str
     competition_name: str
     kickoff_utc: datetime
+    kickoff_beijing: str | None = None
+    operational_date_beijing: str | None = None
     kickoff_display: str
     status: str
     home_team_id: str
     away_team_id: str
     lifecycle_state: str
     data_state: str
+    published_grade: str | None = None
+    primary_market: str | None = None
+    primary_line: str | None = None
+    primary_odds: str | None = None
+    last_captured: datetime | None = None
 
 
 class FixtureListResponse(BaseModel):
@@ -45,6 +52,27 @@ class FixtureDetailResponse(FixtureSummary):
     forward_decision: str
     provenance: dict[str, str]
     risk_notes: list[str]
+    primary_market: str | None = None
+    primary_selection: str | None = None
+    primary_line: str | None = None
+    primary_executable_odds: str | None = None
+    primary_hong_kong_odds: str | None = None
+    primary_model_fair_odds: str | None = None
+    primary_risk_adjusted_ev: str | None = None
+    research_grade: str | None = None
+    ah_ladder: list[dict[str, Any]] = Field(default_factory=list)
+    ou_ladder: list[dict[str, Any]] = Field(default_factory=list)
+    all_market_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    one_x_two_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    btts_ranking: list[dict[str, Any]] = Field(default_factory=list)
+    secondary_market_direction: dict[str, Any] | None = None
+    source_snapshot_id: str | None = None
+    source_captured_at: datetime | None = None
+    source_phase: str | None = None
+    valuation_generated_at: datetime | None = None
+    projector_generated_at: datetime | None = None
+    temporal_status: str | None = None
+    integrity_status: str | None = None
 
 
 class OddsPoint(BaseModel):
@@ -77,6 +105,50 @@ class ProbabilityResponse(BaseModel):
     quality: str
 
 
+class MatchdayResponse(BaseModel):
+    request_id: str
+    date: str
+    total: int
+    items: list[dict[str, Any]]
+
+
+class MatchdayCoverageResponse(BaseModel):
+    request_id: str
+    requested_date_beijing: str
+    timezone: str
+    window_start_beijing: str
+    window_end_beijing: str
+    window_start_utc: str
+    window_end_utc: str
+    authoritative_count: int
+    discovered_count: int
+    eligible_count: int
+    card_count: int
+    read_model_count: int
+    displayed_count: int
+    missing_count: int
+    reason_distribution: dict[str, int]
+    coverage_status: str
+
+
+class ResearchCardResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    card: dict[str, Any]
+
+
+class MarketRankingResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    items: list[dict[str, Any]]
+
+
+class IntegrityResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    integrity: dict[str, Any]
+
+
 class DataHealthResponse(BaseModel):
     request_id: str
     stale_data_count: int
@@ -93,8 +165,6 @@ class ProviderStatusResponse(BaseModel):
     remaining_quota: int | None
     credential_status: str
     last_request_status: int | None
-    last_successful_refresh_at: datetime | None = None
-    refresh_age_seconds: int | None = None
     blockers: list[str] = Field(default_factory=list)
 
 

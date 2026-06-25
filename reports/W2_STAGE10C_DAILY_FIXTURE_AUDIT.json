@@ -1,0 +1,67 @@
+{
+  "items": [
+    {
+      "away_team_id": "775",
+      "away_team_name": "Austria",
+      "competition_id": "1",
+      "competition_name": "World Cup",
+      "data_health": "READY",
+      "fixture_id": "1489399",
+      "home_team_id": "26",
+      "home_team_name": "Argentina",
+      "kickoff_utc": "2026-06-22T17:00:00+00:00",
+      "last_captured": "2026-06-22T16:30:04.391908+00:00",
+      "matchday_status": "SETTLEMENT_PENDING",
+      "phase_plan": [
+        {
+          "phase": "T-24h",
+          "prematch": true,
+          "scheduled_at": "2026-06-21T17:00:00+00:00"
+        },
+        {
+          "phase": "T-6h",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T11:00:00+00:00"
+        },
+        {
+          "phase": "T-3h",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T14:00:00+00:00"
+        },
+        {
+          "phase": "T-1h",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T16:00:00+00:00"
+        },
+        {
+          "phase": "T-30m",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T16:30:00+00:00"
+        },
+        {
+          "phase": "T-10m",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T16:50:00+00:00"
+        },
+        {
+          "phase": "CLOSING",
+          "prematch": true,
+          "scheduled_at": "2026-06-22T16:59:00+00:00"
+        },
+        {
+          "phase": "SETTLEMENT",
+          "prematch": false,
+          "scheduled_at": "2026-06-22T19:00:00+00:00"
+        }
+      ],
+      "primary_line": null,
+      "primary_market": "ONE_X_TWO",
+      "primary_odds": "8.2500",
+      "primary_selection": "AUSTRIA_WIN",
+      "published_grade": "C",
+      "stage": "Group Stage - 2",
+      "status": "NS",
+      "venue": "AT&T Stadium"
+    }
+  ]
+}

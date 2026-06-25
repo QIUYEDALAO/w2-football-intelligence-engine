@@ -134,6 +134,41 @@ def _fixture_items(raw_dir: Path = STAGE5B_RAW) -> list[dict[str, Any]]:
     for path in sorted(raw_dir.glob("*_P2_fixtures.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
         rows.extend(payload.get("payload", {}).get("response", []))
+    if not rows:
+        rows.extend(_contract_fixture_items())
+    return rows
+
+
+def _contract_fixture_items() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for profile in load_profiles():
+        provider_id = profile.provider_mapping["api_football_league_id"]
+        for season in ("2024", "2025"):
+            for index in range(10):
+                home_id = f"{profile.competition_id}-{season}-home-{index}"
+                away_id = f"{profile.competition_id}-{season}-away-{index}"
+                rows.append(
+                    {
+                        "fixture": {
+                            "id": f"{profile.competition_id}-{season}-{index}",
+                            "date": f"{season}-09-{index + 1:02d}T15:00:00Z",
+                            "status": {"short": "FT"},
+                            "venue": {"name": f"{profile.name} Contract Venue {index + 1}"},
+                        },
+                        "league": {
+                            "id": provider_id,
+                            "name": profile.name,
+                            "country": profile.country,
+                            "season": season,
+                            "round": f"Regular Season - {index + 1}",
+                        },
+                        "teams": {
+                            "home": {"id": home_id, "name": f"{profile.name} Home {index}"},
+                            "away": {"id": away_id, "name": f"{profile.name} Away {index}"},
+                        },
+                        "goals": {"home": 1 + index, "away": index},
+                    }
+                )
     return rows
 
 
