@@ -764,6 +764,7 @@ class ReadModelService:
         }
 
     def provider_status(self) -> dict[str, Any]:
+<<<<<<< HEAD
         dashboard = self.repository.dashboard_provider()
         if dashboard is not None:
             return {
@@ -778,6 +779,8 @@ class ReadModelService:
                 "refresh_age_seconds": None,
                 "blockers": [],
             }
+=======
+>>>>>>> github-w2/main
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
