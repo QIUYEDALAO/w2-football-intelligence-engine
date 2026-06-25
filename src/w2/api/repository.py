@@ -201,12 +201,6 @@ class ReadModelRepository:
                         fixtures[fixture_id] = item
             except Exception:
                 fixtures = {}
-        for path in sorted((RUNTIME / "stage7c/raw").glob("*_fixtures.json")):
-            payload = load_json(path, {}).get("payload", {})
-            for item in payload.get("response", []):
-                fixture_id = str(item.get("fixture", {}).get("id"))
-                if fixture_id and fixture_id != "None":
-                    fixtures[fixture_id] = item
         if not fixtures and get_settings().environment in {Environment.LOCAL, Environment.TEST}:
             fixtures["stage10a-contract-fixture"] = self._contract_fixture_payload()
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))

@@ -12,34 +12,45 @@ import w2.api.repository as repository
 from w2.config import get_settings
 
 
-def write_fixture_payload(root: Path) -> None:
-    raw = root / "stage7c/raw"
-    raw.mkdir(parents=True)
-    future_kickoff = (datetime.now(UTC) + timedelta(days=180)).replace(microsecond=0)
-    payload = {
-        "payload": {
-            "response": [
-                {
-                    "fixture": {
-                        "id": 900001,
-                        "date": future_kickoff.isoformat(),
-                        "status": {"short": "NS"},
-                        "venue": {"name": "Test Venue"},
-                    },
-                    "league": {
-                        "id": 1,
-                        "name": "World Cup",
-                        "round": "Test Round",
-                    },
-                    "teams": {
-                        "home": {"id": 1001, "name": "Test Home"},
-                        "away": {"id": 1002, "name": "Test Away"},
-                    },
-                }
-            ]
+class FakeFutureRefreshRepository:
+    def __init__(self, *, kickoff: datetime) -> None:
+        self.kickoff = kickoff
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "id": 900001,
+                    "date": self.kickoff.isoformat(),
+                    "status": {"short": "NS"},
+                    "venue": {"name": "Test Venue"},
+                },
+                "league": {
+                    "id": 1,
+                    "name": "World Cup",
+                    "round": "Test Round",
+                },
+                "teams": {
+                    "home": {"id": 1001, "name": "Test Home"},
+                    "away": {"id": 1002, "name": "Test Away"},
+                },
+            }
+        ]
+
+    def market_snapshots(self) -> list[dict[str, Any]]:
+        return []
+
+    def latest_market_observations(self) -> list[dict[str, Any]]:
+        return []
+
+    def provider_status(self) -> dict[str, Any]:
+        return {
+            "status": "READY",
+            "remaining_quota": 6323,
+            "last_request_status": 200,
+            "last_successful_refresh_at": None,
+            "blockers": [],
         }
-    }
-    (raw / "test_fixtures.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def write_future_refresh_payload(root: Path) -> None:
@@ -161,8 +172,13 @@ def test_public_read_endpoints_schema_and_etag() -> None:
 def test_fixture_filters_detail_probabilities_and_errors(
     tmp_path: Path, monkeypatch
 ) -> None:
-    write_fixture_payload(tmp_path)
     monkeypatch.setattr(repository, "RUNTIME", tmp_path)
+    future_kickoff = (datetime.now(UTC) + timedelta(days=180)).replace(microsecond=0)
+    monkeypatch.setattr(
+        repository,
+        "future_refresh_db_repository",
+        lambda: FakeFutureRefreshRepository(kickoff=future_kickoff),
+    )
     client = TestClient(app)
     fixtures = client.get(
         "/v1/fixtures?page_size=1&status=NS&timezone=Asia/Shanghai"
@@ -275,12 +291,14 @@ def test_future_refresh_hides_past_ns_fixture_from_default_list(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    write_fixture_payload(tmp_path)
-    payload_path = tmp_path / "stage7c/raw/test_fixtures.json"
-    payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    payload["payload"]["response"][0]["fixture"]["date"] = "2026-06-22T00:00:00+00:00"
-    payload_path.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(repository, "RUNTIME", tmp_path)
+    monkeypatch.setattr(
+        repository,
+        "future_refresh_db_repository",
+        lambda: FakeFutureRefreshRepository(
+            kickoff=datetime(2026, 6, 22, tzinfo=UTC),
+        ),
+    )
     client = TestClient(app)
 
     fixtures = client.get("/v1/fixtures?page_size=10&status=NS&timezone=UTC").json()["items"]
