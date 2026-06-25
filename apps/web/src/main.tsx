@@ -105,12 +105,16 @@ function cardPayload(payload: unknown): Record<string, unknown> {
 
 function fallbackCardFromFixture(fixture: unknown): Record<string, unknown> {
   const record = asRecord(fixture);
-  const home = record.home_team_name ?? record.home_cn ?? record.home_team_id ?? "主队";
-  const away = record.away_team_name ?? record.away_cn ?? record.away_team_id ?? "客队";
+  const home = record.home_team_name ?? record.home_name ?? record.home_cn ?? "主队";
+  const away = record.away_team_name ?? record.away_name ?? record.away_cn ?? "客队";
+  const competitionName = record.competition_name ?? record.competition_cn ?? "世界杯";
   return {
     fixture_id: fxId(fixture),
     kickoff_utc: record.kickoff_utc,
-    competition_cn: record.competition_name ?? "世界杯",
+    competition_name: competitionName,
+    competition_cn: competitionName,
+    home_name: String(home),
+    away_name: String(away),
     home_cn: String(home),
     away_cn: String(away),
     decision: "SKIP",
@@ -123,6 +127,13 @@ function fallbackCardFromFixture(fixture: unknown): Record<string, unknown> {
       market,
       decision: "SKIP",
     })),
+    data_readiness: {
+      bookmakers: 0,
+      odds_snapshots: 0,
+      xg: false,
+      h2h: false,
+      lineups: false,
+    },
     risks_cn: ["正在加载分析卡，数据不足时保持 SKIP。"],
     candidate: false,
     formal_recommendation: false,
@@ -158,6 +169,75 @@ function Dots({ value }: { value?: unknown }) {
         />
       ))}
     </span>
+  );
+}
+
+function Form({ value }: { value?: unknown }) {
+  const text = textValue(value);
+  if (!text) {
+    return null;
+  }
+  const color = (char: string) => {
+    if (char === "W") return "#3B6D11";
+    if (char === "D") return "#888780";
+    if (char === "L") return "#A32D2D";
+    return "#888";
+  };
+  return (
+    <span style={{ display: "inline-flex", gap: 3 }}>
+      {text
+        .split("")
+        .slice(0, 5)
+        .map((char, index) => (
+          <span
+            key={`${char}-${index}`}
+            style={{
+              fontSize: 10,
+              width: 14,
+              height: 14,
+              lineHeight: "14px",
+              textAlign: "center",
+              borderRadius: 3,
+              color: "#fff",
+              background: color(char),
+            }}
+          >
+            {char}
+          </span>
+        ))}
+    </span>
+  );
+}
+
+function Ready({ value }: { value?: unknown }) {
+  const readiness = asRecord(value);
+  if (!Object.keys(readiness).length) {
+    return null;
+  }
+  const chip = (ok: boolean, label: string) => (
+    <span
+      style={{
+        fontSize: 11,
+        color: ok ? "#0F6E56" : "#9a978d",
+        background: ok ? "#E1F5EE" : "transparent",
+        border: ok ? "none" : "0.5px solid #e0ded7",
+        padding: "3px 8px",
+        borderRadius: 8,
+      }}
+    >
+      {ok ? "✓ " : "✗ "}
+      {label}
+    </span>
+  );
+  const bookmakers = numberValue(readiness.bookmakers);
+  const snapshots = numberValue(readiness.odds_snapshots);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      {bookmakers > 0 ? chip(true, `盘口 ${bookmakers} 家`) : chip(snapshots > 0, `盘口 ${snapshots} 快照`)}
+      {chip(Boolean(readiness.xg), Boolean(readiness.xg) ? "xG" : "xG 富集中")}
+      {readiness.h2h != null ? chip(Boolean(readiness.h2h), "交锋") : null}
+      {readiness.lineups != null ? chip(Boolean(readiness.lineups), Boolean(readiness.lineups) ? "首发" : "首发未出") : null}
+    </div>
   );
 }
 
@@ -233,8 +313,16 @@ function Card({ card }: { card: unknown }) {
   const watch = Math.max(0, Math.min(4, Number(c.watch_level ?? 0)));
   const risks = Array.isArray(c.risks_cn) ? c.risks_cn : Array.isArray(c.risks) ? c.risks : ["—"];
   const intentLabel = textValue(intent.label_cn, textValue(intent.intent) === "INSUFFICIENT_DATA" ? "数据不足" : textValue(intent.intent, "—"));
-  const openingLine = textValue(intent.opening_line);
-  const currentLine = textValue(intent.current_line);
+  const lineMovement = asRecord(c.line_movement);
+  const openingLine = textValue(intent.opening_line) || textValue(lineMovement.ah_open);
+  const currentLine = textValue(intent.current_line) || textValue(lineMovement.ah_current);
+  const currentOdds = asRecord(c.current_odds);
+  const ahOdds = asRecord(currentOdds.ah);
+  const ouOdds = asRecord(currentOdds.ou);
+  const recentForm = asRecord(c.recent_form);
+  const readiness = asRecord(c.data_readiness);
+  const homeName = textValue(c.home_name ?? c.home_cn, "主队");
+  const awayName = textValue(c.away_name ?? c.away_cn, "客队");
   return (
     <div style={{ background: "#fff", border: "0.5px solid #e7e5df", borderRadius: 12, padding: "1rem 1.25rem", marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -250,12 +338,37 @@ function Card({ card }: { card: unknown }) {
           {skip ? "数据不足" : "有分析"}
         </span>
         <span style={{ fontSize: 12, color: "#9a978d" }}>
-          {fmtTime(c.kickoff_utc)} · {textValue(c.competition_cn, "世界杯")}
+          {fmtTime(c.kickoff_utc)} · {textValue(c.competition_name ?? c.competition_cn, "世界杯")}
         </span>
       </div>
       <div style={{ fontSize: 17, fontWeight: 500, marginBottom: 10 }}>
-        {textValue(c.home_cn, "主队")} <span style={{ color: "#b3b1a8", fontWeight: 400 }}>vs</span> {textValue(c.away_cn, "客队")}
+        {homeName} <span style={{ color: "#b3b1a8", fontWeight: 400 }}>vs</span> {awayName}
       </div>
+      <Ready value={c.data_readiness} />
+      {Object.keys(recentForm).length ? (
+        <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#9a978d", marginBottom: 8 }}>
+          <span>
+            近期 主 <Form value={recentForm.home} />
+          </span>
+          <span>
+            客 <Form value={recentForm.away} />
+          </span>
+        </div>
+      ) : null}
+      {Object.keys(currentOdds).length ? (
+        <div style={{ display: "flex", gap: 16, background: "#f6f5f0", padding: "8px 12px", borderRadius: 8, marginBottom: 8, fontSize: 12, color: "#666" }}>
+          {Object.keys(ahOdds).length ? (
+            <span>
+              让球 {textValue(ahOdds.line)} <span style={{ color: "#222" }}>@{String(ahOdds.price ?? "")}</span>
+            </span>
+          ) : null}
+          {Object.keys(ouOdds).length ? (
+            <span>
+              大小球 {textValue(ouOdds.line)} <span style={{ color: "#222" }}>@{String(ouOdds.price ?? "")}</span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f6f5f0", padding: "8px 12px", borderRadius: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 13, color: "#666" }}>
           庄家意图：{intentLabel}
@@ -263,7 +376,9 @@ function Card({ card }: { card: unknown }) {
         </span>
       </div>
       {skip ? (
-        <div style={{ fontSize: 12, color: "#9a978d", paddingTop: 8 }}>暂不推荐：等盘口快照与 xG 富集到位后自动更新。</div>
+        <div style={{ fontSize: 12, color: "#9a978d", paddingTop: 8 }}>
+          暂不推荐：{numberValue(readiness.odds_snapshots) ? `已采 ${numberValue(readiness.odds_snapshots)} 个盘口快照，` : ""}等盘口快照与 xG 富集到位后自动更新。
+        </div>
       ) : (
         <>
           {markets.map((market, index) => (
