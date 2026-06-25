@@ -1,0 +1,162 @@
+{
+  "bootstrap_95ci_model_minus_market_log_loss": {
+    "ci_high": 0.027609,
+    "ci_low": -0.261845,
+    "mean_delta": -0.113944
+  },
+  "candidate": false,
+  "dataset_path": "tests/fixtures/gate4/dixon_coles_matches.json",
+  "fold_count": 12,
+  "folds": [
+    {
+      "actual": "HOME",
+      "data_cutoff": "2024-01-12T12:00:00Z",
+      "fixture_id": "dc-013",
+      "kickoff_utc": "2024-01-13T12:00:00Z",
+      "market_log_loss": 0.653926,
+      "model_log_loss": 0.284,
+      "rho": -0.2,
+      "train_size": 12
+    },
+    {
+      "actual": "HOME",
+      "data_cutoff": "2024-01-13T12:00:00Z",
+      "fixture_id": "dc-014",
+      "kickoff_utc": "2024-01-14T12:00:00Z",
+      "market_log_loss": 0.84397,
+      "model_log_loss": 0.592753,
+      "rho": -0.2,
+      "train_size": 13
+    },
+    {
+      "actual": "AWAY",
+      "data_cutoff": "2024-01-14T12:00:00Z",
+      "fixture_id": "dc-015",
+      "kickoff_utc": "2024-01-15T12:00:00Z",
+      "market_log_loss": 0.71335,
+      "model_log_loss": 0.734721,
+      "rho": -0.2,
+      "train_size": 14
+    },
+    {
+      "actual": "DRAW",
+      "data_cutoff": "2024-01-15T12:00:00Z",
+      "fixture_id": "dc-016",
+      "kickoff_utc": "2024-01-16T12:00:00Z",
+      "market_log_loss": 1.139434,
+      "model_log_loss": 1.34978,
+      "rho": -0.14,
+      "train_size": 15
+    },
+    {
+      "actual": "AWAY",
+      "data_cutoff": "2024-01-16T12:00:00Z",
+      "fixture_id": "dc-017",
+      "kickoff_utc": "2024-01-17T12:00:00Z",
+      "market_log_loss": 0.941609,
+      "model_log_loss": 1.211978,
+      "rho": -0.2,
+      "train_size": 16
+    },
+    {
+      "actual": "DRAW",
+      "data_cutoff": "2024-01-17T12:00:00Z",
+      "fixture_id": "dc-018",
+      "kickoff_utc": "2024-01-18T12:00:00Z",
+      "market_log_loss": 1.139434,
+      "model_log_loss": 0.938501,
+      "rho": -0.2,
+      "train_size": 17
+    },
+    {
+      "actual": "HOME",
+      "data_cutoff": "2024-01-18T12:00:00Z",
+      "fixture_id": "dc-019",
+      "kickoff_utc": "2024-01-19T12:00:00Z",
+      "market_log_loss": 0.673345,
+      "model_log_loss": 0.175356,
+      "rho": -0.2,
+      "train_size": 18
+    },
+    {
+      "actual": "AWAY",
+      "data_cutoff": "2024-01-19T12:00:00Z",
+      "fixture_id": "dc-020",
+      "kickoff_utc": "2024-01-20T12:00:00Z",
+      "market_log_loss": 1.171183,
+      "model_log_loss": 1.297453,
+      "rho": -0.2,
+      "train_size": 19
+    },
+    {
+      "actual": "AWAY",
+      "data_cutoff": "2024-01-20T12:00:00Z",
+      "fixture_id": "dc-021",
+      "kickoff_utc": "2024-01-21T12:00:00Z",
+      "market_log_loss": 0.867501,
+      "model_log_loss": 0.427496,
+      "rho": -0.09,
+      "train_size": 20
+    },
+    {
+      "actual": "HOME",
+      "data_cutoff": "2024-01-21T12:00:00Z",
+      "fixture_id": "dc-022",
+      "kickoff_utc": "2024-01-22T12:00:00Z",
+      "market_log_loss": 0.916291,
+      "model_log_loss": 0.943203,
+      "rho": -0.07,
+      "train_size": 21
+    },
+    {
+      "actual": "DRAW",
+      "data_cutoff": "2024-01-22T12:00:00Z",
+      "fixture_id": "dc-023",
+      "kickoff_utc": "2024-01-23T12:00:00Z",
+      "market_log_loss": 1.108663,
+      "model_log_loss": 0.962882,
+      "rho": -0.11,
+      "train_size": 22
+    },
+    {
+      "actual": "AWAY",
+      "data_cutoff": "2024-01-23T12:00:00Z",
+      "fixture_id": "dc-024",
+      "kickoff_utc": "2024-01-24T12:00:00Z",
+      "market_log_loss": 0.916291,
+      "model_log_loss": 0.795077,
+      "rho": -0.2,
+      "train_size": 23
+    }
+  ],
+  "formal_recommendation": false,
+  "gate4_decision": "NOT_REQUESTED",
+  "generated_at": "2026-06-25T08:55:08.149549Z",
+  "initial_train_size": 12,
+  "leakage_check": {
+    "chronological_order": true,
+    "closing_or_result_used_as_feature": false,
+    "cutoff_before_test_kickoff": true,
+    "random_split_used": false,
+    "retrospective_forward_claim": false,
+    "status": "PASS"
+  },
+  "market_baseline_metrics": {
+    "brier": 0.542483,
+    "ece": 0.389167,
+    "log_loss": 0.92375,
+    "rps": 0.182121
+  },
+  "model": "DIXON_COLES",
+  "model_metrics": {
+    "brier": 0.47752,
+    "ece": 0.186388,
+    "log_loss": 0.809433,
+    "rps": 0.149146
+  },
+  "model_version": "gate4.dc.v1",
+  "sample_count": 24,
+  "schema_version": "W2_GATE4_DC_WALKFORWARD_V1",
+  "seed": 20260625,
+  "verdict": "NOT_BEATEN"
+}
