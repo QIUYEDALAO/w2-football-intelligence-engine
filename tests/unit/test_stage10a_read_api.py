@@ -121,6 +121,27 @@ def write_future_refresh_payload(root: Path) -> None:
     )
 
 
+def test_load_json_treats_unreadable_legacy_runtime_as_missing(tmp_path: Path) -> None:
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    target = blocked / "fixtures.json"
+    target.write_text('{"items": []}', encoding="utf-8")
+    blocked.chmod(0)
+    try:
+        assert repository.load_json(target, {"items": ["fallback"]}) == {
+            "items": ["fallback"]
+        }
+    finally:
+        blocked.chmod(0o700)
+
+
+def test_load_json_treats_invalid_json_as_missing(tmp_path: Path) -> None:
+    target = tmp_path / "broken.json"
+    target.write_text("{", encoding="utf-8")
+
+    assert repository.load_json(target, {"fallback": True}) == {"fallback": True}
+
+
 def test_public_read_endpoints_schema_and_etag() -> None:
     client = TestClient(app)
     response = client.get("/v1/fixtures?page=1&page_size=2&timezone=UTC")

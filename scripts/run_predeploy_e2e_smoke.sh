@@ -300,6 +300,30 @@ for market in markets:
 print("predeploy_e2e analysis card PASS")
 PY
 
+chmod 0755 runtime
+mkdir -p runtime/future_refresh/read_model
+chmod 000 runtime/future_refresh/read_model
+chmod 0555 runtime
+python3 - <<PY
+from __future__ import annotations
+
+import json
+import urllib.request
+
+fixture_id = "${FIXTURE_ID}"
+url = f"http://127.0.0.1:18000/v1/fixtures/{fixture_id}/analysis-card"
+with urllib.request.urlopen(url, timeout=5) as response:
+    assert response.status == 200, response.status
+    payload = json.loads(response.read().decode("utf-8"))
+assert payload["card"]["fixture_id"] == fixture_id
+assert payload["card"]["candidate"] is False
+assert payload["card"]["formal_recommendation"] is False
+print("predeploy_e2e unreadable legacy runtime fallback PASS")
+PY
+chmod 0755 runtime
+chmod 0555 runtime/future_refresh/read_model
+chmod 0555 runtime
+
 OBS_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from future_market_observation where fixture_id = '${FIXTURE_ID}' and candidate = false and formal_recommendation = false;"
