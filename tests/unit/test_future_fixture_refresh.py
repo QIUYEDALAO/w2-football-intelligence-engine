@@ -119,6 +119,28 @@ class FakeApiFootballClient:
                     }
                 ]
             }
+        if endpoint == "statistics":
+            return {
+                "response": [
+                    {
+                        "team": {"id": 10},
+                        "statistics": [{"type": "expected_goals", "value": "1.5"}],
+                    },
+                    {
+                        "team": {"id": 20},
+                        "statistics": [{"type": "expected_goals", "value": "0.8"}],
+                    },
+                ]
+            }
+        if endpoint == "lineups":
+            return {
+                "response": [
+                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
+                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                ]
+            }
+        if endpoint == "injuries":
+            return {"response": []}
         raise AssertionError(endpoint)
 
 
@@ -215,6 +237,38 @@ def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
 
     assert result.blockers == ["REQUEST_BUDGET_EXHAUSTED"]
     assert len(client.calls) == 1
+
+
+def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
+    tmp_path: Path,
+) -> None:
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        quota_reserve=1500,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("statistics", "lineups", "injuries"),
+        feature_enrichment_request_budget=2,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
+
+    assert result.blockers == []
+    assert result.feature_enrichment_payload_count == 2
+    assert ("statistics", {"fixture": "1489404"}) in client.calls
+    assert ("lineups", {"fixture": "1489404"}) in client.calls
+    assert ("injuries", {"fixture": "1489404"}) not in client.calls
+    assert list((tmp_path / "raw").glob("statistics_*.json"))
+    assert list((tmp_path / "raw").glob("lineups_*.json"))
+    assert '"candidate": false' in audit
+    assert '"formal_recommendation": false' in audit
 
 
 def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:

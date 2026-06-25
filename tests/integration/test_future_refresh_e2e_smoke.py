@@ -81,6 +81,28 @@ class FakeLiveApiFootballPort:
                     }
                 ]
             }
+        if endpoint == "statistics":
+            return {
+                "response": [
+                    {
+                        "team": {"id": 10},
+                        "statistics": [{"type": "expected_goals", "value": "1.4"}],
+                    },
+                    {
+                        "team": {"id": 20},
+                        "statistics": [{"type": "expected_goals", "value": "0.7"}],
+                    },
+                ]
+            }
+        if endpoint == "lineups":
+            return {
+                "response": [
+                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
+                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                ]
+            }
+        if endpoint == "injuries":
+            return {"response": []}
         raise AssertionError(endpoint)
 
 
@@ -156,4 +178,4 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     assert (runtime_root / "read_model/market_coverage.json").is_file()
     assert (runtime_root / "read_model/provider_status.json").is_file()
     assert read_json(runtime_root / "future_refresh_audit.json")["candidate"] is False
-    assert len(fake_client.calls) == 6
+    assert len(fake_client.calls) == 12

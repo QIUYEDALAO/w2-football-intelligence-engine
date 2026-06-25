@@ -81,6 +81,28 @@ class FakeApiFootballClient:
                     }
                 ]
             }
+        if endpoint == "statistics":
+            return {
+                "response": [
+                    {
+                        "team": {"id": 10},
+                        "statistics": [{"type": "expected_goals", "value": "1.4"}],
+                    },
+                    {
+                        "team": {"id": 20},
+                        "statistics": [{"type": "expected_goals", "value": "0.7"}],
+                    },
+                ]
+            }
+        if endpoint == "lineups":
+            return {
+                "response": [
+                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
+                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                ]
+            }
+        if endpoint == "injuries":
+            return {"response": []}
         raise AssertionError(endpoint)
 
 
@@ -143,7 +165,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 1
         assert session.scalar(select(func.count()).select_from(FutureRefreshTaskAuditModel)) == 2
         assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 2
-        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 2
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 5
         observation = session.scalar(select(FutureMarketObservationModel))
         assert observation is not None
         assert observation.candidate is False

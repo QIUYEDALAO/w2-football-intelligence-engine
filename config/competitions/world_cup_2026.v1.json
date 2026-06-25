@@ -165,6 +165,18 @@
     "settlement_delay_hours": 3,
     "gate_audit_hour_utc": 6
   },
+  "importance_profile": {
+    "default_weight": 0.5,
+    "stage_weights": {
+      "qualifying": 0.55,
+      "group": 0.72,
+      "round_of_32": 0.82,
+      "round_of_16": 0.88,
+      "quarterfinal": 0.92,
+      "semifinal": 0.96,
+      "final": 1.0
+    }
+  },
   "model_version": "stage7b-frozen-challenger",
   "calibration_version": "stage7b-frozen-calibration",
   "strategy_version": "NOT_AVAILABLE_GATE4",

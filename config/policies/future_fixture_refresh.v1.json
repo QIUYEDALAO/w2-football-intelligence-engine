@@ -15,6 +15,13 @@
       "scheduler_interval_seconds": 900,
       "quota_reserve": 1500,
       "request_budget": 40,
+      "feature_enrichment_enabled": true,
+      "feature_enrichment_endpoints": [
+        "statistics",
+        "lineups",
+        "injuries"
+      ],
+      "feature_enrichment_request_budget": 9,
       "max_fixture_candidates": 20,
       "max_odds_requests": 10,
       "market_freshness_seconds": 3600,
