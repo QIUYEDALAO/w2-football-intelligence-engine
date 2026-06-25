@@ -12,6 +12,11 @@ from sqlalchemy.orm import Session
 from w2.config import Environment, get_settings
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.shadow_strategy_models import (
+    ShadowStrategyEvaluationModel,
+    ShadowStrategyLockModel,
+    ShadowStrategyRunModel,
+)
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
@@ -289,6 +294,134 @@ class ReadModelRepository:
 
     def release_readiness(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
+
+    def shadow_strategy_replay(self) -> dict[str, Any]:
+        try:
+            engine = create_engine()
+            with Session(engine) as session:
+                latest = session.scalars(
+                    select(ShadowStrategyRunModel).order_by(
+                        ShadowStrategyRunModel.started_at.desc()
+                    )
+                ).first()
+            if latest is None:
+                return {
+                    "run_state": "NO_RUN",
+                    "strategy_version": "W2_SHADOW_STRATEGY_V1",
+                    "decisions": [],
+                    "locks": [],
+                }
+            return {
+                "run_state": "COMPLETED_WITH_RESULTS"
+                if latest.status == "COMPLETED"
+                else latest.status,
+                "run_id": latest.run_id,
+                "strategy_version": latest.strategy_version,
+                "manifest_sha256": latest.manifest_sha256,
+                "started_at": latest.started_at,
+                "completed_at": latest.completed_at,
+                "payload": latest.payload,
+                "decisions": latest.payload.get("decisions", []),
+                "locks": self.shadow_strategy_locks(),
+            }
+        except Exception:
+            return {
+                "run_state": "ERROR",
+                "strategy_version": "W2_SHADOW_STRATEGY_V1",
+                "decisions": [],
+                "locks": [],
+            }
+
+    def shadow_strategy_status(self) -> dict[str, Any]:
+        replay = self.shadow_strategy_replay()
+        decisions = replay.get("decisions", [])
+        locks = self.shadow_strategy_locks()
+        decisions_count = len(decisions) if isinstance(decisions, list) else 0
+        locks_count = len(locks)
+        run_state = str(replay.get("run_state", "NO_RUN"))
+        return {
+            "status": run_state
+            if run_state != "COMPLETED_WITH_RESULTS"
+            else "SHADOW_READY",
+            "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
+            "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "gate5_status": "PROVISIONAL_BLOCKED_GATE4",
+            "formal_recommendation": False,
+            "candidate": False,
+            "decisions": decisions_count,
+            "locks": locks_count,
+            "latest_run_id": replay.get("run_id") if replay else None,
+        }
+
+    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
+        try:
+            engine = create_engine()
+            with Session(engine) as session:
+                rows = session.scalars(
+                    select(ShadowStrategyLockModel).order_by(
+                        ShadowStrategyLockModel.locked_at.desc()
+                    )
+                ).all()
+            return [
+                {
+                    "fixture_id": row.fixture_id,
+                    "phase": row.phase,
+                    "strategy_version": row.strategy_version,
+                    "decision_hash": row.decision_hash,
+                    "locked_at": row.locked_at,
+                    "payload": row.payload,
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
+        try:
+            engine = create_engine()
+            with Session(engine) as session:
+                rows = session.scalars(
+                    select(ShadowStrategyEvaluationModel).order_by(
+                        ShadowStrategyEvaluationModel.evaluated_at.desc()
+                    )
+                ).all()
+            if rows:
+                return [
+                    {
+                        "fixture_id": row.fixture_id,
+                        "phase": row.phase,
+                        "strategy_version": row.strategy_version,
+                        "evaluated_at": row.evaluated_at,
+                        **row.payload,
+                    }
+                    for row in rows
+                ]
+        except Exception:
+            return []
+        replay = self.shadow_strategy_replay()
+        decisions = replay.get("decisions", [])
+        if not isinstance(decisions, list):
+            return []
+        return [
+            {
+                "fixture_id": item.get("fixture_id"),
+                "phase": item.get("phase"),
+                "public_decision": item.get("public_decision"),
+                "published_grade": item.get("published_grade"),
+                "primary": item.get("primary"),
+                "secondary": item.get("secondary"),
+                "formal_recommendation": False,
+                "candidate": False,
+            }
+            for item in decisions
+            if isinstance(item, dict)
+        ]
+
+    def gate5_preflight(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(REPORTS / "W2_GATE5_PREFLIGHT.json", {}))
+
+    def w1_w2_shadow_comparison(self) -> dict[str, Any]:
+        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE12B_W1_W2_COMPARISON.json", {}))
 
     def _dashboard_fixture_to_provider_payload(self, item: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -992,6 +1125,24 @@ class ReadModelService:
             "status": "DRY_RUN_ONLY",
             "policy": operations.get("retention", {}),
         }
+
+    def shadow_strategy_status(self) -> dict[str, Any]:
+        return self.repository.shadow_strategy_status()
+
+    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
+        return self.repository.shadow_strategy_locks()
+
+    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
+        return self.repository.shadow_strategy_evaluations()
+
+    def shadow_strategy_replay(self) -> dict[str, Any]:
+        return self.repository.shadow_strategy_replay()
+
+    def gate5_preflight(self) -> dict[str, Any]:
+        return self.repository.gate5_preflight()
+
+    def w1_w2_shadow_comparison(self) -> dict[str, Any]:
+        return self.repository.w1_w2_shadow_comparison()
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         if "_dashboard" in item:
