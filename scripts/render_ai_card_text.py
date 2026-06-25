@@ -8,7 +8,7 @@ def main():
         print('usage: render_ai_card_text.py <card.json>', file=sys.stderr); return 2
     card=json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
     f=card['fixture']; st=card['statuses']; ai=card['ai_analysis']
-    print(f"{f['competition_name_cn']} · {f['stage']}    DeepSeek AI · {card['analysis_context']['analysis_phase']}")
+    print(f"{f['competition_name_cn']} · {f['stage']}    W2 Research Review · {card['analysis_context']['analysis_phase']}")
     print(f"{f['home_team']['name_cn']} VS {f['away_team']['name_cn']}    开赛 {f['kickoff_utc']}")
     print(f"[{st['decision']}] [grade {card['display_grade']}] [data {st['data']}] [lifecycle {st['lifecycle']}]")
     if st['decision']=='RECOMMEND':
