@@ -28,7 +28,9 @@ class FixtureSummary(BaseModel):
     kickoff_display: str
     status: str
     home_team_id: str
+    home_team_name: str | None = None
     away_team_id: str
+    away_team_name: str | None = None
     lifecycle_state: str
     data_state: str
     published_grade: str | None = None

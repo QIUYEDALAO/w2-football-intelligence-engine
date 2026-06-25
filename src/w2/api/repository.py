@@ -1867,6 +1867,8 @@ class ReadModelService:
         fixture = item.get("fixture", {})
         league = item.get("league", {})
         teams = item.get("teams", {})
+        home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
+        away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
         kickoff = datetime.fromisoformat(str(fixture.get("date")).replace("Z", "+00:00"))
         kickoff = kickoff.astimezone(UTC)
         display_tz = ZoneInfo(timezone)
@@ -1880,8 +1882,10 @@ class ReadModelService:
             "operational_date_beijing": beijing["operational_date_beijing"],
             "kickoff_display": kickoff.astimezone(display_tz).isoformat(),
             "status": str(fixture.get("status", {}).get("short")),
-            "home_team_id": str(teams.get("home", {}).get("id")),
-            "away_team_id": str(teams.get("away", {}).get("id")),
+            "home_team_id": str(home.get("id")),
+            "home_team_name": home.get("name"),
+            "away_team_id": str(away.get("id")),
+            "away_team_name": away.get("name"),
             "lifecycle_state": (
                 "WATCH" if fixture.get("status", {}).get("short") == "NS" else "DATA"
             ),
@@ -1903,7 +1907,9 @@ class ReadModelService:
             "kickoff_display": kickoff.astimezone(display_tz).isoformat(),
             "status": str(item["status"]),
             "home_team_id": str(item["home_team_id"]),
+            "home_team_name": item.get("home_team_name"),
             "away_team_id": str(item["away_team_id"]),
+            "away_team_name": item.get("away_team_name"),
             "lifecycle_state": str(item.get("decision_status", "SKIP")),
             "data_state": str(item.get("data_status", "CAPTURED_AT")),
             "published_grade": item.get("published_grade") or item.get("research_grade"),

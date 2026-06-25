@@ -118,10 +118,11 @@ function fallbackCardFromFixture(fixture: unknown): Record<string, unknown> {
     home_cn: String(home),
     away_cn: String(away),
     decision: "SKIP",
+    loading: true,
     watch_level: 0,
     bookmaker_intent: {
       intent: "INSUFFICIENT_DATA",
-      label_cn: "数据加载中",
+      label_cn: "分析生成中",
     },
     markets: MARKET_ORDER.map((market) => ({
       market,
@@ -134,7 +135,7 @@ function fallbackCardFromFixture(fixture: unknown): Record<string, unknown> {
       h2h: false,
       lineups: false,
     },
-    risks_cn: ["正在加载分析卡，数据不足时保持 SKIP。"],
+    risks_cn: ["正在生成分析卡，数据不足时保持 SKIP。"],
     candidate: false,
     formal_recommendation: false,
   };
@@ -307,6 +308,7 @@ function MarketRow({ market }: { market: unknown }) {
 function Card({ card }: { card: unknown }) {
   const c = cardPayload(card);
   const skip = textValue(c.decision, "SKIP") === "SKIP";
+  const loading = Boolean(c.loading);
   const intent = asRecord(c.bookmaker_intent);
   const marketList = Array.isArray(c.markets) ? c.markets : [];
   const markets = MARKET_ORDER.map((code) => marketList.find((market) => marketPayload(market).market === code)).filter(Boolean);
@@ -335,7 +337,7 @@ function Card({ card }: { card: unknown }) {
             borderRadius: 8,
           }}
         >
-          {skip ? "数据不足" : "有分析"}
+          {loading ? "加载中" : skip ? "数据不足" : "有分析"}
         </span>
         <span style={{ fontSize: 12, color: "#9a978d" }}>
           {fmtTime(c.kickoff_utc)} · {textValue(c.competition_name ?? c.competition_cn, "世界杯")}
@@ -377,7 +379,9 @@ function Card({ card }: { card: unknown }) {
       </div>
       {skip ? (
         <div style={{ fontSize: 12, color: "#9a978d", paddingTop: 8 }}>
-          暂不推荐：{numberValue(readiness.odds_snapshots) ? `已采 ${numberValue(readiness.odds_snapshots)} 个盘口快照，` : ""}等盘口快照与 xG 富集到位后自动更新。
+          {loading
+            ? "分析生成中：真实队名已加载，盘口与多因素卡片通常几十秒内更新。"
+            : `暂不推荐：${numberValue(readiness.odds_snapshots) ? `已采 ${numberValue(readiness.odds_snapshots)} 个盘口快照，` : ""}等盘口快照与 xG 富集到位后自动更新。`}
         </div>
       ) : (
         <>
@@ -427,6 +431,7 @@ function Dashboard() {
                   cardIndex === index
                     ? {
                         ...card,
+                        loading: false,
                         bookmaker_intent: { intent: "INSUFFICIENT_DATA", label_cn: "数据暂不可用" },
                         risks_cn: ["分析卡暂不可用，保持 SKIP。"],
                       }
