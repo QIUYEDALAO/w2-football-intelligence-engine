@@ -141,7 +141,19 @@ def bookmaker_divergence_factor(
         )
         for quote in quotes
     ]
-    consensus = MarketConsensusBuilder().build(odds_quotes, as_of_time=context.as_of)
+    try:
+        consensus = MarketConsensusBuilder().build(odds_quotes, as_of_time=context.as_of)
+    except (IndexError, ValueError) as exc:
+        return FeatureContribution(
+            feature_id="F2_BOOKMAKER_DIVERGENCE",
+            label="庄家分歧",
+            status=FeatureStatus.INSUFFICIENT_DATA,
+            score=None,
+            weight=weight,
+            reason="CONSENSUS_UNAVAILABLE",
+            coverage_key="bookmaker_depth",
+            diagnostics=(str(exc),),
+        )
     if consensus.fair_decimal_odds is None:
         return FeatureContribution(
             feature_id="F2_BOOKMAKER_DIVERGENCE",
