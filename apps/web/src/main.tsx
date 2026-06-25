@@ -68,6 +68,63 @@ type FixtureDetail = Fixture & {
 type FixtureList = {
   request_id: string;
   items: Fixture[];
+  meta?: Record<string, unknown>;
+};
+
+type ScoreReference = {
+  scoreline: string;
+  conditional_probability: number | null;
+};
+
+type AnalysisMarketCard = {
+  market: string;
+  label_cn: string;
+  decision: "PICK" | "SKIP" | string;
+  analysis_decision?: string;
+  lean_cn?: string | null;
+  confidence: number;
+  reason_cn?: string | null;
+  reasons?: string[];
+  risks_cn?: string[];
+  reference_scores?: ScoreReference[];
+  candidate: boolean;
+  formal_recommendation: boolean;
+};
+
+type AnalysisCard = {
+  fixture_id: string;
+  kickoff_utc?: string | null;
+  competition_cn?: string | null;
+  home_cn?: string | null;
+  away_cn?: string | null;
+  decision: "ANALYSIS_PICK" | "SKIP" | "WATCH" | string;
+  watch_level?: number;
+  bookmaker_intent: {
+    intent: string;
+    label_cn?: string | null;
+    opening_line?: string | null;
+    current_line?: string | null;
+    confidence?: number;
+    reason?: string | null;
+  };
+  markets: AnalysisMarketCard[];
+  risks_cn?: string[];
+  disclaimer_cn?: string;
+  disclaimer?: string;
+  candidate: boolean;
+  formal_recommendation: boolean;
+  source?: string;
+};
+
+type AnalysisCardResponse = {
+  request_id: string;
+  fixture_id: string;
+  card: AnalysisCard;
+};
+
+type AnalysisDashboardData = {
+  fixtures: Fixture[];
+  cards: AnalysisCard[];
 };
 
 type Matchday = {
@@ -355,6 +412,251 @@ function ProbabilityTable({ title, resource, onRetry }: { title: string; resourc
   );
 }
 
+const worldCupCompetitionIds = new Set(["1", "world_cup_2026", "fifa_world_cup_2026"]);
+
+function isWorldCupFixture(fixture: Fixture): boolean {
+  const name = `${fixture.competition_name} ${fixture.competition_id}`.toLowerCase();
+  return worldCupCompetitionIds.has(String(fixture.competition_id)) || name.includes("world cup") || name.includes("世界杯");
+}
+
+function isFixtureOnDate(fixture: Fixture, selectedDate: string): boolean {
+  if (fixture.operational_date_beijing) {
+    return fixture.operational_date_beijing === selectedDate;
+  }
+  if (fixture.kickoff_beijing) {
+    return fixture.kickoff_beijing.startsWith(selectedDate);
+  }
+  return false;
+}
+
+function apiFixturesEndpoint(selectedDate: string): string {
+  const params = new URLSearchParams({
+    competition_id: "1",
+    page_size: "80",
+    status: "NS",
+    timezone: "Asia/Shanghai",
+    operational_date: selectedDate,
+  });
+  return `/api/v1/fixtures?${params.toString()}`;
+}
+
+async function loadAnalysisDashboard(selectedDate: string): Promise<Resource<AnalysisDashboardData>> {
+  const fixturesEndpoint = apiFixturesEndpoint(selectedDate);
+  const fixtures = await loadJson<FixtureList>(fixturesEndpoint);
+  if (fixtures.status === "ERROR") {
+    return {
+      ...fixtures,
+      data: null,
+    };
+  }
+  const todayFixtures = (fixtures.data?.items ?? [])
+    .filter((fixture) => isWorldCupFixture(fixture))
+    .filter((fixture) => isFixtureOnDate(fixture, selectedDate));
+  if (!todayFixtures.length) {
+    return {
+      ...fixtures,
+      status: "EMPTY",
+      data: { fixtures: [], cards: [] },
+    };
+  }
+  const cards = await Promise.all(
+    todayFixtures.map((fixture) => loadJson<AnalysisCardResponse>(`/api/v1/fixtures/${fixture.fixture_id}/analysis-card`)),
+  );
+  const failed = cards.find((card) => card.status === "ERROR");
+  if (failed) {
+    return {
+      status: "ERROR",
+      endpoint: failed.endpoint,
+      data: null,
+      requestId: failed.requestId,
+      errorCode: failed.errorCode,
+      message: failed.message,
+    };
+  }
+  return {
+    status: cards.some((card) => card.status === "STALE") ? "STALE" : "SUCCESS",
+    endpoint: fixturesEndpoint,
+    data: {
+      fixtures: todayFixtures,
+      cards: cards.flatMap((card) => (card.data?.card ? [card.data.card] : [])),
+    },
+    requestId: fixtures.requestId,
+    errorCode: null,
+    message: null,
+  };
+}
+
+function confidenceDots(confidence: number): boolean[] {
+  const filled = Math.max(0, Math.min(5, Math.round(confidence * 5)));
+  return Array.from({ length: 5 }, (_, index) => index < filled);
+}
+
+function marketTone(market: string): string {
+  if (market === "ASIAN_HANDICAP") {
+    return "tone-ah";
+  }
+  if (market === "TOTALS") {
+    return "tone-ou";
+  }
+  if (market === "FIRST_HALF_GOALS") {
+    return "tone-half";
+  }
+  if (market === "SCORE") {
+    return "tone-score";
+  }
+  return "tone-neutral";
+}
+
+function ConfidenceDots({ confidence }: { confidence: number }) {
+  return (
+    <span aria-label={`confidence ${Math.round(confidence * 100)} percent`} className="confidence-dots">
+      {confidenceDots(confidence).map((filled, index) => (
+        <span className={filled ? "dot filled" : "dot"} key={index} />
+      ))}
+    </span>
+  );
+}
+
+function WatchLevel({ level }: { level: number }) {
+  const value = Math.max(0, Math.min(4, level));
+  return <span className="watch-level">关注度 {value ? "★".repeat(value) : "0"}</span>;
+}
+
+function AnalysisMarketRow({ market }: { market: AnalysisMarketCard }) {
+  const tone = marketTone(market.market);
+  const isSkip = market.decision === "SKIP";
+  return (
+    <div className={isSkip ? "analysis-market skip" : "analysis-market"}>
+      <div className="market-main">
+        <div className="market-name">
+          <span>{market.label_cn}</span>
+          <small>{market.market}</small>
+        </div>
+        {isSkip ? (
+          <span className="skip-chip">{market.label_cn} · SKIP</span>
+        ) : (
+          <>
+            <span className={`lean-badge ${tone}`}>{market.lean_cn ?? "倾向待确认"}</span>
+            <ConfidenceDots confidence={market.confidence ?? 0} />
+          </>
+        )}
+      </div>
+      {market.market === "SCORE" && market.reference_scores?.length ? (
+        <div className="score-row">
+          {market.reference_scores.slice(0, 2).map((score) => (
+            <span className="score-chip" key={score.scoreline}>
+              {score.scoreline}
+              {score.conditional_probability !== null && score.conditional_probability !== undefined
+                ? ` · ${(score.conditional_probability * 100).toFixed(1)}%`
+                : ""}
+            </span>
+          ))}
+          <small>方向一致的条件概率 · 非精确比分预测</small>
+        </div>
+      ) : null}
+      <p>理由：{market.reason_cn ?? "数据不足，等待盘口快照与 xG 富集。"}</p>
+    </div>
+  );
+}
+
+function AnalysisFixtureCard({ card }: { card: AnalysisCard }) {
+  const marketsByName = new Map(card.markets.map((market) => [market.market, market]));
+  const orderedMarkets = ["ASIAN_HANDICAP", "TOTALS", "FIRST_HALF_GOALS", "SCORE"].flatMap((market) => {
+    const row = marketsByName.get(market);
+    return row ? [row] : [];
+  });
+  const isSkip = card.decision === "SKIP";
+  const intent = card.bookmaker_intent ?? { intent: "INSUFFICIENT_DATA", label_cn: "数据不足" };
+  const opening = intent.opening_line ?? null;
+  const current = intent.current_line ?? null;
+  return (
+    <article className={isSkip ? "analysis-card skip-card" : "analysis-card"}>
+      <header className="analysis-card-head">
+        <div>
+          <span>{card.kickoff_utc ?? "kickoff pending"} · {card.competition_cn ?? "世界杯"}</span>
+          <h2>{card.home_cn ?? "主队"} vs {card.away_cn ?? "客队"}</h2>
+        </div>
+        <strong>{card.decision}</strong>
+      </header>
+      <div className={isSkip ? "intent-strip insufficient" : "intent-strip"}>
+        {isSkip
+          ? `数据不足（${intent.intent}）`
+          : `庄家意图：${intent.label_cn ?? intent.intent} · 盘口 ${opening ?? "n/a"}→${current ?? "n/a"}`}
+      </div>
+      <div className="analysis-markets">
+        {orderedMarkets.map((market) => (
+          <AnalysisMarketRow key={market.market} market={market} />
+        ))}
+      </div>
+      {isSkip ? (
+        <p className="skip-note">暂不推荐：等盘口快照与 xG 富集到位后自动更新。</p>
+      ) : (
+        <footer className="analysis-card-foot">
+          <span>风险：{card.risks_cn?.length ? card.risks_cn.join("、") : "暂无额外风险"}</span>
+          <WatchLevel level={card.watch_level ?? 0} />
+        </footer>
+      )}
+    </article>
+  );
+}
+
+function AnalysisDashboard({
+  resource,
+  selectedDate,
+  onDateChange,
+  onRetry,
+}: {
+  resource: Resource<AnalysisDashboardData>;
+  selectedDate: string;
+  onDateChange: (value: string) => void;
+  onRetry: () => void;
+}) {
+  const cards = resource.data?.cards ?? [];
+  return (
+    <section className="analysis-dashboard">
+      <header className="analysis-topbar">
+        <div>
+          <p className="kicker">W2 足球分析</p>
+          <h1>W2 足球分析 · 今日比赛</h1>
+        </div>
+        <strong className="analysis-pill">分析参考·非稳赢</strong>
+      </header>
+
+      <div className="analysis-filter">
+        <button type="button" onClick={() => onDateChange(beijingToday())}>今日</button>
+        <span>世界杯</span>
+        <label>
+          时间
+          <input type="date" value={selectedDate} onChange={(event) => onDateChange(event.target.value)} />
+        </label>
+      </div>
+
+      {resource.status === "LOADING" ? <p className="muted">Loading analysis cards from {resource.endpoint}</p> : null}
+      {resource.status === "ERROR" ? (
+        <div className="error-box">
+          <p>Endpoint: {resource.endpoint}</p>
+          <p>request_id: {resource.requestId}</p>
+          <p>error: {resource.errorCode}</p>
+          <button type="button" onClick={onRetry}>Retry</button>
+        </div>
+      ) : null}
+      {resource.status === "EMPTY" ? (
+        <div className="analysis-card skip-card">
+          <p className="muted">今日没有白名单世界杯比赛可展示。</p>
+        </div>
+      ) : null}
+      {(resource.status === "SUCCESS" || resource.status === "STALE") ? (
+        <div className="analysis-list">
+          {cards.map((card) => (
+            <AnalysisFixtureCard card={card} key={card.fixture_id} />
+          ))}
+        </div>
+      ) : null}
+      <footer className="analysis-disclaimer">本页为分析参考，非投注建议，分析参考·非稳赢 · 数据不足时一律 SKIP</footer>
+    </section>
+  );
+}
+
 function beijingToday(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -390,6 +692,7 @@ function matchdayFixture(item: Record<string, unknown>): Fixture {
 
 function App() {
   const [selectedDate, setSelectedDate] = useState<string>(beijingToday());
+  const [analysis, setAnalysis] = useState<Resource<AnalysisDashboardData>>(emptyResource(apiFixturesEndpoint(beijingToday())));
   const [fixtures, setFixtures] = useState<Resource<FixtureList>>(emptyResource(`/api/v1/matchday/${beijingToday()}`));
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Resource<FixtureDetail>>(emptyResource("/api/v1/fixtures/none"));
@@ -433,6 +736,11 @@ function App() {
     });
   }, [selectedDate]);
 
+  const loadAnalysis = useCallback(() => {
+    setAnalysis(emptyResource(apiFixturesEndpoint(selectedDate)));
+    loadAnalysisDashboard(selectedDate).then(setAnalysis);
+  }, [selectedDate]);
+
   const loadCommon = useCallback(() => {
     loadJson<ForwardStatus>("/api/v1/forward-holdout/status").then(setForward);
     loadJson<ProviderStatus>("/api/v1/providers/status").then(setProvider);
@@ -453,9 +761,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    loadAnalysis();
     loadFixtures();
     loadCommon();
-  }, [loadCommon, loadFixtures]);
+  }, [loadAnalysis, loadCommon, loadFixtures]);
 
   useEffect(() => {
     if (!selected) {
@@ -486,7 +795,14 @@ function App() {
 
   return (
     <main className="shell">
-      <header className="topbar">
+      <AnalysisDashboard
+        resource={analysis}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        onRetry={loadAnalysis}
+      />
+
+      <header className="topbar ops-topbar">
         <div>
           <p className="kicker">W2 Operations Console</p>
           <h1>Live read-model dashboard</h1>
