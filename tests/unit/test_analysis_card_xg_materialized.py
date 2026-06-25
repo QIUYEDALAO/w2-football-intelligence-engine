@@ -119,6 +119,20 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["decision"] == "ANALYSIS_PICK"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+    assert card["home_name"] == "Home"
+    assert card["away_name"] == "Away"
+    assert card["competition_name"] == "World Cup"
+    assert card["data_readiness"] == {
+        "bookmakers": 2,
+        "odds_snapshots": 2,
+        "xg": True,
+        "h2h": False,
+        "lineups": False,
+    }
+    assert card["current_odds"]["ah"] == {"line": "-0.75", "price": 1.8}
+    assert card["current_odds"]["ou"] == {"line": "2.5", "price": 1.72}
+    assert card["line_movement"]["ah_open"] == "-0.75"
+    assert card["line_movement"]["ah_current"] == "-0.75"
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     assert decisions["ASIAN_HANDICAP"] == "PICK"
     assert decisions["TOTALS"] == "PICK"
@@ -128,4 +142,11 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for reason in card["markets"][0]["reasons"]
     )
+    ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
+    totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
+    score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
+    assert ah_market["lean"]
+    assert "滚动 xG 主 1.80/0.70 vs 客 0.90/1.50" in ah_market["reason"]
+    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
+    assert score_market["scores"]
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}

@@ -52,13 +52,24 @@ def test_analysis_card_fallback_contains_four_markets_and_intent() -> None:
     assert card["disclaimer_cn"] == "分析参考·非稳赢"
     assert card["watch_level"] == 0
     assert card["competition_cn"] == "世界杯"
+    assert card["competition_name"] == "世界杯"
     assert card["home_cn"] == "主队"
     assert card["away_cn"] == "客队"
+    assert card["home_name"] == "主队"
+    assert card["away_name"] == "客队"
+    assert card["data_readiness"] == {
+        "bookmakers": 0,
+        "odds_snapshots": 0,
+        "xg": False,
+        "h2h": False,
+        "lineups": False,
+    }
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
     assert all(market["decision"] == "SKIP" for market in card["markets"])
     assert all(market["label_cn"] for market in card["markets"])
     assert all("reason_cn" in market for market in card["markets"])
+    assert all("reason" in market for market in card["markets"])
 
 
 def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
@@ -99,6 +110,8 @@ def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
     assert card["markets"][0]["decision"] == "PICK"
     assert card["markets"][0]["analysis_decision"] == "ANALYSIS_PICK"
     assert card["markets"][0]["label_cn"] == "大小球"
+    assert card["markets"][0]["lean"] == "大球"
+    assert card["markets"][0]["reason"] == "大小球意图: OVER_LEAN"
 
 
 def test_fixture_detail_includes_analysis_card() -> None:
@@ -177,8 +190,11 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
     assert card["competition_cn"] == "World Cup · Group Stage - 3"
+    assert card["competition_name"] == "World Cup"
     assert card["home_cn"] == "Home"
     assert card["away_cn"] == "Away"
+    assert card["home_name"] == "Home"
+    assert card["away_name"] == "Away"
     assert {market["market"] for market in card["markets"]} == {
         "ASIAN_HANDICAP",
         "TOTALS",

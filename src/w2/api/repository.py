@@ -821,7 +821,20 @@ class ReadModelService:
                 missing_markets=frozenset(missing),
             ),
         )
-        return self._analysis_card_payload(card)
+        payload = self._analysis_card_payload(card)
+        payload.update(
+            self._analysis_input_summary(
+                observations=observations,
+                home_xg=latest_home_xg,
+                away_xg=latest_away_xg,
+            )
+        )
+        self._attach_xg_reason_values(
+            payload,
+            home_xg=latest_home_xg,
+            away_xg=latest_away_xg,
+        )
+        return payload
 
     def _team_xg_feature_snapshot(
         self,
@@ -922,6 +935,124 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
         }
+
+    def _analysis_input_summary(
+        self,
+        *,
+        observations: list[dict[str, Any]],
+        home_xg: TeamXgSnapshot | None,
+        away_xg: TeamXgSnapshot | None,
+    ) -> dict[str, Any]:
+        bookmaker_ids = {
+            str(row.get("bookmaker_id") or row.get("bookmaker_name"))
+            for row in observations
+            if row.get("bookmaker_id") or row.get("bookmaker_name")
+        }
+        captured_points = {
+            str(row.get("captured_at"))
+            for row in observations
+            if row.get("captured_at")
+        }
+        summary: dict[str, Any] = {
+            "data_readiness": {
+                "bookmakers": len(bookmaker_ids),
+                "odds_snapshots": len(captured_points),
+                "xg": home_xg is not None and away_xg is not None,
+                "h2h": False,
+                "lineups": False,
+            }
+        }
+        current_odds: dict[str, Any] = {}
+        line_movement: dict[str, Any] = {}
+        for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
+            ordered = self._ordered_observations_for_market(observations, market)
+            if not ordered:
+                continue
+            current = ordered[-1]
+            odds_entry = self._odds_entry(current)
+            if odds_entry:
+                current_odds[key] = odds_entry
+            first_line = self._line_value(ordered[0])
+            current_line = self._line_value(current)
+            if first_line is not None:
+                line_movement[f"{key}_open"] = first_line
+            if current_line is not None:
+                line_movement[f"{key}_current"] = current_line
+        if current_odds:
+            summary["current_odds"] = current_odds
+        if line_movement:
+            summary["line_movement"] = line_movement
+        return summary
+
+    def _ordered_observations_for_market(
+        self,
+        observations: list[dict[str, Any]],
+        market: str,
+    ) -> list[dict[str, Any]]:
+        rows = [
+            row
+            for row in observations
+            if str(row.get("canonical_market")) == market
+            and not row.get("suspended")
+            and not row.get("live")
+        ]
+        return sorted(
+            rows,
+            key=lambda row: (
+                str(row.get("captured_at") or ""),
+                str(row.get("bookmaker_name") or row.get("bookmaker_id") or ""),
+                str(row.get("selection") or ""),
+            ),
+        )
+
+    def _odds_entry(self, row: dict[str, Any]) -> dict[str, Any] | None:
+        line = self._line_value(row)
+        price = row.get("decimal_odds")
+        if line is None or price is None:
+            return None
+        try:
+            decimal_price = round(float(price), 4)
+        except (TypeError, ValueError):
+            return None
+        return {"line": line, "price": decimal_price}
+
+    def _line_value(self, row: dict[str, Any]) -> str | None:
+        line = row.get("line")
+        if line is None:
+            return None
+        try:
+            line_number = float(line)
+        except (TypeError, ValueError):
+            return str(line)
+        if line_number.is_integer():
+            return str(int(line_number))
+        return f"{line_number:g}"
+
+    def _attach_xg_reason_values(
+        self,
+        payload: dict[str, Any],
+        *,
+        home_xg: TeamXgSnapshot | None,
+        away_xg: TeamXgSnapshot | None,
+    ) -> None:
+        if home_xg is None or away_xg is None:
+            return
+        side_reason = (
+            f"滚动 xG 主 {home_xg.xg_for:.2f}/{home_xg.xg_against:.2f} "
+            f"vs 客 {away_xg.xg_for:.2f}/{away_xg.xg_against:.2f}"
+        )
+        totals_reason = f"两队滚动 xG 进攻合计 {home_xg.xg_for + away_xg.xg_for:.2f}"
+        markets = payload.get("markets")
+        if not isinstance(markets, list):
+            return
+        for market in markets:
+            if not isinstance(market, dict) or market.get("decision") == "SKIP":
+                continue
+            reasons = [str(item) for item in market.get("reasons", []) if item]
+            if market.get("market") == "ASIAN_HANDICAP":
+                market["reasons"] = [side_reason, *reasons]
+            elif market.get("market") == "TOTALS":
+                market["reasons"] = [totals_reason, *reasons]
 
     def _analysis_market_payload(self, market: MarketAnalysis) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -1168,12 +1299,42 @@ class ReadModelService:
         if fixture_context:
             for key, value in fixture_context.items():
                 decorated.setdefault(key, value)
-        decorated.setdefault("competition_cn", "世界杯")
-        decorated.setdefault("home_cn", decorated.get("home_team_name") or "主队")
-        decorated.setdefault("away_cn", decorated.get("away_team_name") or "客队")
+        competition_name = self._first_text(
+            decorated.get("competition_name"),
+            decorated.get("competition_cn"),
+            "世界杯",
+        )
+        home_name = self._first_text(
+            decorated.get("home_name"),
+            decorated.get("home_cn"),
+            decorated.get("home_team_name"),
+            "主队",
+        )
+        away_name = self._first_text(
+            decorated.get("away_name"),
+            decorated.get("away_cn"),
+            decorated.get("away_team_name"),
+            "客队",
+        )
+        decorated["competition_name"] = competition_name
+        decorated.setdefault("competition_cn", competition_name)
+        decorated["home_name"] = home_name
+        decorated["away_name"] = away_name
+        decorated["home_cn"] = home_name
+        decorated["away_cn"] = away_name
         decorated.setdefault("watch_level", self._watch_level(decorated))
         decorated.setdefault("risks_cn", list(decorated.get("risks") or ["数据不足时保持 SKIP。"]))
         decorated.setdefault("disclaimer_cn", DISCLAIMER)
+        decorated.setdefault(
+            "data_readiness",
+            {
+                "bookmakers": 0,
+                "odds_snapshots": 0,
+                "xg": False,
+                "h2h": False,
+                "lineups": False,
+            },
+        )
         decorated["candidate"] = False
         decorated["formal_recommendation"] = False
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
@@ -1185,6 +1346,12 @@ class ReadModelService:
             if isinstance(item, dict)
         ]
         return decorated
+
+    def _first_text(self, *values: Any) -> str:
+        for value in values:
+            if isinstance(value, str) and value:
+                return value
+        return ""
 
     def _decorate_bookmaker_intent(self, payload: Any) -> dict[str, Any]:
         intent = dict(payload) if isinstance(payload, dict) else {}
@@ -1205,9 +1372,19 @@ class ReadModelService:
         market["label_cn"] = MARKET_LABELS_CN.get(market_name, market_name)
         market["lean_cn"] = self._lean_cn(market)
         market["reason_cn"] = self._reason_cn(market)
+        market["lean"] = market["lean_cn"]
+        market["reason"] = market["reason_cn"]
         market["risks_cn"] = list(market.get("risks") or ["数据不足时保持 SKIP。"])
         market.setdefault("confidence", 0.0)
         market.setdefault("reference_scores", self._reference_scores(market))
+        market.setdefault(
+            "scores",
+            [
+                str(row.get("scoreline"))
+                for row in market["reference_scores"]
+                if row.get("scoreline")
+            ],
+        )
         market["candidate"] = False
         market["formal_recommendation"] = False
         return market
@@ -1215,11 +1392,17 @@ class ReadModelService:
     def _analysis_context_from_flat_fixture(self, item: dict[str, Any]) -> dict[str, Any]:
         competition = str(item.get("competition_name") or "世界杯")
         stage = item.get("stage") or item.get("round") or item.get("group")
+        competition_cn = f"{competition} · {stage}" if stage else competition
+        home_name = str(item.get("home_team_name") or item.get("home_cn") or "主队")
+        away_name = str(item.get("away_team_name") or item.get("away_cn") or "客队")
         return {
             "kickoff_utc": item.get("kickoff_utc"),
-            "competition_cn": f"{competition} · {stage}" if stage else competition,
-            "home_cn": item.get("home_team_name") or item.get("home_cn") or "主队",
-            "away_cn": item.get("away_team_name") or item.get("away_cn") or "客队",
+            "competition_name": competition,
+            "competition_cn": competition_cn,
+            "home_name": home_name,
+            "away_name": away_name,
+            "home_cn": home_name,
+            "away_cn": away_name,
         }
 
     def _analysis_context_from_provider_fixture(self, item: dict[str, Any]) -> dict[str, Any]:
@@ -1230,11 +1413,17 @@ class ReadModelService:
         away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
         competition = str(league.get("name") or "世界杯")
         stage = league.get("round")
+        competition_cn = f"{competition} · {stage}" if stage else competition
+        home_name = str(home.get("name") or "主队")
+        away_name = str(away.get("name") or "客队")
         return {
             "kickoff_utc": fixture.get("date"),
-            "competition_cn": f"{competition} · {stage}" if stage else competition,
-            "home_cn": home.get("name") or "主队",
-            "away_cn": away.get("name") or "客队",
+            "competition_name": competition,
+            "competition_cn": competition_cn,
+            "home_name": home_name,
+            "away_name": away_name,
+            "home_cn": home_name,
+            "away_cn": away_name,
         }
 
     def _watch_level(self, card: dict[str, Any]) -> int:
