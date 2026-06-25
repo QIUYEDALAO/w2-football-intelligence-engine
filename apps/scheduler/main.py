@@ -19,6 +19,42 @@ def future_fixture_refresh_enabled() -> bool:
     return os.environ.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "false").lower() == "true"
 
 
+def transfermarkt_team_value_sync_enabled() -> bool:
+    return os.environ.get("W2_TRANSFERMARKT_TEAM_VALUE_SYNC_ENABLED", "true").lower() == "true"
+
+
+def transfermarkt_team_value_sync_tick() -> dict[str, object]:
+    if not transfermarkt_team_value_sync_enabled():
+        return {
+            "status": "DISABLED",
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    from apps.worker.celery_app import celery_app
+
+    now = datetime.now(UTC)
+    task_id = f"transfermarkt-team-value-sync:{now:%Y%m%dT%H%M%SZ}:{uuid4()}"
+    celery_app.send_task(
+        "w2.transfermarkt_team_value_sync",
+        kwargs={
+            "players_url": os.environ.get("W2_TRANSFERMARKT_PLAYERS_URL"),
+            "player_valuations_url": os.environ.get("W2_TRANSFERMARKT_PLAYER_VALUATIONS_URL"),
+            "mapping_csv": os.environ.get("W2_TRANSFERMARKT_TEAM_MAPPING_CSV"),
+        },
+        task_id=task_id,
+    )
+    return {
+        "status": "QUEUED",
+        "task_id": task_id,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "interval_seconds": int(
+            os.environ.get("W2_TRANSFERMARKT_TEAM_VALUE_SYNC_INTERVAL_SECONDS", "604800")
+        ),
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
 def future_fixture_refresh_contract_ready() -> bool:
     if not future_fixture_refresh_enabled():
         return False
@@ -83,6 +119,7 @@ def future_fixture_refresh_tick() -> dict[str, object]:
 def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
+    next_team_value_sync_at = datetime.now(UTC)
     while True:
         heartbeat()
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -100,6 +137,19 @@ def run_forever() -> None:
             next_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_refresh_at = next_refresh_at.fromtimestamp(
                 next_refresh_at.timestamp() + refresh_interval_seconds,
+                tz=UTC,
+            )
+        if transfermarkt_team_value_sync_enabled() and datetime.now(UTC) >= next_team_value_sync_at:
+            sync_interval_seconds = int(
+                os.environ.get("W2_TRANSFERMARKT_TEAM_VALUE_SYNC_INTERVAL_SECONDS", "604800")
+            )
+            try:
+                result = transfermarkt_team_value_sync_tick()
+                logger.info("w2 transfermarkt team value sync %s", result)
+            except Exception:
+                logger.exception("w2 transfermarkt team value sync failed")
+            next_team_value_sync_at = datetime.now(UTC).fromtimestamp(
+                datetime.now(UTC).timestamp() + sync_interval_seconds,
                 tz=UTC,
             )
         time.sleep(interval_seconds)

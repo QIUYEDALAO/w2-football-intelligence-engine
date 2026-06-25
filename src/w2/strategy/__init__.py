@@ -14,6 +14,7 @@ from w2.strategy.analysis_score import (
     ModelMarketSignal,
     TeamComparisonSignal,
     build_analysis_card,
+    team_value_signal_from_lookup,
 )
 from w2.strategy.score_scenarios import (
     ScoreScenario,
@@ -35,4 +36,5 @@ __all__ = [
     "build_analysis_card",
     "build_score_scenarios",
     "score_direction",
+    "team_value_signal_from_lookup",
 ]

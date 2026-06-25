@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -181,6 +182,20 @@ def movement_score(signal: MarketMovementSignal) -> float:
     if signal.reverse_late_move:
         raw *= 0.5
     return clamp(raw * 3)
+
+
+def team_value_signal_from_lookup(lookup: Any) -> TeamComparisonSignal | None:
+    home = getattr(lookup, "home", None)
+    away = getattr(lookup, "away", None)
+    if getattr(lookup, "status", None) != "READY" or home is None or away is None:
+        return None
+    return TeamComparisonSignal(
+        home=float(Decimal(home.value_eur)),
+        away=float(Decimal(away.value_eur)),
+        observed_at=min(home.valid_from, away.valid_from),
+        reason=lookup.reason,
+        risk="球队身价低权重处理，且可能已被赔率吸收；仅作为解释性背景因素",
+    )
 
 
 def unavailable(name: FactorName, reason: str, risk: str | None = None) -> FactorSignal:

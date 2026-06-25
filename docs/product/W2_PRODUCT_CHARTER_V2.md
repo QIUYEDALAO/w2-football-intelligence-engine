@@ -1,12 +1,13 @@
 # W2 Product Charter V2
 
-W2 is a multi-league football analysis system for match screening, multi-factor
-analysis, and analysis-grade recommendations.
+W2 is a multi-league football analysis system for match screening, W2
+multi-factor analysis, and analysis-grade recommendations.
 
 The product position is:
 
 - combine as-of market movement, team form, goal-rate strength, fitness,
-  historical context, model-vs-market comparison, and data-quality checks;
+  historical context, team-value context, model-vs-market comparison, and
+  data-quality checks;
 - explain why a match is `SKIP`, `WATCH`, or `ANALYSIS_PICK`;
 - show risks, missing data, and invalidation conditions next to every analysis
   lean;
@@ -33,3 +34,8 @@ market-beating proof path. Analysis cards do not set those flags; an
 `ANALYSIS_PICK` is an independent, honest output tier.
 
 Every analysis card must explicitly include: `分析参考，非保证盈利`.
+
+Team value is a low-weight context factor. When sourced from
+`dcaribou/transfermarkt-datasets`, W2 uses explicit Transfermarkt club to W2 team
+mapping and as-of valuation timestamps. Missing mappings or missing values must
+be shown as `VALUE_DATA_UNAVAILABLE`; the system must not infer values.
