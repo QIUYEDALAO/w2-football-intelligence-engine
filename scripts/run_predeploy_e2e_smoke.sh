@@ -300,11 +300,13 @@ for market in markets:
 print("predeploy_e2e analysis card PASS")
 PY
 
-chmod 0755 runtime
-mkdir -p runtime/future_refresh/read_model
-chmod 000 runtime/future_refresh/read_model
-chmod 0555 runtime
-python3 - <<PY
+	chmod 0755 runtime
+	mkdir -p runtime/future_refresh/read_model
+	mkdir -p runtime/stage7c/raw
+	chmod 000 runtime/future_refresh/read_model
+	chmod 000 runtime/stage7c/raw
+	chmod 0555 runtime
+	python3 - <<PY
 from __future__ import annotations
 
 import json
@@ -320,9 +322,10 @@ assert payload["card"]["candidate"] is False
 assert payload["card"]["formal_recommendation"] is False
 print("predeploy_e2e unreadable legacy runtime fallback PASS")
 PY
-chmod 0755 runtime
-chmod 0555 runtime/future_refresh/read_model
-chmod 0555 runtime
+	chmod 0755 runtime
+	chmod 0555 runtime/future_refresh/read_model
+	chmod 0555 runtime/stage7c/raw
+	chmod 0555 runtime
 
 OBS_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
