@@ -462,27 +462,64 @@ async function loadAnalysisDashboard(selectedDate: string): Promise<Resource<Ana
   const cards = await Promise.all(
     todayFixtures.map((fixture) => loadJson<AnalysisCardResponse>(`/api/v1/fixtures/${fixture.fixture_id}/analysis-card`)),
   );
-  const failed = cards.find((card) => card.status === "ERROR");
-  if (failed) {
-    return {
-      status: "ERROR",
-      endpoint: failed.endpoint,
-      data: null,
-      requestId: failed.requestId,
-      errorCode: failed.errorCode,
-      message: failed.message,
-    };
-  }
   return {
     status: cards.some((card) => card.status === "STALE") ? "STALE" : "SUCCESS",
     endpoint: fixturesEndpoint,
     data: {
       fixtures: todayFixtures,
-      cards: cards.flatMap((card) => (card.data?.card ? [card.data.card] : [])),
+      cards: todayFixtures.map((fixture, index) => {
+        const loaded = cards[index];
+        return loaded.data?.card ?? fallbackAnalysisCard(fixture, loaded.errorCode ?? "ANALYSIS_CARD_UNAVAILABLE");
+      }),
     },
     requestId: fixtures.requestId,
     errorCode: null,
     message: null,
+  };
+}
+
+function fallbackAnalysisCard(fixture: Fixture, reason: string): AnalysisCard {
+  const marketReasons: Record<string, string> = {
+    ASIAN_HANDICAP: reason,
+    TOTALS: reason,
+    FIRST_HALF_GOALS: reason,
+    SCORE: reason,
+  };
+  return {
+    fixture_id: fixture.fixture_id,
+    kickoff_utc: fixture.kickoff_utc,
+    competition_cn: fixture.competition_name,
+    home_cn: fixture.home_team_name ?? fixture.home_team_id,
+    away_cn: fixture.away_team_name ?? fixture.away_team_id,
+    decision: "SKIP",
+    watch_level: 0,
+    bookmaker_intent: {
+      intent: "INSUFFICIENT_DATA",
+      label_cn: "数据不足",
+      opening_line: null,
+      current_line: null,
+      confidence: 0,
+      reason,
+    },
+    markets: ["ASIAN_HANDICAP", "TOTALS", "FIRST_HALF_GOALS", "SCORE"].map((market) => ({
+      market,
+      label_cn: market === "ASIAN_HANDICAP" ? "让球" : market === "TOTALS" ? "大小球" : market === "FIRST_HALF_GOALS" ? "半场进球" : "比分",
+      decision: "SKIP",
+      analysis_decision: "SKIP",
+      lean_cn: null,
+      confidence: 0,
+      reason_cn: marketReasons[market],
+      risks_cn: ["数据不足时保持 SKIP。"],
+      reference_scores: [],
+      candidate: false,
+      formal_recommendation: false,
+    })),
+    risks_cn: ["analysis-card 暂不可用，保持 SKIP。"],
+    disclaimer_cn: "分析参考·非稳赢",
+    disclaimer: "分析参考·非稳赢",
+    candidate: false,
+    formal_recommendation: false,
+    source: "frontend_analysis_card_fallback",
   };
 }
 
