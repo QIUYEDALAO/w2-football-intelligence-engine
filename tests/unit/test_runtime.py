@@ -1,7 +1,16 @@
 from __future__ import annotations
 
-from apps.scheduler.main import future_fixture_refresh_tick, heartbeat
-from apps.worker.celery_app import celery_app, future_fixture_refresh, ping
+from apps.scheduler.main import (
+    future_fixture_refresh_tick,
+    heartbeat,
+    transfermarkt_team_value_sync_tick,
+)
+from apps.worker.celery_app import (
+    celery_app,
+    future_fixture_refresh,
+    ping,
+    transfermarkt_team_value_sync,
+)
 
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
@@ -41,6 +50,29 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
 
 def test_worker_future_refresh_task_is_registered() -> None:
     assert future_fixture_refresh.name == "w2.future_fixture_refresh"
+
+
+def test_scheduler_transfermarkt_team_value_sync_queues_without_provider(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.delenv("W2_TRANSFERMARKT_TEAM_VALUE_SYNC_ENABLED", raising=False)
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = transfermarkt_team_value_sync_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["interval_seconds"] == 604800
+    assert sent[0]["name"] == "w2.transfermarkt_team_value_sync"
+    assert sent[0]["kwargs"]["players_url"] is None
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
+
+
+def test_worker_transfermarkt_task_is_registered() -> None:
+    assert transfermarkt_team_value_sync.name == "w2.transfermarkt_team_value_sync"
 
 
 def test_redis_status_handles_unavailable_connection() -> None:

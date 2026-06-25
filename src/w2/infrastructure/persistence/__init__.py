@@ -140,6 +140,11 @@ from w2.infrastructure.persistence.stage7i_lifecycle_models import (
     Stage7ILifecycleHeartbeatModel,
     Stage7ILifecycleRunModel,
 )
+from w2.infrastructure.persistence.team_value_models import (
+    TeamValueMappingModel,
+    TeamValueObservationModel,
+    TeamValueSourceSnapshotModel,
+)
 from w2.infrastructure.persistence.tournament_models import (
     TournamentOperationsPlanModel,
     TournamentProfileModel,
@@ -249,6 +254,9 @@ __all__ = [
     "StageModel",
     "SuspensionModel",
     "SyncCursorModel",
+    "TeamValueMappingModel",
+    "TeamValueObservationModel",
+    "TeamValueSourceSnapshotModel",
     "TeamModel",
     "TeamRatingModel",
     "TournamentOperationsPlanModel",

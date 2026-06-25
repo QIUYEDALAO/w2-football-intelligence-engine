@@ -49,7 +49,7 @@ def test_handoff_references_roadmap_and_status_sources() -> None:
 def test_roadmap_status_contains_complete_phase_and_gate_matrix() -> None:
     payload = json.loads(STATUS.read_text(encoding="utf-8"))
 
-    assert payload["roadmap_version"] == 2
+    assert payload["roadmap_version"] == 3
     assert set(payload["phases"]) == {str(index) for index in range(16)}
     assert set(payload["gates"]) == {str(index) for index in range(7)}
     for phase in payload["phases"].values():
@@ -79,5 +79,8 @@ def test_roadmap_status_preserves_gate_safety_boundaries() -> None:
         item["name"] for item in payload["active_execution_packages"]
     }
     assert "WO#12 product scope turn to analysis-grade recommendations" in {
+        item["name"] for item in payload["active_execution_packages"]
+    }
+    assert "WO#13 transfermarkt team value data for W2 multi-factor analysis" in {
         item["name"] for item in payload["active_execution_packages"]
     }

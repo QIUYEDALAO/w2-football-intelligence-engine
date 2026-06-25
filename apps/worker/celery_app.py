@@ -6,6 +6,7 @@ from celery import Celery
 
 from w2.config import get_settings
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
+from w2.ingestion.team_value import sync_transfermarkt_team_values
 
 settings = get_settings()
 
@@ -65,3 +66,28 @@ def future_fixture_refresh(
         "candidate": False,
         "formal_recommendation": False,
     }
+
+
+@celery_app.task(name="w2.transfermarkt_team_value_sync")
+def transfermarkt_team_value_sync(
+    players_url: str | None = None,
+    player_valuations_url: str | None = None,
+    mapping_csv: str | None = None,
+) -> dict[str, object]:
+    try:
+        result = sync_transfermarkt_team_values(
+            players_url=players_url
+            or "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz",
+            player_valuations_url=player_valuations_url
+            or "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/player_valuations.csv.gz",
+            mapping_csv=mapping_csv,
+        )
+        return result.as_dict()
+    except Exception as exc:
+        return {
+            "status": "FAILED",
+            "error": exc.__class__.__name__,
+            "message": str(exc),
+            "candidate": False,
+            "formal_recommendation": False,
+        }
