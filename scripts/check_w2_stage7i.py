@@ -301,6 +301,25 @@ def validate_final(path: Path, *, expected_fixture_id: str | None) -> dict[str, 
     return payload
 
 
+def validate_db_final(
+    run_id: str,
+    *,
+    expected_fixture_id: str | None,
+    observed_at_utc: str | None,
+) -> None:
+    from w2.monitoring.stage7i_supervision import Stage7ILifecycleSupervisor
+
+    observed_at = parse_utc(observed_at_utc, "observed_at_utc") if observed_at_utc else None
+    audit = Stage7ILifecycleSupervisor().final_audit(run_id=run_id, observed_at=observed_at)
+    if expected_fixture_id is not None and audit.fixture_id != expected_fixture_id:
+        raise Stage7ICheckError("DB final fixture_id does not match expected fixture")
+    if audit.candidate or audit.formal_recommendation:
+        raise Stage7ICheckError("DB final candidate/formal must be false")
+    if audit.status != "COMPLETED":
+        blockers = ",".join(audit.blockers) if audit.blockers else "UNKNOWN"
+        raise Stage7ICheckError(f"DB final status must be COMPLETED: {blockers}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate W2 Stage7I evidence files.")
     parser.add_argument(
@@ -313,6 +332,8 @@ def main() -> int:
     parser.add_argument("--allow-blocked", action="store_true")
     parser.add_argument("--selection-json", type=Path)
     parser.add_argument("--expected-fixture-id")
+    parser.add_argument("--db-run-id")
+    parser.add_argument("--observed-at-utc")
     args = parser.parse_args()
     try:
         validate_static_files()
@@ -328,6 +349,12 @@ def main() -> int:
                 args.start_json,
                 selection_json=args.selection_json,
                 expected_fixture_id=args.expected_fixture_id,
+            )
+        elif args.db_run_id:
+            validate_db_final(
+                args.db_run_id,
+                expected_fixture_id=args.expected_fixture_id,
+                observed_at_utc=args.observed_at_utc,
             )
         else:
             validate_final(args.start_json, expected_fixture_id=args.expected_fixture_id)

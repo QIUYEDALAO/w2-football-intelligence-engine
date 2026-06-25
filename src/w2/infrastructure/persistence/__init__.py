@@ -132,6 +132,11 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyRunModel,
     ShadowStrategySettlementModel,
 )
+from w2.infrastructure.persistence.stage7i_lifecycle_models import (
+    Stage7ILifecycleEventModel,
+    Stage7ILifecycleHeartbeatModel,
+    Stage7ILifecycleRunModel,
+)
 from w2.infrastructure.persistence.tournament_models import (
     TournamentOperationsPlanModel,
     TournamentProfileModel,
@@ -233,6 +238,9 @@ __all__ = [
     "ShadowComparisonRecordModel",
     "ShadowRunModel",
     "SloEvaluationModel",
+    "Stage7ILifecycleEventModel",
+    "Stage7ILifecycleHeartbeatModel",
+    "Stage7ILifecycleRunModel",
     "SquadModel",
     "StageModel",
     "SuspensionModel",
