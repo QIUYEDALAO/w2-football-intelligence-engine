@@ -205,6 +205,17 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
     assert card["markets"][1]["reasons"] == ["OU_ANALYSIS_INPUT_UNAVAILABLE"]
 
 
+def test_fixture_list_includes_team_names_for_loading_cards() -> None:
+    service = ReadModelService(repository=cast(Any, MixedFixtureRepository()))
+
+    rows, total = service.fixtures(timezone="UTC", page=1, page_size=10)
+
+    assert total == 1
+    assert rows[0]["fixture_id"] == "db-world-cup-fixture"
+    assert rows[0]["home_team_name"] == "Home"
+    assert rows[0]["away_team_name"] == "Away"
+
+
 def test_read_model_repository_merges_dashboard_and_db_fixtures(monkeypatch) -> None:
     class DbRepository:
         def fixture_payloads(self) -> list[dict[str, Any]]:
