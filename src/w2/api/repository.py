@@ -352,7 +352,7 @@ class ReadModelService:
         now = datetime.now(UTC)
         visible = [
             row
-            for row, dash in zip(rows, is_dashboard)
+            for row, dash in zip(rows, is_dashboard, strict=False)
             if dash or not (row["status"] == "NS" and row["kickoff_utc"] < now)
         ]
         rows = visible
