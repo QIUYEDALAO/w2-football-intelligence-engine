@@ -16,7 +16,7 @@ from w2.markets.historical_dataset import (
     validate_observations,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 W1_ROOT = ROOT.parent / ("w1_" + "world_cup_engine")
 REPORTS = ROOT / "reports"
 

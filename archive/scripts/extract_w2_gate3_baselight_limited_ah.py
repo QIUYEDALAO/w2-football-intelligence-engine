@@ -15,8 +15,8 @@ from typing import Any
 
 ENDPOINT = "https://api.baselight.app/mcp"
 ENV_NAME = "BASELIGHT_API_KEY"
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SQL = ROOT / "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql"
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SQL = ROOT / "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql"
 DEFAULT_OUTPUT = Path(
     "/Users/liudehua/.openclaw/workspace/"
     "w2_external_data/baselight_gate3_limited_ah/baselight_limited_ah.jsonl"

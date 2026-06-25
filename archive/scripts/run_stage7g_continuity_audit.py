@@ -14,7 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from scripts.run_stage7f_gate4_checkpoint import (  # noqa: E402

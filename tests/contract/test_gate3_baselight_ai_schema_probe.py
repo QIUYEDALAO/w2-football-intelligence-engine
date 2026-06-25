@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PROBE = ROOT / "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json"
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+PROBE = ROOT / "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json"
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 
 

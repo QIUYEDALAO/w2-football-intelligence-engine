@@ -6,10 +6,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-INVENTORY = ROOT / "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json"
-PHASE = ROOT / "reports/W2_GATE3_PHASE_COVERAGE.json"
-AH = ROOT / "reports/W2_GATE3_AH_WALK_FORWARD.json"
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+INVENTORY = ROOT / "archive/reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json"
+PHASE = ROOT / "archive/reports/W2_GATE3_PHASE_COVERAGE.json"
+AH = ROOT / "archive/reports/W2_GATE3_AH_WALK_FORWARD.json"
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 ROADMAP = ROOT / "docs/W2_MASTER_ROADMAP.md"
 
@@ -63,14 +63,24 @@ def test_ah_walk_forward_truthfully_reports_no_usable_internal_data() -> None:
 
 def test_historical_checker_audit_passes_and_closure_fails() -> None:
     audit = subprocess.run(
-        [sys.executable, "scripts/check_w2_gate3_historical_market_data.py", "--mode", "audit"],
+        [
+            sys.executable,
+            "archive/scripts/check_w2_gate3_historical_market_data.py",
+            "--mode",
+            "audit",
+        ],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=False,
     )
     closure = subprocess.run(
-        [sys.executable, "scripts/check_w2_gate3_historical_market_data.py", "--mode", "closure"],
+        [
+            sys.executable,
+            "archive/scripts/check_w2_gate3_historical_market_data.py",
+            "--mode",
+            "closure",
+        ],
         cwd=ROOT,
         text=True,
         capture_output=True,

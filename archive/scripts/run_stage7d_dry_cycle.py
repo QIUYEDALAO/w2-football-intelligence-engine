@@ -17,7 +17,7 @@ from w2.models.forward_automation import (
 )
 from w2.models.independent import artifact_hash
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 CONFIG = ROOT / "config/policies/forward_holdout_schedule.v1.json"
 RUNTIME = ROOT / "runtime/stage7d"

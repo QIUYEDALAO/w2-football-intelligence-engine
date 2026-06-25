@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-PROTOCOL = ROOT / "reports/W2_STAGE7B_FORWARD_HOLDOUT_PROTOCOL.json"
+ROOT = Path(__file__).resolve().parents[2]
+PROTOCOL = ROOT / "archive/reports/W2_STAGE7B_FORWARD_HOLDOUT_PROTOCOL.json"
 
 
 def main() -> int:

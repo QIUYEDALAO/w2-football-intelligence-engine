@@ -270,7 +270,7 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
     try:
         load_refresh_policy(competition_id="premier_league", policy_path=policy_path)
     except FutureRefreshError as exc:
-        assert str(exc) == "FUTURE_REFRESH_COMPETITION_NOT_REGISTERED"
+        assert str(exc) == "COMPETITION_NOT_ENABLED:premier_league"
     else:  # pragma: no cover
         raise AssertionError("unregistered policy unexpectedly loaded")
 

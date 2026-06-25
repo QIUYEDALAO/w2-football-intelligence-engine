@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from w2.competitions.registry import CompetitionRegistry
 from w2.strategy.score_scenarios import (
     Decision,
     Direction,
@@ -93,8 +94,14 @@ def build_score_card(
     score_matrix: ScoreMatrix | None,
     decision: Decision,
     primary_direction: Direction | None,
+    competition_id: str | None = None,
+    registry: CompetitionRegistry | None = None,
     limit: int = 3,
 ) -> ScoreCard:
+    if competition_id is not None:
+        resolved_registry = registry or CompetitionRegistry()
+        if not resolved_registry.is_enabled(competition_id):
+            return ScoreCard(decision="SKIP", primary_direction=None, scenarios=[])
     if decision == "SKIP":
         return ScoreCard(decision="SKIP", primary_direction=None, scenarios=[])
     if not score_matrix:

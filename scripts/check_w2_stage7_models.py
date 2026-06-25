@@ -18,13 +18,13 @@ REQUIRED = [
     "docs/models/W2_INDEPENDENT_MODEL_V1.md",
     "docs/models/W2_FEATURE_POLICY_V1.md",
     "docs/models/W2_CALIBRATION_POLICY_V1.md",
-    "scripts/run_stage7_model_experiments.py",
+    "archive/scripts/run_stage7_model_experiments.py",
     "reports/W2_STAGE7_DATA_COVERAGE.json",
     "reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json",
     "reports/W2_STAGE7_CLUB_MODEL_COMPARISON.json",
     "reports/W2_STAGE7_CALIBRATION.json",
-    "reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json",
-    "reports/W2_STAGE7_GATE4_DECISION.json",
+    "archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json",
+    "archive/reports/W2_STAGE7_GATE4_DECISION.json",
     "reports/W2_STAGE7_RESULT.md",
 ]
 
@@ -75,8 +75,8 @@ def main() -> int:
     national = load("reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json")
     club = load("reports/W2_STAGE7_CLUB_MODEL_COMPARISON.json")
     calibration = load("reports/W2_STAGE7_CALIBRATION.json")
-    residual = load("reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json")
-    gate = load("reports/W2_STAGE7_GATE4_DECISION.json")
+    residual = load("archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json")
+    gate = load("archive/reports/W2_STAGE7_GATE4_DECISION.json")
     result = read("reports/W2_STAGE7_RESULT.md")
     if coverage["national_results"] != 1081:  # type: ignore[index]
         fail("national track must use 1081 results")

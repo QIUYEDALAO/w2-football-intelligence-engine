@@ -21,7 +21,12 @@ def write_json(path: Path, payload: dict[str, object]) -> Path:
 
 
 def fixture(fixture_id: str = "200001", kickoff: str = "2026-06-23T22:00:00Z") -> dict[str, object]:
-    return {"fixture_id": fixture_id, "status": "NS", "kickoff_utc": kickoff}
+    return {
+        "fixture_id": fixture_id,
+        "competition_id": "world_cup_2026",
+        "status": "NS",
+        "kickoff_utc": kickoff,
+    }
 
 
 def mapping(

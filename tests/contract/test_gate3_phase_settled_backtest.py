@@ -6,12 +6,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REPORT = ROOT / "reports/W2_GATE3_PHASE_SETTLED_BACKTEST.json"
+REPORT = ROOT / "archive/reports/W2_GATE3_PHASE_SETTLED_BACKTEST.json"
 
 
 def test_gate3_phase_settled_backtest_report_schema() -> None:
     result = subprocess.run(
-        [sys.executable, "scripts/run_gate3_phase_settled_backtest.py"],
+        [sys.executable, "archive/scripts/run_gate3_phase_settled_backtest.py"],
         cwd=ROOT,
         check=False,
         capture_output=True,

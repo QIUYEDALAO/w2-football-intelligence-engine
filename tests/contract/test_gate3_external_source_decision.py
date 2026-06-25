@@ -7,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REQ = ROOT / "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md"
-COMPARISON = ROOT / "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json"
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+COMPARISON = ROOT / "archive/reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json"
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 ROADMAP = ROOT / "docs/W2_MASTER_ROADMAP.md"
 SAMPLE = ROOT / "tests/fixtures/gate3_external_source/the_odds_api_schema_fixture.json"
@@ -74,7 +74,7 @@ def test_public_sample_status_and_probe_do_not_create_dataset() -> None:
     probe = subprocess.run(
         [
             sys.executable,
-            "scripts/probe_w2_historical_market_source.py",
+            "archive/scripts/probe_w2_historical_market_source.py",
             "--provider",
             "the_odds_api",
             "--sample",

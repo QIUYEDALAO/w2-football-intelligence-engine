@@ -16,9 +16,9 @@ from w2.models.dixon_coles import (
 )
 from w2.models.evaluation import EvaluationRow, metrics, paired_bootstrap_delta
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DATASET = ROOT / "tests" / "fixtures" / "gate4" / "dixon_coles_matches.json"
-REPORT = ROOT / "reports" / "W2_GATE4_DC_WALKFORWARD.json"
+REPORT = ROOT / "archive" / "reports" / "W2_GATE4_DC_WALKFORWARD.json"
 SEED = 20260625
 INITIAL_TRAIN_SIZE = 12
 

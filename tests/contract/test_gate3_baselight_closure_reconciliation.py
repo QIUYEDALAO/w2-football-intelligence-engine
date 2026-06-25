@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 STATUS = ROOT / "reports/W2_ROADMAP_STATUS.json"
 
@@ -54,14 +54,14 @@ def test_retained_gate3_limitations_keep_gate3_partial() -> None:
 
 def test_gate3_checker_audit_passes_closure_fails() -> None:
     audit = subprocess.run(
-        [sys.executable, "scripts/check_w2_gate3_market_baseline.py", "--mode", "audit"],
+        [sys.executable, "archive/scripts/check_w2_gate3_market_baseline.py", "--mode", "audit"],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=False,
     )
     closure = subprocess.run(
-        [sys.executable, "scripts/check_w2_gate3_market_baseline.py", "--mode", "closure"],
+        [sys.executable, "archive/scripts/check_w2_gate3_market_baseline.py", "--mode", "closure"],
         cwd=ROOT,
         text=True,
         capture_output=True,

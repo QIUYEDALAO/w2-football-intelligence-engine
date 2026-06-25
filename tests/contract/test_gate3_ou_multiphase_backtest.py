@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from scripts.run_gate3_ou_multiphase_backtest import REPORT, build_report, main
+from archive.scripts.run_gate3_ou_multiphase_backtest import REPORT, build_report, main
 
 
 def test_gate3_ou_multiphase_backtest_report_schema() -> None:

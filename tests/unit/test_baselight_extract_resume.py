@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scripts.extract_w2_gate3_baselight_limited_ah import (
+from archive.scripts.extract_w2_gate3_baselight_limited_ah import (
     build_odds_date_window_sql,
     combine_odds_with_matches,
     next_date_window_end,
@@ -167,7 +167,7 @@ def test_odds_date_window_sql_uses_bounded_window_without_slow_patterns() -> Non
 
 
 def test_resume_extractor_source_does_not_use_match_id_odds_in_date_strategy() -> None:
-    source = Path("scripts/extract_w2_gate3_baselight_limited_ah.py").read_text()
+    source = Path("archive/scripts/extract_w2_gate3_baselight_limited_ah.py").read_text()
     strategy = source.split("def run_odds_date_window_strategy", 1)[1].split(
         "def build_odds_sql",
         1,

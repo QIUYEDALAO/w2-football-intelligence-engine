@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PROBE = ROOT / "reports/W2_BASELIGHT_MCP_PROBE.json"
-MANIFEST = ROOT / "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
-WALK_FORWARD = ROOT / "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+PROBE = ROOT / "archive/reports/W2_BASELIGHT_MCP_PROBE.json"
+MANIFEST = ROOT / "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
+WALK_FORWARD = ROOT / "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 
 

@@ -18,8 +18,8 @@ from w2.markets.historical_dataset import (
     parse_utc,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-REPORT = ROOT / "reports" / "W2_GATE3_OU_MULTIPHASE_BACKTEST.json"
+ROOT = Path(__file__).resolve().parents[2]
+REPORT = ROOT / "archive" / "reports" / "W2_GATE3_OU_MULTIPHASE_BACKTEST.json"
 LOCAL_ODDS = ROOT / "tests" / "fixtures" / "gate3" / "w1_local_odds_sample.csv"
 SNAPSHOT = ROOT / "tests" / "fixtures" / "gate3" / "w1_snapshot_sample.jsonl"
 

@@ -8,14 +8,14 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
-    "scripts/run_stage7f_gate4_checkpoint.py",
+    "archive/scripts/run_stage7f_gate4_checkpoint.py",
     "scripts/check_w2_stage7f.py",
-    "reports/W2_STAGE7F_API_USAGE.json",
-    "reports/W2_STAGE7F_LOCK_AUDIT.json",
-    "reports/W2_STAGE7F_SETTLEMENT.json",
-    "reports/W2_STAGE7F_FORWARD_METRICS.json",
-    "reports/W2_STAGE7F_GATE4_DECISION.json",
-    "reports/W2_STAGE7F_RESULT.md",
+    "archive/reports/W2_STAGE7F_API_USAGE.json",
+    "archive/reports/W2_STAGE7F_LOCK_AUDIT.json",
+    "archive/reports/W2_STAGE7F_SETTLEMENT.json",
+    "archive/reports/W2_STAGE7F_FORWARD_METRICS.json",
+    "archive/reports/W2_STAGE7F_GATE4_DECISION.json",
+    "archive/reports/W2_STAGE7F_RESULT.md",
 ]
 
 
@@ -46,12 +46,12 @@ def main() -> int:
             fail(f"missing {path}")
     if "runtime/stage7f/" not in read(".gitignore"):
         fail("runtime/stage7f must be gitignored")
-    usage = load("reports/W2_STAGE7F_API_USAGE.json")
-    lock_audit = load("reports/W2_STAGE7F_LOCK_AUDIT.json")
-    settlement = load("reports/W2_STAGE7F_SETTLEMENT.json")
-    metrics = load("reports/W2_STAGE7F_FORWARD_METRICS.json")
-    gate = load("reports/W2_STAGE7F_GATE4_DECISION.json")
-    result = read("reports/W2_STAGE7F_RESULT.md")
+    usage = load("archive/reports/W2_STAGE7F_API_USAGE.json")
+    lock_audit = load("archive/reports/W2_STAGE7F_LOCK_AUDIT.json")
+    settlement = load("archive/reports/W2_STAGE7F_SETTLEMENT.json")
+    metrics = load("archive/reports/W2_STAGE7F_FORWARD_METRICS.json")
+    gate = load("archive/reports/W2_STAGE7F_GATE4_DECISION.json")
+    result = read("archive/reports/W2_STAGE7F_RESULT.md")
     assert_no_sensitive_text([usage, lock_audit, settlement, metrics, gate])
     if usage["api_key_status"] not in {"PRESENT", "ABSENT"}:
         fail("API key status must be redacted")
