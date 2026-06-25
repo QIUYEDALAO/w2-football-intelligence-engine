@@ -83,6 +83,7 @@ class OddsPoint(BaseModel):
     line: str | None
     decimal_odds: str | None
     bookmaker_count: int
+    bookmaker: str | None = None
     first_seen: bool
     closing: bool
 
@@ -164,6 +165,7 @@ class ProviderStatusResponse(BaseModel):
     remaining_quota: int | None
     credential_status: str
     last_request_status: int | None
+    blockers: list[str] = Field(default_factory=list)
 
 
 class BacktestLatestResponse(BaseModel):
