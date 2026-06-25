@@ -338,5 +338,8 @@ def test_openapi_snapshot_and_web_notice() -> None:
     assert "/v1/fixtures" in snapshot["paths"]
     assert "/ops/gates" in snapshot["paths"]
     web = Path("apps/web/src/main.tsx").read_text()
-    assert "正式推荐尚未启用，当前仅为研究与前瞻验证。" in web
+    assert "W2 足球分析 · 今日比赛" in web
+    assert "分析参考 · 非稳赢" in web
+    assert "Live read-model dashboard" not in web
+    assert "W2 OPERATIONS CONSOLE" not in web
     assert "AI 推荐" not in web
