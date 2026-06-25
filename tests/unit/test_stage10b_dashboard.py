@@ -221,10 +221,13 @@ def test_web_proxy_and_no_api_host_hardcoding() -> None:
     web = Path("apps/web/src/main.tsx").read_text()
     nginx = Path("apps/web/nginx.conf").read_text()
     compose = Path("infra/compose/compose.staging.yml").read_text()
-    assert "/api/v1/fixtures" in web
-    assert "/api/ops/" in web
+    assert 'const API_BASE = "/v1"' in web
+    assert "${API_BASE}/fixtures" in web
+    assert "Live read-model dashboard" not in web
     assert "127.0.0.1:18000" not in web
     assert "api:8000" not in web
     assert "location /api/" in nginx
+    assert "location /v1/" in nginx
     assert "proxy_pass http://api:8000/" in nginx
+    assert "proxy_pass http://api:8000/v1/" in nginx
     assert "VITE_API_BASE_URL" not in compose
