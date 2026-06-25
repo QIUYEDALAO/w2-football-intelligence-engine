@@ -1,0 +1,91 @@
+{
+  "blockers": [
+    "NO_SETTLED_CAPTURED_AT_ROWS"
+  ],
+  "candidate": false,
+  "formal_recommendation": false,
+  "gate3_status": "PARTIAL",
+  "generated_at_utc": "2026-06-25T08:44:10Z",
+  "leakage_check": {
+    "closing_rows_used_in_early_phase": 0,
+    "status": "PASS"
+  },
+  "phase_count": 10,
+  "phases": {
+    "Closing": {
+      "eligible_observation_count": 2,
+      "fixture_count": 1,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-10m": {
+      "eligible_observation_count": 2,
+      "fixture_count": 1,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-12h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-1h": {
+      "eligible_observation_count": 2,
+      "fixture_count": 1,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-24h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-30m": {
+      "eligible_observation_count": 2,
+      "fixture_count": 1,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-3h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-48h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-6h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    },
+    "T-72h": {
+      "eligible_observation_count": 0,
+      "fixture_count": 0,
+      "settled_observation_count": 0,
+      "settlement_distribution": {},
+      "status": "NO_SETTLED_DATA"
+    }
+  },
+  "schema_version": "W2_GATE3_PHASE_SETTLED_BACKTEST_V1",
+  "source_paths": [
+    "tests/fixtures/gate3/w1_snapshot_sample.jsonl",
+    "tests/fixtures/gate3/w1_local_odds_sample.csv"
+  ]
+}
