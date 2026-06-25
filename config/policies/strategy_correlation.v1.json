@@ -1,0 +1,7 @@
+{
+  "version": "strategy_correlation.v1",
+  "status": "CALIBRATION_REQUIRED",
+  "secondary_policy": "DISABLE_SECONDARY_WHEN_THRESHOLD_UNCALIBRATED",
+  "correlation_threshold": null,
+  "reason_when_disabled": "CORRELATION_POLICY_INSUFFICIENT"
+}

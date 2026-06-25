@@ -1,0 +1,21 @@
+{
+  "version": "strategy_hard_gate.v1",
+  "status": "ACTIVE_SHADOW_ONLY",
+  "hard_gates": [
+    "KICKOFF_PASSED",
+    "STALE_QUOTE",
+    "LIVE_QUOTE",
+    "SUSPENDED_QUOTE",
+    "OUTLIER_QUOTE",
+    "BOOKMAKER_MIN_NOT_MET",
+    "SAME_LINE_PAIR_INVALID",
+    "MODEL_PROBABILITY_MISSING",
+    "CALIBRATION_MISSING",
+    "SETTLEMENT_RULE_MISSING",
+    "PRICE_BELOW_ADJUSTED_MINIMUM",
+    "NON_POSITIVE_RISK_ADJUSTED_EV"
+  ],
+  "public_decisions": ["NOT_READY", "SKIP", "WATCH"],
+  "forbidden_public_states": ["CANDIDATE", "RECOMMEND"],
+  "formal_recommendation": false
+}

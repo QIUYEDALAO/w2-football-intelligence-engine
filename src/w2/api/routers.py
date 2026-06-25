@@ -37,6 +37,7 @@ from w2.api.schemas import (
     ReleaseReadinessResponse,
     ResearchCardResponse,
     RetentionStatusResponse,
+    ShadowStrategyStatusResponse,
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
@@ -386,6 +387,38 @@ def ops_gates(request: Request) -> dict[str, Any]:
     return ops_list("gates", request)
 
 
+@ops_router.get("/gates/5-preflight", response_model=OperationListResponse)
+def ops_gate5_preflight(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    payload = service.gate5_preflight()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": "gate5-preflight",
+                "status": str(payload.get("gate5_result", "NO_RUN")),
+                "payload": payload,
+            }
+        ],
+    }
+
+
+@ops_router.get("/w1-w2-shadow-comparison", response_model=OperationListResponse)
+def ops_w1_w2_shadow_comparison(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    payload = service.w1_w2_shadow_comparison()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": "w1-w2-shadow-comparison",
+                "status": str(payload.get("status", "NO_RUN")),
+                "payload": payload,
+            }
+        ],
+    }
+
+
 @ops_router.get("/world-cup-readiness", response_model=WorldCupReadinessResponse)
 def ops_world_cup_readiness(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
@@ -420,3 +453,53 @@ def ops_releases_readiness(request: Request) -> dict[str, Any]:
 def ops_retention_status(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
     return {"request_id": request_id(request), **service.retention_status()}
+
+
+@ops_router.get("/shadow-strategy/status", response_model=ShadowStrategyStatusResponse)
+def ops_shadow_strategy_status(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **service.shadow_strategy_status()}
+
+
+@ops_router.get("/shadow-strategy/locks", response_model=OperationListResponse)
+def ops_shadow_strategy_locks(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {"key": str(item.get("decision_hash")), "status": "LOCKED", "payload": item}
+            for item in service.shadow_strategy_locks()
+        ],
+    }
+
+
+@ops_router.get("/shadow-strategy/evaluations", response_model=OperationListResponse)
+def ops_shadow_strategy_evaluations(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": f"{item.get('fixture_id')}:{item.get('phase')}",
+                "status": str(item.get("public_decision", "NOT_READY")),
+                "payload": item,
+            }
+            for item in service.shadow_strategy_evaluations()
+        ],
+    }
+
+
+@ops_router.get("/shadow-strategy/replay", response_model=OperationListResponse)
+def ops_shadow_strategy_replay(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    replay = service.shadow_strategy_replay()
+    return {
+        "request_id": request_id(request),
+        "items": [
+            {
+                "key": str(replay.get("run_id", "stage9a-shadow-replay")),
+                "status": "READY" if replay else "EMPTY",
+                "payload": replay,
+            }
+        ],
+    }

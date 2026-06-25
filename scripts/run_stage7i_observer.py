@@ -20,9 +20,11 @@ UTC = timezone.utc  # noqa: UP017 - server/local python3 may be older than proje
 DEFAULT_BASELINE_REVISION: str | None = None
 SERVICES = ["postgres", "redis", "api", "worker", "scheduler", "web"]
 CONTAINERS = {name: f"w2-staging-{name}-1" for name in SERVICES}
-DEFAULT_RUNTIME = Path("/opt/w2/shared/runtime/stage7i")
+DEFAULT_RUNTIME = Path(os.environ.get("W2_STAGE7I_RUNTIME_ROOT", "runtime/stage7i"))
 DEFAULT_CURRENT = Path("/opt/w2/current")
-DEFAULT_GLOBAL_LOCK = Path("/opt/w2/shared/runtime/stage7i/observer-global.lock")
+DEFAULT_GLOBAL_LOCK = Path(
+    os.environ.get("W2_STAGE7I_GLOBAL_LOCK", "runtime/stage7i/observer-global.lock")
+)
 SAMPLE_INTERVAL_SECONDS = 300
 OBSERVATION_SECONDS = 24 * 60 * 60
 
@@ -114,6 +116,40 @@ def current_revision(current: Path, baseline_revision: str) -> dict[str, Any]:
         "path": link_out if link_code == 0 else None,
         "error": link_err if link_code != 0 else None,
         "matches_baseline": revision == baseline_revision,
+    }
+
+
+def resolve_expected_revision(
+    *,
+    explicit: str | None,
+    current: Path,
+    environ: dict[str, str] | None = None,
+) -> tuple[str | None, str]:
+    env = environ if environ is not None else os.environ
+    if explicit:
+        return explicit, "CLI"
+    if env.get("W2_STAGE7I_EXPECTED_REVISION"):
+        return env["W2_STAGE7I_EXPECTED_REVISION"], "ENV"
+    revision = current_revision(current, "").get("revision")
+    if revision:
+        return str(revision), "CURRENT_DEPLOYMENT_REVISION"
+    return None, "CURRENT_DEPLOYMENT_REVISION"
+
+
+def sample(current: Path, expected_revision: str | None, expected_source: str) -> dict[str, Any]:
+    actual = current_revision(current, expected_revision or "").get("revision")
+    reason = None
+    if expected_revision is None:
+        reason = "EXPECTED_REVISION_UNAVAILABLE"
+    elif actual != expected_revision:
+        reason = "REVISION_MISMATCH"
+    return {
+        "timestamp_utc": iso(utc_now()),
+        "expected_revision": expected_revision,
+        "expected_revision_source": expected_source,
+        "actual_revision": actual,
+        "revision_ok": reason is None,
+        "invalidation_reason": reason,
     }
 
 

@@ -202,6 +202,18 @@ type RetentionStatus = {
   policy: Record<string, unknown>;
 };
 
+type ShadowStrategyStatus = {
+  request_id: string;
+  status: string;
+  strategy_version: string;
+  gate4_status: string;
+  gate5_status: string;
+  formal_recommendation: boolean;
+  decisions: number;
+  locks: number;
+  latest_run_id: string | null;
+};
+
 const staleMs = 15 * 60 * 1000;
 
 function emptyResource<T>(endpoint: string): Resource<T> {
@@ -398,6 +410,9 @@ function App() {
   const [operations, setOperations] = useState<Resource<OperationsLatest>>(emptyResource("/api/ops/operations/latest"));
   const [release, setRelease] = useState<Resource<ReleaseReadiness>>(emptyResource("/api/ops/releases/readiness"));
   const [retention, setRetention] = useState<Resource<RetentionStatus>>(emptyResource("/api/ops/retention/status"));
+  const [shadowStrategy, setShadowStrategy] = useState<Resource<ShadowStrategyStatus>>(emptyResource("/api/ops/shadow-strategy/status"));
+  const [gate5, setGate5] = useState<Resource<OpsList>>(emptyResource("/api/ops/gates/5-preflight"));
+  const [w1w2, setW1w2] = useState<Resource<OpsList>>(emptyResource("/api/ops/w1-w2-shadow-comparison"));
 
   const loadFixtures = useCallback(() => {
     const endpoint = `/api/v1/matchday/${selectedDate}`;
@@ -429,6 +444,9 @@ function App() {
     loadJson<OperationsLatest>("/api/ops/operations/latest").then(setOperations);
     loadJson<ReleaseReadiness>("/api/ops/releases/readiness").then(setRelease);
     loadJson<RetentionStatus>("/api/ops/retention/status").then(setRetention);
+    loadJson<ShadowStrategyStatus>("/api/ops/shadow-strategy/status").then(setShadowStrategy);
+    loadJson<OpsList>("/api/ops/gates/5-preflight").then(setGate5);
+    loadJson<OpsList>("/api/ops/w1-w2-shadow-comparison").then(setW1w2);
     loadJson<Matchday>("/api/v1/matchday").then(setMatchday);
     loadJson<Matchday>("/api/v1/matchday/next-36-hours").then(setNext36);
     loadJson<MatchdayCoverage>("/api/ops/matchday-coverage").then(setCoverage);
@@ -626,6 +644,44 @@ function App() {
       </section>
 
       <section className="grid two">
+        <StatePanel title="Shadow Strategy" resource={shadowStrategy} onRetry={loadCommon}>
+          {(data) => (
+            <dl className="facts">
+              <div><dt>Status</dt><dd>{data.status}</dd></div>
+              <div><dt>Version</dt><dd>{data.strategy_version}</dd></div>
+              <div><dt>Locks</dt><dd>{data.locks} shadow locks · {data.decisions} decisions</dd></div>
+              <div><dt>Gate</dt><dd>{data.gate4_status} · {data.gate5_status}</dd></div>
+              <div><dt>Published mode</dt><dd>{data.formal_recommendation ? "BLOCKED" : "WATCH/SKIP only"}</dd></div>
+              <div><dt>Latest replay</dt><dd>{data.latest_run_id ?? "not available"}</dd></div>
+              <div><dt>Notice</dt><dd>影子策略，正式推荐尚未启用。</dd></div>
+            </dl>
+          )}
+        </StatePanel>
+        <StatePanel title="Tasks" resource={tasks} onRetry={loadCommon}>
+          {(data) => <pre>{JSON.stringify(data.items, null, 2)}</pre>}
+        </StatePanel>
+      </section>
+
+      <section className="grid two">
+        <StatePanel title="Gate 5 Preflight" resource={gate5} onRetry={loadCommon}>
+          {(data) => (
+            <div>
+              <p>Gate4 remains prerequisite; Gate5 cannot close from this panel.</p>
+              <pre>{JSON.stringify(data.items, null, 2)}</pre>
+            </div>
+          )}
+        </StatePanel>
+        <StatePanel title="W1/W2 Shadow Comparison" resource={w1w2} onRetry={loadCommon}>
+          {(data) => (
+            <div>
+              <p>Read-only frozen comparison; missing W1 fields remain NOT_AVAILABLE.</p>
+              <pre>{JSON.stringify(data.items, null, 2)}</pre>
+            </div>
+          )}
+        </StatePanel>
+      </section>
+
+      <section className="grid two">
         <StatePanel title="World Cup Readiness" resource={worldCup} onRetry={loadCommon}>
           {(data) => (
             <dl className="facts">
@@ -654,9 +710,6 @@ function App() {
       </section>
 
       <section className="grid two">
-        <StatePanel title="Tasks" resource={tasks} onRetry={loadCommon}>
-          {(data) => <pre>{JSON.stringify(data.items, null, 2)}</pre>}
-        </StatePanel>
         <StatePanel title="Alerts" resource={alerts} onRetry={loadCommon}>
           {(data) => <pre>{JSON.stringify(data.items, null, 2)}</pre>}
         </StatePanel>
