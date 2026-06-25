@@ -2,6 +2,24 @@
   "active_execution_packages": [
     {
       "evidence": [
+        "docs/product/W2_PRODUCT_CHARTER_V1.md",
+        "docs/adr/ADR-0026-analysis-grade-recommendations.md",
+        "src/w2/strategy/analysis_recommendation.py",
+        "src/w2/strategy/bookmaker_intent.py",
+        "src/w2/api/repository.py",
+        "scripts/check_w2_analysis_governance.py",
+        "tests/contract/test_analysis_governance.py"
+      ],
+      "mapped_master_phases": [
+        "9",
+        "10"
+      ],
+      "name": "M-U W2 analysis-card product formation",
+      "notes": "Product strategy is analysis-grade multi-factor recommendation. ANALYSIS_PICK is the normal product output with reasons, risks, invalidation conditions, and disclaimer; RECOMMEND remains a disabled upper tier for separately proven positive-EV workflows. Analysis cards keep candidate=false and formal_recommendation=false.",
+      "status": "IMPLEMENTED_PENDING_STAGING_DEPLOYMENT"
+    },
+    {
+      "evidence": [
         "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
         "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md"
@@ -715,7 +733,7 @@
     }
   },
   "repository_head_relation": "current as of containing commit",
-  "roadmap_version": 1,
+  "roadmap_version": 2,
   "warnings": [
     "Do not infer master phase completion from execution package names",
     "Do not infer Gate5 from observer existence",
