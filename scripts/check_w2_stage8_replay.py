@@ -18,7 +18,7 @@ REQUIRED = [
     "reports/W2_STAGE8_REPLAY_SUMMARY.json",
     "reports/W2_STAGE8_MODEL_COMPARISON.json",
     "reports/W2_STAGE8_ABLATION.json",
-    "reports/W2_STAGE8_GATE4_AUDIT.json",
+    "archive/reports/W2_STAGE8_GATE4_AUDIT.json",
     "reports/W2_STAGE8_RESULT.md",
 ]
 
@@ -70,7 +70,7 @@ def main() -> int:
     summary = load("reports/W2_STAGE8_REPLAY_SUMMARY.json")
     comparison = load("reports/W2_STAGE8_MODEL_COMPARISON.json")
     ablation = load("reports/W2_STAGE8_ABLATION.json")
-    gate = load("reports/W2_STAGE8_GATE4_AUDIT.json")
+    gate = load("archive/reports/W2_STAGE8_GATE4_AUDIT.json")
     result = read("reports/W2_STAGE8_RESULT.md")
     if summary["fixture_count"] != 214:  # type: ignore[index]
         fail("Stage8 replay must use the paired Stage7/Stage6 fixture set")

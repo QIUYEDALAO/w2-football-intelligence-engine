@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-REPORT_JSON = ROOT / "reports/W2_BASELIGHT_MCP_PROBE.json"
-REPORT_MD = ROOT / "reports/W2_BASELIGHT_MCP_PROBE.md"
+ROOT = Path(__file__).resolve().parents[2]
+REPORT_JSON = ROOT / "archive/reports/W2_BASELIGHT_MCP_PROBE.json"
+REPORT_MD = ROOT / "archive/reports/W2_BASELIGHT_MCP_PROBE.md"
 ENDPOINT = "https://api.baselight.app/mcp"
 ENV_NAME = "BASELIGHT_API_KEY"
 ODDS_SQL = 'SELECT * FROM "@blt.ultimate_soccer_dataset.match_betting_odds" LIMIT 5'

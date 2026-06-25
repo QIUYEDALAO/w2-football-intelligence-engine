@@ -14,6 +14,7 @@ from uuid import uuid4
 from redis import Redis
 from redis.exceptions import RedisError
 
+from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import Settings, get_settings
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
@@ -174,6 +175,10 @@ def load_refresh_policy(
     competition_id: str,
     policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
 ) -> CompetitionRefreshPolicy:
+    try:
+        CompetitionRegistry().require_enabled(competition_id)
+    except CompetitionRegistryError as exc:
+        raise FutureRefreshError(str(exc)) from exc
     payload = load_json(policy_path, {})
     competitions = payload.get("competitions")
     if not isinstance(competitions, list):

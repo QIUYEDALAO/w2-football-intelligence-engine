@@ -20,7 +20,7 @@ from w2.models.challenger import (
 from w2.models.independent import FEATURE_ALLOWLIST, artifact_hash
 from w2.providers.api_football import ApiFootballClient
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 # Stage 7B is an explicitly authorized live package; API calls are --live governed.
 REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime/stage7b"

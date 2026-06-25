@@ -10,7 +10,7 @@ REQUIRED = [
     "src/w2/models/forward_ops.py",
     "src/w2/infrastructure/persistence/forward_ops_models.py",
     "migrations/versions/0009_create_stage7c_forward_ops.py",
-    "scripts/run_stage7c_forward_cycle.py",
+    "archive/scripts/run_stage7c_forward_cycle.py",
     "scripts/check_w2_stage7c.py",
     "docs/adr/ADR-0010-forward-holdout-operations.md",
     "docs/runbooks/FORWARD_HOLDOUT_CYCLE.md",
@@ -19,7 +19,7 @@ REQUIRED = [
     "reports/W2_STAGE7C_SETTLEMENT.json",
     "reports/W2_STAGE7C_FORWARD_METRICS.json",
     "reports/W2_STAGE7C_POWER_ANALYSIS.json",
-    "reports/W2_STAGE7C_GATE4_DECISION.json",
+    "archive/reports/W2_STAGE7C_GATE4_DECISION.json",
     "reports/W2_STAGE7C_RESULT.md",
 ]
 
@@ -58,7 +58,7 @@ def main() -> int:
     lock_audit = load("reports/W2_STAGE7C_LOCK_AUDIT.json")
     settlement = load("reports/W2_STAGE7C_SETTLEMENT.json")
     metrics = load("reports/W2_STAGE7C_FORWARD_METRICS.json")
-    gate = load("reports/W2_STAGE7C_GATE4_DECISION.json")
+    gate = load("archive/reports/W2_STAGE7C_GATE4_DECISION.json")
     result = read("reports/W2_STAGE7C_RESULT.md")
     if usage["requests_used"] > usage["request_budget"]:  # type: ignore[index]
         fail("request budget exceeded")

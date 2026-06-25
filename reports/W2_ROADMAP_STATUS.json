@@ -50,8 +50,8 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
-        "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md"
+        "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_AUDIT.md"
       ],
       "mapped_master_phases": [
         "6"
@@ -100,8 +100,8 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+        "archive/reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
       ],
       "mapped_master_phases": [
         "6"
@@ -112,9 +112,9 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
-        "reports/W2_GATE3_PHASE_COVERAGE.json",
-        "reports/W2_GATE3_AH_WALK_FORWARD.json"
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "archive/reports/W2_GATE3_PHASE_COVERAGE.json",
+        "archive/reports/W2_GATE3_AH_WALK_FORWARD.json"
       ],
       "mapped_master_phases": [
         "5",
@@ -127,10 +127,10 @@
     {
       "evidence": [
         "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
       ],
       "mapped_master_phases": [
         "5",
@@ -142,8 +142,8 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_BASELIGHT_MINIMAL_ACCEPTANCE.md",
-        "reports/W2_GATE3_BASELIGHT_MINIMAL_ACCEPTANCE.json"
+        "archive/reports/W2_GATE3_BASELIGHT_MINIMAL_ACCEPTANCE.md",
+        "archive/reports/W2_GATE3_BASELIGHT_MINIMAL_ACCEPTANCE.json"
       ],
       "mapped_master_phases": [
         "5",
@@ -155,8 +155,8 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md"
       ],
       "mapped_master_phases": [
         "5",
@@ -168,10 +168,10 @@
     },
     {
       "evidence": [
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "mapped_master_phases": [
         "5",
@@ -285,28 +285,28 @@
     },
     "3": {
       "evidence": [
-        "reports/W2_GATE3_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
-        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
-        "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
-        "reports/W2_GATE3_PHASE_COVERAGE.json",
+        "archive/reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
+        "archive/reports/W2_GATE3_PHASE_COVERAGE.json",
         "reports/W2_STAGE6_1X2_BACKTEST.json",
         "reports/W2_STAGE6_MARKET_QUALITY.json",
         "reports/W2_STAGE6_OU_BACKTEST.json",
         "reports/W2_STAGE6_RESULT.md",
         "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md",
-        "reports/W2_BASELIGHT_MCP_PROBE.json",
-        "reports/W2_BASELIGHT_MCP_PROBE.md",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql",
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md",
+        "archive/reports/W2_BASELIGHT_MCP_PROBE.json",
+        "archive/reports/W2_BASELIGHT_MCP_PROBE.md",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL_V2.sql",
         "reports/W2_RELEASE_TRAIN_3A_RESULT.md",
         "reports/W2_RELEASE_TRAIN_3A_REPAIR_RESULT.md",
         "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md"
@@ -329,8 +329,8 @@
       "evidence": [
         "reports/W2_STAGE7_GATE4_DECISION.json",
         "reports/W2_STAGE7C_GATE4_DECISION.json",
-        "reports/W2_STAGE7F_GATE4_DECISION.json",
-        "reports/W2_STAGE8_GATE4_AUDIT.json"
+        "archive/reports/W2_STAGE7F_GATE4_DECISION.json",
+        "archive/reports/W2_STAGE8_GATE4_AUDIT.json"
       ],
       "missing_requirements": [
         "Forward holdout not sufficient for promotion",
@@ -591,10 +591,10 @@
     "5": {
       "blockers": [],
       "evidence": [
-        "reports/W2_GATE3_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
-        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
-        "reports/W2_GATE3_PHASE_COVERAGE.json",
+        "archive/reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
+        "archive/reports/W2_GATE3_PHASE_COVERAGE.json",
         "reports/W2_STAGE5A_RESULT.md",
         "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json",
         "reports/W2_STAGE5B_NATIONAL_DATA_QUALITY.json",
@@ -603,14 +603,14 @@
         "scripts/check_w2_stage5_asof.py",
         "scripts/check_w2_stage5b.py",
         "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "name": "\u5efa\u7acb\u5386\u53f2\u8bad\u7ec3\u4e0e\u56de\u6d4b\u6570\u636e\u96c6",
       "next_actions": [
@@ -625,27 +625,27 @@
     "6": {
       "blockers": [],
       "evidence": [
-        "reports/W2_GATE3_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
-        "reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
-        "reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
-        "reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
-        "reports/W2_GATE3_PHASE_COVERAGE.json",
+        "archive/reports/W2_GATE3_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_BUILD_RESULT.md",
+        "archive/reports/W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_AUDIT.md",
+        "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json",
+        "archive/reports/W2_GATE3_PHASE_COVERAGE.json",
         "reports/W2_STAGE6_1X2_BACKTEST.json",
         "reports/W2_STAGE6_MARKET_QUALITY.json",
         "reports/W2_STAGE6_OU_BACKTEST.json",
         "reports/W2_STAGE6_RESULT.md",
-        "scripts/check_w2_gate3_market_baseline.py",
+        "archive/scripts/check_w2_gate3_market_baseline.py",
         "scripts/check_w2_stage6_market.py",
         "docs/data/W2_HISTORICAL_MARKET_SOURCE_REQUIREMENTS_V1.md",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
-        "reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
-        "reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
-        "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
-        "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_COMPARISON.json",
+        "archive/reports/W2_GATE3_EXTERNAL_SOURCE_DECISION.md",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AI_SCHEMA_PROBE.md",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_SQL.sql",
+        "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json",
+        "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
       ],
       "name": "\u5efa\u7acb\u5e02\u573a\u5206\u6790\u5c42",
       "next_actions": [
@@ -667,7 +667,7 @@
         "reports/W2_STAGE7C_RESULT.md",
         "reports/W2_STAGE7D_RESULT.md",
         "reports/W2_STAGE7E_RESULT.md",
-        "reports/W2_STAGE7F_RESULT.md",
+        "archive/reports/W2_STAGE7F_RESULT.md",
         "reports/W2_STAGE7G_RESULT.md",
         "reports/W2_STAGE7I_R1B2_RESULT.md",
         "reports/W2_STAGE7I_FINAL_OBSERVATION_AUDIT.md",
@@ -686,7 +686,7 @@
         "reports/W2_STAGE8_RESULT.md",
         "reports/W2_STAGE8_REPLAY_SUMMARY.json",
         "reports/W2_STAGE8_MODEL_COMPARISON.json",
-        "reports/W2_STAGE8_GATE4_AUDIT.json",
+        "archive/reports/W2_STAGE8_GATE4_AUDIT.json",
         "scripts/check_w2_stage8_replay.py"
       ],
       "name": "\u5efa\u7acb\u5b8c\u6574\u56de\u6d4b\u7cfb\u7edf",

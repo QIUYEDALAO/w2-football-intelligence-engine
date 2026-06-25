@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "src/w2/models/forward_autorun.py",
-    "scripts/enable_stage7e_autorun.py",
-    "scripts/run_stage7e_live_cycle.py",
+    "archive/scripts/enable_stage7e_autorun.py",
+    "archive/scripts/run_stage7e_live_cycle.py",
     "scripts/check_w2_stage7e.py",
     "docs/adr/ADR-0012-live-forward-autorun.md",
     "docs/runbooks/STAGE7E_AUTORUN_OPERATIONS.md",

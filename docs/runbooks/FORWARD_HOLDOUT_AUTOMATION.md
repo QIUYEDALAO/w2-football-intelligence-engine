@@ -19,7 +19,7 @@ entries are disabled until explicitly approved in a later stage.
 Run the dry cycle:
 
 ```bash
-uv run python scripts/run_stage7d_dry_cycle.py
+uv run python archive/scripts/run_stage7d_dry_cycle.py
 uv run python scripts/check_w2_stage7d.py
 ```
 

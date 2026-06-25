@@ -10,7 +10,7 @@ DOC = ROOT / "docs" / "markets" / "W2_1X2_AGGREGATE_SEMANTICS_V1.md"
 
 def test_gate3_1x2_aggregate_semantics_checker_passes() -> None:
     result = subprocess.run(
-        [sys.executable, "scripts/check_gate3_1x2_aggregate_semantics.py"],
+        [sys.executable, "archive/scripts/check_gate3_1x2_aggregate_semantics.py"],
         cwd=ROOT,
         text=True,
         capture_output=True,

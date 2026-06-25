@@ -14,9 +14,9 @@ from w2.markets.baselight_limited_ah import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-MANIFEST = ROOT / "reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
-WALK_FORWARD = ROOT / "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
-RESULT = ROOT / "reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
+MANIFEST = ROOT / "archive/reports/W2_GATE3_BASELIGHT_LIMITED_AH_EXTRACT_MANIFEST.json"
+WALK_FORWARD = ROOT / "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD.json"
+RESULT = ROOT / "archive/reports/W2_GATE3_BASELIGHT_AH_WALK_FORWARD_RESULT.md"
 HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 
 
@@ -106,7 +106,7 @@ def test_limited_ah_cli_does_not_fake_backtest_pass(tmp_path: Path) -> None:
         result = subprocess.run(
             [
                 sys.executable,
-                "scripts/run_w2_gate3_baselight_ah_walk_forward.py",
+                "archive/scripts/run_w2_gate3_baselight_ah_walk_forward.py",
                 "--sample-path",
                 str(tmp_path / "w2-baselight-contract-sample-does-not-exist.jsonl"),
             ],

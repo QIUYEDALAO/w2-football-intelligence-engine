@@ -17,9 +17,9 @@ from w2.markets.historical_dataset import (
     parse_utc,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests/fixtures/gate3"
-REPORT = ROOT / "reports/W2_GATE3_PHASE_SETTLED_BACKTEST.json"
+REPORT = ROOT / "archive/reports/W2_GATE3_PHASE_SETTLED_BACKTEST.json"
 
 
 def settled_outcome(observation: MarketObservation) -> str | None:

@@ -14,8 +14,8 @@ from w2.markets.baselight_limited_ah import (
     rows_from_sample,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-REPORTS = ROOT / "reports"
+ROOT = Path(__file__).resolve().parents[2]
+REPORTS = ROOT / "archive" / "reports"
 DEFAULT_SAMPLE_DIR = Path(
     "/Users/liudehua/.openclaw/workspace/w2_external_data/baselight_gate3_limited_ah"
 )

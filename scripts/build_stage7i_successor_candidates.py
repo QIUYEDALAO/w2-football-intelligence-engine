@@ -11,6 +11,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from w2.competitions.registry import CompetitionRegistry
+
 UTC = timezone.utc  # noqa: UP017 - local python3 can be 3.9 while project runtime is 3.12.
 SOURCE = "W2_STAGING_PROVIDER_DATA"
 DEFAULT_FRESHNESS_POLICY = "EXPLICIT_MARKET_EVIDENCE_LIMIT_SECONDS"
@@ -88,6 +90,16 @@ def list_from_payload(payload: Any, *, keys: tuple[str, ...]) -> list[dict[str, 
 
 def key_fixture_id(item: dict[str, Any]) -> str:
     return str(item.get("fixture_id") or item.get("id") or "")
+
+
+def fixture_competition_id(item: dict[str, Any]) -> str:
+    return str(
+        item.get("competition_id")
+        or item.get("league_id")
+        or item.get("competition", {}).get("id")
+        or item.get("league", {}).get("id")
+        or ""
+    )
 
 
 def index_by_fixture(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -192,6 +204,7 @@ def normalize_market(
 
 def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
     now = parse_utc(args.now_utc, "now_utc") if args.now_utc else datetime.now(UTC)
+    registry = CompetitionRegistry()
     fixtures_payload = (
         load_json(args.fixtures_input) if args.fixtures_input else fetch_fixture_list(args.api_base)
     )
@@ -214,6 +227,9 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
         status = str(fixture.get("status") or "")
         if status != "NS":
             reasons.append("STATUS_NOT_NS")
+        competition_id = fixture_competition_id(fixture)
+        if not competition_id or not registry.is_enabled(competition_id):
+            reasons.append("COMPETITION_NOT_WHITELISTED")
         kickoff_value = fixture.get("scheduled_kickoff_utc") or fixture.get("kickoff_utc")
         try:
             kickoff = parse_utc(kickoff_value, "fixture.kickoff")
@@ -230,6 +246,7 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
         candidates.append(
             {
                 "fixture_id": fixture_id,
+                "competition_id": competition_id,
                 "status": status,
                 "scheduled_kickoff_utc": iso(kickoff),
                 "provider_mapping": mapping,
@@ -245,6 +262,7 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
             "fixture_summary_is_not_candidate_manifest": True,
             "freshness_policy": DEFAULT_FRESHNESS_POLICY,
             "mapping_confidence_minimum": 0.8,
+            "enabled_competitions": sorted(registry.enabled_ids()),
         },
         "candidates": candidates,
         "rejected_candidates": rejected,

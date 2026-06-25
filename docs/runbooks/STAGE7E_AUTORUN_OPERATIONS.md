@@ -8,7 +8,7 @@ disabled.
 Use a local/staging environment only:
 
 ```bash
-W2_ENVIRONMENT=local uv run python scripts/enable_stage7e_autorun.py
+W2_ENVIRONMENT=local uv run python archive/scripts/enable_stage7e_autorun.py
 ```
 
 The script writes `runtime/stage7e/local_autorun_config.json`. That file is gitignored and must not
@@ -19,7 +19,7 @@ contain secrets. API keys remain environment-only.
 Run one immediate cycle and one scheduler-triggered cycle:
 
 ```bash
-W2_ENVIRONMENT=local uv run python scripts/run_stage7e_live_cycle.py
+W2_ENVIRONMENT=local uv run python archive/scripts/run_stage7e_live_cycle.py
 uv run python scripts/check_w2_stage7e.py
 ```
 

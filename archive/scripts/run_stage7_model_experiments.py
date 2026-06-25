@@ -21,7 +21,7 @@ from w2.models.independent import (
 )
 from w2.models.residuals import independent_minus_market, residual_blend_research_only
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 ARTIFACT_DIR = ROOT / "runtime/model_artifacts/stage7"
 STAGE5B = ROOT / "runtime/stage5b"

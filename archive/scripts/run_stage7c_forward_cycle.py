@@ -22,7 +22,7 @@ from w2.models.forward_ops import (
 from w2.models.independent import artifact_hash
 from w2.providers.api_football import ApiFootballClient
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 # Stage 7C is an explicitly authorized live operations package; calls are --live governed.
 RUNTIME = ROOT / "runtime/stage7c"
 RAW = RUNTIME / "raw"

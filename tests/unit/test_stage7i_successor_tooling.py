@@ -52,6 +52,7 @@ def candidate(
     fixture_id: str,
     kickoff: str = FUTURE_KICKOFF_UTC,
     *,
+    competition_id: str = "world_cup_2026",
     status: str = "NS",
     reliable: bool = True,
     conflict: bool = False,
@@ -61,6 +62,7 @@ def candidate(
 ) -> dict[str, object]:
     return {
         "fixture_id": fixture_id,
+        "competition_id": competition_id,
         "status": status,
         "scheduled_kickoff_utc": kickoff,
         "provider_mapping": {
@@ -93,6 +95,30 @@ def selection_payload(fixture_id: str = "200001") -> dict[str, object]:
         "candidate": False,
         "formal_recommendation": False,
     }
+
+
+def test_successor_selection_rejects_non_whitelisted_competition(tmp_path: Path) -> None:
+    manifest = {
+        "generated_at_utc": "2026-06-23T10:00:00Z",
+        "source": "W2_STAGING_PROVIDER_DATA",
+        "candidates": [candidate("200001", competition_id="summer_low_quality")],
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+    path = write_json(tmp_path / "manifest.json", manifest)
+    result = run_cli(
+        [
+            PYTHON,
+            "scripts/select_stage7i_successor.py",
+            "--candidate-manifest",
+            str(path),
+            "--now-utc",
+            "2026-06-23T10:00:00Z",
+        ]
+    )
+
+    assert result.returncode == 2
+    assert "COMPETITION_NOT_WHITELISTED" in result.stdout
 
 
 def bootstrap_payload(tmp_path: Path, fixture_id: str = "200001") -> dict[str, object]:

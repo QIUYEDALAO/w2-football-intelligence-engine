@@ -3,7 +3,7 @@
 Run:
 
 ```bash
-uv run python scripts/run_stage7c_forward_cycle.py
+uv run python archive/scripts/run_stage7c_forward_cycle.py
 uv run python scripts/check_w2_stage7c.py
 ```
 

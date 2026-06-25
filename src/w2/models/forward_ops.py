@@ -94,11 +94,10 @@ def preregistered_evaluation_plan() -> dict[str, Any]:
         "minimum_settled_sample": 50,
         "slice_stability": ["competition", "official_vs_friendly", "favorite_strength"],
         "optional_stopping": "forbidden before minimum settled sample and fixed audit cadence",
-        "gate4_promotion_rule": {
-            "must_beat_market": True,
-            "bootstrap_ci_support_required": True,
-            "calibration_not_worse": True,
-            "multi_slice_stable": True,
+        "analysis_model_role": {
+            "market_comparison_is_descriptive": True,
+            "model_outputs_are_analysis_factors": True,
+            "profit_edge_claim_disabled": True,
         },
     }
 
@@ -109,7 +108,7 @@ def gate4_from_power(settled_n: int, comparable_n: int, target_n: int) -> dict[s
     if settled_n < target_n or comparable_n < target_n:
         status = "PROVISIONAL_FORWARD_HOLDOUT_PENDING"
     else:
-        status = "PROVISIONAL_FAILED_TO_OUTPERFORM"
+        status = "PROVISIONAL_ANALYSIS_FACTOR_READY"
     return {
         "current_settled_n": settled_n,
         "market_comparable_n": comparable_n,

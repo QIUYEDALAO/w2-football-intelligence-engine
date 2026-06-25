@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-DECISION = ROOT / "reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
+ROOT = Path(__file__).resolve().parents[2]
+DECISION = ROOT / "archive/reports/W2_GATE3_MARKET_BASELINE_DECISION.json"
 
 MANDATORY_REQUIREMENTS = {
     "G3-1-1X2_CONSENSUS_DEVIG_REPRODUCIBLE",
@@ -46,7 +46,11 @@ def require_existing_paths(paths: Any, context: str) -> None:
     require(isinstance(paths, list), f"{context} evidence paths must be a list")
     for raw in paths:
         require(isinstance(raw, str) and raw, f"{context} evidence path must be a string")
-        require((ROOT / raw).exists(), f"{context} evidence path missing: {raw}")
+        archived = raw.replace("reports/", "archive/reports/", 1)
+        require(
+            (ROOT / raw).exists() or (ROOT / archived).exists(),
+            f"{context} evidence path missing: {raw}",
+        )
 
 
 def validate_common(payload: dict[str, Any]) -> None:

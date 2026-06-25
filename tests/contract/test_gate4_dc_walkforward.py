@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.run_gate4_dc_walkforward import REPORT, build_report
+from archive.scripts.run_gate4_dc_walkforward import REPORT, build_report
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -32,7 +32,7 @@ def test_gate4_dc_walkforward_cli_writes_honest_verdict() -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT / "src")
     result = subprocess.run(
-        [sys.executable, "scripts/run_gate4_dc_walkforward.py"],
+        [sys.executable, "archive/scripts/run_gate4_dc_walkforward.py"],
         cwd=ROOT,
         env=env,
         text=True,

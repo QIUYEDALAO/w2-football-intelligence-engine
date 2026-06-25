@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-ROOT = Path(__file__).resolve().parents[1]
-DECISION = ROOT / "reports" / "W2_GATE3_MARKET_BASELINE_DECISION.json"
+ROOT = Path(__file__).resolve().parents[2]
+DECISION = ROOT / "archive" / "reports" / "W2_GATE3_MARKET_BASELINE_DECISION.json"
 DOC = ROOT / "docs" / "markets" / "W2_1X2_AGGREGATE_SEMANTICS_V1.md"
 
 

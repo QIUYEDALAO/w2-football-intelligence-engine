@@ -8,7 +8,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
-    "scripts/run_stage7g_continuity_audit.py",
+    "archive/scripts/run_stage7g_continuity_audit.py",
     "scripts/check_w2_stage7g.py",
     "docs/runbooks/FORWARD_HOLDOUT_HOST_REQUIREMENTS.md",
     "reports/W2_STAGE7G_SCHEDULER_CONTINUITY.json",

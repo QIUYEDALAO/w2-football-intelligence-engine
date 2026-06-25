@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from w2.competitions.registry import CompetitionRegistry
+
 RUN01_ARCHIVE_FIXTURE = "1489401"
 DEFAULT_GLOBAL_LOCK = Path("/opt/w2/shared/runtime/stage7i/observer-global.lock")
 DEFAULT_RUNTIME_ROOT = Path("/opt/w2/shared/runtime/stage7i")
@@ -126,6 +128,16 @@ def reject(reason: str) -> dict[str, str]:
     return {"reason": reason}
 
 
+def fixture_competition_id(item: dict[str, Any]) -> str:
+    return str(
+        item.get("competition_id")
+        or item.get("league_id")
+        or item.get("competition", {}).get("id")
+        or item.get("league", {}).get("id")
+        or ""
+    )
+
+
 def evaluate_candidate(
     item: dict[str, Any],
     *,
@@ -136,8 +148,11 @@ def evaluate_candidate(
 ) -> tuple[dict[str, Any] | None, list[str]]:
     reasons: list[str] = []
     fixture_id = str(item.get("fixture_id") or item.get("id") or "")
+    competition_id = fixture_competition_id(item)
     if not fixture_id:
         reasons.append("FIXTURE_ID_MISSING")
+    if not competition_id or not CompetitionRegistry().is_enabled(competition_id):
+        reasons.append("COMPETITION_NOT_WHITELISTED")
     if fixture_id == RUN01_ARCHIVE_FIXTURE:
         reasons.append("ARCHIVED_FIXTURE")
     if item.get("status") != "NS":
@@ -193,6 +208,7 @@ def evaluate_candidate(
         return None, reasons
     selected = {
         "fixture_id": fixture_id,
+        "competition_id": competition_id,
         "status": item["status"],
         "scheduled_kickoff_utc": iso(kickoff),
         "provider_mapping": mapping,
@@ -266,6 +282,7 @@ def build_selection(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "global_lock_path": str(args.global_lock_path),
             "runtime_root": str(args.runtime_root),
             "candidate_manifest_required": True,
+            "enabled_competitions": sorted(CompetitionRegistry().enabled_ids()),
         },
         "selected_fixture": selected,
         "rejected_candidates": rejected,

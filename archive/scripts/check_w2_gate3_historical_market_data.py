@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-REPORTS = ROOT / "reports"
+ROOT = Path(__file__).resolve().parents[2]
+REPORTS = ROOT / "archive" / "reports"
 INVENTORY = REPORTS / "W2_GATE3_HISTORICAL_MARKET_SOURCE_INVENTORY.json"
 PHASE_COVERAGE = REPORTS / "W2_GATE3_PHASE_COVERAGE.json"
 AH_WALK_FORWARD = REPORTS / "W2_GATE3_AH_WALK_FORWARD.json"

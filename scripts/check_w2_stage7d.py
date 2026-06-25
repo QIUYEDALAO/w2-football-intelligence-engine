@@ -11,7 +11,7 @@ REQUIRED = [
     "src/w2/infrastructure/persistence/forward_ops_models.py",
     "migrations/versions/0010_create_stage7d_forward_automation.py",
     "config/policies/forward_holdout_schedule.v1.json",
-    "scripts/run_stage7d_dry_cycle.py",
+    "archive/scripts/run_stage7d_dry_cycle.py",
     "scripts/check_w2_stage7d.py",
     "docs/adr/ADR-0011-forward-holdout-automation.md",
     "docs/runbooks/FORWARD_HOLDOUT_AUTOMATION.md",
