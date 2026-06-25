@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from w2.competitions.registry import CompetitionRegistry
+from w2.features import market_factors
 from w2.features.engine import FeatureInputs, build_feature_set, load_importance_config
 from w2.features.framework import FeatureContext, FeatureStatus
 from w2.features.live_factors import (
@@ -123,6 +124,36 @@ def test_bookmaker_divergence_uses_consensus_and_sharp_soft_gap() -> None:
     assert item.status in {FeatureStatus.READY, FeatureStatus.DEGRADED}
     assert item.inputs["effective_bookmakers"] == 2
     assert item.inputs["sharp_soft_gap"] == -0.1200000000000001
+
+
+def test_bookmaker_divergence_degrades_when_consensus_cannot_be_built(monkeypatch) -> None:
+    def fail_build(*object_args: object, **object_kwargs: object) -> object:
+        raise IndexError("empty weighted median")
+
+    monkeypatch.setattr(market_factors.MarketConsensusBuilder, "build", fail_build)
+    quotes = [
+        BookmakerQuote(
+            bookmaker="Pinnacle",
+            market="ONE_X_TWO",
+            selection="Home",
+            decimal_odds=Decimal("1.92"),
+            captured_at=NOW,
+            provider_updated_at=NOW,
+        ),
+        BookmakerQuote(
+            bookmaker="SoftBook",
+            market="ONE_X_TWO",
+            selection="Home",
+            decimal_odds=Decimal("2.04"),
+            captured_at=NOW,
+            provider_updated_at=NOW,
+        ),
+    ]
+
+    item = bookmaker_divergence_factor(context=context(), profile=coverage(), quotes=quotes)
+
+    assert item.status == FeatureStatus.INSUFFICIENT_DATA
+    assert item.reason == "CONSENSUS_UNAVAILABLE"
 
 
 def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> None:

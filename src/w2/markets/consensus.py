@@ -122,6 +122,17 @@ class MarketConsensusBuilder:
             if abs(float(quote.decimal_odds) - center) > 3 * mad
         )
         filtered = [(quote, weight) for quote, weight in usable if quote.bookmaker not in outliers]
+        if not filtered:
+            return MarketConsensus(
+                status="INSUFFICIENT_INPUT",
+                method=method,
+                fair_decimal_odds=None,
+                effective_bookmakers=0,
+                dispersion=None,
+                outliers=outliers,
+                coherence=None,
+                diagnostics=tuple(diagnostics + ["NO_EFFECTIVE_BOOKMAKERS_AFTER_FILTER"]),
+            )
         if method == "median":
             value = median([float(quote.decimal_odds) for quote, _ in filtered])
         elif method == "trimmed_mean":
