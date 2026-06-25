@@ -2,6 +2,21 @@
   "active_execution_packages": [
     {
       "evidence": [
+        "docs/product/W2_PRODUCT_CHARTER_V2.md",
+        "docs/adr/ADR-0026-analysis-grade-recommendation.md",
+        "src/w2/strategy/analysis_score.py",
+        "tests/unit/test_analysis_score.py"
+      ],
+      "mapped_master_phases": [
+        "7",
+        "9"
+      ],
+      "name": "WO#12 product scope turn to analysis-grade recommendations",
+      "notes": "User-approved scope change: W2 core product is multi-factor analysis and match screening with ANALYSIS_PICK, not a claim of guaranteed profit or stable market-beating edge. RECOMMEND remains reserved for a separate +EV proof path and analysis cards keep candidate/formal flags false.",
+      "status": "IMPLEMENTED_PENDING_REVIEW"
+    },
+    {
+      "evidence": [
         "reports/W2_RELEASE_TRAIN_3A_R1_DEPLOYMENT.json",
         "reports/W2_RELEASE_TRAIN_3A_R1_RESULT.md",
         "reports/W2_CURRENT_HANDOFF.md"
@@ -715,10 +730,11 @@
     }
   },
   "repository_head_relation": "current as of containing commit",
-  "roadmap_version": 1,
+  "roadmap_version": 2,
   "warnings": [
     "Do not infer master phase completion from execution package names",
     "Do not infer Gate5 from observer existence",
-    "Do not infer Gate6 from staging availability"
+    "Do not infer Gate6 from staging availability",
+    "Do not present ANALYSIS_PICK as guaranteed profit or market-beating proof"
   ]
 }
