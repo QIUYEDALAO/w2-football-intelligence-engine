@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from apps.api.main import app
 from fastapi.testclient import TestClient
@@ -46,7 +47,7 @@ def write_future_refresh_payload(root: Path) -> None:
     read_model.mkdir(parents=True)
     fixture = {
         "fixture": {
-            "id": 1489404,
+            "id": "legacy-file-fixture",
             "date": "2026-12-31T17:00:00+00:00",
             "status": {"short": "NS"},
             "venue": {"name": "Future Venue"},
@@ -179,12 +180,81 @@ def test_fixture_filters_detail_probabilities_and_errors(
     assert client.get("/v1/fixtures?page_size=101").status_code == 422
 
 
-def test_future_refresh_read_model_feeds_fixtures_and_provider_status(
+def test_future_refresh_db_projection_feeds_fixtures_and_provider_status(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     write_future_refresh_payload(tmp_path)
     monkeypatch.setattr(repository, "RUNTIME", tmp_path)
+
+    class DbRepository:
+        def fixture_payloads(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "fixture": {
+                        "id": 1489404,
+                        "date": "2026-12-31T17:00:00+00:00",
+                        "status": {"short": "NS"},
+                        "venue": {"name": "Future Venue"},
+                    },
+                    "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                    "teams": {
+                        "home": {"id": 3001, "name": "Future Home"},
+                        "away": {"id": 3002, "name": "Future Away"},
+                    },
+                }
+            ]
+
+        def market_snapshots(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "fixture_id": "1489404",
+                    "captured_at": "2026-12-31T10:00:00+00:00",
+                    "bookmaker_count": 14,
+                    "quality": "READY",
+                }
+            ]
+
+        def latest_market_observations(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "observation_id": "obs-1",
+                    "fixture_id": "1489404",
+                    "provider": "api_football",
+                    "bookmaker_id": "1",
+                    "bookmaker_name": "Book A",
+                    "canonical_market": "ONE_X_TWO",
+                    "selection": "HOME",
+                    "line": None,
+                    "decimal_odds": "1.80",
+                    "captured_at": "2026-12-31T10:00:00Z",
+                    "provider_updated_at": "2026-12-31T09:59:00Z",
+                },
+                {
+                    "observation_id": "obs-2",
+                    "fixture_id": "1489404",
+                    "provider": "api_football",
+                    "bookmaker_id": "2",
+                    "bookmaker_name": "Book B",
+                    "canonical_market": "TOTALS",
+                    "selection": "OVER",
+                    "line": "2.5",
+                    "decimal_odds": "1.92",
+                    "captured_at": "2026-12-31T10:01:00Z",
+                    "provider_updated_at": "2026-12-31T10:00:00Z",
+                },
+            ]
+
+        def provider_status(self) -> dict[str, Any]:
+            return {
+                "status": "READY",
+                "remaining_quota": 6323,
+                "last_request_status": 200,
+                "last_successful_refresh_at": None,
+                "blockers": [],
+            }
+
+    monkeypatch.setattr(repository, "future_refresh_db_repository", lambda: DbRepository())
     client = TestClient(app)
 
     fixtures = client.get("/v1/fixtures?page_size=10&status=NS&timezone=UTC").json()["items"]

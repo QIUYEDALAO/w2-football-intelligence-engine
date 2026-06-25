@@ -50,10 +50,6 @@ def load_json(path: Path, default: Any) -> Any:
         return default
 
 
-def future_refresh_read_model() -> Path:
-    return RUNTIME / "future_refresh/read_model"
-
-
 def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
     try:
         return FutureRefreshDbRepository()
@@ -205,10 +201,6 @@ class ReadModelRepository:
                         fixtures[fixture_id] = item
             except Exception:
                 fixtures = {}
-        for item in load_json(future_refresh_read_model() / "fixtures.json", {}).get("items", []):
-            fixture_id = str(item.get("fixture", {}).get("id"))
-            if fixture_id and fixture_id != "None":
-                fixtures[fixture_id] = item
         for path in sorted((RUNTIME / "stage7c/raw").glob("*_fixtures.json")):
             payload = load_json(path, {}).get("payload", {})
             for item in payload.get("response", []):
@@ -231,12 +223,6 @@ class ReadModelRepository:
             except Exception:
                 snapshots = []
         snapshots.extend(
-            cast(
-                list[dict[str, Any]],
-                load_json(future_refresh_read_model() / "market_snapshots.json", []),
-            )
-        )
-        snapshots.extend(
             cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/market_snapshots.json", []))
         )
         return snapshots
@@ -250,10 +236,7 @@ class ReadModelRepository:
                     return rows
             except Exception:
                 rows = []
-        return cast(
-            list[dict[str, Any]],
-            load_json(future_refresh_read_model() / "latest_market_observations.json", []),
-        )
+        return []
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
@@ -1031,10 +1014,9 @@ class ReadModelService:
                 "gate4_progress": dashboard.get("gate4_progress", {}),
                 "generated_at": datetime.fromisoformat(str(dashboard["generated_at"])),
             }
-        future_audit = load_json(RUNTIME / "future_refresh/future_refresh_audit.json", {})
-        usage = self.repository.stage7e_usage()
         scheduler = self.repository.stage7e_scheduler()
         gate = load_json(REPORTS / "W2_STAGE7E_FIRST_LIVE_CYCLE.json", {}).get("gate", {})
+        provider = self.provider_status()
         finished = scheduler.get("finished_at")
         age = None
         if finished:
@@ -1047,11 +1029,7 @@ class ReadModelService:
                 stale_count += 1
         return {
             "stale_data_count": stale_count,
-            "provider_status": (
-                "READY"
-                if future_audit.get("remaining_quota") or usage.get("remaining_quota")
-                else "UNKNOWN"
-            ),
+            "provider_status": str(provider.get("status", "UNKNOWN")),
             "forward_cycle_age_seconds": age,
             "gate4_progress": gate,
             "generated_at": datetime.now(UTC),
@@ -1097,23 +1075,6 @@ class ReadModelService:
                     ),
                     "blockers": projected_db.get("blockers", []),
                 }
-        projected = load_json(future_refresh_read_model() / "provider_status.json", {})
-        if projected:
-            last_success = parse_provider_time(projected.get("last_successful_refresh_at"))
-            return {
-                "provider": "api_football",
-                "status": projected.get("status", "READY"),
-                "remaining_quota": projected.get("remaining_quota"),
-                "credential_status": "PRESENT",
-                "last_request_status": projected.get("last_request_status"),
-                "last_successful_refresh_at": last_success,
-                "refresh_age_seconds": (
-                    int((datetime.now(UTC) - last_success).total_seconds())
-                    if last_success is not None
-                    else None
-                ),
-                "blockers": projected.get("blockers", []),
-            }
         usage = self.repository.stage7e_usage()
         audit = usage.get("audit") or []
         last = audit[-1] if audit else {}
