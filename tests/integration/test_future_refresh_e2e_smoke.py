@@ -107,6 +107,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
             now=NOW,
             settings=Settings(redis_url=None),
             redis_client=None,
+            persistence="file",
         )
 
     def eager_send_task(name: str, *, kwargs: dict[str, Any], task_id: str) -> None:

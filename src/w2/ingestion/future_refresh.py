@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
@@ -15,6 +15,10 @@ from redis import Redis
 from redis.exceptions import RedisError
 
 from w2.config import Settings, get_settings
+from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
+)
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.quota import parse_api_football_quota
 
@@ -62,6 +66,7 @@ class FutureRefreshConfig:
     scheduler_interval_seconds: int = 900
     source_revision: str = "LOCAL_UNDEPLOYED"
     enabled: bool = True
+    persistence: str = "db"
 
 
 @dataclass(frozen=True)
@@ -227,6 +232,7 @@ def config_from_policy(
         request_budget=policy.request_budget,
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
         enabled=policy.enabled,
+        persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
     )
 
 
@@ -552,6 +558,9 @@ class FutureFixtureRefreshService:
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
 
+    def _db_repository(self) -> FutureRefreshDbRepository:
+        return FutureRefreshDbRepository()
+
     def run(self) -> FutureRefreshResult:
         blockers: list[str] = []
         if not self.config.enabled:
@@ -708,6 +717,12 @@ class FutureFixtureRefreshService:
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
         blockers: list[str],
     ) -> FutureRefreshResult:
+        if self.config.persistence == "db":
+            return self._persist_db(fixtures_response, fixtures, odds_responses, blockers)
+        if self.config.persistence != "file":
+            raise FutureRefreshError(
+                f"FUTURE_REFRESH_PERSISTENCE_INVALID:{self.config.persistence}"
+            )
         raw_dir = self.config.runtime_root / "raw"
         read_model = self.config.runtime_root / "read_model"
         ledger = MarketObservationLedger(
@@ -747,6 +762,62 @@ class FutureFixtureRefreshService:
         write_json_atomic(read_model / "provider_mappings.json", {"items": mappings})
         write_json_atomic(read_model / "market_snapshots.json", markets)
         write_json_atomic(read_model / "provider_status.json", self._provider_status())
+        result = FutureRefreshResult(
+            generated_at_utc=self.now,
+            fixture_count=len(fixtures),
+            mapping_count=len(mappings),
+            market_snapshot_count=len(markets),
+            ledger_appended_count=appended,
+            request_count=self._attempt_count,
+            remaining_quota=self._latest_remaining,
+            selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
+            blockers=blockers,
+        )
+        self._write_audit(result)
+        return result
+
+    def _persist_db(
+        self,
+        fixtures_response: LiveApiFootballResponse,
+        fixtures: list[dict[str, Any]],
+        odds_responses: list[tuple[str, LiveApiFootballResponse]],
+        blockers: list[str],
+    ) -> FutureRefreshResult:
+        repository = self._db_repository()
+        try:
+            fixtures_hash = sha256_payload(fixtures_response.payload)
+            repository.save_raw_payload(
+                sha256=fixtures_hash,
+                endpoint="fixtures",
+                captured_at=fixtures_response.captured_at,
+                payload=fixtures_response.payload,
+            )
+            observations: list[dict[str, Any]] = []
+            for fixture_id, response in odds_responses:
+                payload_hash = sha256_payload(response.payload)
+                repository.save_raw_payload(
+                    sha256=payload_hash,
+                    endpoint="odds",
+                    captured_at=response.captured_at,
+                    payload=response.payload,
+                )
+                observations.extend(
+                    observations_from_odds_payload(
+                        fixture_id=fixture_id,
+                        payload=response.payload,
+                        response=response,
+                        source_revision=self.config.source_revision,
+                    )
+                )
+            appended = repository.append_observations(observations)
+            latest_rows = repository.latest_market_observations()
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        mappings = [self._mapping_from_fixture(item) for item in fixtures]
+        markets = [
+            self._market_snapshot_from_observations(fixture_id, latest_rows)
+            for fixture_id, _ in odds_responses
+        ]
         result = FutureRefreshResult(
             generated_at_utc=self.now,
             fixture_count=len(fixtures),
@@ -827,24 +898,28 @@ class FutureFixtureRefreshService:
         return [str(item["error_code"]) for item in self._audit if item.get("error_code")]
 
     def _write_audit(self, result: FutureRefreshResult) -> None:
-        write_json_atomic(
-            self.config.runtime_root / "future_refresh_audit.json",
-            {
-                "generated_at_utc": iso(result.generated_at_utc),
-                "competition_id": self.config.competition_id,
-                "request_count": result.request_count,
-                "remaining_quota": result.remaining_quota,
-                "fixture_count": result.fixture_count,
-                "mapping_count": result.mapping_count,
-                "market_snapshot_count": result.market_snapshot_count,
-                "ledger_appended_count": result.ledger_appended_count,
-                "selected_market_fixture_ids": result.selected_market_fixture_ids,
-                "blockers": result.blockers,
-                "requests": self._audit,
-                "candidate": False,
-                "formal_recommendation": False,
-            },
-        )
+        payload = {
+            "generated_at_utc": iso(result.generated_at_utc),
+            "competition_id": self.config.competition_id,
+            "request_count": result.request_count,
+            "remaining_quota": result.remaining_quota,
+            "fixture_count": result.fixture_count,
+            "mapping_count": result.mapping_count,
+            "market_snapshot_count": result.market_snapshot_count,
+            "ledger_appended_count": result.ledger_appended_count,
+            "selected_market_fixture_ids": result.selected_market_fixture_ids,
+            "blockers": result.blockers,
+            "requests": self._audit,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+        if self.config.persistence == "db":
+            try:
+                self._db_repository().write_run_audit(payload)
+                return
+            except FutureRefreshPersistenceError as exc:
+                raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        write_json_atomic(self.config.runtime_root / "future_refresh_audit.json", payload)
 
 
 def deterministic_time_bucket(now: datetime, interval_seconds: int) -> str:
@@ -871,12 +946,15 @@ def run_future_fixture_refresh(
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
     policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
+    persistence: str | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
         runtime_root=runtime_root,
         policy_path=policy_path,
     )
+    if persistence is not None:
+        config = replace(config, persistence=persistence)
     return FutureFixtureRefreshService(client=client, config=config, now=now).run()
 
 
@@ -892,19 +970,28 @@ def run_future_refresh_task(
     now: datetime | None = None,
     settings: Settings | None = None,
     redis_client: Any | None = None,
+    persistence: str | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
     root = runtime_root or FutureRefreshConfig().runtime_root
-    lock = RefreshSingletonLock(
-        key=key,
-        owner=owner_marker,
-        ttl_seconds=900,
-        settings=settings,
-        runtime_root=root,
-        redis_client=redis_client,
-    )
-    if not lock.acquire(now=started_at):
+    resolved_persistence = (
+        persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
+    ).lower()
+    lock: RefreshSingletonLock | None = None
+    if resolved_persistence == "db":
+        lock_acquired = True
+    else:
+        lock = RefreshSingletonLock(
+            key=key,
+            owner=owner_marker,
+            ttl_seconds=900,
+            settings=settings,
+            runtime_root=root,
+            redis_client=redis_client,
+        )
+        lock_acquired = lock.acquire(now=started_at)
+    if not lock_acquired:
         audit = RefreshTaskAudit(
             task_id=task_id,
             key=key,
@@ -915,7 +1002,7 @@ def run_future_refresh_task(
             status="ALREADY_RUNNING",
             result={"candidate": False, "formal_recommendation": False},
         )
-        write_task_audit(root, audit)
+        write_task_audit(root, audit, persistence=persistence)
         return audit
     status = "BLOCKED"
     summary: dict[str, Any] = {
@@ -929,6 +1016,7 @@ def run_future_refresh_task(
             runtime_root=root,
             client=client,
             now=started_at,
+            persistence=resolved_persistence,
         )
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
@@ -949,7 +1037,7 @@ def run_future_refresh_task(
             "formal_recommendation": False,
         }
     finally:
-        released = lock.release()
+        released = True if lock is None else lock.release()
     audit = RefreshTaskAudit(
         task_id=task_id,
         key=key,
@@ -960,9 +1048,21 @@ def run_future_refresh_task(
         status=status,
         result={**summary, "lock_released": released},
     )
-    write_task_audit(root, audit)
+    write_task_audit(root, audit, persistence=persistence)
     return audit
 
 
-def write_task_audit(root: Path, audit: RefreshTaskAudit) -> None:
+def write_task_audit(
+    root: Path,
+    audit: RefreshTaskAudit,
+    *,
+    persistence: str | None = None,
+) -> None:
+    resolved = (persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")).lower()
+    if resolved == "db":
+        try:
+            FutureRefreshDbRepository().write_task_audit(audit.__dict__)
+            return
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
     write_json_atomic(root / "task_audit" / f"{audit.task_id}.json", audit.__dict__)

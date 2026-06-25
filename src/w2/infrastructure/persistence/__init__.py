@@ -21,6 +21,12 @@ from w2.infrastructure.persistence.forward_ops_models import (
     ForwardSchedulerRunModel,
     ForwardStateTransitionModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import (
+    FutureMarketObservationModel,
+    FutureRefreshRunAuditModel,
+    FutureRefreshTaskAuditModel,
+    RawPayloadModel,
+)
 from w2.infrastructure.persistence.governance_models import (
     DependencyRiskModel,
     OperationsCheckResultModel,
@@ -118,6 +124,14 @@ from w2.infrastructure.persistence.replay_models import (
     ReplayEventModel,
     ReplayRunModel,
 )
+from w2.infrastructure.persistence.shadow_strategy_models import (
+    ShadowStrategyCandidateModel,
+    ShadowStrategyEvaluationModel,
+    ShadowStrategyEventModel,
+    ShadowStrategyLockModel,
+    ShadowStrategyRunModel,
+    ShadowStrategySettlementModel,
+)
 from w2.infrastructure.persistence.tournament_models import (
     TournamentOperationsPlanModel,
     TournamentProfileModel,
@@ -142,6 +156,9 @@ __all__ = [
     "DependencyRiskModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
+    "FutureMarketObservationModel",
+    "FutureRefreshRunAuditModel",
+    "FutureRefreshTaskAuditModel",
     "ForwardCycleCheckpointModel",
     "ForwardEvaluationModel",
     "ForwardCycleRunModel",
@@ -190,6 +207,7 @@ __all__ = [
     "PromotionRelegationMappingModel",
     "QuotaUsageModel",
     "RawPayloadReferenceModel",
+    "RawPayloadModel",
     "ReadModelCheckpointModel",
     "ReleaseAuditModel",
     "ReleaseCandidateModel",
@@ -206,6 +224,12 @@ __all__ = [
     "SeasonRolloverPlanModel",
     "SecurityAuditEventModel",
     "SettlementModel",
+    "ShadowStrategyCandidateModel",
+    "ShadowStrategyEvaluationModel",
+    "ShadowStrategyEventModel",
+    "ShadowStrategyLockModel",
+    "ShadowStrategyRunModel",
+    "ShadowStrategySettlementModel",
     "ShadowComparisonRecordModel",
     "ShadowRunModel",
     "SloEvaluationModel",
