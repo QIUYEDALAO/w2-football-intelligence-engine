@@ -6,8 +6,8 @@
 ## 0. 机器可读摘要
 
 ```yaml
-handoff_version: 41
-handoff_correction: RELEASE_TRAIN_3A_R3B_RETRY_ROLLBACK_RECORDED
+handoff_version: 42
+handoff_correction: PACKAGE_A_STAGING_ACCEPTANCE_RECONCILED
 state_captured_on: 2026-06-25
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
@@ -17,8 +17,8 @@ master_roadmap_path: docs/W2_MASTER_ROADMAP.md
 master_roadmap_version: 1
 roadmap_status_path: reports/W2_ROADMAP_STATUS.json
 roadmap_status_relation: current as of containing commit
-active_stage_package: Release Train 3A-R3B staging retry deployment
-active_execution_package: Release Train 3A-R3B staging retry deployment
+active_stage_package: Package A staging acceptance closure
+active_execution_package: Package A staging acceptance closure
 execution_package_is_not_master_phase: true
 
 gate0_status: PARTIAL
@@ -137,9 +137,41 @@ stage7i_final_checker_blocker: final status must be COMPLETED
 stage7i_final_gate5_eligible: false
 stage7i_recovery_or_successor_requires_explicit_approval: true
 
-server_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
-alembic_head: 0017_create_stage9a_shadow_strategy
+server_revision: 3e79fdfa34cdf13e3c1e71159625aaa2535a7b9f
+alembic_head: 0018_create_future_refresh_persistence
 deployment_freeze: ACTIVE
+package_a_status: STAGING_ACCEPTED
+package_a_completed:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+package_a_pending:
+  - A6_OBJECT_STORAGE
+package_a_acceptance_path: reports/W2_PACKAGE_A_STAGING_ACCEPTANCE.json
+future_refresh_deployment_status: STAGING_ACCEPTED
+forward_collection_status: ACTIVE
+future_refresh_persistence: POSTGRESQL
+future_refresh_counts_are_dynamic: true
+future_refresh_acceptance_baseline:
+  future_market_observation: 65285
+  future_refresh_task_audit: 1
+  future_refresh_run_audit: 1
+  raw_payload: 11
+future_refresh_latest_observed_counts:
+  future_market_observation: 71799
+  future_refresh_task_audit: 5
+  future_refresh_run_audit: 5
+  raw_payload: 16
+  distinct_observation_id: 71799
+  duplicate_observation_id: 0
+future_refresh_count_classification: EXPECTED_FORWARD_ACCUMULATION
+future_refresh_latest_task_status: COMPLETED
+future_refresh_latest_request_count: 12
+future_refresh_runtime_writable: false
+future_refresh_runtime_writability_required: false
+shared_runtime_blocker: RESOLVED_BY_DB_PERSISTENCE
 release_train_3a_deployment_record_path: reports/W2_RELEASE_TRAIN_3A_DEPLOYMENT.json
 release_train_3a_result_path: reports/W2_RELEASE_TRAIN_3A_RESULT.md
 release_train_3a_status: ROLLED_BACK_CONTRACT_FAILURE
@@ -222,9 +254,8 @@ release_train_3a_r3_rollback_completed: true
 release_train_3a_r3_post_rollback_revision: 23c89be4d2a32019d8d21bb9b102ae0b7ca15c16
 release_train_3a_r3_post_rollback_health: PASS
 release_train_3a_r3_next_action_requires_user_approval: true
-pending_staging_deployment: true
-pending_deployment_reason: choose approved shared runtime writability strategy for non-root worker before next retry
-future_refresh_deployment_status: ROLLED_BACK_CONTRACT_FAILURE
+pending_staging_deployment: false
+pending_deployment_reason: null
 stage10e_deployed: false
 
 gate5: OPEN
@@ -268,8 +299,9 @@ original_workspace_dirty_files_included_in_stage7i_final_commit: false
 4. 聊天记录
    - 只作补充，不作为长期事实源。
 
-执行包名称不等于 master roadmap 阶段编号。当前 Gate3 closure decision
-reconciliation 是 active execution package，不能被解读为 Gate3 已关闭。
+执行包名称不等于 master roadmap 阶段编号。当前 Package A staging
+acceptance closure 是 active execution package，不能被解读为 Gate3、
+Gate4 或 Gate5 已关闭。
 
 ## 1. 当前任务清单
 
@@ -285,6 +317,16 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 - Scheduler default code remains fail-closed when the env flag is absent.
 - Release Train 3A-R1 staging retry attempted and rolled back after scheduler health contract failed.
 - Post-rollback staging health passed on `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`.
+- Package A A1-A5 merged to `main` and deployed to staging at
+  `3e79fdfa34cdf13e3c1e71159625aaa2535a7b9f`.
+- Staging Alembic head is `0018_create_future_refresh_persistence`.
+- Future-refresh persistence is PostgreSQL; worker uid `10001` does not require
+  shared runtime writability.
+- Dynamic forward collection is active. Counts are expected to grow above the
+  initial acceptance baseline and are classified as
+  `EXPECTED_FORWARD_ACCUMULATION`.
+- `SHARED_RUNTIME_NOT_WRITABLE_FOR_NON_ROOT_WORKER` is resolved by DB
+  persistence for future-refresh.
 - Gate3 closure decision reconciliation。
 - Stage7I 24h final observation read-only audit。
 - 更新 handoff v33、roadmap status 与 R1B2 result。
@@ -296,11 +338,9 @@ reconciliation 是 active execution package，不能被解读为 Gate3 已关闭
 
 ### 未完成 / BLOCKER
 
-- `FUTURE_REFRESH_SCHEDULER_DISPATCH_DISABLED`: target scheduler container did not have `W2_FUTURE_FIXTURE_REFRESH_ENABLED`; `future_fixture_refresh_tick()` returned `DISABLED`.
-- Future-refresh append-only market ledger and read model were not verified in staging because scheduler dispatch did not occur.
-- Release Train 3A-R1 retry deployment was attempted and rolled back; a follow-up config policy availability repair is pending.
-- Release Train 3A-R1 retry failed because the staging scheduler could not load the future-refresh policy from the mounted config path: `FUTURE_REFRESH_POLICY_INVALID`.
-- Next repair must make `config/policies/future_fixture_refresh.v1.json` available to the staging scheduler without migration, `.env` reads, or production changes.
+- Package A A6 object storage abstraction remains pending as `A6_OBJECT_STORAGE`.
+- Release Train 3A/R1/R2/R3 failures are retained as historical evidence, but no
+  longer constitute the current active future-refresh blocker.
 - lifecycle collector 在完整比赛生命周期前已 inactive，且未恢复。
 - actual kickoff 没有合法内部来源。
 - closing observation 无法合法确定。
@@ -351,8 +391,8 @@ closing-only OU 与 unknown pre-match aggregate 限制仍保留。
 ## 4. Runtime 与部署边界
 
 最后确认的 staging revision 为
-`23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`，Alembic head 为
-`0017_create_stage9a_shadow_strategy`。
+`3e79fdfa34cdf13e3c1e71159625aaa2535a7b9f`，Alembic head 为
+`0018_create_future_refresh_persistence`。
 
 Release Train 3A attempted to deploy `fcfba08824f42917d30bc8d0742ea99d2fc18349`
 to staging. The deployment avoided production, migration, Stage10E, Stage7I
@@ -373,20 +413,19 @@ or provider request was created for the validation path. The release was rolled
 back to `23c89be4d2a32019d8d21bb9b102ae0b7ca15c16`, and post-rollback health
 passed.
 
-本 final audit、Release Train 3A 尝试与文档更新均未：
+Package A staging acceptance closure、final audit、Release Train 3A 尝试与文档更新均未：
 
 - 恢复 lifecycle collector；
-- 调用 provider；
+- 在本 closure 中调用 provider；
 - 发送 signal；
-- 保留目标部署；
+- 部署 production；
 - 写 staging runtime；
 - 读取 `.env`；
 - 修改 W1；
 - 启用 candidate 或正式 recommendation。
 
-`DEPLOYMENT_FREEZE=ACTIVE`。Future refresh hardening 的 scheduler enablement
-修复已经完成，但 staging retry 暴露出 config mount policy availability gap。
-Stage10E 仍未部署，不得与
+`DEPLOYMENT_FREEZE=ACTIVE`。Package A A1-A5 已在 staging accepted；future-refresh
+hardening 以 PostgreSQL 持久化替代共享 runtime 写文件。Stage10E 仍未部署，不得与
 Stage7I recovery 混合。
 
 ## 5. 新会话启动协议
@@ -404,10 +443,10 @@ Stage7I recovery 混合。
 
 当前自动推进停止在：
 
-`RELEASE_TRAIN_3A_R2_CONFIG_POLICY_AVAILABILITY_REPAIR_REQUIRED`
+`STAGE7I_LIFECYCLE_SUPERVISION_B1_B2`
 
-下一步是修复 staging scheduler 的 future-refresh policy availability，再进入新的
-approved retry deployment。
+下一步是 Stage7I lifecycle supervision B1+B2。Package A A6 object storage
+仍是独立待办。
 Stage7I recovery/successor 仍必须另开阶段包，并在
 开始 runtime/provider 动作前取得明确批准。当前非运行态工作可以继续做静态审计、
 测试与规划，但不得宣称 Gate5 closure。
