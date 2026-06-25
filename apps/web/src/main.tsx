@@ -305,7 +305,7 @@ function Dashboard() {
       {state === "empty" ? <div style={{ color: "#9a978d", fontSize: 14, padding: "2rem 0", textAlign: "center" }}>今日暂无白名单比赛或数据未就绪。</div> : null}
       {state === "ok" ? cards.map((card, index) => <Card key={index} card={card} />) : null}
       <div style={{ fontSize: 11, color: "#9a978d", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
-        本页为分析参考，非投注建议，不保证盈利 · 数据不足时一律 SKIP，不强出推荐
+        本页为分析参考，非投注建议，不承诺盈利 · 数据不足时一律 SKIP，不强出推荐
       </div>
     </div>
   );
