@@ -42,9 +42,12 @@ WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json
 
 
 def load_json(path: Path, default: Any) -> Any:
-    if not path.exists():
+    try:
+        if not path.exists():
+            return default
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return default
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def future_refresh_read_model() -> Path:
