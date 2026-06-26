@@ -35,6 +35,42 @@ class EmptyReleaseRepository:
         return []
 
 
+class FutureFixtureRepository(EmptyReleaseRepository):
+    def release_counts(self) -> dict[str, int]:
+        counts = super().release_counts()
+        counts["future_fixture_count"] = 3
+        return counts
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return [
+            {"fixture": {"id": 9000, "status": {"short": "NS"}}},
+            {
+                "fixture": {
+                    "id": 9001,
+                    "date": "2026-06-26T10:00:00Z",
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 1, "name": "FIFA World Cup"},
+                "teams": {
+                    "home": {"id": 1, "name": "Home"},
+                    "away": {"id": 2, "name": "Away"},
+                },
+            },
+            {
+                "fixture": {
+                    "id": 9002,
+                    "date": "2026-06-28T10:00:00Z",
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 1, "name": "FIFA World Cup"},
+                "teams": {
+                    "home": {"id": 3, "name": "Home 2"},
+                    "away": {"id": 4, "name": "Away 2"},
+                },
+            },
+        ]
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -81,6 +117,24 @@ def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
     assert version["api_git_sha"] == "UNKNOWN"
     assert dashboard["debug"]["empty_reason"] == "READ_MODEL_EMPTY"
     assert dashboard["all"] == []
+
+
+def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
+    service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
+
+    today = service.dashboard(target_date="2026-06-26", window="today")
+    all_payload = service.dashboard(target_date="2026-06-26", window="all")
+
+    assert today["data_profile"] == "real-db"
+    assert len(today["all"]) == 1
+    assert today["debug"]["empty_reason"] is None
+    assert today["debug"]["future_fixture_in_window_count"] == 1
+    assert today["debug"]["future_fixture_parse_error_count"] == 1
+    assert today["debug"]["future_fixture_status_distribution"] == {"NS": 2}
+    assert today["debug"]["future_fixture_min_kickoff_utc"] == "2026-06-26T10:00:00Z"
+    assert today["debug"]["future_fixture_max_kickoff_utc"] == "2026-06-28T10:00:00Z"
+    assert today["debug"]["next_available_date"] == "2026-06-26"
+    assert len(all_payload["all"]) == 2
 
 
 def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:

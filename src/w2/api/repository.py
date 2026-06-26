@@ -579,21 +579,34 @@ class ReadModelService:
             for row in self._all_matchday_rows()
             if str(row.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
         ]
+        future_rows, future_parse_error_count = self._future_fixture_rows_with_errors()
+        future_today_rows = self._filter_rows_for_operational_date(
+            future_rows,
+            requested_date=requested_date,
+        )
+        future_next36_rows = self._filter_rows_for_next36(future_rows)
+        today_rows = self._dedupe_dashboard_rows(
+            [*cast(list[dict[str, Any]], today_rows), *future_today_rows]
+        )
+        next36_rows = self._dedupe_dashboard_rows(
+            [*cast(list[dict[str, Any]], next36_rows), *future_next36_rows]
+        )
         selected_rows: list[dict[str, Any]]
         if window == "next36":
-            selected_rows = cast(list[dict[str, Any]], next36_rows)
+            selected_rows = next36_rows
         elif window == "results":
             selected_rows = result_rows
         elif window == "all":
             selected_rows = self._dedupe_dashboard_rows(
                 [
-                    *cast(list[dict[str, Any]], today_rows),
-                    *cast(list[dict[str, Any]], next36_rows),
+                    *today_rows,
+                    *next36_rows,
                     *result_rows,
+                    *future_rows,
                 ]
             )
         else:
-            selected_rows = cast(list[dict[str, Any]], today_rows)
+            selected_rows = today_rows
 
         all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
         recommendations = [
@@ -620,9 +633,13 @@ class ReadModelService:
             counts=counts,
             requested_date=requested_date,
             selected_rows=selected_rows,
+            future_rows=future_rows,
+            future_parse_error_count=future_parse_error_count,
             include=include_debug,
         )
         data_profile = str(version["data_profile"])
+        if all_cards and data_profile == "empty":
+            data_profile = "real-db"
         if not all_cards and data_profile == "real-db":
             data_profile = "empty"
         return {
@@ -2029,6 +2046,51 @@ class ReadModelService:
                 rows.append(self._matchday_item(card))
         return rows
 
+    def _future_fixture_rows_with_errors(self) -> tuple[list[dict[str, Any]], int]:
+        rows: list[dict[str, Any]] = []
+        parse_error_count = 0
+        for item in self.repository.fixture_payloads():
+            try:
+                row = self._fixture_summary(item, BEIJING_TZ)
+            except Exception:
+                parse_error_count += 1
+                continue
+            row["_dashboard_source"] = "future_fixture_payload"
+            rows.append(row)
+        return rows, parse_error_count
+
+    def _filter_rows_for_operational_date(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+    ) -> list[dict[str, Any]]:
+        return [
+            row
+            for row in rows
+            if str(row.get("operational_date_beijing") or "") == requested_date.isoformat()
+        ]
+
+    def _filter_rows_for_next36(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        now_utc: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        start, end = next_36_hours_window(now_utc)
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is not None and start <= kickoff < end:
+                filtered.append(row)
+        return filtered
+
+    def _row_kickoff_utc(self, row: dict[str, Any]) -> datetime | None:
+        value = row.get("kickoff_utc")
+        if isinstance(value, datetime):
+            return value.astimezone(UTC)
+        return parse_provider_time(value)
+
     def _dedupe_dashboard_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen: set[str] = set()
         deduped: list[dict[str, Any]] = []
@@ -2042,11 +2104,13 @@ class ReadModelService:
 
     def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
-        analysis = self.analysis_card(fixture_id) if fixture_id else None
+        analysis: dict[str, Any] | None = None
+        if fixture_id and row.get("_dashboard_source") != "future_fixture_payload":
+            analysis = self.analysis_card(fixture_id)
         card = analysis or self._fallback_analysis_card(
             fixture_id=fixture_id or "unknown-fixture",
             market_coverage={},
-            source="dashboard_without_analysis_card",
+            source=str(row.get("_dashboard_source") or "dashboard_without_analysis_card"),
             fixture_context={
                 "kickoff_utc": row.get("kickoff_utc"),
                 "competition_name": row.get("competition_name"),
@@ -2183,22 +2247,37 @@ class ReadModelService:
         counts: dict[str, int],
         requested_date: date,
         selected_rows: list[dict[str, Any]],
+        future_rows: list[dict[str, Any]],
+        future_parse_error_count: int,
         include: bool,
     ) -> dict[str, Any]:
         if not include:
             return {}
-        next_available = self._next_available_date(requested_date)
+        future_stats = self._future_fixture_debug_stats(
+            future_rows,
+            requested_date=requested_date,
+            parse_error_count=future_parse_error_count,
+        )
+        next_available = self._next_available_date(requested_date, future_rows=future_rows)
         empty_reason = None
+        empty_detail = None
         if not any(counts.values()):
             empty_reason = "READ_MODEL_EMPTY"
         elif not selected_rows:
             empty_reason = "SELECTED_DATE_EMPTY"
+            if counts.get("future_fixture_count", 0) > 0:
+                empty_detail = (
+                    "Future fixture payloads exist, but none fall inside the selected dashboard "
+                    "window after kickoff/status parsing."
+                )
         return {
             **counts,
+            **future_stats,
             "selected_date": requested_date.isoformat(),
             "selected_date_has_data": bool(selected_rows),
             "next_available_date": next_available,
             "empty_reason": empty_reason,
+            "empty_detail": empty_detail,
             "suggested_actions": [
                 "run staging seed if this is a preview environment",
                 "check ingestion and future-refresh request audit",
@@ -2207,9 +2286,14 @@ class ReadModelService:
             ],
         }
 
-    def _next_available_date(self, requested_date: date) -> str | None:
+    def _next_available_date(
+        self,
+        requested_date: date,
+        *,
+        future_rows: list[dict[str, Any]] | None = None,
+    ) -> str | None:
         dates: list[date] = []
-        for row in self._all_matchday_rows():
+        for row in [*self._all_matchday_rows(), *(future_rows or [])]:
             raw = row.get("operational_date_beijing")
             try:
                 if raw:
@@ -2218,6 +2302,42 @@ class ReadModelService:
                 continue
         future_dates = sorted(value for value in dates if value >= requested_date)
         return future_dates[0].isoformat() if future_dates else None
+
+    def _future_fixture_debug_stats(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+        parse_error_count: int,
+    ) -> dict[str, Any]:
+        status_distribution: dict[str, int] = {}
+        date_distribution: dict[str, int] = {}
+        kickoffs: list[datetime] = []
+        in_window = 0
+        for row in rows:
+            status = str(row.get("status") or "UNKNOWN")
+            status_distribution[status] = status_distribution.get(status, 0) + 1
+            operational_date = str(row.get("operational_date_beijing") or "UNKNOWN")
+            date_distribution[operational_date] = date_distribution.get(operational_date, 0) + 1
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is None:
+                continue
+            kickoffs.append(kickoff)
+            if operational_date == requested_date.isoformat():
+                in_window += 1
+        sorted_dates = dict(sorted(date_distribution.items())[:20])
+        return {
+            "future_fixture_in_window_count": in_window,
+            "future_fixture_parse_error_count": parse_error_count,
+            "future_fixture_status_distribution": dict(sorted(status_distribution.items())),
+            "future_fixture_date_distribution": sorted_dates,
+            "future_fixture_min_kickoff_utc": min(kickoffs).isoformat().replace("+00:00", "Z")
+            if kickoffs
+            else None,
+            "future_fixture_max_kickoff_utc": max(kickoffs).isoformat().replace("+00:00", "Z")
+            if kickoffs
+            else None,
+        }
 
     def _seed_dashboard_response(
         self,

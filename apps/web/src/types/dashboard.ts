@@ -250,11 +250,18 @@ export interface DashboardDebug {
   read_model_fixture_count: number;
   matchday_card_count: number;
   future_fixture_count: number;
+  future_fixture_in_window_count?: number;
+  future_fixture_parse_error_count?: number;
+  future_fixture_status_distribution?: Record<string, number>;
+  future_fixture_date_distribution?: Record<string, number>;
+  future_fixture_min_kickoff_utc?: string | null;
+  future_fixture_max_kickoff_utc?: string | null;
   result_event_count: number;
   selected_date?: string;
   selected_date_has_data?: boolean;
   next_available_date?: string | null;
   empty_reason?: string | null;
+  empty_detail?: string | null;
   suggested_actions?: string[];
 }
 
