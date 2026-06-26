@@ -1049,8 +1049,15 @@ class ReadModelService:
             for row in snapshots
             if str(row.get("team_id")) == away_id
         ]
-        market_snapshots = self._market_snapshots_from_observations(observations)
-        bookmaker_quotes = self._bookmaker_quotes_from_observations(observations)
+        mainline_selection = self._mainline_market_selection(observations)
+        mainline_observations = [
+            row
+            for selection in mainline_selection.values()
+            for row in cast(list[dict[str, Any]], selection.get("observations", []))
+        ]
+        feature_observations = mainline_observations or observations
+        market_snapshots = self._market_snapshots_from_observations(feature_observations)
+        bookmaker_quotes = self._bookmaker_quotes_from_observations(feature_observations)
         if not market_snapshots and not home_xg and not away_xg:
             return None
         registry = CompetitionRegistry()
@@ -1084,9 +1091,9 @@ class ReadModelService:
             quotes=ou_quotes,
         )
         missing: set[AnalysisMarket] = set()
-        if not ah_snapshots:
+        if mainline_selection["ASIAN_HANDICAP"]["status"] != "READY":
             missing.add(AnalysisMarket.ASIAN_HANDICAP)
-        if not ou_snapshots:
+        if mainline_selection["TOTALS"]["status"] != "READY":
             missing.add(AnalysisMarket.TOTALS)
         latest_home_xg = max(home_xg, key=lambda row: row.observed_at, default=None)
         latest_away_xg = max(away_xg, key=lambda row: row.observed_at, default=None)
@@ -1128,6 +1135,7 @@ class ReadModelService:
             ),
         )
         payload = self._analysis_card_payload(card)
+        self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
                 fixture_id=fixture_id,
@@ -1136,6 +1144,7 @@ class ReadModelService:
                 away_team_id=away_id,
                 xg_snapshots=snapshots,
                 observations=observations,
+                mainline_selection=mainline_selection,
                 home_xg=latest_home_xg,
                 away_xg=latest_away_xg,
                 score_matrix=score_matrix,
@@ -1147,6 +1156,125 @@ class ReadModelService:
             away_xg=latest_away_xg,
         )
         return payload
+
+    def _mainline_market_selection(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        return {
+            "ASIAN_HANDICAP": self._select_mainline_observations(
+                observations,
+                market="ASIAN_HANDICAP",
+                target=Decimal("0"),
+                max_distance=Decimal("0.5"),
+            ),
+            "TOTALS": self._select_mainline_observations(
+                observations,
+                market="TOTALS",
+                target=Decimal("2.5"),
+                max_distance=Decimal("0.5"),
+            ),
+        }
+
+    def _select_mainline_observations(
+        self,
+        observations: list[dict[str, Any]],
+        *,
+        market: str,
+        target: Decimal,
+        max_distance: Decimal,
+        min_bookmakers: int = 1,
+    ) -> dict[str, Any]:
+        grouped: dict[Decimal, list[dict[str, Any]]] = {}
+        for row in observations:
+            if (
+                str(row.get("canonical_market")) != market
+                or row.get("suspended")
+                or row.get("live")
+            ):
+                continue
+            line = self._decimal_line(row)
+            if line is None:
+                continue
+            grouped.setdefault(line, []).append(row)
+        if not grouped:
+            return {
+                "market": market,
+                "status": "UNAVAILABLE",
+                "line": None,
+                "observations": [],
+                "bookmaker_count": 0,
+            }
+        candidates: list[tuple[Decimal, int, str, Decimal, list[dict[str, Any]]]] = []
+        for line, rows in grouped.items():
+            bookmaker_count = len(
+                {
+                    str(row.get("bookmaker_id") or row.get("bookmaker_name"))
+                    for row in rows
+                    if row.get("bookmaker_id") or row.get("bookmaker_name")
+                }
+            )
+            if bookmaker_count < min_bookmakers:
+                continue
+            distance = abs(line - target)
+            if distance > max_distance:
+                continue
+            latest_capture = max((str(row.get("captured_at") or "") for row in rows), default="")
+            candidates.append((distance, -bookmaker_count, latest_capture, line, rows))
+        if not candidates:
+            closest_line = min(grouped, key=lambda line: abs(line - target))
+            closest_rows = grouped[closest_line]
+            bookmaker_count = len(
+                {
+                    str(row.get("bookmaker_id") or row.get("bookmaker_name"))
+                    for row in closest_rows
+                    if row.get("bookmaker_id") or row.get("bookmaker_name")
+                }
+            )
+            return {
+                "market": market,
+                "status": "EXTREME_LINE_ONLY",
+                "line": self._format_decimal_line(closest_line),
+                "observations": closest_rows,
+                "bookmaker_count": bookmaker_count,
+            }
+        _distance, bookmaker_count_key, _latest, line, rows = min(candidates)
+        return {
+            "market": market,
+            "status": "READY",
+            "line": self._format_decimal_line(line),
+            "observations": rows,
+            "bookmaker_count": -bookmaker_count_key,
+        }
+
+    def _apply_mainline_market_selection(
+        self,
+        payload: dict[str, Any],
+        selection: dict[str, dict[str, Any]],
+    ) -> None:
+        markets = payload.get("markets")
+        if not isinstance(markets, list):
+            return
+        for market in markets:
+            if not isinstance(market, dict):
+                continue
+            market_name = str(market.get("market") or "")
+            if market_name not in selection:
+                continue
+            resolved = selection[market_name]
+            status = str(resolved.get("status") or "UNAVAILABLE")
+            market["line_status"] = status
+            market["bookmaker_count"] = int(resolved.get("bookmaker_count") or 0)
+            if status == "READY":
+                market["line"] = resolved.get("line")
+                continue
+            if status == "EXTREME_LINE_ONLY":
+                market["decision"] = "SKIP"
+                market["tendency"] = None
+                market["confidence"] = 0.0
+                market["line"] = resolved.get("line")
+                market["reasons"] = ["仅极端盘，参考价值低"]
+                market["risks"] = ["主盘口缺失时保持 SKIP。"]
 
     def _team_xg_feature_snapshot(
         self,
@@ -1257,6 +1385,7 @@ class ReadModelService:
         away_team_id: str,
         xg_snapshots: list[dict[str, Any]],
         observations: list[dict[str, Any]],
+        mainline_selection: dict[str, dict[str, Any]],
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
         score_matrix: dict[tuple[int, int], float] | None,
@@ -1300,7 +1429,11 @@ class ReadModelService:
         current_odds: dict[str, Any] = {}
         line_movement: dict[str, Any] = {}
         for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
-            ordered = self._ordered_observations_for_market(observations, market)
+            selected = mainline_selection.get(market, {})
+            if selected.get("status") != "READY":
+                continue
+            selected_observations = cast(list[dict[str, Any]], selected.get("observations", []))
+            ordered = self._ordered_observations_for_market(selected_observations, market)
             if not ordered:
                 continue
             current = ordered[-1]
@@ -1582,6 +1715,20 @@ class ReadModelService:
         if line_number.is_integer():
             return str(int(line_number))
         return f"{line_number:g}"
+
+    def _decimal_line(self, row: dict[str, Any]) -> Decimal | None:
+        line = row.get("line")
+        if line is None:
+            return None
+        try:
+            return Decimal(str(line))
+        except (ArithmeticError, TypeError, ValueError):
+            return None
+
+    def _format_decimal_line(self, line: Decimal) -> str:
+        if line == line.to_integral_value():
+            return str(int(line))
+        return f"{line.normalize():f}".rstrip("0").rstrip(".")
 
     def _attach_xg_reason_values(
         self,

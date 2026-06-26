@@ -45,7 +45,7 @@ class FakeReadRepository:
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
                         "selection": "Home",
-                        "line": "-0.75",
+                        "line": "-0.5",
                         "decimal_odds": price if index == 0 else "1.80",
                         "bookmaker_id": bookmaker_id,
                         "bookmaker_name": bookmaker_name,
@@ -179,10 +179,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "statistics_captured_at": None,
     }
     assert card["model_probabilities"]
-    assert card["current_odds"]["ah"] == {"line": "-0.75", "price": 1.8}
+    assert card["current_odds"]["ah"] == {"line": "-0.5", "price": 1.8}
     assert card["current_odds"]["ou"] == {"line": "2.5", "price": 1.72}
-    assert card["line_movement"]["ah_open"] == "-0.75"
-    assert card["line_movement"]["ah_current"] == "-0.75"
+    assert card["line_movement"]["ah_open"] == "-0.5"
+    assert card["line_movement"]["ah_current"] == "-0.5"
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     assert decisions["ASIAN_HANDICAP"] == "PICK"
     assert decisions["TOTALS"] == "PICK"
@@ -200,3 +200,114 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
     assert score_market["scores"]
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
+
+
+class FakeReadRepositoryWithExtremeLines(FakeReadRepository):
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        rows = super().future_market_observations()
+        captured = NOW - timedelta(minutes=20)
+        for bookmaker_id, bookmaker_name in (("1", "Pinnacle"), ("2", "SoftBook")):
+            rows.append(
+                {
+                    "fixture_id": "1489410",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Home",
+                    "line": "-4.5",
+                    "decimal_odds": "8.50",
+                    "bookmaker_id": bookmaker_id,
+                    "bookmaker_name": bookmaker_name,
+                    "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
+                    "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                    "suspended": False,
+                    "live": False,
+                }
+            )
+            rows.append(
+                {
+                    "fixture_id": "1489410",
+                    "canonical_market": "TOTALS",
+                    "selection": "Over",
+                    "line": "3.5",
+                    "decimal_odds": "1.08",
+                    "bookmaker_id": bookmaker_id,
+                    "bookmaker_name": bookmaker_name,
+                    "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
+                    "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                    "suspended": False,
+                    "live": False,
+                }
+            )
+        return rows
+
+
+def test_analysis_card_prefers_main_lines_over_extreme_lines(monkeypatch) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithExtremeLines()))
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert card["current_odds"]["ah"] == {"line": "-0.5", "price": 1.8}
+    assert card["current_odds"]["ou"] == {"line": "2.5", "price": 1.72}
+    ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
+    totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
+    assert ah_market["line"] == "-0.5"
+    assert totals_market["line"] == "2.5"
+    assert ah_market["line_status"] == "READY"
+    assert totals_market["line_status"] == "READY"
+
+
+class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for captured in (NOW - timedelta(hours=3), NOW - timedelta(hours=1)):
+            for bookmaker_id, bookmaker_name in (("1", "Pinnacle"), ("2", "SoftBook")):
+                rows.append(
+                    {
+                        "fixture_id": "1489410",
+                        "canonical_market": "ASIAN_HANDICAP",
+                        "selection": "Home",
+                        "line": "-4.5",
+                        "decimal_odds": "8.50",
+                        "bookmaker_id": bookmaker_id,
+                        "bookmaker_name": bookmaker_name,
+                        "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
+                        "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "suspended": False,
+                        "live": False,
+                    }
+                )
+                rows.append(
+                    {
+                        "fixture_id": "1489410",
+                        "canonical_market": "TOTALS",
+                        "selection": "Over",
+                        "line": "3.5",
+                        "decimal_odds": "1.08",
+                        "bookmaker_id": bookmaker_id,
+                        "bookmaker_name": bookmaker_name,
+                        "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
+                        "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "suspended": False,
+                        "live": False,
+                    }
+                )
+        return rows
+
+
+def test_analysis_card_skips_market_when_only_extreme_lines_exist(monkeypatch) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(repository=cast(Any, FakeReadRepositoryOnlyExtremeLines()))
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert "current_odds" not in card
+    ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
+    totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
+    assert ah_market["decision"] == "SKIP"
+    assert totals_market["decision"] == "SKIP"
+    assert ah_market["line_status"] == "EXTREME_LINE_ONLY"
+    assert totals_market["line_status"] == "EXTREME_LINE_ONLY"
+    assert ah_market["reason"] == "仅极端盘，参考价值低"
+    assert totals_market["reason"] == "仅极端盘，参考价值低"
