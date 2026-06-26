@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
+import { minutesToKickoff } from "../lib/matchPhase";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
@@ -27,6 +28,16 @@ function emptyCopy(mode: DashboardMode): { title: string; detail: string } {
     return { title: "暂无完场复盘", detail: "比赛完场并同步结果后会显示验证状态。" };
   }
   return { title: "暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
+}
+
+function sortByKickoffUrgency<T extends { kickoff_utc: string }>(matches: T[]): T[] {
+  return [...matches].sort((left, right) => {
+    const leftMinutes = minutesToKickoff(left.kickoff_utc);
+    const rightMinutes = minutesToKickoff(right.kickoff_utc);
+    const leftScore = leftMinutes === null ? Number.POSITIVE_INFINITY : Math.max(leftMinutes, -1);
+    const rightScore = rightMinutes === null ? Number.POSITIVE_INFINITY : Math.max(rightMinutes, -1);
+    return leftScore - rightScore;
+  });
 }
 
 export function DashboardPage() {
@@ -66,9 +77,9 @@ export function DashboardPage() {
 
   const visibleMatches = useMemo(() => {
     if (!view) return [];
-    if (mode === "next36") return view.upcoming;
+    if (mode === "next36") return sortByKickoffUrgency(view.upcoming);
     if (mode === "results") return view.finished;
-    return view.all;
+    return sortByKickoffUrgency(view.all);
   }, [mode, view]);
 
   const empty = emptyCopy(mode);
