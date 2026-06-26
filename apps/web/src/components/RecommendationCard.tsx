@@ -1,16 +1,14 @@
-import { fmtTime, teamCode } from "../lib/formatters";
-import { asRecord, currentOdds, textValue, watchLevel } from "../lib/normalize";
-import type { DashboardMatchCard, RecommendationTier } from "../types/dashboard";
-import { DataReadinessRow } from "./DataReadinessRow";
+import { fmtTime, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
+import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
+import type { DashboardMatchCard, RecommendationPick, RecommendationTier } from "../types/dashboard";
 import { MarketPickSummary } from "./MarketPickSummary";
 import { OddsMovementMini } from "./OddsMovementMini";
-import { ScorelinePicks } from "./ScorelinePicks";
 import { SettlementBadge } from "./SettlementBadge";
 
 const TIER_LABELS: Record<RecommendationTier, string> = {
   FORMAL: "正式推荐",
   CANDIDATE: "候选观察",
-  ANALYSIS_PICK: "有分析",
+  ANALYSIS_PICK: "分析参考",
   WATCH: "观察",
   NO_RECOMMENDATION: "暂无推荐",
 };
@@ -66,15 +64,6 @@ function cardTone(match: DashboardMatchCard): string {
   return "is-skip";
 }
 
-function readinessStatus(match: DashboardMatchCard): string {
-  const readiness = match.analysis_readiness;
-  if (!readiness) return "数据加载中";
-  if (readiness.status === "READY") return "数据就绪";
-  if (readiness.status === "PARTIAL") return "部分就绪";
-  if (readiness.status === "BLOCKED") return "数据不足";
-  return "生成中";
-}
-
 function blockerLabels(match: DashboardMatchCard): string[] {
   const blockers = match.analysis_readiness?.blockers ?? match.missing_inputs;
   return blockers.map((blocker) => BLOCKER_LABELS[blocker] ?? "数据不足").filter(Boolean).slice(0, 4);
@@ -92,11 +81,53 @@ function marketStrip(match: DashboardMatchCard): string {
       const market = textValue(row.market);
       const label = textValue(row.market_label_cn ?? row.label_cn, MARKET_LABELS[market] ?? "市场");
       const lean = textValue(row.selection_label_cn ?? row.lean_cn ?? row.selection ?? row.decision);
-      return lean ? `${label} ${lean}` : `${label} 数据不足`;
+      const decision = textValue(row.decision);
+      if (decision === "SKIP") return `${label}不看`;
+      if (decision === "WATCH") return `${label}观察`;
+      return lean ? `${label}${lean === "大球" ? "大" : lean === "小球" ? "小" : lean}` : `${label}待看`;
     })
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, 4);
   return rows.length ? rows.join(" · ") : "数据不足，暂不推荐";
+}
+
+function oddsRecord(match: DashboardMatchCard, market: string): Record<string, unknown> {
+  const odds = asRecord(match.current_odds);
+  if (market === "TOTALS") return asRecord(odds.ou);
+  if (market === "ASIAN_HANDICAP") return asRecord(odds.ah);
+  return {};
+}
+
+function displayPick(match: DashboardMatchCard): RecommendationPick | null {
+  const pick = match.recommendation;
+  if (!pick) return null;
+  const marketOdds = oddsRecord(match, pick.market);
+  const line = pick.line ?? (textValue(marketOdds.line) || undefined);
+  const odds = pick.odds ?? (textValue(marketOdds.price) || undefined);
+  return { ...pick, line, odds };
+}
+
+function dataLine(match: DashboardMatchCard): string {
+  const items = readinessItems({ data_readiness: match.data_readiness });
+  const odds = items.find((item) => item.key === "odds");
+  const xg = items.find((item) => item.key === "xg");
+  const lineups = items.find((item) => item.key === "lineups");
+  const blockers = blockerLabels(match);
+  const status = [
+    odds ? odds.short.replace("盘口等待", "盘口等待") : "盘口等待",
+    xg?.ready ? "xG就绪" : "xG等待",
+    lineups?.ready ? "首发已出" : "首发未出",
+  ];
+  if (blockers.includes("as-of 拦截")) status.push("as-of拦截");
+  return status.join(" · ");
+}
+
+function scoreText(match: DashboardMatchCard): string {
+  if (!match.scoreline_picks.length) return "比分：模型未就绪";
+  return `比分：${match.scoreline_picks
+    .slice(0, 3)
+    .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)
+    .join(" · ")}`;
 }
 
 function resultLine(match: DashboardMatchCard): string | null {
@@ -116,54 +147,58 @@ function resultLine(match: DashboardMatchCard): string | null {
 }
 
 export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
-  const pick = match.recommendation;
+  const pick = displayPick(match);
   const odds = currentOdds({ current_odds: match.current_odds });
   const risks = pick?.risks.length ? pick.risks : ["天气、红牌、阵容临场变化可能改变判断"];
   const stars = watchLevel({ watch_level: match.watch_level });
+  const homeName = translateTeam(match.home_team_name);
+  const awayName = translateTeam(match.away_team_name);
   return (
     <article className={`recommendation-card ${cardTone(match)} tier-${pick?.tier.toLowerCase() ?? "none"}`}>
       <header className="recommendation-card-header">
         <div>
           <span className="match-meta">
-            {fmtTime(match.kickoff_utc)} · {match.competition_name}
+            {fmtTime(match.kickoff_utc)} · {translateCompetition(match.competition_name)}
           </span>
           <div className="fixture-title">
-            <span className="team-badge">{teamCode(match.home_team_name)}</span>
-            <strong>{match.home_team_name}</strong>
+            <strong>{homeName}</strong>
             <span>{match.result?.final_score ?? "vs"}</span>
-            <strong>{match.away_team_name}</strong>
-            <span className="team-badge">{teamCode(match.away_team_name)}</span>
+            <strong>{awayName}</strong>
+          </div>
+          <div className="team-code-row" aria-hidden="true">
+            <span>{teamCode(match.home_team_name)}</span>
+            <span>{teamCode(match.away_team_name)}</span>
           </div>
         </div>
         {match.validation ? <SettlementBadge status={match.validation.settlement} /> : <span className={`status-pill ${cardTone(match)}`}>{tierLabel(match)}</span>}
       </header>
-      <DataReadinessRow match={match} />
 
       {pick ? (
         <MarketPickSummary pick={pick} />
       ) : (
         <div className="market-pick-summary is-empty">
           <div>
-            <span>主推</span>
+            <span>主看</span>
             <strong>暂不推荐</strong>
-            <p>{nextActionLabel(match)}；满足盘口、模型与 as-of 条件后自动更新。</p>
+            <p>{nextActionLabel(match)}；盘口和模型条件不足时不强出方向。</p>
           </div>
         </div>
       )}
 
-      <ScorelinePicks picks={match.scoreline_picks} />
-      <div className="analysis-readiness-line">
-        <strong>{readinessStatus(match)}</strong>
-        <span>{nextActionLabel(match)}</span>
-        {blockerLabels(match).map((label) => (
-          <small key={label}>{label}</small>
-        ))}
+      <div className="card-info-lines">
+        <p>
+          <strong>数据：</strong>
+          {dataLine(match)}
+        </p>
+        <p>
+          <strong>{scoreText(match)}</strong>
+        </p>
       </div>
       <OddsMovementMini match={match} />
-      <p className="market-strip-line">其他市场：{marketStrip(match)}</p>
+      <p className="market-strip-line">其他：{marketStrip(match)}</p>
       <div className="recommendation-footer">
         <div>
-          <p className="odds-line">{odds.length ? odds.join(" · ") : "当前盘口等待采集"}</p>
+          <p className="odds-line">当前：{odds.length ? odds.join(" · ") : "盘口等待采集"}</p>
           {resultLine(match) ? <p className="result-line">{resultLine(match)}</p> : null}
           <p className="risk-line">风险：{risks.slice(0, 2).join("、")}</p>
         </div>

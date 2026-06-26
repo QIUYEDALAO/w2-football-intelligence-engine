@@ -2,6 +2,13 @@ import { translateReason } from "../lib/formatters";
 import { confidenceDots } from "../lib/normalize";
 import type { RecommendationPick } from "../types/dashboard";
 
+function selectionText(pick: RecommendationPick): string {
+  const raw = pick.selection_label_cn ?? pick.selection;
+  if (raw === "大球") return "大";
+  if (raw === "小球") return "小";
+  return raw;
+}
+
 export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
   const dots = confidenceDots(pick.confidence);
   const odds = pick.odds ? ` @${pick.odds}` : "";
@@ -11,9 +18,9 @@ export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
   return (
     <div className="market-pick-summary">
       <div>
-        <span>主推</span>
+        <span>主看</span>
         <strong>
-          {pick.market_label_cn} {pick.selection_label_cn ?? pick.selection}
+          {pick.market_label_cn} {selectionText(pick)}
           {line}
           {odds}
         </strong>

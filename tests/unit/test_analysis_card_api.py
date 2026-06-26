@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from w2.api import repository as api_repository
@@ -150,11 +151,12 @@ class MixedFixtureRepository:
         return None
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
+        kickoff = (datetime.now(UTC) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
         return [
             {
                 "fixture": {
                     "id": "db-world-cup-fixture",
-                    "date": "2026-06-26T18:00:00Z",
+                    "date": kickoff,
                     "status": {"short": "NS"},
                     "venue": {"name": "World Cup Venue"},
                 },

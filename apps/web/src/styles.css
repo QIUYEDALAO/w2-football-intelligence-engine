@@ -1159,7 +1159,7 @@ button {
 .recommendation-card {
   overflow: hidden;
   border-radius: 18px;
-  padding: 16px 17px;
+  padding: 14px 16px;
   background: linear-gradient(180deg, #2b2d29, #242622);
 }
 
@@ -1180,20 +1180,41 @@ button {
 }
 
 .match-meta {
-  font-size: 13px;
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 .fixture-title {
   gap: 8px;
-  margin-top: 9px;
+  margin-top: 7px;
 }
 
 .fixture-title strong {
+  max-width: 190px;
+  overflow: hidden;
   font-size: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fixture-title > span:not(.team-badge) {
   font-size: 16px;
+}
+
+.team-code-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.team-code-row span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .team-badge {
@@ -1235,10 +1256,10 @@ button {
 
 .market-pick-summary {
   gap: 12px;
-  margin: 10px 0;
+  margin: 11px 0 9px;
   border-left-width: 5px;
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 11px 13px;
 }
 
 .market-pick-summary.is-empty {
@@ -1251,7 +1272,7 @@ button {
 
 .market-pick-summary strong {
   margin-top: 2px;
-  font-size: 21px;
+  font-size: 22px;
 }
 
 .market-pick-summary p,
@@ -1272,51 +1293,29 @@ button {
   height: 9px;
 }
 
-.scoreline-picks {
-  gap: 6px;
-  margin-bottom: 9px;
+.card-info-lines {
+  display: grid;
+  gap: 4px;
+  margin: 7px 0;
 }
 
-.scoreline-picks > span,
-.scoreline-empty {
-  font-size: 12px;
-}
-
-.score-pick {
-  padding: 5px 8px;
-  font-size: 12px;
-}
-
-.analysis-readiness-line {
-  gap: 6px;
-  margin: 8px 0;
-  font-size: 12px;
-}
-
-.analysis-readiness-line strong,
-.analysis-readiness-line small {
-  border-radius: 999px;
-  padding: 4px 7px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.analysis-readiness-line strong {
-  color: var(--text);
-}
-
-.analysis-readiness-line span {
-  color: var(--mint);
-}
-
-.analysis-readiness-line small {
+.card-info-lines p {
+  margin: 0;
   color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.32;
+}
+
+.card-info-lines strong {
+  color: var(--text);
 }
 
 .odds-movement,
 .intent-line {
-  margin: 7px 0;
+  margin: 6px 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 850;
   line-height: 1.35;
 }
@@ -1328,10 +1327,10 @@ button {
 
 .market-strip-line {
   display: -webkit-box;
-  margin: 6px 0 10px;
+  margin: 5px 0 9px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -1341,14 +1340,14 @@ button {
 .recommendation-footer {
   align-items: flex-end;
   gap: 12px;
-  padding-top: 11px;
+  padding-top: 10px;
 }
 
 .odds-line,
 .risk-line,
 .result-line {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.4;
 }
