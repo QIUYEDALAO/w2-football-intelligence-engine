@@ -764,8 +764,8 @@ class ReadModelService:
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
-            return 60.0 if window in {"today", "next36"} else 180.0
-        return 180.0 if window in {"today", "next36"} else 300.0
+            return 300.0 if window in {"today", "next36"} else 600.0
+        return 900.0 if window in {"today", "next36"} else 1800.0
 
     def warm_dashboard_cache(self) -> None:
         for window in ("today", "next36", "all"):
