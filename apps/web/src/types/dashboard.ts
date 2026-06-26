@@ -14,6 +14,11 @@ export interface MarketAnalysis {
   lean?: string | null;
   lean_cn?: string | null;
   confidence?: number | string | null;
+  line?: string | number | null;
+  odds?: string | number | null;
+  model_probability?: number | string | null;
+  fair_odds?: string | number | null;
+  risk_adjusted_ev?: string | number | null;
   reasons?: unknown;
   reason?: unknown;
   reason_cn?: unknown;
@@ -79,6 +84,8 @@ export interface DashboardCard {
   explain?: unknown;
   probability_distribution?: unknown;
   timeline?: unknown;
+  temporal?: unknown;
+  generated_at?: string | null;
 }
 
 export interface ReadinessItem {
@@ -101,4 +108,127 @@ export interface DashboardStats {
   watch: number;
   ready: number;
   highWatch: number;
+}
+
+export type MatchStatus = "UPCOMING" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED" | "UNKNOWN";
+
+export type RecommendationTier = "FORMAL" | "CANDIDATE" | "WATCH" | "NO_RECOMMENDATION";
+
+export type SettlementStatus = "PENDING" | "HIT" | "MISS" | "PUSH" | "VOID" | "NO_BET" | "UNKNOWN";
+
+export type DashboardMode = "today" | "next36" | "results" | "all";
+
+export interface ScorelinePick {
+  scoreline: string;
+  home_goals?: number;
+  away_goals?: number;
+  probability?: number;
+  probability_label?: string;
+  hit?: boolean;
+  direction_hit?: boolean;
+}
+
+export interface RecommendationPick {
+  tier: RecommendationTier;
+  market: string;
+  market_label_cn: string;
+  selection: string;
+  selection_label_cn?: string;
+  line?: string;
+  odds?: string;
+  hong_kong_odds?: string;
+  model_probability?: number;
+  fair_odds?: string;
+  risk_adjusted_ev?: string;
+  confidence?: number;
+  reasons: string[];
+  risks: string[];
+  generated_at?: string;
+  locked_before_kickoff?: boolean;
+  is_live_line?: boolean;
+}
+
+export interface MatchResult {
+  status: MatchStatus;
+  home_goals?: number;
+  away_goals?: number;
+  final_score?: string;
+  total_goals?: number;
+  result_source?: string;
+  settled_at?: string;
+}
+
+export interface ValidationSummary {
+  settlement: SettlementStatus;
+  market_hit?: boolean;
+  score_exact_hit?: boolean;
+  score_direction_hit?: boolean;
+  total_goals_hit?: boolean;
+  profit_units?: number;
+  closing_line_value?: string;
+  validation_notes?: string[];
+}
+
+export interface DashboardMatchCard {
+  fixture_id: string;
+  kickoff_utc: string;
+  kickoff_beijing?: string;
+  operational_date_beijing?: string;
+  competition_id?: string;
+  competition_name: string;
+  home_team_name: string;
+  away_team_name: string;
+  home_team_code?: string;
+  away_team_code?: string;
+  status: MatchStatus;
+  raw_status?: string;
+  data_state?: string;
+  lifecycle_state?: string;
+  watch_level?: number;
+  data_readiness?: Record<string, unknown>;
+  recommendation?: RecommendationPick | null;
+  scoreline_picks: ScorelinePick[];
+  result?: MatchResult | null;
+  validation?: ValidationSummary | null;
+  current_odds?: Record<string, unknown>;
+  odds_movement?: Record<string, unknown>;
+  market_strip?: Array<Record<string, unknown>>;
+  bookmaker_intent?: Record<string, unknown>;
+  missing_inputs: string[];
+}
+
+export interface DashboardPerformance {
+  today_count: number;
+  next36_count: number;
+  candidate_count: number;
+  finished_count: number;
+  average_confidence?: number;
+  data_health_status: string;
+  sample_size: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number;
+  by_market: Array<{
+    market: string;
+    sample_size: number;
+    hit_rate?: number;
+  }>;
+  score_exact: {
+    sample_size: number;
+    hit_count: number;
+    hit_rate?: number;
+  };
+}
+
+export interface DashboardView {
+  date: string;
+  generated_at: string;
+  performance: DashboardPerformance;
+  recommendations: DashboardMatchCard[];
+  upcoming: DashboardMatchCard[];
+  finished: DashboardMatchCard[];
+  all: DashboardMatchCard[];
+  errors: string[];
 }

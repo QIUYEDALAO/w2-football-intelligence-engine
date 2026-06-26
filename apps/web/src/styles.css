@@ -497,6 +497,365 @@ button {
   backdrop-filter: blur(10px);
 }
 
+.dashboard-v2 {
+  padding-top: 22px;
+}
+
+.performance-header {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 22px;
+  margin-bottom: 14px;
+  background:
+    linear-gradient(135deg, rgba(98, 181, 47, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(48, 50, 46, 0.96), rgba(31, 33, 30, 0.94));
+  box-shadow: var(--shadow);
+}
+
+.hero-copy p,
+.hero-copy h1,
+.hero-copy span,
+.health-line,
+.update-line {
+  margin: 0;
+}
+
+.hero-copy p {
+  color: var(--mint);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.hero-copy h1 {
+  margin-top: 4px;
+  font-size: 36px;
+  line-height: 1.05;
+}
+
+.hero-copy span,
+.update-line,
+.health-line {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.summary-metric.is-validation strong {
+  color: #ffd58b;
+  font-size: 21px;
+}
+
+.health-line {
+  margin-top: 12px;
+  font-weight: 800;
+}
+
+.dashboard-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 10px;
+  background: rgba(31, 33, 30, 0.88);
+}
+
+.segment-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-line {
+  margin: 0 0 14px;
+}
+
+.dashboard-section {
+  margin-top: 16px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.section-heading h2,
+.section-heading p {
+  margin: 0;
+}
+
+.section-heading h2 {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.section-heading p {
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.recommendation-grid,
+.upcoming-grid,
+.results-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendation-grid {
+  grid-template-columns: repeat(auto-fit, minmax(540px, 1fr));
+}
+
+.upcoming-grid,
+.results-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.recommendation-card,
+.upcoming-card,
+.result-card,
+.empty-section,
+.soft-errors {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow);
+}
+
+.recommendation-card {
+  padding: 22px 24px;
+}
+
+.recommendation-card.tier-formal,
+.recommendation-card.tier-candidate {
+  border-color: rgba(98, 181, 47, 0.48);
+}
+
+.recommendation-card.tier-watch {
+  border-color: rgba(226, 164, 58, 0.5);
+}
+
+.recommendation-card-header,
+.result-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fixture-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 11px;
+  margin-top: 12px;
+}
+
+.fixture-title strong {
+  font-size: 27px;
+  line-height: 1.08;
+}
+
+.fixture-title > span:not(.team-badge) {
+  color: var(--muted);
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.settlement-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.settlement-badge.is-hit {
+  background: var(--green-soft);
+  color: #9def72;
+}
+
+.settlement-badge.is-miss {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.settlement-badge.is-push {
+  background: var(--amber-soft);
+  color: #ffd58b;
+}
+
+.market-pick-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin: 18px 0 14px;
+  border: 1px solid var(--border-strong);
+  border-left: 6px solid var(--green);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: rgba(31, 33, 30, 0.78);
+}
+
+.market-pick-summary span {
+  color: var(--mint);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.market-pick-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+.market-pick-summary p,
+.no-pick-copy,
+.scoreline-empty {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.scoreline-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.scoreline-picks > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.score-pick {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.score-pick small,
+.score-pick em {
+  margin-left: 6px;
+  color: var(--muted);
+  font-style: normal;
+}
+
+.score-pick.is-hit {
+  border-color: rgba(98, 181, 47, 0.55);
+  background: var(--green-soft);
+  color: #9def72;
+}
+
+.score-pick.is-direction {
+  border-color: rgba(40, 120, 200, 0.55);
+  background: var(--blue-soft);
+  color: #9dccff;
+}
+
+.recommendation-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.reason-line {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 780;
+}
+
+.upcoming-card,
+.result-card,
+.empty-section,
+.soft-errors {
+  padding: 18px;
+}
+
+.compact-teams {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 9px 0 14px;
+}
+
+.compact-teams span {
+  border-radius: 999px;
+  padding: 6px 8px;
+  background: #edf5ff;
+  color: #2664a8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.compact-teams strong {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.compact-teams em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.upcoming-card p,
+.upcoming-card small,
+.result-card p,
+.empty-section p,
+.soft-errors p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.result-card header strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 22px;
+}
+
+.empty-section strong,
+.soft-errors strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.soft-errors {
+  margin-top: 14px;
+  border-color: rgba(226, 164, 58, 0.34);
+}
+
 .skeleton-card {
   display: grid;
   gap: 14px;
