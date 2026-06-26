@@ -106,7 +106,7 @@ def dashboard(
     date: str | None = None,
     window: str = "today",
     timezone: str = "Asia/Shanghai",
-    include_debug: bool = True,
+    include_debug: bool = False,
 ) -> dict[str, Any]:
     normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
     return {

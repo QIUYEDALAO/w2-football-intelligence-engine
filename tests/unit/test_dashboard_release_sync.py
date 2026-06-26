@@ -71,6 +71,15 @@ class FutureFixtureRepository(EmptyReleaseRepository):
         ]
 
 
+class CountingFutureFixtureRepository(FutureFixtureRepository):
+    def __init__(self) -> None:
+        self.fixture_payload_calls = 0
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        self.fixture_payload_calls += 1
+        return super().fixture_payloads()
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -112,10 +121,26 @@ def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
     client = TestClient(app)
 
     version = client.get("/v1/version").json()
-    dashboard = client.get("/v1/dashboard?date=2026-06-26&window=today").json()
+    dashboard = client.get(
+        "/v1/dashboard?date=2026-06-26&window=today&include_debug=true"
+    ).json()
 
     assert version["api_git_sha"] == "UNKNOWN"
     assert dashboard["debug"]["empty_reason"] == "READ_MODEL_EMPTY"
+    assert dashboard["all"] == []
+
+
+def test_public_dashboard_defaults_to_lightweight_response(monkeypatch) -> None:
+    monkeypatch.setattr(
+        routers,
+        "service",
+        ReadModelService(repository=cast(Any, EmptyReleaseRepository())),
+    )
+    client = TestClient(app)
+
+    dashboard = client.get("/v1/dashboard?date=2026-06-26&window=today").json()
+
+    assert dashboard["debug"] == {}
     assert dashboard["all"] == []
 
 
@@ -137,12 +162,26 @@ def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     assert len(all_payload["all"]) == 2
 
 
+def test_dashboard_reuses_short_lived_cache_for_same_window() -> None:
+    repository = CountingFutureFixtureRepository()
+    service = ReadModelService(repository=cast(Any, repository))
+
+    first = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    second = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+
+    assert len(first["all"]) == 1
+    assert second == first
+    assert repository.fixture_payload_calls == 1
+
+
 def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
     body = Path("apps/web/src/lib/dashboardApi.ts").read_text(encoding="utf-8")
 
     assert 'getJSON("/meta.json")' in body
     assert 'getJSON(`${API_BASE}/version`)' in body
     assert '`${API_BASE}/dashboard?' in body
+    assert 'include_debug: includeDebug ? "true" : "false"' in body
+    assert "getCachedDashboardView" in body
     assert 'params.get("demo") === "1"' in body
     assert 'VITE_DASHBOARD_DATA_MODE === "demo"' in body
     assert "DEMO DATA" in body

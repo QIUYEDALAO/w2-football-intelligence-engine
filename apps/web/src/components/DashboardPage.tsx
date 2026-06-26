@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchDashboardView } from "../lib/dashboardApi";
+import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
@@ -32,15 +32,22 @@ export function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      try {
+      const cached = getCachedDashboardView(date, mode);
+      if (cached) {
+        setView(cached);
+        setUpdatedAt(updatedAtShanghai());
+        setState(cached.all.length ? "ok" : "empty");
+      } else {
         setState("loading");
+      }
+      try {
         const nextView = await fetchDashboardView({ date, mode });
         if (cancelled) return;
         setView(nextView);
         setUpdatedAt(updatedAtShanghai());
         setState(nextView.all.length ? "ok" : "empty");
       } catch {
-        if (!cancelled) setState("error");
+        if (!cancelled && !cached) setState("error");
       }
     }
     load();

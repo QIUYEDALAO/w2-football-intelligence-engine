@@ -16,10 +16,12 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
+const DASHBOARD_CACHE_VERSION = "dashboard-v2";
 
 interface FetchDashboardArgs {
   date: string;
   mode: DashboardMode;
+  includeDebug?: boolean;
 }
 
 async function getJSON(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
@@ -295,20 +297,59 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
   };
 }
 
-export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {
-  const meta = normalizeMeta(await getJSON("/meta.json"));
+function cacheKey(date: string, mode: DashboardMode): string {
+  return `${DASHBOARD_CACHE_VERSION}:${date}:${mode}`;
+}
+
+export function getCachedDashboardView(date: string, mode: DashboardMode): DashboardView | null {
+  try {
+    const raw = window.localStorage.getItem(cacheKey(date, mode));
+    if (!raw) return null;
+    return JSON.parse(raw) as DashboardView;
+  } catch {
+    return null;
+  }
+}
+
+function storeCachedDashboardView(date: string, mode: DashboardMode, view: DashboardView): void {
+  try {
+    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(view));
+  } catch {
+    // Cache is best-effort; private browsing or quota limits should not break the dashboard.
+  }
+}
+
+async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean): Promise<unknown> {
+  const params = new URLSearchParams({
+    date,
+    window: mode,
+    timezone: "Asia/Shanghai",
+    include_debug: includeDebug ? "true" : "false",
+  });
+  return getJSON(`${API_BASE}/dashboard?${params.toString()}`);
+}
+
+export async function fetchDashboardView({ date, mode, includeDebug = false }: FetchDashboardArgs): Promise<DashboardView> {
+  const metaPromise = getJSON("/meta.json");
   if (explicitDemoMode()) {
+    const meta = normalizeMeta(await metaPromise);
     return demoDashboard(date, meta);
   }
-  const [versionPayload, dashboardPayload] = await Promise.all([
+  let [metaPayload, versionPayload, dashboardPayload] = await Promise.all([
+    metaPromise,
     getJSON(`${API_BASE}/version`),
-    getJSON(`${API_BASE}/dashboard?date=${encodeURIComponent(date)}&window=${encodeURIComponent(mode)}&timezone=Asia%2FShanghai&include_debug=true`),
+    fetchDashboardPayload(date, mode, includeDebug),
   ]);
+  let dashboard = asRecord(dashboardPayload);
+  if (!includeDebug && asArray(dashboard.all).length === 0) {
+    dashboardPayload = await fetchDashboardPayload(date, mode, true);
+    dashboard = asRecord(dashboardPayload);
+  }
+  const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
-  const dashboard = asRecord(dashboardPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
   const all = asArray(dashboard.all).map(normalizeCard);
-  return {
+  const view = {
     date: textValue(dashboard.date, date),
     generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
     data_profile: release.data_profile,
@@ -322,4 +363,6 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
     all,
     errors: [],
   };
+  storeCachedDashboardView(date, mode, view);
+  return view;
 }
