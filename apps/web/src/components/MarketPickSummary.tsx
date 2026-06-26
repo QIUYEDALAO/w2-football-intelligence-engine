@@ -3,16 +3,16 @@ import { confidenceDots } from "../lib/normalize";
 import type { RecommendationPick } from "../types/dashboard";
 
 function selectionText(pick: RecommendationPick): string {
-  const raw = pick.selection_label_cn ?? pick.selection;
-  if (raw === "大球") return "大";
-  if (raw === "小球") return "小";
-  return raw;
+  const raw = pick.selection_label_cn ?? pick.selection ?? "";
+  return raw.replace(/大球/g, "大").replace(/小球/g, "小");
 }
 
 export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
   const dots = confidenceDots(pick.confidence);
   const odds = pick.odds ? ` @${pick.odds}` : "";
-  const line = pick.line ? ` ${pick.line}` : "";
+  const selection = selectionText(pick);
+  const lineStr = pick.line !== undefined && pick.line !== null && `${pick.line}` !== "" ? `${pick.line}` : "";
+  const showLine = lineStr !== "" && !selection.includes(lineStr);
   const probability = Number.isFinite(pick.model_probability) ? `模型概率 ${Math.round((pick.model_probability ?? 0) * 100)}%` : "模型概率待确认";
   const reason = pick.reasons.length ? pick.reasons.slice(0, 2).map(translateReason).join(" · ") : probability;
   return (
@@ -20,8 +20,8 @@ export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
       <div>
         <span>主看</span>
         <strong>
-          {pick.market_label_cn} {selectionText(pick)}
-          {line}
+          {pick.market_label_cn} {selection}
+          {showLine ? ` ${lineStr}` : ""}
           {odds}
         </strong>
         <p>
