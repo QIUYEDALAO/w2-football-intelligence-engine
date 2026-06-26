@@ -134,4 +134,11 @@ export const REASON_TRANSLATIONS: Array<[RegExp, string]> = [
   [/^庄家意图: AWAY_LEAN$/, "庄家意图偏客队方向"],
   [/^半场 Poisson 拆分 P\(1H>0\.5\)=/, "半场进球使用 1H Poisson 拆分估计"],
   [/^比分使用方向一致条件概率/, "比分只展示与主方向一致的条件概率"],
+  [/MISSING_XG/, "缺 xG"],
+  [/MISSING_LINEUPS/, "缺首发"],
+  [/MISSING_SCORE_MATRIX/, "缺比分矩阵"],
+  [/MISSING_MARKET_OBSERVATIONS/, "缺盘口"],
+  [/MISSING_BOOKMAKER_QUOTES/, "缺报价"],
+  [/MISSING_MODEL_PROBABILITIES/, "缺模型概率"],
+  [/MISSING_ODDS_TIMELINE/, "缺盘口快照"],
 ];
