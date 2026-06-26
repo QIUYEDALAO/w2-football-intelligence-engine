@@ -17,6 +17,10 @@ from sqlalchemy.orm import Session
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.performance import dashboard_performance
+from w2.dashboard.readiness import (
+    build_analysis_readiness,
+    build_watch_recommendation,
+)
 from w2.dashboard.recommendations import build_recommendation
 from w2.dashboard.results import (
     normalize_match_status,
@@ -284,6 +288,20 @@ class ReadModelRepository:
                 rows = []
         return []
 
+    def future_market_observations_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
+                if callable(reader):
+                    return cast(list[dict[str, Any]], reader(fixture_ids))
+            except Exception:
+                return []
+        return []
+
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
 
@@ -510,6 +528,59 @@ class ReadModelService:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
+        self._fixture_payloads_cache: list[dict[str, Any]] | None = None
+        self._fixture_payload_index_cache: dict[str, dict[str, Any]] | None = None
+        self._future_market_observations_cache: list[dict[str, Any]] | None = None
+        self._observations_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
+
+    def _reset_read_caches(self) -> None:
+        self._fixture_payloads_cache = None
+        self._fixture_payload_index_cache = None
+        self._future_market_observations_cache = None
+        self._observations_by_fixture_cache = None
+
+    def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
+        if self._fixture_payloads_cache is None:
+            fixture_reader = getattr(self.repository, "fixture_payloads", None)
+            self._fixture_payloads_cache = (
+                fixture_reader() if callable(fixture_reader) else []
+            )
+        return self._fixture_payloads_cache
+
+    def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
+        if self._fixture_payload_index_cache is None:
+            self._fixture_payload_index_cache = {}
+            for item in self._cached_fixture_payloads():
+                key = str(item.get("fixture", {}).get("id") or "")
+                if key:
+                    self._fixture_payload_index_cache[key] = item
+        return self._fixture_payload_index_cache.get(fixture_id)
+
+    def _cached_future_market_observations(self) -> list[dict[str, Any]]:
+        if self._future_market_observations_cache is None:
+            observation_reader = getattr(self.repository, "future_market_observations", None)
+            self._future_market_observations_cache = (
+                observation_reader() if callable(observation_reader) else []
+            )
+        return self._future_market_observations_cache
+
+    def _observations_for_fixture(self, fixture_id: str) -> list[dict[str, Any]]:
+        if self._observations_by_fixture_cache is None:
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for row in self._cached_future_market_observations():
+                key = str(row.get("fixture_id") or "")
+                if key:
+                    grouped.setdefault(key, []).append(row)
+            self._observations_by_fixture_cache = grouped
+        return self._observations_by_fixture_cache.get(fixture_id, [])
+
+    def _prime_observations_for_rows(self, rows: list[dict[str, Any]]) -> None:
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        if not callable(reader):
+            return
+        fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
+        self._future_market_observations_cache = reader(fixture_ids)
+        self._observations_by_fixture_cache = None
 
     def version(self) -> dict[str, Any]:
         generated_at = datetime.now(UTC)
@@ -558,6 +629,7 @@ class ReadModelService:
         timezone: str = BEIJING_TZ,
         include_debug: bool = True,
     ) -> dict[str, Any]:
+        self._reset_read_caches()
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
@@ -617,6 +689,7 @@ class ReadModelService:
         else:
             selected_rows = today_rows
 
+        self._prime_observations_for_rows(selected_rows)
         all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
         recommendations = [
             card
@@ -802,7 +875,8 @@ class ReadModelService:
         for card in self.repository.matchday_cards():
             if str(card.get("fixture", {}).get("fixture_id")) == fixture_id:
                 return cast(dict[str, Any], card.get("card", {}))
-        dashboard = self.repository.dashboard_fixture(fixture_id)
+        dashboard_reader = getattr(self.repository, "dashboard_fixture", None)
+        dashboard = dashboard_reader(fixture_id) if callable(dashboard_reader) else None
         if dashboard is None:
             return None
         return {
@@ -840,7 +914,8 @@ class ReadModelService:
                 source="matchday_card_without_analysis_payload",
                 fixture_context=context,
             )
-        dashboard = self.repository.dashboard_fixture(fixture_id)
+        dashboard_reader = getattr(self.repository, "dashboard_fixture", None)
+        dashboard = dashboard_reader(fixture_id) if callable(dashboard_reader) else None
         if dashboard is not None:
             context = self._analysis_context_from_flat_fixture(dashboard)
             embedded = dashboard.get("analysis_card")
@@ -856,41 +931,43 @@ class ReadModelService:
                 source="dashboard_without_analysis_payload",
                 fixture_context=context,
             )
-        for item in self.repository.fixture_payloads():
-            if str(item.get("fixture", {}).get("id")) == fixture_id:
-                observations = [
-                    row
-                    for row in self.repository.future_market_observations()
-                    if str(row.get("fixture_id")) == fixture_id
-                ]
-                coverage = {
-                    "ASIAN_HANDICAP": any(
-                        row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations
-                    ),
-                    "TOTALS": any(row.get("canonical_market") == "TOTALS" for row in observations),
-                }
-                generated = self._db_analysis_card_from_fixture(item, observations)
-                if generated is not None:
-                    return self._normalize_analysis_card(
-                        generated,
-                        fixture_id=fixture_id,
-                        fixture_context=self._analysis_context_from_provider_fixture(item),
-                    )
-                return self._fallback_analysis_card(
-                    fixture_id=fixture_id,
-                    market_coverage=coverage,
-                    source="future_refresh_without_analysis_payload",
-                    fixture_context=self._analysis_context_from_provider_fixture(item),
-                )
+        item = self._fixture_payload_by_id(fixture_id)
+        if item is not None:
+            return self._analysis_card_from_provider_payload(fixture_id, item)
         return None
+
+    def _analysis_card_from_provider_payload(
+        self,
+        fixture_id: str,
+        item: dict[str, Any],
+    ) -> dict[str, Any]:
+        observations = self._observations_for_fixture(fixture_id)
+        coverage = {
+            "ASIAN_HANDICAP": any(
+                row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations
+            ),
+            "TOTALS": any(row.get("canonical_market") == "TOTALS" for row in observations),
+        }
+        generated = self._db_analysis_card_from_fixture(item, observations)
+        if generated is not None:
+            return self._normalize_analysis_card(
+                generated,
+                fixture_id=fixture_id,
+                fixture_context=self._analysis_context_from_provider_fixture(item),
+            )
+        return self._fallback_analysis_card(
+            fixture_id=fixture_id,
+            market_coverage=coverage,
+            source="future_refresh_without_analysis_payload",
+            fixture_context=self._analysis_context_from_provider_fixture(item),
+        )
 
     def _db_analysis_card_from_fixture(
         self,
         item: dict[str, Any],
         observations: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        repository = future_refresh_db_repository()
-        if repository is None:
+        if not observations:
             return None
         fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
         teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
@@ -901,6 +978,9 @@ class ReadModelService:
         home_id = str(home.get("id") or "")
         away_id = str(away.get("id") or "")
         if not fixture_id or kickoff is None or not home_id or not away_id:
+            return None
+        repository = future_refresh_db_repository()
+        if repository is None:
             return None
         context = FeatureContext(
             fixture_id=fixture_id,
@@ -2111,7 +2191,11 @@ class ReadModelService:
     def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
         analysis: dict[str, Any] | None = None
-        if fixture_id and row.get("_dashboard_source") != "future_fixture_payload":
+        if fixture_id and row.get("_dashboard_source") == "future_fixture_payload":
+            item = self._fixture_payload_by_id(fixture_id)
+            if item is not None:
+                analysis = self._analysis_card_from_provider_payload(fixture_id, item)
+        elif fixture_id:
             analysis = self.analysis_card(fixture_id)
         card = analysis or self._fallback_analysis_card(
             fixture_id=fixture_id or "unknown-fixture",
@@ -2133,9 +2217,20 @@ class ReadModelService:
             if isinstance(item, dict)
         ]
         picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
-        recommendation = build_recommendation(card, picked)
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
+        analysis_readiness = build_analysis_readiness(
+            card,
+            fixture_status=normalize_match_status(row.get("status")),
+            result=result,
+            scoreline_picks=scoreline_picks,
+        )
+        recommendation = build_recommendation(card, picked)
+        if recommendation is None:
+            recommendation = build_watch_recommendation(
+                readiness=analysis_readiness,
+                fixture_status=normalize_match_status(row.get("status")),
+            )
         validation = validate_recommendation(
             fixture_id=fixture_id,
             recommendation=recommendation,
@@ -2158,6 +2253,7 @@ class ReadModelService:
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
+            "analysis_readiness": analysis_readiness,
             "recommendation": recommendation,
             "scoreline_picks": scoreline_picks,
             "result": result,

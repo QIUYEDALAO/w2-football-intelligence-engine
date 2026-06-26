@@ -36,6 +36,25 @@ export interface ReadinessPayload {
   lineups?: boolean | string | number | null;
 }
 
+export type AnalysisReadinessStatus = "READY" | "PARTIAL" | "BLOCKED" | "UNKNOWN";
+
+export interface AnalysisReadiness {
+  status: AnalysisReadinessStatus;
+  blockers: string[];
+  available_inputs: {
+    market_observations?: number;
+    bookmakers?: number;
+    odds_snapshots?: number;
+    xg?: boolean;
+    score_matrix?: boolean;
+    model_probabilities?: boolean;
+    market_probabilities?: boolean;
+    current_odds?: boolean;
+    line_movement?: boolean;
+  };
+  next_action: string;
+}
+
 export interface BookmakerIntentPayload {
   intent?: string | null;
   label_cn?: string | null;
@@ -198,6 +217,7 @@ export interface DashboardMatchCard {
   lifecycle_state?: string;
   watch_level?: number;
   data_readiness?: Record<string, unknown>;
+  analysis_readiness?: AnalysisReadiness;
   recommendation?: RecommendationPick | null;
   scoreline_picks: ScorelinePick[];
   result?: MatchResult | null;
@@ -217,6 +237,13 @@ export interface DashboardPerformance {
   analysis_pick_count?: number;
   watch_count?: number;
   no_recommendation_count?: number;
+  analysis_ready_count?: number;
+  analysis_partial_count?: number;
+  analysis_blocked_count?: number;
+  analysis_unknown_count?: number;
+  analysis_actionable_count?: number;
+  analysis_readiness_rate?: number | null;
+  analysis_blocker_distribution?: Record<string, number>;
   finished_count: number;
   average_confidence?: number;
   data_health_status: string;
