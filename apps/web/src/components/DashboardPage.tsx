@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
-import { minutesToKickoff } from "../lib/matchPhase";
+import { matchPhase, minutesToKickoff } from "../lib/matchPhase";
+import { isMarketPick, preferredMarket } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
@@ -82,6 +83,24 @@ export function DashboardPage() {
     return sortByKickoffUrgency(view.all);
   }, [mode, view]);
 
+  const summary = useMemo(() => {
+    const counts = { pick: 0, low: 0, live: 0 };
+    for (const match of visibleMatches) {
+      const phase = matchPhase(match.kickoff_utc ?? "", (match as { status?: string }).status);
+      if (phase === "LIVE" || phase === "FINISHED") {
+        counts.live += 1;
+        continue;
+      }
+      const pm = preferredMarket(match);
+      if (pm && isMarketPick(pm)) {
+        counts.pick += 1;
+      } else {
+        counts.low += 1;
+      }
+    }
+    return counts;
+  }, [visibleMatches]);
+
   const empty = emptyCopy(mode);
 
   return (
@@ -100,6 +119,30 @@ export function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {state === "ok" && view ? (
+        <div
+          className="dashboard-summary"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+            background: "#f6f5f0",
+            borderRadius: 12,
+            padding: "10px 16px",
+            margin: "0 0 14px",
+            fontSize: 13,
+          }}
+        >
+          <span>
+            今日 <strong>{visibleMatches.length}</strong> 场
+          </span>
+          <span style={{ color: "#0F6E56" }}>● 可参考 {summary.pick}</span>
+          <span style={{ color: "#9a978d" }}>○ 数据不足 {summary.low}</span>
+          <span style={{ color: "#9a978d" }}>· 已开赛 {summary.live}</span>
+        </div>
+      ) : null}
 
       {state === "loading" ? (
         <section className="match-card-grid" aria-label="比赛加载中">
