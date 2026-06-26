@@ -116,7 +116,7 @@ function dataLine(match: DashboardMatchCard): string {
   const blockers = blockerLabels(match);
   const status = [
     odds ? odds.short.replace("盘口等待", "盘口等待") : "盘口等待",
-    xg?.ready ? "xG就绪" : "xG等待",
+    xg ? xg.short : "xG 等待",
     lineups?.ready ? "首发已出" : "首发未出",
   ];
   if (blockers.includes("as-of 拦截")) status.push("as-of拦截");

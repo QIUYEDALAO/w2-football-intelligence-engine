@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import { matchPhase, minutesToKickoff } from "../lib/matchPhase";
-import { isMarketPick, preferredMarket } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
@@ -91,8 +90,8 @@ export function DashboardPage() {
         counts.live += 1;
         continue;
       }
-      const pm = preferredMarket(match);
-      if (pm && isMarketPick(pm)) {
+      const tier = match.recommendation?.tier;
+      if (tier === "FORMAL" || tier === "CANDIDATE" || tier === "ANALYSIS_PICK") {
         counts.pick += 1;
       } else {
         counts.low += 1;
