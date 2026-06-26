@@ -16,6 +16,15 @@ from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
+from w2.dashboard.performance import dashboard_performance
+from w2.dashboard.recommendations import build_recommendation
+from w2.dashboard.results import (
+    normalize_match_status,
+    result_from_dashboard_row,
+    result_from_provider_fixture,
+)
+from w2.dashboard.scorelines import scoreline_picks_from_card
+from w2.dashboard.validation import validate_recommendation
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -612,22 +621,19 @@ class ReadModelService:
         recommendations = [
             card
             for card in all_cards
-            if card.get("recommendation") is not None
-            or any(
-                str(market.get("decision")) == "PICK"
-                for market in card.get("market_strip", [])
-                if isinstance(market, dict)
-            )
+            if isinstance(card.get("recommendation"), dict)
+            and str(cast(dict[str, Any], card["recommendation"]).get("tier"))
+            in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
         ]
         upcoming = [
             card
             for card in all_cards
-            if str(card.get("status", "")).upper() not in {"FT", "AET", "PEN", "FINISHED"}
+            if str(card.get("status", "")).upper() != "FINISHED"
         ]
         finished = [
             card
             for card in all_cards
-            if str(card.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
+            if str(card.get("status", "")).upper() == "FINISHED"
         ]
         debug = self._dashboard_debug(
             counts=counts,
@@ -1653,7 +1659,7 @@ class ReadModelService:
         if not isinstance(scenarios, list):
             return []
         rows: list[dict[str, Any]] = []
-        for item in scenarios[:2]:
+        for item in scenarios[:3]:
             if not isinstance(item, dict):
                 continue
             scoreline = item.get("scoreline")
@@ -2127,6 +2133,16 @@ class ReadModelService:
             if isinstance(item, dict)
         ]
         picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
+        recommendation = build_recommendation(card, picked)
+        scoreline_picks = scoreline_picks_from_card(card)
+        result = result_from_dashboard_row(row)
+        validation = validate_recommendation(
+            fixture_id=fixture_id,
+            recommendation=recommendation,
+            result=result,
+            scoreline_picks=scoreline_picks,
+        )
+        raw_status = row.get("status")
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
@@ -2136,23 +2152,25 @@ class ReadModelService:
             "competition_name": card.get("competition_cn") or row.get("competition_name"),
             "home_team_name": card.get("home_cn") or row.get("home_team_name"),
             "away_team_name": card.get("away_cn") or row.get("away_team_name"),
-            "status": row.get("status") or "UNKNOWN",
-            "raw_status": row.get("status"),
+            "status": normalize_match_status(raw_status),
+            "raw_status": raw_status,
             "data_state": row.get("data_health") or row.get("data_state"),
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
-            "recommendation": self._recommendation_from_analysis_market(card, picked),
-            "scoreline_picks": self._scoreline_picks_from_card(card),
-            "result": None,
-            "validation": None,
+            "recommendation": recommendation,
+            "scoreline_picks": scoreline_picks,
+            "result": result,
+            "validation": validation,
             "current_odds": card.get("current_odds", {}),
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
-            "candidate": False,
-            "formal_recommendation": False,
+            "candidate": bool(recommendation.get("candidate")) if recommendation else False,
+            "formal_recommendation": bool(recommendation.get("formal_recommendation"))
+            if recommendation
+            else False,
         }
 
     def _recommendation_from_analysis_market(
@@ -2160,41 +2178,10 @@ class ReadModelService:
         card: dict[str, Any],
         market: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
-        if market is None:
-            return None
-        return {
-            "tier": "ANALYSIS_PICK",
-            "market": market.get("market"),
-            "market_label_cn": market.get("label_cn") or market.get("market"),
-            "selection": market.get("tendency") or market.get("lean"),
-            "selection_label_cn": market.get("lean_cn") or market.get("lean"),
-            "line": market.get("line"),
-            "odds": market.get("odds"),
-            "confidence": market.get("confidence", 0),
-            "reasons": market.get("reasons") or [market.get("reason_cn") or "多因素输入已纳入。"],
-            "risks": market.get("risks_cn") or card.get("risks_cn") or card.get("risks") or [],
-            "generated_at": card.get("generated_at"),
-            "locked_before_kickoff": False,
-            "is_live_line": False,
-            "candidate": False,
-            "formal_recommendation": False,
-        }
+        return build_recommendation(card, market)
 
     def _scoreline_picks_from_card(self, card: dict[str, Any]) -> list[dict[str, Any]]:
-        markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
-        score = next((item for item in markets if item.get("market") == "SCORE"), {})
-        references = score.get("reference_scores", []) if isinstance(score, dict) else []
-        if not isinstance(references, list):
-            return []
-        return [
-            {
-                "scoreline": str(item.get("scoreline")),
-                "probability": item.get("conditional_probability") or item.get("probability"),
-                "probability_label": item.get("probability_label"),
-            }
-            for item in references
-            if isinstance(item, dict) and item.get("scoreline")
-        ][:3]
+        return scoreline_picks_from_card(card)
 
     def _missing_inputs_from_analysis_card(self, card: dict[str, Any]) -> list[str]:
         readiness = card.get("data_readiness", {})
@@ -2212,34 +2199,7 @@ class ReadModelService:
         return missing
 
     def _dashboard_performance(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
-        recommendations = [card for card in cards if card.get("recommendation")]
-        confidence_values: list[float] = []
-        for card in recommendations:
-            reco = card.get("recommendation")
-            if isinstance(reco, dict):
-                confidence = reco.get("confidence")
-                if isinstance(confidence, int | float):
-                    confidence_values.append(float(confidence))
-        return {
-            "sample_size": 0,
-            "hit_count": 0,
-            "miss_count": 0,
-            "push_count": 0,
-            "void_count": 0,
-            "hit_rate": None,
-            "market_hit_rate": None,
-            "score_hit_rate": None,
-            "average_confidence": sum(confidence_values) / len(confidence_values)
-            if confidence_values
-            else None,
-            "today_count": len(cards),
-            "next36_count": len([card for card in cards if str(card.get("status")) != "FT"]),
-            "candidate_count": len(recommendations),
-            "finished_count": len([card for card in cards if str(card.get("status")) == "FT"]),
-            "data_health_status": "READ_ONLY",
-            "by_market": [],
-            "score_exact": {"sample_size": 0, "hit_count": 0, "hit_rate": None},
-        }
+        return dashboard_performance(cards)
 
     def _dashboard_debug(
         self,
@@ -2412,6 +2372,7 @@ class ReadModelService:
                 "WATCH" if fixture.get("status", {}).get("short") == "NS" else "DATA"
             ),
             "data_state": "CAPTURED_AT",
+            "_result": result_from_provider_fixture(item),
         }
 
     def _dashboard_fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
@@ -2439,6 +2400,7 @@ class ReadModelService:
             "primary_line": item.get("primary_line"),
             "primary_odds": self._optional_string(item.get("primary_executable_odds")),
             "last_captured": self._optional_datetime(item.get("captured_at")),
+            "_result": result_from_dashboard_row(item),
         }
 
     def _optional_string(self, value: Any) -> str | None:
@@ -2482,4 +2444,5 @@ class ReadModelService:
             "integrity_status": payload.get("integrity", {}).get("integrity_status"),
             "formal_recommendation": False,
             "candidate": False,
+            "_result": result_from_dashboard_row(fixture),
         }

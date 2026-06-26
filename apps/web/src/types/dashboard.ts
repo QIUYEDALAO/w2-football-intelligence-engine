@@ -167,6 +167,18 @@ export interface ValidationSummary {
   profit_units?: number;
   closing_line_value?: string;
   validation_notes?: string[];
+  tier?: RecommendationTier;
+  counted_in_official?: boolean;
+  counted_in_analysis_shadow?: boolean;
+}
+
+export interface PerformanceBucket {
+  sample_size: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
 }
 
 export interface DashboardMatchCard {
@@ -200,7 +212,11 @@ export interface DashboardMatchCard {
 export interface DashboardPerformance {
   today_count: number;
   next36_count: number;
+  formal_count?: number;
   candidate_count: number;
+  analysis_pick_count?: number;
+  watch_count?: number;
+  no_recommendation_count?: number;
   finished_count: number;
   average_confidence?: number;
   data_health_status: string;
@@ -212,6 +228,8 @@ export interface DashboardPerformance {
   hit_rate?: number | null;
   market_hit_rate?: number | null;
   score_hit_rate?: number | null;
+  official?: PerformanceBucket;
+  analysis_shadow?: PerformanceBucket;
   by_market: Array<{
     market: string;
     sample_size: number;

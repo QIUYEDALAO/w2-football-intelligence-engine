@@ -7,7 +7,7 @@ export function RecommendationBoard({ matches }: { matches: DashboardMatchCard[]
     <section className="dashboard-section">
       <div className="section-heading">
         <h2>Recommendation Board</h2>
-        <p>只展示正式、候选或有 PICK 市场的比赛；非 formal 一律标为候选/观察。</p>
+        <p>正式/候选只来自显式标记；analysis pick 单独作为分析倾向展示，不伪装成正式推荐。</p>
       </div>
       {matches.length ? (
         <div className="recommendation-grid">
@@ -16,7 +16,7 @@ export function RecommendationBoard({ matches }: { matches: DashboardMatchCard[]
           ))}
         </div>
       ) : (
-        <EmptySection title="暂无候选推荐" detail="系统会在盘口、xG、阵容和 as-of 条件满足后生成候选；当前比赛仍显示在未来赛程。" />
+        <EmptySection title="暂无正式/候选或分析倾向" detail="未来赛程仍保留展示；WATCH/SKIP 不计入命中率。" />
       )}
     </section>
   );
