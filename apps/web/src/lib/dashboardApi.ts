@@ -1,52 +1,25 @@
-import { todayShanghai, translateCompetition } from "./formatters";
-import { API_BASE, COMPETITION_ID } from "./labels";
-import {
-  asArray,
-  asRecord,
-  booleanValue,
-  cardPayload,
-  fixtureCompetition,
-  fixtureId,
-  fixtureKickoff,
-  fixtureTeamName,
-  isMarketPick,
-  leanLabel,
-  marketLabel,
-  marketList,
-  numberValue,
-  preferredMarket,
-  readinessItems,
-  readableReasons,
-  scoreRows,
-  textValue,
-} from "./normalize";
+import { API_BASE } from "./labels";
+import { asArray, asRecord, numberValue, textValue } from "./normalize";
 import type {
+  ApiVersion,
+  DashboardDebug,
   DashboardMatchCard,
   DashboardMode,
   DashboardPerformance,
   DashboardView,
   MatchResult,
   MatchStatus,
-  MarketAnalysis,
   RecommendationPick,
-  RecommendationTier,
-  ScorelinePick,
-  SettlementStatus,
+  ReleaseMeta,
+  ReleaseSyncState,
   ValidationSummary,
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const FIXTURE_LIMIT = 50;
-const POOL_LIMIT = 6;
 
 interface FetchDashboardArgs {
   date: string;
   mode: DashboardMode;
-}
-
-interface EndpointResult<T> {
-  value?: T;
-  error?: string;
 }
 
 async function getJSON(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
@@ -61,408 +34,234 @@ async function getJSON(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unk
   return response.json() as Promise<unknown>;
 }
 
-async function safeJSON<T>(url: string, label: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<EndpointResult<T>> {
-  try {
-    return { value: (await getJSON(url, timeoutMs)) as T };
-  } catch (error) {
-    return { error: `${label}: ${error instanceof Error ? error.message : "unknown error"}` };
-  }
+function explicitDemoMode(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("demo") === "1" || import.meta.env.VITE_DASHBOARD_DATA_MODE === "demo";
 }
 
-async function promisePool<T, R>(items: T[], worker: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = [];
-  let cursor = 0;
-  async function run() {
-    for (;;) {
-      const index = cursor;
-      cursor += 1;
-      if (index >= items.length) return;
-      results[index] = await worker(items[index]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(POOL_LIMIT, items.length) }, run));
-  return results;
+function shortSha(value: string): string {
+  return value && value !== "UNKNOWN" ? value.slice(0, 7) : "UNKNOWN";
 }
 
-export function fetchMatchday(date: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/matchday?date=${encodeURIComponent(date)}&competition_id=${COMPETITION_ID}`, "matchday");
-}
-
-export function fetchNext36Hours(): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/matchday/next-36-hours`, "next36");
-}
-
-export function fetchBacktestLatest(): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/backtests/latest`, "backtests");
-}
-
-export function fetchForwardHoldoutStatus(): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/forward-holdout/status`, "forward-holdout");
-}
-
-export function fetchFixtureAnalysis(fixtureIdValue: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/fixtures/${encodeURIComponent(fixtureIdValue)}/analysis-card`, `analysis-card:${fixtureIdValue}`, 60000);
-}
-
-export function fetchFixtureDetail(fixtureIdValue: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/fixtures/${encodeURIComponent(fixtureIdValue)}?timezone=Asia/Shanghai`, `fixture:${fixtureIdValue}`);
-}
-
-export function fetchFixtureMarketRanking(fixtureIdValue: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/fixtures/${encodeURIComponent(fixtureIdValue)}/market-ranking`, `market-ranking:${fixtureIdValue}`);
-}
-
-export function fetchFixtureModelProbabilities(fixtureIdValue: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/fixtures/${encodeURIComponent(fixtureIdValue)}/model-probabilities`, `model-probabilities:${fixtureIdValue}`);
-}
-
-export function fetchFixtureOddsTimeline(fixtureIdValue: string): Promise<EndpointResult<unknown>> {
-  return safeJSON(`${API_BASE}/fixtures/${encodeURIComponent(fixtureIdValue)}/odds-timeline`, `odds-timeline:${fixtureIdValue}`);
-}
-
-function payloadItems(payload: unknown): unknown[] {
-  return asArray(asRecord(payload).items ?? payload);
-}
-
-function fixtureFromMatchday(row: unknown): unknown {
-  const record = asRecord(row);
-  const fixture = asRecord(record.fixture);
-  return fixture.fixture_id ? fixture : row;
-}
-
-function fixtureKey(row: unknown): string {
-  const record = asRecord(row);
-  return textValue(record.fixture_id ?? asRecord(record.fixture).fixture_id ?? fixtureId(row));
-}
-
-function statusFromRaw(value: unknown): MatchStatus {
-  const raw = textValue(value).toUpperCase();
-  if (["NS", "TBD"].includes(raw)) return "UPCOMING";
-  if (["1H", "2H", "HT", "ET", "BT", "P", "LIVE"].includes(raw)) return "LIVE";
-  if (["FT", "AET", "PEN", "FINISHED"].includes(raw)) return "FINISHED";
-  if (["CANC", "CANCELLED"].includes(raw)) return "CANCELLED";
-  if (["PST", "POSTPONED"].includes(raw)) return "POSTPONED";
-  return raw ? "UNKNOWN" : "UPCOMING";
-}
-
-function fixtureStatus(row: unknown, detail: unknown): MatchStatus {
-  const source = asRecord(detail);
-  const fixtureStatusPayload = asRecord(asRecord(source.fixture).status);
-  const raw = source.status ?? fixtureStatusPayload.short ?? asRecord(row).status;
-  return statusFromRaw(raw);
-}
-
-function resultFromPayload(detail: unknown, status: MatchStatus): MatchResult | null {
-  const record = asRecord(detail);
-  const goals = asRecord(record.goals);
-  const fulltime = asRecord(asRecord(record.score).fulltime);
-  const home = numberValue(record.home_goals ?? goals.home ?? fulltime.home, Number.NaN);
-  const away = numberValue(record.away_goals ?? goals.away ?? fulltime.away, Number.NaN);
-  if (!Number.isFinite(home) || !Number.isFinite(away)) {
-    return status === "FINISHED" ? { status, result_source: "status_without_score" } : null;
-  }
+function normalizeMeta(payload: unknown): ReleaseMeta {
+  const record = asRecord(payload);
   return {
-    status,
-    home_goals: home,
-    away_goals: away,
-    final_score: `${home}-${away}`,
-    total_goals: home + away,
-    result_source: textValue(record.result_source, "read-model"),
-    settled_at: textValue(record.settled_at),
+    web_git_sha: textValue(record.web_git_sha, "UNKNOWN"),
+    web_build_time: textValue(record.web_build_time) || null,
+    release_id: textValue(record.release_id) || null,
+    data_mode: textValue(record.data_mode, "api"),
   };
 }
 
-function recommendationTier(card: unknown, market: MarketAnalysis | null): RecommendationTier {
-  const payload = asRecord(card);
-  if (booleanValue(payload.formal_recommendation)) return "FORMAL";
-  if (booleanValue(payload.candidate)) return "CANDIDATE";
-  if (market && isMarketPick(market)) return "CANDIDATE";
-  if (textValue(payload.decision) === "WATCH") return "WATCH";
-  return "NO_RECOMMENDATION";
-}
-
-function probabilityLabel(value: unknown): string | undefined {
-  const numeric = numberValue(value, Number.NaN);
-  if (!Number.isFinite(numeric)) return undefined;
-  const normalized = numeric > 1 ? numeric : numeric * 100;
-  return `${Math.round(normalized)}%`;
-}
-
-function parseScoreline(scoreline: string): { home: number; away: number } | null {
-  const match = scoreline.match(/^(\d+)\s*[-:]\s*(\d+)$/);
-  if (!match) return null;
-  return { home: Number(match[1]), away: Number(match[2]) };
-}
-
-function annotateScoreHit(pick: ScorelinePick, result: MatchResult | null): ScorelinePick {
-  if (!result || result.home_goals === undefined || result.away_goals === undefined) return pick;
-  const parsed = parseScoreline(pick.scoreline);
-  if (!parsed) return pick;
-  const pickDirection = Math.sign(parsed.home - parsed.away);
-  const actualDirection = Math.sign(result.home_goals - result.away_goals);
+function normalizeVersion(payload: unknown): ApiVersion {
+  const record = asRecord(payload);
   return {
-    ...pick,
-    hit: parsed.home === result.home_goals && parsed.away === result.away_goals,
-    direction_hit: pickDirection === actualDirection,
+    service: textValue(record.service),
+    environment: textValue(record.environment),
+    api_git_sha: textValue(record.api_git_sha, "UNKNOWN"),
+    api_build_time: textValue(record.api_build_time) || null,
+    release_id: textValue(record.release_id) || null,
+    data_profile: textValue(record.data_profile, "empty"),
+    data_source: textValue(record.data_source, "empty"),
+    database_ready: Boolean(record.database_ready),
+    read_model_fixture_count: numberValue(record.read_model_fixture_count),
+    matchday_card_count: numberValue(record.matchday_card_count),
+    result_event_count: numberValue(record.result_event_count),
+    generated_at: textValue(record.generated_at),
   };
 }
 
-function scorelinePicks(card: unknown, modelProbabilities: unknown, result: MatchResult | null): ScorelinePick[] {
-  const scoreMarket = marketList(cardPayload(card)).find((market) => market.market === "SCORE");
-  const fromCard = scoreMarket ? scoreRows(scoreMarket).map((row) => ({ scoreline: row.scoreline, probability_label: row.probability })) : [];
-  const probabilities = asRecord(modelProbabilities).probabilities;
-  const probabilityRows = Array.isArray(probabilities) ? probabilities.map((row) => asRecord(row)) : [];
-  const fromModel: ScorelinePick[] = probabilityRows
-    .map((row): ScorelinePick | null => {
-      const scoreline = textValue(row.scoreline ?? row.score);
-      if (!scoreline) return null;
+function normalizeDebug(payload: unknown): DashboardDebug {
+  const record = asRecord(payload);
+  return {
+    read_model_fixture_count: numberValue(record.read_model_fixture_count),
+    matchday_card_count: numberValue(record.matchday_card_count),
+    future_fixture_count: numberValue(record.future_fixture_count),
+    result_event_count: numberValue(record.result_event_count),
+    selected_date: textValue(record.selected_date),
+    selected_date_has_data: Boolean(record.selected_date_has_data),
+    next_available_date: textValue(record.next_available_date) || null,
+    empty_reason: textValue(record.empty_reason) || null,
+    suggested_actions: asArray(record.suggested_actions).map((item) => textValue(item)).filter(Boolean),
+  };
+}
+
+function normalizePerformance(payload: unknown): DashboardPerformance {
+  const record = asRecord(payload);
+  const scoreExact = asRecord(record.score_exact);
+  return {
+    today_count: numberValue(record.today_count),
+    next36_count: numberValue(record.next36_count),
+    candidate_count: numberValue(record.candidate_count),
+    finished_count: numberValue(record.finished_count),
+    average_confidence: typeof record.average_confidence === "number" ? record.average_confidence : undefined,
+    data_health_status: textValue(record.data_health_status, "READ_ONLY"),
+    sample_size: numberValue(record.sample_size),
+    hit_count: numberValue(record.hit_count),
+    miss_count: numberValue(record.miss_count),
+    push_count: numberValue(record.push_count),
+    void_count: numberValue(record.void_count),
+    hit_rate: typeof record.hit_rate === "number" ? record.hit_rate : null,
+    market_hit_rate: typeof record.market_hit_rate === "number" ? record.market_hit_rate : null,
+    score_hit_rate: typeof record.score_hit_rate === "number" ? record.score_hit_rate : null,
+    by_market: asArray(record.by_market).map((item) => {
+      const row = asRecord(item);
       return {
-        scoreline,
-        probability: numberValue(row.probability, Number.NaN),
-        probability_label: probabilityLabel(row.probability),
+        market: textValue(row.market, "市场"),
+        sample_size: numberValue(row.sample_size),
+        hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
       };
-    })
-    .filter((row): row is ScorelinePick => row !== null && Number.isFinite(row.probability ?? Number.NaN))
-    .slice(0, 3);
-  const source: ScorelinePick[] = fromCard.length ? fromCard : fromModel;
-  return source.slice(0, 3).map((pick) => annotateScoreHit(pick, result));
-}
-
-function currentOddsRecord(card: unknown, detail: unknown): Record<string, unknown> {
-  const payload = asRecord(cardPayload(card));
-  const detailRecord = asRecord(detail);
-  if (payload.current_odds) return asRecord(payload.current_odds);
-  if (detailRecord.primary_line || detailRecord.primary_executable_odds) {
-    return { ah: { line: detailRecord.primary_line, price: detailRecord.primary_executable_odds } };
-  }
-  return {};
-}
-
-function recommendationFromCard(card: unknown, detail: unknown): RecommendationPick | null {
-  const payload = cardPayload(card);
-  const market = preferredMarket(payload);
-  const tier = recommendationTier(payload, market);
-  if (tier === "NO_RECOMMENDATION") return null;
-  const detailRecord = asRecord(detail);
-  const reasons = readableReasons(market.reasons, market.reason ?? market.reason_cn);
-  const riskRows = asArray(market.risks_cn).length ? asArray(market.risks_cn) : asArray(market.risks);
-  return {
-    tier,
-    market: textValue(market.market, "UNKNOWN"),
-    market_label_cn: marketLabel(market),
-    selection: textValue(market.tendency ?? market.lean ?? market.lean_cn, "WATCH"),
-    selection_label_cn: leanLabel(market),
-    line: textValue(market.line ?? detailRecord.primary_line),
-    odds: textValue(market.odds ?? detailRecord.primary_executable_odds),
-    hong_kong_odds: textValue(detailRecord.primary_hong_kong_odds),
-    model_probability: numberValue(market.model_probability ?? market.confidence, Number.NaN),
-    fair_odds: textValue(market.fair_odds ?? detailRecord.primary_model_fair_odds),
-    risk_adjusted_ev: textValue(market.risk_adjusted_ev ?? detailRecord.primary_risk_adjusted_ev),
-    confidence: numberValue(market.confidence, 0),
-    reasons: reasons.length ? reasons : ["多因素输入仍在补齐，保持候选/观察口径。"],
-    risks: riskRows.map((row) => textValue(row)).filter(Boolean).slice(0, 2),
-    generated_at: textValue(asRecord(payload.temporal).valuation_generated_at ?? payload.generated_at),
-    locked_before_kickoff: booleanValue(asRecord(payload.temporal).locked_before_kickoff ?? detailRecord.temporal_status),
-    is_live_line: false,
-  };
-}
-
-function settleTotals(recommendation: RecommendationPick, result: MatchResult): SettlementStatus {
-  const line = numberValue(recommendation.line, Number.NaN);
-  if (!Number.isFinite(line) || result.total_goals === undefined) return "UNKNOWN";
-  const selection = `${recommendation.selection} ${recommendation.selection_label_cn ?? ""}`.toUpperCase();
-  if (result.total_goals === line) return "PUSH";
-  if (selection.includes("UNDER") || selection.includes("小")) return result.total_goals < line ? "HIT" : "MISS";
-  return result.total_goals > line ? "HIT" : "MISS";
-}
-
-function settleAsianHandicap(recommendation: RecommendationPick, result: MatchResult): SettlementStatus {
-  const line = numberValue(recommendation.line, Number.NaN);
-  if (!Number.isFinite(line) || result.home_goals === undefined || result.away_goals === undefined) return "UNKNOWN";
-  const selection = `${recommendation.selection} ${recommendation.selection_label_cn ?? ""}`.toUpperCase();
-  const isAway = selection.includes("AWAY") || selection.includes("客");
-  const margin = isAway ? result.away_goals - result.home_goals : result.home_goals - result.away_goals;
-  const adjusted = margin + line;
-  if (adjusted > 0) return "HIT";
-  if (adjusted < 0) return "MISS";
-  return "PUSH";
-}
-
-function settleScore(scorePicks: ScorelinePick[]): Pick<ValidationSummary, "score_exact_hit" | "score_direction_hit"> {
-  return {
-    score_exact_hit: scorePicks.some((pick) => pick.hit),
-    score_direction_hit: scorePicks.some((pick) => pick.direction_hit),
-  };
-}
-
-function validationFor(recommendation: RecommendationPick | null, result: MatchResult | null, scorePicks: ScorelinePick[]): ValidationSummary | null {
-  if (!recommendation) return result?.status === "FINISHED" ? { settlement: "NO_BET", validation_notes: ["无推荐，不计入命中率。"] } : null;
-  if (!result || result.status !== "FINISHED") return { settlement: "PENDING", validation_notes: ["等待完场比分。"] };
-  let settlement: SettlementStatus = "UNKNOWN";
-  if (recommendation.market === "TOTALS") settlement = settleTotals(recommendation, result);
-  if (recommendation.market === "ASIAN_HANDICAP") settlement = settleAsianHandicap(recommendation, result);
-  const odds = numberValue(recommendation.odds, Number.NaN);
-  const profit =
-    Number.isFinite(odds) && settlement === "HIT" ? odds - 1 : settlement === "MISS" ? -1 : settlement === "PUSH" ? 0 : undefined;
-  return {
-    settlement,
-    market_hit: settlement === "HIT",
-    total_goals_hit: recommendation.market === "TOTALS" ? settlement === "HIT" : undefined,
-    profit_units: profit,
-    closing_line_value: textValue(recommendation.risk_adjusted_ev),
-    validation_notes: [recommendation.locked_before_kickoff ? "LOCKED_BEFORE_KICKOFF" : "推荐锁状态待确认"],
-    ...settleScore(scorePicks),
-  };
-}
-
-function missingInputs(card: DashboardMatchCard): string[] {
-  return readinessItems({ data_readiness: card.data_readiness })
-    .filter((row) => !row.ready)
-    .map((row) => `缺${row.label}`);
-}
-
-function normalizeFixtureCard(row: unknown, analysis: unknown, detail: unknown, modelProbabilities: unknown, ranking: unknown, oddsTimeline: unknown): DashboardMatchCard {
-  const fixture = fixtureFromMatchday(row);
-  const payload = cardPayload(analysis);
-  const status = fixtureStatus(fixture, detail);
-  const result = resultFromPayload(detail, status);
-  const recommendation = recommendationFromCard(payload, detail);
-  const scores = scorelinePicks(payload, modelProbabilities, result);
-  const validation = validationFor(recommendation, result, scores);
-  const fixtureRecord = asRecord(fixture);
-  const id = fixtureKey(fixture) || textValue(payload.fixture_id, "unknown-fixture");
-  const card: DashboardMatchCard = {
-    fixture_id: id,
-    kickoff_utc: textValue(payload.kickoff_utc ?? fixtureRecord.kickoff_utc ?? fixtureKickoff(fixture)),
-    kickoff_beijing: textValue(fixtureRecord.kickoff_beijing),
-    operational_date_beijing: textValue(fixtureRecord.operational_date_beijing),
-    competition_id: textValue(fixtureRecord.competition_id),
-    competition_name: translateCompetition(payload.competition_cn ?? payload.competition_name ?? fixtureCompetition(fixture)),
-    home_team_name: textValue(payload.home_cn ?? payload.home_name ?? fixtureTeamName(fixture, "home"), "主队"),
-    away_team_name: textValue(payload.away_cn ?? payload.away_name ?? fixtureTeamName(fixture, "away"), "客队"),
-    status,
-    raw_status: textValue(fixtureRecord.status),
-    data_state: textValue(fixtureRecord.data_state),
-    lifecycle_state: textValue(fixtureRecord.lifecycle_state),
-    watch_level: numberValue(payload.watch_level ?? fixtureRecord.watch_level, 0),
-    data_readiness: asRecord(payload.data_readiness),
-    recommendation,
-    scoreline_picks: scores,
-    result,
-    validation,
-    current_odds: currentOddsRecord(payload, detail),
-    odds_movement: asRecord(payload.line_movement ?? { items: payloadItems(oddsTimeline) }),
-    market_strip: payloadItems(ranking).map((item) => asRecord(item)),
-    bookmaker_intent: asRecord(payload.bookmaker_intent),
-    missing_inputs: [],
-  };
-  return { ...card, missing_inputs: missingInputs(card) };
-}
-
-function dedupeFixtures(rows: unknown[]): unknown[] {
-  const seen = new Set<string>();
-  const deduped: unknown[] = [];
-  rows.forEach((row) => {
-    const key = fixtureKey(fixtureFromMatchday(row));
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    deduped.push(row);
-  });
-  return deduped;
-}
-
-function recommendationRank(card: DashboardMatchCard): number {
-  const tier = card.recommendation?.tier;
-  if (tier === "FORMAL") return 0;
-  if (tier === "CANDIDATE") return 1;
-  if (tier === "WATCH") return 2;
-  return 3;
-}
-
-function performance(all: DashboardMatchCard[], next36Count: number, backtests: unknown, holdout: unknown): DashboardPerformance {
-  const recommended = all.filter((card) => card.recommendation?.tier === "FORMAL" || card.recommendation?.tier === "CANDIDATE");
-  const settled = recommended.filter((card) => card.validation && ["HIT", "MISS", "PUSH", "VOID"].includes(card.validation.settlement));
-  const hits = settled.filter((card) => card.validation?.settlement === "HIT").length;
-  const misses = settled.filter((card) => card.validation?.settlement === "MISS").length;
-  const pushes = settled.filter((card) => card.validation?.settlement === "PUSH").length;
-  const voids = settled.filter((card) => card.validation?.settlement === "VOID").length;
-  const confidenceRows = recommended.map((card) => card.recommendation?.confidence ?? 0).filter((value) => value > 0);
-  const marketMap = new Map<string, { sample: number; hit: number }>();
-  settled.forEach((card) => {
-    const market = card.recommendation?.market_label_cn ?? card.recommendation?.market ?? "市场";
-    const current = marketMap.get(market) ?? { sample: 0, hit: 0 };
-    current.sample += 1;
-    if (card.validation?.settlement === "HIT") current.hit += 1;
-    marketMap.set(market, current);
-  });
-  const scoreSample = settled.filter((card) => card.scoreline_picks.length).length;
-  const scoreHit = settled.filter((card) => card.validation?.score_exact_hit).length;
-  return {
-    today_count: all.filter((card) => card.operational_date_beijing === todayShanghai() || card.status !== "FINISHED").length || all.length,
-    next36_count: next36Count,
-    candidate_count: recommended.length,
-    finished_count: all.filter((card) => card.status === "FINISHED").length,
-    average_confidence: confidenceRows.length ? confidenceRows.reduce((sum, value) => sum + value, 0) / confidenceRows.length : undefined,
-    data_health_status: textValue(asRecord(holdout).status ?? asRecord(backtests).status, "READ_ONLY"),
-    sample_size: settled.length,
-    hit_count: hits,
-    miss_count: misses,
-    push_count: pushes,
-    void_count: voids,
-    hit_rate: settled.length ? hits / settled.length : undefined,
-    by_market: Array.from(marketMap.entries()).map(([market, value]) => ({
-      market,
-      sample_size: value.sample,
-      hit_rate: value.sample ? value.hit / value.sample : undefined,
-    })),
+    }),
     score_exact: {
-      sample_size: scoreSample,
-      hit_count: scoreHit,
-      hit_rate: scoreSample ? scoreHit / scoreSample : undefined,
+      sample_size: numberValue(scoreExact.sample_size),
+      hit_count: numberValue(scoreExact.hit_count),
+      hit_rate: typeof scoreExact.hit_rate === "number" ? scoreExact.hit_rate : null,
     },
   };
 }
 
-export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {
-  const [todayResult, next36Result, backtestResult, holdoutResult] = await Promise.all([
-    fetchMatchday(date),
-    fetchNext36Hours(),
-    fetchBacktestLatest(),
-    fetchForwardHoldoutStatus(),
-  ]);
-  const errors = [todayResult.error, next36Result.error, backtestResult.error, holdoutResult.error].filter((error): error is string => Boolean(error));
-  const todayRows = payloadItems(todayResult.value);
-  const nextRows = payloadItems(next36Result.value);
-  const sourceRows = mode === "next36" ? nextRows : mode === "today" ? todayRows : [...todayRows, ...nextRows];
-  const rows = dedupeFixtures(sourceRows).slice(0, FIXTURE_LIMIT);
-  const enriched = await promisePool(rows, async (row) => {
-    const id = fixtureKey(fixtureFromMatchday(row));
-    if (!id) return normalizeFixtureCard(row, {}, {}, {}, {}, {});
-    const [analysis, detail, ranking, model, timeline] = await Promise.all([
-      fetchFixtureAnalysis(id),
-      fetchFixtureDetail(id),
-      fetchFixtureMarketRanking(id),
-      fetchFixtureModelProbabilities(id),
-      fetchFixtureOddsTimeline(id),
-    ]);
-    [analysis.error, detail.error, ranking.error, model.error, timeline.error].forEach((error) => {
-      if (error) errors.push(error);
-    });
-    return normalizeFixtureCard(row, analysis.value ?? {}, detail.value ?? row, model.value ?? {}, ranking.value ?? {}, timeline.value ?? {});
-  });
-  const recommendations = enriched
-    .filter((card) => card.recommendation?.tier === "FORMAL" || card.recommendation?.tier === "CANDIDATE")
-    .sort((left, right) => recommendationRank(left) - recommendationRank(right));
-  const upcoming = enriched.filter((card) => card.status === "UPCOMING" || card.status === "LIVE");
-  const finished = enriched.filter((card) => card.status === "FINISHED");
+function normalizeCard(payload: unknown): DashboardMatchCard {
+  const record = asRecord(payload);
+  return {
+    fixture_id: textValue(record.fixture_id, "unknown-fixture"),
+    kickoff_utc: textValue(record.kickoff_utc),
+    kickoff_beijing: textValue(record.kickoff_beijing),
+    operational_date_beijing: textValue(record.operational_date_beijing),
+    competition_id: textValue(record.competition_id),
+    competition_name: textValue(record.competition_name, "世界杯"),
+    home_team_name: textValue(record.home_team_name, "主队"),
+    away_team_name: textValue(record.away_team_name, "客队"),
+    status: textValue(record.status, "UPCOMING") as MatchStatus,
+    raw_status: textValue(record.raw_status),
+    data_state: textValue(record.data_state),
+    lifecycle_state: textValue(record.lifecycle_state),
+    watch_level: numberValue(record.watch_level),
+    data_readiness: asRecord(record.data_readiness),
+    recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
+    scoreline_picks: asArray(record.scoreline_picks).map((item) => asRecord(item)).map((row) => ({
+      scoreline: textValue(row.scoreline),
+      probability: typeof row.probability === "number" ? row.probability : undefined,
+      probability_label: textValue(row.probability_label),
+    })).filter((row) => row.scoreline),
+    result: record.result ? (asRecord(record.result) as unknown as MatchResult) : null,
+    validation: record.validation ? (asRecord(record.validation) as unknown as ValidationSummary) : null,
+    current_odds: asRecord(record.current_odds),
+    odds_movement: asRecord(record.odds_movement),
+    market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
+    bookmaker_intent: asRecord(record.bookmaker_intent),
+    missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
+  };
+}
+
+function normalizeRelease(meta: ReleaseMeta, version: ApiVersion, dashboard: Record<string, unknown>, demo: boolean): ReleaseSyncState {
+  const apiSha = textValue(asRecord(dashboard.version).api_git_sha, version.api_git_sha);
+  const webSha = meta.web_git_sha;
+  return {
+    web_git_sha: webSha,
+    api_git_sha: apiSha,
+    release_id: textValue(asRecord(dashboard.version).release_id, version.release_id ?? undefined),
+    data_profile: textValue(dashboard.data_profile, version.data_profile),
+    data_source: textValue(dashboard.data_source, version.data_source),
+    updated_at: textValue(dashboard.generated_at, new Date().toISOString()),
+    demo,
+    mismatch: shortSha(webSha) !== "UNKNOWN" && shortSha(apiSha) !== "UNKNOWN" && shortSha(webSha) !== shortSha(apiSha),
+  };
+}
+
+function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
+  const card: DashboardMatchCard = {
+    fixture_id: "demo-tur-usa",
+    kickoff_utc: `${date}T02:00:00Z`,
+    competition_name: "世界杯",
+    home_team_name: "Türkiye",
+    away_team_name: "USA",
+    status: "UPCOMING",
+    watch_level: 4,
+    data_readiness: { bookmakers: 12, odds_snapshots: 12, xg: false, h2h: false, lineups: false },
+    recommendation: {
+      tier: "ANALYSIS_PICK",
+      market: "TOTALS",
+      market_label_cn: "大小球",
+      selection: "OVER",
+      selection_label_cn: "大 3.5",
+      line: "3.5",
+      odds: "1.03",
+      confidence: 0.78,
+      reasons: ["DEMO DATA：盘口初盘到临场有变化，综合倾向大球。"],
+      risks: ["天气、红牌、阵容临场变化可能改变判断。"],
+    },
+    scoreline_picks: [],
+    result: null,
+    validation: null,
+    current_odds: { ah: { line: "-1.5", price: "7.5" }, ou: { line: "3.5", price: "1.03" } },
+    odds_movement: { ah_open: "-1.75", ah_current: "-1.5" },
+    market_strip: [
+      { market: "TOTALS", decision: "PICK", label_cn: "大小球", lean_cn: "大 3.5", confidence: 0.78 },
+      { market: "ASIAN_HANDICAP", decision: "SKIP", label_cn: "让球", lean_cn: "数据不足" },
+    ],
+    bookmaker_intent: { intent: "CONFLICTED", label_cn: "分歧较大", opening_line: "-1.75", current_line: "-1.5" },
+    missing_inputs: ["xG", "交锋", "首发"],
+  };
   return {
     date,
     generated_at: new Date().toISOString(),
-    performance: performance(enriched, nextRows.length, backtestResult.value, holdoutResult.value),
-    recommendations,
-    upcoming,
-    finished,
-    all: enriched,
-    errors,
+    data_profile: "demo",
+    data_source: "explicit-demo",
+    release: {
+      web_git_sha: meta.web_git_sha,
+      api_git_sha: "DEMO",
+      release_id: meta.release_id,
+      data_profile: "demo",
+      data_source: "explicit-demo",
+      updated_at: new Date().toISOString(),
+      demo: true,
+      mismatch: false,
+    },
+    debug: {
+      read_model_fixture_count: 0,
+      matchday_card_count: 0,
+      future_fixture_count: 0,
+      result_event_count: 0,
+      selected_date: date,
+      selected_date_has_data: true,
+      next_available_date: date,
+      empty_reason: null,
+      suggested_actions: [],
+    },
+    performance: normalizePerformance({ today_count: 1, next36_count: 1, candidate_count: 1, finished_count: 0, data_health_status: "DEMO" }),
+    recommendations: [card],
+    upcoming: [card],
+    finished: [],
+    all: [card],
+    errors: [],
+  };
+}
+
+export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {
+  const meta = normalizeMeta(await getJSON("/meta.json"));
+  if (explicitDemoMode()) {
+    return demoDashboard(date, meta);
+  }
+  const [versionPayload, dashboardPayload] = await Promise.all([
+    getJSON(`${API_BASE}/version`),
+    getJSON(`${API_BASE}/dashboard?date=${encodeURIComponent(date)}&window=${encodeURIComponent(mode)}&timezone=Asia%2FShanghai&include_debug=true`),
+  ]);
+  const version = normalizeVersion(versionPayload);
+  const dashboard = asRecord(dashboardPayload);
+  const release = normalizeRelease(meta, version, dashboard, false);
+  const all = asArray(dashboard.all).map(normalizeCard);
+  return {
+    date: textValue(dashboard.date, date),
+    generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
+    data_profile: release.data_profile,
+    data_source: release.data_source,
+    release,
+    debug: normalizeDebug(dashboard.debug),
+    performance: normalizePerformance(dashboard.performance),
+    recommendations: asArray(dashboard.recommendations).map(normalizeCard),
+    upcoming: asArray(dashboard.upcoming).map(normalizeCard),
+    finished: asArray(dashboard.finished).map(normalizeCard),
+    all,
+    errors: [],
   };
 }

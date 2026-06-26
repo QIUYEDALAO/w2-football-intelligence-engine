@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+from contextlib import suppress
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +60,7 @@ REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
+STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -99,6 +102,11 @@ def parse_provider_time(value: Any) -> datetime | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
     except ValueError:
         return None
+
+
+def release_env(name: str, default: str = "UNKNOWN") -> str:
+    value = os.getenv(name)
+    return value if value else default
 
 
 class ReadModelRepository:
@@ -269,6 +277,18 @@ class ReadModelRepository:
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
+
+    def staging_seed_dashboard(self) -> dict[str, Any] | None:
+        payload = load_json(STAGING_DASHBOARD_SEED, None)
+        return cast(dict[str, Any], payload) if isinstance(payload, dict) else None
+
+    def release_counts(self) -> dict[str, int]:
+        return {
+            "read_model_fixture_count": len(self.dashboard_latest_fixtures()),
+            "matchday_card_count": len(self.matchday_cards()),
+            "future_fixture_count": len(self.fixture_payloads()),
+            "result_event_count": len(self.result_events()),
+        }
 
     def world_cup_profile(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
@@ -481,6 +501,148 @@ class ReadModelService:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
+
+    def version(self) -> dict[str, Any]:
+        generated_at = datetime.now(UTC)
+        settings = get_settings()
+        database_ready = True
+        try:
+            counts = self.repository.release_counts()
+        except Exception:
+            database_ready = False
+            counts = {
+                "read_model_fixture_count": 0,
+                "matchday_card_count": 0,
+                "future_fixture_count": 0,
+                "result_event_count": 0,
+            }
+        data_profile = os.getenv("W2_DATA_PROFILE")
+        data_source = os.getenv("W2_DATA_SOURCE")
+        if not data_profile:
+            data_profile = (
+                "real-db"
+                if counts["matchday_card_count"] or counts["read_model_fixture_count"]
+                else "empty"
+            )
+        if not data_source:
+            data_source = "read-model-db" if data_profile == "real-db" else "empty"
+        return {
+            "service": "w2-football-intelligence-engine",
+            "environment": settings.environment.value,
+            "api_git_sha": release_env("W2_GIT_SHA"),
+            "api_build_time": os.getenv("W2_BUILD_TIME"),
+            "release_id": os.getenv("W2_RELEASE_ID") or release_env("W2_GIT_SHA"),
+            "data_profile": data_profile,
+            "data_source": data_source,
+            "database_ready": database_ready,
+            "read_model_fixture_count": counts["read_model_fixture_count"],
+            "matchday_card_count": counts["matchday_card_count"],
+            "result_event_count": counts["result_event_count"],
+            "generated_at": generated_at,
+        }
+
+    def dashboard(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+        include_debug: bool = True,
+    ) -> dict[str, Any]:
+        requested_date = (
+            date.fromisoformat(target_date)
+            if target_date
+            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+        )
+        version = self.version()
+        counts = self.repository.release_counts()
+        seed = self.repository.staging_seed_dashboard()
+        if (
+            not counts["read_model_fixture_count"]
+            and not counts["matchday_card_count"]
+            and seed
+        ):
+            return self._seed_dashboard_response(
+                seed,
+                requested_date=requested_date,
+                window=window,
+                timezone=timezone,
+                version=version,
+                counts=counts,
+                include_debug=include_debug,
+            )
+
+        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
+        next36_rows = self.matchday_next_36_hours().get("items", [])
+        result_rows = [
+            row
+            for row in self._all_matchday_rows()
+            if str(row.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
+        ]
+        selected_rows: list[dict[str, Any]]
+        if window == "next36":
+            selected_rows = cast(list[dict[str, Any]], next36_rows)
+        elif window == "results":
+            selected_rows = result_rows
+        elif window == "all":
+            selected_rows = self._dedupe_dashboard_rows(
+                [
+                    *cast(list[dict[str, Any]], today_rows),
+                    *cast(list[dict[str, Any]], next36_rows),
+                    *result_rows,
+                ]
+            )
+        else:
+            selected_rows = cast(list[dict[str, Any]], today_rows)
+
+        all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+        recommendations = [
+            card
+            for card in all_cards
+            if card.get("recommendation") is not None
+            or any(
+                str(market.get("decision")) == "PICK"
+                for market in card.get("market_strip", [])
+                if isinstance(market, dict)
+            )
+        ]
+        upcoming = [
+            card
+            for card in all_cards
+            if str(card.get("status", "")).upper() not in {"FT", "AET", "PEN", "FINISHED"}
+        ]
+        finished = [
+            card
+            for card in all_cards
+            if str(card.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
+        ]
+        debug = self._dashboard_debug(
+            counts=counts,
+            requested_date=requested_date,
+            selected_rows=selected_rows,
+            include=include_debug,
+        )
+        data_profile = str(version["data_profile"])
+        if not all_cards and data_profile == "real-db":
+            data_profile = "empty"
+        return {
+            "generated_at": datetime.now(UTC),
+            "date": requested_date.isoformat(),
+            "timezone": timezone,
+            "window": window,
+            "data_profile": data_profile,
+            "data_source": version["data_source"],
+            "version": {
+                "api_git_sha": version["api_git_sha"],
+                "release_id": version["release_id"],
+            },
+            "debug": debug,
+            "performance": self._dashboard_performance(all_cards),
+            "recommendations": recommendations,
+            "upcoming": upcoming,
+            "finished": finished,
+            "all": all_cards,
+        }
 
     def fixtures(
         self,
@@ -1859,6 +2021,246 @@ class ReadModelService:
 
     def w1_w2_shadow_comparison(self) -> dict[str, Any]:
         return self.repository.w1_w2_shadow_comparison()
+
+    def _all_matchday_rows(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for card in self.repository.matchday_cards():
+            with suppress(Exception):
+                rows.append(self._matchday_item(card))
+        return rows
+
+    def _dedupe_dashboard_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for row in rows:
+            fixture_id = str(row.get("fixture_id") or "")
+            if not fixture_id or fixture_id in seen:
+                continue
+            seen.add(fixture_id)
+            deduped.append(row)
+        return deduped
+
+    def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
+        fixture_id = str(row.get("fixture_id") or "")
+        analysis = self.analysis_card(fixture_id) if fixture_id else None
+        card = analysis or self._fallback_analysis_card(
+            fixture_id=fixture_id or "unknown-fixture",
+            market_coverage={},
+            source="dashboard_without_analysis_card",
+            fixture_context={
+                "kickoff_utc": row.get("kickoff_utc"),
+                "competition_name": row.get("competition_name"),
+                "competition_cn": row.get("competition_name"),
+                "home_name": row.get("home_team_name"),
+                "away_name": row.get("away_team_name"),
+                "home_cn": row.get("home_team_name"),
+                "away_cn": row.get("away_team_name"),
+            },
+        )
+        markets = [
+            item
+            for item in card.get("markets", [])
+            if isinstance(item, dict)
+        ]
+        picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
+        return {
+            "fixture_id": fixture_id,
+            "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
+            "kickoff_beijing": row.get("kickoff_beijing"),
+            "operational_date_beijing": row.get("operational_date_beijing"),
+            "competition_id": row.get("competition_id"),
+            "competition_name": card.get("competition_cn") or row.get("competition_name"),
+            "home_team_name": card.get("home_cn") or row.get("home_team_name"),
+            "away_team_name": card.get("away_cn") or row.get("away_team_name"),
+            "status": row.get("status") or "UNKNOWN",
+            "raw_status": row.get("status"),
+            "data_state": row.get("data_health") or row.get("data_state"),
+            "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
+            "watch_level": card.get("watch_level", 0),
+            "data_readiness": card.get("data_readiness", {}),
+            "recommendation": self._recommendation_from_analysis_market(card, picked),
+            "scoreline_picks": self._scoreline_picks_from_card(card),
+            "result": None,
+            "validation": None,
+            "current_odds": card.get("current_odds", {}),
+            "odds_movement": card.get("line_movement", {}),
+            "market_strip": markets,
+            "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "missing_inputs": self._missing_inputs_from_analysis_card(card),
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+    def _recommendation_from_analysis_market(
+        self,
+        card: dict[str, Any],
+        market: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if market is None:
+            return None
+        return {
+            "tier": "ANALYSIS_PICK",
+            "market": market.get("market"),
+            "market_label_cn": market.get("label_cn") or market.get("market"),
+            "selection": market.get("tendency") or market.get("lean"),
+            "selection_label_cn": market.get("lean_cn") or market.get("lean"),
+            "line": market.get("line"),
+            "odds": market.get("odds"),
+            "confidence": market.get("confidence", 0),
+            "reasons": market.get("reasons") or [market.get("reason_cn") or "多因素输入已纳入。"],
+            "risks": market.get("risks_cn") or card.get("risks_cn") or card.get("risks") or [],
+            "generated_at": card.get("generated_at"),
+            "locked_before_kickoff": False,
+            "is_live_line": False,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+    def _scoreline_picks_from_card(self, card: dict[str, Any]) -> list[dict[str, Any]]:
+        markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
+        score = next((item for item in markets if item.get("market") == "SCORE"), {})
+        references = score.get("reference_scores", []) if isinstance(score, dict) else []
+        if not isinstance(references, list):
+            return []
+        return [
+            {
+                "scoreline": str(item.get("scoreline")),
+                "probability": item.get("conditional_probability") or item.get("probability"),
+                "probability_label": item.get("probability_label"),
+            }
+            for item in references
+            if isinstance(item, dict) and item.get("scoreline")
+        ][:3]
+
+    def _missing_inputs_from_analysis_card(self, card: dict[str, Any]) -> list[str]:
+        readiness = card.get("data_readiness", {})
+        if not isinstance(readiness, dict):
+            return []
+        missing: list[str] = []
+        if not readiness.get("bookmakers") and not readiness.get("odds_snapshots"):
+            missing.append("盘口快照")
+        if not readiness.get("xg"):
+            missing.append("xG")
+        if not readiness.get("h2h"):
+            missing.append("交锋")
+        if not readiness.get("lineups"):
+            missing.append("首发")
+        return missing
+
+    def _dashboard_performance(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
+        recommendations = [card for card in cards if card.get("recommendation")]
+        confidence_values: list[float] = []
+        for card in recommendations:
+            reco = card.get("recommendation")
+            if isinstance(reco, dict):
+                confidence = reco.get("confidence")
+                if isinstance(confidence, int | float):
+                    confidence_values.append(float(confidence))
+        return {
+            "sample_size": 0,
+            "hit_count": 0,
+            "miss_count": 0,
+            "push_count": 0,
+            "void_count": 0,
+            "hit_rate": None,
+            "market_hit_rate": None,
+            "score_hit_rate": None,
+            "average_confidence": sum(confidence_values) / len(confidence_values)
+            if confidence_values
+            else None,
+            "today_count": len(cards),
+            "next36_count": len([card for card in cards if str(card.get("status")) != "FT"]),
+            "candidate_count": len(recommendations),
+            "finished_count": len([card for card in cards if str(card.get("status")) == "FT"]),
+            "data_health_status": "READ_ONLY",
+            "by_market": [],
+            "score_exact": {"sample_size": 0, "hit_count": 0, "hit_rate": None},
+        }
+
+    def _dashboard_debug(
+        self,
+        *,
+        counts: dict[str, int],
+        requested_date: date,
+        selected_rows: list[dict[str, Any]],
+        include: bool,
+    ) -> dict[str, Any]:
+        if not include:
+            return {}
+        next_available = self._next_available_date(requested_date)
+        empty_reason = None
+        if not any(counts.values()):
+            empty_reason = "READ_MODEL_EMPTY"
+        elif not selected_rows:
+            empty_reason = "SELECTED_DATE_EMPTY"
+        return {
+            **counts,
+            "selected_date": requested_date.isoformat(),
+            "selected_date_has_data": bool(selected_rows),
+            "next_available_date": next_available,
+            "empty_reason": empty_reason,
+            "suggested_actions": [
+                "run staging seed if this is a preview environment",
+                "check ingestion and future-refresh request audit",
+                "check read-model checkpoints",
+                "check selected dashboard date/window",
+            ],
+        }
+
+    def _next_available_date(self, requested_date: date) -> str | None:
+        dates: list[date] = []
+        for row in self._all_matchday_rows():
+            raw = row.get("operational_date_beijing")
+            try:
+                if raw:
+                    dates.append(date.fromisoformat(str(raw)))
+            except ValueError:
+                continue
+        future_dates = sorted(value for value in dates if value >= requested_date)
+        return future_dates[0].isoformat() if future_dates else None
+
+    def _seed_dashboard_response(
+        self,
+        seed: dict[str, Any],
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+        version: dict[str, Any],
+        counts: dict[str, int],
+        include_debug: bool,
+    ) -> dict[str, Any]:
+        cards = [
+            item
+            for item in seed.get("all", seed.get("upcoming", []))
+            if isinstance(item, dict)
+        ]
+        debug = {
+            **counts,
+            "selected_date": requested_date.isoformat(),
+            "selected_date_has_data": bool(cards),
+            "next_available_date": requested_date.isoformat() if cards else None,
+            "empty_reason": None if cards else "STAGING_SEED_EMPTY",
+            "suggested_actions": ["staging seed is active; run live ingestion for real data"],
+        } if include_debug else {}
+        return {
+            "generated_at": datetime.now(UTC),
+            "date": requested_date.isoformat(),
+            "timezone": timezone,
+            "window": window,
+            "data_profile": "staging-seed",
+            "data_source": "staging-json-fallback",
+            "version": {
+                "api_git_sha": version["api_git_sha"],
+                "release_id": version["release_id"],
+            },
+            "debug": debug,
+            "performance": self._dashboard_performance(cards),
+            "recommendations": [card for card in cards if card.get("recommendation")],
+            "upcoming": cards,
+            "finished": [],
+            "all": cards,
+        }
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         if "_dashboard" in item:

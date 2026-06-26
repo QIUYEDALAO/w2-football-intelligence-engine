@@ -501,6 +501,47 @@ button {
   padding-top: 22px;
 }
 
+.release-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.release-sync.is-mismatch {
+  border-color: rgba(255, 139, 139, 0.45);
+  background: var(--red-soft);
+  color: var(--text);
+}
+
+.release-sync strong {
+  color: var(--red);
+}
+
+.mode-badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+
+.mode-badge.demo {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.mode-badge.seed {
+  background: var(--blue-soft);
+  color: #8ec6ff;
+}
+
 .performance-header {
   border: 1px solid var(--border);
   border-radius: 24px;
@@ -854,6 +895,76 @@ button {
 .soft-errors {
   margin-top: 14px;
   border-color: rgba(226, 164, 58, 0.34);
+}
+
+.diagnostics-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+  box-shadow: var(--shadow);
+}
+
+.diagnostics-panel .eyebrow {
+  margin: 0 0 6px;
+  color: var(--amber);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.diagnostics-panel h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.diagnostics-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.diagnostics-grid div {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.diagnostics-grid dt {
+  color: var(--subtle);
+  font-size: 0.76rem;
+}
+
+.diagnostics-grid dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-actions {
+  color: var(--muted);
+}
+
+.diagnostics-actions strong {
+  color: var(--text);
+}
+
+.diagnostics-actions ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
 }
 
 .skeleton-card {

@@ -1,11 +1,11 @@
 import type { DashboardPerformance } from "../types/dashboard";
 
-function pct(value: number | undefined): string {
-  return value === undefined ? "样本不足" : `${Math.round(value * 100)}%`;
+function pct(value: number | null | undefined): string {
+  return value === undefined || value === null ? "样本不足" : `${Math.round(value * 100)}%`;
 }
 
-function confidence(value: number | undefined): string {
-  return value === undefined ? "样本不足" : `${Math.round(value * 100)}%`;
+function confidence(value: number | null | undefined): string {
+  return value === undefined || value === null ? "样本不足" : `${Math.round(value * 100)}%`;
 }
 
 export function PerformanceHeader({ performance }: { performance: DashboardPerformance }) {
