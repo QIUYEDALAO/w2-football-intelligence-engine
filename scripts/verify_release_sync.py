@@ -31,12 +31,12 @@ def get_json(base_url: str, path: str) -> dict[str, Any]:
     return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
 
-def get_text(base_url: str, path: str) -> str:
+def get_text(base_url: str, path: str, *, accept: str = "application/json") -> str:
     url = f"{base_url.rstrip('/')}{path}"
     scheme = urlparse(url).scheme
     if scheme not in {"http", "https"}:
         raise ValueError(f"unsupported URL scheme: {scheme}")
-    request = Request(url, headers={"Accept": "application/json"})  # noqa: S310 - scheme checked above
+    request = Request(url, headers={"Accept": accept})  # noqa: S310 - scheme checked above
     with urlopen(request, timeout=15) as response:  # noqa: S310 - scheme checked above
         return str(response.read().decode("utf-8", errors="replace"))
 
@@ -66,6 +66,7 @@ def main() -> int:
         parser.error("--base-url or --public-url is required")
     allow_empty_data = str(args.allow_empty_data).lower() in {"1", "true", "yes", "y"}
     try:
+        root = get_text(args.base_url, "/", accept="text/html")
         health = get_text(args.base_url, "/health")
         ready = get_text(args.base_url, "/ready")
         meta = get_json(args.base_url, "/meta.json")
@@ -93,6 +94,7 @@ def main() -> int:
         "matchday_card_count": debug.get("matchday_card_count"),
         "future_fixture_count": debug.get("future_fixture_count"),
         "empty_reason": debug.get("empty_reason"),
+        "public_root_routed_to_web": is_html_response(root),
         "public_health_routed_to_api": not is_html_response(health),
         "public_ready_routed_to_api": not is_html_response(ready),
     }
@@ -120,6 +122,8 @@ def main() -> int:
         and not debug.get("next_available_date")
     ):
         failures.append("empty dashboard has no next_available_date")
+    if not is_html_response(root):
+        failures.append("public / did not return dashboard HTML; check port 80/web ingress")
     if is_html_response(health):
         failures.append("public /health returned HTML; check nginx SPA fallback misroute")
     if is_html_response(ready):
