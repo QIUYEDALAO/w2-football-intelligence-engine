@@ -96,10 +96,24 @@ function normalizeDebug(payload: unknown): DashboardDebug {
 function normalizePerformance(payload: unknown): DashboardPerformance {
   const record = asRecord(payload);
   const scoreExact = asRecord(record.score_exact);
+  const official = asRecord(record.official);
+  const analysisShadow = asRecord(record.analysis_shadow);
+  const bucket = (row: Record<string, unknown>) => ({
+    sample_size: numberValue(row.sample_size),
+    hit_count: numberValue(row.hit_count),
+    miss_count: numberValue(row.miss_count),
+    push_count: numberValue(row.push_count),
+    void_count: numberValue(row.void_count),
+    hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+  });
   return {
     today_count: numberValue(record.today_count),
     next36_count: numberValue(record.next36_count),
+    formal_count: numberValue(record.formal_count),
     candidate_count: numberValue(record.candidate_count),
+    analysis_pick_count: numberValue(record.analysis_pick_count),
+    watch_count: numberValue(record.watch_count),
+    no_recommendation_count: numberValue(record.no_recommendation_count),
     finished_count: numberValue(record.finished_count),
     average_confidence: typeof record.average_confidence === "number" ? record.average_confidence : undefined,
     data_health_status: textValue(record.data_health_status, "READ_ONLY"),
@@ -111,6 +125,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
     hit_rate: typeof record.hit_rate === "number" ? record.hit_rate : null,
     market_hit_rate: typeof record.market_hit_rate === "number" ? record.market_hit_rate : null,
     score_hit_rate: typeof record.score_hit_rate === "number" ? record.score_hit_rate : null,
+    official: bucket(official),
+    analysis_shadow: bucket(analysisShadow),
     by_market: asArray(record.by_market).map((item) => {
       const row = asRecord(item);
       return {
@@ -235,7 +251,7 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
       empty_reason: null,
       suggested_actions: [],
     },
-    performance: normalizePerformance({ today_count: 1, next36_count: 1, candidate_count: 1, finished_count: 0, data_health_status: "DEMO" }),
+    performance: normalizePerformance({ today_count: 1, next36_count: 1, candidate_count: 0, analysis_pick_count: 1, finished_count: 0, data_health_status: "DEMO" }),
     recommendations: [card],
     upcoming: [card],
     finished: [],
