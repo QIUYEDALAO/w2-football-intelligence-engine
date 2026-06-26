@@ -1165,14 +1165,10 @@ class ReadModelService:
             "ASIAN_HANDICAP": self._select_mainline_observations(
                 observations,
                 market="ASIAN_HANDICAP",
-                target=Decimal("0"),
-                max_distance=Decimal("0.5"),
             ),
             "TOTALS": self._select_mainline_observations(
                 observations,
                 market="TOTALS",
-                target=Decimal("2.5"),
-                max_distance=Decimal("0.5"),
             ),
         }
 
@@ -1181,8 +1177,6 @@ class ReadModelService:
         observations: list[dict[str, Any]],
         *,
         market: str,
-        target: Decimal,
-        max_distance: Decimal,
         min_bookmakers: int = 1,
     ) -> dict[str, Any]:
         grouped: dict[Decimal, list[dict[str, Any]]] = {}
@@ -1196,7 +1190,7 @@ class ReadModelService:
             line = self._decimal_line(row)
             if line is None:
                 continue
-            grouped.setdefault(line, []).append(row)
+            grouped.setdefault(self._mainline_group_key(market, line), []).append(row)
         if not grouped:
             return {
                 "market": market,
@@ -1205,8 +1199,15 @@ class ReadModelService:
                 "observations": [],
                 "bookmaker_count": 0,
             }
-        candidates: list[tuple[Decimal, int, str, Decimal, list[dict[str, Any]]]] = []
+        candidates: list[
+            tuple[Decimal, Decimal, int, str, Decimal, list[dict[str, Any]], dict[str, Any]]
+        ] = []
+        paired_lines = 0
         for line, rows in grouped.items():
+            side_state = self._line_side_state(market, rows)
+            if not side_state:
+                continue
+            paired_lines += 1
             bookmaker_count = len(
                 {
                     str(row.get("bookmaker_id") or row.get("bookmaker_name"))
@@ -1216,14 +1217,33 @@ class ReadModelService:
             )
             if bookmaker_count < min_bookmakers:
                 continue
-            distance = abs(line - target)
-            if distance > max_distance:
-                continue
             latest_capture = max((str(row.get("captured_at") or "") for row in rows), default="")
-            candidates.append((distance, -bookmaker_count, latest_capture, line, rows))
+            balance_gap = Decimal(str(side_state["balance_gap"]))
+            mid_distance = Decimal(str(abs(float(side_state["mid_price"]) - 1.9)))
+            min_side_price = Decimal(str(side_state["min_price"]))
+            if balance_gap > Decimal("0.90") or min_side_price < Decimal("1.40"):
+                continue
+            candidates.append(
+                (
+                    balance_gap,
+                    mid_distance,
+                    -bookmaker_count,
+                    latest_capture,
+                    line,
+                    rows,
+                    side_state,
+                )
+            )
         if not candidates:
-            closest_line = min(grouped, key=lambda line: abs(line - target))
+            closest_line = min(
+                grouped,
+                key=lambda line: self._closest_unbalanced_score(
+                    market,
+                    grouped[line],
+                ),
+            )
             closest_rows = grouped[closest_line]
+            side_state = self._line_side_state(market, closest_rows) or {}
             bookmaker_count = len(
                 {
                     str(row.get("bookmaker_id") or row.get("bookmaker_name"))
@@ -1233,18 +1253,20 @@ class ReadModelService:
             )
             return {
                 "market": market,
-                "status": "EXTREME_LINE_ONLY",
+                "status": "NO_BALANCED_MAINLINE" if paired_lines else "UNAVAILABLE",
                 "line": self._format_decimal_line(closest_line),
                 "observations": closest_rows,
                 "bookmaker_count": bookmaker_count,
+                **side_state,
             }
-        _distance, bookmaker_count_key, _latest, line, rows = min(candidates)
+        _gap, _mid_distance, bookmaker_count_key, _latest, line, rows, side_state = min(candidates)
         return {
             "market": market,
             "status": "READY",
             "line": self._format_decimal_line(line),
             "observations": rows,
             "bookmaker_count": -bookmaker_count_key,
+            **side_state,
         }
 
     def _apply_mainline_market_selection(
@@ -1266,15 +1288,166 @@ class ReadModelService:
             market["line_status"] = status
             market["bookmaker_count"] = int(resolved.get("bookmaker_count") or 0)
             if status == "READY":
-                market["line"] = resolved.get("line")
+                side = self._market_tendency_side(market_name, market)
+                side_line = self._side_line(resolved, side)
+                side_price = self._side_price(resolved, side)
+                market["line"] = side_line or resolved.get("line")
+                market["balanced_line"] = resolved.get("line")
+                market["balanced_prices"] = resolved.get("side_prices", {})
+                if side_price is not None:
+                    market["odds"] = side_price
+                should_downgrade_to_watch = (
+                    str(market.get("decision") or "") != "SKIP"
+                    and (
+                        (side_price is not None and float(side_price) < 1.40)
+                        or float(market.get("confidence") or 0.0) < 0.50
+                    )
+                )
+                if should_downgrade_to_watch:
+                    market["decision"] = "WATCH"
+                    market["tendency"] = None
+                    market["confidence"] = min(float(market.get("confidence") or 0.0), 0.49)
+                    market["reasons"] = ["跟随市场 · 无独立优势 · 仅参考"]
+                    market["risks"] = ["低赔率或信号不足时不作为主看。"]
                 continue
-            if status == "EXTREME_LINE_ONLY":
+            if status in {"EXTREME_LINE_ONLY", "NO_BALANCED_MAINLINE", "UNAVAILABLE"}:
                 market["decision"] = "SKIP"
                 market["tendency"] = None
                 market["confidence"] = 0.0
                 market["line"] = resolved.get("line")
-                market["reasons"] = ["仅极端盘，参考价值低"]
+                market["balanced_line"] = resolved.get("line")
+                market["balanced_prices"] = resolved.get("side_prices", {})
+                market["reasons"] = ["无有效主盘"]
                 market["risks"] = ["主盘口缺失时保持 SKIP。"]
+        self._refresh_analysis_card_decision(payload)
+
+    def _refresh_analysis_card_decision(self, payload: dict[str, Any]) -> None:
+        markets = payload.get("markets")
+        if not isinstance(markets, list):
+            return
+        decisions = {
+            str(market.get("decision") or "")
+            for market in markets
+            if isinstance(market, dict)
+        }
+        if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
+            payload["decision"] = "ANALYSIS_PICK"
+        elif "WATCH" in decisions:
+            payload["decision"] = "WATCH"
+        else:
+            payload["decision"] = "SKIP"
+
+    def _mainline_group_key(self, market: str, line: Decimal) -> Decimal:
+        if market == "ASIAN_HANDICAP":
+            return abs(line)
+        return line
+
+    def _line_side_state(self, market: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+        latest_by_side_bookmaker: dict[tuple[str, str], dict[str, Any]] = {}
+        for row in rows:
+            side = self._observation_side(market, row)
+            if side is None:
+                continue
+            bookmaker = str(row.get("bookmaker_id") or row.get("bookmaker_name") or "")
+            if not bookmaker:
+                continue
+            key = (side, bookmaker)
+            current = latest_by_side_bookmaker.get(key)
+            if current is None or str(row.get("captured_at") or "") > str(
+                current.get("captured_at") or "",
+            ):
+                latest_by_side_bookmaker[key] = row
+        side_names = ("HOME", "AWAY") if market == "ASIAN_HANDICAP" else ("OVER", "UNDER")
+        side_rows: dict[str, list[dict[str, Any]]] = {
+            side: [
+                row
+                for (row_side, _bookmaker), row in latest_by_side_bookmaker.items()
+                if row_side == side
+            ]
+            for side in side_names
+        }
+        if not all(side_rows.values()):
+            return None
+        prices: dict[str, float] = {}
+        lines: dict[str, str] = {}
+        for side, current_rows in side_rows.items():
+            side_prices: list[float] = []
+            for row in current_rows:
+                try:
+                    price = float(row["decimal_odds"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if price > 1:
+                    side_prices.append(price)
+            if not side_prices:
+                return None
+            prices[side.lower()] = round(sum(side_prices) / len(side_prices), 4)
+            latest = max(current_rows, key=lambda row: str(row.get("captured_at") or ""))
+            lines[side.lower()] = self._line_value(latest) or ""
+        values = list(prices.values())
+        return {
+            "side_prices": prices,
+            "side_lines": lines,
+            "balance_gap": round(abs(values[0] - values[1]), 4),
+            "mid_price": round(sum(values) / len(values), 4),
+            "min_price": round(min(values), 4),
+        }
+
+    def _closest_unbalanced_score(
+        self,
+        market: str,
+        rows: list[dict[str, Any]],
+    ) -> tuple[int, float]:
+        state = self._line_side_state(market, rows)
+        if not state:
+            return (1, 999.0)
+        return (0, float(state.get("balance_gap") or 999.0))
+
+    def _observation_side(self, market: str, row: dict[str, Any]) -> str | None:
+        selection = str(row.get("selection") or "").lower()
+        if market == "ASIAN_HANDICAP":
+            if "home" in selection:
+                return "HOME"
+            if "away" in selection:
+                return "AWAY"
+            return None
+        if market == "TOTALS":
+            if "over" in selection:
+                return "OVER"
+            if "under" in selection:
+                return "UNDER"
+        return None
+
+    def _market_tendency_side(self, market: str, row: dict[str, Any]) -> str | None:
+        tendency = str(row.get("tendency") or "")
+        if market == "ASIAN_HANDICAP":
+            if tendency == "HOME_AH":
+                return "home"
+            if tendency == "AWAY_AH":
+                return "away"
+        if market == "TOTALS":
+            if tendency == "OVER":
+                return "over"
+            if tendency == "UNDER":
+                return "under"
+        return None
+
+    def _side_price(self, selection: dict[str, Any], side: str | None) -> str | None:
+        if side is None:
+            return None
+        prices = selection.get("side_prices")
+        if not isinstance(prices, dict) or prices.get(side) is None:
+            return None
+        return str(prices[side])
+
+    def _side_line(self, selection: dict[str, Any], side: str | None) -> str | None:
+        if side is None:
+            return None
+        lines = selection.get("side_lines")
+        if not isinstance(lines, dict):
+            return None
+        line = lines.get(side)
+        return str(line) if line not in {None, ""} else None
 
     def _team_xg_feature_snapshot(
         self,
@@ -1437,7 +1610,7 @@ class ReadModelService:
             if not ordered:
                 continue
             current = ordered[-1]
-            odds_entry = self._odds_entry(current)
+            odds_entry = self._balanced_odds_entry(selected)
             if odds_entry:
                 current_odds[key] = odds_entry
             first_line = self._line_value(ordered[0])
@@ -1703,6 +1876,32 @@ class ReadModelService:
         except (TypeError, ValueError):
             return None
         return {"line": line, "price": decimal_price}
+
+    def _balanced_odds_entry(self, selection: dict[str, Any]) -> dict[str, Any] | None:
+        line = selection.get("line")
+        if line is None:
+            return None
+        entry: dict[str, Any] = {"line": str(line)}
+        side_prices = selection.get("side_prices")
+        if isinstance(side_prices, dict):
+            for key, value in side_prices.items():
+                try:
+                    entry[f"{key}_price"] = round(float(value), 4)
+                except (TypeError, ValueError):
+                    continue
+        side_lines = selection.get("side_lines")
+        if isinstance(side_lines, dict):
+            for key, value in side_lines.items():
+                if value not in {None, ""}:
+                    entry[f"{key}_line"] = str(value)
+        prices = [
+            float(value)
+            for key, value in entry.items()
+            if key.endswith("_price") and isinstance(value, int | float)
+        ]
+        if prices:
+            entry["price"] = round(sum(prices) / len(prices), 4)
+        return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:
         line = row.get("line")
@@ -2079,7 +2278,12 @@ class ReadModelService:
         market_name = str(market.get("market") or "UNKNOWN")
         original_decision = str(market.get("decision") or "SKIP")
         market["analysis_decision"] = original_decision
-        market["decision"] = "SKIP" if original_decision == "SKIP" else "PICK"
+        if original_decision == "SKIP":
+            market["decision"] = "SKIP"
+        elif original_decision == "WATCH":
+            market["decision"] = "WATCH"
+        else:
+            market["decision"] = "PICK"
         market["label_cn"] = MARKET_LABELS_CN.get(market_name, market_name)
         market["lean_cn"] = self._lean_cn(market)
         market["reason_cn"] = self._reason_cn(market)

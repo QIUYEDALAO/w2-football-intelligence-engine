@@ -257,10 +257,25 @@ export function currentOdds(card: DashboardCard): string[] {
   const ou = asRecord(odds.ou);
   const rows: string[] = [];
   if (Object.keys(ah).length) {
-    rows.push(`让球 ${textValue(ah.line, "-")} @${textValue(ah.price, "-")}`);
+    const homePrice = textValue(ah.home_price);
+    const awayPrice = textValue(ah.away_price);
+    if (homePrice || awayPrice) {
+      const homeLine = textValue(ah.home_line, textValue(ah.line, "-"));
+      const awayLine = textValue(ah.away_line, textValue(ah.line, "-"));
+      rows.push(`让球 主${homeLine} @${homePrice || "-"} / 客${awayLine} @${awayPrice || "-"}`);
+    } else {
+      rows.push(`让球 ${textValue(ah.line, "-")} @${textValue(ah.price, "-")}`);
+    }
   }
   if (Object.keys(ou).length) {
-    rows.push(`大小球 ${textValue(ou.line, "-")} @${textValue(ou.price, "-")}`);
+    const overPrice = textValue(ou.over_price);
+    const underPrice = textValue(ou.under_price);
+    if (overPrice || underPrice) {
+      const line = textValue(ou.line, "-");
+      rows.push(`大小球 大${line} @${overPrice || "-"} / 小${line} @${underPrice || "-"}`);
+    } else {
+      rows.push(`大小球 ${textValue(ou.line, "-")} @${textValue(ou.price, "-")}`);
+    }
   }
   return rows;
 }
