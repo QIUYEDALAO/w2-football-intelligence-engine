@@ -5,7 +5,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -28,7 +28,22 @@ def get_json(base_url: str, path: str) -> dict[str, Any]:
     request = Request(url, headers={"Accept": "application/json"})  # noqa: S310 - scheme checked above
     with urlopen(request, timeout=15) as response:  # noqa: S310 - scheme checked above
         payload = json.loads(response.read().decode("utf-8"))
-    return payload if isinstance(payload, dict) else {}
+    return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
+
+
+def get_text(base_url: str, path: str) -> str:
+    url = f"{base_url.rstrip('/')}{path}"
+    scheme = urlparse(url).scheme
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"unsupported URL scheme: {scheme}")
+    request = Request(url, headers={"Accept": "application/json"})  # noqa: S310 - scheme checked above
+    with urlopen(request, timeout=15) as response:  # noqa: S310 - scheme checked above
+        return str(response.read().decode("utf-8", errors="replace"))
+
+
+def is_html_response(payload: str) -> bool:
+    stripped = payload.lstrip().lower()
+    return stripped.startswith("<!doctype html") or stripped.startswith("<html")
 
 
 def sha_matches(expected: str, actual: str) -> bool:
@@ -39,20 +54,34 @@ def sha_matches(expected: str, actual: str) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify W2 web/API/data release sync.")
-    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--base-url")
+    parser.add_argument("--public-url", dest="base_url")
     parser.add_argument("--expected-sha", default=git_sha())
     parser.add_argument("--min-fixtures", type=int, default=0)
-    parser.add_argument("--allow-empty-data", action="store_true")
+    parser.add_argument("--allow-empty-data", nargs="?", const="true", default="false")
+    parser.add_argument("--require-future-fixtures-visible", action="store_true")
+    parser.add_argument("--require-next-available-date-if-empty", action="store_true")
     args = parser.parse_args()
+    if not args.base_url:
+        parser.error("--base-url or --public-url is required")
+    allow_empty_data = str(args.allow_empty_data).lower() in {"1", "true", "yes", "y"}
     try:
+        health = get_text(args.base_url, "/health")
+        ready = get_text(args.base_url, "/ready")
         meta = get_json(args.base_url, "/meta.json")
         version = get_json(args.base_url, "/v1/version")
         dashboard = get_json(args.base_url, "/v1/dashboard?window=next36&include_debug=true")
     except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
         print(f"release sync check failed: {exc}", file=sys.stderr)
         return 2
-    debug = dashboard.get("debug") if isinstance(dashboard.get("debug"), dict) else {}
-    all_rows = dashboard.get("all") if isinstance(dashboard.get("all"), list) else []
+    debug = (
+        cast(dict[str, Any], dashboard.get("debug"))
+        if isinstance(dashboard.get("debug"), dict)
+        else {}
+    )
+    all_rows = (
+        cast(list[Any], dashboard.get("all")) if isinstance(dashboard.get("all"), list) else []
+    )
     checks = {
         "local_expected_sha": args.expected_sha,
         "web_git_sha": meta.get("web_git_sha", "UNKNOWN"),
@@ -64,6 +93,8 @@ def main() -> int:
         "matchday_card_count": debug.get("matchday_card_count"),
         "future_fixture_count": debug.get("future_fixture_count"),
         "empty_reason": debug.get("empty_reason"),
+        "public_health_routed_to_api": not is_html_response(health),
+        "public_ready_routed_to_api": not is_html_response(ready),
     }
     print(json.dumps(checks, ensure_ascii=False, indent=2))
     failures: list[str] = []
@@ -79,8 +110,20 @@ def main() -> int:
             )
     if len(all_rows) < args.min_fixtures:
         failures.append("dashboard fixture count below minimum")
-    if not args.allow_empty_data and dashboard.get("data_profile") == "empty":
+    if not allow_empty_data and dashboard.get("data_profile") == "empty":
         failures.append("dashboard data is empty")
+    if args.require_future_fixtures_visible and int(debug.get("future_fixture_count") or 0) <= 0:
+        failures.append("future fixtures are not visible")
+    if (
+        args.require_next_available_date_if_empty
+        and not all_rows
+        and not debug.get("next_available_date")
+    ):
+        failures.append("empty dashboard has no next_available_date")
+    if is_html_response(health):
+        failures.append("public /health returned HTML; check nginx SPA fallback misroute")
+    if is_html_response(ready):
+        failures.append("public /ready returned HTML; check nginx SPA fallback misroute")
     if failures:
         print("FAILED: " + "; ".join(failures), file=sys.stderr)
         return 1

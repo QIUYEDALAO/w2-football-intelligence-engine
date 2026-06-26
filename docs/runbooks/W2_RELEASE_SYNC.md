@@ -17,6 +17,8 @@ The local `HEAD` must match the expected GitHub branch SHA before deployment.
 ## Runtime endpoints
 
 ```bash
+curl -s http://43.155.208.138/health | jq .
+curl -s http://43.155.208.138/ready | jq .
 curl -s http://43.155.208.138/meta.json | jq .
 curl -s http://43.155.208.138/v1/version | jq .
 curl -s 'http://43.155.208.138/v1/dashboard?window=today&include_debug=true' | jq .
@@ -25,11 +27,13 @@ curl -s 'http://43.155.208.138/v1/dashboard?window=next36&include_debug=true' | 
 
 Expected fields:
 
+- `/health` and `/ready`: API JSON, not the Web SPA `index.html`.
 - `/meta.json`: `web_git_sha`, `web_build_time`, `release_id`, `data_mode`.
 - `/v1/version`: `api_git_sha`, `api_build_time`, `release_id`, `data_profile`, `data_source`, data counts.
 - `/v1/dashboard`: `data_profile`, `data_source`, `debug.empty_reason`, `debug.*_count`, `recommendations`, `upcoming`, `finished`, `all`.
 
 If Web SHA and API SHA differ, the page must show a red mismatch warning.
+If `/health` or `/ready` returns HTML, fix the Web nginx config so exact health routes proxy to the API before the SPA fallback.
 
 ## Automated verification
 
