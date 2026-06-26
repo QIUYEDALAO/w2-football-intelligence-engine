@@ -133,6 +133,18 @@ class FakeDbRepository:
             },
         ]
 
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for team_id in ("10", "20"):
+            for index in range(5):
+                rows.append(
+                    {
+                        "team_id": team_id,
+                        "kickoff_at": (NOW - timedelta(days=10 - index)).isoformat(),
+                    }
+                )
+        return rows
+
 
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
     monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
@@ -152,6 +164,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "bookmakers": 2,
         "odds_snapshots": 2,
         "xg": True,
+        "xg_status": "READY",
+        "xg_home_match_count": 5,
+        "xg_away_match_count": 5,
+        "xg_snapshot_count": 2,
         "h2h": False,
         "lineups": True,
         "lineups_status": "READY",
