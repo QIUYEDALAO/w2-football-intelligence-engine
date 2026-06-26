@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Engine, desc, select
+from sqlalchemy import Engine, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -125,6 +125,60 @@ class FutureRefreshDbRepository:
                     )
                 )
             )
+        return self._latest_observation_dicts(rows)
+
+    def latest_market_observations_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return []
+        partition = (
+            FutureMarketObservationModel.fixture_id,
+            FutureMarketObservationModel.canonical_market,
+            FutureMarketObservationModel.bookmaker_id,
+            FutureMarketObservationModel.selection,
+            FutureMarketObservationModel.line,
+        )
+        ranked = (
+            select(
+                FutureMarketObservationModel.observation_id.label("observation_id"),
+                func.row_number()
+                .over(
+                    partition_by=partition,
+                    order_by=FutureMarketObservationModel.captured_at.desc(),
+                )
+                .label("rank"),
+            )
+            .where(FutureMarketObservationModel.fixture_id.in_(ids))
+            .subquery()
+        )
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(FutureMarketObservationModel)
+                    .join(
+                        ranked,
+                        FutureMarketObservationModel.observation_id
+                        == ranked.c.observation_id,
+                    )
+                    .where(ranked.c.rank == 1)
+                    .order_by(
+                        FutureMarketObservationModel.fixture_id,
+                        FutureMarketObservationModel.captured_at,
+                        FutureMarketObservationModel.canonical_market,
+                        FutureMarketObservationModel.bookmaker_id,
+                        FutureMarketObservationModel.selection,
+                    )
+                )
+            )
+        return self._latest_observation_dicts(rows)
+
+    def _latest_observation_dicts(
+        self,
+        rows: list[FutureMarketObservationModel],
+    ) -> list[dict[str, Any]]:
         latest: dict[tuple[str, str, str, str, str | None], dict[str, Any]] = {}
         for model in rows:
             row = self._observation_dict(model)

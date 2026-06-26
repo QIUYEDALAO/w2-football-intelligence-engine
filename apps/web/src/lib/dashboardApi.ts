@@ -114,6 +114,13 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
     analysis_pick_count: numberValue(record.analysis_pick_count),
     watch_count: numberValue(record.watch_count),
     no_recommendation_count: numberValue(record.no_recommendation_count),
+    analysis_ready_count: numberValue(record.analysis_ready_count),
+    analysis_partial_count: numberValue(record.analysis_partial_count),
+    analysis_blocked_count: numberValue(record.analysis_blocked_count),
+    analysis_unknown_count: numberValue(record.analysis_unknown_count),
+    analysis_actionable_count: numberValue(record.analysis_actionable_count),
+    analysis_readiness_rate: typeof record.analysis_readiness_rate === "number" ? record.analysis_readiness_rate : null,
+    analysis_blocker_distribution: asRecord(record.analysis_blocker_distribution) as Record<string, number>,
     finished_count: numberValue(record.finished_count),
     average_confidence: typeof record.average_confidence === "number" ? record.average_confidence : undefined,
     data_health_status: textValue(record.data_health_status, "READ_ONLY"),
@@ -143,6 +150,27 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   };
 }
 
+function normalizeAnalysisReadiness(payload: unknown) {
+  const record = asRecord(payload);
+  const available = asRecord(record.available_inputs);
+  return {
+    status: textValue(record.status, "UNKNOWN") as "READY" | "PARTIAL" | "BLOCKED" | "UNKNOWN",
+    blockers: asArray(record.blockers).map((item) => textValue(item)).filter(Boolean),
+    available_inputs: {
+      market_observations: numberValue(available.market_observations),
+      bookmakers: numberValue(available.bookmakers),
+      odds_snapshots: numberValue(available.odds_snapshots),
+      xg: Boolean(available.xg),
+      score_matrix: Boolean(available.score_matrix),
+      model_probabilities: Boolean(available.model_probabilities),
+      market_probabilities: Boolean(available.market_probabilities),
+      current_odds: Boolean(available.current_odds),
+      line_movement: Boolean(available.line_movement),
+    },
+    next_action: textValue(record.next_action, "INVESTIGATE_DATA_PIPELINE"),
+  };
+}
+
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
   return {
@@ -160,6 +188,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     lifecycle_state: textValue(record.lifecycle_state),
     watch_level: numberValue(record.watch_level),
     data_readiness: asRecord(record.data_readiness),
+    analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
     recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
     scoreline_picks: asArray(record.scoreline_picks).map((item) => asRecord(item)).map((row) => ({
       scoreline: textValue(row.scoreline),
@@ -201,6 +230,12 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
     status: "UPCOMING",
     watch_level: 4,
     data_readiness: { bookmakers: 12, odds_snapshots: 12, xg: false, h2h: false, lineups: false },
+    analysis_readiness: {
+      status: "PARTIAL",
+      blockers: ["MISSING_XG"],
+      available_inputs: { market_observations: 12, bookmakers: 12, odds_snapshots: 12, xg: false },
+      next_action: "WAIT_XG",
+    },
     recommendation: {
       tier: "ANALYSIS_PICK",
       market: "TOTALS",

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from w2.dashboard.readiness import readiness_summary
+
 OFFICIAL_TIERS = {"FORMAL", "CANDIDATE"}
 ANALYSIS_TIER = "ANALYSIS_PICK"
 
@@ -20,6 +22,7 @@ def dashboard_performance(cards: list[dict[str, Any]]) -> dict[str, Any]:
     analysis_summary = _summary(analysis)
     return {
         **official_summary,
+        **readiness_summary(cards),
         "market_hit_rate": official_summary["hit_rate"],
         "score_hit_rate": _score_hit_rate(cards, tier_filter=OFFICIAL_TIERS),
         "average_confidence": sum(confidence_values) / len(confidence_values)

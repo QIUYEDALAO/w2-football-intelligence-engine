@@ -21,6 +21,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const pick = match.recommendation;
   const odds = currentOdds({ current_odds: match.current_odds });
   const risks = pick?.risks.length ? pick.risks : ["天气、红牌、阵容临场变化可能改变判断"];
+  const readiness = match.analysis_readiness;
   return (
     <article className={`recommendation-card tier-${pick?.tier.toLowerCase() ?? "none"}`}>
       <header className="recommendation-card-header">
@@ -41,6 +42,13 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       {pick ? <MarketPickSummary pick={pick} /> : <p className="no-pick-copy">当前仅观察，不展示候选推荐。</p>}
       <ScorelinePicks picks={match.scoreline_picks} />
       <DataReadinessRow match={match} />
+      {readiness ? (
+        <div className="analysis-readiness-line">
+          <strong>{readiness.status}</strong>
+          <span>{readiness.next_action}</span>
+          {readiness.blockers.length ? <small>{readiness.blockers.slice(0, 4).join(" · ")}</small> : null}
+        </div>
+      ) : null}
       <OddsMovementMini match={match} />
       <div className="recommendation-footer">
         <div>
