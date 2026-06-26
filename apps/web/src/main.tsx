@@ -19,10 +19,10 @@ type ReadinessItem = {
 };
 
 const MARKET_META: Record<string, { label: string; short: string; tone: string }> = {
-  ASIAN_HANDICAP: { label: "亚洲让球", short: "让球", tone: "tone-ah" },
+  ASIAN_HANDICAP: { label: "让球", short: "让球", tone: "tone-ah" },
   TOTALS: { label: "大小球", short: "大小", tone: "tone-ou" },
   FIRST_HALF_GOALS: { label: "半场进球", short: "半场", tone: "tone-half" },
-  SCORE: { label: "比分参考", short: "比分", tone: "tone-score" },
+  SCORE: { label: "比分", short: "比分", tone: "tone-score" },
 };
 
 const INTENT_LABELS: Record<string, string> = {
@@ -310,6 +310,10 @@ function topMarket(card: AnalysisCard): Record<string, unknown> | null {
   return marketList(card).find((market) => textValue(market.decision) === "PICK") ?? null;
 }
 
+function preferredMarket(card: AnalysisCard): Record<string, unknown> {
+  return topMarket(card) ?? marketList(card).find((market) => textValue(market.market) === "TOTALS") ?? marketList(card)[0];
+}
+
 function leanLabel(market: Record<string, unknown>): string {
   return textValue(market.lean_cn ?? market.lean ?? TENDENCY_LABELS[textValue(market.tendency)] ?? market.tendency, "等待判断");
 }
@@ -364,6 +368,14 @@ function currentOdds(card: AnalysisCard): string[] {
   return rows;
 }
 
+function teamCode(name: string): string {
+  const cleaned = name.replace(/[^A-Za-z]/g, "").toUpperCase();
+  if (cleaned.length >= 3) {
+    return cleaned.slice(0, 3);
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
 function scoreRows(market: Record<string, unknown>): Array<{ scoreline: string; probability: string }> {
   const references = asArray(market.reference_scores);
   if (references.length) {
@@ -398,15 +410,10 @@ function Dots({ value }: { value: unknown }) {
 
 function SkeletonCard() {
   return (
-    <article className="match-card skeleton-card">
+    <article className="compact-card skeleton-card">
       <div className="skeleton-line w30" />
       <div className="skeleton-line w60" />
-      <div className="skeleton-grid">
-        <div />
-        <div />
-        <div />
-        <div />
-      </div>
+      <div className="skeleton-line w90" />
     </article>
   );
 }
@@ -421,66 +428,67 @@ function SummaryMetric({ label, value, sub }: { label: string; value: string | n
   );
 }
 
-function ReadinessStrip({ card }: { card: AnalysisCard }) {
+function ReadinessChips({ card }: { card: AnalysisCard }) {
   return (
-    <div className="readiness-strip">
+    <div className="readiness-chips">
       {readinessItems(card).map((item) => (
-        <div className={item.ready ? "ready-item ready" : "ready-item"} key={item.key}>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-        </div>
+        <span className={item.ready ? "ready-chip ready" : "ready-chip"} key={item.key}>
+          {item.key === "odds" ? item.value.replace(" / ", " / ") : `${item.label} ${item.value}`}
+        </span>
       ))}
     </div>
   );
 }
 
-function MarketPanel({ market }: { market: Record<string, unknown> }) {
+function MainPick({ card }: { card: AnalysisCard }) {
+  const market = preferredMarket(card);
   const code = textValue(market.market, "UNKNOWN");
-  const meta = MARKET_META[code] ?? { label: code, short: code, tone: "tone-neutral" };
+  const meta = MARKET_META[code] ?? { label: "市场", short: "市场", tone: "tone-neutral" };
   const pick = textValue(market.decision, "SKIP") === "PICK";
   const reasons = readableReasons(market.reasons, market.reason ?? market.reason_cn);
   const scores = scoreRows(market);
-
   return (
-    <section className={pick ? "market-panel" : "market-panel market-skip"}>
-      <div className="market-panel-head">
-        <div>
-          <span className="market-short">{meta.short}</span>
-          <h3>{meta.label}</h3>
-        </div>
-        {pick ? <span className={`lean-badge ${meta.tone}`}>{leanLabel(market)}</span> : <span className="skip-chip">SKIP</span>}
-      </div>
-
-      {pick ? (
-        <>
-          <div className="confidence-row">
-            <Dots value={market.confidence} />
-            <span>{confidenceLabel(market.confidence)}</span>
-          </div>
-          {code === "SCORE" && scores.length ? (
-            <div className="score-row">
-              {scores.map((score) => (
-                <span className="score-chip" key={`${score.scoreline}-${score.probability}`}>
-                  {score.scoreline}
-                  {score.probability ? <small>{score.probability}</small> : null}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <p>{reasons.length ? reasons.join(" ") : "多因素信号已形成，但仍仅作分析参考。"}</p>
-        </>
-      ) : (
+    <section className={pick ? "main-pick" : "main-pick skip"}>
+      <div>
+        <strong>
+          {meta.label}
+          {pick ? " · 倾向 " : " · "}
+          <span>{pick ? leanLabel(market) : "暂不推荐"}</span>
+        </strong>
         <p>{reasons.length ? reasons.join(" ") : "数据不足，暂不输出该市场倾向。"}</p>
-      )}
-
-      {code === "SCORE" && pick ? <small className="score-note">方向一致的条件概率，不是精确比分预测。</small> : null}
+        {code === "SCORE" && scores.length ? (
+          <div className="score-row compact">
+            {scores.map((score) => (
+              <span className="score-chip" key={`${score.scoreline}-${score.probability}`}>
+                {score.scoreline}
+                {score.probability ? <small>{score.probability}</small> : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <Dots value={pick ? market.confidence : 0} />
     </section>
   );
 }
 
+function OtherMarkets({ card }: { card: AnalysisCard }) {
+  const rows = marketList(card).filter((market) => market !== preferredMarket(card));
+  const summaries = rows.map((market) => {
+    const code = textValue(market.market);
+    const meta = MARKET_META[code] ?? { label: code, short: code, tone: "tone-neutral" };
+    const pick = textValue(market.decision, "SKIP") === "PICK";
+    return `${meta.short}: ${pick ? leanLabel(market) : "数据不足"}`;
+  });
+  return <p className="other-markets">其他市场（{summaries.join(" · ")}）：{summaries.some((item) => !item.includes("数据不足")) ? "已纳入参考" : "暂不推荐"}</p>;
+}
+
+function TeamBadge({ name }: { name: string }) {
+  return <span className="team-badge">{teamCode(name)}</span>;
+}
+
 function MatchCard({ card }: { card: AnalysisCard }) {
   const pick = isPick(card);
-  const primary = topMarket(card);
   const watch = watchLevel(card);
   const loading = Boolean(card.loading);
   const home = textValue(card.home_name ?? card.home_cn, "主队");
@@ -488,79 +496,31 @@ function MatchCard({ card }: { card: AnalysisCard }) {
   const competition = translateCompetition(card.competition_cn ?? card.competition_name);
   const riskRows = risks(card);
   const oddsRows = currentOdds(card);
-
   return (
-    <article className={pick ? "match-card pick" : "match-card"}>
-      <header className="match-header">
+    <article className={pick ? "compact-card pick" : "compact-card"}>
+      <header className="compact-head">
         <div>
-          <span className={pick ? "status-pill pick" : "status-pill"}>{loading ? "生成中" : pick ? "有分析" : readinessLabel(card)}</span>
-          <h2>
-            {home} <span>vs</span> {away}
-          </h2>
+          <span className="match-meta">{fmtTime(card.kickoff_utc)} · {competition}</span>
+          <div className="teams-row">
+            <TeamBadge name={home} />
+            <strong>{home}</strong>
+            <span>vs</span>
+            <strong>{away}</strong>
+            <TeamBadge name={away} />
+          </div>
         </div>
-        <div className="kickoff">
-          <strong>{fmtTime(card.kickoff_utc)}</strong>
-          <span>{competition}</span>
-        </div>
+        <span className={pick ? "status-pill pick" : "status-pill"}>{loading ? "生成中" : pick ? "有分析" : readinessLabel(card)}</span>
       </header>
 
-      <section className="decision-band">
-        <div>
-          <span>本场结论</span>
-          <strong>{pick && primary ? `${MARKET_META[textValue(primary.market)]?.short ?? "市场"}：${leanLabel(primary)}` : "暂不强出分析倾向"}</strong>
-        </div>
-        <div>
-          <span>关注度</span>
-          <strong className="watch-dots">{"●".repeat(watch)}{"○".repeat(4 - watch)}</strong>
-        </div>
-        <div>
-          <span>数据完整度</span>
-          <strong>{readinessScore(card)}/4</strong>
-        </div>
-      </section>
-
-      <ReadinessStrip card={card} />
-
-      <section className="intent-card">
-        <div>
-          <span>庄家意图</span>
-          <strong>{intentLabel(card)}</strong>
-        </div>
-        <div>
-          <span>盘口演变</span>
-          <strong>{lineMovement(card)}</strong>
-        </div>
-        {oddsRows.length ? (
-          <div>
-            <span>当前盘口</span>
-            <strong>{oddsRows.join(" · ")}</strong>
-          </div>
-        ) : null}
-      </section>
-
-      <div className="market-grid">
-        {marketList(card).map((market) => (
-          <MarketPanel key={textValue(market.market)} market={market} />
-        ))}
+      <ReadinessChips card={card} />
+      <MainPick card={card} />
+      <p className="intent-line">庄家意图：{intentLabel(card)} · {lineMovement(card)}</p>
+      <OtherMarkets card={card} />
+      <div className="compact-foot">
+        <span>{oddsRows.length ? oddsRows.join(" · ") : "当前盘口等待采集"}</span>
+        <span className="watch-level">关注度 {"★".repeat(watch)}{"☆".repeat(4 - watch)}</span>
       </div>
-
-      <details className="risk-details" open={pick}>
-        <summary>原因与风险</summary>
-        <div>
-          <p>
-            {pick
-              ? "分析倾向来自盘口变化、庄家分歧、球队状态、xG/阵容等可用因子；缺失因子不会被补写。"
-              : loading
-                ? "分析卡正在生成，先展示白名单赛程。"
-                : "数据还没有达到出卡阈值，系统保持 SKIP。"}
-          </p>
-          <ul>
-            {(riskRows.length ? riskRows : ["阵容、伤停和临场盘口变化可能改变判断。"]).map((risk) => (
-              <li key={risk}>{risk}</li>
-            ))}
-          </ul>
-        </div>
-      </details>
+      <p className="risk-line">风险：{(riskRows.length ? riskRows : ["天气、红牌、阵容临场变化可能改变判断"]).join("、")}</p>
     </article>
   );
 }
