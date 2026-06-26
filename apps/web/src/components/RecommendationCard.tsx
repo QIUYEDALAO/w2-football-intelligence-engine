@@ -1,4 +1,5 @@
 import { fmtTime, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
+import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
 import type { DashboardMatchCard, RecommendationPick, RecommendationTier } from "../types/dashboard";
 import { MarketPickSummary } from "./MarketPickSummary";
@@ -122,6 +123,22 @@ function dataLine(match: DashboardMatchCard): string {
   return status.join(" · ");
 }
 
+function actionabilityLine(match: DashboardMatchCard): string {
+  const items = readinessItems({ data_readiness: match.data_readiness });
+  const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);
+  const lineupsReady = Boolean(items.find((item) => item.key === "lineups")?.ready);
+  const phase = matchPhase(match.kickoff_utc, match.status);
+  if (phase === "LIVE") return "已开赛：赛前判断停止更新";
+  if (phase === "FINISHED") return "已完场：查看复盘验证";
+  if (requiresPrematchReview(phase)) {
+    if (!lineupsReady) return "临场待确认：首发未出，开赛前需复核";
+    if (!oddsReady) return "临场待确认：盘口快照不足，需复核";
+    return "临场可参考：仍需赛前复核阵容与盘口跳线";
+  }
+  if (!oddsReady) return "等待盘口快照后再看";
+  return "赛前分析参考，非正式推荐";
+}
+
 function scoreText(match: DashboardMatchCard): string {
   if (!match.scoreline_picks.length) return "比分：模型未就绪";
   return `比分：${match.scoreline_picks
@@ -153,8 +170,11 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const stars = watchLevel({ watch_level: match.watch_level });
   const homeName = translateTeam(match.home_team_name);
   const awayName = translateTeam(match.away_team_name);
+  const minutes = minutesToKickoff(match.kickoff_utc);
+  const phase = matchPhase(match.kickoff_utc, match.status);
+  const prematchReview = requiresPrematchReview(phase);
   return (
-    <article className={`recommendation-card ${cardTone(match)} tier-${pick?.tier.toLowerCase() ?? "none"}`}>
+    <article className={`recommendation-card ${cardTone(match)} ${prematchReview ? "is-prematch" : ""} tier-${pick?.tier.toLowerCase() ?? "none"}`}>
       <header className="recommendation-card-header">
         <div>
           <span className="match-meta">
@@ -170,7 +190,10 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             <span>{teamCode(match.away_team_name)}</span>
           </div>
         </div>
-        {match.validation ? <SettlementBadge status={match.validation.settlement} /> : <span className={`status-pill ${cardTone(match)}`}>{tierLabel(match)}</span>}
+        <div className="card-status-stack">
+          <span className={prematchReview ? "phase-pill is-urgent" : "phase-pill"}>{phaseLabel(phase, minutes)}</span>
+          {match.validation ? <SettlementBadge status={match.validation.settlement} /> : <span className={`status-pill ${cardTone(match)}`}>{tierLabel(match)}</span>}
+        </div>
       </header>
 
       {pick ? (
@@ -186,6 +209,10 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       )}
 
       <div className="card-info-lines">
+        <p className={prematchReview ? "prematch-action-line" : ""}>
+          <strong>临场：</strong>
+          {actionabilityLine(match)}
+        </p>
         <p>
           <strong>数据：</strong>
           {dataLine(match)}

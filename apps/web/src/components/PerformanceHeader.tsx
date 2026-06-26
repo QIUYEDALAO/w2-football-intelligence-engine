@@ -1,18 +1,14 @@
 import type { DashboardPerformance } from "../types/dashboard";
 
-function pct(value: number | null | undefined): string {
-  return value === undefined || value === null ? "样本不足" : `${Math.round(value * 100)}%`;
-}
-
 export function PerformanceHeader({ performance, updatedAt }: { performance: DashboardPerformance; updatedAt: string }) {
   const officialCount = (performance.formal_count ?? 0) + performance.candidate_count;
   const metrics = [
     ["今日", performance.today_count],
-    ["分析倾向", performance.analysis_pick_count ?? 0],
+    ["分析参考", performance.analysis_pick_count ?? 0],
     ["未来36h", performance.next36_count],
     ["已完场", performance.finished_count],
     ["正式/候选", officialCount],
-    ["就绪率", pct(performance.analysis_readiness_rate)],
+    ["观察", performance.watch_count ?? 0],
   ];
   return (
     <section className="performance-header compact-summary">
