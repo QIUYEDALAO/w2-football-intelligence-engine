@@ -1,14 +1,28 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from w2.api.routers import error_handler, ops_router, public_router
+from w2.api.routers import error_handler, ops_router, public_router, service
 from w2.config import Environment, get_settings
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.operations.observability import default_metric_registry
 
-app = FastAPI(title="W2 Football Intelligence Engine", version="0.2.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    service.warm_dashboard_cache()
+    yield
+
+
+app = FastAPI(
+    title="W2 Football Intelligence Engine",
+    version="0.2.0",
+    lifespan=lifespan,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

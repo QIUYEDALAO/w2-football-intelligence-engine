@@ -7,6 +7,7 @@ from contextlib import suppress
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
+from time import monotonic
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
@@ -532,12 +533,23 @@ class ReadModelService:
         self._fixture_payload_index_cache: dict[str, dict[str, Any]] | None = None
         self._future_market_observations_cache: list[dict[str, Any]] | None = None
         self._observations_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
+        self._future_refresh_repository_cache: FutureRefreshDbRepository | None = None
+        self._team_xg_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] = {}
+        self._dashboard_response_cache: dict[
+            tuple[str, str, str, bool], tuple[float, dict[str, Any]]
+        ] = {}
 
     def _reset_read_caches(self) -> None:
         self._fixture_payloads_cache = None
         self._fixture_payload_index_cache = None
         self._future_market_observations_cache = None
         self._observations_by_fixture_cache = None
+        self._team_xg_snapshots_by_fixture_cache = {}
+
+    def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
+        if self._future_refresh_repository_cache is None:
+            self._future_refresh_repository_cache = future_refresh_db_repository()
+        return self._future_refresh_repository_cache
 
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
@@ -629,12 +641,20 @@ class ReadModelService:
         timezone: str = BEIJING_TZ,
         include_debug: bool = True,
     ) -> dict[str, Any]:
-        self._reset_read_caches()
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
             else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
         )
+        cache_key = (requested_date.isoformat(), window, timezone, include_debug)
+        cached = self._dashboard_response_cache.get(cache_key)
+        now = monotonic()
+        if cached is not None:
+            cached_at, cached_payload = cached
+            if now - cached_at <= self._dashboard_cache_ttl(window, include_debug):
+                return cached_payload
+
+        self._reset_read_caches()
         version = self.version()
         counts = self.repository.release_counts()
         seed = self.repository.staging_seed_dashboard()
@@ -721,7 +741,7 @@ class ReadModelService:
             data_profile = "real-db"
         if not all_cards and data_profile == "real-db":
             data_profile = "empty"
-        return {
+        payload = {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),
             "timezone": timezone,
@@ -739,6 +759,19 @@ class ReadModelService:
             "finished": finished,
             "all": all_cards,
         }
+        self._dashboard_response_cache[cache_key] = (now, payload)
+        return payload
+
+    def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
+        if include_debug:
+            return 60.0 if window in {"today", "next36"} else 180.0
+        return 180.0 if window in {"today", "next36"} else 300.0
+
+    def warm_dashboard_cache(self) -> None:
+        for window in ("today", "next36", "all"):
+            with suppress(Exception):
+                self.dashboard(window=window, include_debug=False)
+        self._reset_read_caches()
 
     def fixtures(
         self,
@@ -979,7 +1012,7 @@ class ReadModelService:
         away_id = str(away.get("id") or "")
         if not fixture_id or kickoff is None or not home_id or not away_id:
             return None
-        repository = future_refresh_db_repository()
+        repository = self._future_refresh_repository()
         if repository is None:
             return None
         context = FeatureContext(
@@ -992,12 +1025,16 @@ class ReadModelService:
             stage_id="group",
         )
         snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
-        try:
-            snapshots = (
-                snapshot_reader(fixture_id=fixture_id) if callable(snapshot_reader) else []
-            )
-        except SQLAlchemyError:
-            snapshots = []
+        if fixture_id in self._team_xg_snapshots_by_fixture_cache:
+            snapshots = self._team_xg_snapshots_by_fixture_cache[fixture_id]
+        else:
+            try:
+                snapshots = (
+                    snapshot_reader(fixture_id=fixture_id) if callable(snapshot_reader) else []
+                )
+            except SQLAlchemyError:
+                snapshots = []
+            self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots
         home_xg = [
             self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
             for row in snapshots
@@ -2135,7 +2172,7 @@ class ReadModelService:
     def _future_fixture_rows_with_errors(self) -> tuple[list[dict[str, Any]], int]:
         rows: list[dict[str, Any]] = []
         parse_error_count = 0
-        for item in self.repository.fixture_payloads():
+        for item in self._cached_fixture_payloads():
             try:
                 row = self._fixture_summary(item, BEIJING_TZ)
             except Exception:
