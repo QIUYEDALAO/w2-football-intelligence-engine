@@ -10,6 +10,7 @@ from uuid import uuid4
 logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
+DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 FUTURE_REFRESH_INTERVAL_BANDS: tuple[tuple[int, int], ...] = (
     (10 * 60, 60),
     (60 * 60, 120),
@@ -27,6 +28,12 @@ def heartbeat() -> str:
 
 def future_fixture_refresh_enabled() -> bool:
     return os.environ.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "false").lower() == "true"
+
+
+def xg_history_backfill_enabled() -> bool:
+    if not future_fixture_refresh_enabled():
+        return False
+    return os.environ.get("W2_XG_BACKFILL_ENABLED", "true").lower() == "true"
 
 
 def future_fixture_refresh_contract_ready() -> bool:
@@ -134,9 +141,35 @@ def future_fixture_refresh_tick() -> dict[str, object]:
     }
 
 
+def xg_history_backfill_tick() -> dict[str, object]:
+    if not xg_history_backfill_enabled():
+        return {
+            "status": "DISABLED",
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    from apps.worker.celery_app import celery_app
+
+    now = datetime.now(UTC)
+    task_id = f"xg-history-backfill:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+    celery_app.send_task(
+        "w2.xg_history_backfill",
+        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
+        task_id=task_id,
+    )
+    return {
+        "status": "QUEUED",
+        "task_id": task_id,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
 def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
+    next_xg_backfill_at = datetime.now(UTC)
     while True:
         heartbeat()
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -161,6 +194,29 @@ def run_forever() -> None:
             next_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_refresh_at = next_refresh_at.fromtimestamp(
                 next_refresh_at.timestamp() + refresh_interval_seconds,
+                tz=UTC,
+            )
+        if xg_history_backfill_enabled() and datetime.now(UTC) >= next_xg_backfill_at:
+            try:
+                result = xg_history_backfill_tick()
+                logger.info("w2 xg history backfill %s", result)
+                xg_interval_seconds = int(
+                    os.environ.get(
+                        "W2_XG_BACKFILL_INTERVAL_SECONDS",
+                        str(DEFAULT_XG_BACKFILL_INTERVAL_SECONDS),
+                    )
+                )
+            except Exception:
+                logger.exception("w2 xg history backfill failed")
+                xg_interval_seconds = int(
+                    os.environ.get(
+                        "W2_XG_BACKFILL_INTERVAL_SECONDS",
+                        str(DEFAULT_XG_BACKFILL_INTERVAL_SECONDS),
+                    )
+                )
+            next_xg_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_xg_backfill_at = next_xg_backfill_at.fromtimestamp(
+                next_xg_backfill_at.timestamp() + xg_interval_seconds,
                 tz=UTC,
             )
         time.sleep(interval_seconds)

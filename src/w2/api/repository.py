@@ -535,6 +535,7 @@ class ReadModelService:
         self._observations_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
         self._future_refresh_repository_cache: FutureRefreshDbRepository | None = None
         self._team_xg_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] = {}
+        self._raw_payloads_by_endpoint_cache: dict[str, list[dict[str, Any]]] = {}
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
         ] = {}
@@ -545,6 +546,7 @@ class ReadModelService:
         self._future_market_observations_cache = None
         self._observations_by_fixture_cache = None
         self._team_xg_snapshots_by_fixture_cache = {}
+        self._raw_payloads_by_endpoint_cache = {}
 
     def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
         if self._future_refresh_repository_cache is None:
@@ -1126,9 +1128,11 @@ class ReadModelService:
         payload = self._analysis_card_payload(card)
         payload.update(
             self._analysis_input_summary(
+                fixture_id=fixture_id,
                 observations=observations,
                 home_xg=latest_home_xg,
                 away_xg=latest_away_xg,
+                score_matrix=score_matrix,
             )
         )
         self._attach_xg_reason_values(
@@ -1241,9 +1245,11 @@ class ReadModelService:
     def _analysis_input_summary(
         self,
         *,
+        fixture_id: str,
         observations: list[dict[str, Any]],
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
+        score_matrix: dict[tuple[int, int], float] | None,
     ) -> dict[str, Any]:
         bookmaker_ids = {
             str(row.get("bookmaker_id") or row.get("bookmaker_name"))
@@ -1255,13 +1261,20 @@ class ReadModelService:
             for row in observations
             if row.get("captured_at")
         }
+        lineups_status = self._enrichment_status(fixture_id=fixture_id, endpoint="lineups")
+        statistics_status = self._enrichment_status(fixture_id=fixture_id, endpoint="statistics")
         summary: dict[str, Any] = {
             "data_readiness": {
+                "market_observations": len(observations),
                 "bookmakers": len(bookmaker_ids),
                 "odds_snapshots": len(captured_points),
                 "xg": home_xg is not None and away_xg is not None,
                 "h2h": False,
-                "lineups": False,
+                "lineups": lineups_status["ready"],
+                "lineups_status": lineups_status["status"],
+                "lineups_captured_at": lineups_status["captured_at"],
+                "statistics_status": statistics_status["status"],
+                "statistics_captured_at": statistics_status["captured_at"],
             }
         }
         current_odds: dict[str, Any] = {}
@@ -1284,7 +1297,173 @@ class ReadModelService:
             summary["current_odds"] = current_odds
         if line_movement:
             summary["line_movement"] = line_movement
+        market_probabilities = self._market_probabilities_from_observations(observations)
+        if market_probabilities:
+            summary["market_probabilities"] = market_probabilities
+        if score_matrix:
+            summary["model_probabilities"] = self._model_probabilities_from_score_matrix(
+                score_matrix
+            )
         return summary
+
+    def _enrichment_status(self, *, fixture_id: str, endpoint: str) -> dict[str, Any]:
+        rows = self._raw_payloads_for_endpoint(endpoint)
+        matching = [
+            row
+            for row in rows
+            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+        ]
+        if not matching:
+            return {
+                "ready": False,
+                "status": "NOT_REQUESTED",
+                "captured_at": None,
+                "response_count": 0,
+            }
+        latest = max(matching, key=lambda row: str(row.get("captured_at") or ""))
+        payload = latest.get("payload") if isinstance(latest, dict) else {}
+        response = payload.get("response") if isinstance(payload, dict) else None
+        response_count = len(response) if isinstance(response, list) else 0
+        if response_count == 0:
+            status = "PROVIDER_EMPTY"
+            ready = False
+        elif endpoint == "lineups":
+            ready = self._lineups_ready(response)
+            status = "READY" if ready else "PARTIAL"
+        else:
+            ready = True
+            status = "READY"
+        return {
+            "ready": ready,
+            "status": status,
+            "captured_at": latest.get("captured_at"),
+            "response_count": response_count,
+        }
+
+    def _raw_payloads_for_endpoint(self, endpoint: str) -> list[dict[str, Any]]:
+        if endpoint in self._raw_payloads_by_endpoint_cache:
+            return self._raw_payloads_by_endpoint_cache[endpoint]
+        repository = self._future_refresh_repository()
+        reader = getattr(repository, "raw_payloads", None) if repository is not None else None
+        if not callable(reader):
+            self._raw_payloads_by_endpoint_cache[endpoint] = []
+            return []
+        try:
+            rows = cast(list[dict[str, Any]], reader(endpoint))
+        except SQLAlchemyError:
+            rows = []
+        self._raw_payloads_by_endpoint_cache[endpoint] = rows
+        return rows
+
+    def _raw_payload_fixture_id(self, payload: Any) -> str | None:
+        if not isinstance(payload, dict):
+            return None
+        parameters = payload.get("parameters")
+        if isinstance(parameters, dict) and parameters.get("fixture") is not None:
+            return str(parameters["fixture"])
+        response = payload.get("response")
+        if isinstance(response, list):
+            for item in response:
+                if not isinstance(item, dict):
+                    continue
+                fixture = item.get("fixture")
+                if isinstance(fixture, dict) and fixture.get("id") is not None:
+                    return str(fixture["id"])
+        return None
+
+    def _lineups_ready(self, response: Any) -> bool:
+        if not isinstance(response, list) or len(response) < 2:
+            return False
+        ready_teams = 0
+        for item in response:
+            if not isinstance(item, dict):
+                continue
+            start_xi = item.get("startXI")
+            if isinstance(start_xi, list) and start_xi:
+                ready_teams += 1
+        return ready_teams >= 2
+
+    def _market_probabilities_from_observations(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        latest_by_selection: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for row in observations:
+            if row.get("suspended") or row.get("live"):
+                continue
+            market = str(row.get("canonical_market") or "")
+            selection = str(row.get("selection") or "")
+            if not market or not selection or row.get("decimal_odds") is None:
+                continue
+            line = self._line_value(row) or "NO_LINE"
+            key = (market, line, selection)
+            current = latest_by_selection.get(key)
+            if current is None or str(row.get("captured_at") or "") > str(
+                current.get("captured_at") or ""
+            ):
+                latest_by_selection[key] = row
+        grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for (market, line, _selection), row in latest_by_selection.items():
+            grouped.setdefault((market, line), []).append(row)
+        probabilities: dict[str, Any] = {}
+        for (market, line), rows in grouped.items():
+            implied: dict[str, float] = {}
+            for row in rows:
+                try:
+                    price = float(row["decimal_odds"])
+                except (TypeError, ValueError):
+                    continue
+                if price <= 1.0:
+                    continue
+                implied[str(row["selection"])] = 1 / price
+            total = sum(implied.values())
+            if len(implied) < 2 or total <= 0:
+                continue
+            probabilities[f"{market}:{line}"] = {
+                selection: round(value / total, 4)
+                for selection, value in sorted(implied.items())
+            }
+        return probabilities
+
+    def _model_probabilities_from_score_matrix(
+        self,
+        matrix: dict[tuple[int, int], float],
+    ) -> dict[str, Any]:
+        total = sum(max(value, 0.0) for value in matrix.values())
+        if total <= 0:
+            return {}
+        home = sum(
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals > away_goals
+        )
+        draw = sum(
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals == away_goals
+        )
+        away = sum(
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals < away_goals
+        )
+        over_2_5 = sum(
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals + away_goals > 2.5
+        )
+        under_2_5 = total - over_2_5
+        return {
+            "one_x_two": {
+                "HOME": round(home / total, 4),
+                "DRAW": round(draw / total, 4),
+                "AWAY": round(away / total, 4),
+            },
+            "totals_2_5": {
+                "OVER": round(over_2_5 / total, 4),
+                "UNDER": round(under_2_5 / total, 4),
+            },
+        }
 
     def _ordered_observations_for_market(
         self,
@@ -1630,11 +1809,16 @@ class ReadModelService:
         decorated.setdefault(
             "data_readiness",
             {
+                "market_observations": 0,
                 "bookmakers": 0,
                 "odds_snapshots": 0,
                 "xg": False,
                 "h2h": False,
                 "lineups": False,
+                "lineups_status": "UNKNOWN",
+                "lineups_captured_at": None,
+                "statistics_status": "UNKNOWN",
+                "statistics_captured_at": None,
             },
         )
         decorated["candidate"] = False

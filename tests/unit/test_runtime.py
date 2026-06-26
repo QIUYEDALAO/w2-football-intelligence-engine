@@ -8,8 +8,9 @@ from apps.scheduler.main import (
     fixture_refresh_gradient_interval_seconds,
     future_fixture_refresh_tick,
     heartbeat,
+    xg_history_backfill_tick,
 )
-from apps.worker.celery_app import celery_app, future_fixture_refresh, ping
+from apps.worker.celery_app import celery_app, future_fixture_refresh, ping, xg_history_backfill
 
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
@@ -26,6 +27,7 @@ def test_scheduler_heartbeat_does_not_call_external_api() -> None:
 def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
+    assert xg_history_backfill_tick()["status"] == "DISABLED"
 
 
 def test_scheduler_future_refresh_dispatches_worker_task_without_running_provider(
@@ -45,6 +47,49 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
     assert str(result["task_key"]).startswith("future-refresh:world_cup_2026:2026:")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
+
+
+def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_XG_BACKFILL_ENABLED", "true")
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = xg_history_backfill_tick()
+
+    assert result["status"] == "QUEUED"
+    assert str(result["task_id"]).startswith("xg-history-backfill:")
+    assert sent[0]["name"] == "w2.xg_history_backfill"
+    assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
+
+
+def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
+    class FakeResult:
+        def as_dict(self) -> dict[str, object]:
+            return {
+                "team_count": 2,
+                "candidate": False,
+                "formal_recommendation": False,
+            }
+
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_xg_history_backfill",
+        lambda: FakeResult(),
+    )
+
+    result = xg_history_backfill.run(queued_at_utc="2026-06-26T12:00:00Z")
+
+    assert result["status"] == "COMPLETED"
+    assert result["result"]["candidate"] is False
+    assert result["result"]["formal_recommendation"] is False
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
 
 
 def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:
