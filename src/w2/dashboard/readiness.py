@@ -19,6 +19,7 @@ class AnalysisBlocker(StrEnum):
     MISSING_BOOKMAKER_QUOTES = "MISSING_BOOKMAKER_QUOTES"
     MISSING_ODDS_TIMELINE = "MISSING_ODDS_TIMELINE"
     MISSING_XG = "MISSING_XG"
+    MISSING_LINEUPS = "MISSING_LINEUPS"
     MISSING_SCORE_MATRIX = "MISSING_SCORE_MATRIX"
     MISSING_MODEL_PROBABILITIES = "MISSING_MODEL_PROBABILITIES"
     MISSING_MARKET_PROBABILITIES = "MISSING_MARKET_PROBABILITIES"
@@ -66,6 +67,8 @@ def build_analysis_readiness(
         blockers.append(AnalysisBlocker.MISSING_ODDS_TIMELINE)
     if not available["xg"]:
         blockers.append(AnalysisBlocker.MISSING_XG)
+    if not available["lineups"]:
+        blockers.append(AnalysisBlocker.MISSING_LINEUPS)
     if not available["market_probabilities"]:
         blockers.append(AnalysisBlocker.MISSING_MARKET_PROBABILITIES)
     if not available["model_probabilities"]:
@@ -165,6 +168,9 @@ def _available_inputs(card: dict[str, Any] | None) -> dict[str, Any]:
         "bookmakers": bookmakers,
         "odds_snapshots": odds_snapshots,
         "xg": _truthy(readiness.get("xg")),
+        "lineups": _truthy(readiness.get("lineups")),
+        "lineups_status": str(readiness.get("lineups_status") or "UNKNOWN"),
+        "statistics_status": str(readiness.get("statistics_status") or "UNKNOWN"),
         "score_matrix": bool(
             score_market.get("score_card")
             or score_market.get("reference_scores")
@@ -230,6 +236,7 @@ def _next_action(
         (AnalysisBlocker.MISSING_BOOKMAKER_QUOTES.value, AnalysisNextAction.WAIT_BOOKMAKER_QUOTES),
         (AnalysisBlocker.MISSING_ODDS_TIMELINE.value, AnalysisNextAction.WAIT_ODDS_TIMELINE),
         (AnalysisBlocker.MISSING_XG.value, AnalysisNextAction.WAIT_XG),
+        (AnalysisBlocker.MISSING_LINEUPS.value, AnalysisNextAction.WAIT_FIXTURE_STATUS),
         (AnalysisBlocker.MISSING_SCORE_MATRIX.value, AnalysisNextAction.WAIT_SCORE_MODEL),
         (AnalysisBlocker.SCORE_MARKET_UNAVAILABLE.value, AnalysisNextAction.WAIT_SCORE_MODEL),
         (

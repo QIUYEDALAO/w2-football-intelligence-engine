@@ -74,6 +74,31 @@ class FakeReadRepository:
 
 
 class FakeDbRepository:
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        if endpoint != "lineups":
+            return []
+        return [
+            {
+                "captured_at": (NOW - timedelta(minutes=10)).isoformat().replace(
+                    "+00:00",
+                    "Z",
+                ),
+                "payload": {
+                    "parameters": {"fixture": "1489410"},
+                    "response": [
+                        {
+                            "team": {"id": 10},
+                            "startXI": [{"player": {"id": 1, "name": "Home GK"}}],
+                        },
+                        {
+                            "team": {"id": 20},
+                            "startXI": [{"player": {"id": 2, "name": "Away GK"}}],
+                        },
+                    ],
+                },
+            }
+        ]
+
     def team_xg_rolling_snapshots(
         self,
         *,
@@ -123,12 +148,21 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["away_name"] == "Away"
     assert card["competition_name"] == "World Cup"
     assert card["data_readiness"] == {
+        "market_observations": 8,
         "bookmakers": 2,
         "odds_snapshots": 2,
         "xg": True,
         "h2h": False,
-        "lineups": False,
+        "lineups": True,
+        "lineups_status": "READY",
+        "lineups_captured_at": (NOW - timedelta(minutes=10)).isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+        "statistics_status": "NOT_REQUESTED",
+        "statistics_captured_at": None,
     }
+    assert card["model_probabilities"]
     assert card["current_odds"]["ah"] == {"line": "-0.75", "price": 1.8}
     assert card["current_odds"]["ou"] == {"line": "2.5", "price": 1.72}
     assert card["line_movement"]["ah_open"] == "-0.75"

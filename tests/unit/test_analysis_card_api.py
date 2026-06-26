@@ -59,11 +59,16 @@ def test_analysis_card_fallback_contains_four_markets_and_intent() -> None:
     assert card["home_name"] == "主队"
     assert card["away_name"] == "客队"
     assert card["data_readiness"] == {
+        "market_observations": 0,
         "bookmakers": 0,
         "odds_snapshots": 0,
         "xg": False,
         "h2h": False,
         "lineups": False,
+        "lineups_status": "UNKNOWN",
+        "lineups_captured_at": None,
+        "statistics_status": "UNKNOWN",
+        "statistics_captured_at": None,
     }
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
