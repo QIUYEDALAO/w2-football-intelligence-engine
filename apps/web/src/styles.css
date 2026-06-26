@@ -482,9 +482,6 @@ button {
 }
 
 .dashboard-disclaimer {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
   margin-top: 16px;
   border: 1px solid rgba(226, 164, 58, 0.36);
   border-radius: 16px;
@@ -494,7 +491,6 @@ button {
   font-size: 13px;
   font-weight: 850;
   text-align: center;
-  backdrop-filter: blur(10px);
 }
 
 .dashboard-v2 {
@@ -1066,9 +1062,329 @@ button {
   }
 }
 
+.dashboard-v2 {
+  padding-top: 14px;
+}
+
+.release-sync {
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+.performance-header.compact-summary {
+  margin-bottom: 10px;
+  border-radius: 18px;
+  padding: 13px 15px;
+  background:
+    linear-gradient(135deg, rgba(98, 181, 47, 0.11), transparent 38%),
+    rgba(31, 33, 30, 0.92);
+}
+
+.compact-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.compact-title-row p,
+.compact-title-row h1 {
+  margin: 0;
+}
+
+.compact-title-row p {
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.compact-title-row h1 {
+  margin-top: 2px;
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.compact-title-row > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.compact-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.compact-metrics span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.compact-metrics strong {
+  margin-left: 4px;
+  color: var(--text);
+}
+
+.dashboard-controls {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  padding: 7px;
+}
+
+.toolbar-button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.date-refresh label {
+  padding: 5px 9px;
+}
+
+.match-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  gap: 12px;
+}
+
+.recommendation-card {
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 16px 17px;
+  background: linear-gradient(180deg, #2b2d29, #242622);
+}
+
+.recommendation-card.is-pick,
+.recommendation-card.tier-analysis_pick,
+.recommendation-card.tier-formal,
+.recommendation-card.tier-candidate {
+  border-color: rgba(98, 181, 47, 0.5);
+}
+
+.recommendation-card.is-watch,
+.recommendation-card.tier-watch {
+  border-color: rgba(226, 164, 58, 0.5);
+}
+
+.recommendation-card-header {
+  gap: 10px;
+}
+
+.match-meta {
+  font-size: 13px;
+}
+
+.fixture-title {
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.fixture-title strong {
+  font-size: 24px;
+}
+
+.fixture-title > span:not(.team-badge) {
+  font-size: 16px;
+}
+
+.team-badge {
+  width: 42px;
+  height: 42px;
+  font-size: 13px;
+}
+
+.status-pill,
+.settlement-badge {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.status-pill.is-pick {
+  background: var(--green-soft);
+  color: #9def72;
+}
+
+.status-pill.is-watch {
+  background: var(--amber-soft);
+  color: #ffd58b;
+}
+
+.status-pill.is-skip {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+}
+
+.readiness-chips {
+  gap: 6px;
+  margin: 12px 0 10px;
+}
+
+.readiness-chip {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.market-pick-summary {
+  gap: 12px;
+  margin: 10px 0;
+  border-left-width: 5px;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.market-pick-summary.is-empty {
+  border-left-color: var(--subtle);
+}
+
+.market-pick-summary span {
+  font-size: 11px;
+}
+
+.market-pick-summary strong {
+  margin-top: 2px;
+  font-size: 21px;
+}
+
+.market-pick-summary p,
+.no-pick-copy,
+.scoreline-empty {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.confidence-dots {
+  gap: 5px;
+  min-width: 58px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+}
+
+.scoreline-picks {
+  gap: 6px;
+  margin-bottom: 9px;
+}
+
+.scoreline-picks > span,
+.scoreline-empty {
+  font-size: 12px;
+}
+
+.score-pick {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.analysis-readiness-line {
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.analysis-readiness-line strong,
+.analysis-readiness-line small {
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.analysis-readiness-line strong {
+  color: var(--text);
+}
+
+.analysis-readiness-line span {
+  color: var(--mint);
+}
+
+.analysis-readiness-line small {
+  color: var(--muted);
+}
+
+.odds-movement,
+.intent-line {
+  margin: 7px 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.odds-movement span,
+.intent-line span {
+  color: var(--mint);
+}
+
+.market-strip-line {
+  display: -webkit-box;
+  margin: 6px 0 10px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.recommendation-footer {
+  align-items: flex-end;
+  gap: 12px;
+  padding-top: 11px;
+}
+
+.odds-line,
+.risk-line,
+.result-line {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.odds-line,
+.result-line {
+  color: var(--muted);
+}
+
+.risk-line {
+  margin-top: 4px;
+  color: var(--red);
+}
+
+.watch-stars {
+  font-size: 13px;
+}
+
+.dashboard-disclaimer {
+  position: static;
+  margin-top: 16px;
+  border-color: var(--border);
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  backdrop-filter: none;
+}
+
 @media (max-width: 980px) {
   .cards-grid {
     grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  }
+
+  .match-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(390px, 1fr));
   }
 }
 
@@ -1086,8 +1402,16 @@ button {
   }
 
   .summary-grid,
-  .cards-grid {
+  .cards-grid,
+  .match-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .compact-title-row,
+  .dashboard-controls,
+  .recommendation-footer {
+    display: grid;
+    justify-items: start;
   }
 
   .filter-row,

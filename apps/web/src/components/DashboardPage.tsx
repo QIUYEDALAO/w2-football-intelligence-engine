@@ -5,12 +5,10 @@ import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
 import { PerformanceHeader } from "./PerformanceHeader";
-import { RecommendationBoard } from "./RecommendationBoard";
+import { RecommendationCard } from "./RecommendationCard";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
-import { ResultsValidationPanel } from "./ResultsValidationPanel";
 import { SegmentTabs } from "./SegmentTabs";
 import { SkeletonCard } from "./SkeletonCard";
-import { UpcomingFixturesPanel } from "./UpcomingFixturesPanel";
 
 function updatedAtShanghai(): string {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -19,6 +17,16 @@ function updatedAtShanghai(): string {
     minute: "2-digit",
     hour12: false,
   }).format(new Date());
+}
+
+function emptyCopy(mode: DashboardMode): { title: string; detail: string } {
+  if (mode === "next36") {
+    return { title: "未来 36 小时暂无比赛", detail: "白名单赛程进入 read-model 后会自动显示。" };
+  }
+  if (mode === "results") {
+    return { title: "暂无完场复盘", detail: "比赛完场并同步结果后会显示验证状态。" };
+  }
+  return { title: "暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
 }
 
 export function DashboardPage() {
@@ -56,18 +64,19 @@ export function DashboardPage() {
     };
   }, [date, mode, refreshKey]);
 
-  const visibleAll = useMemo(() => {
+  const visibleMatches = useMemo(() => {
     if (!view) return [];
-    if (mode === "today") return view.all;
     if (mode === "next36") return view.upcoming;
     if (mode === "results") return view.finished;
     return view.all;
   }, [mode, view]);
 
+  const empty = emptyCopy(mode);
+
   return (
     <main className="app-shell dashboard-v2">
       {view ? <ReleaseSyncBadge release={view.release} /> : null}
-      {view ? <PerformanceHeader performance={view.performance} /> : null}
+      {view ? <PerformanceHeader performance={view.performance} updatedAt={updatedAt} /> : null}
       <div className="dashboard-controls">
         <SegmentTabs mode={mode} onModeChange={setMode} />
         <div className="date-refresh">
@@ -80,24 +89,29 @@ export function DashboardPage() {
           </button>
         </div>
       </div>
-      <p className="update-line">最后更新 {updatedAt} · candidate/formal 只用于 +EV 证明；本页默认展示候选参考与观察。</p>
 
       {state === "loading" ? (
-        <section className="cards-grid">
+        <section className="match-card-grid" aria-label="比赛加载中">
           <SkeletonCard />
           <SkeletonCard />
         </section>
       ) : null}
 
-      {state === "error" ? <EmptySection title="加载失败" detail="请确认 /v1 API 反代正常；单个 fixture 失败不会阻塞整页。" /> : null}
+      {state === "error" ? <EmptySection title="加载失败" detail="请确认公网 /v1 API 可访问；不会用假数据顶替真实数据。" /> : null}
 
       {state === "empty" && view ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
 
       {state === "ok" && view ? (
         <>
-          {(mode === "today" || mode === "all") && <RecommendationBoard matches={view.recommendations} />}
-          {(mode === "today" || mode === "next36" || mode === "all") && <UpcomingFixturesPanel matches={mode === "all" ? visibleAll.filter((match) => match.status !== "FINISHED") : view.upcoming} />}
-          {(mode === "today" || mode === "results" || mode === "all") && <ResultsValidationPanel matches={view.finished} />}
+          {visibleMatches.length ? (
+            <section className="match-card-grid" aria-label="比赛卡片">
+              {visibleMatches.map((match) => (
+                <RecommendationCard key={match.fixture_id} match={match} />
+              ))}
+            </section>
+          ) : (
+            <EmptySection title={empty.title} detail={empty.detail} />
+          )}
           {view.errors.length ? (
             <aside className="soft-errors">
               <strong>部分数据源暂不可用</strong>
@@ -107,7 +121,7 @@ export function DashboardPage() {
         </>
       ) : null}
 
-      <footer className="dashboard-disclaimer">本页为分析参考·非稳赢，非投注建议，不承诺盈利 · 数据不足时一律 SKIP，不强出推荐</footer>
+      <footer className="dashboard-disclaimer">本页为分析参考，非投注建议，不承诺盈利；数据不足时一律 SKIP，不强出推荐。</footer>
     </main>
   );
 }

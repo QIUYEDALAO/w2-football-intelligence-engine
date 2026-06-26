@@ -6,7 +6,7 @@ export function ResultsValidationPanel({ matches }: { matches: DashboardMatchCar
   return (
     <section className="dashboard-section">
       <div className="section-heading">
-        <h2>Results & Validation</h2>
+        <h2>完场复盘</h2>
         <p>只把正式或候选推荐计入命中率；WATCH/SKIP 不计入。</p>
       </div>
       {matches.length ? (
