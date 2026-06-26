@@ -140,7 +140,11 @@ function actionabilityLine(match: DashboardMatchCard): string {
 }
 
 function scoreText(match: DashboardMatchCard): string {
-  if (!match.scoreline_picks.length) return "比分：模型未就绪";
+  if (!match.scoreline_picks.length) {
+    const phase = matchPhase(match.kickoff_utc, match.status);
+    if (phase === "LIVE" || phase === "FINISHED") return "比分：赛前未就绪 · 已锁定";
+    return "比分：等待 xG 数据";
+  }
   return `比分：${match.scoreline_picks
     .slice(0, 3)
     .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)

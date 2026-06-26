@@ -48,14 +48,27 @@ export function confidenceLabel(value: unknown): string {
   return `${Math.min(percent, 100)}%`;
 }
 
-export function translateReason(reason: unknown): string {
-  const raw = typeof reason === "string" && reason ? reason : "数据不足时保持 SKIP";
+function translateReasonSegment(segment: string): string {
+  const s = segment.trim();
+  if (!s) {
+    return "";
+  }
   for (const [pattern, translated] of REASON_TRANSLATIONS) {
-    if (pattern.test(raw)) {
+    if (pattern.test(s)) {
       return translated;
     }
   }
-  return raw.replace(/_/g, " ").replace(/:/g, "：");
+  return s.replace(/_/g, " ").replace(/:/g, "：");
+}
+
+export function translateReason(reason: unknown): string {
+  const raw = typeof reason === "string" && reason ? reason : "数据不足时保持 SKIP";
+  const segments = raw
+    .split(/\s*\+\s*/)
+    .map(translateReasonSegment)
+    .filter(Boolean);
+  const unique = Array.from(new Set(segments));
+  return unique.length ? unique.join(" · ") : raw.replace(/_/g, " ").replace(/:/g, "：");
 }
 
 export function translateCompetition(value: unknown): string {
