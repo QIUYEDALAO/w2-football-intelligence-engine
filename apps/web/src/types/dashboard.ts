@@ -112,7 +112,7 @@ export interface DashboardStats {
 
 export type MatchStatus = "UPCOMING" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED" | "UNKNOWN";
 
-export type RecommendationTier = "FORMAL" | "CANDIDATE" | "WATCH" | "NO_RECOMMENDATION";
+export type RecommendationTier = "FORMAL" | "CANDIDATE" | "ANALYSIS_PICK" | "WATCH" | "NO_RECOMMENDATION";
 
 export type SettlementStatus = "PENDING" | "HIT" | "MISS" | "PUSH" | "VOID" | "NO_BET" | "UNKNOWN";
 
@@ -209,22 +209,73 @@ export interface DashboardPerformance {
   miss_count: number;
   push_count: number;
   void_count: number;
-  hit_rate?: number;
+  hit_rate?: number | null;
+  market_hit_rate?: number | null;
+  score_hit_rate?: number | null;
   by_market: Array<{
     market: string;
     sample_size: number;
-    hit_rate?: number;
+    hit_rate?: number | null;
   }>;
   score_exact: {
     sample_size: number;
     hit_count: number;
-    hit_rate?: number;
+    hit_rate?: number | null;
   };
+}
+
+export interface ReleaseMeta {
+  web_git_sha: string;
+  web_build_time?: string | null;
+  release_id?: string | null;
+  data_mode: string;
+}
+
+export interface ApiVersion {
+  service?: string;
+  environment?: string;
+  api_git_sha: string;
+  api_build_time?: string | null;
+  release_id?: string | null;
+  data_profile: string;
+  data_source: string;
+  database_ready?: boolean;
+  read_model_fixture_count: number;
+  matchday_card_count: number;
+  result_event_count: number;
+  generated_at?: string;
+}
+
+export interface DashboardDebug {
+  read_model_fixture_count: number;
+  matchday_card_count: number;
+  future_fixture_count: number;
+  result_event_count: number;
+  selected_date?: string;
+  selected_date_has_data?: boolean;
+  next_available_date?: string | null;
+  empty_reason?: string | null;
+  suggested_actions?: string[];
+}
+
+export interface ReleaseSyncState {
+  web_git_sha: string;
+  api_git_sha: string;
+  release_id?: string | null;
+  data_profile: string;
+  data_source: string;
+  updated_at: string;
+  demo: boolean;
+  mismatch: boolean;
 }
 
 export interface DashboardView {
   date: string;
   generated_at: string;
+  data_profile: string;
+  data_source: string;
+  release: ReleaseSyncState;
+  debug: DashboardDebug;
   performance: DashboardPerformance;
   recommendations: DashboardMatchCard[];
   upcoming: DashboardMatchCard[];

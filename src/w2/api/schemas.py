@@ -115,6 +115,39 @@ class MatchdayResponse(BaseModel):
     items: list[dict[str, Any]]
 
 
+class VersionResponse(BaseModel):
+    request_id: str
+    service: str
+    environment: str
+    api_git_sha: str
+    api_build_time: str | None = None
+    release_id: str | None = None
+    data_profile: str
+    data_source: str
+    database_ready: bool
+    read_model_fixture_count: int
+    matchday_card_count: int
+    result_event_count: int
+    generated_at: datetime
+
+
+class DashboardResponse(BaseModel):
+    request_id: str
+    generated_at: datetime
+    date: str
+    timezone: str
+    window: str
+    data_profile: str
+    data_source: str
+    version: dict[str, Any]
+    debug: dict[str, Any]
+    performance: dict[str, Any]
+    recommendations: list[dict[str, Any]]
+    upcoming: list[dict[str, Any]]
+    finished: list[dict[str, Any]]
+    all: list[dict[str, Any]]
+
+
 class MatchdayCoverageResponse(BaseModel):
     request_id: str
     requested_date_beijing: str
