@@ -535,6 +535,7 @@ class ReadModelService:
         self._observations_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
         self._future_refresh_repository_cache: FutureRefreshDbRepository | None = None
         self._team_xg_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] = {}
+        self._team_xg_matches_cache: list[dict[str, Any]] | None = None
         self._raw_payloads_by_endpoint_cache: dict[str, list[dict[str, Any]]] = {}
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
@@ -546,6 +547,7 @@ class ReadModelService:
         self._future_market_observations_cache = None
         self._observations_by_fixture_cache = None
         self._team_xg_snapshots_by_fixture_cache = {}
+        self._team_xg_matches_cache = None
         self._raw_payloads_by_endpoint_cache = {}
 
     def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
@@ -1129,6 +1131,10 @@ class ReadModelService:
         payload.update(
             self._analysis_input_summary(
                 fixture_id=fixture_id,
+                kickoff=kickoff,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                xg_snapshots=snapshots,
                 observations=observations,
                 home_xg=latest_home_xg,
                 away_xg=latest_away_xg,
@@ -1246,6 +1252,10 @@ class ReadModelService:
         self,
         *,
         fixture_id: str,
+        kickoff: datetime,
+        home_team_id: str,
+        away_team_id: str,
+        xg_snapshots: list[dict[str, Any]],
         observations: list[dict[str, Any]],
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
@@ -1263,12 +1273,22 @@ class ReadModelService:
         }
         lineups_status = self._enrichment_status(fixture_id=fixture_id, endpoint="lineups")
         statistics_status = self._enrichment_status(fixture_id=fixture_id, endpoint="statistics")
+        xg_status = self._xg_readiness_status(
+            kickoff=kickoff,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+            snapshots=xg_snapshots,
+        )
         summary: dict[str, Any] = {
             "data_readiness": {
                 "market_observations": len(observations),
                 "bookmakers": len(bookmaker_ids),
                 "odds_snapshots": len(captured_points),
                 "xg": home_xg is not None and away_xg is not None,
+                "xg_status": xg_status["status"],
+                "xg_home_match_count": xg_status["home_match_count"],
+                "xg_away_match_count": xg_status["away_match_count"],
+                "xg_snapshot_count": xg_status["snapshot_count"],
                 "h2h": False,
                 "lineups": lineups_status["ready"],
                 "lineups_status": lineups_status["status"],
@@ -1305,6 +1325,60 @@ class ReadModelService:
                 score_matrix
             )
         return summary
+
+    def _xg_readiness_status(
+        self,
+        *,
+        kickoff: datetime,
+        home_team_id: str,
+        away_team_id: str,
+        snapshots: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        snapshot_team_ids = {str(row.get("team_id") or "") for row in snapshots}
+        home_snapshot_ready = home_team_id in snapshot_team_ids
+        away_snapshot_ready = away_team_id in snapshot_team_ids
+        home_match_count = self._team_xg_match_count(team_id=home_team_id, before=kickoff)
+        away_match_count = self._team_xg_match_count(team_id=away_team_id, before=kickoff)
+        if home_snapshot_ready and away_snapshot_ready:
+            status = "READY"
+        elif home_snapshot_ready or away_snapshot_ready:
+            status = "PARTIAL_HISTORY"
+        elif home_match_count or away_match_count:
+            status = "INSUFFICIENT_HISTORY"
+        else:
+            status = "PROVIDER_EMPTY_OR_UNAVAILABLE"
+        return {
+            "status": status,
+            "home_match_count": home_match_count,
+            "away_match_count": away_match_count,
+            "snapshot_count": len(snapshots),
+        }
+
+    def _team_xg_match_count(self, *, team_id: str, before: datetime) -> int:
+        matches = self._team_xg_matches()
+        count = 0
+        for row in matches:
+            if str(row.get("team_id") or "") != team_id:
+                continue
+            kickoff = parse_provider_time(row.get("kickoff_at"))
+            if kickoff is not None and kickoff < before:
+                count += 1
+        return count
+
+    def _team_xg_matches(self) -> list[dict[str, Any]]:
+        if self._team_xg_matches_cache is not None:
+            return self._team_xg_matches_cache
+        repository = self._future_refresh_repository()
+        reader = getattr(repository, "team_xg_matches", None) if repository is not None else None
+        if not callable(reader):
+            self._team_xg_matches_cache = []
+            return []
+        try:
+            rows = cast(list[dict[str, Any]], reader())
+        except SQLAlchemyError:
+            rows = []
+        self._team_xg_matches_cache = rows
+        return rows
 
     def _enrichment_status(self, *, fixture_id: str, endpoint: str) -> dict[str, Any]:
         rows = self._raw_payloads_for_endpoint(endpoint)
@@ -1813,6 +1887,10 @@ class ReadModelService:
                 "bookmakers": 0,
                 "odds_snapshots": 0,
                 "xg": False,
+                "xg_status": "UNKNOWN",
+                "xg_home_match_count": 0,
+                "xg_away_match_count": 0,
+                "xg_snapshot_count": 0,
                 "h2h": False,
                 "lineups": False,
                 "lineups_status": "UNKNOWN",

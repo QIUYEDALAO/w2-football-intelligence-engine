@@ -196,8 +196,17 @@ export function readinessItems(card: DashboardCard): ReadinessItem[] {
   const snapshots = numberValue(readiness.odds_snapshots);
   const oddsReady = bookmakers > 0 || snapshots > 0;
   const xgReady = booleanValue(readiness.xg);
+  const xgStatus = textValue(readiness.xg_status);
   const h2hReady = booleanValue(readiness.h2h);
   const lineupsReady = booleanValue(readiness.lineups);
+  const xgLabel = (() => {
+    if (xgReady) return "已就绪";
+    if (xgStatus === "PARTIAL_HISTORY") return "部分覆盖";
+    if (xgStatus === "INSUFFICIENT_HISTORY") return "历史不足";
+    if (xgStatus === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "源无返回";
+    if (xgStatus === "NOT_REQUESTED") return "未请求";
+    return "富集中";
+  })();
   return [
     {
       key: "odds",
@@ -206,7 +215,7 @@ export function readinessItems(card: DashboardCard): ReadinessItem[] {
       short: oddsReady ? `盘口 ${bookmakers || snapshots}家` : "盘口等待",
       ready: oddsReady,
     },
-    { key: "xg", label: "xG", value: xgReady ? "已就绪" : "富集中", short: xgReady ? "xG 已就绪" : "xG 富集中", ready: xgReady },
+    { key: "xg", label: "xG", value: xgLabel, short: `xG ${xgLabel}`, ready: xgReady },
     { key: "h2h", label: "交锋", value: h2hReady ? "已覆盖" : "无交锋", short: h2hReady ? "交锋已覆盖" : "无交锋", ready: h2hReady },
     { key: "lineups", label: "首发", value: lineupsReady ? "已覆盖" : "未出", short: lineupsReady ? "首发已出" : "首发未出", ready: lineupsReady },
   ];
