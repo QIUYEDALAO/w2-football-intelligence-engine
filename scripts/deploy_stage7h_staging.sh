@@ -20,6 +20,7 @@ set -euo pipefail
 
 SSH_HOST="${1:?Usage: $0 <ssh-host>}"
 REVISION="$(git rev-parse HEAD)"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
@@ -92,7 +93,10 @@ echo "--- Building staging images for ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
-sudo docker compose --env-file /opt/w2/shared/.env -f infra/compose/compose.staging.yml build
+export W2_GIT_SHA='${REVISION}'
+export W2_BUILD_TIME='${BUILD_TIME}'
+export W2_RELEASE_ID='${REVISION}'
+sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env -f infra/compose/compose.staging.yml build
 echo 'staging images built for current release'
 "
 

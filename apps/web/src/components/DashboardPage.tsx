@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
+import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
 import { PerformanceHeader } from "./PerformanceHeader";
 import { RecommendationBoard } from "./RecommendationBoard";
+import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
 import { ResultsValidationPanel } from "./ResultsValidationPanel";
 import { SegmentTabs } from "./SegmentTabs";
 import { SkeletonCard } from "./SkeletonCard";
@@ -57,6 +59,7 @@ export function DashboardPage() {
 
   return (
     <main className="app-shell dashboard-v2">
+      {view ? <ReleaseSyncBadge release={view.release} /> : null}
       {view ? <PerformanceHeader performance={view.performance} /> : null}
       <div className="dashboard-controls">
         <SegmentTabs mode={mode} onModeChange={setMode} />
@@ -81,7 +84,7 @@ export function DashboardPage() {
 
       {state === "error" ? <EmptySection title="加载失败" detail="请确认 /v1 API 反代正常；单个 fixture 失败不会阻塞整页。" /> : null}
 
-      {state === "empty" ? <EmptySection title="暂无比赛数据" detail="当前日期没有白名单比赛或 read-model 尚未写入。" /> : null}
+      {state === "empty" && view ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
 
       {state === "ok" && view ? (
         <>

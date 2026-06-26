@@ -16,6 +16,7 @@ from w2.api.schemas import (
     AnalysisCardResponse,
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
+    DashboardResponse,
     DataHealthResponse,
     ErrorPayload,
     FixtureDetailResponse,
@@ -39,6 +40,7 @@ from w2.api.schemas import (
     ResearchCardResponse,
     RetentionStatusResponse,
     ShadowStrategyStatusResponse,
+    VersionResponse,
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
@@ -88,6 +90,34 @@ async def error_handler(request: Request, exc: Exception) -> JSONResponse:
 def ensure_ops_enabled() -> None:
     if get_settings().environment == Environment.PRODUCTION:
         raise HTTPException(status_code=403, detail="operations API disabled in production")
+
+
+@public_router.get("/version", response_model=VersionResponse)
+def version(request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        **service.version(),
+    }
+
+
+@public_router.get("/dashboard", response_model=DashboardResponse)
+def dashboard(
+    request: Request,
+    date: str | None = None,
+    window: str = "today",
+    timezone: str = "Asia/Shanghai",
+    include_debug: bool = True,
+) -> dict[str, Any]:
+    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    return {
+        "request_id": request_id(request),
+        **service.dashboard(
+            target_date=date,
+            window=normalized_window,
+            timezone=timezone,
+            include_debug=include_debug,
+        ),
+    }
 
 
 @public_router.get("/fixtures", response_model=FixtureListResponse)

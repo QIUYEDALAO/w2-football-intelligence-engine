@@ -12,6 +12,7 @@ function tierLabel(match: DashboardMatchCard): string {
   if (settlement && settlement !== "PENDING") return "";
   if (match.recommendation?.tier === "FORMAL") return "正式推荐";
   if (match.recommendation?.tier === "CANDIDATE") return "候选推荐";
+  if (match.recommendation?.tier === "ANALYSIS_PICK") return "分析参考";
   if (match.recommendation?.tier === "WATCH") return "观察";
   return "暂无推荐";
 }

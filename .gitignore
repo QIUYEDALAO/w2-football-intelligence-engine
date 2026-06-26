@@ -11,6 +11,7 @@ dist/
 build/
 node_modules/
 apps/web/dist/
+apps/web/public/meta.json
 .env
 .env.*
 !.env.example
