@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+from contextlib import suppress
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,6 +16,15 @@ from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
+from w2.dashboard.performance import dashboard_performance
+from w2.dashboard.recommendations import build_recommendation
+from w2.dashboard.results import (
+    normalize_match_status,
+    result_from_dashboard_row,
+    result_from_provider_fixture,
+)
+from w2.dashboard.scorelines import scoreline_picks_from_card
+from w2.dashboard.validation import validate_recommendation
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -58,6 +69,7 @@ REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
+STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -99,6 +111,11 @@ def parse_provider_time(value: Any) -> datetime | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
     except ValueError:
         return None
+
+
+def release_env(name: str, default: str = "UNKNOWN") -> str:
+    value = os.getenv(name)
+    return value if value else default
 
 
 class ReadModelRepository:
@@ -269,6 +286,18 @@ class ReadModelRepository:
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
+
+    def staging_seed_dashboard(self) -> dict[str, Any] | None:
+        payload = load_json(STAGING_DASHBOARD_SEED, None)
+        return cast(dict[str, Any], payload) if isinstance(payload, dict) else None
+
+    def release_counts(self) -> dict[str, int]:
+        return {
+            "read_model_fixture_count": len(self.dashboard_latest_fixtures()),
+            "matchday_card_count": len(self.matchday_cards()),
+            "future_fixture_count": len(self.fixture_payloads()),
+            "result_event_count": len(self.result_events()),
+        }
 
     def world_cup_profile(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
@@ -481,6 +510,162 @@ class ReadModelService:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
+
+    def version(self) -> dict[str, Any]:
+        generated_at = datetime.now(UTC)
+        settings = get_settings()
+        database_ready = True
+        try:
+            counts = self.repository.release_counts()
+        except Exception:
+            database_ready = False
+            counts = {
+                "read_model_fixture_count": 0,
+                "matchday_card_count": 0,
+                "future_fixture_count": 0,
+                "result_event_count": 0,
+            }
+        data_profile = os.getenv("W2_DATA_PROFILE")
+        data_source = os.getenv("W2_DATA_SOURCE")
+        if not data_profile:
+            data_profile = (
+                "real-db"
+                if counts["matchday_card_count"] or counts["read_model_fixture_count"]
+                else "empty"
+            )
+        if not data_source:
+            data_source = "read-model-db" if data_profile == "real-db" else "empty"
+        return {
+            "service": "w2-football-intelligence-engine",
+            "environment": settings.environment.value,
+            "api_git_sha": release_env("W2_GIT_SHA"),
+            "api_build_time": os.getenv("W2_BUILD_TIME"),
+            "release_id": os.getenv("W2_RELEASE_ID") or release_env("W2_GIT_SHA"),
+            "data_profile": data_profile,
+            "data_source": data_source,
+            "database_ready": database_ready,
+            "read_model_fixture_count": counts["read_model_fixture_count"],
+            "matchday_card_count": counts["matchday_card_count"],
+            "result_event_count": counts["result_event_count"],
+            "generated_at": generated_at,
+        }
+
+    def dashboard(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+        include_debug: bool = True,
+    ) -> dict[str, Any]:
+        requested_date = (
+            date.fromisoformat(target_date)
+            if target_date
+            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+        )
+        version = self.version()
+        counts = self.repository.release_counts()
+        seed = self.repository.staging_seed_dashboard()
+        if (
+            not counts["read_model_fixture_count"]
+            and not counts["matchday_card_count"]
+            and seed
+        ):
+            return self._seed_dashboard_response(
+                seed,
+                requested_date=requested_date,
+                window=window,
+                timezone=timezone,
+                version=version,
+                counts=counts,
+                include_debug=include_debug,
+            )
+
+        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
+        next36_rows = self.matchday_next_36_hours().get("items", [])
+        result_rows = [
+            row
+            for row in self._all_matchday_rows()
+            if str(row.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
+        ]
+        future_rows, future_parse_error_count = self._future_fixture_rows_with_errors()
+        future_today_rows = self._filter_rows_for_operational_date(
+            future_rows,
+            requested_date=requested_date,
+        )
+        future_next36_rows = self._filter_rows_for_next36(future_rows)
+        today_rows = self._dedupe_dashboard_rows(
+            [*cast(list[dict[str, Any]], today_rows), *future_today_rows]
+        )
+        next36_rows = self._dedupe_dashboard_rows(
+            [*cast(list[dict[str, Any]], next36_rows), *future_next36_rows]
+        )
+        selected_rows: list[dict[str, Any]]
+        if window == "next36":
+            selected_rows = next36_rows
+        elif window == "results":
+            selected_rows = result_rows
+        elif window == "all":
+            selected_rows = self._dedupe_dashboard_rows(
+                [
+                    *today_rows,
+                    *next36_rows,
+                    *result_rows,
+                    *future_rows,
+                ]
+            )
+        else:
+            selected_rows = today_rows
+
+        all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+        recommendations = [
+            card
+            for card in all_cards
+            if isinstance(card.get("recommendation"), dict)
+            and str(cast(dict[str, Any], card["recommendation"]).get("tier"))
+            in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
+        ]
+        upcoming = [
+            card
+            for card in all_cards
+            if str(card.get("status", "")).upper() != "FINISHED"
+        ]
+        finished = [
+            card
+            for card in all_cards
+            if str(card.get("status", "")).upper() == "FINISHED"
+        ]
+        debug = self._dashboard_debug(
+            counts=counts,
+            requested_date=requested_date,
+            selected_rows=selected_rows,
+            future_rows=future_rows,
+            future_parse_error_count=future_parse_error_count,
+            include=include_debug,
+        )
+        data_profile = str(version["data_profile"])
+        if all_cards and data_profile == "empty":
+            data_profile = "real-db"
+        if not all_cards and data_profile == "real-db":
+            data_profile = "empty"
+        return {
+            "generated_at": datetime.now(UTC),
+            "date": requested_date.isoformat(),
+            "timezone": timezone,
+            "window": window,
+            "data_profile": data_profile,
+            "data_source": version["data_source"],
+            "version": {
+                "api_git_sha": version["api_git_sha"],
+                "release_id": version["release_id"],
+            },
+            "debug": debug,
+            "performance": self._dashboard_performance(all_cards),
+            "recommendations": recommendations,
+            "upcoming": upcoming,
+            "finished": finished,
+            "all": all_cards,
+        }
 
     def fixtures(
         self,
@@ -1474,7 +1659,7 @@ class ReadModelService:
         if not isinstance(scenarios, list):
             return []
         rows: list[dict[str, Any]] = []
-        for item in scenarios[:2]:
+        for item in scenarios[:3]:
             if not isinstance(item, dict):
                 continue
             scoreline = item.get("scoreline")
@@ -1860,6 +2045,303 @@ class ReadModelService:
     def w1_w2_shadow_comparison(self) -> dict[str, Any]:
         return self.repository.w1_w2_shadow_comparison()
 
+    def _all_matchday_rows(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for card in self.repository.matchday_cards():
+            with suppress(Exception):
+                rows.append(self._matchday_item(card))
+        return rows
+
+    def _future_fixture_rows_with_errors(self) -> tuple[list[dict[str, Any]], int]:
+        rows: list[dict[str, Any]] = []
+        parse_error_count = 0
+        for item in self.repository.fixture_payloads():
+            try:
+                row = self._fixture_summary(item, BEIJING_TZ)
+            except Exception:
+                parse_error_count += 1
+                continue
+            row["_dashboard_source"] = "future_fixture_payload"
+            rows.append(row)
+        return rows, parse_error_count
+
+    def _filter_rows_for_operational_date(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+    ) -> list[dict[str, Any]]:
+        return [
+            row
+            for row in rows
+            if str(row.get("operational_date_beijing") or "") == requested_date.isoformat()
+        ]
+
+    def _filter_rows_for_next36(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        now_utc: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        start, end = next_36_hours_window(now_utc)
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is not None and start <= kickoff < end:
+                filtered.append(row)
+        return filtered
+
+    def _row_kickoff_utc(self, row: dict[str, Any]) -> datetime | None:
+        value = row.get("kickoff_utc")
+        if isinstance(value, datetime):
+            return value.astimezone(UTC)
+        return parse_provider_time(value)
+
+    def _dedupe_dashboard_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for row in rows:
+            fixture_id = str(row.get("fixture_id") or "")
+            if not fixture_id or fixture_id in seen:
+                continue
+            seen.add(fixture_id)
+            deduped.append(row)
+        return deduped
+
+    def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
+        fixture_id = str(row.get("fixture_id") or "")
+        analysis: dict[str, Any] | None = None
+        if fixture_id and row.get("_dashboard_source") != "future_fixture_payload":
+            analysis = self.analysis_card(fixture_id)
+        card = analysis or self._fallback_analysis_card(
+            fixture_id=fixture_id or "unknown-fixture",
+            market_coverage={},
+            source=str(row.get("_dashboard_source") or "dashboard_without_analysis_card"),
+            fixture_context={
+                "kickoff_utc": row.get("kickoff_utc"),
+                "competition_name": row.get("competition_name"),
+                "competition_cn": row.get("competition_name"),
+                "home_name": row.get("home_team_name"),
+                "away_name": row.get("away_team_name"),
+                "home_cn": row.get("home_team_name"),
+                "away_cn": row.get("away_team_name"),
+            },
+        )
+        markets = [
+            item
+            for item in card.get("markets", [])
+            if isinstance(item, dict)
+        ]
+        picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
+        recommendation = build_recommendation(card, picked)
+        scoreline_picks = scoreline_picks_from_card(card)
+        result = result_from_dashboard_row(row)
+        validation = validate_recommendation(
+            fixture_id=fixture_id,
+            recommendation=recommendation,
+            result=result,
+            scoreline_picks=scoreline_picks,
+        )
+        raw_status = row.get("status")
+        return {
+            "fixture_id": fixture_id,
+            "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
+            "kickoff_beijing": row.get("kickoff_beijing"),
+            "operational_date_beijing": row.get("operational_date_beijing"),
+            "competition_id": row.get("competition_id"),
+            "competition_name": card.get("competition_cn") or row.get("competition_name"),
+            "home_team_name": card.get("home_cn") or row.get("home_team_name"),
+            "away_team_name": card.get("away_cn") or row.get("away_team_name"),
+            "status": normalize_match_status(raw_status),
+            "raw_status": raw_status,
+            "data_state": row.get("data_health") or row.get("data_state"),
+            "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
+            "watch_level": card.get("watch_level", 0),
+            "data_readiness": card.get("data_readiness", {}),
+            "recommendation": recommendation,
+            "scoreline_picks": scoreline_picks,
+            "result": result,
+            "validation": validation,
+            "current_odds": card.get("current_odds", {}),
+            "odds_movement": card.get("line_movement", {}),
+            "market_strip": markets,
+            "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "missing_inputs": self._missing_inputs_from_analysis_card(card),
+            "candidate": bool(recommendation.get("candidate")) if recommendation else False,
+            "formal_recommendation": bool(recommendation.get("formal_recommendation"))
+            if recommendation
+            else False,
+        }
+
+    def _recommendation_from_analysis_market(
+        self,
+        card: dict[str, Any],
+        market: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        return build_recommendation(card, market)
+
+    def _scoreline_picks_from_card(self, card: dict[str, Any]) -> list[dict[str, Any]]:
+        return scoreline_picks_from_card(card)
+
+    def _missing_inputs_from_analysis_card(self, card: dict[str, Any]) -> list[str]:
+        readiness = card.get("data_readiness", {})
+        if not isinstance(readiness, dict):
+            return []
+        missing: list[str] = []
+        if not readiness.get("bookmakers") and not readiness.get("odds_snapshots"):
+            missing.append("盘口快照")
+        if not readiness.get("xg"):
+            missing.append("xG")
+        if not readiness.get("h2h"):
+            missing.append("交锋")
+        if not readiness.get("lineups"):
+            missing.append("首发")
+        return missing
+
+    def _dashboard_performance(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
+        return dashboard_performance(cards)
+
+    def _dashboard_debug(
+        self,
+        *,
+        counts: dict[str, int],
+        requested_date: date,
+        selected_rows: list[dict[str, Any]],
+        future_rows: list[dict[str, Any]],
+        future_parse_error_count: int,
+        include: bool,
+    ) -> dict[str, Any]:
+        if not include:
+            return {}
+        future_stats = self._future_fixture_debug_stats(
+            future_rows,
+            requested_date=requested_date,
+            parse_error_count=future_parse_error_count,
+        )
+        next_available = self._next_available_date(requested_date, future_rows=future_rows)
+        empty_reason = None
+        empty_detail = None
+        if not any(counts.values()):
+            empty_reason = "READ_MODEL_EMPTY"
+        elif not selected_rows:
+            empty_reason = "SELECTED_DATE_EMPTY"
+            if counts.get("future_fixture_count", 0) > 0:
+                empty_detail = (
+                    "Future fixture payloads exist, but none fall inside the selected dashboard "
+                    "window after kickoff/status parsing."
+                )
+        return {
+            **counts,
+            **future_stats,
+            "selected_date": requested_date.isoformat(),
+            "selected_date_has_data": bool(selected_rows),
+            "next_available_date": next_available,
+            "empty_reason": empty_reason,
+            "empty_detail": empty_detail,
+            "suggested_actions": [
+                "run staging seed if this is a preview environment",
+                "check ingestion and future-refresh request audit",
+                "check read-model checkpoints",
+                "check selected dashboard date/window",
+            ],
+        }
+
+    def _next_available_date(
+        self,
+        requested_date: date,
+        *,
+        future_rows: list[dict[str, Any]] | None = None,
+    ) -> str | None:
+        dates: list[date] = []
+        for row in [*self._all_matchday_rows(), *(future_rows or [])]:
+            raw = row.get("operational_date_beijing")
+            try:
+                if raw:
+                    dates.append(date.fromisoformat(str(raw)))
+            except ValueError:
+                continue
+        future_dates = sorted(value for value in dates if value >= requested_date)
+        return future_dates[0].isoformat() if future_dates else None
+
+    def _future_fixture_debug_stats(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+        parse_error_count: int,
+    ) -> dict[str, Any]:
+        status_distribution: dict[str, int] = {}
+        date_distribution: dict[str, int] = {}
+        kickoffs: list[datetime] = []
+        in_window = 0
+        for row in rows:
+            status = str(row.get("status") or "UNKNOWN")
+            status_distribution[status] = status_distribution.get(status, 0) + 1
+            operational_date = str(row.get("operational_date_beijing") or "UNKNOWN")
+            date_distribution[operational_date] = date_distribution.get(operational_date, 0) + 1
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is None:
+                continue
+            kickoffs.append(kickoff)
+            if operational_date == requested_date.isoformat():
+                in_window += 1
+        sorted_dates = dict(sorted(date_distribution.items())[:20])
+        return {
+            "future_fixture_in_window_count": in_window,
+            "future_fixture_parse_error_count": parse_error_count,
+            "future_fixture_status_distribution": dict(sorted(status_distribution.items())),
+            "future_fixture_date_distribution": sorted_dates,
+            "future_fixture_min_kickoff_utc": min(kickoffs).isoformat().replace("+00:00", "Z")
+            if kickoffs
+            else None,
+            "future_fixture_max_kickoff_utc": max(kickoffs).isoformat().replace("+00:00", "Z")
+            if kickoffs
+            else None,
+        }
+
+    def _seed_dashboard_response(
+        self,
+        seed: dict[str, Any],
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+        version: dict[str, Any],
+        counts: dict[str, int],
+        include_debug: bool,
+    ) -> dict[str, Any]:
+        cards = [
+            item
+            for item in seed.get("all", seed.get("upcoming", []))
+            if isinstance(item, dict)
+        ]
+        debug = {
+            **counts,
+            "selected_date": requested_date.isoformat(),
+            "selected_date_has_data": bool(cards),
+            "next_available_date": requested_date.isoformat() if cards else None,
+            "empty_reason": None if cards else "STAGING_SEED_EMPTY",
+            "suggested_actions": ["staging seed is active; run live ingestion for real data"],
+        } if include_debug else {}
+        return {
+            "generated_at": datetime.now(UTC),
+            "date": requested_date.isoformat(),
+            "timezone": timezone,
+            "window": window,
+            "data_profile": "staging-seed",
+            "data_source": "staging-json-fallback",
+            "version": {
+                "api_git_sha": version["api_git_sha"],
+                "release_id": version["release_id"],
+            },
+            "debug": debug,
+            "performance": self._dashboard_performance(cards),
+            "recommendations": [card for card in cards if card.get("recommendation")],
+            "upcoming": cards,
+            "finished": [],
+            "all": cards,
+        }
+
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
         if "_dashboard" in item:
             dashboard = cast(dict[str, Any], item["_dashboard"])
@@ -1890,6 +2372,7 @@ class ReadModelService:
                 "WATCH" if fixture.get("status", {}).get("short") == "NS" else "DATA"
             ),
             "data_state": "CAPTURED_AT",
+            "_result": result_from_provider_fixture(item),
         }
 
     def _dashboard_fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
@@ -1917,6 +2400,7 @@ class ReadModelService:
             "primary_line": item.get("primary_line"),
             "primary_odds": self._optional_string(item.get("primary_executable_odds")),
             "last_captured": self._optional_datetime(item.get("captured_at")),
+            "_result": result_from_dashboard_row(item),
         }
 
     def _optional_string(self, value: Any) -> str | None:
@@ -1960,4 +2444,5 @@ class ReadModelService:
             "integrity_status": payload.get("integrity", {}).get("integrity_status"),
             "formal_recommendation": False,
             "candidate": False,
+            "_result": result_from_dashboard_row(fixture),
         }

@@ -20,6 +20,7 @@ set -euo pipefail
 
 SSH_HOST="${1:?Usage: $0 <ssh-host>}"
 REVISION="$(git rev-parse HEAD)"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
@@ -29,7 +30,11 @@ echo "  Branch:    $(git rev-parse --abbrev-ref HEAD)"
 
 # ── Step 0: Structural port preflight ──────────────────────
 echo "--- Running local structural staging port preflight ---"
-python3 scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
+if python3 -c "import yaml" >/dev/null 2>&1; then
+  python3 scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
+else
+  uv run --with pyyaml --python 3.12 python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
+fi
 
 # ── Step 1: Archive ─────────────────────────────────────────
 echo "--- Archiving HEAD (git archive) ---"
@@ -65,7 +70,11 @@ scp scripts/check_compose_staging_ports.py "${SSH_HOST}:/tmp/check_compose_stagi
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/releases/${REVISION}
-python3 /tmp/check_compose_staging_ports.py infra/compose/compose.staging.yml
+if python3 -c \"import yaml\" >/dev/null 2>&1; then
+  python3 /tmp/check_compose_staging_ports.py infra/compose/compose.staging.yml
+else
+  uv run --with pyyaml --python 3.12 python /tmp/check_compose_staging_ports.py infra/compose/compose.staging.yml
+fi
 rm -f /tmp/check_compose_staging_ports.py
 "
 
@@ -87,12 +96,33 @@ ln -sfn /opt/w2/shared/.env /opt/w2/releases/${REVISION}/.env
 echo 'Shared runtime/config/env linked into release'
 "
 
+# ── Step 6b: Persist public release metadata for compose/systemd ───────
+echo "--- Writing public release metadata ---"
+ssh "${SSH_HOST}" "
+set -euo pipefail
+install -d -m 0755 /opt/w2/shared
+umask 022
+cat > /opt/w2/shared/release.env <<'EOF'
+W2_GIT_SHA=${REVISION}
+W2_RELEASE_ID=${REVISION}
+W2_BUILD_TIME=${BUILD_TIME}
+VITE_GIT_SHA=${REVISION}
+VITE_RELEASE_ID=${REVISION}
+VITE_BUILD_TIME=${BUILD_TIME}
+EOF
+test \"\$(stat -c '%a' /opt/w2/shared/release.env)\" = '644'
+echo 'release env written with mode 644'
+"
+
 # ── Step 7: Build release images so containers run this revision ─────
 echo "--- Building staging images for ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
-sudo docker compose --env-file /opt/w2/shared/.env -f infra/compose/compose.staging.yml build
+export W2_GIT_SHA='${REVISION}'
+export W2_BUILD_TIME='${BUILD_TIME}'
+export W2_RELEASE_ID='${REVISION}'
+sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
 echo 'staging images built for current release'
 "
 
@@ -100,8 +130,9 @@ echo 'staging images built for current release'
 echo "--- Reloading systemd ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
+sudo cp /opt/w2/current/infra/systemd/w2-staging.service /etc/systemd/system/w2-staging.service
 sudo systemctl daemon-reload
-echo 'systemd unit w2-staging.service reloaded'
+echo 'systemd unit w2-staging.service installed and reloaded'
 "
 
 echo ""

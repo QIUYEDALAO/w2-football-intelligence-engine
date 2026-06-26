@@ -5,7 +5,8 @@
 # All business ports (18000, 18080) bind to localhost only.
 #
 # Environment file: /opt/w2/shared/.env (chmod 600, owner ubuntu)
-# Docker compose reads .env via --env-file flag (not working directory .env)
+# Release env file: /opt/w2/shared/release.env (public SHA/build metadata)
+# Docker compose reads env via --env-file flags (not working directory .env)
 
 [Unit]
 Description=W2 Football Intelligence Engine — Staging Stack
@@ -21,26 +22,32 @@ User=ubuntu
 Group=ubuntu
 
 Environment=COMPOSE_PROJECT_NAME=w2
+EnvironmentFile=-/opt/w2/shared/release.env
 
 WorkingDirectory=/opt/w2/current
 
 ExecStart=/usr/bin/sudo /usr/bin/docker compose \
   -f infra/compose/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
+  --env-file /opt/w2/shared/release.env \
   up -d --remove-orphans
 
 ExecStop=/usr/bin/sudo /usr/bin/docker compose \
   -f infra/compose/compose.staging.yml \
+  --env-file /opt/w2/shared/.env \
+  --env-file /opt/w2/shared/release.env \
   down
 
 ExecReload=/usr/bin/sudo /usr/bin/docker compose \
   -f infra/compose/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
+  --env-file /opt/w2/shared/release.env \
   restart
 
 ExecStartPost=/usr/bin/sudo /usr/bin/docker compose \
   -f infra/compose/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
+  --env-file /opt/w2/shared/release.env \
   ps
 
 StandardOutput=journal
