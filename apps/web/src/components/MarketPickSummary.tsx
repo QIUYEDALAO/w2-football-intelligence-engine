@@ -1,3 +1,4 @@
+import { translateReason } from "../lib/formatters";
 import { confidenceDots } from "../lib/normalize";
 import type { RecommendationPick } from "../types/dashboard";
 
@@ -6,6 +7,7 @@ export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
   const odds = pick.odds ? ` @${pick.odds}` : "";
   const line = pick.line ? ` ${pick.line}` : "";
   const probability = Number.isFinite(pick.model_probability) ? `模型概率 ${Math.round((pick.model_probability ?? 0) * 100)}%` : "模型概率待确认";
+  const reason = pick.reasons.length ? pick.reasons.slice(0, 2).map(translateReason).join(" · ") : probability;
   return (
     <div className="market-pick-summary">
       <div>
@@ -16,7 +18,7 @@ export function MarketPickSummary({ pick }: { pick: RecommendationPick }) {
           {odds}
         </strong>
         <p>
-          {probability}
+          {reason}
           {pick.fair_odds ? ` · 公允赔率 ${pick.fair_odds}` : ""}
           {pick.risk_adjusted_ev ? ` · EV ${pick.risk_adjusted_ev}` : ""}
         </p>
