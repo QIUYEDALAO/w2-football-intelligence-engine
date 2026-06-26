@@ -77,11 +77,18 @@ function normalizeDebug(payload: unknown): DashboardDebug {
     read_model_fixture_count: numberValue(record.read_model_fixture_count),
     matchday_card_count: numberValue(record.matchday_card_count),
     future_fixture_count: numberValue(record.future_fixture_count),
+    future_fixture_in_window_count: numberValue(record.future_fixture_in_window_count),
+    future_fixture_parse_error_count: numberValue(record.future_fixture_parse_error_count),
+    future_fixture_status_distribution: asRecord(record.future_fixture_status_distribution) as Record<string, number>,
+    future_fixture_date_distribution: asRecord(record.future_fixture_date_distribution) as Record<string, number>,
+    future_fixture_min_kickoff_utc: textValue(record.future_fixture_min_kickoff_utc) || null,
+    future_fixture_max_kickoff_utc: textValue(record.future_fixture_max_kickoff_utc) || null,
     result_event_count: numberValue(record.result_event_count),
     selected_date: textValue(record.selected_date),
     selected_date_has_data: Boolean(record.selected_date_has_data),
     next_available_date: textValue(record.next_available_date) || null,
     empty_reason: textValue(record.empty_reason) || null,
+    empty_detail: textValue(record.empty_detail) || null,
     suggested_actions: asArray(record.suggested_actions).map((item) => textValue(item)).filter(Boolean),
   };
 }

@@ -71,6 +71,12 @@ def main() -> int:
         failures.append("web sha mismatch")
     if not sha_matches(args.expected_sha, str(checks["api_git_sha"])):
         failures.append("api sha mismatch")
+        if checks["api_git_sha"] == "UNKNOWN":
+            print(
+                "hint: API SHA is UNKNOWN; check /opt/w2/shared/release.env and "
+                "the w2-staging systemd EnvironmentFile wiring.",
+                file=sys.stderr,
+            )
     if len(all_rows) < args.min_fixtures:
         failures.append("dashboard fixture count below minimum")
     if not args.allow_empty_data and dashboard.get("data_profile") == "empty":

@@ -42,6 +42,41 @@ python scripts/verify_release_sync.py \
 
 Use `--min-fixtures N` and omit `--allow-empty-data` when staging is expected to have dashboard rows.
 
+If `api_git_sha` is `UNKNOWN`, check `/opt/w2/shared/release.env` and the `w2-staging.service` `EnvironmentFile` entry. A plain `systemctl restart w2-staging.service` must preserve the release SHA.
+
+## Persistent release environment
+
+The deploy script writes public release metadata to:
+
+```text
+/opt/w2/shared/release.env
+```
+
+Expected keys:
+
+```text
+W2_GIT_SHA=<commit>
+W2_RELEASE_ID=<commit>
+W2_BUILD_TIME=<UTC timestamp>
+VITE_GIT_SHA=<commit>
+VITE_RELEASE_ID=<commit>
+VITE_BUILD_TIME=<UTC timestamp>
+```
+
+After a deployment or a systemd restart:
+
+```bash
+sudo systemctl restart w2-staging.service
+curl -s http://43.155.208.138/meta.json | jq .web_git_sha
+curl -s http://43.155.208.138/v1/version | jq .api_git_sha
+python scripts/verify_release_sync.py \
+  --base-url http://43.155.208.138 \
+  --expected-sha "$(git rev-parse HEAD)" \
+  --allow-empty-data
+```
+
+Do not store sensitive values in `release.env`; sensitive runtime values remain in `/opt/w2/shared/.env`.
+
 ## Explicit staging seed
 
 Staging seed is only for previewing the dashboard when the read-model is empty. It must never be confused with real data.
