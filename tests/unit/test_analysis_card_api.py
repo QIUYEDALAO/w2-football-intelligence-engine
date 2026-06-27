@@ -26,6 +26,125 @@ class FakeRepository:
         return []
 
 
+class ExistingFeatureRepository(FakeRepository):
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "id": "1489404",
+                    "date": "2026-06-26T18:00:00Z",
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": "world_cup_2026", "name": "World Cup"},
+                "teams": {
+                    "home": {"id": "10", "name": "Home"},
+                    "away": {"id": "20", "name": "Away"},
+                },
+            }
+        ]
+
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        captured = "2026-06-26T12:00:00Z"
+        return [
+            {
+                "fixture_id": "1489404",
+                "canonical_market": "ASIAN_HANDICAP",
+                "selection": "Home",
+                "line": "-0.5",
+                "decimal_odds": "1.91",
+                "captured_at": captured,
+                "provider_last_update": captured,
+                "bookmaker_id": "bm1",
+                "bookmaker_name": "Book",
+                "suspended": False,
+                "live": False,
+            },
+            {
+                "fixture_id": "1489404",
+                "canonical_market": "ASIAN_HANDICAP",
+                "selection": "Away",
+                "line": "0.5",
+                "decimal_odds": "1.91",
+                "captured_at": captured,
+                "provider_last_update": captured,
+                "bookmaker_id": "bm1",
+                "bookmaker_name": "Book",
+                "suspended": False,
+                "live": False,
+            },
+            {
+                "fixture_id": "1489404",
+                "canonical_market": "TOTALS",
+                "selection": "Over",
+                "line": "2.5",
+                "decimal_odds": "1.92",
+                "captured_at": captured,
+                "provider_last_update": captured,
+                "bookmaker_id": "bm1",
+                "bookmaker_name": "Book",
+                "suspended": False,
+                "live": False,
+            },
+            {
+                "fixture_id": "1489404",
+                "canonical_market": "TOTALS",
+                "selection": "Under",
+                "line": "2.5",
+                "decimal_odds": "1.92",
+                "captured_at": captured,
+                "provider_last_update": captured,
+                "bookmaker_id": "bm1",
+                "bookmaker_name": "Book",
+                "suspended": False,
+                "live": False,
+            },
+        ]
+
+
+class ExistingFeatureStore:
+    def team_xg_rolling_snapshots(self, *, fixture_id: str | None = None) -> list[dict[str, Any]]:
+        assert fixture_id == "1489404"
+        return [
+            {
+                "team_id": "10",
+                "as_of_time": "2026-06-26T12:00:00Z",
+                "rolling_xg_for": 1.7,
+                "rolling_xg_against": 0.8,
+                "rolling_goals_for": 2.0,
+                "rolling_goals_against": 1.0,
+            },
+            {
+                "team_id": "20",
+                "as_of_time": "2026-06-26T12:00:00Z",
+                "rolling_xg_for": 0.8,
+                "rolling_xg_against": 1.4,
+                "rolling_goals_for": 1.0,
+                "rolling_goals_against": 2.0,
+            },
+        ]
+
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "team_id": "10",
+                "opponent_team_id": "30",
+                "kickoff_at": "2026-06-21T18:00:00Z",
+                "goals_for": 2,
+                "goals_against": 1,
+            },
+            {
+                "team_id": "20",
+                "opponent_team_id": "40",
+                "kickoff_at": "2026-06-23T18:00:00Z",
+                "goals_for": 0,
+                "goals_against": 1,
+            },
+        ]
+
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        return []
+
+
 def test_analysis_card_fallback_contains_four_markets_and_intent() -> None:
     repository = FakeRepository(
         dashboard={
@@ -80,6 +199,32 @@ def test_analysis_card_fallback_contains_four_markets_and_intent() -> None:
     assert all(market["label_cn"] for market in card["markets"])
     assert all("reason_cn" in market for market in card["markets"])
     assert all("reason" in market for market in card["markets"])
+
+
+def test_existing_xg_history_is_wired_into_feature_inputs_without_faking_market_factors(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: ExistingFeatureStore(),
+    )
+    service = ReadModelService(repository=cast(Any, ExistingFeatureRepository()))
+
+    card = service.analysis_card("1489404")
+
+    assert card is not None
+    factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
+    assert {"F3_REST_FITNESS", "F4_MATCH_IMPORTANCE", "F7_STRENGTH_FORM", "F9_TRUE_XG"}.issubset(
+        factors
+    )
+    assert factors["F3_REST_FITNESS"]["status"] == "READY"
+    assert factors["F7_STRENGTH_FORM"]["status"] == "READY"
+    assert "F5_RECENT_AH_COVER" not in factors
+    assert card["pricing_shadow"]["coverage"] > 0.29
+    assert card["pricing_shadow"]["beats_market"] is False
+    assert card["pricing_shadow"]["formal_enabled"] is False
+    assert card["pricing_shadow"]["candidate_enabled"] is False
 
 
 def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:

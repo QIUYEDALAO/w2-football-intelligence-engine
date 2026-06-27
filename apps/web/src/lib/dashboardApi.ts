@@ -217,12 +217,17 @@ function normalizePricingShadow(payload: unknown): PricingShadow | null {
   const status = textValue(record.status);
   if (!status) return null;
   const s2Gate = asRecord(record.s2_gate);
+  const teamScore = asRecord(record.team_score);
   return {
     fixture_id: textValue(record.fixture_id),
     status,
     model_version: textValue(record.model_version) || null,
     calibration_version: textValue(record.calibration_version) || null,
     factors: asArray(record.factors).map(normalizePricingShadowFactor),
+    team_score: {
+      home: nullableNumber(teamScore.home),
+      away: nullableNumber(teamScore.away),
+    },
     fair_ah: nullableNumber(record.fair_ah),
     fair_ou: nullableNumber(record.fair_ou),
     market_ah: nullableNumber(record.market_ah),

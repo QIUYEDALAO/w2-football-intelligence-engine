@@ -40,6 +40,7 @@ from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
+from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.shadow_strategy_models import (
@@ -1111,6 +1112,13 @@ class ReadModelService:
             for row in snapshots
             if str(row.get("team_id")) == away_id
         ]
+        home_history, away_history = self._team_histories_from_existing_xg_matches(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
+        home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
+        away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
         mainline_selection = self._mainline_market_selection(observations)
         mainline_observations = [
             row
@@ -1129,6 +1137,10 @@ class ReadModelService:
             inputs=FeatureInputs(
                 market_snapshots=market_snapshots,
                 bookmaker_quotes=bookmaker_quotes,
+                home_history=home_history,
+                away_history=away_history,
+                home_ratings=home_ratings,
+                away_ratings=away_ratings,
                 home_xg=home_xg,
                 away_xg=away_xg,
             ),
@@ -1614,6 +1626,83 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
         }
+
+    def _team_histories_from_existing_xg_matches(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
+        matches = self._team_xg_matches()
+        home: list[TeamMatchHistory] = []
+        away: list[TeamMatchHistory] = []
+        for row in matches:
+            history = self._team_history_from_xg_match(row, context=context)
+            if history is None:
+                continue
+            if history.team_id == home_team_id:
+                home.append(history)
+            elif history.team_id == away_team_id:
+                away.append(history)
+        return home, away
+
+    def _team_history_from_xg_match(
+        self,
+        row: dict[str, Any],
+        *,
+        context: FeatureContext,
+    ) -> TeamMatchHistory | None:
+        kickoff = parse_provider_time(row.get("kickoff_at"))
+        if kickoff is None or kickoff > context.as_of:
+            return None
+        team_id = str(row.get("team_id") or "")
+        opponent_id = str(row.get("opponent_team_id") or "")
+        if not team_id or not opponent_id:
+            return None
+        goals_for = self._int_or_none(row.get("goals_for"))
+        goals_against = self._int_or_none(row.get("goals_against"))
+        if goals_for is None or goals_against is None:
+            return None
+        return TeamMatchHistory(
+            team_id=team_id,
+            opponent_id=opponent_id,
+            kickoff_at=kickoff,
+            goals_for=goals_for,
+            goals_against=goals_against,
+            ah_result=self._existing_ah_result(row),
+        )
+
+    def _int_or_none(self, value: Any) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _existing_ah_result(self, row: dict[str, Any]) -> str | None:
+        value = row.get("ah_result") or row.get("settled_ah_result")
+        if value is None:
+            return None
+        text = str(value).upper()
+        return text if text in {"COVER", "NO_COVER"} else None
+
+    def _team_ratings_from_existing_xg_snapshots(
+        self,
+        snapshots: list[TeamXgSnapshot],
+    ) -> list[TeamRatingSnapshot]:
+        ratings: list[TeamRatingSnapshot] = []
+        for row in snapshots:
+            ratings.append(
+                TeamRatingSnapshot(
+                    team_id=row.team_id,
+                    observed_at=row.observed_at,
+                    elo=1500.0 + (row.xg_for - row.xg_against) * 100.0,
+                    attack_strength=row.xg_for,
+                    defence_strength=row.xg_against,
+                    form_index=(row.goals_for - row.goals_against) / 5.0,
+                )
+            )
+        return ratings
 
     def _feature_contribution_payload(self, item: Any) -> dict[str, Any]:
         return {
