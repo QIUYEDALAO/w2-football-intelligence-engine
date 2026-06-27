@@ -57,6 +57,7 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
+from w2.pricing.shadow import build_pricing_shadow
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -1135,6 +1136,10 @@ class ReadModelService:
             ),
         )
         payload = self._analysis_card_payload(card)
+        payload["feature_contributions"] = [
+            self._feature_contribution_payload(item)
+            for item in feature_set.contributions
+        ]
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
@@ -1547,6 +1552,15 @@ class ReadModelService:
             "disclaimer": DISCLAIMER,
             "candidate": False,
             "formal_recommendation": False,
+        }
+
+    def _feature_contribution_payload(self, item: Any) -> dict[str, Any]:
+        return {
+            "id": str(getattr(item, "feature_id", "")),
+            "side": str(getattr(getattr(item, "side", None), "value", "UNKNOWN")),
+            "weight": float(getattr(item, "weight", 0.0)),
+            "score": getattr(item, "score", None),
+            "status": str(getattr(getattr(item, "status", None), "value", "UNKNOWN")),
         }
 
     def _analysis_input_summary(
@@ -2247,6 +2261,15 @@ class ReadModelService:
         )
         decorated["candidate"] = False
         decorated["formal_recommendation"] = False
+        decorated["pricing_shadow"] = build_pricing_shadow(
+            fixture_id=str(decorated.get("fixture_id") or ""),
+            feature_contributions=decorated.get("feature_contributions")
+            if isinstance(decorated.get("feature_contributions"), list)
+            else None,
+            current_odds=decorated.get("current_odds")
+            if isinstance(decorated.get("current_odds"), dict)
+            else None,
+        )
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -2912,6 +2935,7 @@ class ReadModelService:
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "pricing_shadow": card.get("pricing_shadow"),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
             "candidate": bool(recommendation.get("candidate")) if recommendation else False,
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
