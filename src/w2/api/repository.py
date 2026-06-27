@@ -57,6 +57,7 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
+from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -2579,10 +2580,12 @@ class ReadModelService:
     def provider_status(self) -> dict[str, Any]:
         dashboard = self.repository.dashboard_provider()
         if dashboard is not None:
+            remaining_quota = dashboard.get("remaining_quota")
+            parsed_remaining_quota = parse_int(remaining_quota)
             return {
                 "provider": str(dashboard.get("provider", "api_football")),
                 "status": str(dashboard.get("status", "READY")),
-                "remaining_quota": dashboard.get("remaining_quota"),
+                "remaining_quota": parsed_remaining_quota,
                 "credential_status": str(dashboard.get("credential_status", "PRESENT")),
                 "last_request_status": dashboard.get("last_request_status"),
                 "last_successful_refresh_at": parse_provider_time(
@@ -2590,6 +2593,7 @@ class ReadModelService:
                 ),
                 "refresh_age_seconds": None,
                 "blockers": [],
+                "quota_policy": api_football_quota_policy(parsed_remaining_quota),
             }
 
         db_repository = future_refresh_db_repository()
@@ -2602,10 +2606,12 @@ class ReadModelService:
                 last_success_db = parse_provider_time(
                     projected_db.get("last_successful_refresh_at")
                 )
+                remaining_quota = projected_db.get("remaining_quota")
+                parsed_remaining_quota = parse_int(remaining_quota)
                 return {
                     "provider": "api_football",
                     "status": projected_db.get("status", "READY"),
-                    "remaining_quota": projected_db.get("remaining_quota"),
+                    "remaining_quota": parsed_remaining_quota,
                     "credential_status": "PRESENT",
                     "last_request_status": projected_db.get("last_request_status"),
                     "last_successful_refresh_at": last_success_db,
@@ -2615,19 +2621,23 @@ class ReadModelService:
                         else None
                     ),
                     "blockers": projected_db.get("blockers", []),
+                    "quota_policy": api_football_quota_policy(parsed_remaining_quota),
                 }
         usage = self.repository.stage7e_usage()
         audit = usage.get("audit") or []
         last = audit[-1] if audit else {}
+        remaining_quota = usage.get("remaining_quota")
+        parsed_remaining_quota = parse_int(remaining_quota)
         return {
             "provider": "api_football",
-            "status": "READY" if usage.get("remaining_quota") else "UNKNOWN",
-            "remaining_quota": usage.get("remaining_quota"),
+            "status": "READY" if parsed_remaining_quota else "UNKNOWN",
+            "remaining_quota": parsed_remaining_quota,
             "credential_status": "PRESENT" if usage else "UNKNOWN",
             "last_request_status": last.get("status_code"),
             "last_successful_refresh_at": None,
             "refresh_age_seconds": None,
             "blockers": [],
+            "quota_policy": api_football_quota_policy(parsed_remaining_quota),
         }
 
     def forward_status(self) -> dict[str, Any]:
