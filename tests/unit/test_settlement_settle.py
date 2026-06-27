@@ -34,6 +34,31 @@ def result() -> MatchResult:
     )
 
 
+def ah_prediction(*, selection: str, line: str, prediction_hash: str) -> LockedPrediction:
+    return LockedPrediction(
+        fixture_id="1489404",
+        market="ASIAN_HANDICAP",
+        selection=selection,
+        line=line,
+        locked_decimal_odds=Decimal("1.91"),
+        model_probability=Decimal("0.52"),
+        locked_at=NOW,
+        prediction_hash=prediction_hash,
+        asof_market_snapshot_id="snapshot-ah",
+        devig_method="POWER",
+        market_baseline_probability=Decimal("0.50"),
+    )
+
+
+def final_result(*, home_goals: int, away_goals: int) -> MatchResult:
+    return MatchResult(
+        fixture_id="1489404",
+        home_goals_90=home_goals,
+        away_goals_90=away_goals,
+        final_at=NOW,
+    )
+
+
 def test_settlement_does_not_mutate_locked_prematch_prediction() -> None:
     locked = prediction()
     before = deepcopy(locked.as_dict())
@@ -89,42 +114,14 @@ def test_evaluation_outputs_clv_field() -> None:
 
 def test_ah_half_loss_and_push_sample_semantics() -> None:
     half_loss = settle_prediction(
-        LockedPrediction(
-            fixture_id="1489404",
-            market="ASIAN_HANDICAP",
-            selection="HOME",
-            line="-1.25",
-            locked_decimal_odds=Decimal("1.91"),
-            model_probability=Decimal("0.52"),
-            locked_at=NOW,
-            prediction_hash="ah-half-loss",
-        ),
-        MatchResult(
-            fixture_id="1489404",
-            home_goals_90=1,
-            away_goals_90=0,
-            final_at=NOW,
-        ),
+        ah_prediction(selection="HOME", line="-1.25", prediction_hash="ah-half-loss"),
+        final_result(home_goals=1, away_goals=0),
         closing_decimal_odds=None,
         evaluated_at=NOW,
     )
     push = settle_prediction(
-        LockedPrediction(
-            fixture_id="1489404",
-            market="ASIAN_HANDICAP",
-            selection="HOME",
-            line="-1",
-            locked_decimal_odds=Decimal("1.91"),
-            model_probability=Decimal("0.52"),
-            locked_at=NOW,
-            prediction_hash="ah-push",
-        ),
-        MatchResult(
-            fixture_id="1489404",
-            home_goals_90=1,
-            away_goals_90=0,
-            final_at=NOW,
-        ),
+        ah_prediction(selection="HOME", line="-1", prediction_hash="ah-push"),
+        final_result(home_goals=1, away_goals=0),
         closing_decimal_odds=None,
         evaluated_at=NOW,
     )
@@ -135,6 +132,35 @@ def test_ah_half_loss_and_push_sample_semantics() -> None:
     assert push.outcome == "PUSH"
     assert push.sample_included is True
     assert push.win_included is False
+
+
+def test_strict_ah_quarter_line_outcomes_cover_home_and_away() -> None:
+    cases = [
+        ("HOME", "-0.25", 1, 1, "HALF_LOSS", False),
+        ("HOME", "-0.75", 1, 0, "HALF_WIN", True),
+        ("AWAY", "+0.25", 1, 1, "HALF_WIN", True),
+        ("AWAY", "+0.75", 1, 0, "HALF_LOSS", False),
+        ("HOME", "-1", 1, 0, "PUSH", False),
+    ]
+
+    for selection, line, home_goals, away_goals, outcome, win_included in cases:
+        evaluation = settle_prediction(
+            ah_prediction(
+                selection=selection,
+                line=line,
+                prediction_hash=f"{selection}:{line}",
+            ),
+            final_result(home_goals=home_goals, away_goals=away_goals),
+            closing_decimal_odds=None,
+            evaluated_at=NOW,
+        )
+
+        assert evaluation.outcome == outcome
+        assert evaluation.sample_included is True
+        assert evaluation.win_included is win_included
+        assert evaluation.asof_market_snapshot_id == "snapshot-ah"
+        assert evaluation.devig_method == "POWER"
+        assert evaluation.market_baseline_probability == Decimal("0.50")
 
 
 def test_void_result_is_excluded_from_settlement_sample() -> None:
