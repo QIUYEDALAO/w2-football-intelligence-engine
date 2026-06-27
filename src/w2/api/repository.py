@@ -57,6 +57,8 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
+from w2.pricing.shadow import build_pricing_shadow
+from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -771,6 +773,36 @@ class ReadModelService:
             return 300.0 if window in {"today", "next36"} else 600.0
         return 900.0 if window in {"today", "next36"} else 1800.0
 
+    def dashboard_summary(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+    ) -> dict[str, Any]:
+        payload = self.dashboard(
+            target_date=target_date,
+            window=window,
+            timezone=timezone,
+            include_debug=False,
+        )
+        return {
+            "generated_at": payload["generated_at"],
+            "date": payload["date"],
+            "timezone": payload["timezone"],
+            "window": payload["window"],
+            "data_profile": payload["data_profile"],
+            "data_source": payload["data_source"],
+            "version": payload["version"],
+            "totals": {
+                "recommendations": len(cast(list[Any], payload["recommendations"])),
+                "upcoming": len(cast(list[Any], payload["upcoming"])),
+                "finished": len(cast(list[Any], payload["finished"])),
+                "all": len(cast(list[Any], payload["all"])),
+            },
+            "performance": payload["performance"],
+        }
+
     def warm_dashboard_cache(self) -> None:
         for window in ("today", "next36", "all"):
             with suppress(Exception):
@@ -1135,6 +1167,10 @@ class ReadModelService:
             ),
         )
         payload = self._analysis_card_payload(card)
+        payload["feature_contributions"] = [
+            self._feature_contribution_payload(item)
+            for item in feature_set.contributions
+        ]
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
@@ -1547,6 +1583,15 @@ class ReadModelService:
             "disclaimer": DISCLAIMER,
             "candidate": False,
             "formal_recommendation": False,
+        }
+
+    def _feature_contribution_payload(self, item: Any) -> dict[str, Any]:
+        return {
+            "id": str(getattr(item, "feature_id", "")),
+            "side": str(getattr(getattr(item, "side", None), "value", "UNKNOWN")),
+            "weight": float(getattr(item, "weight", 0.0)),
+            "score": getattr(item, "score", None),
+            "status": str(getattr(getattr(item, "status", None), "value", "UNKNOWN")),
         }
 
     def _analysis_input_summary(
@@ -2247,6 +2292,15 @@ class ReadModelService:
         )
         decorated["candidate"] = False
         decorated["formal_recommendation"] = False
+        decorated["pricing_shadow"] = build_pricing_shadow(
+            fixture_id=str(decorated.get("fixture_id") or ""),
+            feature_contributions=decorated.get("feature_contributions")
+            if isinstance(decorated.get("feature_contributions"), list)
+            else None,
+            current_odds=decorated.get("current_odds")
+            if isinstance(decorated.get("current_odds"), dict)
+            else None,
+        )
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -2579,10 +2633,12 @@ class ReadModelService:
     def provider_status(self) -> dict[str, Any]:
         dashboard = self.repository.dashboard_provider()
         if dashboard is not None:
+            remaining_quota = dashboard.get("remaining_quota")
+            parsed_remaining_quota = parse_int(remaining_quota)
             return {
                 "provider": str(dashboard.get("provider", "api_football")),
                 "status": str(dashboard.get("status", "READY")),
-                "remaining_quota": dashboard.get("remaining_quota"),
+                "remaining_quota": parsed_remaining_quota,
                 "credential_status": str(dashboard.get("credential_status", "PRESENT")),
                 "last_request_status": dashboard.get("last_request_status"),
                 "last_successful_refresh_at": parse_provider_time(
@@ -2590,6 +2646,7 @@ class ReadModelService:
                 ),
                 "refresh_age_seconds": None,
                 "blockers": [],
+                "quota_policy": api_football_quota_policy(parsed_remaining_quota),
             }
 
         db_repository = future_refresh_db_repository()
@@ -2602,10 +2659,12 @@ class ReadModelService:
                 last_success_db = parse_provider_time(
                     projected_db.get("last_successful_refresh_at")
                 )
+                remaining_quota = projected_db.get("remaining_quota")
+                parsed_remaining_quota = parse_int(remaining_quota)
                 return {
                     "provider": "api_football",
                     "status": projected_db.get("status", "READY"),
-                    "remaining_quota": projected_db.get("remaining_quota"),
+                    "remaining_quota": parsed_remaining_quota,
                     "credential_status": "PRESENT",
                     "last_request_status": projected_db.get("last_request_status"),
                     "last_successful_refresh_at": last_success_db,
@@ -2615,19 +2674,23 @@ class ReadModelService:
                         else None
                     ),
                     "blockers": projected_db.get("blockers", []),
+                    "quota_policy": api_football_quota_policy(parsed_remaining_quota),
                 }
         usage = self.repository.stage7e_usage()
         audit = usage.get("audit") or []
         last = audit[-1] if audit else {}
+        remaining_quota = usage.get("remaining_quota")
+        parsed_remaining_quota = parse_int(remaining_quota)
         return {
             "provider": "api_football",
-            "status": "READY" if usage.get("remaining_quota") else "UNKNOWN",
-            "remaining_quota": usage.get("remaining_quota"),
+            "status": "READY" if parsed_remaining_quota else "UNKNOWN",
+            "remaining_quota": parsed_remaining_quota,
             "credential_status": "PRESENT" if usage else "UNKNOWN",
             "last_request_status": last.get("status_code"),
             "last_successful_refresh_at": None,
             "refresh_age_seconds": None,
             "blockers": [],
+            "quota_policy": api_football_quota_policy(parsed_remaining_quota),
         }
 
     def forward_status(self) -> dict[str, Any]:
@@ -2912,6 +2975,7 @@ class ReadModelService:
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "pricing_shadow": card.get("pricing_shadow"),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
             "candidate": bool(recommendation.get("candidate")) if recommendation else False,
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))

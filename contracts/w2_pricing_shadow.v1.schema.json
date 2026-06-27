@@ -1,0 +1,72 @@
+{
+  "$id": "w2_pricing_shadow.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "W2 S1/S2 Pricing Shadow Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "factors",
+    "model_version",
+    "calibration_version",
+    "fair_ah",
+    "fair_ou",
+    "market_ah",
+    "market_ou",
+    "edge_ah",
+    "edge_ou",
+    "coverage",
+    "asof_market_snapshot_id",
+    "devig_method",
+    "settlement_outcome",
+    "beats_market",
+    "formal_enabled",
+    "candidate_enabled",
+    "s2_gate"
+  ],
+  "properties": {
+    "factors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "side", "weight", "score", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "side": { "enum": ["HOME", "AWAY", "NEUTRAL", "UNKNOWN"] },
+          "weight": { "type": "number" },
+          "score": { "type": "number" },
+          "status": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "model_version": { "type": "string", "minLength": 1 },
+    "calibration_version": { "type": "string", "minLength": 1 },
+    "fair_ah": {
+      "type": ["number", "null"],
+      "description": "Fair Asian handicap line; negative means home gives goals."
+    },
+    "fair_ou": { "type": ["number", "null"] },
+    "market_ah": { "type": ["number", "null"] },
+    "market_ou": { "type": ["number", "null"] },
+    "edge_ah": { "type": ["number", "null"] },
+    "edge_ou": { "type": ["number", "null"] },
+    "coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "asof_market_snapshot_id": { "type": ["string", "null"] },
+    "devig_method": { "type": ["string", "null"] },
+    "settlement_outcome": {
+      "enum": ["WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS", "VOID", null]
+    },
+    "beats_market": { "const": false },
+    "formal_enabled": { "const": false },
+    "candidate_enabled": { "const": false },
+    "s2_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n_min", "beats_market"],
+      "properties": {
+        "n_min": { "const": 200 },
+        "beats_market": { "const": false }
+      }
+    }
+  }
+}

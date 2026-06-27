@@ -148,6 +148,19 @@ class DashboardResponse(BaseModel):
     all: list[dict[str, Any]]
 
 
+class DashboardSummaryResponse(BaseModel):
+    request_id: str
+    generated_at: datetime
+    date: str
+    timezone: str
+    window: str
+    data_profile: str
+    data_source: str
+    version: dict[str, Any]
+    totals: dict[str, int]
+    performance: dict[str, Any]
+
+
 class MatchdayCoverageResponse(BaseModel):
     request_id: str
     requested_date_beijing: str
@@ -208,6 +221,7 @@ class ProviderStatusResponse(BaseModel):
     credential_status: str
     last_request_status: int | None
     blockers: list[str] = Field(default_factory=list)
+    quota_policy: dict[str, Any] = Field(default_factory=dict)
 
 
 class BacktestLatestResponse(BaseModel):

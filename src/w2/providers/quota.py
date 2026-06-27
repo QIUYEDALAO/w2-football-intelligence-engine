@@ -21,6 +21,9 @@ DAILY_HEADER_SOURCES = {
 BURST_HEADER_SOURCES = {
     "x-ratelimit-remaining",
 }
+API_FOOTBALL_DAILY_BUDGET = 7500
+API_FOOTBALL_RESERVE_BUCKET = 1500
+API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET = 75000
 
 
 def parse_int(value: Any) -> int | None:
@@ -65,3 +68,24 @@ def parse_api_football_quota(
         daily_source=daily_source,
         burst_source=burst_source,
     )
+
+
+def api_football_quota_policy(remaining_quota: int | None) -> dict[str, Any]:
+    available_after_reserve = (
+        max(remaining_quota - API_FOOTBALL_RESERVE_BUCKET, 0)
+        if remaining_quota is not None
+        else None
+    )
+    return {
+        "provider": "api_football",
+        "daily_budget": API_FOOTBALL_DAILY_BUDGET,
+        "reserve_bucket": API_FOOTBALL_RESERVE_BUCKET,
+        "available_after_reserve": available_after_reserve,
+        "reserve_locked": (
+            remaining_quota <= API_FOOTBALL_RESERVE_BUCKET
+            if remaining_quota is not None
+            else None
+        ),
+        "upgrade_evaluation_daily_budget": API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET,
+        "upgrade_enabled": False,
+    }

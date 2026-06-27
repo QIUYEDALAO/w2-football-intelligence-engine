@@ -90,6 +90,11 @@ def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
                 "decision": "ANALYSIS_PICK",
                 "candidate": True,
                 "formal_recommendation": True,
+                "pricing_shadow": {
+                    "status": "CALIBRATED",
+                    "beats_market": True,
+                },
+                "model_probabilities": {"HOME": 0.42, "DRAW": 0.30, "AWAY": 0.28},
                 "markets": [
                     {
                         "market": "TOTALS",
@@ -115,6 +120,12 @@ def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
     assert card is not None
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+    assert card["pricing_shadow"]["status"] == "INSUFFICIENT_INDEPENDENT_FACTORS"
+    assert card["pricing_shadow"]["beats_market"] is False
+    assert card["pricing_shadow"]["fair_ah"] is None
+    assert card["pricing_shadow"]["edge_ah"] is None
+    assert card["pricing_shadow"]["coverage"] == 0
+    assert card["pricing_shadow"]["factors"] == []
     assert card["markets"][0]["candidate"] is False
     assert card["markets"][0]["formal_recommendation"] is False
     assert card["markets"][0]["decision"] == "PICK"
