@@ -189,6 +189,10 @@ def true_xg_factor(
         coverage_key="xg",
         observed_at=max(home.observed_at, away.observed_at),
         inputs={"home_xg_net": home_net, "away_xg_net": away_net},
+        source="api_football_statistics",
+        source_group="xg",
+        is_independent_signal=True,
+        collection_status="READY",
     )
 
 

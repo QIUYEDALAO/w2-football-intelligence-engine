@@ -195,7 +195,8 @@ def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> Non
     assert cover.status == FeatureStatus.READY
     assert cover.weight < 0.10
     assert h2h.status == FeatureStatus.UNAVAILABLE
-    assert h2h.reason == "H2H_UNAVAILABLE"
+    assert h2h.reason == "NO_H2H_HISTORY"
+    assert h2h.collection_status == "NO_H2H_HISTORY"
 
 
 def test_strength_and_squad_value_use_latest_as_of_not_future() -> None:

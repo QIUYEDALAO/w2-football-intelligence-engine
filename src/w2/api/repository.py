@@ -40,7 +40,7 @@ from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
-from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot
+from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.shadow_strategy_models import (
@@ -66,6 +66,7 @@ from w2.operations.tournament import (
 )
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
+from w2.ratings.elo import rating_from_history
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -1112,13 +1113,38 @@ class ReadModelService:
             for row in snapshots
             if str(row.get("team_id")) == away_id
         ]
-        home_history, away_history = self._team_histories_from_existing_xg_matches(
+        proxy_home_history, proxy_away_history = self._team_histories_from_existing_xg_matches(
             context=context,
             home_team_id=home_id,
             away_team_id=away_id,
         )
-        home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
-        away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
+        home_history, away_history = self._team_fixture_histories_from_raw_payloads(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
+        if not home_history and not away_history:
+            home_history, away_history = proxy_home_history, proxy_away_history
+        h2h_meetings = self._h2h_meetings_from_raw_payloads(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
+        home_ratings, away_ratings = self._team_ratings_from_history(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            home_history=home_history,
+            away_history=away_history,
+        )
+        if not home_ratings and not away_ratings:
+            home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
+            away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
+        home_values, away_values = self._team_values_from_static_mapping(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
         mainline_selection = self._mainline_market_selection(observations)
         mainline_observations = [
             row
@@ -1139,8 +1165,11 @@ class ReadModelService:
                 bookmaker_quotes=bookmaker_quotes,
                 home_history=home_history,
                 away_history=away_history,
+                h2h_meetings=h2h_meetings,
                 home_ratings=home_ratings,
                 away_ratings=away_ratings,
+                home_values=home_values,
+                away_values=away_values,
                 home_xg=home_xg,
                 away_xg=away_xg,
             ),
@@ -1671,7 +1700,238 @@ class ReadModelService:
             goals_for=goals_for,
             goals_against=goals_against,
             ah_result=self._existing_ah_result(row),
+            source="team_xg_match_proxy",
+            source_group="xg",
+            is_independent_signal=False,
+            proxy_of="team_fixture_history",
+            collection_status="PROXY_ONLY",
         )
+
+    def _team_fixture_histories_from_raw_payloads(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
+        rows = self._fixture_response_items_from_raw_payloads()
+        home = self._team_history_from_fixture_items(
+            rows,
+            team_id=home_team_id,
+            context=context,
+            source="api_football_fixtures_by_team",
+        )
+        away = self._team_history_from_fixture_items(
+            rows,
+            team_id=away_team_id,
+            context=context,
+            source="api_football_fixtures_by_team",
+        )
+        return home, away
+
+    def _h2h_meetings_from_raw_payloads(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> list[TeamMatchHistory]:
+        rows = self._fixture_response_items_from_raw_payloads(endpoint="h2h")
+        if not rows:
+            rows = [
+                row
+                for row in self._fixture_response_items_from_raw_payloads()
+                if self._fixture_has_teams(row, home_team_id, away_team_id)
+            ]
+        meetings: list[TeamMatchHistory] = []
+        for item in rows:
+            history = self._team_history_from_api_fixture(
+                item,
+                team_id=home_team_id,
+                context=context,
+                source="api_football_h2h",
+                source_group="h2h",
+            )
+            if history is not None and history.opponent_id == away_team_id:
+                meetings.append(history)
+        return meetings
+
+    def _team_ratings_from_history(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+        home_history: list[TeamMatchHistory],
+        away_history: list[TeamMatchHistory],
+    ) -> tuple[list[TeamRatingSnapshot], list[TeamRatingSnapshot]]:
+        if not home_history or not away_history:
+            return [], []
+        home = rating_from_history(
+            team_id=home_team_id,
+            history=home_history,
+            as_of=context.as_of,
+        )
+        away = rating_from_history(
+            team_id=away_team_id,
+            history=away_history,
+            as_of=context.as_of,
+        )
+        return ([home] if home is not None else []), ([away] if away is not None else [])
+
+    def _team_values_from_static_mapping(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamValueSnapshot], list[TeamValueSnapshot]]:
+        values = self._team_value_mapping()
+        home = self._team_value_snapshot(values.get(home_team_id), context=context)
+        away = self._team_value_snapshot(values.get(away_team_id), context=context)
+        return ([home] if home is not None else []), ([away] if away is not None else [])
+
+    def _team_value_mapping(self) -> dict[str, dict[str, Any]]:
+        path = ROOT / "config/team_values/world_cup_2026.v1.json"
+        payload = load_json(path, {})
+        rows = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            return {}
+        mapping: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_id") or row.get("provider_team_id") or "")
+            if team_id:
+                mapping[team_id] = row
+        return mapping
+
+    def _team_value_snapshot(
+        self,
+        row: dict[str, Any] | None,
+        *,
+        context: FeatureContext,
+    ) -> TeamValueSnapshot | None:
+        if not row:
+            return None
+        observed = parse_provider_time(row.get("observed_at")) or context.as_of
+        if observed > context.as_of:
+            return None
+        try:
+            value = float(row["squad_value_eur"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        return TeamValueSnapshot(
+            team_id=str(row.get("team_id") or row.get("provider_team_id") or ""),
+            observed_at=observed,
+            squad_value_eur=value,
+            source_system=str(row.get("source_system") or "static_team_value_mapping"),
+            confidence=float(row.get("confidence") or 1.0),
+            source_group="squad_value",
+            is_independent_signal=True,
+            collection_status="READY",
+        )
+
+    def _fixture_response_items_from_raw_payloads(
+        self,
+        endpoint: str = "fixtures",
+    ) -> list[dict[str, Any]]:
+        repository = self._future_refresh_repository()
+        reader = getattr(repository, "raw_payloads", None) if repository is not None else None
+        if not callable(reader):
+            return []
+        rows: list[dict[str, Any]] = []
+        with suppress(Exception):
+            payload_rows = reader(endpoint)
+            for raw in payload_rows:
+                payload = raw.get("payload") if isinstance(raw, dict) else None
+                if not isinstance(payload, dict):
+                    continue
+                response = payload.get("response")
+                if isinstance(response, list):
+                    rows.extend(item for item in response if isinstance(item, dict))
+        return rows
+
+    def _team_history_from_fixture_items(
+        self,
+        items: list[dict[str, Any]],
+        *,
+        team_id: str,
+        context: FeatureContext,
+        source: str,
+    ) -> list[TeamMatchHistory]:
+        rows = [
+            history
+            for item in items
+            if (
+                history := self._team_history_from_api_fixture(
+                    item,
+                    team_id=team_id,
+                    context=context,
+                    source=source,
+                    source_group="team_fixture_history",
+                )
+            )
+            is not None
+        ]
+        rows.sort(key=lambda row: row.kickoff_at)
+        return rows
+
+    def _team_history_from_api_fixture(
+        self,
+        item: dict[str, Any],
+        *,
+        team_id: str,
+        context: FeatureContext,
+        source: str,
+        source_group: str,
+    ) -> TeamMatchHistory | None:
+        fixture = self._dict_child(item, "fixture")
+        teams = self._dict_child(item, "teams")
+        goals = self._dict_child(item, "goals")
+        kickoff = parse_provider_time(fixture.get("date"))
+        if kickoff is None or kickoff > context.as_of:
+            return None
+        status = str((fixture.get("status") or {}).get("short") or "").upper()
+        if status not in {"FT", "AET", "PEN"}:
+            return None
+        home = self._dict_child(teams, "home")
+        away = self._dict_child(teams, "away")
+        home_id = str(home.get("id") or "")
+        away_id = str(away.get("id") or "")
+        home_goals = self._int_or_none(goals.get("home"))
+        away_goals = self._int_or_none(goals.get("away"))
+        if home_goals is None or away_goals is None:
+            return None
+        if team_id == home_id and away_id:
+            goals_for, goals_against, opponent_id = home_goals, away_goals, away_id
+        elif team_id == away_id and home_id:
+            goals_for, goals_against, opponent_id = away_goals, home_goals, home_id
+        else:
+            return None
+        return TeamMatchHistory(
+            team_id=team_id,
+            opponent_id=opponent_id,
+            kickoff_at=kickoff,
+            goals_for=goals_for,
+            goals_against=goals_against,
+            ah_result=self._existing_ah_result(item),
+            source=source,
+            source_group=source_group,
+            is_independent_signal=True,
+            collection_status="READY",
+        )
+
+    def _fixture_has_teams(self, item: dict[str, Any], team_a_id: str, team_b_id: str) -> bool:
+        teams = self._dict_child(item, "teams")
+        home = self._dict_child(teams, "home")
+        away = self._dict_child(teams, "away")
+        ids = {str(home.get("id") or ""), str(away.get("id") or "")}
+        return team_a_id in ids and team_b_id in ids
+
+    def _dict_child(self, payload: dict[str, Any], key: str) -> dict[str, Any]:
+        value = payload.get(key)
+        return value if isinstance(value, dict) else {}
 
     def _int_or_none(self, value: Any) -> int | None:
         try:
@@ -1700,6 +1960,11 @@ class ReadModelService:
                     attack_strength=row.xg_for,
                     defence_strength=row.xg_against,
                     form_index=(row.goals_for - row.goals_against) / 5.0,
+                    source="rolling_xg_proxy",
+                    source_group="xg",
+                    is_independent_signal=False,
+                    proxy_of="ratings",
+                    collection_status="PROXY_ONLY",
                 )
             )
         return ratings
@@ -1711,6 +1976,12 @@ class ReadModelService:
             "weight": float(getattr(item, "weight", 0.0)),
             "score": getattr(item, "score", None),
             "status": str(getattr(getattr(item, "status", None), "value", "UNKNOWN")),
+            "source": getattr(item, "source", None),
+            "source_group": getattr(item, "source_group", None),
+            "is_independent_signal": bool(getattr(item, "is_independent_signal", False)),
+            "proxy_of": getattr(item, "proxy_of", None),
+            "collection_status": getattr(item, "collection_status", None),
+            "inputs": getattr(item, "inputs", {}),
         }
 
     def _analysis_input_summary(

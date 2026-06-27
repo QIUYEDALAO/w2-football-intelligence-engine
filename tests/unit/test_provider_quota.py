@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.api.repository import ReadModelService
+from w2.ingestion.quota_budget import independent_signal_quota_decision
 from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,
@@ -182,3 +183,45 @@ def test_quota_guard_blocks_unknown_or_exhausted_quota() -> None:
     assert quota_guard_decision(remaining_quota=0, task_type="lineups")["blocker"] == (
         "DAILY_QUOTA_EXHAUSTED"
     )
+
+
+def test_independent_signal_budget_allows_only_prematch_when_quota_unknown() -> None:
+    assert independent_signal_quota_decision(
+        remaining_quota=None,
+        task_type="prematch_odds",
+    )["allowed"] is True
+    blocked = independent_signal_quota_decision(
+        remaining_quota="UNKNOWN",
+        task_type="team_fixture_history_backfill",
+    )
+
+    assert blocked["allowed"] is False
+    assert blocked["reason"] == "DAILY_QUOTA_UNKNOWN"
+
+
+def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -> None:
+    for task_type in (
+        "team_fixture_history_backfill",
+        "h2h_backfill",
+        "squad_value_mapping",
+        "ratings_backfill",
+    ):
+        assert independent_signal_quota_decision(
+            remaining_quota=1499,
+            task_type=task_type,
+        )["allowed"] is False
+        critical = independent_signal_quota_decision(
+            remaining_quota=749,
+            task_type=task_type,
+        )
+        assert critical["allowed"] is False
+        assert critical["mode"] == "CORE_ONLY"
+
+    assert independent_signal_quota_decision(
+        remaining_quota=749,
+        task_type="prematch_lineups",
+    )["allowed"] is True
+    assert independent_signal_quota_decision(
+        remaining_quota=6774,
+        task_type="h2h_backfill",
+    )["allowed"] is True
