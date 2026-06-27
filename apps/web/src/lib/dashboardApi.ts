@@ -207,9 +207,33 @@ function normalizePricingShadowFactor(payload: unknown): PricingShadowFactor {
     id: textValue(record.id, "UNKNOWN_FACTOR"),
     side: textValue(record.side, "UNKNOWN"),
     weight: nullableNumber(record.weight) ?? 0,
-    score: nullableNumber(record.score) ?? 0,
+    score: nullableNumber(record.score),
     status: textValue(record.status, "UNKNOWN"),
+    source: textValue(record.source) || null,
+    source_group: textValue(record.source_group) || null,
+    is_independent_signal: record.is_independent_signal === true,
+    proxy_of: textValue(record.proxy_of) || null,
+    collection_status: textValue(record.collection_status) || null,
   };
+}
+
+function normalizeFactorSourceSummary(payload: unknown): PricingShadow["factor_source_summary"] {
+  const record = asRecord(payload);
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => {
+      const row = asRecord(value);
+      return [
+        key,
+        {
+          source: textValue(row.source) || null,
+          source_group: textValue(row.source_group) || null,
+          is_independent_signal: row.is_independent_signal === true,
+          proxy_of: textValue(row.proxy_of) || null,
+          collection_status: textValue(row.collection_status) || null,
+        },
+      ];
+    }),
+  );
 }
 
 function normalizePricingShadow(payload: unknown): PricingShadow | null {
@@ -235,6 +259,11 @@ function normalizePricingShadow(payload: unknown): PricingShadow | null {
     edge_ah: nullableNumber(record.edge_ah),
     edge_ou: nullableNumber(record.edge_ou),
     coverage: nullableNumber(record.coverage),
+    independent_signal_count: numberValue(record.independent_signal_count),
+    independent_signal_groups: asArray(record.independent_signal_groups).map((item) => textValue(item)).filter(Boolean),
+    xg_derived_factor_count: numberValue(record.xg_derived_factor_count),
+    missing_independent_sources: asArray(record.missing_independent_sources).map((item) => textValue(item)).filter(Boolean),
+    factor_source_summary: normalizeFactorSourceSummary(record.factor_source_summary),
     asof_market_snapshot_id: textValue(record.asof_market_snapshot_id) || null,
     devig_method: textValue(record.devig_method) || null,
     settlement_outcome: textValue(record.settlement_outcome) || null,
@@ -245,6 +274,22 @@ function normalizePricingShadow(payload: unknown): PricingShadow | null {
       n_min: nullableNumber(s2Gate.n_min) ?? undefined,
       beats_market: s2Gate.beats_market === true,
     },
+  };
+}
+
+function normalizeScorelineReadiness(payload: unknown) {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    reason: textValue(record.reason) || null,
+    source: textValue(record.source) || null,
+    model_version: textValue(record.model_version) || null,
+    lambda_home: nullableNumber(record.lambda_home),
+    lambda_away: nullableNumber(record.lambda_away),
+    fair_ou: nullableNumber(record.fair_ou),
+    xg_sample_status: textValue(record.xg_sample_status) || null,
   };
 }
 
@@ -273,6 +318,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
       probability: typeof row.probability === "number" ? row.probability : undefined,
       probability_label: textValue(row.probability_label),
     })).filter((row) => row.scoreline),
+    scoreline_readiness: normalizeScorelineReadiness(record.scoreline_readiness),
     result: record.result ? (asRecord(record.result) as unknown as MatchResult) : null,
     validation: record.validation ? (asRecord(record.validation) as unknown as ValidationSummary) : null,
     current_odds: asRecord(record.current_odds),

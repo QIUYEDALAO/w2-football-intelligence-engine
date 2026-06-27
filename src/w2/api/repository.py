@@ -50,6 +50,11 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.markets.movement import MarketSnapshot
+from w2.markets.poisson import (
+    INDEPENDENT_XG_POISSON_MODEL_VERSION,
+    IndependentXgPoissonOutput,
+    independent_xg_poisson,
+)
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -1004,11 +1009,16 @@ class ReadModelService:
             context = self._analysis_context_from_flat_fixture(fixture)
             embedded = card.get("analysis_card")
             if isinstance(embedded, dict):
-                return self._normalize_analysis_card(
+                normalized = self._normalize_analysis_card(
                     embedded,
                     fixture_id=fixture_id,
                     fixture_context=context,
                 )
+                if normalized.get("scoreline_readiness") is None:
+                    refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+                    if refreshed is not None:
+                        return refreshed
+                return normalized
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
                 market_coverage=dict(fixture.get("market_coverage", {})),
@@ -1021,11 +1031,16 @@ class ReadModelService:
             context = self._analysis_context_from_flat_fixture(dashboard)
             embedded = dashboard.get("analysis_card")
             if isinstance(embedded, dict):
-                return self._normalize_analysis_card(
+                normalized = self._normalize_analysis_card(
                     embedded,
                     fixture_id=fixture_id,
                     fixture_context=context,
                 )
+                if normalized.get("scoreline_readiness") is None:
+                    refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+                    if refreshed is not None:
+                        return refreshed
+                return normalized
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
                 market_coverage=dict(dashboard.get("market_coverage", {})),
@@ -1036,6 +1051,12 @@ class ReadModelService:
         if item is not None:
             return self._analysis_card_from_provider_payload(fixture_id, item)
         return None
+
+    def _analysis_card_from_cached_fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
+        item = self._fixture_payload_by_id(fixture_id)
+        if item is None:
+            return None
+        return self._analysis_card_from_provider_payload(fixture_id, item)
 
     def _analysis_card_from_provider_payload(
         self,
@@ -1198,31 +1219,53 @@ class ReadModelService:
             missing.add(AnalysisMarket.TOTALS)
         latest_home_xg = max(home_xg, key=lambda row: row.observed_at, default=None)
         latest_away_xg = max(away_xg, key=lambda row: row.observed_at, default=None)
+        xg_readiness = self._xg_readiness_status(
+            kickoff=kickoff,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            snapshots=snapshots,
+        )
         half_goals: HalfGoalModelInput | None = None
         score_matrix: dict[tuple[int, int], float] | None = None
         score_direction: Direction | None = None
-        if latest_home_xg is None or latest_away_xg is None:
+        scoreline_output: IndependentXgPoissonOutput | None = None
+        scoreline_readiness = self._scoreline_readiness(
+            status="INSUFFICIENT_INDEPENDENT_XG",
+            reason=str(xg_readiness["status"]),
+            xg_sample_status=str(xg_readiness["status"]),
+        )
+        if (
+            xg_readiness["status"] != "READY"
+            or latest_home_xg is None
+            or latest_away_xg is None
+        ):
             missing.update({AnalysisMarket.FIRST_HALF_GOALS, AnalysisMarket.SCORE})
         else:
-            expected_home = max(
-                (latest_home_xg.xg_for + latest_away_xg.xg_against) / 2,
-                0.05,
+            scoreline_output = independent_xg_poisson(
+                home_xg_for=latest_home_xg.xg_for,
+                home_xg_against=latest_home_xg.xg_against,
+                away_xg_for=latest_away_xg.xg_for,
+                away_xg_against=latest_away_xg.xg_against,
             )
-            expected_away = max(
-                (latest_away_xg.xg_for + latest_home_xg.xg_against) / 2,
-                0.05,
-            )
+            expected_home = scoreline_output.lambda_home
+            expected_away = scoreline_output.lambda_away
             half_goals = HalfGoalModelInput(
                 expected_home_goals=expected_home,
                 expected_away_goals=expected_away,
             )
-            score_matrix = self._poisson_score_matrix(expected_home, expected_away)
+            score_matrix = scoreline_output.score_matrix
             if expected_home > expected_away + 0.10:
                 score_direction = "HOME"
             elif expected_away > expected_home + 0.10:
                 score_direction = "AWAY"
             else:
                 score_direction = "DRAW"
+            scoreline_readiness = self._scoreline_readiness(
+                status="READY",
+                reason=None,
+                xg_sample_status=str(xg_readiness["status"]),
+                output=scoreline_output,
+            )
         card = build_multi_market_analysis(
             fixture_id=fixture_id,
             inputs=AnalysisBuildInputs(
@@ -1240,6 +1283,7 @@ class ReadModelService:
             self._feature_contribution_payload(item)
             for item in feature_set.contributions
         ]
+        payload["scoreline_readiness"] = scoreline_readiness
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
@@ -1640,6 +1684,52 @@ class ReadModelService:
                     / math.factorial(away_goals)
                 )
         return matrix
+
+    def _scoreline_readiness(
+        self,
+        *,
+        status: str,
+        reason: str | None,
+        xg_sample_status: str,
+        output: IndependentXgPoissonOutput | None = None,
+    ) -> dict[str, Any]:
+        if status != "READY" or output is None:
+            return {
+                "status": "INSUFFICIENT_INDEPENDENT_XG",
+                "reason": reason or xg_sample_status or "XG_DATA_UNAVAILABLE",
+                "source": None,
+                "model_version": INDEPENDENT_XG_POISSON_MODEL_VERSION,
+                "lambda_home": None,
+                "lambda_away": None,
+                "fair_ou": None,
+                "xg_sample_status": xg_sample_status,
+            }
+        return {
+            "status": "READY",
+            "reason": None,
+            "source": output.source,
+            "model_version": output.model_version,
+            "lambda_home": output.lambda_home,
+            "lambda_away": output.lambda_away,
+            "fair_ou": output.fair_ou,
+            "xg_sample_status": xg_sample_status,
+        }
+
+    def _attach_scoreline_pricing_fields(self, card: dict[str, Any]) -> None:
+        readiness = card.get("scoreline_readiness")
+        shadow = card.get("pricing_shadow")
+        if not isinstance(readiness, dict) or not isinstance(shadow, dict):
+            return
+        if (
+            readiness.get("status") == "READY"
+            and readiness.get("source") == "independent_xg_poisson"
+            and isinstance(readiness.get("fair_ou"), int | float)
+        ):
+            shadow["fair_ou"] = float(readiness["fair_ou"])
+            shadow["edge_ou"] = None
+            return
+        shadow["fair_ou"] = None
+        shadow["edge_ou"] = None
 
     def _analysis_card_payload(self, card: MultiMarketAnalysisCard) -> dict[str, Any]:
         return {
@@ -2718,6 +2808,7 @@ class ReadModelService:
             if isinstance(decorated.get("current_odds"), dict)
             else None,
         )
+        self._attach_scoreline_pricing_fields(decorated)
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -3392,6 +3483,7 @@ class ReadModelService:
             "data_refresh": data_refresh,
             "recommendation": recommendation,
             "scoreline_picks": scoreline_picks,
+            "scoreline_readiness": card.get("scoreline_readiness"),
             "result": result,
             "validation": validation,
             "current_odds": card.get("current_odds", {}),

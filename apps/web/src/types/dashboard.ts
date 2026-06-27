@@ -163,6 +163,17 @@ export interface ScorelinePick {
   direction_hit?: boolean;
 }
 
+export interface ScorelineReadiness {
+  status: "READY" | "INSUFFICIENT_INDEPENDENT_XG" | string;
+  reason?: string | null;
+  source?: string | null;
+  model_version?: string | null;
+  lambda_home?: number | null;
+  lambda_away?: number | null;
+  fair_ou?: number | null;
+  xg_sample_status?: string | null;
+}
+
 export interface RecommendationPick {
   tier: RecommendationTier;
   market: string;
@@ -189,8 +200,13 @@ export interface PricingShadowFactor {
   id: string;
   side: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN" | string;
   weight: number;
-  score: number;
+  score: number | null;
   status: string;
+  source?: string | null;
+  source_group?: string | null;
+  is_independent_signal?: boolean;
+  proxy_of?: string | null;
+  collection_status?: string | null;
 }
 
 export interface PricingShadow {
@@ -210,6 +226,17 @@ export interface PricingShadow {
   edge_ah?: number | null;
   edge_ou?: number | null;
   coverage?: number | null;
+  independent_signal_count?: number;
+  independent_signal_groups?: string[];
+  xg_derived_factor_count?: number;
+  missing_independent_sources?: string[];
+  factor_source_summary?: Record<string, {
+    source?: string | null;
+    source_group?: string | null;
+    is_independent_signal?: boolean;
+    proxy_of?: string | null;
+    collection_status?: string | null;
+  }>;
   asof_market_snapshot_id?: string | null;
   devig_method?: string | null;
   settlement_outcome?: string | null;
@@ -276,6 +303,7 @@ export interface DashboardMatchCard {
   analysis_readiness?: AnalysisReadiness;
   recommendation?: RecommendationPick | null;
   scoreline_picks: ScorelinePick[];
+  scoreline_readiness?: ScorelineReadiness | null;
   result?: MatchResult | null;
   validation?: ValidationSummary | null;
   current_odds?: Record<string, unknown>;

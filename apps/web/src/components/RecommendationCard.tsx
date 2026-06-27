@@ -1,7 +1,7 @@
 import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
-import type { DashboardMatchCard, PricingShadow, RecommendationPick, RecommendationTier } from "../types/dashboard";
+import type { DashboardMatchCard, PricingShadow, PricingShadowFactor, RecommendationPick, RecommendationTier } from "../types/dashboard";
 import { OddsMovementMini } from "./OddsMovementMini";
 import { SettlementBadge } from "./SettlementBadge";
 
@@ -69,6 +69,16 @@ const FACTOR_LABELS: Record<string, string> = {
   F8_SQUAD_VALUE: "球队身价",
   F9_TRUE_XG: "真实 xG",
 };
+
+const SIGNAL_GROUP_LABELS: Record<string, string> = {
+  team_fixture_history: "赛程历史",
+  ratings: "评分",
+  xg: "xG",
+  h2h: "交锋",
+  squad_value: "身价",
+};
+
+const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
 
 function verdictState(match: DashboardMatchCard): VerdictState {
   const phase = matchPhase(match.kickoff_utc, match.status);
@@ -181,13 +191,17 @@ function actionabilityLine(match: DashboardMatchCard): string {
   return "赛前分析参考，非正式推荐";
 }
 
-function scoreText(match: DashboardMatchCard): string {
-  if (!match.scoreline_picks.length) {
-    const phase = matchPhase(match.kickoff_utc, match.status);
-    if (phase === "LIVE" || phase === "FINISHED") return "比分：赛前未就绪 · 已锁定";
-    return "比分：等待 xG 数据";
-  }
-  return `比分：${match.scoreline_picks
+function canShowScoreline(match: DashboardMatchCard): boolean {
+  return (
+    match.scoreline_readiness?.status === "READY"
+    && match.scoreline_readiness.source === "independent_xg_poisson"
+    && match.scoreline_picks.length > 0
+  );
+}
+
+function scoreText(match: DashboardMatchCard): string | null {
+  if (!canShowScoreline(match)) return null;
+  return `最可能比分（基于我们的 xG）：${match.scoreline_picks
     .slice(0, 3)
     .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)
     .join(" · ")}`;
@@ -243,6 +257,46 @@ function pricingShadowDetail(shadow: PricingShadow | null | undefined, state: Ve
   return "S1-Shadow · 规则映射 · 未校准 · 非正式推荐。";
 }
 
+function factorCount(shadow: PricingShadow | null | undefined): number {
+  const summary = shadow?.factor_source_summary ?? {};
+  const summaryReady = Object.values(summary).filter((item) => item.collection_status === "READY").length;
+  return Math.max(summaryReady, shadow?.factors.length ?? 0);
+}
+
+function missingSignalLabels(shadow: PricingShadow | null | undefined, match: DashboardMatchCard): string[] {
+  const missing = new Set<string>();
+  const xgStatus = statusText(match.data_refresh?.xg_status ?? asRecord(match.data_readiness).xg_status);
+  if (xgStatus === "PARTIAL_HISTORY") missing.add("xG样本不足");
+  if (xgStatus === "INSUFFICIENT_HISTORY") missing.add("xG历史不足");
+  for (const group of shadow?.missing_independent_sources ?? []) {
+    if (group === "h2h") missing.add("无交锋历史");
+    else if (group === "squad_value") missing.add("身价未映射");
+    else if (group === "xg" && !["PARTIAL_HISTORY", "INSUFFICIENT_HISTORY"].includes(xgStatus)) missing.add("xG样本");
+    else if (SIGNAL_GROUP_LABELS[group]) missing.add(SIGNAL_GROUP_LABELS[group]);
+  }
+  const summary = shadow?.factor_source_summary ?? {};
+  for (const [id, item] of Object.entries(summary)) {
+    if (id === "F5_RECENT_AH_COVER" && item.collection_status === "MISSING_AH_EVIDENCE") missing.add("亚盘历史");
+    if (id === "F6_H2H" && item.collection_status === "NO_H2H_HISTORY") missing.add("无交锋历史");
+    if (id === "F8_SQUAD_VALUE" && item.collection_status === "MAPPING_MISSING") missing.add("身价未映射");
+  }
+  return Array.from(missing).slice(0, 5);
+}
+
+function independentSignalLine(shadow: PricingShadow | null | undefined, match: DashboardMatchCard): string {
+  if (!shadow) return "独立信号：0/5 · 因子就绪：0/7 · 缺：独立评分输入";
+  const groups = shadow.independent_signal_groups ?? [];
+  const used = groups.map((group) => SIGNAL_GROUP_LABELS[group] ?? group).filter(Boolean);
+  const missing = missingSignalLabels(shadow, match);
+  const signalCount = typeof shadow.independent_signal_count === "number" ? shadow.independent_signal_count : groups.length;
+  return [
+    `独立信号：${signalCount}/${REQUIRED_SIGNAL_GROUPS.length}`,
+    `因子就绪：${factorCount(shadow)}/7`,
+    used.length ? `已用：${used.join("、")}` : "已用：无",
+    missing.length ? `缺：${missing.join("、")}` : "缺：无",
+  ].join(" · ");
+}
+
 function lowInformationState(state: VerdictState): boolean {
   return state === "INSUFFICIENT" || state === "WATCH";
 }
@@ -252,16 +306,15 @@ function scoreValue(value: number | null | undefined): string {
   return (value * 100).toFixed(1).replace(/\.0$/, "");
 }
 
-function factorSideLabel(side: string, homeName: string, awayName: string): string {
-  if (side === "HOME") return `${homeName}占优`;
-  if (side === "AWAY") return `${awayName}占优`;
-  if (side === "NEUTRAL") return "中性";
-  return "未知";
-}
-
-function factorScore(value: number | null | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
-  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}分`;
+function factorDetailText(factor: PricingShadowFactor, homeName: string, awayName: string): string {
+  const value = factor.score;
+  if (typeof value !== "number" || !Number.isFinite(value)) return "证据不足";
+  const strength = Math.abs(value);
+  if (strength < 0.05) return "接近持平";
+  if (factor.side !== "HOME" && factor.side !== "AWAY") return `中性 · ${strength.toFixed(2)}`;
+  const sideLabel = factor.side === "HOME" ? homeName : awayName;
+  const advantage = strength < 0.15 ? "略占优" : "占优";
+  return `${sideLabel}${advantage} · ${strength.toFixed(2)}`;
 }
 
 function statusText(value: unknown): string {
@@ -290,7 +343,7 @@ function xgPillLabel(match: DashboardMatchCard): string {
   const items = readinessItems({ data_readiness: match.data_readiness });
   if (status === "READY" || items.find((item) => item.key === "xg")?.ready) return "已就绪";
   if (status === "INSUFFICIENT_HISTORY" || status === "PARTIAL_HISTORY") return "样本不足";
-  if (status === "PROVIDER_EMPTY" || status === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "provider 未返回";
+  if (status === "PROVIDER_EMPTY" || status === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "未返回";
   if (status === "MAPPING_MISSING") return "映射缺失";
   return "状态待确认";
 }
@@ -321,7 +374,9 @@ function MainMarketBox({
   const fairAh = lineValue(shadow?.fair_ah ?? null, "ah");
   const marketAh = lineValue(shadow?.market_ah ?? null, "ah");
   const edgeAh = edgeText(shadow?.edge_ah ?? null);
-  const factors = (shadow?.factors ?? []).filter((factor) => factor.status === "READY");
+  const factors = (shadow?.factors ?? [])
+    .filter((factor) => factor.status === "READY")
+    .sort((a, b) => Number(b.is_independent_signal === true) - Number(a.is_independent_signal === true));
   return (
     <section className="main-market-box" aria-label="全场让球主市场">
       <div className="main-market-heading">
@@ -337,7 +392,7 @@ function MainMarketBox({
       <div className="factor-detail-list" aria-label="独立因子明细">
         {factors.length ? factors.slice(0, 5).map((factor) => (
           <span key={factor.id}>
-            {FACTOR_LABELS[factor.id] ?? factor.id} · {factorSideLabel(factor.side, homeName, awayName)} · {factorScore(factor.score)}
+            {FACTOR_LABELS[factor.id] ?? factor.id} · {factorDetailText(factor, homeName, awayName)}
           </span>
         )) : <span>独立因子未就绪</span>}
       </div>
@@ -379,6 +434,8 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const verdict = verdictState(match);
   const blockers = blockerLabels(match);
   const lowInfo = lowInformationState(verdict);
+  const signalLine = independentSignalLine(match.pricing_shadow, match);
+  const scoreSummary = scoreText(match);
   return (
     <article className={`recommendation-card ${cardTone(verdict)} ${prematchReview ? "is-prematch" : ""}`}>
       <header className="recommendation-card-header">
@@ -405,7 +462,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       <div className="verdict-hero">
         <span>{VERDICT_LABELS[verdict]}</span>
         <strong>{verdict === "REFERENCE" ? "可作赛前分析参考" : verdict === "WATCH" ? "观察，不升级" : verdict === "LOCKED" ? "赛前判断已锁定" : "样本/因子不足"}</strong>
-        <p>{blockers.length ? blockers.join(" · ") : "分析参考 · 未通过正式验证"}</p>
+        <p>{lowInfo ? signalLine : blockers.length ? blockers.join(" · ") : "分析参考 · 未通过正式验证"}</p>
       </div>
 
       <MainMarketBox
@@ -416,6 +473,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       />
 
       <DataReadinessPills match={match} />
+      {lowInfo ? <p className="market-strip-line">{signalLine}</p> : null}
 
       {lowInfo ? null : (
         <div className="card-info-lines">
@@ -427,9 +485,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             <strong>数据：</strong>
             {dataLine(match)}
           </p>
-          <p>
-            <strong>{scoreText(match)}</strong>
-          </p>
+          {scoreSummary ? <p><strong>{scoreSummary}</strong></p> : null}
         </div>
       )}
       {lowInfo ? null : <OddsMovementMini match={match} />}

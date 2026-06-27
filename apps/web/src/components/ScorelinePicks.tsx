@@ -8,11 +8,11 @@ function scoreClass(pick: ScorelinePick): string {
 
 export function ScorelinePicks({ picks }: { picks: ScorelinePick[] }) {
   if (!picks.length) {
-    return <p className="scoreline-empty">推荐比分：比分模型未就绪</p>;
+    return null;
   }
   return (
-    <div className="scoreline-picks" aria-label="推荐比分">
-      <span>推荐比分</span>
+    <div className="scoreline-picks" aria-label="最可能比分">
+      <span>最可能比分（基于我们的 xG）</span>
       {picks.slice(0, 3).map((pick) => (
         <strong className={scoreClass(pick)} key={`${pick.scoreline}-${pick.probability_label ?? ""}`}>
           {pick.scoreline}
