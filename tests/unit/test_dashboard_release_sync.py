@@ -144,6 +144,31 @@ def test_public_dashboard_defaults_to_lightweight_response(monkeypatch) -> None:
     assert dashboard["all"] == []
 
 
+def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -> None:
+    monkeypatch.setattr(
+        routers,
+        "service",
+        ReadModelService(repository=cast(Any, FutureFixtureRepository())),
+    )
+    client = TestClient(app)
+
+    summary = client.get("/v1/dashboard/summary?date=2026-06-26&window=all").json()
+
+    assert summary["date"] == "2026-06-26"
+    assert summary["window"] == "all"
+    assert summary["totals"] == {
+        "recommendations": 0,
+        "upcoming": 2,
+        "finished": 0,
+        "all": 2,
+    }
+    assert "performance" in summary
+    assert "debug" not in summary
+    assert "all" not in summary
+    assert "upcoming" not in summary
+    assert "finished" not in summary
+
+
 def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
 
