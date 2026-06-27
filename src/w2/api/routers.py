@@ -41,6 +41,7 @@ from w2.api.schemas import (
     ResearchCardResponse,
     RetentionStatusResponse,
     ShadowStrategyStatusResponse,
+    ValidationSummaryResponse,
     VersionResponse,
     WorldCupReadinessResponse,
 )
@@ -132,6 +133,24 @@ def dashboard_summary(
     return {
         "request_id": request_id(request),
         **service.dashboard_summary(
+            target_date=date,
+            window=normalized_window,
+            timezone=timezone,
+        ),
+    }
+
+
+@public_router.get("/validation/summary", response_model=ValidationSummaryResponse)
+def validation_summary(
+    request: Request,
+    date: str | None = None,
+    window: str = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    return {
+        "request_id": request_id(request),
+        **service.validation_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,

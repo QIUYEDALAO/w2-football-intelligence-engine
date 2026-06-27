@@ -70,11 +70,14 @@ export interface CurrentOddsPayload {
 
 export interface DataRefreshStatus {
   status?: string;
+  status_label?: string;
   provider?: string;
   source?: string;
   odds_status?: string;
   lineups_status?: string;
+  lineups_status_label?: string;
   xg_status?: string;
+  xg_status_label?: string;
   statistics_status?: string;
   lineups_captured_at?: string | null;
   statistics_captured_at?: string | null;
@@ -203,6 +206,9 @@ export interface PricingShadow {
   edge_ah?: number | null;
   edge_ou?: number | null;
   coverage?: number | null;
+  asof_market_snapshot_id?: string | null;
+  devig_method?: string | null;
+  settlement_outcome?: string | null;
   formal_enabled?: false | boolean;
   candidate_enabled?: false | boolean;
   beats_market?: false | boolean;

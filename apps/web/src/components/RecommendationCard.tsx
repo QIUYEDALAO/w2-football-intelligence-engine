@@ -127,10 +127,10 @@ function refreshLine(match: DashboardMatchCard): string | null {
   const refresh = match.data_refresh;
   if (!refresh?.status) return null;
   const parts = [
-    refresh.status === "PROVIDER_EMPTY" ? "provider empty" : refresh.status,
+    refresh.status_label || (refresh.status === "PROVIDER_EMPTY" ? "provider 未返回" : refresh.status),
     refresh.odds_status ? `盘口 ${refresh.odds_status}` : "",
-    refresh.lineups_status ? `阵容 ${refresh.lineups_status}` : "",
-    refresh.xg_status ? `xG ${refresh.xg_status}` : "",
+    refresh.lineups_status_label || (refresh.lineups_status ? `阵容 ${refresh.lineups_status}` : ""),
+    refresh.xg_status_label || (refresh.xg_status ? `xG ${refresh.xg_status}` : ""),
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }

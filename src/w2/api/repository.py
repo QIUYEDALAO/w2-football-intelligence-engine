@@ -29,7 +29,13 @@ from w2.dashboard.results import (
     result_from_provider_fixture,
 )
 from w2.dashboard.scorelines import scoreline_picks_from_card
+from w2.dashboard.status_labels import (
+    lineups_status_label,
+    provider_status_label,
+    xg_status_label,
+)
 from w2.dashboard.validation import validate_recommendation
+from w2.dashboard.validation_summary import validation_summary
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -801,6 +807,30 @@ class ReadModelService:
                 "all": len(cast(list[Any], payload["all"])),
             },
             "performance": payload["performance"],
+        }
+
+    def validation_summary(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+    ) -> dict[str, Any]:
+        payload = self.dashboard(
+            target_date=target_date,
+            window=window,
+            timezone=timezone,
+            include_debug=False,
+        )
+        return {
+            "generated_at": payload["generated_at"],
+            "date": payload["date"],
+            "timezone": payload["timezone"],
+            "window": payload["window"],
+            "data_profile": payload["data_profile"],
+            "data_source": payload["data_source"],
+            "version": payload["version"],
+            "validation": validation_summary(cast(dict[str, Any], payload["performance"])),
         }
 
     def warm_dashboard_cache(self) -> None:
@@ -3023,15 +3053,19 @@ class ReadModelService:
             status = "PARTIAL"
         else:
             status = "WAITING"
+        xg_status = (
+            "READY" if xg_ready else str(data_readiness.get("xg_status") or statistics_status)
+        )
         return {
             "status": status,
+            "status_label": provider_status_label(status),
             "provider": "api_football",
             "source": str(card.get("source") or row.get("_dashboard_source") or "read-model"),
             "odds_status": "READY" if odds_ready else "WAITING",
             "lineups_status": lineups_status,
-            "xg_status": (
-                "READY" if xg_ready else str(data_readiness.get("xg_status") or statistics_status)
-            ),
+            "lineups_status_label": lineups_status_label(lineups_status),
+            "xg_status": xg_status,
+            "xg_status_label": xg_status_label(xg_status),
             "statistics_status": statistics_status,
             "lineups_captured_at": data_readiness.get("lineups_captured_at"),
             "statistics_captured_at": data_readiness.get("statistics_captured_at"),

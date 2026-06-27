@@ -161,6 +161,18 @@ class DashboardSummaryResponse(BaseModel):
     performance: dict[str, Any]
 
 
+class ValidationSummaryResponse(BaseModel):
+    request_id: str
+    generated_at: datetime
+    date: str
+    timezone: str
+    window: str
+    data_profile: str
+    data_source: str
+    version: dict[str, Any]
+    validation: dict[str, Any]
+
+
 class MatchdayCoverageResponse(BaseModel):
     request_id: str
     requested_date_beijing: str
