@@ -2951,6 +2951,11 @@ class ReadModelService:
             scoreline_picks=scoreline_picks,
         )
         raw_status = row.get("status")
+        data_refresh = self._dashboard_data_refresh(
+            card=card,
+            readiness=analysis_readiness,
+            row=row,
+        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
@@ -2967,6 +2972,7 @@ class ReadModelService:
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
             "analysis_readiness": analysis_readiness,
+            "data_refresh": data_refresh,
             "recommendation": recommendation,
             "scoreline_picks": scoreline_picks,
             "result": result,
@@ -2981,6 +2987,55 @@ class ReadModelService:
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
             if recommendation
             else False,
+        }
+
+    def _dashboard_data_refresh(
+        self,
+        *,
+        card: dict[str, Any],
+        readiness: dict[str, Any],
+        row: dict[str, Any],
+    ) -> dict[str, Any]:
+        raw_data_readiness = card.get("data_readiness")
+        data_readiness: dict[str, Any] = (
+            cast(dict[str, Any], raw_data_readiness)
+            if isinstance(raw_data_readiness, dict)
+            else {}
+        )
+        raw_available_inputs = readiness.get("available_inputs")
+        available_inputs: dict[str, Any] = (
+            cast(dict[str, Any], raw_available_inputs)
+            if isinstance(raw_available_inputs, dict)
+            else {}
+        )
+        odds_ready = bool(
+            available_inputs.get("current_odds") or available_inputs.get("market_observations")
+        )
+        lineups_status = str(data_readiness.get("lineups_status") or "UNKNOWN")
+        statistics_status = str(data_readiness.get("statistics_status") or "UNKNOWN")
+        xg_ready = bool(available_inputs.get("xg") or data_readiness.get("xg"))
+        provider_empty = lineups_status == "PROVIDER_EMPTY" or statistics_status == "PROVIDER_EMPTY"
+        if provider_empty:
+            status = "PROVIDER_EMPTY"
+        elif str(readiness.get("status")) == "READY":
+            status = "READY"
+        elif odds_ready or lineups_status in {"READY", "NOT_REQUESTED"} or xg_ready:
+            status = "PARTIAL"
+        else:
+            status = "WAITING"
+        return {
+            "status": status,
+            "provider": "api_football",
+            "source": str(card.get("source") or row.get("_dashboard_source") or "read-model"),
+            "odds_status": "READY" if odds_ready else "WAITING",
+            "lineups_status": lineups_status,
+            "xg_status": (
+                "READY" if xg_ready else str(data_readiness.get("xg_status") or statistics_status)
+            ),
+            "statistics_status": statistics_status,
+            "lineups_captured_at": data_readiness.get("lineups_captured_at"),
+            "statistics_captured_at": data_readiness.get("statistics_captured_at"),
+            "last_refresh_hint": row.get("last_captured") or card.get("generated_at"),
         }
 
     def _recommendation_from_analysis_market(

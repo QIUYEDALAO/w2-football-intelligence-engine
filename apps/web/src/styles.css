@@ -1355,6 +1355,59 @@ button {
   color: var(--mint);
 }
 
+.pricing-shadow-panel {
+  margin: 7px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.pricing-shadow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pricing-shadow-heading span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pricing-shadow-grid {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 4px 8px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.pricing-shadow-grid span {
+  color: var(--subtle);
+}
+
+.pricing-shadow-grid strong {
+  min-width: 0;
+  color: var(--text);
+  font-weight: 880;
+}
+
+.pricing-shadow-panel p,
+.pricing-shadow-compact {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
 .market-strip-line {
   display: -webkit-box;
   margin: 5px 0 9px;
