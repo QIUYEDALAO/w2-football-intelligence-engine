@@ -1,5 +1,57 @@
 import { COMPETITION_TRANSLATIONS, REASON_TRANSLATIONS, TEAM_TRANSLATIONS } from "./labels";
 
+function numericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function trimTrailingZeros(value: string): string {
+  return value.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+export function formatOdds(value: unknown): string {
+  const numeric = numericValue(value);
+  if (numeric == null) {
+    return typeof value === "string" && value.trim() ? value.trim() : "-";
+  }
+  return numeric.toFixed(2);
+}
+
+export function formatLine(value: unknown): string {
+  const numeric = numericValue(value);
+  if (numeric == null) {
+    return typeof value === "string" && value.trim() ? value.trim() : "-";
+  }
+  if (Math.abs(numeric) < 0.005) {
+    return "0";
+  }
+  return trimTrailingZeros(numeric.toFixed(2));
+}
+
+export function formatSignedLine(value: unknown): string {
+  const numeric = numericValue(value);
+  if (numeric == null) {
+    return formatLine(value);
+  }
+  const formatted = formatLine(numeric);
+  return numeric > 0 ? `+${formatted}` : formatted;
+}
+
+export function formatPercent(value: unknown): string {
+  const numeric = numericValue(value);
+  if (numeric == null) {
+    return typeof value === "string" && value.trim() ? value.trim() : "-";
+  }
+  const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+  return `${Math.round(percent)}%`;
+}
+
 export function todayShanghai(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",

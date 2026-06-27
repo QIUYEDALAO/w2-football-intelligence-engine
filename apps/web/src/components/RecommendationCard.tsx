@@ -1,4 +1,4 @@
-import { fmtTime, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
+import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
 import type { DashboardMatchCard, PricingShadow, RecommendationPick, RecommendationTier } from "../types/dashboard";
@@ -103,8 +103,10 @@ function displayPick(match: DashboardMatchCard): RecommendationPick | null {
   const pick = match.recommendation;
   if (!pick) return null;
   const marketOdds = oddsRecord(match, pick.market);
-  const line = pick.line ?? (textValue(marketOdds.line) || undefined);
-  const odds = pick.odds ?? (textValue(marketOdds.price) || undefined);
+  const rawLine = pick.line ?? (textValue(marketOdds.line) || undefined);
+  const rawOdds = pick.odds ?? (textValue(marketOdds.price) || undefined);
+  const line = rawLine === undefined ? undefined : formatLine(rawLine);
+  const odds = rawOdds === undefined ? undefined : formatOdds(rawOdds);
   return { ...pick, line, odds };
 }
 

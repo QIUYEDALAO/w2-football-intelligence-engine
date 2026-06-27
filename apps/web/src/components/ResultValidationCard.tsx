@@ -1,10 +1,16 @@
-import { fmtTime } from "../lib/formatters";
+import { fmtTime, formatLine, formatOdds } from "../lib/formatters";
 import type { DashboardMatchCard } from "../types/dashboard";
 import { ScorelinePicks } from "./ScorelinePicks";
 import { SettlementBadge } from "./SettlementBadge";
 
 export function ResultValidationCard({ match }: { match: DashboardMatchCard }) {
   const validation = match.validation ?? { settlement: "UNKNOWN" as const };
+  const recommendation = match.recommendation;
+  const recommendationText = recommendation
+    ? `${recommendation.market_label_cn} ${recommendation.selection_label_cn ?? recommendation.selection} ${
+        recommendation.line ? formatLine(recommendation.line) : ""
+      } ${recommendation.odds ? `@${formatOdds(recommendation.odds)}` : ""}`
+    : "无推荐 · 不计入命中率";
   return (
     <article className="result-card">
       <header>
@@ -18,7 +24,7 @@ export function ResultValidationCard({ match }: { match: DashboardMatchCard }) {
         </div>
         <SettlementBadge status={validation.settlement} />
       </header>
-      <p>推荐：{match.recommendation ? `${match.recommendation.market_label_cn} ${match.recommendation.selection_label_cn ?? match.recommendation.selection} ${match.recommendation.line ?? ""} ${match.recommendation.odds ? `@${match.recommendation.odds}` : ""}` : "无推荐 · 不计入命中率"}</p>
+      <p>推荐：{recommendationText}</p>
       <ScorelinePicks picks={match.scoreline_picks} />
       <p className="odds-line">
         收益：{validation.profit_units === undefined ? "--" : `${validation.profit_units > 0 ? "+" : ""}${validation.profit_units.toFixed(2)}u`}

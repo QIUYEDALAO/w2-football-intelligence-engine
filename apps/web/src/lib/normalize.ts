@@ -1,5 +1,5 @@
 import { INTENT_LABELS, MARKET_META, MARKET_ORDER, TENDENCY_LABELS } from "./labels";
-import { teamCode, translateCompetition, translateReason } from "./formatters";
+import { formatLine, formatOdds, teamCode, translateCompetition, translateReason } from "./formatters";
 import type {
   BookmakerIntentPayload,
   DashboardCard,
@@ -257,24 +257,28 @@ export function currentOdds(card: DashboardCard): string[] {
   const ou = asRecord(odds.ou);
   const rows: string[] = [];
   if (Object.keys(ah).length) {
-    const homePrice = textValue(ah.home_price);
-    const awayPrice = textValue(ah.away_price);
-    if (homePrice || awayPrice) {
-      const homeLine = textValue(ah.home_line, textValue(ah.line, "-"));
-      const awayLine = textValue(ah.away_line, textValue(ah.line, "-"));
+    const hasHomePrice = textValue(ah.home_price) !== "";
+    const hasAwayPrice = textValue(ah.away_price) !== "";
+    const homePrice = formatOdds(ah.home_price);
+    const awayPrice = formatOdds(ah.away_price);
+    if (hasHomePrice || hasAwayPrice) {
+      const homeLine = formatLine(ah.home_line ?? ah.line);
+      const awayLine = formatLine(ah.away_line ?? ah.line);
       rows.push(`让球 主${homeLine} @${homePrice || "-"} / 客${awayLine} @${awayPrice || "-"}`);
     } else {
-      rows.push(`让球 ${textValue(ah.line, "-")} @${textValue(ah.price, "-")}`);
+      rows.push(`让球 ${formatLine(ah.line)} @${formatOdds(ah.price)}`);
     }
   }
   if (Object.keys(ou).length) {
-    const overPrice = textValue(ou.over_price);
-    const underPrice = textValue(ou.under_price);
-    if (overPrice || underPrice) {
-      const line = textValue(ou.line, "-");
+    const hasOverPrice = textValue(ou.over_price) !== "";
+    const hasUnderPrice = textValue(ou.under_price) !== "";
+    const overPrice = formatOdds(ou.over_price);
+    const underPrice = formatOdds(ou.under_price);
+    if (hasOverPrice || hasUnderPrice) {
+      const line = formatLine(ou.line);
       rows.push(`大小球 大${line} @${overPrice || "-"} / 小${line} @${underPrice || "-"}`);
     } else {
-      rows.push(`大小球 ${textValue(ou.line, "-")} @${textValue(ou.price, "-")}`);
+      rows.push(`大小球 ${formatLine(ou.line)} @${formatOdds(ou.price)}`);
     }
   }
   return rows;
