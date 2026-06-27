@@ -57,8 +57,8 @@ from w2.operations.tournament import (
     load_tournament_profile,
     readiness_report,
 )
-from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.pricing.shadow import build_pricing_shadow
+from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
