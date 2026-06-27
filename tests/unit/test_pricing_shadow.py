@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from w2.pricing.shadow import build_pricing_shadow
 from w2.pricing.value_vs_market import edge
 
@@ -89,8 +91,9 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
     assert 0 <= shadow["coverage"] <= 1
     assert shadow["coverage"] == 1
     assert shadow["fair_ah"] < 0
-    assert shadow["fair_ou"] == 2.5
+    assert shadow["fair_ou"] is None
     assert shadow["edge_ah"] > 0
+    assert shadow["edge_ou"] is None
     assert {factor["id"] for factor in shadow["factors"]} == {
         "F3_REST_FITNESS",
         "F4_MATCH_IMPORTANCE",
@@ -124,3 +127,13 @@ def test_ah_edge_uses_negative_home_gives_sign_convention() -> None:
     assert edge(-1.25, -0.5) > 0
     assert edge(-0.25, -1.0) < 0
     assert edge(0, 0) == 0
+
+
+def test_pricing_shadow_does_not_fit_ou_mu_from_market_lines() -> None:
+    pricing_files = [
+        Path("src/w2/pricing/shadow.py"),
+        Path("src/w2/pricing/supremacy.py"),
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in pricing_files)
+
+    assert "fit_total_goals_mu" not in combined
