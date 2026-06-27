@@ -12,6 +12,11 @@ or forward-run fixture selection. As of U0, only `world_cup_2026` is enabled.
 Top-five and selected national leagues stay disabled until their Stage14 coverage
 audit passes.
 
+P2 August validation planning uses the disabled top-five profiles as candidates
+only. Planning documents must not be interpreted as runtime enablement; Changing
+`enabled` from `false` to `true` requires a separate approved runtime PR with
+quota, rollback, and staging evidence.
+
 Coverage fields:
 
 - `xg`: API-Football `/fixtures/statistics` availability.
