@@ -17,6 +17,7 @@ from w2.api.schemas import (
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
     DashboardResponse,
+    DashboardSummaryResponse,
     DataHealthResponse,
     ErrorPayload,
     FixtureDetailResponse,
@@ -116,6 +117,24 @@ def dashboard(
             window=normalized_window,
             timezone=timezone,
             include_debug=include_debug,
+        ),
+    }
+
+
+@public_router.get("/dashboard/summary", response_model=DashboardSummaryResponse)
+def dashboard_summary(
+    request: Request,
+    date: str | None = None,
+    window: str = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    return {
+        "request_id": request_id(request),
+        **service.dashboard_summary(
+            target_date=date,
+            window=normalized_window,
+            timezone=timezone,
         ),
     }
 
