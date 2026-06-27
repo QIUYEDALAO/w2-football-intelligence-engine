@@ -13,25 +13,52 @@ def contribution(
     score: float = 0.6,
     weight: float = 1.0,
     status: str = "READY",
+    source_group: str | None = None,
+    is_independent_signal: bool = True,
+    proxy_of: str | None = None,
 ) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "id": factor_id,
         "side": side,
         "score": score,
         "weight": weight,
         "status": status,
+        "is_independent_signal": is_independent_signal,
+        "collection_status": "READY",
     }
+    if source_group is not None:
+        payload["source_group"] = source_group
+        payload["source"] = f"{source_group}_test_source"
+    if proxy_of is not None:
+        payload["proxy_of"] = proxy_of
+    return payload
 
 
 def independent_contributions() -> list[dict[str, object]]:
     return [
-        contribution("F3_REST_FITNESS", side="HOME", score=0.75),
-        contribution("F4_MATCH_IMPORTANCE", side="NEUTRAL", score=0.60),
-        contribution("F5_RECENT_AH_COVER", side="HOME", score=0.80),
-        contribution("F6_H2H", side="NEUTRAL", score=0.55),
-        contribution("F7_STRENGTH_FORM", side="HOME", score=0.85),
-        contribution("F8_SQUAD_VALUE", side="HOME", score=0.70),
-        contribution("F9_TRUE_XG", side="HOME", score=0.90),
+        contribution(
+            "F3_REST_FITNESS",
+            side="HOME",
+            score=0.75,
+            source_group="team_fixture_history",
+        ),
+        contribution(
+            "F4_MATCH_IMPORTANCE",
+            side="NEUTRAL",
+            score=0.60,
+            source_group="match_importance",
+            is_independent_signal=False,
+        ),
+        contribution(
+            "F5_RECENT_AH_COVER",
+            side="HOME",
+            score=0.80,
+            source_group="team_fixture_history",
+        ),
+        contribution("F6_H2H", side="NEUTRAL", score=0.55, source_group="h2h"),
+        contribution("F7_STRENGTH_FORM", side="HOME", score=0.85, source_group="ratings"),
+        contribution("F8_SQUAD_VALUE", side="HOME", score=0.70, source_group="squad_value"),
+        contribution("F9_TRUE_XG", side="HOME", score=0.90, source_group="xg"),
     ]
 
 
@@ -90,6 +117,7 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
     assert shadow["status"] == "RULE_BASED_UNCALIBRATED"
     assert 0 <= shadow["coverage"] <= 1
     assert shadow["coverage"] == 1
+    assert shadow["independent_signal_count"] == 5
     assert shadow["fair_ah"] < 0
     assert shadow["fair_ou"] is None
     assert shadow["edge_ah"] > 0
@@ -113,7 +141,7 @@ def test_coverage_below_half_watches_without_promotion() -> None:
         fixture_id="fixture-4",
         feature_contributions=[
             contribution("F3_REST_FITNESS", side="HOME", score=0.75),
-            contribution("F9_TRUE_XG", side="HOME", score=0.90),
+            contribution("F9_TRUE_XG", side="HOME", score=0.90, source_group="xg"),
         ],
         current_odds={"ah": {"home_line": "-0.25"}, "ou": {"line": "2.5"}},
     )

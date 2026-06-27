@@ -62,6 +62,11 @@ class FeatureContribution:
     diagnostics: tuple[str, ...] = ()
     observed_at: datetime | None = None
     inputs: dict[str, Any] = field(default_factory=dict)
+    source: str | None = None
+    source_group: str | None = None
+    is_independent_signal: bool = False
+    proxy_of: str | None = None
+    collection_status: str = "NOT_COLLECTED"
     candidate: bool = False
     formal_recommendation: bool = False
 

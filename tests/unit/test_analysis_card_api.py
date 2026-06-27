@@ -220,6 +220,15 @@ def test_existing_xg_history_is_wired_into_feature_inputs_without_faking_market_
     )
     assert factors["F3_REST_FITNESS"]["status"] == "READY"
     assert factors["F7_STRENGTH_FORM"]["status"] == "READY"
+    assert factors["F3_REST_FITNESS"]["source_group"] == "xg"
+    assert factors["F3_REST_FITNESS"]["proxy_of"] == "team_fixture_history"
+    assert factors["F3_REST_FITNESS"]["is_independent_signal"] is False
+    assert factors["F7_STRENGTH_FORM"]["source_group"] == "xg"
+    assert factors["F7_STRENGTH_FORM"]["proxy_of"] == "ratings"
+    assert factors["F7_STRENGTH_FORM"]["is_independent_signal"] is False
+    assert factors["F9_TRUE_XG"]["source_group"] == "xg"
+    assert card["pricing_shadow"]["independent_signal_count"] == 1
+    assert card["pricing_shadow"]["xg_derived_factor_count"] == 3
     assert "F5_RECENT_AH_COVER" not in factors
     assert card["pricing_shadow"]["coverage"] > 0.29
     assert card["pricing_shadow"]["beats_market"] is False

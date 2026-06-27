@@ -21,7 +21,7 @@ def build_pricing_shadow(
         feature_contributions=feature_contributions,
     )
     lines = market_lines(current_odds)
-    if team_scores["coverage"] == 0:
+    if team_scores["independent_signal_count"] == 0:
         fair_ah = None
         fair_ou = None
         edge_ah = None
@@ -57,6 +57,14 @@ def build_pricing_shadow(
         "edge_ah": edge_ah,
         "edge_ou": edge_ou,
         "coverage": team_scores["coverage"],
+        "coverage_note": (
+            "coverage includes xG-derived proxy factors; ISC is authoritative for independence"
+        ),
+        "independent_signal_count": team_scores["independent_signal_count"],
+        "independent_signal_groups": team_scores["independent_signal_groups"],
+        "xg_derived_factor_count": team_scores["xg_derived_factor_count"],
+        "missing_independent_sources": team_scores["missing_independent_sources"],
+        "factor_source_summary": team_scores["factor_source_summary"],
         "asof_market_snapshot_id": None,
         "devig_method": None,
         "settlement_outcome": None,

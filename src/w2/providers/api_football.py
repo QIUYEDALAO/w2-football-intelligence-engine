@@ -19,6 +19,7 @@ class LiveNetworkDisabledError(RuntimeError):
 
 API_FOOTBALL_HTTP_PATHS = {
     "events": "fixtures/events",
+    "h2h": "fixtures/headtohead",
     "lineups": "fixtures/lineups",
     "statistics": "fixtures/statistics",
 }
@@ -109,6 +110,36 @@ class ApiFootballClient:
             headers=headers,
             captured_at=captured_at,
         )
+
+    def fixtures_by_team(
+        self,
+        *,
+        team_id: str,
+        season: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> LiveApiFootballResponse:
+        params = {"team": team_id, "season": season}
+        if date_from:
+            params["from"] = date_from
+        if date_to:
+            params["to"] = date_to
+        return self.request_live("fixtures", params)
+
+    def h2h(
+        self,
+        *,
+        team_a_id: str,
+        team_b_id: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> LiveApiFootballResponse:
+        params = {"h2h": f"{team_a_id}-{team_b_id}"}
+        if date_from:
+            params["from"] = date_from
+        if date_to:
+            params["to"] = date_to
+        return self.request_live("h2h", params)
 
     def _sanitize_headers(self, headers: Any) -> dict[str, str]:
         blocked = {

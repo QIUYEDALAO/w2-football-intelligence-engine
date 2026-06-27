@@ -17,6 +17,7 @@ API_FOOTBALL_ENDPOINTS = (
     "events",
     "statistics",
     "leagues",
+    "h2h",
 )
 
 
