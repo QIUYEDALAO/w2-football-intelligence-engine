@@ -304,6 +304,82 @@ def test_dashboard_card_exposes_data_refresh_status_without_promoting_flags() ->
     assert card["data_refresh"]["status"] == "PROVIDER_EMPTY"
     assert card["data_refresh"]["odds_status"] == "READY"
     assert card["data_refresh"]["lineups_status"] == "READY"
+    assert card["data_refresh"]["lineups_status_label"] == "首发已出"
     assert card["data_refresh"]["xg_status"] == "INSUFFICIENT_HISTORY"
+    assert card["data_refresh"]["xg_status_label"] == "xG 样本不足"
+    assert card["data_refresh"]["status_label"] == "provider 未返回"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+
+
+def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "future_refresh_without_analysis_payload",
+                    "data_readiness": {
+                        "bookmakers": 0,
+                        "odds_snapshots": 0,
+                        "xg": False,
+                        "lineups_status": "NOT_REQUESTED",
+                        "xg_status": "MAPPING_MISSING",
+                    },
+                    "markets": [{"market": "TOTALS", "decision": "SKIP"}],
+                },
+            ),
+        )
+    )
+
+    payload = service.validation_summary(target_date="2026-06-26", window="today")
+
+    assert payload["validation"]["beats_market"] is False
+    assert payload["validation"]["formal_enabled"] is False
+    assert payload["validation"]["candidate_enabled"] is False
+    assert payload["validation"]["policy"]["sample_minimum"] == 200
+    assert payload["validation"]["official"]["sample_size"] == 0
+    assert payload["validation"]["official"]["hit_rate"] is None
+    assert payload["validation"]["official"]["label"] == "official 样本不足，暂不计算命中率"
+    assert payload["validation"]["analysis_shadow"]["sample_size"] == 0
+    assert payload["validation"]["analysis_shadow"]["hit_rate"] is None
+    assert (
+        payload["validation"]["analysis_shadow"]["label"]
+        == "analysis_shadow 样本不足，暂不计算命中率"
+    )
+
+
+def test_data_refresh_labels_explain_not_requested_and_xg_mapping_missing() -> None:
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 1,
+                        "bookmakers": 1,
+                        "odds_snapshots": 1,
+                        "xg": False,
+                        "xg_status": "MAPPING_MISSING",
+                        "lineups": False,
+                        "lineups_status": "NOT_REQUESTED",
+                        "statistics_status": "MAPPING_MISSING",
+                    },
+                    "current_odds": {"ah": {"line": "0", "price": 1.9}},
+                    "markets": [{"market": "ASIAN_HANDICAP", "decision": "SKIP"}],
+                },
+            ),
+        )
+    )
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    assert card["data_refresh"]["lineups_status_label"] == "未到首发请求时点"
+    assert card["data_refresh"]["xg_status_label"] == "xG 映射缺失"

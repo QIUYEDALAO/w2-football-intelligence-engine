@@ -169,6 +169,29 @@ def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -
     assert "finished" not in summary
 
 
+def test_public_validation_summary_returns_layered_sample_status(monkeypatch) -> None:
+    monkeypatch.setattr(
+        routers,
+        "service",
+        ReadModelService(repository=cast(Any, FutureFixtureRepository())),
+    )
+    client = TestClient(app)
+
+    summary = client.get("/v1/validation/summary?date=2026-06-26&window=all").json()
+
+    assert summary["date"] == "2026-06-26"
+    assert summary["window"] == "all"
+    assert summary["validation"]["beats_market"] is False
+    assert summary["validation"]["official"]["hit_rate"] is None
+    assert summary["validation"]["official"]["label"] == "official 样本不足，暂不计算命中率"
+    assert (
+        summary["validation"]["analysis_shadow"]["label"]
+        == "analysis_shadow 样本不足，暂不计算命中率"
+    )
+    assert "all" not in summary
+    assert "debug" not in summary
+
+
 def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
 
