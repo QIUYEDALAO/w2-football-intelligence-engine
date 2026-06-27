@@ -4,7 +4,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.api.repository import ReadModelService
-from w2.providers.quota import api_football_quota_policy, parse_api_football_quota
+from w2.providers.quota import (
+    api_football_quota_policy,
+    parse_api_football_quota,
+    quota_guard_decision,
+)
 
 NOW = datetime(2026, 6, 23, 12, 0, tzinfo=UTC)
 
@@ -150,3 +154,31 @@ def test_provider_status_handles_unknown_empty_and_null_remaining_quota() -> Non
         assert status["remaining_quota"] is None
         assert status["quota_policy"]["available_after_reserve"] is None
         assert status["quota_policy"]["reserve_locked"] is None
+
+
+def test_quota_guard_blocks_backfill_before_it_reaches_live_reserve() -> None:
+    decision = quota_guard_decision(remaining_quota=1499, task_type="xg_backfill")
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "BACKFILL_QUOTA_GUARD"
+    assert decision["mode"] == "BACKFILL_STOPPED"
+    assert decision["reserve_locked"] is True
+
+
+def test_quota_guard_keeps_core_matchday_tasks_available_at_low_quota() -> None:
+    assert quota_guard_decision(remaining_quota=700, task_type="odds")["allowed"] is True
+    assert quota_guard_decision(remaining_quota=700, task_type="lineups")["allowed"] is True
+
+    blocked = quota_guard_decision(remaining_quota=700, task_type="statistics")
+    assert blocked["allowed"] is False
+    assert blocked["blocker"] == "QUOTA_CRITICAL_CORE_ONLY"
+    assert blocked["mode"] == "CORE_ONLY"
+
+
+def test_quota_guard_blocks_unknown_or_exhausted_quota() -> None:
+    assert quota_guard_decision(remaining_quota=None, task_type="odds")["blocker"] == (
+        "DAILY_QUOTA_UNKNOWN"
+    )
+    assert quota_guard_decision(remaining_quota=0, task_type="lineups")["blocker"] == (
+        "DAILY_QUOTA_EXHAUSTED"
+    )

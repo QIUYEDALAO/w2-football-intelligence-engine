@@ -21,7 +21,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
-from w2.providers.quota import parse_api_football_quota
+from w2.providers.quota import parse_api_football_quota, quota_guard_decision
 
 
 class FutureRefreshError(RuntimeError):
@@ -716,8 +716,13 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             if remaining is None:
                 raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
-            if remaining < self.config.quota_reserve:
-                raise FutureRefreshError("QUOTA_BELOW_RESERVE")
+            guard = quota_guard_decision(
+                remaining_quota=remaining,
+                reserve_bucket=self.config.quota_reserve,
+                task_type=endpoint,
+            )
+            if not guard["allowed"]:
+                raise FutureRefreshError(str(guard["blocker"]))
             if status == 429 and attempt < max_attempts:
                 self.sleep(0.2 * (2 ** (attempt - 1)))
                 continue
@@ -781,6 +786,28 @@ class FutureFixtureRefreshService:
             for endpoint in endpoints:
                 if len(responses) >= budget:
                     return responses
+                if self._latest_remaining is not None:
+                    guard = quota_guard_decision(
+                        remaining_quota=self._latest_remaining,
+                        reserve_bucket=self.config.quota_reserve,
+                        task_type=endpoint,
+                    )
+                    if not guard["allowed"]:
+                        self._audit.append(
+                            {
+                                "endpoint": endpoint,
+                                "params": {"fixture": fixture_id},
+                                "attempt": 0,
+                                "status_code": None,
+                                "elapsed_ms": 0,
+                                "captured_at_utc": iso(utc_now()),
+                                "remaining_quota": self._latest_remaining,
+                                "payload_sha256": None,
+                                "error_code": guard["blocker"],
+                                "quota_guard_mode": guard["mode"],
+                            }
+                        )
+                        continue
                 response = self._request(endpoint, {"fixture": fixture_id})
                 responses.append((fixture_id, endpoint, response))
         return responses

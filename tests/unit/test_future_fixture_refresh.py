@@ -177,9 +177,18 @@ def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> 
     assert len(ledger_lines) == 3
 
 
-def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
+def test_future_fixture_refresh_preserves_core_tasks_when_reserve_locked(
+    tmp_path: Path,
+) -> None:
     client = FakeApiFootballClient(remaining=1499)
-    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        quota_reserve=1500,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_request_budget=3,
+        feature_enrichment_endpoints=("statistics", "lineups", "injuries"),
+    )
     result = FutureFixtureRefreshService(
         client=client,
         config=config,
@@ -187,8 +196,13 @@ def test_future_fixture_refresh_blocks_low_quota(tmp_path: Path) -> None:
         sleep=lambda _: None,
     ).run()
 
-    assert result.blockers == ["QUOTA_BELOW_RESERVE"]
-    assert result.fixture_count == 0
+    assert result.blockers == []
+    assert result.fixture_count == 1
+    assert result.market_snapshot_count == 1
+    assert ("odds", {"fixture": "1489404"}) in client.calls
+    assert ("lineups", {"fixture": "1489404"}) in client.calls
+    assert all(endpoint != "statistics" for endpoint, _ in client.calls)
+    assert all(endpoint != "injuries" for endpoint, _ in client.calls)
     assert (tmp_path / "future_refresh_audit.json").is_file()
 
 

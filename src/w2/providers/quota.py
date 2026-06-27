@@ -24,6 +24,18 @@ BURST_HEADER_SOURCES = {
 API_FOOTBALL_DAILY_BUDGET = 7500
 API_FOOTBALL_RESERVE_BUCKET = 1500
 API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET = 75000
+API_FOOTBALL_BACKFILL_STOP_RATIO = 0.15
+API_FOOTBALL_CORE_ONLY_RATIO = 0.10
+API_FOOTBALL_CORE_TASKS = {
+    "future_refresh",
+    "status",
+    "fixtures",
+    "odds",
+    "lineups",
+    "live_odds",
+    "live_lineups",
+}
+API_FOOTBALL_BACKFILL_TASKS = {"xg_backfill", "historical_backfill", "statistics_backfill"}
 
 
 def parse_int(value: Any) -> int | None:
@@ -88,4 +100,64 @@ def api_football_quota_policy(remaining_quota: int | None) -> dict[str, Any]:
         ),
         "upgrade_evaluation_daily_budget": API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET,
         "upgrade_enabled": False,
+    }
+
+
+def quota_guard_decision(
+    *,
+    remaining_quota: int | None,
+    task_type: str,
+    daily_budget: int = API_FOOTBALL_DAILY_BUDGET,
+    reserve_bucket: int = API_FOOTBALL_RESERVE_BUCKET,
+) -> dict[str, Any]:
+    if remaining_quota is None:
+        return {
+            "allowed": False,
+            "mode": "BLOCKED",
+            "blocker": "DAILY_QUOTA_UNKNOWN",
+            "remaining_quota": None,
+            "daily_budget": daily_budget,
+            "reserve_bucket": reserve_bucket,
+            "available_after_reserve": None,
+            "reserve_locked": None,
+        }
+    backfill_stop = int(daily_budget * API_FOOTBALL_BACKFILL_STOP_RATIO)
+    core_only = int(daily_budget * API_FOOTBALL_CORE_ONLY_RATIO)
+    available_after_reserve = max(remaining_quota - reserve_bucket, 0)
+    reserve_locked = remaining_quota <= reserve_bucket
+    normalized_task = task_type.lower()
+    is_core = normalized_task in API_FOOTBALL_CORE_TASKS
+    is_backfill = normalized_task in API_FOOTBALL_BACKFILL_TASKS or "backfill" in normalized_task
+    if remaining_quota <= 0:
+        allowed = False
+        blocker = "DAILY_QUOTA_EXHAUSTED"
+        mode = "BLOCKED"
+    elif is_backfill and remaining_quota < max(reserve_bucket, backfill_stop):
+        allowed = False
+        blocker = "BACKFILL_QUOTA_GUARD"
+        mode = "BACKFILL_STOPPED"
+    elif remaining_quota < core_only and not is_core:
+        allowed = False
+        blocker = "QUOTA_CRITICAL_CORE_ONLY"
+        mode = "CORE_ONLY"
+    elif reserve_locked and not is_core:
+        allowed = False
+        blocker = "QUOTA_BELOW_RESERVE"
+        mode = "RESERVE_LOCKED"
+    else:
+        allowed = True
+        blocker = None
+        mode = "CORE_ONLY" if remaining_quota < core_only else "NORMAL"
+    return {
+        "allowed": allowed,
+        "mode": mode,
+        "blocker": blocker,
+        "remaining_quota": remaining_quota,
+        "daily_budget": daily_budget,
+        "reserve_bucket": reserve_bucket,
+        "available_after_reserve": available_after_reserve,
+        "reserve_locked": reserve_locked,
+        "backfill_stop_threshold": backfill_stop,
+        "core_only_threshold": core_only,
+        "task_type": task_type,
     }
