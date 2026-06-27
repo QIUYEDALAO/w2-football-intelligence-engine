@@ -1,5 +1,5 @@
 import { fmtTime, teamCode } from "../lib/formatters";
-import type { DashboardMatchCard } from "../types/dashboard";
+import type { DashboardMatchCard, PricingShadow } from "../types/dashboard";
 import { DataReadinessRow } from "./DataReadinessRow";
 
 const BLOCKER_LABELS: Record<string, string> = {
@@ -32,6 +32,14 @@ const ACTION_LABELS: Record<string, string> = {
   WAIT_FIXTURE_STATUS: "等待赛前状态",
   INVESTIGATE_DATA_PIPELINE: "检查数据链路",
 };
+
+function pricingShadowLine(shadow?: PricingShadow | null): string | null {
+  if (!shadow) return null;
+  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立评分覆盖不足 · 当前观察，不强推";
+  const coverage = typeof shadow.coverage === "number" ? ` · 覆盖率 ${Math.round(Math.max(0, Math.min(1, shadow.coverage)) * 100)}%` : "";
+  if (shadow.status === "WATCH") return `无明显独立优势 · 观察${coverage}`;
+  return `独立评分参考 · 待校准${coverage}`;
+}
 
 export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
   const judgement = match.recommendation ? `${match.recommendation.market_label_cn} · ${match.recommendation.selection_label_cn ?? match.recommendation.selection}` : "观察";
@@ -67,6 +75,7 @@ export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
           ))}
         </div>
       ) : null}
+      {pricingShadowLine(match.pricing_shadow) ? <p className="pricing-shadow-compact">{pricingShadowLine(match.pricing_shadow)}</p> : null}
       <p>当前判断：{judgement}</p>
       <small>{match.missing_inputs.length ? `等待：${match.missing_inputs.join("、")}` : "可分析 · 下一次刷新按赛前梯度执行"}</small>
     </article>

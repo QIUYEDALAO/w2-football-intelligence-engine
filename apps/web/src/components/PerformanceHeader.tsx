@@ -7,7 +7,7 @@ export function PerformanceHeader({ performance, updatedAt }: { performance: Das
     ["分析参考", performance.analysis_pick_count ?? 0],
     ["未来36h", performance.next36_count],
     ["已完场", performance.finished_count],
-    ["正式/候选", officialCount],
+    ["门控通过", officialCount],
     ["观察", performance.watch_count ?? 0],
   ];
   return (

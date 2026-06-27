@@ -2,6 +2,7 @@ import { API_BASE } from "./labels";
 import { asArray, asRecord, numberValue, textValue } from "./normalize";
 import type {
   ApiVersion,
+  DataRefreshStatus,
   DashboardDebug,
   DashboardMatchCard,
   DashboardMode,
@@ -9,6 +10,8 @@ import type {
   DashboardView,
   MatchResult,
   MatchStatus,
+  PricingShadow,
+  PricingShadowFactor,
   RecommendationPick,
   ReleaseMeta,
   ReleaseSyncState,
@@ -173,6 +176,67 @@ function normalizeAnalysisReadiness(payload: unknown) {
   };
 }
 
+function normalizeDataRefresh(payload: unknown): DataRefreshStatus | null {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    provider: textValue(record.provider),
+    source: textValue(record.source),
+    odds_status: textValue(record.odds_status),
+    lineups_status: textValue(record.lineups_status),
+    xg_status: textValue(record.xg_status),
+    statistics_status: textValue(record.statistics_status),
+    lineups_captured_at: textValue(record.lineups_captured_at) || null,
+    statistics_captured_at: textValue(record.statistics_captured_at) || null,
+    last_refresh_hint: textValue(record.last_refresh_hint) || null,
+  };
+}
+
+function nullableNumber(payload: unknown): number | null {
+  return typeof payload === "number" && Number.isFinite(payload) ? payload : null;
+}
+
+function normalizePricingShadowFactor(payload: unknown): PricingShadowFactor {
+  const record = asRecord(payload);
+  return {
+    id: textValue(record.id, "UNKNOWN_FACTOR"),
+    side: textValue(record.side, "UNKNOWN"),
+    weight: nullableNumber(record.weight) ?? 0,
+    score: nullableNumber(record.score) ?? 0,
+    status: textValue(record.status, "UNKNOWN"),
+  };
+}
+
+function normalizePricingShadow(payload: unknown): PricingShadow | null {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  const s2Gate = asRecord(record.s2_gate);
+  return {
+    fixture_id: textValue(record.fixture_id),
+    status,
+    model_version: textValue(record.model_version) || null,
+    calibration_version: textValue(record.calibration_version) || null,
+    factors: asArray(record.factors).map(normalizePricingShadowFactor),
+    fair_ah: nullableNumber(record.fair_ah),
+    fair_ou: nullableNumber(record.fair_ou),
+    market_ah: nullableNumber(record.market_ah),
+    market_ou: nullableNumber(record.market_ou),
+    edge_ah: nullableNumber(record.edge_ah),
+    edge_ou: nullableNumber(record.edge_ou),
+    coverage: nullableNumber(record.coverage),
+    formal_enabled: record.formal_enabled === true,
+    candidate_enabled: record.candidate_enabled === true,
+    beats_market: record.beats_market === true,
+    s2_gate: {
+      n_min: nullableNumber(s2Gate.n_min) ?? undefined,
+      beats_market: s2Gate.beats_market === true,
+    },
+  };
+}
+
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
   return {
@@ -190,6 +254,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     lifecycle_state: textValue(record.lifecycle_state),
     watch_level: numberValue(record.watch_level),
     data_readiness: asRecord(record.data_readiness),
+    data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
     recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
     scoreline_picks: asArray(record.scoreline_picks).map((item) => asRecord(item)).map((row) => ({
@@ -203,6 +268,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     odds_movement: asRecord(record.odds_movement),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     bookmaker_intent: asRecord(record.bookmaker_intent),
+    pricing_shadow: normalizePricingShadow(record.pricing_shadow),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
   };
 }

@@ -1,7 +1,7 @@
 import { fmtTime, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
-import type { DashboardMatchCard, RecommendationPick, RecommendationTier } from "../types/dashboard";
+import type { DashboardMatchCard, PricingShadow, RecommendationPick, RecommendationTier } from "../types/dashboard";
 import { MarketPickSummary } from "./MarketPickSummary";
 import { OddsMovementMini } from "./OddsMovementMini";
 import { SettlementBadge } from "./SettlementBadge";
@@ -123,6 +123,18 @@ function dataLine(match: DashboardMatchCard): string {
   return status.join(" · ");
 }
 
+function refreshLine(match: DashboardMatchCard): string | null {
+  const refresh = match.data_refresh;
+  if (!refresh?.status) return null;
+  const parts = [
+    refresh.status === "PROVIDER_EMPTY" ? "provider empty" : refresh.status,
+    refresh.odds_status ? `盘口 ${refresh.odds_status}` : "",
+    refresh.lineups_status ? `阵容 ${refresh.lineups_status}` : "",
+    refresh.xg_status ? `xG ${refresh.xg_status}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function actionabilityLine(match: DashboardMatchCard): string {
   const items = readinessItems({ data_readiness: match.data_readiness });
   const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);
@@ -165,6 +177,69 @@ function resultLine(match: DashboardMatchCard): string | null {
   };
   const settlement = match.validation?.settlement ? ` · ${settlementLabel[match.validation.settlement] ?? "待确认"}` : "";
   return `${finalScore}${settlement}`;
+}
+
+function percentValue(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+}
+
+function lineValue(value: number | null | undefined, market: "ah" | "ou"): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const abs = Math.abs(value).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
+  if (market === "ou") return abs;
+  if (Math.abs(value) < 0.001) return "平手";
+  return value < 0 ? `主 -${abs}` : `客 -${abs}`;
+}
+
+function edgeText(edge: number | null | undefined): string | null {
+  if (typeof edge !== "number" || !Number.isFinite(edge)) return null;
+  const abs = Math.abs(edge).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
+  if (Math.abs(edge) < 0.05) return "接近市场，无明显优势";
+  return edge > 0 ? `+${abs} · 我们比市场更看主队` : `-${abs} · 市场让得更深 / 更看客队`;
+}
+
+function pricingShadowTitle(shadow: PricingShadow): string {
+  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立评分覆盖不足";
+  if (shadow.status === "WATCH") return "无明显独立优势 · 观察";
+  return "独立评分参考 · 待校准";
+}
+
+function pricingShadowDetail(shadow: PricingShadow): string {
+  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "当前观察，不强推";
+  if (shadow.fair_ah == null && shadow.fair_ou == null && shadow.edge_ah == null && shadow.edge_ou == null) return "独立评分未形成公平盘";
+  return "规则映射 · 待校准 · 非正式推荐";
+}
+
+function PricingShadowPanel({ shadow }: { shadow?: PricingShadow | null }) {
+  if (!shadow) return null;
+  const coverage = percentValue(shadow.coverage);
+  const fairAh = lineValue(shadow.fair_ah, "ah");
+  const fairOu = lineValue(shadow.fair_ou, "ou");
+  const marketAh = lineValue(shadow.market_ah, "ah");
+  const marketOu = lineValue(shadow.market_ou, "ou");
+  const edgeAh = edgeText(shadow.edge_ah);
+  const edgeOu = edgeText(shadow.edge_ou);
+  const hasFairLine = Boolean(fairAh || fairOu || edgeAh || edgeOu);
+  return (
+    <section className="pricing-shadow-panel" aria-label="独立盘分析">
+      <div className="pricing-shadow-heading">
+        <strong>{pricingShadowTitle(shadow)}</strong>
+        {coverage ? <span>覆盖率 {coverage}</span> : null}
+      </div>
+      {hasFairLine ? (
+        <div className="pricing-shadow-grid">
+          <span>我们盘</span>
+          <strong>{[fairAh ? `让球 ${fairAh}` : "", fairOu ? `大小 ${fairOu}` : ""].filter(Boolean).join(" · ") || "未形成公平盘"}</strong>
+          <span>市场盘</span>
+          <strong>{[marketAh ? `让球 ${marketAh}` : "", marketOu ? `大小 ${marketOu}` : ""].filter(Boolean).join(" · ") || "盘口等待"}</strong>
+          <span>Edge</span>
+          <strong>{[edgeAh, edgeOu].filter(Boolean).join(" · ") || "接近市场，无明显优势"}</strong>
+        </div>
+      ) : null}
+      <p>{pricingShadowDetail(shadow)}</p>
+    </section>
+  );
 }
 
 export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
@@ -221,11 +296,18 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
           <strong>数据：</strong>
           {dataLine(match)}
         </p>
+        {refreshLine(match) ? (
+          <p>
+            <strong>刷新：</strong>
+            {refreshLine(match)}
+          </p>
+        ) : null}
         <p>
           <strong>{scoreText(match)}</strong>
         </p>
       </div>
       <OddsMovementMini match={match} />
+      <PricingShadowPanel shadow={match.pricing_shadow} />
       <p className="market-strip-line">其他：{marketStrip(match)}</p>
       <div className="recommendation-footer">
         <div>

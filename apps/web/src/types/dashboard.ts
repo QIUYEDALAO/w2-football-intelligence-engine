@@ -68,6 +68,19 @@ export interface CurrentOddsPayload {
   ou?: unknown;
 }
 
+export interface DataRefreshStatus {
+  status?: string;
+  provider?: string;
+  source?: string;
+  odds_status?: string;
+  lineups_status?: string;
+  xg_status?: string;
+  statistics_status?: string;
+  lineups_captured_at?: string | null;
+  statistics_captured_at?: string | null;
+  last_refresh_hint?: string | null;
+}
+
 export interface LineMovementPayload {
   ah_open?: string | number | null;
   ah_current?: string | number | null;
@@ -167,6 +180,38 @@ export interface RecommendationPick {
   is_live_line?: boolean;
 }
 
+export type PricingShadowStatus = "RULE_BASED_UNCALIBRATED" | "INSUFFICIENT_INDEPENDENT_FACTORS" | "WATCH" | string;
+
+export interface PricingShadowFactor {
+  id: string;
+  side: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN" | string;
+  weight: number;
+  score: number;
+  status: string;
+}
+
+export interface PricingShadow {
+  fixture_id?: string;
+  status: PricingShadowStatus;
+  model_version?: string | null;
+  calibration_version?: string | null;
+  factors: PricingShadowFactor[];
+  fair_ah?: number | null;
+  fair_ou?: number | null;
+  market_ah?: number | null;
+  market_ou?: number | null;
+  edge_ah?: number | null;
+  edge_ou?: number | null;
+  coverage?: number | null;
+  formal_enabled?: false | boolean;
+  candidate_enabled?: false | boolean;
+  beats_market?: false | boolean;
+  s2_gate?: {
+    n_min?: number;
+    beats_market?: false | boolean;
+  };
+}
+
 export interface MatchResult {
   status: MatchStatus;
   home_goals?: number;
@@ -217,6 +262,7 @@ export interface DashboardMatchCard {
   lifecycle_state?: string;
   watch_level?: number;
   data_readiness?: Record<string, unknown>;
+  data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: AnalysisReadiness;
   recommendation?: RecommendationPick | null;
   scoreline_picks: ScorelinePick[];
@@ -226,6 +272,7 @@ export interface DashboardMatchCard {
   odds_movement?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   bookmaker_intent?: Record<string, unknown>;
+  pricing_shadow?: PricingShadow | null;
   missing_inputs: string[];
 }
 

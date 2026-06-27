@@ -266,3 +266,44 @@ def test_dashboard_emits_watch_for_partially_ready_non_pick_without_candidate_fl
     assert card["formal_recommendation"] is False
     assert payload["performance"]["watch_count"] == 1
     assert payload["performance"]["analysis_partial_count"] == 1
+
+
+def test_dashboard_card_exposes_data_refresh_status_without_promoting_flags() -> None:
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 8,
+                        "bookmakers": 4,
+                        "odds_snapshots": 2,
+                        "xg": False,
+                        "xg_status": "INSUFFICIENT_HISTORY",
+                        "lineups": True,
+                        "lineups_status": "READY",
+                        "statistics_status": "PROVIDER_EMPTY",
+                    },
+                    "current_odds": {"ah": {"line": "-0.25", "price": 1.9}},
+                    "markets": [
+                        {"market": "ASIAN_HANDICAP", "decision": "SKIP", "reasons": ["CONFLICTED"]},
+                    ],
+                },
+            ),
+        )
+    )
+
+    payload = service.dashboard(target_date="2026-06-26", window="today")
+    card = payload["all"][0]
+
+    assert card["data_refresh"]["provider"] == "api_football"
+    assert card["data_refresh"]["status"] == "PROVIDER_EMPTY"
+    assert card["data_refresh"]["odds_status"] == "READY"
+    assert card["data_refresh"]["lineups_status"] == "READY"
+    assert card["data_refresh"]["xg_status"] == "INSUFFICIENT_HISTORY"
+    assert card["candidate"] is False
+    assert card["formal_recommendation"] is False
