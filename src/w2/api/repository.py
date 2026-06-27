@@ -1081,8 +1081,6 @@ class ReadModelService:
         if not fixture_id or kickoff is None or not home_id or not away_id:
             return None
         repository = self._future_refresh_repository()
-        if repository is None:
-            return None
         context = FeatureContext(
             fixture_id=fixture_id,
             competition_id="world_cup_2026",
@@ -1838,9 +1836,9 @@ class ReadModelService:
     ) -> list[dict[str, Any]]:
         repository = self._future_refresh_repository()
         reader = getattr(repository, "raw_payloads", None) if repository is not None else None
+        rows = self._fixture_response_items_from_runtime_artifacts(endpoint=endpoint)
         if not callable(reader):
-            return []
-        rows: list[dict[str, Any]] = []
+            return rows
         with suppress(Exception):
             payload_rows = reader(endpoint)
             for raw in payload_rows:
@@ -1850,6 +1848,25 @@ class ReadModelService:
                 response = payload.get("response")
                 if isinstance(response, list):
                     rows.extend(item for item in response if isinstance(item, dict))
+        return rows
+
+    def _fixture_response_items_from_runtime_artifacts(
+        self,
+        *,
+        endpoint: str,
+    ) -> list[dict[str, Any]]:
+        raw_dir = ROOT / "runtime/independent_signal_backfill/raw_payloads" / endpoint
+        if not raw_dir.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for path in sorted(raw_dir.glob("*.json")):
+            payload = load_json(path, {})
+            raw_payload = payload.get("payload") if isinstance(payload, dict) else None
+            if not isinstance(raw_payload, dict):
+                continue
+            response = raw_payload.get("response")
+            if isinstance(response, list):
+                rows.extend(item for item in response if isinstance(item, dict))
         return rows
 
     def _team_history_from_fixture_items(
