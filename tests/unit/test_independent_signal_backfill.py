@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from w2.api import repository as api_repository
@@ -252,14 +253,59 @@ def test_repository_skips_unreadable_runtime_artifacts(monkeypatch: Any, tmp_pat
     raw_dir = tmp_path / "runtime/independent_signal_backfill/raw_payloads/fixtures"
     raw_dir.mkdir(parents=True)
     monkeypatch.setattr(api_repository, "ROOT", tmp_path)
-    original_glob = api_repository.Path.glob
+    original_glob = Path.glob
 
-    def unreadable_glob(path: api_repository.Path, pattern: str) -> Any:
+    def unreadable_glob(path: Any, pattern: str) -> Any:
         if "independent_signal_backfill" in str(path):
             raise PermissionError("permission denied")
         return original_glob(path, pattern)
 
-    monkeypatch.setattr(api_repository.Path, "glob", unreadable_glob)
+    monkeypatch.setattr(Path, "glob", unreadable_glob)
+
+    rows = ReadModelService(
+        repository=cast(Any, FixtureProvider())
+    )._fixture_response_items_from_runtime_artifacts(endpoint="fixtures")
+
+    assert rows == []
+
+
+def test_repository_skips_runtime_artifacts_when_exists_is_unreadable(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    raw_dir = tmp_path / "runtime/independent_signal_backfill/raw_payloads/fixtures"
+    raw_dir.mkdir(parents=True)
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    original_exists = Path.exists
+
+    def unreadable_exists(path: Any) -> bool:
+        if "independent_signal_backfill" in str(path):
+            raise PermissionError("permission denied")
+        return bool(original_exists(path))
+
+    monkeypatch.setattr(Path, "exists", unreadable_exists)
+
+    rows = ReadModelService(
+        repository=cast(Any, FixtureProvider())
+    )._fixture_response_items_from_runtime_artifacts(endpoint="fixtures")
+
+    assert rows == []
+
+
+def test_repository_skips_unreadable_runtime_artifact_file(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    raw_dir = tmp_path / "runtime/independent_signal_backfill/raw_payloads/fixtures"
+    raw_dir.mkdir(parents=True)
+    artifact = raw_dir / "team_10.json"
+    artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+
+    def unreadable_load_json(path: Any, default: Any) -> Any:
+        if path == artifact:
+            raise PermissionError("permission denied")
+        return default
+
+    monkeypatch.setattr(api_repository, "load_json", unreadable_load_json)
 
     rows = ReadModelService(
         repository=cast(Any, FixtureProvider())
