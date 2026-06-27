@@ -357,7 +357,9 @@ class FakeReadRepositoryWithHighWaterAlternateTotals(FakeReadRepository):
 
 def test_analysis_card_prefers_main_total_over_high_water_alternate_line(monkeypatch) -> None:
     monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
-    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithHighWaterAlternateTotals()))
+    service = ReadModelService(
+        repository=cast(Any, FakeReadRepositoryWithHighWaterAlternateTotals())
+    )
 
     card = service.analysis_card("1489410")
 
