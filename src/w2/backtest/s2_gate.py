@@ -5,6 +5,8 @@ from typing import Any
 
 S2_MIN_COVERED_SETTLED_SAMPLE = 200
 S2_GATE_VERSION = "w2.s2.walkforward_gate.v1"
+WAVE1_FORMAL_GATE_DISABLED_REASON = "WAVE1_FORMAL_GATE_DISABLED"
+WAVE1_FORMAL_GATE_DISABLED_BLOCKER = "FORMAL_GATE_DISABLED_IN_WAVE1"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -30,6 +32,13 @@ def s2_walkforward_shadow_status(evidence: S2GateEvidence) -> dict[str, Any]:
         for key, passed in checks.items()
         if not passed
     ]
+    reason = (
+        WAVE1_FORMAL_GATE_DISABLED_REASON
+        if not blockers
+        else "INSUFFICIENT_VALIDATED_SAMPLES"
+    )
+    if not blockers:
+        blockers = [WAVE1_FORMAL_GATE_DISABLED_BLOCKER]
     return {
         "gate_version": S2_GATE_VERSION,
         "status": "ANALYSIS_ONLY",
@@ -38,5 +47,6 @@ def s2_walkforward_shadow_status(evidence: S2GateEvidence) -> dict[str, Any]:
         "covered_settled_sample": evidence.covered_settled_sample,
         "checks": checks,
         "blockers": blockers,
+        "reason": reason,
         "beats_market": False,
     }
