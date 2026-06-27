@@ -771,6 +771,36 @@ class ReadModelService:
             return 300.0 if window in {"today", "next36"} else 600.0
         return 900.0 if window in {"today", "next36"} else 1800.0
 
+    def dashboard_summary(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+    ) -> dict[str, Any]:
+        payload = self.dashboard(
+            target_date=target_date,
+            window=window,
+            timezone=timezone,
+            include_debug=False,
+        )
+        return {
+            "generated_at": payload["generated_at"],
+            "date": payload["date"],
+            "timezone": payload["timezone"],
+            "window": payload["window"],
+            "data_profile": payload["data_profile"],
+            "data_source": payload["data_source"],
+            "version": payload["version"],
+            "totals": {
+                "recommendations": len(cast(list[Any], payload["recommendations"])),
+                "upcoming": len(cast(list[Any], payload["upcoming"])),
+                "finished": len(cast(list[Any], payload["finished"])),
+                "all": len(cast(list[Any], payload["all"])),
+            },
+            "performance": payload["performance"],
+        }
+
     def warm_dashboard_cache(self) -> None:
         for window in ("today", "next36", "all"):
             with suppress(Exception):
