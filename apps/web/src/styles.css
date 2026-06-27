@@ -1392,6 +1392,24 @@ button {
   color: var(--text);
 }
 
+.readiness-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 7px 0 8px;
+}
+
+.readiness-pill-row span {
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, .06);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
 .prematch-action-line {
   color: #ffd58b !important;
 }
@@ -1460,6 +1478,52 @@ button {
   min-width: 0;
   color: var(--text);
   font-weight: 880;
+}
+
+.team-score-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--text);
+}
+
+.team-score-row strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-score-row strong:last-child {
+  text-align: right;
+}
+
+.team-score-row span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.factor-detail-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.factor-detail-list span {
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(0, 0, 0, .12);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+  line-height: 1.2;
 }
 
 .main-market-box p,

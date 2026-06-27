@@ -14,8 +14,8 @@ export function PerformanceHeader({ performance, updatedAt }: { performance: Das
     <section className="performance-header compact-summary">
       <div className="compact-title-row">
         <div>
-          <p>W2 今日推荐看板</p>
-          <h1>紧凑型足球情报 Dashboard</h1>
+          <p>分析参考 · 非正式推荐 · 无正式信号</p>
+          <h1>世界杯 · 今日赛前分析</h1>
         </div>
         <span>Updated {updatedAt}</span>
       </div>

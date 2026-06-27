@@ -199,6 +199,10 @@ export interface PricingShadow {
   model_version?: string | null;
   calibration_version?: string | null;
   factors: PricingShadowFactor[];
+  team_score?: {
+    home?: number | null;
+    away?: number | null;
+  } | null;
   fair_ah?: number | null;
   fair_ou?: number | null;
   market_ah?: number | null;
