@@ -58,6 +58,7 @@ from w2.operations.tournament import (
     readiness_report,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
+from w2.pricing.shadow import build_pricing_shadow
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -2278,6 +2279,15 @@ class ReadModelService:
         )
         decorated["candidate"] = False
         decorated["formal_recommendation"] = False
+        decorated["pricing_shadow"] = build_pricing_shadow(
+            fixture_id=str(decorated.get("fixture_id") or ""),
+            model_probabilities=decorated.get("model_probabilities")
+            if isinstance(decorated.get("model_probabilities"), dict)
+            else None,
+            market_probabilities=decorated.get("market_probabilities")
+            if isinstance(decorated.get("market_probabilities"), dict)
+            else None,
+        )
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -2952,6 +2962,7 @@ class ReadModelService:
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "pricing_shadow": card.get("pricing_shadow"),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
             "candidate": bool(recommendation.get("candidate")) if recommendation else False,
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
