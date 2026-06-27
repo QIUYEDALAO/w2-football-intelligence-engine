@@ -165,18 +165,6 @@ function dataLine(match: DashboardMatchCard): string {
   return status.join(" · ");
 }
 
-function refreshLine(match: DashboardMatchCard): string | null {
-  const refresh = match.data_refresh;
-  if (!refresh?.status) return null;
-  const parts = [
-    refresh.status_label || (refresh.status === "PROVIDER_EMPTY" ? "provider 未返回" : refresh.status),
-    refresh.odds_status ? `盘口 ${refresh.odds_status}` : "",
-    refresh.lineups_status_label || (refresh.lineups_status ? `阵容 ${refresh.lineups_status}` : ""),
-    refresh.xg_status_label || (refresh.xg_status ? `xG ${refresh.xg_status}` : ""),
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : null;
-}
-
 function actionabilityLine(match: DashboardMatchCard): string {
   const items = readinessItems({ data_readiness: match.data_readiness });
   const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);
@@ -274,6 +262,47 @@ function factorSideLabel(side: string, homeName: string, awayName: string): stri
 function factorScore(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "--";
   return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}分`;
+}
+
+function statusText(value: unknown): string {
+  return textValue(value).toUpperCase();
+}
+
+function oddsPillLabel(match: DashboardMatchCard): string {
+  const status = statusText(match.data_refresh?.odds_status);
+  if (status === "READY") return "已更新";
+  if (status === "STALE") return "可能过期";
+  const items = readinessItems({ data_readiness: match.data_readiness });
+  return items.find((item) => item.key === "odds")?.ready ? "已更新" : "等待";
+}
+
+function lineupsPillLabel(match: DashboardMatchCard): string {
+  const status = statusText(match.data_refresh?.lineups_status ?? asRecord(match.data_readiness).lineups_status);
+  if (status === "READY") return "已出";
+  if (status === "PROVIDER_EMPTY") return "未返回";
+  if (status === "NOT_REQUESTED") return "未到时点";
+  if (status === "STALE") return "可能过期";
+  return "状态待确认";
+}
+
+function xgPillLabel(match: DashboardMatchCard): string {
+  const status = statusText(match.data_refresh?.xg_status ?? asRecord(match.data_readiness).xg_status);
+  const items = readinessItems({ data_readiness: match.data_readiness });
+  if (status === "READY" || items.find((item) => item.key === "xg")?.ready) return "已就绪";
+  if (status === "INSUFFICIENT_HISTORY" || status === "PARTIAL_HISTORY") return "样本不足";
+  if (status === "PROVIDER_EMPTY" || status === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "provider 未返回";
+  if (status === "MAPPING_MISSING") return "映射缺失";
+  return "状态待确认";
+}
+
+function DataReadinessPills({ match }: { match: DashboardMatchCard }) {
+  return (
+    <div className="readiness-pill-row" aria-label="数据状态">
+      <span>盘口：{oddsPillLabel(match)}</span>
+      <span>首发：{lineupsPillLabel(match)}</span>
+      <span>xG：{xgPillLabel(match)}</span>
+    </div>
+  );
 }
 
 function MainMarketBox({
@@ -376,7 +405,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       <div className="verdict-hero">
         <span>{VERDICT_LABELS[verdict]}</span>
         <strong>{verdict === "REFERENCE" ? "可作赛前分析参考" : verdict === "WATCH" ? "观察，不升级" : verdict === "LOCKED" ? "赛前判断已锁定" : "样本/因子不足"}</strong>
-        <p>{blockers.length ? blockers.join(" · ") : "beats_market=false · FORMAL/CANDIDATE 未开启"}</p>
+        <p>{blockers.length ? blockers.join(" · ") : "分析参考 · 未通过正式验证"}</p>
       </div>
 
       <MainMarketBox
@@ -385,6 +414,8 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
         homeName={homeName}
         awayName={awayName}
       />
+
+      <DataReadinessPills match={match} />
 
       {lowInfo ? null : (
         <div className="card-info-lines">
@@ -396,12 +427,6 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             <strong>数据：</strong>
             {dataLine(match)}
           </p>
-          {refreshLine(match) ? (
-            <p>
-              <strong>刷新：</strong>
-              {refreshLine(match)}
-            </p>
-          ) : null}
           <p>
             <strong>{scoreText(match)}</strong>
           </p>
