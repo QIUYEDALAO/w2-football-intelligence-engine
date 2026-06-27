@@ -30,6 +30,9 @@ def test_pricing_shadow_contract_freezes_required_fields() -> None:
         "devig_method",
         "settlement_outcome",
         "beats_market",
+        "formal_enabled",
+        "candidate_enabled",
+        "s2_gate",
     ]
 
 
@@ -37,6 +40,32 @@ def test_pricing_shadow_contract_keeps_beats_market_false_only() -> None:
     properties = load_contract()["properties"]
 
     assert properties["beats_market"] == {"const": False}
+    assert properties["formal_enabled"] == {"const": False}
+    assert properties["candidate_enabled"] == {"const": False}
+    assert properties["s2_gate"] == {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["n_min", "beats_market"],
+        "properties": {
+            "n_min": {"const": 200},
+            "beats_market": {"const": False},
+        },
+    }
+
+
+def test_pricing_shadow_contract_freezes_reviewed_field_semantics() -> None:
+    properties = load_contract()["properties"]
+    factor_properties = properties["factors"]["items"]["properties"]
+
+    assert factor_properties["side"] == {"enum": ["HOME", "AWAY", "NEUTRAL", "UNKNOWN"]}
+    assert properties["coverage"] == {
+        "type": ["number", "null"],
+        "minimum": 0,
+        "maximum": 1,
+    }
+    assert properties["fair_ah"]["description"] == (
+        "Fair Asian handicap line; negative means home gives goals."
+    )
 
 
 def test_pricing_shadow_contract_is_shape_only_not_implementation() -> None:
