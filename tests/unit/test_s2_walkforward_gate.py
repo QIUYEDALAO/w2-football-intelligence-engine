@@ -29,6 +29,7 @@ def test_s2_gate_freezes_portfolio_threshold_and_blocks_missing_evidence() -> No
         "holdout_replicated",
         "forward_shadow_passed",
     ]
+    assert status["reason"] == "INSUFFICIENT_VALIDATED_SAMPLES"
 
 
 def test_s2_gate_skeleton_never_enables_beats_market_in_wave1() -> None:
@@ -49,6 +50,7 @@ def test_s2_gate_skeleton_never_enables_beats_market_in_wave1() -> None:
         "holdout_replicated": True,
         "forward_shadow_passed": True,
     }
-    assert status["blockers"] == []
+    assert status["blockers"] == ["FORMAL_GATE_DISABLED_IN_WAVE1"]
+    assert status["reason"] == "WAVE1_FORMAL_GATE_DISABLED"
     assert status["status"] == "ANALYSIS_ONLY"
     assert status["beats_market"] is False
