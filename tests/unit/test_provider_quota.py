@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from w2.providers.quota import parse_api_football_quota
+from w2.providers.quota import api_football_quota_policy, parse_api_football_quota
 
 NOW = datetime(2026, 6, 23, 12, 0, tzinfo=UTC)
 
@@ -80,3 +80,14 @@ def test_status_payload_can_supply_daily_quota() -> None:
     assert quota.daily_remaining == 6774
     assert quota.daily_source == "response.requests.remaining"
     assert quota.burst_remaining == 299
+
+
+def test_api_football_quota_policy_freezes_w2_default_budget() -> None:
+    policy = api_football_quota_policy(6774)
+
+    assert policy["daily_budget"] == 7500
+    assert policy["reserve_bucket"] == 1500
+    assert policy["available_after_reserve"] == 5274
+    assert policy["reserve_locked"] is False
+    assert policy["upgrade_evaluation_daily_budget"] == 75000
+    assert policy["upgrade_enabled"] is False
