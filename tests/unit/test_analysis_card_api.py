@@ -120,11 +120,11 @@ def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
     assert card is not None
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
-    assert card["pricing_shadow"]["status"] == "RULE_BASED_UNCALIBRATED"
+    assert card["pricing_shadow"]["status"] == "WATCH"
     assert card["pricing_shadow"]["beats_market"] is False
-    assert card["pricing_shadow"]["fair_ah"] is None
+    assert isinstance(card["pricing_shadow"]["fair_ah"], float)
     assert card["pricing_shadow"]["edge_ah"] is None
-    assert card["pricing_shadow"]["coverage"]["model_probabilities"] is True
+    assert card["pricing_shadow"]["coverage"] == 0.4
     assert card["markets"][0]["candidate"] is False
     assert card["markets"][0]["formal_recommendation"] is False
     assert card["markets"][0]["decision"] == "PICK"

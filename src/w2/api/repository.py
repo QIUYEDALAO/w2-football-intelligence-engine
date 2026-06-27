@@ -2256,6 +2256,9 @@ class ReadModelService:
             market_probabilities=decorated.get("market_probabilities")
             if isinstance(decorated.get("market_probabilities"), dict)
             else None,
+            current_odds=decorated.get("current_odds")
+            if isinstance(decorated.get("current_odds"), dict)
+            else None,
         )
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
