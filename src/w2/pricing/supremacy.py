@@ -10,7 +10,14 @@ def fair_handicap_from_supremacy(home_score: float, away_score: float) -> float:
     return -quarter_line
 
 
-def fair_total_from_coverage(coverage: float) -> float | None:
-    if coverage < 0.5:
+def fair_total_from_independent_xg(
+    *,
+    home_xg: float | None,
+    away_xg: float | None,
+) -> float | None:
+    if home_xg is None or away_xg is None:
         return None
-    return 2.5
+    total = home_xg + away_xg
+    if total <= 0:
+        return None
+    return round(total * 4) / 4

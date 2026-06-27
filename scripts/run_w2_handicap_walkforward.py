@@ -14,6 +14,7 @@ from w2.backtest.s2_gate import (  # noqa: E402
     S2GateEvidence,
     s2_walkforward_shadow_status,
 )
+from w2.backtest.s2_readiness import S2ReadinessInputs, build_s2_readiness_report  # noqa: E402
 
 
 def dry_run_payload() -> dict[str, Any]:
@@ -54,10 +55,36 @@ def dry_run_payload() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run W2 handicap walk-forward audit.")
     parser.add_argument("--dry-run", action="store_true", help="Emit the Wave-1 skeleton payload.")
+    parser.add_argument("--features-jsonl", type=Path, help="As-of feature artifact JSON/JSONL.")
+    parser.add_argument("--labels-jsonl", type=Path, help="Settled label artifact JSON/JSONL.")
+    parser.add_argument(
+        "--data-source",
+        default="UNSPECIFIED",
+        help="Human-readable report source.",
+    )
+    parser.add_argument(
+        "--authoritative",
+        action="store_true",
+        help="Mark source as authoritative only if it is not demo/synthetic.",
+    )
+    parser.add_argument("--output-report", type=Path, help="Write report JSON to this path.")
     args = parser.parse_args()
-    if not args.dry_run:
-        parser.error("only --dry-run is supported in Wave-1")
-    print(json.dumps(dry_run_payload(), sort_keys=True))
+    if args.dry_run and not (args.features_jsonl or args.labels_jsonl):
+        payload = dry_run_payload()
+    else:
+        payload = build_s2_readiness_report(
+            S2ReadinessInputs(
+                features_path=args.features_jsonl,
+                labels_path=args.labels_jsonl,
+                data_source=args.data_source,
+                requested_authoritative=args.authoritative,
+            )
+        )
+    encoded = json.dumps(payload, sort_keys=True)
+    if args.output_report is not None:
+        args.output_report.parent.mkdir(parents=True, exist_ok=True)
+        args.output_report.write_text(encoded + "\n", encoding="utf-8")
+    print(encoded)
     return 0
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from w2.pricing.supremacy import fair_handicap_from_supremacy, fair_total_from_coverage
+from w2.pricing.supremacy import fair_handicap_from_supremacy
 from w2.pricing.team_score import independent_team_scores
 from w2.pricing.value_vs_market import edge, market_lines, pricing_status
 
@@ -32,9 +32,9 @@ def build_pricing_shadow(
             team_scores["home_score"],
             team_scores["away_score"],
         )
-        fair_ou = fair_total_from_coverage(team_scores["coverage"])
+        fair_ou = None
         edge_ah = edge(fair_ah, lines["market_ah"])
-        edge_ou = edge(fair_ou, lines["market_ou"])
+        edge_ou = None
         status = pricing_status(
             coverage=team_scores["coverage"],
             edge_ah=edge_ah,
