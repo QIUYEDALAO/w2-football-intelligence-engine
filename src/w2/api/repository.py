@@ -1856,17 +1856,24 @@ class ReadModelService:
         endpoint: str,
     ) -> list[dict[str, Any]]:
         raw_dir = ROOT / "runtime/independent_signal_backfill/raw_payloads" / endpoint
+        with suppress(OSError):
+            if not raw_dir.exists():
+                return []
         if not raw_dir.exists():
             return []
         rows: list[dict[str, Any]] = []
-        for path in sorted(raw_dir.glob("*.json")):
-            payload = load_json(path, {})
-            raw_payload = payload.get("payload") if isinstance(payload, dict) else None
-            if not isinstance(raw_payload, dict):
-                continue
-            response = raw_payload.get("response")
-            if isinstance(response, list):
-                rows.extend(item for item in response if isinstance(item, dict))
+        paths: list[Path] = []
+        with suppress(OSError):
+            paths = sorted(raw_dir.glob("*.json"))
+        for path in paths:
+            with suppress(OSError):
+                payload = load_json(path, {})
+                raw_payload = payload.get("payload") if isinstance(payload, dict) else None
+                if not isinstance(raw_payload, dict):
+                    continue
+                response = raw_payload.get("response")
+                if isinstance(response, list):
+                    rows.extend(item for item in response if isinstance(item, dict))
         return rows
 
     def _team_history_from_fixture_items(

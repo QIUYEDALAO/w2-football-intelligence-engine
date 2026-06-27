@@ -246,3 +246,23 @@ def test_repository_consumes_generated_artifacts(monkeypatch: Any, tmp_path: Any
     assert summary["F6_H2H"]["source_group"] == "h2h"
     assert summary["F7_STRENGTH_FORM"]["source_group"] == "ratings"
     assert card["pricing_shadow"]["independent_signal_count"] >= 3
+
+
+def test_repository_skips_unreadable_runtime_artifacts(monkeypatch: Any, tmp_path: Any) -> None:
+    raw_dir = tmp_path / "runtime/independent_signal_backfill/raw_payloads/fixtures"
+    raw_dir.mkdir(parents=True)
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    original_glob = api_repository.Path.glob
+
+    def unreadable_glob(path: api_repository.Path, pattern: str) -> Any:
+        if "independent_signal_backfill" in str(path):
+            raise PermissionError("permission denied")
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(api_repository.Path, "glob", unreadable_glob)
+
+    rows = ReadModelService(
+        repository=cast(Any, FixtureProvider())
+    )._fixture_response_items_from_runtime_artifacts(endpoint="fixtures")
+
+    assert rows == []
