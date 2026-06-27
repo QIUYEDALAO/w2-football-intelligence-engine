@@ -1291,8 +1291,8 @@ class ReadModelService:
                 continue
             candidates.append(
                 (
-                    balance_gap,
                     mid_distance,
+                    balance_gap,
                     -bookmaker_count,
                     latest_capture,
                     line,

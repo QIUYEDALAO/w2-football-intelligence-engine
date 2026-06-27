@@ -319,6 +319,65 @@ def test_analysis_card_prefers_market_balanced_lines_over_fixed_lines(monkeypatc
     assert totals_market["line_status"] == "READY"
 
 
+class FakeReadRepositoryWithHighWaterAlternateTotals(FakeReadRepository):
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        rows = super().future_market_observations()
+        captured = NOW - timedelta(minutes=20)
+        rows = [row for row in rows if row.get("canonical_market") != "TOTALS"]
+        for bookmaker_id, bookmaker_name in (
+            ("1", "Pinnacle"),
+            ("2", "SoftBook"),
+            ("3", "SBO"),
+        ):
+            for selection, line, price in (
+                ("Over 1.5", "1.5", "2.21"),
+                ("Under 1.5", "1.5", "2.15"),
+                ("Over 2.0", "2.0", "2.05"),
+                ("Under 2.0", "2.0", "2.15"),
+                ("Over 2.5", "2.5", "4.10"),
+                ("Under 2.5", "2.5", "1.87"),
+            ):
+                rows.append(
+                    {
+                        "fixture_id": "1489410",
+                        "canonical_market": "TOTALS",
+                        "selection": selection,
+                        "line": line,
+                        "decimal_odds": price,
+                        "bookmaker_id": bookmaker_id,
+                        "bookmaker_name": bookmaker_name,
+                        "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
+                        "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "suspended": False,
+                        "live": False,
+                    }
+                )
+        return rows
+
+
+def test_analysis_card_prefers_main_total_over_high_water_alternate_line(monkeypatch) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(
+        repository=cast(Any, FakeReadRepositoryWithHighWaterAlternateTotals())
+    )
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert card["current_odds"]["ou"] == {
+        "line": "2",
+        "over_price": 2.05,
+        "under_price": 2.15,
+        "over_line": "2",
+        "under_line": "2",
+        "price": 2.1,
+    }
+    totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
+    assert totals_market["line"] == "2"
+    assert totals_market["balanced_line"] == "2"
+    assert totals_market["line_status"] == "READY"
+
+
 class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
