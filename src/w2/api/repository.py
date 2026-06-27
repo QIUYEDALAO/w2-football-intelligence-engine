@@ -1859,8 +1859,6 @@ class ReadModelService:
         with suppress(OSError):
             if not raw_dir.exists():
                 return []
-        if not raw_dir.exists():
-            return []
         rows: list[dict[str, Any]] = []
         paths: list[Path] = []
         with suppress(OSError):
