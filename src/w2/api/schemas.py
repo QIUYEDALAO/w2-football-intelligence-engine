@@ -208,6 +208,7 @@ class ProviderStatusResponse(BaseModel):
     credential_status: str
     last_request_status: int | None
     blockers: list[str] = Field(default_factory=list)
+    quota_policy: dict[str, Any] = Field(default_factory=dict)
 
 
 class BacktestLatestResponse(BaseModel):

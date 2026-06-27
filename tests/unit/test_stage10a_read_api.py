@@ -285,6 +285,15 @@ def test_future_refresh_db_projection_feeds_fixtures_and_provider_status(
     provider = client.get("/v1/providers/status").json()
     assert provider["remaining_quota"] == 6323
     assert "blockers" in provider
+    assert provider["quota_policy"] == {
+        "provider": "api_football",
+        "daily_budget": 7500,
+        "reserve_bucket": 1500,
+        "available_after_reserve": 4823,
+        "reserve_locked": False,
+        "upgrade_evaluation_daily_budget": 75000,
+        "upgrade_enabled": False,
+    }
 
 
 def test_future_refresh_hides_past_ns_fixture_from_default_list(
