@@ -32,7 +32,7 @@ def pricing_status(
 def edge(fair_line: float | None, market_line: float | None) -> float | None:
     if fair_line is None or market_line is None:
         return None
-    return round(fair_line - market_line, 6)
+    return round(market_line - fair_line, 6)
 
 
 def _line(payload: Any, key: str) -> float | None:

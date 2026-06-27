@@ -1,13 +1,84 @@
 from __future__ import annotations
 
 from w2.pricing.shadow import build_pricing_shadow
+from w2.pricing.value_vs_market import edge
 
 
-def test_pricing_shadow_is_uncalibrated_and_never_beats_market() -> None:
+def contribution(
+    factor_id: str,
+    *,
+    side: str = "NEUTRAL",
+    score: float = 0.6,
+    weight: float = 1.0,
+    status: str = "READY",
+) -> dict[str, object]:
+    return {
+        "id": factor_id,
+        "side": side,
+        "score": score,
+        "weight": weight,
+        "status": status,
+    }
+
+
+def independent_contributions() -> list[dict[str, object]]:
+    return [
+        contribution("F3_REST_FITNESS", side="HOME", score=0.75),
+        contribution("F4_MATCH_IMPORTANCE", side="NEUTRAL", score=0.60),
+        contribution("F5_RECENT_AH_COVER", side="HOME", score=0.80),
+        contribution("F6_H2H", side="NEUTRAL", score=0.55),
+        contribution("F7_STRENGTH_FORM", side="HOME", score=0.85),
+        contribution("F8_SQUAD_VALUE", side="HOME", score=0.70),
+        contribution("F9_TRUE_XG", side="HOME", score=0.90),
+    ]
+
+
+def test_no_independent_factors_does_not_fabricate_pricing() -> None:
     shadow = build_pricing_shadow(
         fixture_id="fixture-1",
-        model_probabilities={"HOME": 0.62, "DRAW": 0.20, "AWAY": 0.18},
-        market_probabilities={"HOME": 0.44, "DRAW": 0.29, "AWAY": 0.27},
+        feature_contributions=None,
+        current_odds={"ah": {"home_line": "-0.5"}, "ou": {"line": "2.5"}},
+    )
+
+    assert shadow["status"] == "INSUFFICIENT_INDEPENDENT_FACTORS"
+    assert shadow["factors"] == []
+    assert shadow["coverage"] == 0
+    assert shadow["fair_ah"] is None
+    assert shadow["fair_ou"] is None
+    assert shadow["edge_ah"] is None
+    assert shadow["edge_ou"] is None
+    assert shadow["beats_market"] is False
+    assert shadow["formal_enabled"] is False
+    assert shadow["candidate_enabled"] is False
+
+
+def test_market_and_model_probability_factors_are_excluded_from_independent_score() -> None:
+    forbidden = [
+        contribution("F1_MARKET_MOVEMENT", side="HOME", score=1.0),
+        contribution("F2_BOOKMAKER_INTENT", side="HOME", score=1.0),
+        contribution("MARKET_HOME_BASELINE", side="HOME", score=1.0),
+        contribution("MARKET_AWAY_BASELINE", side="AWAY", score=1.0),
+        contribution("PRICE_COVERAGE", side="NEUTRAL", score=1.0),
+        contribution("MODEL_MARKET_DIVERGENCE", side="HOME", score=1.0),
+        contribution("F3_MODEL_HOME_PROBABILITY", side="HOME", score=1.0),
+        contribution("F4_MODEL_AWAY_PROBABILITY", side="AWAY", score=1.0),
+    ]
+
+    shadow = build_pricing_shadow(
+        fixture_id="fixture-2",
+        feature_contributions=forbidden,
+        current_odds={"ah": {"home_line": "-0.5"}},
+    )
+
+    assert shadow["factors"] == []
+    assert shadow["coverage"] == 0
+    assert shadow["status"] == "INSUFFICIENT_INDEPENDENT_FACTORS"
+
+
+def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
+    shadow = build_pricing_shadow(
+        fixture_id="fixture-3",
+        feature_contributions=independent_contributions(),
         current_odds={
             "ah": {"home_line": "0.25"},
             "ou": {"line": "2.5"},
@@ -15,60 +86,41 @@ def test_pricing_shadow_is_uncalibrated_and_never_beats_market() -> None:
     )
 
     assert shadow["status"] == "RULE_BASED_UNCALIBRATED"
-    assert shadow["calibration_version"] == "UNVALIDATED"
+    assert 0 <= shadow["coverage"] <= 1
+    assert shadow["coverage"] == 1
     assert shadow["fair_ah"] < 0
     assert shadow["fair_ou"] == 2.5
-    assert shadow["market_ah"] == 0.25
-    assert shadow["coverage"] == 1.0
+    assert shadow["edge_ah"] > 0
+    assert {factor["id"] for factor in shadow["factors"]} == {
+        "F3_REST_FITNESS",
+        "F4_MATCH_IMPORTANCE",
+        "F5_RECENT_AH_COVER",
+        "F6_H2H",
+        "F7_STRENGTH_FORM",
+        "F8_SQUAD_VALUE",
+        "F9_TRUE_XG",
+    }
     assert shadow["beats_market"] is False
     assert shadow["formal_enabled"] is False
     assert shadow["candidate_enabled"] is False
-    assert shadow["s2_gate"] == {"n_min": 200, "beats_market": False}
-    assert {factor["id"] for factor in shadow["factors"]} == {
-        "F3_MODEL_HOME_PROBABILITY",
-        "F4_MODEL_AWAY_PROBABILITY",
-        "F5_DRAW_SUPPRESSION",
-        "F6_MARKET_HOME_BASELINE",
-        "F7_MARKET_AWAY_BASELINE",
-        "F8_PRICE_COVERAGE",
-        "F9_MODEL_MARKET_DIVERGENCE",
-    }
 
 
-def test_pricing_shadow_reports_missing_inputs_without_fabricating_values() -> None:
+def test_coverage_below_half_watches_without_promotion() -> None:
     shadow = build_pricing_shadow(
-        fixture_id="fixture-2",
-        model_probabilities=None,
-        market_probabilities=None,
+        fixture_id="fixture-4",
+        feature_contributions=[
+            contribution("F3_REST_FITNESS", side="HOME", score=0.75),
+            contribution("F9_TRUE_XG", side="HOME", score=0.90),
+        ],
+        current_odds={"ah": {"home_line": "-0.25"}, "ou": {"line": "2.5"}},
     )
 
-    assert {factor["id"]: factor["status"] for factor in shadow["factors"]} == {
-        "F3_MODEL_HOME_PROBABILITY": "READY",
-        "F4_MODEL_AWAY_PROBABILITY": "READY",
-        "F5_DRAW_SUPPRESSION": "READY",
-        "F6_MARKET_HOME_BASELINE": "READY",
-        "F7_MARKET_AWAY_BASELINE": "READY",
-        "F8_PRICE_COVERAGE": "READY",
-        "F9_MODEL_MARKET_DIVERGENCE": "READY",
-    }
-    assert shadow["coverage"] == 0.0
-    assert shadow["status"] == "WATCH"
-    assert shadow["asof_market_snapshot_id"] is None
-    assert shadow["devig_method"] is None
-    assert shadow["settlement_outcome"] is None
-
-
-def test_pricing_shadow_watches_when_edge_is_too_small() -> None:
-    shadow = build_pricing_shadow(
-        fixture_id="fixture-3",
-        model_probabilities={"HOME": 0.45, "DRAW": 0.30, "AWAY": 0.25},
-        market_probabilities={"HOME": 0.44, "DRAW": 0.29, "AWAY": 0.27},
-        current_odds={
-            "ah": {"home_line": "0"},
-            "ou": {"line": "2.5"},
-        },
-    )
-
-    assert abs(shadow["edge_ah"]) < 0.25
+    assert shadow["coverage"] < 0.5
     assert shadow["status"] == "WATCH"
     assert shadow["beats_market"] is False
+
+
+def test_ah_edge_uses_negative_home_gives_sign_convention() -> None:
+    assert edge(-1.25, -0.5) > 0
+    assert edge(-0.25, -1.0) < 0
+    assert edge(0, 0) == 0
