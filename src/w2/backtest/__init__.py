@@ -22,6 +22,12 @@ from w2.backtest.replay import (
     stable_hash,
     walk_forward,
 )
+from w2.backtest.s2_gate import (
+    S2_GATE_VERSION,
+    S2_MIN_COVERED_SETTLED_SAMPLE,
+    S2GateEvidence,
+    s2_walkforward_shadow_status,
+)
 
 __all__ = [
     "AsOfDataRepository",
@@ -37,10 +43,14 @@ __all__ = [
     "ReplayEventType",
     "ReplayLedger",
     "ReplayManifest",
+    "S2GateEvidence",
+    "S2_GATE_VERSION",
+    "S2_MIN_COVERED_SETTLED_SAMPLE",
     "chronological_holdout",
     "expanding_window",
     "nested_walk_forward",
     "rolling_window",
+    "s2_walkforward_shadow_status",
     "season_based_future_test",
     "stable_hash",
     "walk_forward",
