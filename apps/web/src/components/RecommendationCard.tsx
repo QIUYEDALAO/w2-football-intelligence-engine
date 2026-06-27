@@ -1,10 +1,11 @@
-import { fmtTime, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
+import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
 import type { DashboardMatchCard, PricingShadow, RecommendationPick, RecommendationTier } from "../types/dashboard";
-import { MarketPickSummary } from "./MarketPickSummary";
 import { OddsMovementMini } from "./OddsMovementMini";
 import { SettlementBadge } from "./SettlementBadge";
+
+type VerdictState = "REFERENCE" | "WATCH" | "INSUFFICIENT" | "LOCKED";
 
 const TIER_LABELS: Record<RecommendationTier, string> = {
   FORMAL: "正式推荐",
@@ -52,17 +53,38 @@ const MARKET_LABELS: Record<string, string> = {
   SCORE: "比分",
 };
 
-function tierLabel(match: DashboardMatchCard): string {
+const VERDICT_LABELS: Record<VerdictState, string> = {
+  REFERENCE: "分析参考",
+  WATCH: "观察",
+  INSUFFICIENT: "数据不足",
+  LOCKED: "已锁定",
+};
+
+function verdictState(match: DashboardMatchCard): VerdictState {
+  const phase = matchPhase(match.kickoff_utc, match.status);
   const settlement = match.validation?.settlement;
-  if (settlement && settlement !== "PENDING") return "";
-  return match.recommendation ? TIER_LABELS[match.recommendation.tier] : "暂无推荐";
+  if ((settlement && settlement !== "PENDING") || phase === "LIVE" || phase === "FINISHED") {
+    return "LOCKED";
+  }
+  const shadow = match.pricing_shadow;
+  if (!shadow || shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") {
+    return "INSUFFICIENT";
+  }
+  const coverage = typeof shadow.coverage === "number" && Number.isFinite(shadow.coverage)
+    ? shadow.coverage
+    : 0;
+  const hasAh = shadow.fair_ah != null && shadow.market_ah != null;
+  if (!hasAh || coverage < 0.5) {
+    return "WATCH";
+  }
+  if (shadow.edge_ah == null || Math.abs(shadow.edge_ah) < 0.25 || shadow.status === "WATCH") {
+    return "WATCH";
+  }
+  return "REFERENCE";
 }
 
-function cardTone(match: DashboardMatchCard): string {
-  const tier = match.recommendation?.tier;
-  if (tier === "FORMAL" || tier === "CANDIDATE" || tier === "ANALYSIS_PICK") return "is-pick";
-  if (tier === "WATCH") return "is-watch";
-  return "is-skip";
+function cardTone(state: VerdictState): string {
+  return `verdict-${state.toLowerCase()}`;
 }
 
 function blockerLabels(match: DashboardMatchCard): string[] {
@@ -106,6 +128,16 @@ function displayPick(match: DashboardMatchCard): RecommendationPick | null {
   const line = pick.line ?? (textValue(marketOdds.line) || undefined);
   const odds = pick.odds ?? (textValue(marketOdds.price) || undefined);
   return { ...pick, line, odds };
+}
+
+function recommendationReference(pick: RecommendationPick | null): string {
+  if (!pick) return "参考结论：暂无 recommendation";
+  const tier = TIER_LABELS[pick.tier] ?? pick.tier;
+  const market = pick.market_label_cn || MARKET_LABELS[pick.market] || pick.market;
+  const selection = pick.selection_label_cn ?? pick.selection;
+  const line = pick.line ? ` ${formatLine(pick.line)}` : "";
+  const odds = pick.odds ? ` @${formatOdds(pick.odds)}` : "";
+  return `参考结论：${tier} · ${market} ${selection}${line}${odds}`;
 }
 
 function dataLine(match: DashboardMatchCard): string {
@@ -192,52 +224,56 @@ function lineValue(value: number | null | undefined, market: "ah" | "ou"): strin
   return value < 0 ? `主 -${abs}` : `客 -${abs}`;
 }
 
-function edgeText(edge: number | null | undefined): string | null {
-  if (typeof edge !== "number" || !Number.isFinite(edge)) return null;
+function edgeText(edge: number | null | undefined): string {
+  if (typeof edge !== "number" || !Number.isFinite(edge)) return "未形成 edge";
   const abs = Math.abs(edge).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
   if (Math.abs(edge) < 0.05) return "接近市场，无明显优势";
   return edge > 0 ? `+${abs} · 我们比市场更看主队` : `-${abs} · 市场让得更深 / 更看客队`;
 }
 
-function pricingShadowTitle(shadow: PricingShadow): string {
-  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立评分覆盖不足";
-  if (shadow.status === "WATCH") return "无明显独立优势 · 观察";
-  return "独立评分参考 · 待校准";
+function ahSideLabel(edge: number | null | undefined): string {
+  if (typeof edge !== "number" || !Number.isFinite(edge) || Math.abs(edge) < 0.05) {
+    return "让球主市场：接近市场";
+  }
+  return edge > 0 ? "让球主市场：偏主队" : "让球主市场：偏客队/市场更深";
 }
 
-function pricingShadowDetail(shadow: PricingShadow): string {
-  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "当前观察，不强推";
-  if (shadow.fair_ah == null && shadow.fair_ou == null && shadow.edge_ah == null && shadow.edge_ou == null) return "独立评分未形成公平盘";
-  return "规则映射 · 待校准 · 非正式推荐";
+function pricingShadowDetail(shadow: PricingShadow | null | undefined, state: VerdictState): string {
+  if (!shadow) return "未形成 S1 shadow，保持观察。";
+  if (state === "LOCKED") return "赛前分析已锁定，仅供复盘验证。";
+  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立因子不足，不能形成主市场判断。";
+  return "S1-Shadow · 规则映射 · 未校准 · 非正式推荐。";
 }
 
-function PricingShadowPanel({ shadow }: { shadow?: PricingShadow | null }) {
-  if (!shadow) return null;
-  const coverage = percentValue(shadow.coverage);
-  const fairAh = lineValue(shadow.fair_ah, "ah");
-  const fairOu = lineValue(shadow.fair_ou, "ou");
-  const marketAh = lineValue(shadow.market_ah, "ah");
-  const marketOu = lineValue(shadow.market_ou, "ou");
-  const edgeAh = edgeText(shadow.edge_ah);
-  const edgeOu = edgeText(shadow.edge_ou);
-  const hasFairLine = Boolean(fairAh || fairOu || edgeAh || edgeOu);
+function MainMarketBox({
+  shadow,
+  state,
+}: {
+  shadow?: PricingShadow | null;
+  state: VerdictState;
+}) {
+  const coverage = percentValue(shadow?.coverage ?? null);
+  const fairAh = lineValue(shadow?.fair_ah ?? null, "ah");
+  const marketAh = lineValue(shadow?.market_ah ?? null, "ah");
+  const edgeAh = edgeText(shadow?.edge_ah ?? null);
   return (
-    <section className="pricing-shadow-panel" aria-label="独立盘分析">
-      <div className="pricing-shadow-heading">
-        <strong>{pricingShadowTitle(shadow)}</strong>
-        {coverage ? <span>覆盖率 {coverage}</span> : null}
+    <section className="main-market-box" aria-label="全场让球主市场">
+      <div className="main-market-heading">
+        <span>主市场</span>
+        <strong>全场让球</strong>
+        <em>{coverage ? `覆盖 ${coverage}` : "覆盖不足"}</em>
       </div>
-      {hasFairLine ? (
-        <div className="pricing-shadow-grid">
-          <span>我们盘</span>
-          <strong>{[fairAh ? `让球 ${fairAh}` : "", fairOu ? `大小 ${fairOu}` : ""].filter(Boolean).join(" · ") || "未形成公平盘"}</strong>
-          <span>市场盘</span>
-          <strong>{[marketAh ? `让球 ${marketAh}` : "", marketOu ? `大小 ${marketOu}` : ""].filter(Boolean).join(" · ") || "盘口等待"}</strong>
-          <span>Edge</span>
-          <strong>{[edgeAh, edgeOu].filter(Boolean).join(" · ") || "接近市场，无明显优势"}</strong>
-        </div>
-      ) : null}
-      <p>{pricingShadowDetail(shadow)}</p>
+      <div className="main-market-grid">
+        <span>独立公平盘</span>
+        <strong>{fairAh ? `让球 ${fairAh}` : "未形成"}</strong>
+        <span>市场主线</span>
+        <strong>{marketAh ? `让球 ${marketAh}` : "盘口等待"}</strong>
+        <span>判断</span>
+        <strong>{edgeAh}</strong>
+      </div>
+      <p>
+        {ahSideLabel(shadow?.edge_ah ?? null)} · {pricingShadowDetail(shadow, state)}
+      </p>
     </section>
   );
 }
@@ -252,8 +288,10 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const minutes = minutesToKickoff(match.kickoff_utc);
   const phase = matchPhase(match.kickoff_utc, match.status);
   const prematchReview = requiresPrematchReview(phase);
+  const verdict = verdictState(match);
+  const blockers = blockerLabels(match);
   return (
-    <article className={`recommendation-card ${cardTone(match)} ${prematchReview ? "is-prematch" : ""} tier-${pick?.tier.toLowerCase() ?? "none"}`}>
+    <article className={`recommendation-card ${cardTone(verdict)} ${prematchReview ? "is-prematch" : ""}`}>
       <header className="recommendation-card-header">
         <div>
           <span className="match-meta">
@@ -271,21 +309,17 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
         </div>
         <div className="card-status-stack">
           <span className={prematchReview ? "phase-pill is-urgent" : "phase-pill"}>{phaseLabel(phase, minutes)}</span>
-          {match.validation ? <SettlementBadge status={match.validation.settlement} /> : <span className={`status-pill ${cardTone(match)}`}>{tierLabel(match)}</span>}
+          {match.validation ? <SettlementBadge status={match.validation.settlement} /> : null}
         </div>
       </header>
 
-      {pick ? (
-        <MarketPickSummary pick={pick} />
-      ) : (
-        <div className="market-pick-summary is-empty">
-          <div>
-            <span>主看</span>
-            <strong>暂不推荐</strong>
-            <p>{nextActionLabel(match)}；盘口和模型条件不足时不强出方向。</p>
-          </div>
-        </div>
-      )}
+      <div className="verdict-hero">
+        <span>{VERDICT_LABELS[verdict]}</span>
+        <strong>{verdict === "REFERENCE" ? "可作赛前分析参考" : verdict === "WATCH" ? "观察，不升级" : verdict === "LOCKED" ? "赛前判断已锁定" : "样本/因子不足"}</strong>
+        <p>{blockers.length ? blockers.join(" · ") : "beats_market=false · FORMAL/CANDIDATE 未开启"}</p>
+      </div>
+
+      <MainMarketBox shadow={match.pricing_shadow} state={verdict} />
 
       <div className="card-info-lines">
         <p className={prematchReview ? "prematch-action-line" : ""}>
@@ -307,11 +341,11 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
         </p>
       </div>
       <OddsMovementMini match={match} />
-      <PricingShadowPanel shadow={match.pricing_shadow} />
-      <p className="market-strip-line">其他：{marketStrip(match)}</p>
+      <p className="market-strip-line">{recommendationReference(pick)}</p>
+      <p className="market-strip-line">其他参考：{marketStrip(match)}</p>
       <div className="recommendation-footer">
         <div>
-          <p className="odds-line">当前：{odds.length ? odds.join(" · ") : "盘口等待采集"}</p>
+          <p className="odds-line">盘口参考（含备选线）：{odds.length ? odds.join(" · ") : "等待采集"}</p>
           {resultLine(match) ? <p className="result-line">{resultLine(match)}</p> : null}
           <p className="risk-line">风险：{risks.slice(0, 2).join("、")}</p>
         </div>
