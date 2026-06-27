@@ -131,6 +131,20 @@ class FakeClient:
         )
 
 
+class LowQuotaFakeClient(FakeClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        response = super().request_live(endpoint, params)
+        return LiveApiFootballResponse(
+            endpoint=response.endpoint,
+            params=response.params,
+            status_code=response.status_code,
+            elapsed_ms=response.elapsed_ms,
+            payload=response.payload,
+            headers={"x-apisports-requests-remaining": "1499"},
+            captured_at=response.captured_at,
+        )
+
+
 class FakeRepository:
     def __init__(self) -> None:
         self.raw: list[tuple[str, str]] = []
@@ -208,3 +222,22 @@ def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> N
     assert result.candidate is False
     assert result.formal_recommendation is False
     assert {endpoint for endpoint, _ in repository.raw} == {"fixtures", "statistics"}
+
+
+def test_xg_backfill_stops_before_consuming_live_reserve() -> None:
+    client = LowQuotaFakeClient()
+    repository = FakeRepository()
+
+    result = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, quota_reserve=1500),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["BACKFILL_QUOTA_GUARD"]
+    assert result.remaining_quota == 1499
+    assert len(client.calls) == 1
+    assert client.calls[0][0] == "fixtures"
+    assert all(endpoint != "statistics" for endpoint, _ in client.calls)
+    assert repository.raw == []

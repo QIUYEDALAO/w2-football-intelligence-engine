@@ -27,7 +27,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
-from w2.providers.quota import parse_api_football_quota
+from w2.providers.quota import parse_api_football_quota, quota_guard_decision
 
 
 class XgBackfillError(RuntimeError):
@@ -130,39 +130,43 @@ class XgHistoryBackfillService:
         team_ids = sorted(self._world_cup_team_ids(future_fixtures))
         historical_fixtures: dict[str, dict[str, Any]] = {}
         blockers: list[str] = []
-        for team_id in team_ids:
-            if self._attempt_count() >= self.config.request_budget:
-                blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
-                break
-            response = self._request(
-                "fixtures",
-                {"team": team_id, "last": str(self.config.recent_match_count)},
-            )
-            if response.status_code >= 400:
-                blockers.append(f"HISTORICAL_FIXTURES_HTTP_{response.status_code}:{team_id}")
-                continue
-            self._save_raw(response)
-            for item in self._finished_fixture_items(response.payload):
-                historical_fixtures[fixture_id_from_payload(item)] = item
-        xg_rows: list[TeamXgMatch] = []
-        for fixture_id, fixture in sorted(historical_fixtures.items()):
-            if self._attempt_count() >= self.config.request_budget:
-                blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
-                break
-            response = self._request("statistics", {"fixture": fixture_id})
-            if response.status_code >= 400:
-                blockers.append(f"STATISTICS_HTTP_{response.status_code}:{fixture_id}")
-                continue
-            payload_hash = sha256_payload(response.payload)
-            self._save_raw(response)
-            xg_rows.extend(
-                parse_team_xg_matches(
-                    fixture_payload=fixture,
-                    statistics_payload=response.payload,
-                    captured_at=response.captured_at,
-                    raw_payload_sha256=payload_hash,
+        try:
+            for team_id in team_ids:
+                if self._attempt_count() >= self.config.request_budget:
+                    blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
+                    break
+                response = self._request(
+                    "fixtures",
+                    {"team": team_id, "last": str(self.config.recent_match_count)},
                 )
-            )
+                if response.status_code >= 400:
+                    blockers.append(f"HISTORICAL_FIXTURES_HTTP_{response.status_code}:{team_id}")
+                    continue
+                self._save_raw(response)
+                for item in self._finished_fixture_items(response.payload):
+                    historical_fixtures[fixture_id_from_payload(item)] = item
+            xg_rows: list[TeamXgMatch] = []
+            for fixture_id, fixture in sorted(historical_fixtures.items()):
+                if self._attempt_count() >= self.config.request_budget:
+                    blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
+                    break
+                response = self._request("statistics", {"fixture": fixture_id})
+                if response.status_code >= 400:
+                    blockers.append(f"STATISTICS_HTTP_{response.status_code}:{fixture_id}")
+                    continue
+                payload_hash = sha256_payload(response.payload)
+                self._save_raw(response)
+                xg_rows.extend(
+                    parse_team_xg_matches(
+                        fixture_payload=fixture,
+                        statistics_payload=response.payload,
+                        captured_at=response.captured_at,
+                        raw_payload_sha256=payload_hash,
+                    )
+                )
+        except XgBackfillError as exc:
+            blockers.append(str(exc))
+            xg_rows = []
         match_rows = [self._xg_match_dict(row) for row in xg_rows]
         snapshot_rows = self._rolling_snapshot_rows(
             future_fixtures=future_fixtures,
@@ -188,6 +192,13 @@ class XgHistoryBackfillService:
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        preflight = quota_guard_decision(
+            remaining_quota=self._remaining_quota,
+            reserve_bucket=self.config.quota_reserve,
+            task_type="xg_backfill",
+        )
+        if self._remaining_quota is not None and not preflight["allowed"]:
+            raise XgBackfillError(str(preflight["blocker"]))
         response = self.client.request_live(endpoint, params)
         quota = parse_api_football_quota(
             headers=response.headers,
@@ -209,8 +220,13 @@ class XgHistoryBackfillService:
                 "formal_recommendation": False,
             }
         )
-        if quota.daily_remaining is not None and quota.daily_remaining < self.config.quota_reserve:
-            raise XgBackfillError("QUOTA_BELOW_RESERVE")
+        guard = quota_guard_decision(
+            remaining_quota=quota.daily_remaining,
+            reserve_bucket=self.config.quota_reserve,
+            task_type="xg_backfill",
+        )
+        if not guard["allowed"]:
+            raise XgBackfillError(str(guard["blocker"]))
         if response.status_code in {401, 403}:
             return response
         return response
