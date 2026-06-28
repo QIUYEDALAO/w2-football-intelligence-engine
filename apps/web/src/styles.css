@@ -1423,8 +1423,17 @@ button {
   line-height: 1.35;
 }
 
+.odds-movement {
+  display: grid;
+  gap: 3px;
+}
+
 .odds-movement span,
 .intent-line span {
+  color: var(--muted);
+}
+
+.odds-movement strong {
   color: var(--mint);
 }
 

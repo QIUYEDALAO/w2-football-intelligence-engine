@@ -15,6 +15,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from w2.analysis.market_movement import (
+    build_bookmaker_hypothesis,
+    build_market_divergence,
+    build_market_movement,
+)
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.performance import dashboard_performance
@@ -49,6 +54,7 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyRunModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -2809,6 +2815,7 @@ class ReadModelService:
             else None,
         )
         self._attach_scoreline_pricing_fields(decorated)
+        self._attach_market_movement_fields(decorated)
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -2818,6 +2825,31 @@ class ReadModelService:
             if isinstance(item, dict)
         ]
         return decorated
+
+    def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
+        fixture_id = str(card.get("fixture_id") or "")
+        timeline = self._market_timeline_payload(fixture_id) if fixture_id else {}
+        movement = build_market_movement(timeline)
+        divergence = build_market_divergence(
+            pricing_shadow=card.get("pricing_shadow")
+            if isinstance(card.get("pricing_shadow"), dict)
+            else None,
+            market_movement=movement,
+            timeline=timeline,
+            home_team_name=str(card.get("home_cn") or card.get("home_name") or ""),
+            away_team_name=str(card.get("away_cn") or card.get("away_name") or ""),
+        )
+        card["market_movement"] = movement
+        card["market_divergence"] = divergence
+        card["bookmaker_hypothesis"] = build_bookmaker_hypothesis(
+            market_movement=movement,
+            market_divergence=divergence,
+        )
+
+    def _market_timeline_payload(self, fixture_id: str) -> dict[str, Any]:
+        configured = os.getenv("W2_MARKET_TIMELINE_RUNTIME_ROOT")
+        root = Path(configured) if configured else ROOT / DEFAULT_TIMELINE_DIR
+        return load_timeline(timeline_path(root, fixture_id))
 
     def _first_text(self, *values: Any) -> str:
         for value in values:
@@ -3490,6 +3522,9 @@ class ReadModelService:
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
+            "market_movement": card.get("market_movement", {}),
+            "market_divergence": card.get("market_divergence", {}),
+            "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
             "candidate": bool(recommendation.get("candidate")) if recommendation else False,

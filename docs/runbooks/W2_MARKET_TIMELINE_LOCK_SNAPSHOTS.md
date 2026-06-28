@@ -82,3 +82,22 @@ uv run --python 3.12 python scripts/run_w2_handicap_walkforward.py \
 
 A valid `lock` snapshot removes `MISSING_AS_OF` for the fixture. It does not
 calibrate the model, set `beats_market=true`, or unlock FORMAL/CANDIDATE.
+
+## Dashboard Movement / Hypothesis Fields
+
+Dashboard cards may expose read-only market observation fields derived from the
+same immutable timeline artifacts:
+
+- `market_movement`: opening/latest or lock line movement, water drift, pattern,
+  timing, checkpoints seen, and source.
+- `market_divergence`: `fair_ah - market_ah` deltas in the home-line sign
+  convention, with `calibration_status=UNVALIDATED` and
+  `direction_allowed=false`.
+- `bookmaker_hypothesis`: an explicitly unverified hypothesis with alternative
+  explanations such as injuries, lineup information, public attention, market
+  protection, or uncalibrated rules.
+
+These fields are display-only. They must not change recommendation tier,
+candidate/formal flags, `beats_market`, or S2 gate state. Until B4 calibration is
+complete, UI copy must say the divergence is uncalibrated and only for
+observation; it must not provide betting direction.

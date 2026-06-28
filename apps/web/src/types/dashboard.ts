@@ -63,6 +63,47 @@ export interface BookmakerIntentPayload {
   confidence?: number | string | null;
 }
 
+export interface MarketMovementPayload {
+  status?: "READY" | "PARTIAL" | "INSUFFICIENT" | string;
+  line_moved?: boolean;
+  line_move_direction?: string | null;
+  line_move_magnitude?: number | null;
+  water_drift_home?: number | null;
+  water_drift_away?: number | null;
+  pattern?: string | null;
+  timing?: string | null;
+  checkpoints_seen?: string[];
+  as_of_latest?: string | null;
+  source?: string | null;
+}
+
+export interface MarketDivergencePayload {
+  status?: "READY" | "INSUFFICIENT" | "UNVALIDATED" | string;
+  factor_leader?: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN" | string;
+  factor_leader_team?: string | null;
+  fair_ah?: number | null;
+  market_open_ah?: number | null;
+  market_lock_ah?: number | null;
+  open_divergence?: number | null;
+  lock_divergence?: number | null;
+  book_deeper_than_factors?: boolean;
+  book_deeper_side?: "HOME" | "AWAY" | "UNKNOWN" | string;
+  magnitude?: number | null;
+  calibration_status?: string | null;
+  direction_allowed?: boolean;
+}
+
+export interface BookmakerHypothesisPayload {
+  status?: "READY" | "PARTIAL" | "INSUFFICIENT" | string;
+  label?: string;
+  hypothesis?: string;
+  alternative_explanations?: string[];
+  sample_status?: string;
+  sample_count?: number;
+  verified?: boolean;
+  direction_allowed?: boolean;
+}
+
 export interface CurrentOddsPayload {
   ah?: unknown;
   ou?: unknown;
@@ -107,6 +148,9 @@ export interface DashboardCard {
   loading?: boolean;
   watch_level?: number | string | null;
   bookmaker_intent?: BookmakerIntentPayload | Record<string, unknown> | null;
+  market_movement?: MarketMovementPayload | Record<string, unknown> | null;
+  market_divergence?: MarketDivergencePayload | Record<string, unknown> | null;
+  bookmaker_hypothesis?: BookmakerHypothesisPayload | Record<string, unknown> | null;
   markets?: unknown;
   data_readiness?: ReadinessPayload | Record<string, unknown> | null;
   risks_cn?: unknown;
@@ -310,6 +354,9 @@ export interface DashboardMatchCard {
   odds_movement?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   bookmaker_intent?: Record<string, unknown>;
+  market_movement?: MarketMovementPayload | null;
+  market_divergence?: MarketDivergencePayload | null;
+  bookmaker_hypothesis?: BookmakerHypothesisPayload | null;
   pricing_shadow?: PricingShadow | null;
   missing_inputs: string[];
 }

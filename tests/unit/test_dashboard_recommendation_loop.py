@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, cast
 
 from w2.api.repository import ReadModelService
@@ -310,6 +312,113 @@ def test_dashboard_card_exposes_data_refresh_status_without_promoting_flags() ->
     assert card["data_refresh"]["status_label"] == "provider 未返回"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+
+
+def test_dashboard_exposes_market_movement_without_promoting_flags(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_MARKET_TIMELINE_RUNTIME_ROOT", str(tmp_path))
+    (tmp_path / "future-partial.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.market_timeline.v1",
+                "fixture_id": "future-partial",
+                "kickoff_utc": "2026-06-26T10:00:00Z",
+                "snapshots": [
+                    {
+                        "schema_version": "w2.market_timeline.v1",
+                        "fixture_id": "future-partial",
+                        "checkpoint": "opening",
+                        "market": "ASIAN_HANDICAP",
+                        "as_of": "2026-06-26T08:00:00Z",
+                        "kickoff_utc": "2026-06-26T10:00:00Z",
+                        "line": -0.5,
+                        "home_price": 1.92,
+                        "away_price": 1.88,
+                        "bookmaker_count": 4,
+                        "immutable": True,
+                        "source_hash": "opening",
+                    },
+                    {
+                        "schema_version": "w2.market_timeline.v1",
+                        "fixture_id": "future-partial",
+                        "checkpoint": "lock",
+                        "market": "ASIAN_HANDICAP",
+                        "as_of": "2026-06-26T09:30:00Z",
+                        "kickoff_utc": "2026-06-26T10:00:00Z",
+                        "line": -1.0,
+                        "home_price": 1.86,
+                        "away_price": 1.94,
+                        "bookmaker_count": 4,
+                        "immutable": True,
+                        "source_hash": "lock",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "fixture_id": "future-partial",
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 8,
+                        "bookmakers": 4,
+                        "odds_snapshots": 2,
+                        "xg": False,
+                    },
+                    "feature_contributions": [
+                        {
+                            "id": "F3_REST_FITNESS",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.6,
+                            "status": "READY",
+                            "source_group": "team_fixture_history",
+                        },
+                        {
+                            "id": "F7_STRENGTH_FORM",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "ratings",
+                        },
+                        {
+                            "id": "F8_SQUAD_VALUE",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "squad_value",
+                        },
+                    ],
+                    "current_odds": {"ah": {"line": "-1.0", "price": 1.86}},
+                    "markets": [{"market": "ASIAN_HANDICAP", "decision": "SKIP"}],
+                },
+            ),
+        )
+    )
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    assert card["market_movement"]["status"] == "READY"
+    assert card["market_movement"]["line_move_direction"] == "HOME_DEEPENED"
+    assert card["market_divergence"]["direction_allowed"] is False
+    assert card["market_divergence"]["calibration_status"] == "UNVALIDATED"
+    assert card["bookmaker_hypothesis"]["label"] == "盘口假设 · 未验证"
+    assert card["bookmaker_hypothesis"]["verified"] is False
+    assert card["candidate"] is False
+    assert card["formal_recommendation"] is False
+    assert card["pricing_shadow"]["beats_market"] is False
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:
