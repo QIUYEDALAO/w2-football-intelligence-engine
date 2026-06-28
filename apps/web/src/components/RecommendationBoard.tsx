@@ -7,7 +7,7 @@ export function RecommendationBoard({ matches }: { matches: DashboardMatchCard[]
     <section className="dashboard-section">
       <div className="section-heading">
         <h2>推荐看板</h2>
-        <p>正式/候选只来自显式标记；analysis pick 单独作为分析倾向展示，不伪装成正式推荐。</p>
+        <p>正式/候选只来自显式标记；未校准 analysis 字段只作背景，不输出方向。</p>
       </div>
       {matches.length ? (
         <div className="recommendation-grid">

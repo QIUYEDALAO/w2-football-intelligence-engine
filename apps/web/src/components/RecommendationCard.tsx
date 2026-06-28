@@ -1,6 +1,14 @@
 import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
+import {
+  formatAhDelta,
+  formatAhMainLine,
+  hasFactorLeanConflict,
+  hasValidatedAhCalibration,
+  teamScoreLeader,
+  unvalidatedAhLean,
+} from "../lib/pricingDisplay";
 import type { DashboardMatchCard, PricingShadow, PricingShadowFactor, RecommendationPick, RecommendationTier } from "../types/dashboard";
 import { OddsMovementMini } from "./OddsMovementMini";
 import { SettlementBadge } from "./SettlementBadge";
@@ -89,6 +97,9 @@ function verdictState(match: DashboardMatchCard): VerdictState {
   const shadow = match.pricing_shadow;
   if (!shadow || shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") {
     return "INSUFFICIENT";
+  }
+  if (!hasValidatedAhCalibration(shadow)) {
+    return "WATCH";
   }
   const coverage = typeof shadow.coverage === "number" && Number.isFinite(shadow.coverage)
     ? shadow.coverage
@@ -230,31 +241,41 @@ function percentValue(value: number | null | undefined): string | null {
 
 function lineValue(value: number | null | undefined, market: "ah" | "ou"): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  const abs = Math.abs(value).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
-  if (market === "ou") return abs;
-  if (Math.abs(value) < 0.001) return "平手";
-  return value < 0 ? `主 -${abs}` : `客 -${abs}`;
+  if (market === "ou") return formatLine(Math.abs(value));
+  return formatAhMainLine(value);
 }
 
-function edgeText(edge: number | null | undefined): string {
-  if (typeof edge !== "number" || !Number.isFinite(edge)) return "未形成 edge";
-  const abs = Math.abs(edge).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
-  if (Math.abs(edge) < 0.05) return "接近市场，无明显优势";
-  return edge > 0 ? `+${abs} · 我们比市场更看主队` : `-${abs} · 市场让得更深 / 更看客队`;
-}
-
-function ahSideLabel(edge: number | null | undefined): string {
-  if (typeof edge !== "number" || !Number.isFinite(edge) || Math.abs(edge) < 0.05) {
-    return "让球主市场：接近市场";
-  }
-  return edge > 0 ? "让球主市场：偏主队" : "让球主市场：偏客队/市场更深";
+function edgeDisplayText(edge: number | null | undefined, calibrated: boolean): string {
+  const delta = formatAhDelta(edge);
+  if (!delta) return calibrated ? "未形成差距" : "未形成可展示差距";
+  return calibrated ? delta : `${delta}（未校准，不作为方向判断）`;
 }
 
 function pricingShadowDetail(shadow: PricingShadow | null | undefined, state: VerdictState): string {
   if (!shadow) return "未形成 S1 shadow，保持观察。";
   if (state === "LOCKED") return "赛前分析已锁定，仅供复盘验证。";
   if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立因子不足，不能形成主市场判断。";
-  return "S1-Shadow · 规则映射 · 未校准 · 非正式推荐。";
+  if (!hasValidatedAhCalibration(shadow)) return "规则盘口映射未通过 B4 校准，暂不输出让球倾向。";
+  return "S1-Shadow · 已通过校准门禁 · 非正式推荐。";
+}
+
+function sideName(side: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN", homeName: string, awayName: string): string {
+  if (side === "HOME") return homeName;
+  if (side === "AWAY") return awayName;
+  if (side === "NEUTRAL") return "两队接近";
+  return "方向未知";
+}
+
+function uncalibratedAhExplanation(shadow: PricingShadow | null | undefined, homeName: string, awayName: string): string {
+  if (!shadow) return "缺少 pricing shadow，暂不输出让球倾向。";
+  if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立信号不足，暂不输出让球倾向。";
+  const leader = teamScoreLeader(shadow);
+  const lean = unvalidatedAhLean(shadow);
+  if (hasFactorLeanConflict(shadow)) {
+    return `因子更支持${sideName(leader, homeName, awayName)}；规则盘差距指向${sideName(lean, homeName, awayName)}，但 B4 未校准，本场无可靠让球倾向。`;
+  }
+  if (leader === "NEUTRAL") return "两队独立评分接近；规则盘未校准，本场无可靠让球倾向。";
+  return `因子更支持${sideName(leader, homeName, awayName)}；规则盘未通过 B4 校准，暂不判断市场让球是否可参考。`;
 }
 
 function factorCount(shadow: PricingShadow | null | undefined): number {
@@ -299,6 +320,18 @@ function independentSignalLine(shadow: PricingShadow | null | undefined, match: 
 
 function lowInformationState(state: VerdictState): boolean {
   return state === "INSUFFICIENT" || state === "WATCH";
+}
+
+function hasReliableAhLean(shadow: PricingShadow | null | undefined): boolean {
+  if (!hasValidatedAhCalibration(shadow)) return false;
+  if (shadow?.fair_ah == null || shadow.market_ah == null || shadow.edge_ah == null) return false;
+  const leader = teamScoreLeader(shadow);
+  if (leader === "NEUTRAL" || leader === "UNKNOWN") return false;
+  return !hasFactorLeanConflict(shadow);
+}
+
+function shouldHideDirectionalCopy(match: DashboardMatchCard, state: VerdictState): boolean {
+  return lowInformationState(state) || !hasReliableAhLean(match.pricing_shadow);
 }
 
 function scoreValue(value: number | null | undefined): string {
@@ -370,10 +403,10 @@ function MainMarketBox({
   awayName: string;
 }) {
   const coverage = percentValue(shadow?.coverage ?? null);
-  const lowInfo = lowInformationState(state);
+  const calibrated = hasValidatedAhCalibration(shadow);
   const fairAh = lineValue(shadow?.fair_ah ?? null, "ah");
   const marketAh = lineValue(shadow?.market_ah ?? null, "ah");
-  const edgeAh = edgeText(shadow?.edge_ah ?? null);
+  const edgeAh = edgeDisplayText(shadow?.edge_ah ?? null, calibrated);
   const factors = (shadow?.factors ?? [])
     .filter((factor) => factor.status === "READY")
     .sort((a, b) => Number(b.is_independent_signal === true) - Number(a.is_independent_signal === true));
@@ -397,33 +430,22 @@ function MainMarketBox({
         )) : <span>独立因子未就绪</span>}
       </div>
       <div className="main-market-grid">
-        {lowInfo ? null : (
-          <>
-            <span>独立公平盘</span>
-            <strong>{fairAh ? `让球 ${fairAh}` : "未形成"}</strong>
-          </>
-        )}
-        <span>{lowInfo ? "市场主线（背景）" : "市场主线"}</span>
+        <span>{calibrated ? "独立公平盘" : "规则公平盘"}</span>
+        <strong>{fairAh ? `让球 ${fairAh}${calibrated ? "" : "（未校准）"}` : "未形成"}</strong>
+        <span>{calibrated ? "市场主线" : "市场主线（背景）"}</span>
         <strong>{marketAh ? `让球 ${marketAh}` : "盘口等待"}</strong>
-        {lowInfo ? null : (
-          <>
-            <span>差距判断</span>
-            <strong>{edgeAh}</strong>
-          </>
-        )}
+        <span>{calibrated ? "差距判断" : "差距展示"}</span>
+        <strong>{edgeAh}</strong>
       </div>
-      {lowInfo ? null : (
-        <p>
-          {ahSideLabel(shadow?.edge_ah ?? null)} · {pricingShadowDetail(shadow, state)}
-        </p>
-      )}
+      <p>
+        {calibrated ? pricingShadowDetail(shadow, state) : uncalibratedAhExplanation(shadow, homeName, awayName)}
+      </p>
     </section>
   );
 }
 
 export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const pick = displayPick(match);
-  const odds = currentOdds({ current_odds: match.current_odds });
   const risks = pick?.risks.length ? pick.risks : ["天气、红牌、阵容临场变化可能改变判断"];
   const stars = watchLevel({ watch_level: match.watch_level });
   const homeName = translateTeam(match.home_team_name);
@@ -433,7 +455,8 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const prematchReview = requiresPrematchReview(phase);
   const verdict = verdictState(match);
   const blockers = blockerLabels(match);
-  const lowInfo = lowInformationState(verdict);
+  const lowInfo = shouldHideDirectionalCopy(match, verdict);
+  const odds = currentOdds({ current_odds: match.current_odds }, { directionalTotals: !lowInfo });
   const signalLine = independentSignalLine(match.pricing_shadow, match);
   const scoreSummary = scoreText(match);
   return (

@@ -7,12 +7,15 @@ export function OddsMovementMini({ match }: { match: DashboardMatchCard }) {
   const current = textValue(intent.current_line);
   const odds = asRecord(match.current_odds);
   const hasOdds = Boolean(Object.keys(asRecord(odds.ah)).length || Object.keys(asRecord(odds.ou)).length);
+  const movement = open && current ? `盘口 ${open} → ${current}` : hasOdds ? "盘口已更新" : "等待盘口";
   return (
     <p className="odds-movement">
       <span aria-hidden="true">↗</span>
-      庄家意图：{textValue(intent.label_cn ?? intent.intent, "数据不足")}
+      盘口假设 · 未验证：
       {" · "}
-      {open && current ? `盘口 ${open} → ${current}` : hasOdds ? "盘口已更新，等待完整轨迹" : "等待盘口"}
+      {movement}
+      {" · "}
+      可能来自伤停、公众热度或盘口保护；等待完整盘口轨迹。
     </p>
   );
 }
