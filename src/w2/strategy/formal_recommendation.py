@@ -83,7 +83,7 @@ def build_formal_recommendation(
     factor_side = _factor_leader(pricing_shadow)
     reverse = factor_side in {"HOME", "AWAY"} and factor_side != side
     fair_side = _fair_side(simulation)
-    if side != fair_side and not reverse:
+    if not _direction_supported(side=side, fair_side=fair_side, reverse=reverse):
         return _watch("SIMULATION_DIRECTION_CONTRADICTION")
     reason = _reason(
         side=side,
@@ -225,6 +225,14 @@ def _fair_side(simulation: SimulationOutput) -> str:
     if fair is None or abs(fair) < 0.25:
         return "NEUTRAL"
     return "HOME" if fair < 0 else "AWAY"
+
+
+def _direction_supported(*, side: str, fair_side: str, reverse: bool) -> bool:
+    if reverse:
+        return True
+    if fair_side == "NEUTRAL":
+        return True
+    return side == fair_side
 
 
 def _reason(

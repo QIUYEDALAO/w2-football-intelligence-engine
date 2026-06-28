@@ -156,6 +156,38 @@ def test_reverse_value_requires_explicit_price_value_copy() -> None:
     assert "盘口价值" in result.recommendation["reasons"][0]
 
 
+def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
+    balanced = simulation(
+        fixture_id="formal-neutral-value",
+        home_xg_for=1.35,
+        home_xg_against=1.25,
+        away_xg_for=1.25,
+        away_xg_against=1.35,
+        home_elo=1600.0,
+        away_elo=1595.0,
+        home_squad_value_eur=420_000_000.0,
+        away_squad_value_eur=400_000_000.0,
+    )
+
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=balanced,
+        current_odds={"ah": {"home_line": -0.5, "home_price": 2.08, "away_price": 2.27}},
+        pricing_shadow=ready_shadow(fair_ah=0.0, leader="HOME"),
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert abs(balanced.fair_ah or 0.0) < 0.25
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
+    assert result.recommendation["selection"] == "AWAY_AH"
+    assert result.recommendation["formal_recommendation"] is True
+    assert result.recommendation["beats_market_required"] is False
+
+
 def test_finished_fixture_never_emits_new_formal() -> None:
     result = build_formal_recommendation(
         fixture_status="FINISHED",
