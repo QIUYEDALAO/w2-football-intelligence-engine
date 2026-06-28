@@ -45,6 +45,28 @@ def run_market_timeline_refresh(
         remaining_quota=remaining_quota_override,
         task_type="market_timeline_backfill",
     )
+    if write_artifacts and not dry_run and quota.get("allowed") is not True:
+        blocker = quota.get("blocker") or quota.get("reason") or "BACKFILL_QUOTA_GUARD"
+        return {
+            "status": "BLOCKED",
+            "blockers": [blocker],
+            "dry_run": bool(dry_run),
+            "write_artifacts": bool(write_artifacts),
+            "window": window,
+            "checkpoint": checkpoint,
+            "max_fixtures": max_fixtures,
+            "runtime_root": str(root),
+            "provider_calls": 0,
+            "quota_decision": quota,
+            "selected_fixtures": [],
+            "fixture_count": 0,
+            "observation_count": 0,
+            "snapshot_candidates": 0,
+            "written": 0,
+            "already_locked": 0,
+            "immutable_conflicts": 0,
+            "results": [],
+        }
     repo = repository or ReadModelRepository()
     fixtures = _window_fixtures(repo.fixture_payloads(), window=window, now=resolved_now)
     if max_fixtures is not None:

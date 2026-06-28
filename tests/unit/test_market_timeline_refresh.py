@@ -112,6 +112,7 @@ def test_market_timeline_refresh_service_respects_max_fixtures_and_does_not_back
         write_artifacts=True,
         max_fixtures=1,
         runtime_root=tmp_path,
+        remaining_quota_override="6774",
         repository=Repository(),
         now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
     )
@@ -120,6 +121,94 @@ def test_market_timeline_refresh_service_respects_max_fixtures_and_does_not_back
     assert payload["written"] == 1
     assert {item["checkpoint"] for item in payload["results"]} == {"opening"}
     assert "T-6h" not in {item["checkpoint"] for item in payload["results"]}
+
+
+def test_market_timeline_refresh_enforces_quota_guard_before_write(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            raise AssertionError("blocked refresh must not load fixtures")
+
+        def future_market_observations_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            raise AssertionError("blocked refresh must not load observations")
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            raise AssertionError("blocked refresh must not load fallback observations")
+
+    payload = run_market_timeline_refresh(
+        checkpoint="auto",
+        dry_run=False,
+        write_artifacts=True,
+        max_fixtures=10,
+        runtime_root=tmp_path,
+        remaining_quota_override="749",
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
+    )
+
+    assert payload["status"] == "BLOCKED"
+    assert payload["blockers"] == ["QUOTA_CRITICAL_CORE_ONLY"]
+    assert payload["written"] == 0
+    assert payload["provider_calls"] == 0
+    assert payload["snapshot_candidates"] == 0
+    assert payload["results"] == []
+    assert not any(tmp_path.glob("*.json"))
+
+
+def test_market_timeline_refresh_low_backfill_quota_does_not_write_artifacts(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
+
+        def future_market_observations_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T10:00:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Home -0.25",
+                    "line": "-0.25",
+                    "decimal_odds": "1.94",
+                    "bookmaker_id": "book-a",
+                },
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T10:00:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Away +0.25",
+                    "line": "+0.25",
+                    "decimal_odds": "1.97",
+                    "bookmaker_id": "book-a",
+                },
+            ]
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            return []
+
+    payload = run_market_timeline_refresh(
+        checkpoint="auto",
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        remaining_quota_override="0",
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
+    )
+
+    assert payload["status"] == "BLOCKED"
+    assert payload["written"] == 0
+    assert payload["provider_calls"] == 0
+    assert all(item.get("status") != "WRITTEN" for item in payload["results"])
+    assert not any(tmp_path.glob("*.json"))
 
 
 def test_market_timeline_checker_warns_missing_lock_without_failing(tmp_path: Path) -> None:

@@ -147,6 +147,31 @@ def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
     assert result["beats_market"] is False
 
 
+def test_worker_market_timeline_task_reports_blocked_without_promotion(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_market_timeline_refresh",
+        lambda **kwargs: {
+            "status": "BLOCKED",
+            "blockers": ["BACKFILL_QUOTA_GUARD"],
+            "written": 0,
+            "provider_calls": 0,
+            "results": [],
+        },
+    )
+
+    result = market_timeline_refresh.run(
+        queued_at_utc="2026-06-29T12:00:00Z",
+        max_fixtures=2,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["result"]["written"] == 0
+    assert result["result"]["provider_calls"] == 0
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
+    assert result["beats_market"] is False
+
+
 def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
