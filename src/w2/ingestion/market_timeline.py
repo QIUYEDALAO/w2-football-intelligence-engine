@@ -30,6 +30,12 @@ class TimelineWriteResult:
     snapshot: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True, kw_only=True)
+class SnapshotSelectionResult:
+    snapshot: dict[str, Any] | None
+    reason: str | None = None
+
+
 def parse_utc(value: Any) -> datetime | None:
     if value is None:
         return None
@@ -75,9 +81,31 @@ def select_mainline_snapshot(
     checkpoint: str,
     market: str,
     generated_at: datetime | None = None,
+    lock_max_age_minutes: int = 60,
 ) -> dict[str, Any] | None:
+    return select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id=fixture_id,
+        kickoff=kickoff,
+        checkpoint=checkpoint,
+        market=market,
+        generated_at=generated_at,
+        lock_max_age_minutes=lock_max_age_minutes,
+    ).snapshot
+
+
+def select_mainline_snapshot_result(
+    *,
+    observations: list[dict[str, Any]],
+    fixture_id: str,
+    kickoff: datetime,
+    checkpoint: str,
+    market: str,
+    generated_at: datetime | None = None,
+    lock_max_age_minutes: int = 60,
+) -> SnapshotSelectionResult:
     if checkpoint not in CHECKPOINTS:
-        return None
+        return SnapshotSelectionResult(snapshot=None, reason="NO_OBSERVATION")
     kickoff_utc = kickoff.astimezone(UTC)
     target = _checkpoint_target(checkpoint=checkpoint, kickoff=kickoff_utc)
     groups = _market_groups(
@@ -88,7 +116,24 @@ def select_mainline_snapshot(
         kickoff=kickoff_utc,
     )
     if not groups:
-        return None
+        return SnapshotSelectionResult(
+            snapshot=None,
+            reason=_missing_snapshot_reason(
+                observations=observations,
+                fixture_id=fixture_id,
+                market=market,
+                target=target,
+                kickoff=kickoff_utc,
+            ),
+        )
+    if checkpoint == "lock":
+        fresh_after = kickoff_utc - timedelta(minutes=max(lock_max_age_minutes, 0))
+        groups = [item for item in groups if item["captured_at"] >= fresh_after]
+        if not groups:
+            return SnapshotSelectionResult(
+                snapshot=None,
+                reason="NO_FRESH_LOCK_OBSERVATION",
+            )
     selected = (
         min(groups, key=_opening_sort_key)
         if checkpoint == "opening"
@@ -123,7 +168,7 @@ def select_mainline_snapshot(
         snapshot["over_price"] = _json_number(sides["OVER"]["decimal_odds"])
         snapshot["under_price"] = _json_number(sides["UNDER"]["decimal_odds"])
     snapshot["source_hash"] = _source_hash({**snapshot, "source": source})
-    return snapshot
+    return SnapshotSelectionResult(snapshot=snapshot)
 
 
 def write_timeline_snapshot(
@@ -337,6 +382,48 @@ def _market_groups(
             group["bookmaker_count"] = len(group["bookmakers"]) or 1
             complete.append(group)
     return complete
+
+
+def _missing_snapshot_reason(
+    *,
+    observations: list[dict[str, Any]],
+    fixture_id: str,
+    market: str,
+    target: datetime,
+    kickoff: datetime,
+) -> str:
+    required = {"HOME", "AWAY"} if market == "ASIAN_HANDICAP" else {"OVER", "UNDER"}
+    saw_relevant = False
+    saw_post_kickoff = False
+    grouped_sides: dict[tuple[datetime, str], set[str]] = {}
+    for row in observations:
+        if str(row.get("fixture_id")) != fixture_id:
+            continue
+        if _normalize_market(row.get("canonical_market") or row.get("market")) != market:
+            continue
+        captured_at = parse_utc(row.get("captured_at") or row.get("captured_at_utc"))
+        if captured_at is None:
+            continue
+        saw_relevant = True
+        if captured_at >= kickoff:
+            saw_post_kickoff = True
+            continue
+        if captured_at > target:
+            continue
+        side = _normalize_selection(row.get("selection") or row.get("canonical_selection"))
+        decimal_odds = _float_or_none(row.get("decimal_odds") or row.get("executable_odds"))
+        line = _float_or_none(row.get("line"))
+        if side not in required or decimal_odds is None or line is None:
+            continue
+        group_line = abs(line) if market == "ASIAN_HANDICAP" else line
+        grouped_sides.setdefault((captured_at, f"{group_line:.4f}"), set()).add(side)
+    if any(sides and sides < required for sides in grouped_sides.values()):
+        return "INCOMPLETE_SIDES"
+    if saw_post_kickoff and not grouped_sides:
+        return "POST_KICKOFF_REJECTED"
+    if saw_relevant:
+        return "INCOMPLETE_SIDES"
+    return "NO_OBSERVATION"
 
 
 def _normalize_market(value: Any) -> str:
