@@ -146,6 +146,7 @@ def test_market_timeline_refresh_enforces_quota_guard_before_write(
         max_fixtures=10,
         runtime_root=tmp_path,
         remaining_quota_override="749",
+        network_quota_required=True,
         repository=Repository(),
         now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
     )
@@ -159,7 +160,7 @@ def test_market_timeline_refresh_enforces_quota_guard_before_write(
     assert not any(tmp_path.glob("*.json"))
 
 
-def test_market_timeline_refresh_low_backfill_quota_does_not_write_artifacts(
+def test_market_timeline_refresh_local_materialization_ignores_low_network_quota(
     tmp_path: Path,
 ) -> None:
     class Repository:
@@ -204,10 +205,69 @@ def test_market_timeline_refresh_low_backfill_quota_does_not_write_artifacts(
         now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
     )
 
-    assert payload["status"] == "BLOCKED"
-    assert payload["written"] == 0
+    assert payload["status"] == "PASS"
+    assert payload["network_quota_required"] is False
+    assert payload["written"] == 1
     assert payload["provider_calls"] == 0
-    assert all(item.get("status") != "WRITTEN" for item in payload["results"])
+    assert any(item.get("status") == "WRITTEN" for item in payload["results"])
+    assert any(tmp_path.glob("*.json"))
+
+
+def test_market_timeline_refresh_reports_stale_lock_reason_without_lock_artifact(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            return [{"fixture": {"id": "fx1", "date": "2026-06-28T19:00:00Z"}}]
+
+        def future_market_observations_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T12:41:41Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Home +0.5",
+                    "line": "+0.5",
+                    "decimal_odds": "2.0",
+                    "bookmaker_id": "book-a",
+                },
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T12:41:41Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Away +0.5",
+                    "line": "+0.5",
+                    "decimal_odds": "1.9",
+                    "bookmaker_id": "book-a",
+                },
+            ]
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            return []
+
+    payload = run_market_timeline_refresh(
+        checkpoint="lock",
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        remaining_quota_override="UNKNOWN",
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 18, 30, tzinfo=UTC),
+    )
+
+    assert payload["status"] == "PASS"
+    assert payload["network_quota_required"] is False
+    assert payload["provider_calls"] == 0
+    assert payload["written"] == 0
+    assert payload["freshness_rejections"] == 1
+    assert any(
+        item.get("reason") == "NO_FRESH_LOCK_OBSERVATION"
+        for item in payload["results"]
+        if item.get("market") == "ASIAN_HANDICAP"
+    )
     assert not any(tmp_path.glob("*.json"))
 
 
