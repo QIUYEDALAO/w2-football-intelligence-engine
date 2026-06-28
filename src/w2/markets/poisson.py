@@ -8,10 +8,86 @@ from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap
 
 ScoreMatrix = dict[tuple[int, int], float]
+INDEPENDENT_XG_POISSON_MODEL_VERSION = "w2.score.poisson_independent_xg.v1"
 
 
 def poisson_pmf(mu: float, goals: int) -> float:
     return exp(-mu) * (mu**goals) / factorial(goals)
+
+
+def normalized_poisson_matrix(
+    *,
+    lambda_home: float,
+    lambda_away: float,
+    max_goals: int = 6,
+) -> ScoreMatrix:
+    matrix: ScoreMatrix = {}
+    for home_goals in range(max_goals + 1):
+        for away_goals in range(max_goals + 1):
+            matrix[(home_goals, away_goals)] = poisson_pmf(lambda_home, home_goals) * poisson_pmf(
+                lambda_away,
+                away_goals,
+            )
+    total = sum(matrix.values())
+    if total <= 0:
+        return matrix
+    return {score: probability / total for score, probability in matrix.items()}
+
+
+def round_to_quarter(value: float) -> float:
+    return round(value * 4) / 4
+
+
+@dataclass(frozen=True, kw_only=True)
+class IndependentXgPoissonOutput:
+    lambda_home: float
+    lambda_away: float
+    fair_ou: float
+    score_matrix: ScoreMatrix
+    top_scorelines: list[dict[str, float | int | str]]
+    source: str = "independent_xg_poisson"
+    model_version: str = INDEPENDENT_XG_POISSON_MODEL_VERSION
+
+
+def independent_xg_poisson(
+    *,
+    home_xg_for: float,
+    home_xg_against: float,
+    away_xg_for: float,
+    away_xg_against: float,
+    max_goals: int = 6,
+) -> IndependentXgPoissonOutput:
+    lambda_home = _clamp((home_xg_for + away_xg_against) / 2)
+    lambda_away = _clamp((away_xg_for + home_xg_against) / 2)
+    score_matrix = normalized_poisson_matrix(
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
+        max_goals=max_goals,
+    )
+    top_scorelines: list[dict[str, float | int | str]] = [
+        {
+            "scoreline": f"{home}-{away}",
+            "home_goals": home,
+            "away_goals": away,
+            "probability": probability,
+        }
+        for (home, away), probability in sorted(
+            score_matrix.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:3]
+    ]
+    return IndependentXgPoissonOutput(
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
+        fair_ou=round_to_quarter(lambda_home + lambda_away),
+        score_matrix=score_matrix,
+        top_scorelines=top_scorelines,
+    )
+
+
+def _clamp(value: float, *, minimum: float = 0.05, maximum: float = 5.0) -> float:
+    return min(max(float(value), minimum), maximum)
 
 
 def total_under_probability(mu: float, line: Decimal, max_goals: int = 12) -> float:
