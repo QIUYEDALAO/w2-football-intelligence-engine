@@ -1,5 +1,6 @@
 import { INTENT_LABELS, MARKET_META, MARKET_ORDER, TENDENCY_LABELS } from "./labels";
 import { formatLine, formatOdds, teamCode, translateCompetition, translateReason } from "./formatters";
+import { formatAhMainLine, formatAhSideLines } from "./pricingDisplay";
 import type {
   BookmakerIntentPayload,
   DashboardCard,
@@ -251,7 +252,8 @@ export function risks(card: DashboardCard): string[] {
   return rows.map((row) => textValue(row)).filter(Boolean).slice(0, 2);
 }
 
-export function currentOdds(card: DashboardCard): string[] {
+export function currentOdds(card: DashboardCard, options: { directionalTotals?: boolean } = {}): string[] {
+  const directionalTotals = options.directionalTotals ?? true;
   const odds = asRecord(card.current_odds);
   const ah = asRecord(odds.ah);
   const ou = asRecord(odds.ou);
@@ -262,11 +264,16 @@ export function currentOdds(card: DashboardCard): string[] {
     const homePrice = formatOdds(ah.home_price);
     const awayPrice = formatOdds(ah.away_price);
     if (hasHomePrice || hasAwayPrice) {
-      const homeLine = formatLine(ah.home_line ?? ah.line);
-      const awayLine = formatLine(ah.away_line ?? ah.line);
-      rows.push(`让球 主${homeLine} @${homePrice || "-"} / 客${awayLine} @${awayPrice || "-"}`);
+      const sideLines = formatAhSideLines(ah.line ?? ah.home_line);
+      if (sideLines) {
+        rows.push(`让球 ${sideLines.home} @${homePrice || "-"} / ${sideLines.away} @${awayPrice || "-"}`);
+      } else {
+        const homeLine = formatLine(ah.home_line ?? ah.line);
+        const awayLine = formatLine(ah.away_line ?? ah.line);
+        rows.push(`让球 主 ${homeLine} @${homePrice || "-"} / 客 ${awayLine} @${awayPrice || "-"}`);
+      }
     } else {
-      rows.push(`让球 ${formatLine(ah.line)} @${formatOdds(ah.price)}`);
+      rows.push(`让球 ${formatAhMainLine(ah.line) ?? formatLine(ah.line)} @${formatOdds(ah.price)}`);
     }
   }
   if (Object.keys(ou).length) {
@@ -276,7 +283,11 @@ export function currentOdds(card: DashboardCard): string[] {
     const underPrice = formatOdds(ou.under_price);
     if (hasOverPrice || hasUnderPrice) {
       const line = formatLine(ou.line);
-      rows.push(`大小球 大${line} @${overPrice || "-"} / 小${line} @${underPrice || "-"}`);
+      if (directionalTotals) {
+        rows.push(`大小球 大${line} @${overPrice || "-"} / 小${line} @${underPrice || "-"}`);
+      } else {
+        rows.push(`大小球 ${line} 两侧 @${overPrice || "-"} / @${underPrice || "-"}`);
+      }
     } else {
       rows.push(`大小球 ${formatLine(ou.line)} @${formatOdds(ou.price)}`);
     }

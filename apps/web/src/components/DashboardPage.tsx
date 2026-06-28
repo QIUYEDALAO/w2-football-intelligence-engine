@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import { matchPhase, minutesToKickoff } from "../lib/matchPhase";
+import { hasValidatedAhCalibration } from "../lib/pricingDisplay";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
@@ -91,7 +92,7 @@ export function DashboardPage() {
         continue;
       }
       const tier = match.recommendation?.tier;
-      if (tier === "FORMAL" || tier === "CANDIDATE" || tier === "ANALYSIS_PICK") {
+      if (tier === "FORMAL" || tier === "CANDIDATE" || (tier === "ANALYSIS_PICK" && hasValidatedAhCalibration(match.pricing_shadow))) {
         counts.pick += 1;
       } else {
         counts.low += 1;
