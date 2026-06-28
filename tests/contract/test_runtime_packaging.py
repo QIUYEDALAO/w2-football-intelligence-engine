@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 
-def test_dockerfiles_install_non_editable_package_and_do_not_copy_scripts() -> None:
+def test_dockerfiles_install_non_editable_package_and_package_required_runtime_scripts() -> None:
     root = Path(__file__).resolve().parents[2]
     dockerfiles = {
         "Dockerfile.api": ("w2-gate5-preflight",),
@@ -20,7 +20,13 @@ def test_dockerfiles_install_non_editable_package_and_do_not_copy_scripts() -> N
         assert "uv sync --no-dev --frozen --no-editable" in text
         assert "COPY src ./src" in text
         assert "COPY config ./config" in text
-        assert "COPY scripts" not in text
+        if name == "Dockerfile.api":
+            assert "COPY scripts/run_w2_market_timeline_refresh.py" in text
+            assert "scripts/check_w2_market_timeline.py" in text
+            assert "scripts/run_w2_handicap_walkforward.py" in text
+            assert "test -f /app/scripts/run_w2_market_timeline_refresh.py" in text
+        else:
+            assert "COPY scripts" not in text
         assert "COPY reports" not in text
         assert "w2.runtime.contract.version" in text
         for binary in expected_bins:

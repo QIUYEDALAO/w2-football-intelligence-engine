@@ -6,6 +6,7 @@ from celery import Celery
 
 from w2.config import get_settings
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
+from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
 
 settings = get_settings()
@@ -83,4 +84,32 @@ def xg_history_backfill(
         "result": result.as_dict(),
         "candidate": False,
         "formal_recommendation": False,
+    }
+
+
+@celery_app.task(name="w2.market_timeline_refresh", bind=True)
+def market_timeline_refresh(
+    self: object,
+    queued_at_utc: str | None = None,
+    window: str = "next36",
+    checkpoint: str = "auto",
+    max_fixtures: int | None = 10,
+) -> dict[str, object]:
+    request = getattr(self, "request", None)
+    task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
+    result = run_market_timeline_refresh(
+        window=window,
+        checkpoint=checkpoint,
+        dry_run=False,
+        write_artifacts=True,
+        max_fixtures=max_fixtures,
+    )
+    return {
+        "task_id": task_id,
+        "queued_at_utc": queued_at_utc,
+        "status": result["status"],
+        "result": result,
+        "candidate": False,
+        "formal_recommendation": False,
+        "beats_market": False,
     }

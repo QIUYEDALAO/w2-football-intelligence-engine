@@ -11,6 +11,7 @@ logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
+DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 FUTURE_REFRESH_INTERVAL_BANDS: tuple[tuple[int, int], ...] = (
     (10 * 60, 60),
     (60 * 60, 120),
@@ -34,6 +35,12 @@ def xg_history_backfill_enabled() -> bool:
     if not future_fixture_refresh_enabled():
         return False
     return os.environ.get("W2_XG_BACKFILL_ENABLED", "true").lower() == "true"
+
+
+def market_timeline_refresh_enabled() -> bool:
+    if not future_fixture_refresh_enabled():
+        return False
+    return os.environ.get("W2_MARKET_TIMELINE_REFRESH_ENABLED", "false").lower() == "true"
 
 
 def future_fixture_refresh_contract_ready() -> bool:
@@ -166,10 +173,45 @@ def xg_history_backfill_tick() -> dict[str, object]:
     }
 
 
+def market_timeline_refresh_tick() -> dict[str, object]:
+    if not market_timeline_refresh_enabled():
+        return {
+            "status": "DISABLED",
+            "candidate": False,
+            "formal_recommendation": False,
+            "beats_market": False,
+        }
+    from apps.worker.celery_app import celery_app
+
+    now = datetime.now(UTC)
+    max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
+    task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+    celery_app.send_task(
+        "w2.market_timeline_refresh",
+        kwargs={
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "window": os.environ.get("W2_MARKET_TIMELINE_WINDOW", "next36"),
+            "checkpoint": "auto",
+            "max_fixtures": max_fixtures,
+        },
+        task_id=task_id,
+    )
+    return {
+        "status": "QUEUED",
+        "task_id": task_id,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "max_fixtures": max_fixtures,
+        "candidate": False,
+        "formal_recommendation": False,
+        "beats_market": False,
+    }
+
+
 def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
     next_xg_backfill_at = datetime.now(UTC)
+    next_market_timeline_refresh_at = datetime.now(UTC)
     while True:
         heartbeat()
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -217,6 +259,32 @@ def run_forever() -> None:
             next_xg_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_xg_backfill_at = next_xg_backfill_at.fromtimestamp(
                 next_xg_backfill_at.timestamp() + xg_interval_seconds,
+                tz=UTC,
+            )
+        if (
+            market_timeline_refresh_enabled()
+            and datetime.now(UTC) >= next_market_timeline_refresh_at
+        ):
+            try:
+                result = market_timeline_refresh_tick()
+                logger.info("w2 market timeline refresh %s", result)
+                market_timeline_interval_seconds = int(
+                    os.environ.get(
+                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
+                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
+                    )
+                )
+            except Exception:
+                logger.exception("w2 market timeline refresh failed")
+                market_timeline_interval_seconds = int(
+                    os.environ.get(
+                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
+                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
+                    )
+                )
+            next_market_timeline_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_market_timeline_refresh_at = next_market_timeline_refresh_at.fromtimestamp(
+                next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
                 tz=UTC,
             )
         time.sleep(interval_seconds)

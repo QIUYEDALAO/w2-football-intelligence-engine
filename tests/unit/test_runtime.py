@@ -8,9 +8,16 @@ from apps.scheduler.main import (
     fixture_refresh_gradient_interval_seconds,
     future_fixture_refresh_tick,
     heartbeat,
+    market_timeline_refresh_tick,
     xg_history_backfill_tick,
 )
-from apps.worker.celery_app import celery_app, future_fixture_refresh, ping, xg_history_backfill
+from apps.worker.celery_app import (
+    celery_app,
+    future_fixture_refresh,
+    market_timeline_refresh,
+    ping,
+    xg_history_backfill,
+)
 
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
@@ -28,6 +35,7 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
     assert xg_history_backfill_tick()["status"] == "DISABLED"
+    assert market_timeline_refresh_tick()["status"] == "DISABLED"
 
 
 def test_scheduler_future_refresh_dispatches_worker_task_without_running_provider(
@@ -69,6 +77,29 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
     assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
 
 
+def test_scheduler_market_timeline_dispatches_worker_task_without_running_provider(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_MARKET_TIMELINE_MAX_FIXTURES", "7")
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = market_timeline_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert str(result["task_id"]).startswith("market-timeline-refresh:")
+    assert result["max_fixtures"] == 7
+    assert sent[0]["name"] == "w2.market_timeline_refresh"
+    assert sent[0]["kwargs"]["checkpoint"] == "auto"
+    assert sent[0]["kwargs"]["max_fixtures"] == 7
+
+
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     class FakeResult:
         def as_dict(self) -> dict[str, object]:
@@ -90,6 +121,30 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     assert result["result"]["formal_recommendation"] is False
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
+
+
+def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_market_timeline_refresh",
+        lambda **kwargs: {
+            "status": "PASS",
+            "written": 1,
+            "candidate": False,
+            "formal_recommendation": False,
+            "beats_market": False,
+        },
+    )
+
+    result = market_timeline_refresh.run(
+        queued_at_utc="2026-06-29T12:00:00Z",
+        max_fixtures=2,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["result"]["written"] == 1
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
+    assert result["beats_market"] is False
 
 
 def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:
@@ -177,6 +232,7 @@ def test_scheduler_refresh_interval_falls_back_when_db_unavailable(monkeypatch) 
 
 def test_worker_future_refresh_task_is_registered() -> None:
     assert future_fixture_refresh.name == "w2.future_fixture_refresh"
+    assert market_timeline_refresh.name == "w2.market_timeline_refresh"
 
 
 def test_redis_status_handles_unavailable_connection() -> None:
