@@ -66,7 +66,7 @@ export function DashboardShell({
         </section>
       ) : null}
 
-      <footer className="dashboard-disclaimer">本页为分析参考，非投注建议，不承诺盈利 · 数据不足时一律 SKIP，不强出推荐</footer>
+      <footer className="dashboard-disclaimer">赛前输出由真实数据和策略规则生成；数据不足时保持观察，命中率只在赛后展示。</footer>
     </main>
   );
 }

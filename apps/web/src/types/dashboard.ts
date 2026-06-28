@@ -231,11 +231,17 @@ export interface RecommendationPick {
   fair_odds?: string;
   risk_adjusted_ev?: string;
   confidence?: number;
+  confidence_label?: string;
   reasons: string[];
   risks: string[];
+  value_explanation?: string;
+  reverse_factor_value?: boolean;
+  devig_probability?: number;
   generated_at?: string;
   locked_before_kickoff?: boolean;
   is_live_line?: boolean;
+  candidate?: boolean;
+  formal_recommendation?: boolean;
 }
 
 export type PricingShadowStatus = "RULE_BASED_UNCALIBRATED" | "INSUFFICIENT_INDEPENDENT_FACTORS" | "WATCH" | string;
@@ -281,6 +287,12 @@ export interface PricingShadow {
     proxy_of?: string | null;
     collection_status?: string | null;
   }>;
+  simulation?: Record<string, unknown> | null;
+  simulation_model_version?: string | null;
+  simulation_calibration_version?: string | null;
+  simulation_status?: string | null;
+  formal_eligible?: boolean;
+  formal_blockers?: string[];
   asof_market_snapshot_id?: string | null;
   devig_method?: string | null;
   settlement_outcome?: string | null;
@@ -346,6 +358,10 @@ export interface DashboardMatchCard {
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: AnalysisReadiness;
   recommendation?: RecommendationPick | null;
+  candidate?: boolean;
+  formal_recommendation?: boolean;
+  formal_suppressed?: boolean;
+  formal_suppressed_reason?: string | null;
   scoreline_picks: ScorelinePick[];
   scoreline_readiness?: ScorelineReadiness | null;
   result?: MatchResult | null;

@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+from w2.strategy.simulate import INSUFFICIENT_INPUTS, READY, SimulationInputs, run_simulation
+
+
+def inputs(**overrides: object) -> SimulationInputs:
+    payload = {
+        "fixture_id": "fixture-sim",
+        "home_team_id": "home",
+        "away_team_id": "away",
+        "home_xg_for": 1.2,
+        "home_xg_against": 1.1,
+        "away_xg_for": 1.15,
+        "away_xg_against": 1.15,
+        "home_elo": 1500.0,
+        "away_elo": 1500.0,
+        "home_squad_value_eur": 250_000_000.0,
+        "away_squad_value_eur": 240_000_000.0,
+    }
+    payload.update(overrides)
+    return SimulationInputs(**payload)  # type: ignore[arg-type]
+
+
+def test_strong_home_produces_meaningful_home_fair_ah() -> None:
+    output = run_simulation(
+        inputs(
+            fixture_id="strong-home",
+            home_xg_for=2.2,
+            home_xg_against=0.6,
+            away_xg_for=0.7,
+            away_xg_against=1.8,
+            home_elo=1750.0,
+            away_elo=1350.0,
+            home_squad_value_eur=900_000_000.0,
+            away_squad_value_eur=80_000_000.0,
+        )
+    )
+
+    assert output.status == READY
+    assert output.lambda_home is not None and output.lambda_away is not None
+    assert output.lambda_home > output.lambda_away
+    assert output.fair_ah is not None and output.fair_ah <= -1.0
+
+
+def test_strong_away_produces_meaningful_away_fair_ah() -> None:
+    output = run_simulation(
+        inputs(
+            fixture_id="strong-away",
+            home_xg_for=0.7,
+            home_xg_against=1.8,
+            away_xg_for=2.2,
+            away_xg_against=0.6,
+            home_elo=1350.0,
+            away_elo=1750.0,
+            home_squad_value_eur=80_000_000.0,
+            away_squad_value_eur=900_000_000.0,
+        )
+    )
+
+    assert output.status == READY
+    assert output.lambda_away is not None and output.lambda_home is not None
+    assert output.lambda_away > output.lambda_home
+    assert output.fair_ah is not None and output.fair_ah >= 1.0
+
+
+def test_balanced_inputs_stay_near_pickem_and_deterministic() -> None:
+    first = run_simulation(inputs(fixture_id="balanced"))
+    second = run_simulation(inputs(fixture_id="balanced"))
+
+    assert first.fair_ah is not None and abs(first.fair_ah) <= 0.25
+    assert first.as_dict() == second.as_dict()
+
+
+def test_market_odds_are_not_simulation_inputs() -> None:
+    first = run_simulation(inputs(fixture_id="same-real-inputs"))
+    second = run_simulation(inputs(fixture_id="same-real-inputs"))
+
+    assert first.fair_ah == second.fair_ah
+    assert first.lambda_home == second.lambda_home
+    assert first.lambda_away == second.lambda_away
+
+
+def test_missing_xg_blocks_simulation() -> None:
+    output = run_simulation(inputs(home_xg_for=None))
+
+    assert output.status == INSUFFICIENT_INPUTS
+    assert output.fair_ah is None
+    assert output.scoreline_picks == []
+
+
+def test_fair_ou_and_scorelines_change_with_lambdas() -> None:
+    low_total = run_simulation(
+        inputs(
+            fixture_id="low-total",
+            home_xg_for=0.8,
+            home_xg_against=0.7,
+            away_xg_for=0.7,
+            away_xg_against=0.8,
+        )
+    )
+    high_total = run_simulation(
+        inputs(
+            fixture_id="high-total",
+            home_xg_for=2.2,
+            home_xg_against=1.7,
+            away_xg_for=2.0,
+            away_xg_against=1.9,
+        )
+    )
+
+    assert low_total.fair_ou != high_total.fair_ou
+    assert low_total.scoreline_picks != high_total.scoreline_picks

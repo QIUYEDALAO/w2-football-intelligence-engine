@@ -175,7 +175,7 @@ export function DashboardPage() {
         </>
       ) : null}
 
-      <footer className="dashboard-disclaimer">本页为分析参考，非投注建议，不承诺盈利；数据不足时不强出方向。</footer>
+      <footer className="dashboard-disclaimer">赛前推荐仅由真实输入和策略规则生成；数据不足时保持观察，命中率只在赛后展示。</footer>
     </main>
   );
 }

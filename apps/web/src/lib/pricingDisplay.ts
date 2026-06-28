@@ -43,7 +43,8 @@ export function formatAhDelta(value: unknown): string | null {
 }
 
 export function hasValidatedAhCalibration(shadow: PricingShadow | null | undefined): boolean {
-  if (!shadow || shadow.beats_market !== true) return false;
+  if (!shadow) return false;
+  if (shadow.simulation_status === "READY") return true;
   const version = String(shadow.calibration_version ?? "").trim().toUpperCase();
   if (!version) return false;
   return !["UNVALIDATED", "UNCALIBRATED", "RULE_BASED_UNCALIBRATED", "SHADOW", "SHADOW_ONLY"].includes(version);
