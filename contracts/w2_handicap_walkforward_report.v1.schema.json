@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/w2_handicap_walkforward_report.v1.schema.json",
+  "title": "W2 Handicap Walk-forward Report V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "data_source",
+    "authoritative",
+    "authoritative_reason",
+    "dataset_version",
+    "sample",
+    "market_policy",
+    "settlement_policy",
+    "splits",
+    "metrics",
+    "s2_gate",
+    "calibration",
+    "rows"
+  ],
+  "properties": {
+    "schema_version": { "const": "w2.handicap_walkforward_report.v1" },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "data_source": { "type": "string", "minLength": 1 },
+    "authoritative": { "type": "boolean" },
+    "authoritative_reason": { "type": "string", "minLength": 1 },
+    "dataset_version": { "type": "string", "minLength": 1 },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "eligible", "settled", "included", "excluded", "exclusion_reasons"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "eligible": { "type": "integer", "minimum": 0 },
+        "settled": { "type": "integer", "minimum": 0 },
+        "included": { "type": "integer", "minimum": 0 },
+        "excluded": { "type": "integer", "minimum": 0 },
+        "exclusion_reasons": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "market_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "as_of_required",
+        "locked_market_snapshot_required",
+        "devig_required",
+        "no_post_kickoff_odds"
+      ],
+      "properties": {
+        "as_of_required": { "const": true },
+        "locked_market_snapshot_required": { "const": true },
+        "devig_required": { "const": true },
+        "no_post_kickoff_odds": { "const": true }
+      }
+    },
+    "settlement_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asian_handicap",
+        "push_excluded_from_win_rate",
+        "void_excluded_from_sample",
+        "half_win_loss_supported"
+      ],
+      "properties": {
+        "asian_handicap": { "const": true },
+        "push_excluded_from_win_rate": { "const": true },
+        "void_excluded_from_sample": { "const": true },
+        "half_win_loss_supported": { "const": true }
+      }
+    },
+    "splits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_split", "holdout", "forward_shadow"],
+      "properties": {
+        "time_split": { "type": "object" },
+        "holdout": { "type": "object" },
+        "forward_shadow": { "type": "object" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_size",
+        "win_rate",
+        "push_rate",
+        "void_rate",
+        "avg_edge",
+        "devig_market_advantage",
+        "confidence_interval"
+      ],
+      "properties": {
+        "sample_size": { "type": "integer", "minimum": 0 },
+        "win_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "push_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "void_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "avg_edge": { "type": ["number", "null"] },
+        "devig_market_advantage": { "type": ["number", "null"] },
+        "confidence_interval": { "type": ["object", "null"] }
+      }
+    },
+    "s2_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_min",
+        "sample_minimum",
+        "devig_market_advantage",
+        "time_split",
+        "holdout_replication",
+        "forward_shadow",
+        "beats_market",
+        "formal_enabled",
+        "candidate_enabled",
+        "reason"
+      ],
+      "properties": {
+        "n_min": { "const": 200 },
+        "sample_minimum": { "type": "boolean" },
+        "devig_market_advantage": { "type": "boolean" },
+        "time_split": { "type": "boolean" },
+        "holdout_replication": { "type": "boolean" },
+        "forward_shadow": { "type": "boolean" },
+        "beats_market": { "const": false },
+        "formal_enabled": { "const": false },
+        "candidate_enabled": { "const": false },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calibration_version", "status", "model", "params"],
+      "properties": {
+        "calibration_version": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "model": { "type": ["object", "null"] },
+        "params": { "type": ["object", "null"] }
+      }
+    },
+    "rows": { "type": "array", "items": { "type": "object" } }
+  }
+}
