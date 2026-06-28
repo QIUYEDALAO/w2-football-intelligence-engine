@@ -10,7 +10,7 @@ from w2.ingestion.market_timeline import (
     DEFAULT_TIMELINE_DIR,
     due_checkpoints,
     parse_utc,
-    select_mainline_snapshot,
+    select_mainline_snapshot_result,
     write_timeline_snapshot,
 )
 from w2.ingestion.quota_budget import independent_signal_quota_decision
@@ -36,6 +36,7 @@ def run_market_timeline_refresh(
     max_fixtures: int | None = None,
     runtime_root: Path | None = None,
     remaining_quota_override: str | None = None,
+    network_quota_required: bool = False,
     repository: MarketTimelineRepository | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -45,11 +46,17 @@ def run_market_timeline_refresh(
         remaining_quota=remaining_quota_override,
         task_type="market_timeline_backfill",
     )
-    if write_artifacts and not dry_run and quota.get("allowed") is not True:
+    if (
+        network_quota_required
+        and write_artifacts
+        and not dry_run
+        and quota.get("allowed") is not True
+    ):
         blocker = quota.get("blocker") or quota.get("reason") or "BACKFILL_QUOTA_GUARD"
         return {
             "status": "BLOCKED",
             "blockers": [blocker],
+            "network_quota_required": True,
             "dry_run": bool(dry_run),
             "write_artifacts": bool(write_artifacts),
             "window": window,
@@ -62,6 +69,7 @@ def run_market_timeline_refresh(
             "fixture_count": 0,
             "observation_count": 0,
             "snapshot_candidates": 0,
+            "freshness_rejections": 0,
             "written": 0,
             "already_locked": 0,
             "immutable_conflicts": 0,
@@ -79,11 +87,12 @@ def run_market_timeline_refresh(
     written = 0
     already_locked = 0
     immutable_conflicts = 0
+    freshness_rejections = 0
     for fixture in fixtures:
         kickoff = fixture["kickoff"]
         for due_checkpoint in due_checkpoints(kickoff, resolved_now, checkpoint):
             for market in ("ASIAN_HANDICAP", "TOTALS"):
-                snapshot = select_mainline_snapshot(
+                selection = select_mainline_snapshot_result(
                     observations=observations,
                     fixture_id=str(fixture["fixture_id"]),
                     kickoff=kickoff,
@@ -91,13 +100,17 @@ def run_market_timeline_refresh(
                     market=market,
                     generated_at=resolved_now,
                 )
+                snapshot = selection.snapshot
                 if snapshot is None:
+                    if selection.reason == "NO_FRESH_LOCK_OBSERVATION":
+                        freshness_rejections += 1
                     results.append(
                         {
                             "fixture_id": fixture["fixture_id"],
                             "checkpoint": due_checkpoint,
                             "market": market,
                             "status": "NO_MAINLINE_OBSERVATION",
+                            "reason": selection.reason or "NO_OBSERVATION",
                         }
                     )
                     continue
@@ -132,12 +145,14 @@ def run_market_timeline_refresh(
         "checkpoint": checkpoint,
         "max_fixtures": max_fixtures,
         "runtime_root": str(root),
+        "network_quota_required": bool(network_quota_required),
         "provider_calls": 0,
         "quota_decision": quota,
         "selected_fixtures": fixture_ids,
         "fixture_count": len(fixtures),
         "observation_count": len(observations),
         "snapshot_candidates": len(results),
+        "freshness_rejections": freshness_rejections,
         "written": written,
         "already_locked": already_locked,
         "immutable_conflicts": immutable_conflicts,

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from w2.ingestion.market_timeline import (
     find_lock_snapshot,
     select_mainline_snapshot,
+    select_mainline_snapshot_result,
     timeline_path,
     validate_timeline_payload,
     write_timeline_snapshot,
@@ -62,6 +63,88 @@ def test_selects_latest_complete_ah_mainline_before_lock() -> None:
     assert snapshot["away_price"] == 1.97
     assert snapshot["as_of"] == "2026-06-28T11:40:00Z"
     assert snapshot["immutable"] is True
+
+
+def test_rejects_stale_lock_observation() -> None:
+    kickoff = datetime(2026, 6, 28, 19, tzinfo=UTC)
+    stale = kickoff - timedelta(hours=6, minutes=18)
+    observations = [
+        _obs(captured_at=stale, selection="HOME", line=0.5, odds=2.0),
+        _obs(captured_at=stale, selection="AWAY", line=0.5, odds=1.9),
+    ]
+
+    result = select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert result.snapshot is None
+    assert result.reason == "NO_FRESH_LOCK_OBSERVATION"
+
+
+def test_accepts_fresh_lock_observation() -> None:
+    kickoff = datetime(2026, 6, 28, 19, tzinfo=UTC)
+    fresh = kickoff - timedelta(minutes=45)
+    observations = [
+        _obs(captured_at=fresh, selection="HOME", line=0.5, odds=2.0),
+        _obs(captured_at=fresh, selection="AWAY", line=0.5, odds=1.9),
+    ]
+
+    result = select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert result.reason is None
+    assert result.snapshot is not None
+    assert result.snapshot["checkpoint"] == "lock"
+    assert result.snapshot["as_of"] == "2026-06-28T18:15:00Z"
+
+
+def test_rejects_post_kickoff_lock_observation() -> None:
+    kickoff = datetime(2026, 6, 28, 19, tzinfo=UTC)
+    post = kickoff + timedelta(minutes=1)
+    observations = [
+        _obs(captured_at=post, selection="HOME", line=0.5, odds=2.0),
+        _obs(captured_at=post, selection="AWAY", line=0.5, odds=1.9),
+    ]
+
+    result = select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert result.snapshot is None
+    assert result.reason == "POST_KICKOFF_REJECTED"
+
+
+def test_non_lock_checkpoint_can_use_older_observation() -> None:
+    kickoff = datetime(2026, 6, 28, 19, tzinfo=UTC)
+    t6 = kickoff - timedelta(hours=6, minutes=18)
+    observations = [
+        _obs(captured_at=t6, selection="HOME", line=0.5, odds=2.0),
+        _obs(captured_at=t6, selection="AWAY", line=0.5, odds=1.9),
+    ]
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="T-6h",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["checkpoint"] == "T-6h"
 
 
 def test_selects_provider_text_ah_selection_pairs() -> None:

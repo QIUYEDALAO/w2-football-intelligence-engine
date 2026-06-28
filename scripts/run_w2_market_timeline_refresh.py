@@ -20,6 +20,7 @@ def main() -> int:
     parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--remaining-quota-override")
     parser.add_argument("--max-fixtures", type=int)
+    parser.add_argument("--network-quota-required", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -31,6 +32,7 @@ def main() -> int:
         max_fixtures=args.max_fixtures,
         runtime_root=args.runtime_root,
         remaining_quota_override=args.remaining_quota_override,
+        network_quota_required=args.network_quota_required,
     )
     print(json.dumps(payload, sort_keys=True))
     return 0
