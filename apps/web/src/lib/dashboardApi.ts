@@ -293,6 +293,62 @@ function normalizeScorelineReadiness(payload: unknown) {
   };
 }
 
+function normalizeMarketMovement(payload: unknown) {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    line_moved: record.line_moved === true,
+    line_move_direction: textValue(record.line_move_direction) || null,
+    line_move_magnitude: nullableNumber(record.line_move_magnitude),
+    water_drift_home: nullableNumber(record.water_drift_home),
+    water_drift_away: nullableNumber(record.water_drift_away),
+    pattern: textValue(record.pattern) || null,
+    timing: textValue(record.timing) || null,
+    checkpoints_seen: asArray(record.checkpoints_seen).map((item) => textValue(item)).filter(Boolean),
+    as_of_latest: textValue(record.as_of_latest) || null,
+    source: textValue(record.source) || null,
+  };
+}
+
+function normalizeMarketDivergence(payload: unknown) {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    factor_leader: textValue(record.factor_leader) || "UNKNOWN",
+    factor_leader_team: textValue(record.factor_leader_team) || null,
+    fair_ah: nullableNumber(record.fair_ah),
+    market_open_ah: nullableNumber(record.market_open_ah),
+    market_lock_ah: nullableNumber(record.market_lock_ah),
+    open_divergence: nullableNumber(record.open_divergence),
+    lock_divergence: nullableNumber(record.lock_divergence),
+    book_deeper_than_factors: record.book_deeper_than_factors === true,
+    book_deeper_side: textValue(record.book_deeper_side) || "UNKNOWN",
+    magnitude: nullableNumber(record.magnitude),
+    calibration_status: textValue(record.calibration_status) || null,
+    direction_allowed: record.direction_allowed === true,
+  };
+}
+
+function normalizeBookmakerHypothesis(payload: unknown) {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    label: textValue(record.label, "盘口假设 · 未验证"),
+    hypothesis: textValue(record.hypothesis, "盘口轨迹不足，暂不形成假设"),
+    alternative_explanations: asArray(record.alternative_explanations).map((item) => textValue(item)).filter(Boolean),
+    sample_status: textValue(record.sample_status, "观察中"),
+    sample_count: numberValue(record.sample_count) ?? 0,
+    verified: record.verified === true,
+    direction_allowed: record.direction_allowed === true,
+  };
+}
+
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
   return {
@@ -325,6 +381,9 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     odds_movement: asRecord(record.odds_movement),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     bookmaker_intent: asRecord(record.bookmaker_intent),
+    market_movement: normalizeMarketMovement(record.market_movement),
+    market_divergence: normalizeMarketDivergence(record.market_divergence),
+    bookmaker_hypothesis: normalizeBookmakerHypothesis(record.bookmaker_hypothesis),
     pricing_shadow: normalizePricingShadow(record.pricing_shadow),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
   };

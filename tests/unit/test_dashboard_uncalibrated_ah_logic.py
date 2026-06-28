@@ -36,10 +36,22 @@ def test_bookmaker_intent_is_labeled_as_unverified_hypothesis() -> None:
     intent_line = read("apps/web/src/components/BookmakerIntentLine.tsx")
 
     assert "盘口假设 · 未验证" in odds_mini
-    assert "等待完整盘口轨迹" in odds_mini
+    assert "盘口轨迹不足" in odds_mini
+    assert "未校准，仅作观察" in odds_mini
+    assert "不显示命中率" in odds_mini
     assert "庄家意图" not in odds_mini
     assert "盘口假设 · 未验证" in intent_line
     assert "庄家意图" not in intent_line
+
+
+def test_score_display_uses_index_scale_not_raw_scores() -> None:
+    card = read("apps/web/src/components/RecommendationCard.tsx")
+
+    assert "独立评分指数，仅用于两队相对比较" in card
+    assert "中性因子不偏向任何一方" in card
+    assert "scoreIndexValue" in card
+    assert "value * 100).toFixed(1)" not in card
+    assert "胜率" not in card
 
 
 def test_ah_display_uses_home_perspective_sign_convention() -> None:

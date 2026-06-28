@@ -334,9 +334,20 @@ function shouldHideDirectionalCopy(match: DashboardMatchCard, state: VerdictStat
   return lowInformationState(state) || !hasReliableAhLean(match.pricing_shadow);
 }
 
-function scoreValue(value: number | null | undefined): string {
+function scoreIndexValue(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "--";
-  return (value * 100).toFixed(1).replace(/\.0$/, "");
+  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+  return Math.round(Math.max(0, Math.min(100, normalized))).toString();
+}
+
+function scoreGapLabel(shadow: PricingShadow | null | undefined): string {
+  const home = shadow?.team_score?.home;
+  const away = shadow?.team_score?.away;
+  if (typeof home !== "number" || typeof away !== "number") return "指数待补";
+  const homeIndex = Number(scoreIndexValue(home));
+  const awayIndex = Number(scoreIndexValue(away));
+  if (!Number.isFinite(homeIndex) || !Number.isFinite(awayIndex)) return "指数待补";
+  return Math.abs(homeIndex - awayIndex) < 5 ? "接近持平" : "相对差距";
 }
 
 function factorDetailText(factor: PricingShadowFactor, homeName: string, awayName: string): string {
@@ -418,10 +429,11 @@ function MainMarketBox({
         <em>{coverage ? `覆盖 ${coverage}` : "覆盖不足"}</em>
       </div>
       <div className="team-score-row" aria-label="两队独立评分">
-        <strong>{homeName} {scoreValue(shadow?.team_score?.home)}</strong>
+        <strong>{homeName} 指数 {scoreIndexValue(shadow?.team_score?.home)}</strong>
         <span>—</span>
-        <strong>{awayName} {scoreValue(shadow?.team_score?.away)}</strong>
+        <strong>{awayName} 指数 {scoreIndexValue(shadow?.team_score?.away)}</strong>
       </div>
+      <p className="score-scale-note">独立评分指数，仅用于两队相对比较；{scoreGapLabel(shadow)}。中性因子不偏向任何一方。</p>
       <div className="factor-detail-list" aria-label="独立因子明细">
         {factors.length ? factors.slice(0, 5).map((factor) => (
           <span key={factor.id}>
@@ -511,7 +523,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
           {scoreSummary ? <p><strong>{scoreSummary}</strong></p> : null}
         </div>
       )}
-      {lowInfo ? null : <OddsMovementMini match={match} />}
+      <OddsMovementMini match={match} />
       {lowInfo ? null : <p className="market-strip-line">{recommendationReference(pick)}</p>}
       {lowInfo ? null : <p className="market-strip-line">其他参考：{marketStrip(match)}</p>}
       <div className="recommendation-footer">
