@@ -136,11 +136,11 @@ def build_bookmaker_hypothesis(
     pattern = str((market_movement or {}).get("pattern") or "STABLE")
     deeper_side = str((market_divergence or {}).get("book_deeper_side") or "UNKNOWN")
     if deeper_side == "HOME":
-        relation = "市场相对我们的未校准规则盘更偏主队一侧"
+        relation = "市场主队侧盘口深于未校准规则盘"
     elif deeper_side == "AWAY":
-        relation = "市场相对我们的未校准规则盘更偏客队一侧"
+        relation = "市场客队侧盘口深于未校准规则盘"
     else:
-        relation = "市场与我们的未校准规则盘差距有限"
+        relation = "市场与未校准规则盘差距有限"
     return {
         "status": "READY",
         "label": "盘口假设 · 未验证",
