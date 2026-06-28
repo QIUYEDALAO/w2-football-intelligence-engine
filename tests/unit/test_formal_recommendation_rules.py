@@ -184,6 +184,7 @@ def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
     assert result.tier == "FORMAL"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "AWAY_AH"
+    assert result.recommendation["selection_label_cn"] == "Away 受让"
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["beats_market_required"] is False
 

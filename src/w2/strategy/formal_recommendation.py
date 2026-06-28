@@ -101,7 +101,12 @@ def build_formal_recommendation(
         "market": "ASIAN_HANDICAP",
         "market_label_cn": "让球",
         "selection": f"{side}_AH",
-        "selection_label_cn": _selection_label(side, home_team_name, away_team_name),
+        "selection_label_cn": _selection_label(
+            side,
+            home_team_name,
+            away_team_name,
+            line,
+        ),
         "line": _format_line(line),
         "odds": _format_price(price),
         "model_probability": round(model_probability, 6),
@@ -258,8 +263,16 @@ def _reason(
     return base
 
 
-def _selection_label(side: str, home_team_name: str, away_team_name: str) -> str:
-    return f"{home_team_name} 让球" if side == "HOME" else f"{away_team_name} 让球"
+def _selection_label(
+    side: str,
+    home_team_name: str,
+    away_team_name: str,
+    line: float,
+) -> str:
+    team = home_team_name if side == "HOME" else away_team_name
+    if abs(line) < 0.001:
+        return f"{team} 平手"
+    return f"{team} 让球" if line < 0 else f"{team} 受让"
 
 
 def _format_line(value: float | None) -> str | None:
