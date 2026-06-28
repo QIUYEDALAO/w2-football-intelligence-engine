@@ -90,6 +90,10 @@ ls -la /opt/w2/current
 ssh "${SSH_HOST}" "
 set -euo pipefail
 # Link shared runtime and config into release
+mkdir -p /opt/w2/shared/runtime
+sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime/market_timeline_snapshots
+sudo chown -R 10001:10001 /opt/w2/shared/runtime/market_timeline_snapshots
+sudo chmod -R u+rwX,g+rwX /opt/w2/shared/runtime/market_timeline_snapshots
 ln -sfn /opt/w2/shared/runtime /opt/w2/releases/${REVISION}/runtime
 ln -sfn /opt/w2/shared/config /opt/w2/releases/${REVISION}/config
 ln -sfn /opt/w2/shared/.env /opt/w2/releases/${REVISION}/.env

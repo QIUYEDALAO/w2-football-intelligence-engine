@@ -104,6 +104,7 @@ services:
       - "127.0.0.1:18000:8000"
     volumes:
       - ../../runtime:/app/runtime
+      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
     environment:
       W2_ENVIRONMENT: staging
@@ -123,6 +124,7 @@ services:
       W2_EXTERNAL_ALERTING: "false"
       W2_API_DAILY_HARD_LIMIT: "6000"
       W2_API_MINIMUM_RESERVE: "1500"
+      W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
@@ -165,6 +167,7 @@ services:
       - "--concurrency=1"
     volumes:
       - ../../runtime:/app/runtime
+      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
@@ -185,6 +188,7 @@ services:
       W2_EXTERNAL_ALERTING: "false"
       W2_API_DAILY_HARD_LIMIT: "6000"
       W2_API_MINIMUM_RESERVE: "1500"
+      W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
@@ -222,6 +226,7 @@ services:
       - "apps.scheduler.main"
     volumes:
       - ../../runtime:/app/runtime
+      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
@@ -237,6 +242,10 @@ services:
       W2_FORWARD_HOLDOUT_NETWORK: "true"
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
       W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
+      W2_MARKET_TIMELINE_REFRESH_ENABLED: "true"
+      W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS: "600"
+      W2_MARKET_TIMELINE_MAX_FIXTURES: "10"
+      W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       W2_DEEPSEEK_ENABLED: "false"
       W2_RECOMMENDATION_ENABLED: "false"
       W2_CANDIDATE_ENABLED: "false"

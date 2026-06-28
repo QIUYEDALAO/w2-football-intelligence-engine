@@ -27,9 +27,14 @@ EXPECTED_RUNTIME_MOUNT_SOURCES = {
 POLICY_MOUNT_TARGET = "/app/config/policies"
 CONFIG_MOUNT_TARGET = "/app/config"
 RUNTIME_MOUNT_TARGET = "/app/runtime"
+MARKET_TIMELINE_MOUNT_TARGET = "/app/market_timeline_snapshots"
 EXPECTED_CONFIG_MOUNT_SOURCES = {
     ROOT / "infra/compose/compose.staging.yml": "../../config",
     ROOT / "infra/compose/staging-lite.override.yml": "./config",
+}
+EXPECTED_MARKET_TIMELINE_MOUNT_SOURCES = {
+    ROOT / "infra/compose/compose.staging.yml": "../../runtime/market_timeline_snapshots",
+    ROOT / "infra/compose/staging-lite.override.yml": "./runtime/market_timeline_snapshots",
 }
 POLICY = ROOT / "config/policies/future_fixture_refresh.v1.json"
 SCHEDULER = ROOT / "apps/scheduler/main.py"
@@ -210,6 +215,7 @@ def assert_config_mount(path: Path, compose: dict[str, Any]) -> None:
 
 def assert_runtime_mount(path: Path, compose: dict[str, Any]) -> None:
     expected_source = EXPECTED_RUNTIME_MOUNT_SOURCES[path]
+    expected_market_timeline_source = EXPECTED_MARKET_TIMELINE_MOUNT_SOURCES[path]
     for service in ("api", "worker", "scheduler"):
         matches = [
             split_volume(volume)
@@ -223,6 +229,18 @@ def assert_runtime_mount(path: Path, compose: dict[str, Any]) -> None:
             fail(f"{path}: {service} runtime mount source mismatch")
         if target != RUNTIME_MOUNT_TARGET:
             fail(f"{path}: {service} runtime mount target mismatch")
+        timeline_matches = [
+            split_volume(volume)
+            for volume in service_volumes(compose, service)
+            if split_volume(volume)[1] == MARKET_TIMELINE_MOUNT_TARGET
+        ]
+        if len(timeline_matches) != 1:
+            fail(f"{path}: {service} must have exactly one market timeline mount")
+        timeline_source, timeline_target, _ = timeline_matches[0]
+        if timeline_source != expected_market_timeline_source:
+            fail(f"{path}: {service} market timeline mount source mismatch")
+        if timeline_target != MARKET_TIMELINE_MOUNT_TARGET:
+            fail(f"{path}: {service} market timeline mount target mismatch")
 
 
 def assert_worker_runtime_healthcheck(path: Path, compose: dict[str, Any]) -> None:
@@ -258,10 +276,20 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler future refresh enable flag missing")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != "world_cup_2026":
         fail(f"{path}: scheduler future refresh competition mismatch")
+    if scheduler_env.get("W2_MARKET_TIMELINE_REFRESH_ENABLED") != "true":
+        fail(f"{path}: scheduler market timeline refresh enable flag missing")
+    if scheduler_env.get("W2_MARKET_TIMELINE_MAX_FIXTURES") != "10":
+        fail(f"{path}: scheduler market timeline max fixtures must be 10")
+    if scheduler_env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != MARKET_TIMELINE_MOUNT_TARGET:
+        fail(f"{path}: scheduler market timeline runtime root mismatch")
     for service in ("api", "web", "worker"):
         env = service_env(compose, service)
         if "W2_FUTURE_FIXTURE_REFRESH_ENABLED" in env:
             fail(f"{path}: {service} must not enable scheduler future refresh")
+        if service in {"api", "worker"} and env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != (
+            MARKET_TIMELINE_MOUNT_TARGET
+        ):
+            fail(f"{path}: {service} market timeline runtime root mismatch")
     for flag in FORBIDDEN_TRUE_FLAGS:
         if str(scheduler_env.get(flag)).lower() != "false":
             fail(f"{path}: {flag} must stay false")
