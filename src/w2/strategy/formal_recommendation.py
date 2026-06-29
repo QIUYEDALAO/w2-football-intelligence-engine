@@ -250,6 +250,7 @@ def canonical_ah_market(
     blocker = _canonical_ah_blocker(
         home_line=home_line,
         away_line=away_line,
+        raw_home_line=raw_home_line,
         raw_away_line=raw_away_line,
         raw_abs_line=raw_abs_line,
         home_price=home_price,
@@ -258,6 +259,7 @@ def canonical_ah_market(
     )
     warning = _canonical_ah_line_warning(
         canonical_home_line=home_line,
+        raw_home_line=raw_home_line,
         raw_away_line=raw_away_line,
     )
     return CanonicalAhMarket(
@@ -351,6 +353,7 @@ def _canonical_ah_blocker(
     *,
     home_line: float,
     away_line: float,
+    raw_home_line: float | None,
     raw_away_line: float | None,
     raw_abs_line: float | None,
     home_price: float,
@@ -359,6 +362,8 @@ def _canonical_ah_blocker(
 ) -> str | None:
     if raw_abs_line is not None and abs(abs(raw_abs_line) - abs(home_line)) > 0.001:
         return "AH_MARKET_ABS_LINE_MISMATCH"
+    if raw_home_line is not None and abs(abs(raw_home_line) - abs(home_line)) > 0.001:
+        return "AH_MARKET_HOME_LINE_MAGNITUDE_MISMATCH"
     if raw_away_line is not None and abs(abs(raw_away_line) - abs(home_line)) > 0.001:
         return "AH_MARKET_LINE_MAGNITUDE_MISMATCH"
     if market_ah is not None and abs(home_line - market_ah) > 0.001:
@@ -381,8 +386,14 @@ def _canonical_ah_blocker(
 def _canonical_ah_line_warning(
     *,
     canonical_home_line: float,
+    raw_home_line: float | None,
     raw_away_line: float | None,
 ) -> str | None:
+    if raw_home_line is not None:
+        if abs(abs(raw_home_line) - abs(canonical_home_line)) > 0.001:
+            return None
+        if abs(raw_home_line - canonical_home_line) > 0.001:
+            return "AH_RAW_HOME_LINE_SIGN_NORMALIZED"
     canonical_away_line = -canonical_home_line
     if raw_away_line is None:
         return None
