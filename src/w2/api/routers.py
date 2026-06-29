@@ -22,6 +22,7 @@ from w2.api.schemas import (
     ErrorPayload,
     FixtureDetailResponse,
     FixtureListResponse,
+    FormalTrackingSummaryResponse,
     ForwardHoldoutStatusResponse,
     IntegrityResponse,
     LeagueListResponse,
@@ -155,6 +156,14 @@ def validation_summary(
             window=normalized_window,
             timezone=timezone,
         ),
+    }
+
+
+@public_router.get("/formal/tracking/summary", response_model=FormalTrackingSummaryResponse)
+def formal_tracking_summary(request: Request) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        **service.formal_tracking_summary(),
     }
 
 

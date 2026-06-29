@@ -1,6 +1,14 @@
-import type { DashboardPerformance } from "../types/dashboard";
+import type { DashboardPerformance, FormalTrackingSummary } from "../types/dashboard";
 
-export function PerformanceHeader({ performance, updatedAt }: { performance: DashboardPerformance; updatedAt: string }) {
+export function PerformanceHeader({
+  performance,
+  formalTracking,
+  updatedAt,
+}: {
+  performance: DashboardPerformance;
+  formalTracking?: FormalTrackingSummary | null;
+  updatedAt: string;
+}) {
   const officialCount = (performance.formal_count ?? 0) + performance.candidate_count;
   const headline = officialCount > 0
     ? "正式推荐 · 策略自洽 · 真实赛前数据"
@@ -28,6 +36,11 @@ export function PerformanceHeader({ performance, updatedAt }: { performance: Das
             {label} <strong>{value}</strong>
           </span>
         ))}
+        {formalTracking ? (
+          <span title="赛后复盘统计，不参与赛前正式推荐门控">
+            正式追踪 <strong>{formalTracking.label}</strong>
+          </span>
+        ) : null}
       </div>
     </section>
   );

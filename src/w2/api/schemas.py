@@ -173,6 +173,23 @@ class ValidationSummaryResponse(BaseModel):
     validation: dict[str, Any]
 
 
+class FormalTrackingSummaryResponse(BaseModel):
+    request_id: str
+    generated_at: datetime | str | None = None
+    status: str
+    label: str
+    min_bucket_samples_for_rate: int
+    snapshot_count: int
+    settlement_count: int
+    sample_count: int
+    win_count: int
+    win_rate: float | None = None
+    roi: float | None = None
+    buckets: dict[str, Any]
+    not_a_formal_gate: bool = True
+    posthoc_only: bool = True
+
+
 class MatchdayCoverageResponse(BaseModel):
     request_id: str
     requested_date_beijing: str
