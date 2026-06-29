@@ -4,8 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 RUN pip install --no-cache-dir uv && uv sync --frozen --all-groups || uv sync --all-groups
 COPY . .
 ENV PATH="/app/.venv/bin:${PATH}"
-
