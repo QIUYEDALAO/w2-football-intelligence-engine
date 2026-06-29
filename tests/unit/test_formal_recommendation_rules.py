@@ -125,15 +125,28 @@ def test_market_missing_returns_watch() -> None:
 
 def test_canonical_ah_uses_pricing_shadow_market_line_with_real_prices() -> None:
     market = canonical_ah_market(
-        current_odds={"ah": {"home_price": 1.91, "away_price": 1.97}},
+        current_odds={
+            "ah": {
+                "home_line": -1.5,
+                "away_line": 1.5,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
         pricing_shadow={**ready_shadow(), "market_ah": -1.5},
     )
 
-    assert market == {
+    assert market is not None
+    assert market.as_dict() | {"source": None, "as_of": None, "bookmaker_count": None} == {
         "home_line": -1.5,
         "away_line": 1.5,
         "home_price": 1.91,
         "away_price": 1.97,
+        "source": None,
+        "as_of": None,
+        "bookmaker_count": None,
+        "validation_status": "READY",
+        "blocker": None,
     }
 
 
@@ -141,7 +154,14 @@ def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=simulation(),
-        current_odds={"ah": {"home_price": 1.95, "away_price": 1.95}},
+        current_odds={
+            "ah": {
+                "home_line": 0.5,
+                "away_line": -0.5,
+                "home_price": 1.95,
+                "away_price": 1.95,
+            }
+        },
         pricing_shadow={**ready_shadow(), "market_ah": 0.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -204,8 +224,15 @@ def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=balanced,
-        current_odds={"ah": {"home_line": -0.5, "home_price": 2.08, "away_price": 2.27}},
-        pricing_shadow=ready_shadow(fair_ah=0.0, leader="HOME"),
+        current_odds={
+            "ah": {
+                "home_line": -0.5,
+                "away_line": 0.5,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
         away_team_name="Away",
@@ -219,6 +246,58 @@ def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
     assert result.recommendation["selection_label_cn"] == "Away 受让"
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["beats_market_required"] is False
+    assert result.recommendation["expected_value"] > 0
+    assert "ah_settlement_distribution" in result.recommendation
+
+
+def test_formal_blocks_implausible_ah_prices_from_alternate_or_wrong_market() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=simulation(),
+        current_odds={
+            "ah": {
+                "home_line": -1.0,
+                "away_line": 1.0,
+                "home_price": 5.30,
+                "away_price": 12.50,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=-0.25, leader="HOME"), "market_ah": -1.0},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Brazil",
+        away_team_name="Japan",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert "AH_MARKET_PRICE_OUT_OF_RANGE" in result.blockers
+    assert result.recommendation is None
+
+
+def test_formal_blocks_underround_prices_even_when_cover_probability_looks_large() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=simulation(),
+        current_odds={
+            "ah": {
+                "home_line": -0.5,
+                "away_line": 0.5,
+                "home_price": 2.87,
+                "away_price": 3.75,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.5},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Netherlands",
+        away_team_name="Morocco",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert "AH_MARKET_UNDERROUND_OR_OVERROUND" in result.blockers
+    assert result.canonical_ah_market is not None
+    assert result.canonical_ah_market["blocker"] == "AH_MARKET_UNDERROUND_OR_OVERROUND"
+    assert result.recommendation is None
 
 
 def test_finished_fixture_never_emits_new_formal() -> None:

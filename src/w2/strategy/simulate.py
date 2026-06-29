@@ -168,6 +168,55 @@ def ah_cover_probability(
     return round(total / max(simulations, 1), 6)
 
 
+def ah_settlement_distribution(
+    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int],
+    *,
+    simulations: int,
+    selection: str,
+    line: float,
+) -> dict[str, float]:
+    counts = {
+        SettlementOutcome.WIN: 0.0,
+        SettlementOutcome.HALF_WIN: 0.0,
+        SettlementOutcome.PUSH: 0.0,
+        SettlementOutcome.HALF_LOSS: 0.0,
+        SettlementOutcome.LOSS: 0.0,
+    }
+    decimal_line = Decimal(str(line))
+    denominator = max(simulations, 1)
+    for (home_goals, away_goals), count in score_counts.items():
+        outcome = settle_asian_handicap(home_goals, away_goals, selection, decimal_line)
+        counts[outcome] += count
+    return {outcome.value: round(value / denominator, 6) for outcome, value in counts.items()}
+
+
+def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> float | None:
+    if decimal_price <= 1:
+        return None
+    win = _distribution_value(distribution, SettlementOutcome.WIN)
+    half_win = _distribution_value(distribution, SettlementOutcome.HALF_WIN)
+    push = _distribution_value(distribution, SettlementOutcome.PUSH)
+    half_loss = _distribution_value(distribution, SettlementOutcome.HALF_LOSS)
+    loss = _distribution_value(distribution, SettlementOutcome.LOSS)
+    if (
+        win is None
+        or half_win is None
+        or push is None
+        or half_loss is None
+        or loss is None
+    ):
+        return None
+    profit = decimal_price - 1
+    ev = (
+        win * profit
+        + half_win * (profit / 2)
+        + push * 0
+        - half_loss * 0.5
+        - loss
+    )
+    return round(ev, 6)
+
+
 def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
     xg_ready = all(
         value is not None
@@ -195,7 +244,7 @@ def _fair_ah(
     simulations: int,
 ) -> tuple[float, dict[str, Any]]:
     ladder = [round(step * 0.25, 2) for step in range(-12, 13)]
-    rows = []
+    rows: list[dict[str, Any]] = []
     for line in ladder:
         home_cover = ah_cover_probability(
             score_counts,
@@ -203,11 +252,25 @@ def _fair_ah(
             selection="HOME",
             line=line,
         )
+        home_distribution = ah_settlement_distribution(
+            score_counts,
+            simulations=simulations,
+            selection="HOME",
+            line=line,
+        )
+        away_distribution = ah_settlement_distribution(
+            score_counts,
+            simulations=simulations,
+            selection="AWAY",
+            line=-line,
+        )
         rows.append(
             {
                 "home_line": line,
                 "home_cover": home_cover,
                 "away_cover": round(1 - home_cover, 6),
+                "home_settlement_distribution": home_distribution,
+                "away_settlement_distribution": away_distribution,
             }
         )
     fair = min(
@@ -263,6 +326,14 @@ def _effective_probability_score(outcome: SettlementOutcome) -> float:
         SettlementOutcome.HALF_LOSS: 0.0,
         SettlementOutcome.LOSS: 0.0,
     }[outcome]
+
+
+def _distribution_value(distribution: dict[str, Any], outcome: SettlementOutcome) -> float | None:
+    try:
+        value = distribution.get(outcome.value, 0.0)
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _seed(fixture_id: str, model_version: str) -> int:
