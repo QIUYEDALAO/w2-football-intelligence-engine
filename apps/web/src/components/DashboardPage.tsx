@@ -106,7 +106,7 @@ export function DashboardPage() {
   return (
     <main className="app-shell dashboard-v2">
       {view ? <ReleaseSyncBadge release={view.release} /> : null}
-      {view ? <PerformanceHeader performance={view.performance} updatedAt={updatedAt} /> : null}
+      {view ? <PerformanceHeader performance={view.performance} formalTracking={view.formal_tracking} updatedAt={updatedAt} /> : null}
       <div className="dashboard-controls">
         <SegmentTabs mode={mode} onModeChange={setMode} />
         <div className="date-refresh">

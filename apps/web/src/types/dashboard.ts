@@ -417,6 +417,20 @@ export interface DashboardPerformance {
   };
 }
 
+export interface FormalTrackingSummary {
+  status: string;
+  label: string;
+  min_bucket_samples_for_rate: number;
+  snapshot_count: number;
+  settlement_count: number;
+  sample_count: number;
+  win_count: number;
+  win_rate?: number | null;
+  roi?: number | null;
+  not_a_formal_gate: boolean;
+  posthoc_only: boolean;
+}
+
 export interface ReleaseMeta {
   web_git_sha: string;
   web_build_time?: string | null;
@@ -477,6 +491,7 @@ export interface DashboardView {
   release: ReleaseSyncState;
   debug: DashboardDebug;
   performance: DashboardPerformance;
+  formal_tracking?: FormalTrackingSummary | null;
   recommendations: DashboardMatchCard[];
   upcoming: DashboardMatchCard[];
   finished: DashboardMatchCard[];

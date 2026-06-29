@@ -94,6 +94,7 @@ from w2.strategy.formal_recommendation import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
+from w2.tracking.formal_results import endpoint_summary as formal_tracking_endpoint_summary
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -919,6 +920,9 @@ class ReadModelService:
             "version": payload["version"],
             "validation": validation_summary(cast(dict[str, Any], payload["performance"])),
         }
+
+    def formal_tracking_summary(self) -> dict[str, Any]:
+        return formal_tracking_endpoint_summary()
 
     def warm_dashboard_cache(self) -> None:
         for window in ("today", "next36", "all"):

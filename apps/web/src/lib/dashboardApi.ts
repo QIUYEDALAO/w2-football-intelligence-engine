@@ -7,6 +7,7 @@ import type {
   DashboardMatchCard,
   DashboardMode,
   DashboardPerformance,
+  FormalTrackingSummary,
   DashboardView,
   MatchResult,
   MatchStatus,
@@ -152,6 +153,25 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       hit_count: numberValue(scoreExact.hit_count),
       hit_rate: typeof scoreExact.hit_rate === "number" ? scoreExact.hit_rate : null,
     },
+  };
+}
+
+function normalizeFormalTracking(payload: unknown): FormalTrackingSummary | null {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  return {
+    status,
+    label: textValue(record.label, "观察中 · 0/30"),
+    min_bucket_samples_for_rate: numberValue(record.min_bucket_samples_for_rate) || 30,
+    snapshot_count: numberValue(record.snapshot_count),
+    settlement_count: numberValue(record.settlement_count),
+    sample_count: numberValue(record.sample_count),
+    win_count: numberValue(record.win_count),
+    win_rate: typeof record.win_rate === "number" ? record.win_rate : null,
+    roi: typeof record.roi === "number" ? record.roi : null,
+    not_a_formal_gate: record.not_a_formal_gate === true,
+    posthoc_only: record.posthoc_only === true,
   };
 }
 
@@ -481,6 +501,7 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
       suggested_actions: [],
     },
     performance: normalizePerformance({ today_count: 1, next36_count: 1, candidate_count: 0, analysis_pick_count: 1, finished_count: 0, data_health_status: "DEMO" }),
+    formal_tracking: null,
     recommendations: [card],
     upcoming: [card],
     finished: [],
@@ -527,10 +548,11 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     const meta = normalizeMeta(await metaPromise);
     return demoDashboard(date, meta);
   }
-  let [metaPayload, versionPayload, dashboardPayload] = await Promise.all([
+  let [metaPayload, versionPayload, dashboardPayload, formalTrackingPayload] = await Promise.all([
     metaPromise,
     getJSON(`${API_BASE}/version`),
     fetchDashboardPayload(date, mode, includeDebug),
+    getJSON(`${API_BASE}/formal/tracking/summary`).catch(() => null),
   ]);
   let dashboard = asRecord(dashboardPayload);
   if (!includeDebug && asArray(dashboard.all).length === 0) {
@@ -549,6 +571,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     release,
     debug: normalizeDebug(dashboard.debug),
     performance: normalizePerformance(dashboard.performance),
+    formal_tracking: normalizeFormalTracking(formalTrackingPayload),
     recommendations: asArray(dashboard.recommendations).map(normalizeCard),
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
