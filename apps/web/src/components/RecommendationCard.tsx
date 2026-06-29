@@ -240,7 +240,7 @@ function displayReason(reason: string): string {
     .replace(/\bedge\b/gi, "盘口差")
     .replace(/\bmarket\b/gi, "市场")
     .replace(/\bhit rate\b/gi, "命中率")
-    .replace(/\bwin rate\b/gi, "胜率")
+    .replace(/\bwin rate\b/gi, "赢盘比例")
     .replace(/\bROI\b/g, "收益率")
     .replace(/\bopening\b/gi, "初盘")
     .replace(/\bopen\b/gi, "初盘")
