@@ -5,6 +5,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationInputs,
     ah_expected_value,
+    ah_settlement_distribution_from_lambdas,
     run_simulation,
 )
 
@@ -129,3 +130,17 @@ def test_ah_ladder_exposes_settlement_distribution_for_ev() -> None:
     assert set(away_distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
     assert abs(sum(home_distribution.values()) - 1.0) < 0.01
     assert ah_expected_value(home_distribution, decimal_price=1.95) is not None
+
+
+def test_ah_settlement_distribution_from_lambdas_supports_lines_outside_ladder() -> None:
+    distribution = ah_settlement_distribution_from_lambdas(
+        lambda_home=2.1,
+        lambda_away=0.7,
+        selection="HOME",
+        line=-3.5,
+    )
+
+    assert distribution is not None
+    assert set(distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+    assert ah_expected_value(distribution, decimal_price=1.85) is not None

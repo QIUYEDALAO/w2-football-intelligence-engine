@@ -100,6 +100,23 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
   NOT_PREMATCH: "非赛前状态",
   FIXTURE_NOT_PREMATCH: "比赛已开赛或已完场",
   FIXTURE_NOT_UPCOMING: "比赛已开赛或已完场",
+  AH_EV_BELOW_FORMAL_THRESHOLD: "让球结算期望未达正式推荐阈值",
+  MISSING_AH_SETTLEMENT_DISTRIBUTION: "缺少让球结算分布",
+  INVALID_AH_EV_INPUTS: "让球期望输入不完整",
+  INVALID_AH_SETTLEMENT_DISTRIBUTION: "让球结算分布不可用",
+  AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致",
+  AH_MARKET_LINE_NOT_CANONICAL: "全场让球盘口未匹配主线",
+  AH_MARKET_LINE_NOT_QUARTER: "全场让球盘口格式异常",
+  AH_MARKET_PRICE_OUT_OF_RANGE: "全场让球赔率超出可信范围",
+  AH_MARKET_PRICE_GAP_TOO_WIDE: "全场让球双边赔率差过大",
+  AH_MARKET_UNDERROUND_OR_OVERROUND: "全场让球市场水位异常",
+  INSUFFICIENT_INDEPENDENT_SIGNALS: "独立信号不足",
+  AS_OF_BLOCKED: "赛前时间点校验未通过",
+  LEAKAGE_BLOCKED: "赛前数据防泄漏校验未通过",
+  SIMULATION_DIRECTION_CONTRADICTION: "模拟方向与推荐方向不一致",
+  REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH: "逆因子盘口价值不足",
+  SCORELINE_DIRECTION_CONTRADICTION: "模拟比分方向与推荐方向不一致",
+  INVALID_AH_MARKET: "全场让球市场不可用",
 };
 
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];

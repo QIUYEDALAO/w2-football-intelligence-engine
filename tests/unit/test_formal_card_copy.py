@@ -23,6 +23,9 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     card = (ROOT / "apps/web/src/components/RecommendationCard.tsx").read_text()
 
     assert 'FIXTURE_NOT_PREMATCH: "比赛已开赛或已完场"' in card
+    assert 'AH_EV_BELOW_FORMAL_THRESHOLD: "让球结算期望未达正式推荐阈值"' in card
+    assert 'MISSING_AH_SETTLEMENT_DISTRIBUTION: "缺少让球结算分布"' in card
+    assert 'AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致"' in card
     assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
 

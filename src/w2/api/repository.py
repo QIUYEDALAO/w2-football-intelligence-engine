@@ -2994,6 +2994,9 @@ class ReadModelService:
             ah["away_price"] = away_price
         if home_price is not None or away_price is not None:
             ah["source"] = "market_timeline_snapshots"
+        for key in ("selection_policy", "candidate_lines", "rejected_lines"):
+            if isinstance(latest_ah, dict) and key in latest_ah:
+                ah[key] = latest_ah.get(key)
         shadow = card.get("pricing_shadow")
         if isinstance(shadow, dict):
             shadow["market_ah"] = signed_line

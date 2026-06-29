@@ -463,6 +463,11 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
                         "home_price": 1.95,
                         "away_price": 1.95,
                         "bookmaker_count": 4,
+                        "selection_policy": "latest_bucket_majority_line_same_bookmaker_pair",
+                        "candidate_lines": [
+                            {"line": -1.0, "bookmaker_count": 4, "selection_rank": 1}
+                        ],
+                        "rejected_lines": [{"line": -0.5, "reason": "LOWER_BOOKMAKER_CONSENSUS"}],
                         "immutable": True,
                         "source_hash": "opening",
                     },
@@ -527,6 +532,12 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     assert card["current_odds"]["ah"]["away_line"] == "1"
     assert card["current_odds"]["ah"]["home_price"] == 1.95
     assert card["current_odds"]["ah"]["away_price"] == 1.95
+    assert (
+        card["current_odds"]["ah"]["selection_policy"]
+        == "latest_bucket_majority_line_same_bookmaker_pair"
+    )
+    assert card["current_odds"]["ah"]["candidate_lines"][0]["line"] == -1.0
+    assert card["current_odds"]["ah"]["rejected_lines"][0]["line"] == -0.5
     assert card["pricing_shadow"]["market_ah"] == -1.0
     assert card["pricing_shadow"]["canonical_ah_market_validation_status"] == "READY"
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None

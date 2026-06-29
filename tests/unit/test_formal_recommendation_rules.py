@@ -300,6 +300,34 @@ def test_formal_blocks_underround_prices_even_when_cover_probability_looks_large
     assert result.recommendation is None
 
 
+def test_formal_computes_ah_settlement_distribution_when_ladder_line_missing() -> None:
+    strong = simulation()
+
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=strong,
+        current_odds={
+            "ah": {
+                "home_line": -3.5,
+                "away_line": 3.5,
+                "home_price": 1.85,
+                "away_price": 1.95,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=-1.25, leader="HOME"), "market_ah": -3.5},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Germany",
+        away_team_name="Paraguay",
+        enabled=True,
+    )
+
+    assert "MISSING_AH_SETTLEMENT_DISTRIBUTION" not in result.blockers
+    if result.recommendation is not None:
+        distribution = result.recommendation["ah_settlement_distribution"]
+        assert set(distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+        assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
 def test_finished_fixture_never_emits_new_formal() -> None:
     result = build_formal_recommendation(
         fixture_status="FINISHED",
