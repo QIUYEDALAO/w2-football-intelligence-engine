@@ -113,6 +113,48 @@ def test_reverse_scoreline_without_reverse_flag_is_flagged() -> None:
     assert "REVERSE_SCORELINE_WITHOUT_REVERSE_FACTOR_FLAG" in report["summary"]["audit_findings"]
 
 
+def test_tiny_scoreline_noise_does_not_trigger_reverse_finding() -> None:
+    report = build_report(
+        {
+            "all": [
+                _formal_card(
+                    selection="AWAY_AH",
+                    home_line=-0.25,
+                    reverse_factor_value=False,
+                    score_summary={"home_win": 0.371, "draw": 0.28, "away_win": 0.349},
+                )
+            ]
+        }
+    )
+
+    row = report["formal_explanations"][0]
+    assert row["scoreline_alignment"]["status"] == "SPREAD_VALUE_OVER_DRAWISH_GAME"
+    assert "REVERSE_SCORELINE_WITHOUT_REVERSE_FACTOR_FLAG" not in row["findings"]
+    assert (
+        "REVERSE_SCORELINE_WITHOUT_REVERSE_FACTOR_FLAG"
+        not in report["summary"]["audit_findings"]
+    )
+
+
+def test_real_scoreline_reverse_still_requires_reverse_flag() -> None:
+    report = build_report(
+        {
+            "all": [
+                _formal_card(
+                    selection="AWAY_AH",
+                    home_line=-0.25,
+                    reverse_factor_value=False,
+                    score_summary={"home_win": 0.3838, "draw": 0.2647, "away_win": 0.3515},
+                )
+            ]
+        }
+    )
+
+    row = report["formal_explanations"][0]
+    assert row["scoreline_alignment"]["status"] == "REVERSE_VALUE"
+    assert "REVERSE_SCORELINE_WITHOUT_REVERSE_FACTOR_FLAG" in row["findings"]
+
+
 def test_missing_simulation_count_is_flagged() -> None:
     report = build_report({"all": [_formal_card(simulations=5000)]})
 

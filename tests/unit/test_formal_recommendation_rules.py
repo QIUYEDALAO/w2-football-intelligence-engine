@@ -3,8 +3,9 @@ from __future__ import annotations
 from w2.strategy.formal_recommendation import (
     build_formal_recommendation,
     canonical_ah_market,
+    is_reverse_value_recommendation,
 )
-from w2.strategy.simulate import SimulationInputs, run_simulation
+from w2.strategy.simulate import READY, SimulationInputs, SimulationOutput, run_simulation
 
 
 def ready_shadow(*, fair_ah: float = -1.25, leader: str = "HOME") -> dict[str, object]:
@@ -39,6 +40,48 @@ def simulation(**overrides: object):
     }
     payload.update(overrides)
     return run_simulation(SimulationInputs(**payload))  # type: ignore[arg-type]
+
+
+def reverse_value_simulation() -> SimulationOutput:
+    return SimulationOutput(
+        model_version="w2.formal.mc_poisson.v1",
+        calibration_version="w2.formal.lambda_baseline_prior.v1",
+        calibration_status="BASELINE_PRIOR",
+        lambda_home=1.38,
+        lambda_away=1.29,
+        fair_ah=0.0,
+        fair_ou=2.75,
+        scoreline_picks=[
+            {"scoreline": "1-1", "home_goals": 1, "away_goals": 1, "probability": 0.1261}
+        ],
+        score_matrix_summary={"home_win": 0.3838, "draw": 0.2647, "away_win": 0.3515},
+        ah_probabilities={
+            "ladder": [
+                {
+                    "home_line": -0.25,
+                    "home_settlement_distribution": {
+                        "WIN": 0.3838,
+                        "HALF_WIN": 0.0,
+                        "PUSH": 0.0,
+                        "HALF_LOSS": 0.2647,
+                        "LOSS": 0.3515,
+                    },
+                    "away_settlement_distribution": {
+                        "WIN": 0.3515,
+                        "HALF_WIN": 0.2647,
+                        "PUSH": 0.0,
+                        "HALF_LOSS": 0.0,
+                        "LOSS": 0.3838,
+                    },
+                }
+            ]
+        },
+        ou_probabilities={},
+        input_readiness={"xg_ready": True},
+        status=READY,
+        simulations=10_000,
+        seed=123,
+    )
 
 
 def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
@@ -87,6 +130,56 @@ def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:
     assert result.tier == "FORMAL"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "AWAY_AH"
+
+
+def test_scoreline_reverse_value_sets_reverse_flag_without_changing_ev_gate() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=reverse_value_simulation(),
+        current_odds={
+            "ah": {
+                "home_line": -0.25,
+                "away_line": 0.25,
+                "home_price": 1.85,
+                "away_price": 2.05,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.25},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
+    assert result.recommendation["selection"] == "AWAY_AH"
+    assert result.recommendation["reverse_factor_value"] is True
+    assert result.recommendation["expected_value"] >= 0.08
+
+
+def test_reverse_value_helper_detects_scoreline_dominant_opposite_side() -> None:
+    assert (
+        is_reverse_value_recommendation(
+            selected_side="AWAY",
+            fair_ah=0.0,
+            score_matrix_summary={"home_win": 0.3838, "draw": 0.2647, "away_win": 0.3515},
+            factor_side="NEUTRAL",
+        )
+        is True
+    )
+
+
+def test_reverse_value_helper_ignores_tiny_scoreline_noise() -> None:
+    assert (
+        is_reverse_value_recommendation(
+            selected_side="AWAY",
+            fair_ah=0.0,
+            score_matrix_summary={"home_win": 0.371, "draw": 0.27, "away_win": 0.349},
+            factor_side="NEUTRAL",
+        )
+        is False
+    )
 
 
 def test_simulation_insufficient_returns_watch() -> None:

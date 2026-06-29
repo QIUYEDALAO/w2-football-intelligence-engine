@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+SCORELINE_DIRECTION_MARGIN = 0.03
+
 
 def _load_payload(path: str) -> dict[str, Any]:
     if path == "-":
@@ -71,15 +73,14 @@ def _top_scoreline_side(scoreline: dict[str, Any]) -> str:
 
 
 def _dominant_result_side(summary: dict[str, Any]) -> str:
-    values = {
-        "HOME": _number(summary.get("home_win")),
-        "DRAW": _number(summary.get("draw")),
-        "AWAY": _number(summary.get("away_win")),
-    }
-    available = {key: value for key, value in values.items() if value is not None}
-    if not available:
+    home = _number(summary.get("home_win"))
+    away = _number(summary.get("away_win"))
+    draw = _number(summary.get("draw"))
+    if home is None or away is None:
         return "UNKNOWN"
-    return max(available, key=lambda key: available[key] or 0)
+    if abs(home - away) < SCORELINE_DIRECTION_MARGIN:
+        return "DRAW" if draw is not None else "NEUTRAL"
+    return "HOME" if home > away else "AWAY"
 
 
 def _scoreline_alignment(*, selected_side: str, simulation: dict[str, Any]) -> dict[str, Any]:
