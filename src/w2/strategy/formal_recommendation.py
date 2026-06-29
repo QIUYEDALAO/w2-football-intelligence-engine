@@ -61,14 +61,12 @@ def build_formal_recommendation(
             blockers=blockers,
         )
     assert simulation is not None
-    odds = current_odds or {}
-    raw_ah = odds.get("ah")
-    ah: dict[str, Any] = raw_ah if isinstance(raw_ah, dict) else {}
-    home_line = _number(ah.get("home_line") or ah.get("line"))
-    home_price = _number(ah.get("home_price"))
-    away_price = _number(ah.get("away_price"))
-    if home_line is None or home_price is None or away_price is None:
+    ah = canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow)
+    if ah is None:
         return _watch("MISSING_AH_MARKET")
+    home_line = ah["home_line"]
+    home_price = ah["home_price"]
+    away_price = ah["away_price"]
     prices = {"HOME": home_price, "AWAY": away_price}
     devig = _devig_probabilities(prices)
     home_model = _market_side_probability(simulation, "HOME", home_line)
@@ -155,7 +153,7 @@ def _blockers(
         blockers.append("FIXTURE_NOT_PREMATCH")
     if simulation is None or simulation.status != READY:
         blockers.append("SIMULATION_NOT_READY")
-    if not isinstance(current_odds, dict) or not isinstance(current_odds.get("ah"), dict):
+    if canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow) is None:
         blockers.append("MISSING_AH_MARKET")
     signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))
     if signal_count is None or signal_count < FORMAL_MIN_INDEPENDENT_SIGNALS:
@@ -169,6 +167,32 @@ def _blockers(
         ]
     blockers.extend(readiness_blockers)
     return blockers
+
+
+def canonical_ah_market(
+    *,
+    current_odds: dict[str, Any] | None,
+    pricing_shadow: dict[str, Any] | None,
+) -> dict[str, float] | None:
+    odds = current_odds if isinstance(current_odds, dict) else {}
+    raw_ah = odds.get("ah")
+    ah: dict[str, Any] = raw_ah if isinstance(raw_ah, dict) else {}
+    pricing = pricing_shadow if isinstance(pricing_shadow, dict) else {}
+    home_line = _number(ah.get("home_line"))
+    if home_line is None:
+        home_line = _number(pricing.get("market_ah"))
+    if home_line is None:
+        home_line = _number(ah.get("line"))
+    home_price = _number(ah.get("home_price"))
+    away_price = _number(ah.get("away_price"))
+    if home_line is None or home_price is None or away_price is None:
+        return None
+    return {
+        "home_line": home_line,
+        "away_line": -home_line,
+        "home_price": home_price,
+        "away_price": away_price,
+    }
 
 
 def _watch(reason: str) -> FormalRecommendationResult:

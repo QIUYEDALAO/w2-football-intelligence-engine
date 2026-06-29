@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from w2.api.repository import ReadModelService
+from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
 class RecommendationLoopRepository:
@@ -181,6 +182,24 @@ class ReadinessRepository:
                 "analysis_card": self.analysis_card,
             }
         ]
+
+
+def formal_ready_simulation_payload() -> dict[str, Any]:
+    return run_simulation(
+        SimulationInputs(
+            fixture_id="future-partial",
+            home_team_id="10",
+            away_team_id="20",
+            home_xg_for=2.2,
+            home_xg_against=0.6,
+            away_xg_for=0.7,
+            away_xg_against=1.8,
+            home_elo=1750.0,
+            away_elo=1350.0,
+            home_squad_value_eur=900_000_000.0,
+            away_squad_value_eur=80_000_000.0,
+        )
+    ).as_dict()
 
 
 def test_dashboard_exposes_blocked_analysis_readiness_for_missing_inputs() -> None:
@@ -419,6 +438,139 @@ def test_dashboard_exposes_market_movement_without_promoting_flags(
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
     assert card["pricing_shadow"]["beats_market"] is False
+
+
+def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_MARKET_TIMELINE_RUNTIME_ROOT", str(tmp_path))
+    (tmp_path / "future-partial.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.market_timeline.v1",
+                "fixture_id": "future-partial",
+                "kickoff_utc": "2026-06-26T10:00:00Z",
+                "snapshots": [
+                    {
+                        "schema_version": "w2.market_timeline.v1",
+                        "fixture_id": "future-partial",
+                        "checkpoint": "opening",
+                        "market": "ASIAN_HANDICAP",
+                        "as_of": "2026-06-26T08:00:00Z",
+                        "kickoff_utc": "2026-06-26T10:00:00Z",
+                        "line": -1.0,
+                        "home_price": 1.95,
+                        "away_price": 1.95,
+                        "bookmaker_count": 4,
+                        "immutable": True,
+                        "source_hash": "opening",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "fixture_id": "future-partial",
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 8,
+                        "bookmakers": 4,
+                        "odds_snapshots": 2,
+                        "xg": True,
+                    },
+                    "feature_contributions": [
+                        {
+                            "id": "F3_REST_FITNESS",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.6,
+                            "status": "READY",
+                            "source_group": "team_fixture_history",
+                        },
+                        {
+                            "id": "F7_STRENGTH_FORM",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "ratings",
+                        },
+                        {
+                            "id": "F8_SQUAD_VALUE",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "squad_value",
+                        },
+                    ],
+                    "current_odds": {"ou": {"line": "2.5", "price": 1.9}},
+                    "simulation": formal_ready_simulation_payload(),
+                    "markets": [{"market": "ASIAN_HANDICAP", "decision": "SKIP"}],
+                },
+            ),
+        )
+    )
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    assert card["current_odds"]["ah"]["home_line"] == "-1"
+    assert card["current_odds"]["ah"]["away_line"] == "1"
+    assert card["current_odds"]["ah"]["home_price"] == 1.95
+    assert card["current_odds"]["ah"]["away_price"] == 1.95
+    assert card["pricing_shadow"]["market_ah"] == -1.0
+    assert "MISSING_AH_MARKET" not in card["pricing_shadow"]["formal_blockers"]
+
+
+def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "fixture_id": "future-partial",
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 8,
+                        "bookmakers": 4,
+                        "odds_snapshots": 2,
+                        "xg": True,
+                    },
+                    "current_odds": {
+                        "ah": {"home_line": "-1", "home_price": 1.95, "away_price": 1.95}
+                    },
+                    "simulation": formal_ready_simulation_payload(),
+                    "markets": [
+                        {
+                            "market": "SCORE",
+                            "decision": "ANALYSIS_PICK",
+                            "reference_scores": [
+                                {"scoreline": "4-4", "probability": 0.99},
+                            ],
+                        }
+                    ],
+                },
+            ),
+        )
+    )
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    assert card["scoreline_readiness"]["source"] == "formal_simulation"
+    assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
+    assert card["scoreline_picks"][0]["scoreline"] != "4-4"
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

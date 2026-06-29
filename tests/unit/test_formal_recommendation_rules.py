@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from w2.strategy.formal_recommendation import build_formal_recommendation
+from w2.strategy.formal_recommendation import (
+    build_formal_recommendation,
+    canonical_ah_market,
+)
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
@@ -118,6 +121,35 @@ def test_market_missing_returns_watch() -> None:
 
     assert result.tier == "WATCH"
     assert "MISSING_AH_MARKET" in result.blockers
+
+
+def test_canonical_ah_uses_pricing_shadow_market_line_with_real_prices() -> None:
+    market = canonical_ah_market(
+        current_odds={"ah": {"home_price": 1.91, "away_price": 1.97}},
+        pricing_shadow={**ready_shadow(), "market_ah": -1.5},
+    )
+
+    assert market == {
+        "home_line": -1.5,
+        "away_line": 1.5,
+        "home_price": 1.91,
+        "away_price": 1.97,
+    }
+
+
+def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=simulation(),
+        current_odds={"ah": {"home_price": 1.95, "away_price": 1.95}},
+        pricing_shadow={**ready_shadow(), "market_ah": 0.5},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert "MISSING_AH_MARKET" not in result.blockers
 
 
 def test_config_off_suppresses_formal_without_changing_eligibility() -> None:
