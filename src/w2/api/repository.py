@@ -3681,6 +3681,14 @@ class ReadModelService:
             pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
             pricing_shadow["formal_eligible"] = formal_result.formal_eligible
             pricing_shadow["formal_blockers"] = formal_result.blockers
+            canonical_market = formal_result.canonical_ah_market
+            pricing_shadow["canonical_ah_market"] = canonical_market
+            if isinstance(canonical_market, dict):
+                pricing_shadow["canonical_ah_market_source"] = canonical_market.get("source")
+                pricing_shadow["canonical_ah_market_blocker"] = canonical_market.get("blocker")
+                pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
+                    "validation_status",
+                )
         recommendation = formal_result.recommendation or build_recommendation(card, picked)
         if recommendation is None:
             recommendation = build_watch_recommendation(

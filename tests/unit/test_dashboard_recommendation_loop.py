@@ -528,6 +528,10 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     assert card["current_odds"]["ah"]["home_price"] == 1.95
     assert card["current_odds"]["ah"]["away_price"] == 1.95
     assert card["pricing_shadow"]["market_ah"] == -1.0
+    assert card["pricing_shadow"]["canonical_ah_market_validation_status"] == "READY"
+    assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
+    assert card["pricing_shadow"]["canonical_ah_market"]["home_line"] == -1.0
+    assert card["pricing_shadow"]["canonical_ah_market"]["away_line"] == 1.0
     assert "MISSING_AH_MARKET" not in card["pricing_shadow"]["formal_blockers"]
 
 
