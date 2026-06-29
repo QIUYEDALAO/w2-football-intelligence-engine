@@ -4,13 +4,15 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def _load_payload(path: str) -> dict[str, Any]:
     if path == "-":
-        return json.loads(sys.stdin.read())
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+        payload = json.loads(sys.stdin.read())
+    else:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return cast(dict[str, Any], payload)
 
 
 def _formal_market_row(card: dict[str, Any]) -> dict[str, Any]:
@@ -22,6 +24,8 @@ def _formal_market_row(card: dict[str, Any]) -> dict[str, Any]:
     current_odds = current_odds if isinstance(current_odds, dict) else {}
     current_ah = current_odds.get("ah")
     current_ah = current_ah if isinstance(current_ah, dict) else {}
+    canonical_ah = shadow.get("canonical_ah_market")
+    canonical_ah = canonical_ah if isinstance(canonical_ah, dict) else {}
     return {
         "fixture_id": card.get("fixture_id"),
         "home_team_name": card.get("home_team_name"),
@@ -50,6 +54,15 @@ def _formal_market_row(card: dict[str, Any]) -> dict[str, Any]:
             "market_ah": shadow.get("market_ah"),
             "fair_ah": shadow.get("fair_ah"),
             "canonical_ah_market": shadow.get("canonical_ah_market"),
+            "line_normalization": {
+                "raw_home_line": canonical_ah.get("raw_home_line"),
+                "raw_away_line": canonical_ah.get("raw_away_line"),
+                "raw_abs_line": canonical_ah.get("raw_abs_line"),
+                "canonical_home_line": canonical_ah.get("canonical_home_line"),
+                "canonical_away_line": canonical_ah.get("canonical_away_line"),
+                "status": canonical_ah.get("line_normalization_status"),
+                "warning": canonical_ah.get("line_normalization_warning"),
+            },
             "canonical_ah_market_validation_status": shadow.get(
                 "canonical_ah_market_validation_status",
             ),

@@ -147,7 +147,77 @@ def test_canonical_ah_uses_pricing_shadow_market_line_with_real_prices() -> None
         "bookmaker_count": None,
         "validation_status": "READY",
         "blocker": None,
+        "raw_home_line": -1.5,
+        "raw_away_line": 1.5,
+        "raw_abs_line": None,
+        "canonical_home_line": -1.5,
+        "canonical_away_line": 1.5,
+        "line_normalization_status": "READY",
+        "line_normalization_warning": None,
     }
+
+
+def test_canonical_ah_normalizes_raw_away_line_sign_without_blocking() -> None:
+    market = canonical_ah_market(
+        current_odds={
+            "ah": {
+                "line": 1.5,
+                "home_line": -1.5,
+                "away_line": -1.5,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
+        pricing_shadow={**ready_shadow(), "market_ah": -1.5},
+    )
+
+    assert market is not None
+    payload = market.as_dict()
+    assert payload["home_line"] == -1.5
+    assert payload["away_line"] == 1.5
+    assert payload["raw_away_line"] == -1.5
+    assert payload["canonical_away_line"] == 1.5
+    assert payload["line_normalization_warning"] == "AH_RAW_AWAY_LINE_SIGN_NORMALIZED"
+    assert payload["validation_status"] == "READY"
+    assert payload["blocker"] is None
+
+
+def test_canonical_ah_blocks_raw_away_line_magnitude_mismatch() -> None:
+    market = canonical_ah_market(
+        current_odds={
+            "ah": {
+                "line": 1.5,
+                "home_line": -1.5,
+                "away_line": 2.0,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
+        pricing_shadow={**ready_shadow(), "market_ah": -1.5},
+    )
+
+    assert market is not None
+    assert market.as_dict()["validation_status"] == "BLOCKED"
+    assert market.as_dict()["blocker"] == "AH_MARKET_LINE_MAGNITUDE_MISMATCH"
+
+
+def test_canonical_ah_blocks_raw_abs_line_mismatch() -> None:
+    market = canonical_ah_market(
+        current_odds={
+            "ah": {
+                "line": 2.0,
+                "home_line": -1.5,
+                "away_line": 1.5,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
+        pricing_shadow={**ready_shadow(), "market_ah": -1.5},
+    )
+
+    assert market is not None
+    assert market.as_dict()["validation_status"] == "BLOCKED"
+    assert market.as_dict()["blocker"] == "AH_MARKET_ABS_LINE_MISMATCH"
 
 
 def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -> None:

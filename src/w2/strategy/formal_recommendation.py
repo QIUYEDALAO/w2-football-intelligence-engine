@@ -32,6 +32,13 @@ class CanonicalAhMarket:
     bookmaker_count: int | None
     validation_status: str
     blocker: str | None
+    raw_home_line: float | None = None
+    raw_away_line: float | None = None
+    raw_abs_line: float | None = None
+    canonical_home_line: float | None = None
+    canonical_away_line: float | None = None
+    line_normalization_status: str | None = None
+    line_normalization_warning: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -227,32 +234,44 @@ def canonical_ah_market(
     raw_ah = odds.get("ah")
     ah: dict[str, Any] = raw_ah if isinstance(raw_ah, dict) else {}
     pricing = pricing_shadow if isinstance(pricing_shadow, dict) else {}
-    home_line = _number(ah.get("home_line"))
-    away_line = _number(ah.get("away_line"))
+    raw_home_line = _number(ah.get("home_line"))
+    raw_away_line = _number(ah.get("away_line"))
+    raw_abs_line = _number(ah.get("line"))
     market_ah = _number(pricing.get("market_ah"))
+    home_line = market_ah if market_ah is not None else raw_home_line
+    away_line = -home_line if home_line is not None else None
     home_price = _number(ah.get("home_price"))
     away_price = _number(ah.get("away_price"))
     source = str(ah.get("source")) if ah.get("source") is not None else None
     as_of = str(ah.get("as_of") or ah.get("captured_at") or ah.get("locked_at") or "") or None
     bookmaker_count = _int_or_none(ah.get("bookmaker_count"))
-    if home_line is None and market_ah is not None:
-        home_line = market_ah
-    if away_line is None and home_line is not None:
-        away_line = -home_line
     if home_line is None or away_line is None or home_price is None or away_price is None:
         return None
     blocker = _canonical_ah_blocker(
         home_line=home_line,
         away_line=away_line,
+        raw_away_line=raw_away_line,
+        raw_abs_line=raw_abs_line,
         home_price=home_price,
         away_price=away_price,
         market_ah=market_ah,
+    )
+    warning = _canonical_ah_line_warning(
+        canonical_home_line=home_line,
+        raw_away_line=raw_away_line,
     )
     return CanonicalAhMarket(
         home_line=home_line,
         away_line=away_line,
         home_price=home_price,
         away_price=away_price,
+        raw_home_line=raw_home_line,
+        raw_away_line=raw_away_line,
+        raw_abs_line=raw_abs_line,
+        canonical_home_line=home_line,
+        canonical_away_line=away_line,
+        line_normalization_status="BLOCKED" if blocker else "READY",
+        line_normalization_warning=warning,
         source=source,
         as_of=as_of,
         bookmaker_count=bookmaker_count,
@@ -332,12 +351,16 @@ def _canonical_ah_blocker(
     *,
     home_line: float,
     away_line: float,
+    raw_away_line: float | None,
+    raw_abs_line: float | None,
     home_price: float,
     away_price: float,
     market_ah: float | None,
 ) -> str | None:
-    if abs(home_line + away_line) > 0.001:
-        return "AH_MARKET_LINE_SIDE_MISMATCH"
+    if raw_abs_line is not None and abs(abs(raw_abs_line) - abs(home_line)) > 0.001:
+        return "AH_MARKET_ABS_LINE_MISMATCH"
+    if raw_away_line is not None and abs(abs(raw_away_line) - abs(home_line)) > 0.001:
+        return "AH_MARKET_LINE_MAGNITUDE_MISMATCH"
     if market_ah is not None and abs(home_line - market_ah) > 0.001:
         return "AH_MARKET_LINE_NOT_CANONICAL"
     if not _is_quarter_line(home_line) or not _is_quarter_line(away_line):
@@ -352,6 +375,21 @@ def _canonical_ah_blocker(
     implied_sum = (1 / home_price) + (1 / away_price)
     if implied_sum < AH_IMPLIED_SUM_MIN or implied_sum > AH_IMPLIED_SUM_MAX:
         return "AH_MARKET_UNDERROUND_OR_OVERROUND"
+    return None
+
+
+def _canonical_ah_line_warning(
+    *,
+    canonical_home_line: float,
+    raw_away_line: float | None,
+) -> str | None:
+    canonical_away_line = -canonical_home_line
+    if raw_away_line is None:
+        return None
+    if abs(abs(raw_away_line) - abs(canonical_home_line)) > 0.001:
+        return None
+    if abs(raw_away_line - canonical_away_line) > 0.001:
+        return "AH_RAW_AWAY_LINE_SIGN_NORMALIZED"
     return None
 
 
