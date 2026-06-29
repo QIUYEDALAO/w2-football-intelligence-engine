@@ -84,12 +84,15 @@ export function DashboardPage() {
   }, [mode, view]);
 
   const summary = useMemo(() => {
-    const counts = { pick: 0, low: 0, live: 0 };
+    const counts = { pick: 0, low: 0, live: 0, formal: 0 };
     for (const match of visibleMatches) {
       const phase = matchPhase(match.kickoff_utc ?? "", (match as { status?: string }).status);
       if (phase === "LIVE" || phase === "FINISHED") {
         counts.live += 1;
         continue;
+      }
+      if (match.formal_recommendation === true && match.recommendation?.tier === "FORMAL") {
+        counts.formal += 1;
       }
       const tier = match.recommendation?.tier;
       if (tier === "FORMAL" || tier === "CANDIDATE" || (tier === "ANALYSIS_PICK" && hasValidatedAhCalibration(match.pricing_shadow))) {
@@ -138,6 +141,11 @@ export function DashboardPage() {
           <span>
             今日 <strong>{visibleMatches.length}</strong> 场
           </span>
+          {summary.formal > 0 ? (
+            <span style={{ color: "#0F6E56" }}>● 正式推荐 {summary.formal}</span>
+          ) : (
+            <span style={{ color: "#9B6B16" }}>○ 当前暂无正式推荐</span>
+          )}
           <span style={{ color: "#0F6E56" }}>● 可参考 {summary.pick}</span>
           <span style={{ color: "#9a978d" }}>○ 数据不足 {summary.low}</span>
           <span style={{ color: "#9a978d" }}>· 已开赛 {summary.live}</span>

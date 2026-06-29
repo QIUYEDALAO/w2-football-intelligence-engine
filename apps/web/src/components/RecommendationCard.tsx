@@ -86,6 +86,20 @@ const SIGNAL_GROUP_LABELS: Record<string, string> = {
   squad_value: "身价",
 };
 
+const FORMAL_BLOCKER_LABELS: Record<string, string> = {
+  EDGE_BELOW_FORMAL_THRESHOLD: "value 差距未达正式推荐阈值",
+  SIMULATION_NOT_READY: "模拟引擎未就绪",
+  MISSING_AH_MARKET: "缺少可锁定的主让球市场盘",
+  MISSING_MARKET_AH: "缺少 as-of 市场让球盘",
+  MISSING_FAIR_AH: "缺少模拟公平让球盘",
+  MISSING_DEVIG_BASELINE: "缺少 devig 市场基准",
+  MISSING_ODDS: "缺少可展示赔率",
+  LOW_COVERAGE: "独立信号覆盖不足",
+  FACTOR_CONFLICT: "因子方向与盘口价值仍需复核",
+  FORMAL_DISABLED: "正式推荐开关未开启",
+  NOT_PREMATCH: "非赛前状态",
+};
+
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
 
 function verdictState(match: DashboardMatchCard): VerdictState {
@@ -174,6 +188,50 @@ function recommendationReference(pick: RecommendationPick | null): string {
   return `参考结论：${tier} · ${market} ${selection}${line}${odds}`;
 }
 
+function pickMarketLabel(pick: RecommendationPick | null): string {
+  if (!pick) return "暂无";
+  return pick.market_label_cn || MARKET_LABELS[pick.market] || pick.market;
+}
+
+function pickDirectionLabel(pick: RecommendationPick | null): string {
+  if (!pick) return "暂无";
+  return pick.selection_label_cn ?? pick.selection ?? "方向待定";
+}
+
+function pickLineLabel(pick: RecommendationPick | null): string {
+  return pick?.line ? formatLine(pick.line) : "无盘口";
+}
+
+function pickOddsLabel(pick: RecommendationPick | null): string {
+  return pick?.odds ? `@${formatOdds(pick.odds)}` : "赔率等待";
+}
+
+function formalHeroSummary(pick: RecommendationPick | null): string {
+  if (!pick) return "方向待定";
+  return [
+    pickMarketLabel(pick),
+    pickDirectionLabel(pick),
+    pick.line ? formatLine(pick.line) : null,
+    pick.odds ? `@${formatOdds(pick.odds)}` : null,
+  ].filter(Boolean).join(" · ");
+}
+
+function formalReason(match: DashboardMatchCard): string {
+  if (match.formal_suppressed_reason) return `正式推荐被抑制：${match.formal_suppressed_reason}`;
+  const blockers = match.pricing_shadow?.formal_blockers ?? [];
+  if (blockers.length) {
+    return blockers
+      .map((blocker) => FORMAL_BLOCKER_LABELS[blocker] ?? blocker)
+      .slice(0, 3)
+      .join(" · ");
+  }
+  const readinessBlockers = blockerLabels(match);
+  if (readinessBlockers.length) return readinessBlockers.join(" · ");
+  if (match.pricing_shadow?.simulation_status !== "READY") return "模拟引擎未就绪";
+  if (match.pricing_shadow?.formal_eligible === false) return "未达到正式推荐门槛";
+  return "当前只保留为观察/分析参考，不伪装成正式推荐。";
+}
+
 function dataLine(match: DashboardMatchCard): string {
   const items = readinessItems({ data_readiness: match.data_readiness });
   const odds = items.find((item) => item.key === "odds");
@@ -220,6 +278,13 @@ function scoreText(match: DashboardMatchCard): string | null {
     .slice(0, 3)
     .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)
     .join(" · ")}`;
+}
+
+function scorelineHeroText(match: DashboardMatchCard): string {
+  const scoreSummary = scoreText(match);
+  if (scoreSummary) return scoreSummary.replace("最可能比分（基于我们的 xG）：", "");
+  const reason = match.scoreline_readiness?.reason;
+  return reason ? `未就绪：${reason}` : "未就绪";
 }
 
 function resultLine(match: DashboardMatchCard): string | null {
@@ -408,6 +473,47 @@ function DataReadinessPills({ match }: { match: DashboardMatchCard }) {
   );
 }
 
+function FormalDecisionHero({
+  match,
+  pick,
+  isFormal,
+  verdict,
+}: {
+  match: DashboardMatchCard;
+  pick: RecommendationPick | null;
+  isFormal: boolean;
+  verdict: VerdictState;
+}) {
+  const reason = isFormal
+    ? pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。"
+    : formalReason(match);
+  return (
+    <section className={isFormal ? "formal-decision-hero is-formal" : "formal-decision-hero is-empty"} aria-label="正式推荐状态">
+      <div className="formal-decision-topline">
+        <span>{isFormal ? "正式推荐" : "当前暂无正式推荐"}</span>
+        <strong>{isFormal ? formalHeroSummary(pick) : VERDICT_LABELS[verdict]}</strong>
+      </div>
+      {isFormal ? (
+        <div className="formal-pick-grid" aria-label="正式推荐详情">
+          <span>推荐市场</span>
+          <strong>{pickMarketLabel(pick)}</strong>
+          <span>推荐方向</span>
+          <strong>{pickDirectionLabel(pick)}</strong>
+          <span>推荐盘口</span>
+          <strong>{pickLineLabel(pick)}</strong>
+          <span>推荐赔率</span>
+          <strong>{pickOddsLabel(pick)}</strong>
+        </div>
+      ) : null}
+      <p>{isFormal ? `推荐理由：${reason}` : `未出正式推荐原因：${reason}`}</p>
+      <p className="scoreline-hero-copy">
+        <strong>{isFormal ? "模拟比分参考：" : "比分模拟参考："}</strong>
+        {scorelineHeroText(match)}
+      </p>
+    </section>
+  );
+}
+
 function MainMarketBox({
   shadow,
   state,
@@ -428,10 +534,10 @@ function MainMarketBox({
     .filter((factor) => factor.status === "READY")
     .sort((a, b) => Number(b.is_independent_signal === true) - Number(a.is_independent_signal === true));
   return (
-    <section className="main-market-box" aria-label="全场让球主市场">
+    <section className="main-market-box" aria-label="正式推荐依据详情">
       <div className="main-market-heading">
-        <span>独立评分</span>
-        <strong>主市场 · 全场让球</strong>
+        <span>依据/详情</span>
+        <strong>独立评分 · 全场让球</strong>
         <em>{coverage ? `覆盖 ${coverage}` : "覆盖不足"}</em>
       </div>
       <div className="team-score-row" aria-label="两队独立评分">
@@ -472,7 +578,6 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const phase = matchPhase(match.kickoff_utc, match.status);
   const prematchReview = requiresPrematchReview(phase);
   const verdict = verdictState(match);
-  const blockers = blockerLabels(match);
   const lowInfo = shouldHideDirectionalCopy(match, verdict);
   const odds = currentOdds(
     { current_odds: match.current_odds },
@@ -484,8 +589,6 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const signalLine = independentSignalLine(match.pricing_shadow, match);
   const scoreSummary = scoreText(match);
   const isFormal = pick?.tier === "FORMAL" && match.formal_recommendation === true;
-  const formalLine = pick?.line ? ` ${formatLine(pick.line)}` : "";
-  const formalOdds = pick?.odds ? ` @${formatOdds(pick.odds)}` : "";
   return (
     <article className={`recommendation-card ${cardTone(verdict)} ${prematchReview ? "is-prematch" : ""}`}>
       <header className="recommendation-card-header">
@@ -509,21 +612,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
         </div>
       </header>
 
-      <div className="verdict-hero">
-        <span>{isFormal ? "正式推荐" : VERDICT_LABELS[verdict]}</span>
-        <strong>
-          {isFormal
-            ? `${pick?.market_label_cn ?? "让球"} · ${pick?.selection_label_cn ?? pick?.selection ?? "方向待定"}${formalLine}${formalOdds}`
-            : verdict === "REFERENCE"
-              ? "可作赛前分析参考"
-              : verdict === "WATCH"
-                ? "观察，不升级"
-                : verdict === "LOCKED"
-                  ? "赛前判断已锁定"
-                  : "样本/因子不足"}
-        </strong>
-        <p>{isFormal ? pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。" : lowInfo ? signalLine : blockers.length ? blockers.join(" · ") : "分析参考 · 等待正式条件"}</p>
-      </div>
+      <FormalDecisionHero match={match} pick={pick} isFormal={isFormal} verdict={verdict} />
 
       <MainMarketBox
         shadow={match.pricing_shadow}
@@ -545,7 +634,7 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             <strong>数据：</strong>
             {dataLine(match)}
           </p>
-          {scoreSummary ? <p><strong>{scoreSummary}</strong></p> : null}
+          {scoreSummary && !isFormal ? <p><strong>{scoreSummary}</strong></p> : null}
         </div>
       )}
       <OddsMovementMini match={match} />

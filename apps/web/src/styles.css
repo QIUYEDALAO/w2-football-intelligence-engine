@@ -1286,11 +1286,28 @@ button {
   font-size: 12px;
 }
 
-.verdict-hero {
+.verdict-hero,
+.formal-decision-hero {
   margin: 8px 0;
   border-radius: 10px;
   padding: 9px 11px;
   background: rgba(255, 255, 255, 0.055);
+}
+
+.formal-decision-hero {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.formal-decision-hero.is-formal {
+  border-color: rgba(98, 181, 47, 0.44);
+  background: linear-gradient(180deg, rgba(98, 181, 47, 0.22), rgba(98, 181, 47, 0.08));
+}
+
+.formal-decision-hero.is-empty {
+  border-color: rgba(226, 164, 58, 0.32);
+  background: rgba(226, 164, 58, 0.12);
 }
 
 .verdict-reference .verdict-hero {
@@ -1310,6 +1327,7 @@ button {
 }
 
 .verdict-hero span,
+.formal-decision-topline span,
 .main-market-heading span,
 .main-market-heading em {
   display: block;
@@ -1327,12 +1345,65 @@ button {
   line-height: 1.18;
 }
 
-.verdict-hero p {
+.formal-decision-topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+
+.formal-decision-topline strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 940;
+  line-height: 1.18;
+}
+
+.formal-pick-grid {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 72px minmax(0, 1fr);
+  gap: 5px 8px;
+  align-items: baseline;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.formal-pick-grid span {
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.formal-pick-grid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verdict-hero p,
+.formal-decision-hero p {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 820;
   line-height: 1.35;
+}
+
+.formal-decision-hero p {
+  margin: 0;
+}
+
+.formal-decision-hero .scoreline-hero-copy {
+  color: var(--text);
+}
+
+.formal-decision-hero .scoreline-hero-copy strong {
+  color: var(--mint);
 }
 
 .market-pick-summary {
