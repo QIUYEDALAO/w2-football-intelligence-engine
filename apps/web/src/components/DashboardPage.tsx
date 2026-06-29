@@ -3,7 +3,7 @@ import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi"
 import { todayShanghai } from "../lib/formatters";
 import { matchPhase, minutesToKickoff } from "../lib/matchPhase";
 import { hasValidatedAhCalibration } from "../lib/pricingDisplay";
-import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
+import type { DashboardMatchCard, DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
 import { PerformanceHeader } from "./PerformanceHeader";
@@ -41,10 +41,18 @@ function sortByKickoffUrgency<T extends { kickoff_utc: string }>(matches: T[]): 
   });
 }
 
+function isFormalMatch(match: DashboardMatchCard): boolean {
+  return match.formal_recommendation === true && match.recommendation?.tier === "FORMAL";
+}
+
+function sortFormalFirst(matches: DashboardMatchCard[]): DashboardMatchCard[] {
+  return sortByKickoffUrgency(matches).sort((left, right) => Number(isFormalMatch(right)) - Number(isFormalMatch(left)));
+}
+
 export function DashboardPage() {
   const [view, setView] = useState<DashboardView | null>(null);
   const [state, setState] = useState<LoadState>("loading");
-  const [mode, setMode] = useState<DashboardMode>("today");
+  const [mode, setMode] = useState<DashboardMode>("next36");
   const [date, setDate] = useState(todayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -78,10 +86,21 @@ export function DashboardPage() {
 
   const visibleMatches = useMemo(() => {
     if (!view) return [];
-    if (mode === "next36") return sortByKickoffUrgency(view.upcoming);
+    if (mode === "next36") return sortFormalFirst(view.upcoming);
     if (mode === "results") return view.finished;
-    return sortByKickoffUrgency(view.all);
+    return sortFormalFirst(view.all);
   }, [mode, view]);
+
+  const primaryMatches = useMemo(() => {
+    const formal = visibleMatches.filter(isFormalMatch);
+    if (!formal.length) return visibleMatches;
+    return formal;
+  }, [visibleMatches]);
+
+  const referenceMatches = useMemo(() => {
+    if (!primaryMatches.length || primaryMatches.length === visibleMatches.length) return [];
+    return visibleMatches.filter((match) => !isFormalMatch(match));
+  }, [primaryMatches.length, visibleMatches]);
 
   const summary = useMemo(() => {
     const counts = { pick: 0, low: 0, live: 0, formal: 0 };
@@ -139,7 +158,7 @@ export function DashboardPage() {
           }}
         >
           <span>
-            今日 <strong>{visibleMatches.length}</strong> 场
+            当前 <strong>{visibleMatches.length}</strong> 场
           </span>
           {summary.formal > 0 ? (
             <span style={{ color: "#0F6E56" }}>● 正式推荐 {summary.formal}</span>
@@ -165,15 +184,25 @@ export function DashboardPage() {
 
       {state === "ok" && view ? (
         <>
-          {visibleMatches.length ? (
+          {primaryMatches.length ? (
             <section className="match-card-grid" aria-label="比赛卡片">
-              {visibleMatches.map((match) => (
+              {primaryMatches.map((match) => (
                 <RecommendationCard key={match.fixture_id} match={match} />
               ))}
             </section>
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}
+          {referenceMatches.length ? (
+            <details className="reference-match-details">
+              <summary>其他比赛分析参考（{referenceMatches.length}）</summary>
+              <section className="match-card-grid" aria-label="其他比赛分析参考">
+                {referenceMatches.map((match) => (
+                  <RecommendationCard key={match.fixture_id} match={match} />
+                ))}
+              </section>
+            </details>
+          ) : null}
           {view.errors.length ? (
             <aside className="soft-errors">
               <strong>部分数据源暂不可用</strong>

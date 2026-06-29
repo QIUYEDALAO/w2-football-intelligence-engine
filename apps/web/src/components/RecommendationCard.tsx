@@ -98,6 +98,8 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
   FACTOR_CONFLICT: "因子方向与盘口价值仍需复核",
   FORMAL_DISABLED: "正式推荐开关未开启",
   NOT_PREMATCH: "非赛前状态",
+  FIXTURE_NOT_PREMATCH: "比赛已开赛或已完场",
+  FIXTURE_NOT_UPCOMING: "比赛已开赛或已完场",
 };
 
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
@@ -302,16 +304,18 @@ function actionabilityLine(match: DashboardMatchCard): string {
 }
 
 function canShowScoreline(match: DashboardMatchCard): boolean {
+  const source = match.scoreline_readiness?.source;
   return (
     match.scoreline_readiness?.status === "READY"
-    && match.scoreline_readiness.source === "independent_xg_poisson"
+    && (source === "independent_xg_poisson" || source === "formal_simulation")
     && match.scoreline_picks.length > 0
   );
 }
 
 function scoreText(match: DashboardMatchCard): string | null {
   if (!canShowScoreline(match)) return null;
-  return `最可能比分（基于我们的 xG）：${match.scoreline_picks
+  const prefix = match.scoreline_readiness?.source === "formal_simulation" ? "模拟比分参考：" : "最可能比分（基于我们的 xG）：";
+  return `${prefix}${match.scoreline_picks
     .slice(0, 3)
     .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)
     .join(" · ")}`;
@@ -319,7 +323,7 @@ function scoreText(match: DashboardMatchCard): string | null {
 
 function scorelineHeroText(match: DashboardMatchCard): string {
   const scoreSummary = scoreText(match);
-  if (scoreSummary) return scoreSummary.replace("最可能比分（基于我们的 xG）：", "");
+  if (scoreSummary) return scoreSummary.replace("最可能比分（基于我们的 xG）：", "").replace("模拟比分参考：", "");
   const reason = match.scoreline_readiness?.reason;
   return reason ? `未就绪：${reason}` : "未就绪";
 }
