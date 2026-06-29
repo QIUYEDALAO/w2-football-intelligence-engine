@@ -41,7 +41,7 @@ export function DashboardShell({
         <SummaryMetric label="比赛数" value={stats.total} sub={date} />
         <SummaryMetric label="有分析" value={stats.picks} sub="主市场可读" />
         <SummaryMetric label="数据较完整" value={stats.ready} sub={`更新 ${updatedAt}`} />
-        <SummaryMetric label="高关注" value={stats.highWatch} sub="watch ≥ 3" />
+        <SummaryMetric label="高关注" value={stats.highWatch} sub="关注度 ≥ 3" />
       </section>
 
       <DashboardToolbar

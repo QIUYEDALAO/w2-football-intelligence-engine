@@ -12,7 +12,7 @@ const BLOCKER_LABELS: Record<string, string> = {
   MISSING_SCORE_MATRIX: "缺比分矩阵",
   MISSING_MODEL_PROBABILITIES: "缺模型概率",
   MISSING_MARKET_PROBABILITIES: "缺市场概率",
-  AS_OF_BLOCKED: "as-of 拦截",
+  AS_OF_BLOCKED: "赛前时间点拦截",
   SCORE_MARKET_UNAVAILABLE: "比分市场不可用",
   ODDS_UNAVAILABLE: "缺当前赔率",
   FIXTURE_NOT_UPCOMING: "非赛前",

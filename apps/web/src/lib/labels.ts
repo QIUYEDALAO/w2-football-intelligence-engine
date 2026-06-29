@@ -19,7 +19,7 @@ export const INTENT_LABELS: Record<string, string> = {
   UNDER_LEAN: "盘口偏移待验证",
   CONFLICTED: "信号分歧",
   INSUFFICIENT_DATA: "数据不足",
-  LEAKAGE_BLOCKED: "as-of 拦截",
+  LEAKAGE_BLOCKED: "赛前时间点拦截",
 };
 
 export const TENDENCY_LABELS: Record<string, string> = {
@@ -126,7 +126,7 @@ export const REASON_TRANSLATIONS: Array<[RegExp, string]> = [
   [/^BOOKMAKER_INTENT_INPUT_UNAVAILABLE$/, "盘口假设输入不足"],
   [/^INSUFFICIENT_DATA$/, "数据点不足，暂不输出倾向"],
   [/^CONFLICTED$/, "盘口信号互相冲突，暂不强出方向"],
-  [/^LEAKAGE_BLOCKED$/, "as-of 防泄漏规则拦截"],
+  [/^LEAKAGE_BLOCKED$/, "赛前时间点防泄漏规则拦截"],
   [/^大小球意图: OVER_LEAN$/, "大小球盘口假设未验证"],
   [/^大小球意图: UNDER_LEAN$/, "大小球盘口假设未验证"],
   [/^大小球意图: CONFLICTED$/, "大小球盘口方向存在分歧，暂不输出倾向"],

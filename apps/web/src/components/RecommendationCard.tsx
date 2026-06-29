@@ -33,7 +33,7 @@ const BLOCKER_LABELS: Record<string, string> = {
   MISSING_SCORE_MATRIX: "缺比分矩阵",
   MISSING_MODEL_PROBABILITIES: "缺模型概率",
   MISSING_MARKET_PROBABILITIES: "缺市场概率",
-  AS_OF_BLOCKED: "as-of 拦截",
+  AS_OF_BLOCKED: "赛前时间点拦截",
   SCORE_MARKET_UNAVAILABLE: "比分未就绪",
   ODDS_UNAVAILABLE: "赔率缺失",
   FIXTURE_NOT_UPCOMING: "非赛前",
@@ -87,12 +87,12 @@ const SIGNAL_GROUP_LABELS: Record<string, string> = {
 };
 
 const FORMAL_BLOCKER_LABELS: Record<string, string> = {
-  EDGE_BELOW_FORMAL_THRESHOLD: "value 差距未达正式推荐阈值",
+  EDGE_BELOW_FORMAL_THRESHOLD: "盘口价值差未达正式推荐阈值",
   SIMULATION_NOT_READY: "模拟引擎未就绪",
-  MISSING_AH_MARKET: "缺少可锁定的主让球市场盘",
-  MISSING_MARKET_AH: "缺少 as-of 市场让球盘",
+  MISSING_AH_MARKET: "缺少可锁定的全场让球市场盘",
+  MISSING_MARKET_AH: "缺少赛前锁定的市场让球盘",
   MISSING_FAIR_AH: "缺少模拟公平让球盘",
-  MISSING_DEVIG_BASELINE: "缺少 devig 市场基准",
+  MISSING_DEVIG_BASELINE: "缺少去水后市场基准",
   MISSING_ODDS: "缺少可展示赔率",
   LOW_COVERAGE: "独立信号覆盖不足",
   FACTOR_CONFLICT: "因子方向与盘口价值仍需复核",
@@ -232,11 +232,19 @@ function formalHeroSummary(pick: RecommendationPick | null): string {
 
 function displayReason(reason: string): string {
   return reason
+    .replace(/as-of/gi, "赛前时间点")
     .replace(/devig\s*基准/gi, "市场基准")
+    .replace(/\bdevig\b/gi, "去水")
     .replace(/value\s*gap/gi, "盘口差")
     .replace(/\bvalue\b/gi, "盘口价值")
     .replace(/\bedge\b/gi, "盘口差")
     .replace(/\bmarket\b/gi, "市场")
+    .replace(/\bhit rate\b/gi, "命中率")
+    .replace(/\bwin rate\b/gi, "胜率")
+    .replace(/\bROI\b/g, "收益率")
+    .replace(/\bopening\b/gi, "初盘")
+    .replace(/\bopen\b/gi, "初盘")
+    .replace(/\block\b/gi, "锁盘")
     .replace(/(\d+(?:\.\d+)?)\s*pct\b/gi, "$1个百分点")
     .replace(/\bFORMAL\b/g, "正式推荐")
     .replace(/\bWATCH\b/g, "观察")
@@ -273,7 +281,7 @@ function dataLine(match: DashboardMatchCard): string {
     xg ? xg.short : "xG 等待",
     lineups?.ready ? "首发已出" : "首发未出",
   ];
-  if (blockers.includes("as-of 拦截")) status.push("as-of拦截");
+  if (blockers.includes("赛前时间点拦截")) status.push("赛前时间点拦截");
   return status.join(" · ");
 }
 
@@ -351,10 +359,10 @@ function edgeDisplayText(edge: number | null | undefined, calibrated: boolean): 
 }
 
 function pricingShadowDetail(shadow: PricingShadow | null | undefined, state: VerdictState): string {
-  if (!shadow) return "未形成 S1 shadow，保持观察。";
+  if (!shadow) return "未形成独立定价结果，保持观察。";
   if (state === "LOCKED") return "赛前分析已锁定，仅供复盘验证。";
   if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立因子不足，不能形成主市场判断。";
-  if (shadow.simulation_status === "READY") return "模拟引擎已就绪，AH/OU/比分同源生成。";
+  if (shadow.simulation_status === "READY") return "模拟引擎已就绪，让球、大小球、比分同源生成。";
   if (!hasValidatedAhCalibration(shadow)) return "模拟输入不足，暂不输出正式让球推荐。";
   return "模拟公平盘已形成。";
 }
@@ -367,7 +375,7 @@ function sideName(side: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN", homeName: strin
 }
 
 function uncalibratedAhExplanation(shadow: PricingShadow | null | undefined, homeName: string, awayName: string): string {
-  if (!shadow) return "缺少 pricing shadow，暂不输出让球倾向。";
+  if (!shadow) return "缺少独立定价结果，暂不输出让球倾向。";
   if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立信号不足，暂不输出让球倾向。";
   const leader = teamScoreLeader(shadow);
   const lean = unvalidatedAhLean(shadow);

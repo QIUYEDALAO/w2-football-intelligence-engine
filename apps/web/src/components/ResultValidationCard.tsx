@@ -22,7 +22,7 @@ export function ResultValidationCard({ match }: { match: DashboardMatchCard }) {
       <ScorelinePicks picks={match.scoreline_picks} />
       <p className="odds-line">
         收益：{validation.profit_units === undefined ? "--" : `${validation.profit_units > 0 ? "+" : ""}${validation.profit_units.toFixed(2)}u`}
-        {validation.closing_line_value ? ` · CLV ${validation.closing_line_value}` : ""}
+        {validation.closing_line_value ? ` · 收盘线差 ${validation.closing_line_value}` : ""}
       </p>
       <p className="risk-line">验证：{validation.validation_notes?.join("；") ?? "等待结果同步"}</p>
     </article>
