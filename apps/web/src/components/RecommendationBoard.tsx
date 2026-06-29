@@ -16,7 +16,7 @@ export function RecommendationBoard({ matches }: { matches: DashboardMatchCard[]
           ))}
         </div>
       ) : (
-        <EmptySection title="暂无正式/候选或分析倾向" detail="未来赛程仍保留展示；WATCH/SKIP 不进入赛后统计。" />
+        <EmptySection title="暂无正式/候选或分析倾向" detail="未来赛程仍保留展示；观察或跳过的比赛不进入赛后统计。" />
       )}
     </section>
   );
