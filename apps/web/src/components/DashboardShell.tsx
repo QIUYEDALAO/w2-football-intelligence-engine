@@ -66,7 +66,7 @@ export function DashboardShell({
         </section>
       ) : null}
 
-      <footer className="dashboard-disclaimer">赛前输出由真实数据和策略规则生成；数据不足时保持观察，命中率只在赛后展示。</footer>
+      <footer className="dashboard-disclaimer">赛前输出由真实数据和策略规则生成；数据不足时保持观察，赛后统计仅在完场后展示。</footer>
     </main>
   );
 }

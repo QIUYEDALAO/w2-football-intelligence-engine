@@ -39,7 +39,7 @@ def test_bookmaker_intent_is_labeled_as_unverified_hypothesis() -> None:
     assert "盘口假设 · 未验证" in odds_mini
     assert "盘口轨迹不足" in odds_mini
     assert "未校准，仅作观察" in odds_mini
-    assert "不显示命中率" in odds_mini
+    assert "赛后样本不足时不展示统计" in odds_mini
     assert "庄家意图" not in odds_mini
     assert "盘口假设 · 未验证" in intent_line
     assert "庄家意图" not in intent_line
