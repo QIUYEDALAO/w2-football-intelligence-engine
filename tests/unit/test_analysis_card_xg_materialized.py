@@ -209,7 +209,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "statistics_captured_at": None,
     }
     assert card["model_probabilities"]
-    assert card["current_odds"]["ah"] == {
+    assert {
+        key: card["current_odds"]["ah"].get(key)
+        for key in ("line", "home_price", "away_price", "home_line", "away_line", "price")
+    } == {
         "line": "0.5",
         "home_price": 1.8,
         "away_price": 2.02,
@@ -217,6 +220,9 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "away_line": "0.5",
         "price": 1.91,
     }
+    assert card["current_odds"]["ah"]["selection_policy"]
+    assert card["current_odds"]["ah"]["candidate_lines"]
+    assert card["current_odds"]["ah"]["rejected_lines"] == []
     assert card["current_odds"]["ou"] == {
         "line": "2.5",
         "over_price": 1.72,

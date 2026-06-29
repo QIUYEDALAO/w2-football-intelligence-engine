@@ -12,6 +12,8 @@ DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
 CHECKPOINTS = ("opening", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "lock")
 AUTO_CHECKPOINT_GRACE = timedelta(minutes=20)
 AUTO_LOCK_WINDOW = timedelta(hours=1)
+BALANCED_MAINLINE_MAX_DISTANCE = 0.06
+BALANCED_MAINLINE_MIN_DELTA = 0.03
 
 _CHECKPOINT_OFFSETS = {
     "T-24h": timedelta(hours=24),
@@ -160,8 +162,10 @@ def select_mainline_snapshot_result(
     if market == "ASIAN_HANDICAP":
         snapshot["selection_policy"] = selected.get(
             "selection_policy",
-            "latest_bucket_majority_line_same_bookmaker_pair",
+            "latest_bucket_ladder_balance_same_bookmaker_pair",
         )
+        if selected.get("selection_warning"):
+            snapshot["selection_warning"] = selected.get("selection_warning")
         snapshot["candidate_lines"] = selected.get("candidate_lines", [])
         snapshot["rejected_lines"] = selected.get("rejected_lines", [])
     if market == "ASIAN_HANDICAP":
@@ -389,6 +393,7 @@ def _market_groups(
         ):
             group["bookmaker_count"] = len(group["bookmakers"]) or 1
             group["balance_gap"] = _price_balance_gap(group["sides"], required)
+            group["balance_distance"] = _devig_balance_distance(group["sides"], required)
             group["mid_distance"] = _price_mid_distance(group["sides"], required)
             group["implied_sum"] = _implied_sum(group["sides"], required)
             complete.append(group)
@@ -421,37 +426,83 @@ def _select_mainline_group(
         _line_candidate_summary(line, line_groups)
         for line, line_groups in by_line.items()
     ]
-    candidate_lines.sort(
+    max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
+    consensus_floor = _bookmaker_consensus_floor(max_bookmaker_count)
+    override_line = _balanced_override_candidate(candidate_lines)
+    eligible_lines = [
+        item for item in candidate_lines if int(item["bookmaker_count"]) >= consensus_floor
+    ] or candidate_lines
+    if override_line is not None and all(
+        float(item["line"]) != float(override_line["line"]) for item in eligible_lines
+    ):
+        eligible_lines.append(
+            {**override_line, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+        )
+    eligible_lines.sort(
         key=lambda item: (
-            -int(item["bookmaker_count"]),
+            float(item["balance_distance"]),
             float(item["price_gap"]),
             float(item["mid_distance"]),
+            -int(item["bookmaker_count"]),
             abs(float(item["line"])),
         )
     )
-    selected_line = float(candidate_lines[0]["line"])
+    selected_summary = eligible_lines[0]
+    selection_warning = selected_summary.get("selection_warning")
+    selected_line = float(selected_summary["line"])
     selected_groups = by_line[round(selected_line, 4)]
     selected = min(
         selected_groups,
         key=lambda group: (
-            abs(float(group.get("balance_gap") or 999.0) - float(candidate_lines[0]["price_gap"])),
+            float(group.get("balance_distance") or 999.0),
+            abs(float(group.get("balance_gap") or 999.0) - float(selected_summary["price_gap"])),
             float(group.get("mid_distance") or 999.0),
             str(next(iter(group.get("bookmakers") or [""]))),
         ),
     )
-    selected["bookmaker_count"] = int(candidate_lines[0]["bookmaker_count"])
-    selected["selection_policy"] = "latest_bucket_majority_line_same_bookmaker_pair"
+    selected["bookmaker_count"] = int(selected_summary["bookmaker_count"])
+    selected["selection_policy"] = "latest_bucket_ladder_balance_same_bookmaker_pair"
+    if selection_warning:
+        selected["selection_warning"] = selection_warning
+    candidate_order = sorted(
+        candidate_lines,
+        key=lambda item: (
+            0 if float(item["line"]) == selected_line else 1,
+            float(item["balance_distance"]),
+            float(item["price_gap"]),
+            float(item["mid_distance"]),
+            -int(item["bookmaker_count"]),
+            abs(float(item["line"])),
+        ),
+    )
     selected["candidate_lines"] = [
-        {**item, "selection_rank": index + 1} for index, item in enumerate(candidate_lines)
+        {
+            **item,
+            "selection_rank": index + 1,
+            "bookmaker_consensus_floor": consensus_floor,
+            "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
+            "balanced_override_eligible": override_line is not None
+            and float(item["line"]) == float(override_line["line"]),
+            **(
+                {"selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+                if selection_warning and float(item["line"]) == selected_line
+                else {}
+            ),
+        }
+        for index, item in enumerate(candidate_order)
     ]
     selected["rejected_lines"] = [
         {
             "line": item["line"],
             "reason": "LOWER_BOOKMAKER_CONSENSUS"
-            if int(item["bookmaker_count"]) < int(candidate_lines[0]["bookmaker_count"])
-            else "TIE_BREAK_LOWER_PRICE_QUALITY",
+            if int(item["bookmaker_count"]) < consensus_floor
+            and not (
+                override_line is not None and float(item["line"]) == float(override_line["line"])
+            )
+            else "TIE_BREAK_LOWER_LADDER_BALANCE",
         }
-        for item in candidate_lines[1:]
+        for item in candidate_lines
+        if float(item["line"]) != selected_line
     ]
     return selected
 
@@ -460,6 +511,7 @@ def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[s
     home_prices = [float(group["sides"]["HOME"]["decimal_odds"]) for group in groups]
     away_prices = [float(group["sides"]["AWAY"]["decimal_odds"]) for group in groups]
     price_gaps = [float(group.get("balance_gap") or 999.0) for group in groups]
+    balance_distances = [float(group.get("balance_distance") or 999.0) for group in groups]
     mid_distances = [float(group.get("mid_distance") or 999.0) for group in groups]
     implied_sums = [float(group.get("implied_sum") or 0.0) for group in groups]
     bookmakers = sorted(
@@ -480,10 +532,42 @@ def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[s
         "captured_at": iso_z(groups[0]["captured_at"]),
         "as_of": iso_z(groups[0]["captured_at"]),
         "implied_sum": round(_median(implied_sums), 6),
+        "balance_distance": round(_median(balance_distances), 6),
         "price_gap": round(_median(price_gaps), 6),
         "mid_distance": round(_median(mid_distances), 6),
-        "selection_policy": "latest_bucket_majority_line_same_bookmaker_pair",
+        "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair",
     }
+
+
+def _bookmaker_consensus_floor(max_bookmaker_count: int) -> int:
+    if max_bookmaker_count <= 1:
+        return 1
+    return max(2, max_bookmaker_count - 2)
+
+
+def _balanced_override_candidate(candidate_lines: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not candidate_lines:
+        return None
+    ordered = sorted(
+        candidate_lines,
+        key=lambda item: (
+            float(item["balance_distance"]),
+            float(item["price_gap"]),
+            float(item["mid_distance"]),
+            -int(item["bookmaker_count"]),
+            abs(float(item["line"])),
+        ),
+    )
+    best = ordered[0]
+    second_distance = float(ordered[1]["balance_distance"]) if len(ordered) > 1 else 999.0
+    best_distance = float(best["balance_distance"])
+    if (
+        int(best["bookmaker_count"]) >= 1
+        and best_distance <= BALANCED_MAINLINE_MAX_DISTANCE
+        and second_distance - best_distance >= BALANCED_MAINLINE_MIN_DELTA
+    ):
+        return best
+    return None
 
 
 def _valid_two_way_price_pair(
@@ -520,6 +604,24 @@ def _price_balance_gap(
         if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
     ]
     return round(max(values) - min(values), 6) if values else 999.0
+
+
+def _devig_balance_distance(
+    sides: dict[str, dict[str, Any]],
+    required: set[str],
+) -> float:
+    values = [
+        float(sides[side]["decimal_odds"])
+        for side in sorted(required)
+        if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
+    ]
+    if len(values) != 2:
+        return 999.0
+    implied = [1 / value for value in values if value > 0]
+    total = sum(implied)
+    if len(implied) != 2 or total <= 0:
+        return 999.0
+    return round(abs((implied[0] / total) - 0.5), 6)
 
 
 def _price_mid_distance(
