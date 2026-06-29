@@ -65,6 +65,38 @@ def test_selects_latest_complete_ah_mainline_before_lock() -> None:
     assert snapshot["immutable"] is True
 
 
+def test_opening_ah_mainline_consensus_uses_earliest_bucket_not_latest() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    opening = kickoff - timedelta(hours=24)
+    later = kickoff - timedelta(hours=2)
+    observations = [
+        _obs(captured_at=opening, selection="HOME", line=-0.75, odds=2.07, bookmaker="book-a"),
+        _obs(captured_at=opening, selection="AWAY", line=0.75, odds=1.83, bookmaker="book-a"),
+        _obs(captured_at=opening, selection="HOME", line=-0.75, odds=2.05, bookmaker="book-b"),
+        _obs(captured_at=opening, selection="AWAY", line=0.75, odds=1.85, bookmaker="book-b"),
+        _obs(captured_at=later, selection="HOME", line=-0.25, odds=1.91, bookmaker="book-a"),
+        _obs(captured_at=later, selection="AWAY", line=0.25, odds=1.97, bookmaker="book-a"),
+        _obs(captured_at=later, selection="HOME", line=-0.25, odds=1.92, bookmaker="book-b"),
+        _obs(captured_at=later, selection="AWAY", line=0.25, odds=1.96, bookmaker="book-b"),
+        _obs(captured_at=later, selection="HOME", line=-0.25, odds=1.93, bookmaker="book-c"),
+        _obs(captured_at=later, selection="AWAY", line=0.25, odds=1.95, bookmaker="book-c"),
+    ]
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="opening",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["as_of"] == "2026-06-27T12:00:00Z"
+    assert snapshot["line"] == -0.75
+    assert snapshot["candidate_lines"][0]["line"] == -0.75
+    assert snapshot["bookmaker_count"] == 2
+
+
 def test_rejects_stale_lock_observation() -> None:
     kickoff = datetime(2026, 6, 28, 19, tzinfo=UTC)
     stale = kickoff - timedelta(hours=6, minutes=18)

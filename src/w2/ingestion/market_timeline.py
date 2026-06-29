@@ -407,8 +407,12 @@ def _select_mainline_group(
             if checkpoint == "opening"
             else max(groups, key=_latest_sort_key)
         )
-    latest = max(group["captured_at"] for group in groups)
-    bucket = [group for group in groups if group["captured_at"] == latest]
+    bucket_at = (
+        min(group["captured_at"] for group in groups)
+        if checkpoint == "opening"
+        else max(group["captured_at"] for group in groups)
+    )
+    bucket = [group for group in groups if group["captured_at"] == bucket_at]
     by_line: dict[float, list[dict[str, Any]]] = {}
     for group in bucket:
         line = round(float(group["line"]), 4)
