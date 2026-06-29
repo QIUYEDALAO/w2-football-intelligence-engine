@@ -134,8 +134,14 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
 
 
 class ReadinessRepository:
-    def __init__(self, *, analysis_card: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        *,
+        analysis_card: dict[str, Any],
+        market_observations: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.analysis_card = analysis_card
+        self.market_observations = market_observations or []
 
     def release_counts(self) -> dict[str, int]:
         return {
@@ -158,7 +164,7 @@ class ReadinessRepository:
         return []
 
     def future_market_observations(self) -> list[dict[str, Any]]:
-        return []
+        return self.market_observations
 
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
         return None
@@ -463,7 +469,7 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
                         "home_price": 1.95,
                         "away_price": 1.95,
                         "bookmaker_count": 4,
-                        "selection_policy": "latest_bucket_majority_line_same_bookmaker_pair",
+                        "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair",
                         "candidate_lines": [
                             {"line": -1.0, "bookmaker_count": 4, "selection_rank": 1}
                         ],
@@ -534,7 +540,7 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     assert card["current_odds"]["ah"]["away_price"] == 1.95
     assert (
         card["current_odds"]["ah"]["selection_policy"]
-        == "latest_bucket_majority_line_same_bookmaker_pair"
+        == "latest_bucket_ladder_balance_same_bookmaker_pair"
     )
     assert card["current_odds"]["ah"]["candidate_lines"][0]["line"] == -1.0
     assert card["current_odds"]["ah"]["rejected_lines"][0]["line"] == -0.5
@@ -544,6 +550,94 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     assert card["pricing_shadow"]["canonical_ah_market"]["home_line"] == -1.0
     assert card["pricing_shadow"]["canonical_ah_market"]["away_line"] == 1.0
     assert "MISSING_AH_MARKET" not in card["pricing_shadow"]["formal_blockers"]
+
+
+def test_read_model_mainline_prefers_ladder_balance_center() -> None:
+    captured = "2026-06-26T08:00:00Z"
+    observations: list[dict[str, Any]] = []
+    for line, home_price, away_price in [
+        ("0", "1.66", "2.26"),
+        ("-0.25", "1.93", "1.95"),
+        ("-0.5", "2.35", "1.61"),
+    ]:
+        for bookmaker in ("bm1", "bm2"):
+            observations.extend(
+                [
+                    {
+                        "fixture_id": "future-partial",
+                        "canonical_market": "ASIAN_HANDICAP",
+                        "selection": "Home",
+                        "line": line,
+                        "decimal_odds": home_price,
+                        "captured_at": captured,
+                        "provider_last_update": captured,
+                        "bookmaker_id": bookmaker,
+                        "bookmaker_name": bookmaker,
+                        "suspended": False,
+                        "live": False,
+                    },
+                    {
+                        "fixture_id": "future-partial",
+                        "canonical_market": "ASIAN_HANDICAP",
+                        "selection": "Away",
+                        "line": str(-float(line)),
+                        "decimal_odds": away_price,
+                        "captured_at": captured,
+                        "provider_last_update": captured,
+                        "bookmaker_id": bookmaker,
+                        "bookmaker_name": bookmaker,
+                        "suspended": False,
+                        "live": False,
+                    },
+                ]
+            )
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
+
+    assert selected["status"] == "READY"
+    assert selected["side_lines"]["home"] == "-0.25"
+    assert selected["side_lines"]["away"] == "0.25"
+    assert selected["side_prices"]["home"] == 1.93
+    assert selected["side_prices"]["away"] == 1.95
+
+
+def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
+    captured = "2026-06-26T08:00:00Z"
+    observations = [
+        {
+            "fixture_id": "future-partial",
+            "canonical_market": "ASIAN_HANDICAP",
+            "selection": "Home",
+            "line": "-1",
+            "decimal_odds": "1.91",
+            "captured_at": captured,
+            "provider_last_update": captured,
+            "bookmaker_id": "home-only",
+            "bookmaker_name": "home-only",
+            "suspended": False,
+            "live": False,
+        },
+        {
+            "fixture_id": "future-partial",
+            "canonical_market": "ASIAN_HANDICAP",
+            "selection": "Away",
+            "line": "1",
+            "decimal_odds": "1.97",
+            "captured_at": captured,
+            "provider_last_update": captured,
+            "bookmaker_id": "away-only",
+            "bookmaker_name": "away-only",
+            "suspended": False,
+            "live": False,
+        },
+    ]
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
+
+    assert selected["status"] == "UNAVAILABLE"
+    assert selected["bookmaker_count"] == 0
 
 
 def test_dashboard_ignores_invalid_timeline_ah_price_pair(

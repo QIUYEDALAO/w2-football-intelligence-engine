@@ -1467,7 +1467,16 @@ class ReadModelService:
                 "bookmaker_count": 0,
             }
         candidates: list[
-            tuple[Decimal, Decimal, int, str, Decimal, list[dict[str, Any]], dict[str, Any]]
+            tuple[
+                Decimal,
+                Decimal,
+                Decimal,
+                int,
+                str,
+                Decimal,
+                list[dict[str, Any]],
+                dict[str, Any],
+            ]
         ] = []
         paired_lines = 0
         for line, rows in grouped.items():
@@ -1475,13 +1484,7 @@ class ReadModelService:
             if not side_state:
                 continue
             paired_lines += 1
-            bookmaker_count = len(
-                {
-                    str(row.get("bookmaker_id") or row.get("bookmaker_name"))
-                    for row in rows
-                    if row.get("bookmaker_id") or row.get("bookmaker_name")
-                }
-            )
+            bookmaker_count = int(side_state.get("bookmaker_count") or 0)
             if bookmaker_count < min_bookmakers:
                 continue
             latest_capture = max((str(row.get("captured_at") or "") for row in rows), default="")
@@ -1492,6 +1495,7 @@ class ReadModelService:
                 continue
             candidates.append(
                 (
+                    Decimal(str(side_state.get("balance_distance") or "999")),
                     balance_gap,
                     mid_distance,
                     -bookmaker_count,
@@ -1511,13 +1515,7 @@ class ReadModelService:
             )
             closest_rows = grouped[closest_line]
             side_state = self._line_side_state(market, closest_rows) or {}
-            bookmaker_count = len(
-                {
-                    str(row.get("bookmaker_id") or row.get("bookmaker_name"))
-                    for row in closest_rows
-                    if row.get("bookmaker_id") or row.get("bookmaker_name")
-                }
-            )
+            bookmaker_count = int(side_state.get("bookmaker_count") or 0)
             return {
                 "market": market,
                 "status": "NO_BALANCED_MAINLINE" if paired_lines else "UNAVAILABLE",
@@ -1526,7 +1524,22 @@ class ReadModelService:
                 "bookmaker_count": bookmaker_count,
                 **side_state,
             }
-        _gap, _mid_distance, bookmaker_count_key, _latest, line, rows, side_state = min(candidates)
+        if market == "ASIAN_HANDICAP":
+            max_bookmaker_count = max(-item[3] for item in candidates)
+            consensus_floor = max(2, max_bookmaker_count - 2) if max_bookmaker_count > 1 else 1
+            eligible = [item for item in candidates if -item[3] >= consensus_floor] or candidates
+        else:
+            eligible = candidates
+        (
+            _balance_distance,
+            _gap,
+            _mid_distance,
+            bookmaker_count_key,
+            _latest,
+            line,
+            rows,
+            side_state,
+        ) = min(eligible)
         return {
             "market": market,
             "status": "READY",
@@ -1625,40 +1638,62 @@ class ReadModelService:
             ):
                 latest_by_side_bookmaker[key] = row
         side_names = ("HOME", "AWAY") if market == "ASIAN_HANDICAP" else ("OVER", "UNDER")
-        side_rows: dict[str, list[dict[str, Any]]] = {
-            side: [
-                row
-                for (row_side, _bookmaker), row in latest_by_side_bookmaker.items()
-                if row_side == side
-            ]
+        side_bookmakers: dict[str, set[str]] = {
+            side: {
+                bookmaker
+                for (row_side, bookmaker), row in latest_by_side_bookmaker.items()
+                if row_side == side and row
+            }
             for side in side_names
         }
-        if not all(side_rows.values()):
+        common_bookmakers = set.intersection(*side_bookmakers.values())
+        if not common_bookmakers:
             return None
-        prices: dict[str, float] = {}
-        lines: dict[str, str] = {}
-        for side, current_rows in side_rows.items():
-            side_prices: list[float] = []
-            for row in current_rows:
+        pair_candidates: list[tuple[float, float, str, dict[str, float], dict[str, str]]] = []
+        for bookmaker in common_bookmakers:
+            prices: dict[str, float] = {}
+            lines: dict[str, str] = {}
+            valid = True
+            for side in side_names:
+                row = latest_by_side_bookmaker[(side, bookmaker)]
                 try:
                     price = float(row["decimal_odds"])
                 except (KeyError, TypeError, ValueError):
-                    continue
-                if price > 1:
-                    side_prices.append(price)
-            if not side_prices:
-                return None
-            prices[side.lower()] = round(sum(side_prices) / len(side_prices), 4)
-            latest = max(current_rows, key=lambda row: str(row.get("captured_at") or ""))
-            lines[side.lower()] = self._line_value(latest) or ""
+                    valid = False
+                    break
+                if price <= 1:
+                    valid = False
+                    break
+                prices[side.lower()] = price
+                lines[side.lower()] = self._line_value(row) or ""
+            if not valid:
+                continue
+            values = list(prices.values())
+            balance_distance = self._devig_balance_distance(values)
+            balance_gap = abs(values[0] - values[1])
+            pair_candidates.append((balance_distance, balance_gap, str(bookmaker), prices, lines))
+        if not pair_candidates:
+            return None
+        _distance, _gap, _bookmaker, prices, lines = min(pair_candidates)
         values = list(prices.values())
         return {
             "side_prices": prices,
             "side_lines": lines,
+            "bookmaker_count": len(common_bookmakers),
+            "balance_distance": self._devig_balance_distance(values),
             "balance_gap": round(abs(values[0] - values[1]), 4),
             "mid_price": round(sum(values) / len(values), 4),
             "min_price": round(min(values), 4),
         }
+
+    def _devig_balance_distance(self, values: list[float]) -> float:
+        if len(values) != 2:
+            return 999.0
+        implied = [1 / value for value in values if value > 0]
+        total = sum(implied)
+        if len(implied) != 2 or total <= 0:
+            return 999.0
+        return round(abs((implied[0] / total) - 0.5), 4)
 
     def _closest_unbalanced_score(
         self,
@@ -1668,7 +1703,7 @@ class ReadModelService:
         state = self._line_side_state(market, rows)
         if not state:
             return (1, 999.0)
-        return (0, float(state.get("balance_gap") or 999.0))
+        return (0, float(state.get("balance_distance") or state.get("balance_gap") or 999.0))
 
     def _observation_side(self, market: str, row: dict[str, Any]) -> str | None:
         selection = str(row.get("selection") or "").lower()
