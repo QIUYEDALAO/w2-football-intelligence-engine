@@ -20,6 +20,8 @@ def _formal_market_row(card: dict[str, Any]) -> dict[str, Any]:
     recommendation = recommendation if isinstance(recommendation, dict) else {}
     shadow = shadow if isinstance(shadow, dict) else {}
     current_odds = current_odds if isinstance(current_odds, dict) else {}
+    current_ah = current_odds.get("ah")
+    current_ah = current_ah if isinstance(current_ah, dict) else {}
     return {
         "fixture_id": card.get("fixture_id"),
         "home_team_name": card.get("home_team_name"),
@@ -37,7 +39,13 @@ def _formal_market_row(card: dict[str, Any]) -> dict[str, Any]:
             "risk_adjusted_ev": recommendation.get("risk_adjusted_ev"),
             "reverse_factor_value": recommendation.get("reverse_factor_value"),
         },
-        "current_ah": current_odds.get("ah"),
+        "current_ah": current_ah,
+        "ah_mainline_diagnostics": {
+            "selected_line": current_ah.get("home_line"),
+            "selection_policy": current_ah.get("selection_policy"),
+            "candidate_lines": current_ah.get("candidate_lines"),
+            "rejected_lines": current_ah.get("rejected_lines"),
+        },
         "pricing_shadow": {
             "market_ah": shadow.get("market_ah"),
             "fair_ah": shadow.get("fair_ah"),

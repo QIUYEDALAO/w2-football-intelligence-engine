@@ -154,7 +154,7 @@ def run_simulation(
 
 
 def ah_cover_probability(
-    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int],
+    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int | float],
     *,
     simulations: int,
     selection: str,
@@ -169,7 +169,7 @@ def ah_cover_probability(
 
 
 def ah_settlement_distribution(
-    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int],
+    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int | float],
     *,
     simulations: int,
     selection: str,
@@ -215,6 +215,39 @@ def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> 
         - loss
     )
     return round(ev, 6)
+
+
+def ah_settlement_distribution_from_lambdas(
+    *,
+    lambda_home: float | None,
+    lambda_away: float | None,
+    selection: str,
+    line: float,
+    max_goals: int = 12,
+) -> dict[str, float] | None:
+    if lambda_home is None or lambda_away is None or lambda_home <= 0 or lambda_away <= 0:
+        return None
+    score_weights: dict[tuple[int, int], float] = {}
+    total_weight = 0.0
+    home_probs = _poisson_probabilities(lambda_home, max_goals=max_goals)
+    away_probs = _poisson_probabilities(lambda_away, max_goals=max_goals)
+    for home_goals, home_prob in enumerate(home_probs):
+        for away_goals, away_prob in enumerate(away_probs):
+            weight = home_prob * away_prob
+            score_weights[(home_goals, away_goals)] = weight
+            total_weight += weight
+    if total_weight <= 0:
+        return None
+    normalized = {
+        score: weight / total_weight
+        for score, weight in score_weights.items()
+    }
+    return ah_settlement_distribution(
+        normalized,
+        simulations=1,
+        selection=selection,
+        line=line,
+    )
 
 
 def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
@@ -316,6 +349,18 @@ def _sample_poisson(rng: random.Random, mu: float, *, max_goals: int) -> int:
         if threshold <= cumulative:
             return goals
     return max_goals
+
+
+def _poisson_probabilities(mu: float, *, max_goals: int) -> list[float]:
+    values: list[float] = []
+    probability = exp(-mu)
+    for goals in range(max_goals + 1):
+        if goals == 0:
+            probability = exp(-mu)
+        elif goals > 0:
+            probability *= mu / goals
+        values.append(probability)
+    return values
 
 
 def _effective_probability_score(outcome: SettlementOutcome) -> float:

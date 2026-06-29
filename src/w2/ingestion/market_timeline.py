@@ -134,11 +134,7 @@ def select_mainline_snapshot_result(
                 snapshot=None,
                 reason="NO_FRESH_LOCK_OBSERVATION",
             )
-    selected = (
-        min(groups, key=_opening_sort_key)
-        if checkpoint == "opening"
-        else max(groups, key=_latest_sort_key)
-    )
+    selected = _select_mainline_group(groups, market=market, checkpoint=checkpoint)
     captured_at = selected["captured_at"]
     line = selected["line"]
     sides = selected["sides"]
@@ -161,6 +157,13 @@ def select_mainline_snapshot_result(
         "immutable": True,
         "generated_at": iso_z(generated_at or datetime.now(UTC)),
     }
+    if market == "ASIAN_HANDICAP":
+        snapshot["selection_policy"] = selected.get(
+            "selection_policy",
+            "latest_bucket_majority_line_same_bookmaker_pair",
+        )
+        snapshot["candidate_lines"] = selected.get("candidate_lines", [])
+        snapshot["rejected_lines"] = selected.get("rejected_lines", [])
     if market == "ASIAN_HANDICAP":
         snapshot["home_price"] = _json_number(sides["HOME"]["decimal_odds"])
         snapshot["away_price"] = _json_number(sides["AWAY"]["decimal_odds"])
@@ -387,8 +390,100 @@ def _market_groups(
             group["bookmaker_count"] = len(group["bookmakers"]) or 1
             group["balance_gap"] = _price_balance_gap(group["sides"], required)
             group["mid_distance"] = _price_mid_distance(group["sides"], required)
+            group["implied_sum"] = _implied_sum(group["sides"], required)
             complete.append(group)
     return complete
+
+
+def _select_mainline_group(
+    groups: list[dict[str, Any]],
+    *,
+    market: str,
+    checkpoint: str,
+) -> dict[str, Any]:
+    if market != "ASIAN_HANDICAP":
+        return (
+            min(groups, key=_opening_sort_key)
+            if checkpoint == "opening"
+            else max(groups, key=_latest_sort_key)
+        )
+    bucket_at = (
+        min(group["captured_at"] for group in groups)
+        if checkpoint == "opening"
+        else max(group["captured_at"] for group in groups)
+    )
+    bucket = [group for group in groups if group["captured_at"] == bucket_at]
+    by_line: dict[float, list[dict[str, Any]]] = {}
+    for group in bucket:
+        line = round(float(group["line"]), 4)
+        by_line.setdefault(line, []).append(group)
+    candidate_lines = [
+        _line_candidate_summary(line, line_groups)
+        for line, line_groups in by_line.items()
+    ]
+    candidate_lines.sort(
+        key=lambda item: (
+            -int(item["bookmaker_count"]),
+            float(item["price_gap"]),
+            float(item["mid_distance"]),
+            abs(float(item["line"])),
+        )
+    )
+    selected_line = float(candidate_lines[0]["line"])
+    selected_groups = by_line[round(selected_line, 4)]
+    selected = min(
+        selected_groups,
+        key=lambda group: (
+            abs(float(group.get("balance_gap") or 999.0) - float(candidate_lines[0]["price_gap"])),
+            float(group.get("mid_distance") or 999.0),
+            str(next(iter(group.get("bookmakers") or [""]))),
+        ),
+    )
+    selected["bookmaker_count"] = int(candidate_lines[0]["bookmaker_count"])
+    selected["selection_policy"] = "latest_bucket_majority_line_same_bookmaker_pair"
+    selected["candidate_lines"] = [
+        {**item, "selection_rank": index + 1} for index, item in enumerate(candidate_lines)
+    ]
+    selected["rejected_lines"] = [
+        {
+            "line": item["line"],
+            "reason": "LOWER_BOOKMAKER_CONSENSUS"
+            if int(item["bookmaker_count"]) < int(candidate_lines[0]["bookmaker_count"])
+            else "TIE_BREAK_LOWER_PRICE_QUALITY",
+        }
+        for item in candidate_lines[1:]
+    ]
+    return selected
+
+
+def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[str, Any]:
+    home_prices = [float(group["sides"]["HOME"]["decimal_odds"]) for group in groups]
+    away_prices = [float(group["sides"]["AWAY"]["decimal_odds"]) for group in groups]
+    price_gaps = [float(group.get("balance_gap") or 999.0) for group in groups]
+    mid_distances = [float(group.get("mid_distance") or 999.0) for group in groups]
+    implied_sums = [float(group.get("implied_sum") or 0.0) for group in groups]
+    bookmakers = sorted(
+        {
+            str(bookmaker)
+            for group in groups
+            for bookmaker in group.get("bookmakers", set())
+        }
+    )
+    return {
+        "line": _json_number(float(line)),
+        "home_price": _json_number(_median(home_prices)),
+        "away_price": _json_number(_median(away_prices)),
+        "median_home_price": _json_number(_median(home_prices)),
+        "median_away_price": _json_number(_median(away_prices)),
+        "bookmaker_count": len(bookmakers) or len(groups),
+        "bookmakers": bookmakers,
+        "captured_at": iso_z(groups[0]["captured_at"]),
+        "as_of": iso_z(groups[0]["captured_at"]),
+        "implied_sum": round(_median(implied_sums), 6),
+        "price_gap": round(_median(price_gaps), 6),
+        "mid_distance": round(_median(mid_distances), 6),
+        "selection_policy": "latest_bucket_majority_line_same_bookmaker_pair",
+    }
 
 
 def _valid_two_way_price_pair(
@@ -439,6 +534,28 @@ def _price_mid_distance(
     if not values:
         return 999.0
     return round(abs((sum(values) / len(values)) - 1.90), 6)
+
+
+def _implied_sum(
+    sides: dict[str, dict[str, Any]],
+    required: set[str],
+) -> float:
+    values = [
+        float(sides[side]["decimal_odds"])
+        for side in sorted(required)
+        if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
+    ]
+    return round(sum(1 / value for value in values), 6) if values else 0.0
+
+
+def _median(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2
 
 
 def _missing_snapshot_reason(

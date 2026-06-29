@@ -4,7 +4,12 @@ import os
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from w2.strategy.simulate import READY, SimulationOutput, ah_expected_value
+from w2.strategy.simulate import (
+    READY,
+    SimulationOutput,
+    ah_expected_value,
+    ah_settlement_distribution_from_lambdas,
+)
 
 FORMAL_EV_THRESHOLD = 0.035
 REVERSE_FACTOR_EV_THRESHOLD = 0.08
@@ -297,7 +302,12 @@ def _settlement_distribution(
             distribution = row.get(key)
             if isinstance(distribution, dict):
                 return distribution
-    return None
+    return ah_settlement_distribution_from_lambdas(
+        lambda_home=simulation.lambda_home,
+        lambda_away=simulation.lambda_away,
+        selection=side,
+        line=line,
+    )
 
 
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
