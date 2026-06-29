@@ -125,7 +125,12 @@ def build_formal_recommendation(
     if ev < FORMAL_EV_THRESHOLD:
         return _watch("AH_EV_BELOW_FORMAL_THRESHOLD", canonical_ah_market=ah)
     factor_side = _factor_leader(pricing_shadow)
-    reverse = factor_side in {"HOME", "AWAY"} and factor_side != side
+    reverse = is_reverse_value_recommendation(
+        selected_side=side,
+        fair_ah=simulation.fair_ah,
+        score_matrix_summary=simulation.score_matrix_summary,
+        factor_side=factor_side,
+    )
     fair_side = _fair_side(simulation)
     if not _direction_supported(side=side, fair_side=fair_side, reverse=reverse):
         return _watch("SIMULATION_DIRECTION_CONTRADICTION", canonical_ah_market=ah)
@@ -421,11 +426,33 @@ def _factor_leader(pricing_shadow: dict[str, Any] | None) -> str:
     return "HOME" if home > away else "AWAY"
 
 
-def _fair_side(simulation: SimulationOutput) -> str:
-    fair = simulation.fair_ah
-    if fair is None or abs(fair) < 0.25:
+def is_reverse_value_recommendation(
+    *,
+    selected_side: str,
+    fair_ah: float | None,
+    score_matrix_summary: dict[str, Any] | None,
+    factor_side: str = "UNKNOWN",
+    min_direction_margin: float = 0.03,
+) -> bool:
+    fair_side = _side_from_fair_ah(fair_ah, min_line=0.25)
+    scoreline_side = _scoreline_dominant_side(
+        score_matrix_summary,
+        min_direction_margin=min_direction_margin,
+    )
+    return any(
+        side in {"HOME", "AWAY"} and side != selected_side
+        for side in (factor_side, fair_side, scoreline_side)
+    )
+
+
+def _side_from_fair_ah(fair_ah: float | None, *, min_line: float) -> str:
+    if fair_ah is None or abs(fair_ah) < min_line:
         return "NEUTRAL"
-    return "HOME" if fair < 0 else "AWAY"
+    return "HOME" if fair_ah < 0 else "AWAY"
+
+
+def _fair_side(simulation: SimulationOutput) -> str:
+    return _side_from_fair_ah(simulation.fair_ah, min_line=0.25)
 
 
 def _direction_supported(*, side: str, fair_side: str, reverse: bool) -> bool:
@@ -441,16 +468,24 @@ def _reverse_value_supported(*, line: float, expected_value: float) -> bool:
 
 
 def _scoreline_winner(simulation: SimulationOutput) -> str:
+    return _scoreline_dominant_side(simulation.score_matrix_summary, min_direction_margin=0.08)
+
+
+def _scoreline_dominant_side(
+    score_matrix_summary: dict[str, Any] | None,
+    *,
+    min_direction_margin: float,
+) -> str:
     summary = (
-        simulation.score_matrix_summary
-        if isinstance(simulation.score_matrix_summary, dict)
+        score_matrix_summary
+        if isinstance(score_matrix_summary, dict)
         else {}
     )
     home = _number(summary.get("home_win"))
     away = _number(summary.get("away_win"))
     if home is None or away is None:
         return "NEUTRAL"
-    if abs(home - away) < 0.08:
+    if abs(home - away) < min_direction_margin:
         return "NEUTRAL"
     return "HOME" if home > away else "AWAY"
 
