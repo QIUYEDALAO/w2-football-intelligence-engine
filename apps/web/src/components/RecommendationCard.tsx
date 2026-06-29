@@ -474,7 +474,13 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const verdict = verdictState(match);
   const blockers = blockerLabels(match);
   const lowInfo = shouldHideDirectionalCopy(match, verdict);
-  const odds = currentOdds({ current_odds: match.current_odds }, { directionalTotals: !lowInfo });
+  const odds = currentOdds(
+    { current_odds: match.current_odds },
+    {
+      directionalTotals: !lowInfo,
+      canonicalAhLine: match.pricing_shadow?.market_ah,
+    },
+  );
   const signalLine = independentSignalLine(match.pricing_shadow, match);
   const scoreSummary = scoreText(match);
   const isFormal = pick?.tier === "FORMAL" && match.formal_recommendation === true;

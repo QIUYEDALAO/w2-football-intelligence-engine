@@ -252,8 +252,12 @@ export function risks(card: DashboardCard): string[] {
   return rows.map((row) => textValue(row)).filter(Boolean).slice(0, 2);
 }
 
-export function currentOdds(card: DashboardCard, options: { directionalTotals?: boolean } = {}): string[] {
+export function currentOdds(
+  card: DashboardCard,
+  options: { directionalTotals?: boolean; canonicalAhLine?: unknown } = {},
+): string[] {
   const directionalTotals = options.directionalTotals ?? true;
+  const canonicalAhLine = options.canonicalAhLine;
   const odds = asRecord(card.current_odds);
   const ah = asRecord(odds.ah);
   const ou = asRecord(odds.ou);
@@ -264,7 +268,7 @@ export function currentOdds(card: DashboardCard, options: { directionalTotals?: 
     const homePrice = formatOdds(ah.home_price);
     const awayPrice = formatOdds(ah.away_price);
     if (hasHomePrice || hasAwayPrice) {
-      const sideLines = formatAhSideLines(ah.line ?? ah.home_line);
+      const sideLines = formatAhSideLines(canonicalAhLine ?? ah.line ?? ah.home_line);
       if (sideLines) {
         rows.push(`让球 ${sideLines.home} @${homePrice || "-"} / ${sideLines.away} @${awayPrice || "-"}`);
       } else {
@@ -273,7 +277,8 @@ export function currentOdds(card: DashboardCard, options: { directionalTotals?: 
         rows.push(`让球 主 ${homeLine} @${homePrice || "-"} / 客 ${awayLine} @${awayPrice || "-"}`);
       }
     } else {
-      rows.push(`让球 ${formatAhMainLine(ah.line) ?? formatLine(ah.line)} @${formatOdds(ah.price)}`);
+      const line = canonicalAhLine ?? ah.line;
+      rows.push(`让球 ${formatAhMainLine(line) ?? formatLine(line)} @${formatOdds(ah.price)}`);
     }
   }
   if (Object.keys(ou).length) {
