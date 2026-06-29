@@ -7,11 +7,12 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_frontend_ah_gate_requires_validated_beats_market() -> None:
+def test_frontend_ah_gate_uses_simulation_not_beats_market() -> None:
     helper = read("apps/web/src/lib/pricingDisplay.ts")
     card = read("apps/web/src/components/RecommendationCard.tsx")
 
-    assert "shadow.beats_market !== true" in helper
+    assert 'shadow.simulation_status === "READY"' in helper
+    assert "shadow.beats_market !== true" not in helper
     assert "hasValidatedAhCalibration(shadow)" in card
     assert "return \"WATCH\";" in card
     assert "shouldHideDirectionalCopy(match, verdict)" in card

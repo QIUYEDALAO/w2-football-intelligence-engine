@@ -94,6 +94,9 @@ function verdictState(match: DashboardMatchCard): VerdictState {
   if ((settlement && settlement !== "PENDING") || phase === "LIVE" || phase === "FINISHED") {
     return "LOCKED";
   }
+  if (match.recommendation?.tier === "FORMAL" && match.formal_recommendation === true) {
+    return "REFERENCE";
+  }
   const shadow = match.pricing_shadow;
   if (!shadow || shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") {
     return "INSUFFICIENT";
@@ -187,6 +190,7 @@ function dataLine(match: DashboardMatchCard): string {
 }
 
 function actionabilityLine(match: DashboardMatchCard): string {
+  if (match.recommendation?.tier === "FORMAL") return "正式推荐：赛前真实数据与模拟策略自洽";
   const items = readinessItems({ data_readiness: match.data_readiness });
   const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);
   const lineupsReady = Boolean(items.find((item) => item.key === "lineups")?.ready);
@@ -199,7 +203,7 @@ function actionabilityLine(match: DashboardMatchCard): string {
     return "临场可参考：仍需赛前复核阵容与盘口跳线";
   }
   if (!oddsReady) return "等待盘口快照后再看";
-  return "赛前分析参考，非正式推荐";
+  return "赛前分析参考，等待正式条件";
 }
 
 function canShowScoreline(match: DashboardMatchCard): boolean {
@@ -255,8 +259,9 @@ function pricingShadowDetail(shadow: PricingShadow | null | undefined, state: Ve
   if (!shadow) return "未形成 S1 shadow，保持观察。";
   if (state === "LOCKED") return "赛前分析已锁定，仅供复盘验证。";
   if (shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") return "独立因子不足，不能形成主市场判断。";
-  if (!hasValidatedAhCalibration(shadow)) return "规则盘口映射未通过 B4 校准，暂不输出让球倾向。";
-  return "S1-Shadow · 已通过校准门禁 · 非正式推荐。";
+  if (shadow.simulation_status === "READY") return "模拟引擎已就绪，AH/OU/比分同源生成。";
+  if (!hasValidatedAhCalibration(shadow)) return "模拟输入不足，暂不输出正式让球推荐。";
+  return "模拟公平盘已形成。";
 }
 
 function sideName(side: "HOME" | "AWAY" | "NEUTRAL" | "UNKNOWN", homeName: string, awayName: string): string {
@@ -331,6 +336,7 @@ function hasReliableAhLean(shadow: PricingShadow | null | undefined): boolean {
 }
 
 function shouldHideDirectionalCopy(match: DashboardMatchCard, state: VerdictState): boolean {
+  if (match.recommendation?.tier === "FORMAL") return false;
   return lowInformationState(state) || !hasReliableAhLean(match.pricing_shadow);
 }
 
@@ -442,11 +448,11 @@ function MainMarketBox({
         )) : <span>独立因子未就绪</span>}
       </div>
       <div className="main-market-grid">
-        <span>{calibrated ? "独立公平盘" : "规则公平盘"}</span>
-        <strong>{fairAh ? `让球 ${fairAh}${calibrated ? "" : "（未校准）"}` : "未形成"}</strong>
+        <span>{shadow?.simulation_status === "READY" ? "模拟公平盘" : calibrated ? "独立公平盘" : "规则公平盘"}</span>
+        <strong>{fairAh ? `让球 ${fairAh}${shadow?.simulation_status === "READY" || calibrated ? "" : "（未校准）"}` : "未形成"}</strong>
         <span>{calibrated ? "市场主线" : "市场主线（背景）"}</span>
         <strong>{marketAh ? `让球 ${marketAh}` : "盘口等待"}</strong>
-        <span>{calibrated ? "差距判断" : "差距展示"}</span>
+        <span>{calibrated ? "value 差距" : "差距展示"}</span>
         <strong>{edgeAh}</strong>
       </div>
       <p>
@@ -471,6 +477,9 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const odds = currentOdds({ current_odds: match.current_odds }, { directionalTotals: !lowInfo });
   const signalLine = independentSignalLine(match.pricing_shadow, match);
   const scoreSummary = scoreText(match);
+  const isFormal = pick?.tier === "FORMAL" && match.formal_recommendation === true;
+  const formalLine = pick?.line ? ` ${formatLine(pick.line)}` : "";
+  const formalOdds = pick?.odds ? ` @${formatOdds(pick.odds)}` : "";
   return (
     <article className={`recommendation-card ${cardTone(verdict)} ${prematchReview ? "is-prematch" : ""}`}>
       <header className="recommendation-card-header">
@@ -495,9 +504,19 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
       </header>
 
       <div className="verdict-hero">
-        <span>{VERDICT_LABELS[verdict]}</span>
-        <strong>{verdict === "REFERENCE" ? "可作赛前分析参考" : verdict === "WATCH" ? "观察，不升级" : verdict === "LOCKED" ? "赛前判断已锁定" : "样本/因子不足"}</strong>
-        <p>{lowInfo ? signalLine : blockers.length ? blockers.join(" · ") : "分析参考 · 未通过正式验证"}</p>
+        <span>{isFormal ? "正式推荐" : VERDICT_LABELS[verdict]}</span>
+        <strong>
+          {isFormal
+            ? `${pick?.market_label_cn ?? "让球"} · ${pick?.selection_label_cn ?? pick?.selection ?? "方向待定"}${formalLine}${formalOdds}`
+            : verdict === "REFERENCE"
+              ? "可作赛前分析参考"
+              : verdict === "WATCH"
+                ? "观察，不升级"
+                : verdict === "LOCKED"
+                  ? "赛前判断已锁定"
+                  : "样本/因子不足"}
+        </strong>
+        <p>{isFormal ? pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。" : lowInfo ? signalLine : blockers.length ? blockers.join(" · ") : "分析参考 · 等待正式条件"}</p>
       </div>
 
       <MainMarketBox

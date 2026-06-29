@@ -88,7 +88,12 @@ from w2.strategy.analysis_recommendation import (
     build_multi_market_analysis,
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
+from w2.strategy.formal_recommendation import (
+    build_formal_recommendation,
+    formal_recommendations_enabled,
+)
 from w2.strategy.score_scenarios import Direction
+from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -142,6 +147,75 @@ def parse_provider_time(value: Any) -> datetime | None:
 def release_env(name: str, default: str = "UNKNOWN") -> str:
     value = os.getenv(name)
     return value if value else default
+
+
+def run_simulation_from_shadow(payload: Any) -> SimulationOutput | None:
+    if not isinstance(payload, dict):
+        return None
+    simulation = payload.get("simulation")
+    if not isinstance(simulation, dict) or not simulation.get("status"):
+        return None
+    scoreline_picks: list[dict[str, Any]] = (
+        cast(list[dict[str, Any]], simulation.get("scoreline_picks"))
+        if isinstance(simulation.get("scoreline_picks"), list)
+        else []
+    )
+    score_matrix_summary: dict[str, Any] = (
+        cast(dict[str, Any], simulation.get("score_matrix_summary"))
+        if isinstance(simulation.get("score_matrix_summary"), dict)
+        else {}
+    )
+    ah_probabilities: dict[str, Any] = (
+        cast(dict[str, Any], simulation.get("ah_probabilities"))
+        if isinstance(simulation.get("ah_probabilities"), dict)
+        else {}
+    )
+    ou_probabilities: dict[str, Any] = (
+        cast(dict[str, Any], simulation.get("ou_probabilities"))
+        if isinstance(simulation.get("ou_probabilities"), dict)
+        else {}
+    )
+    input_readiness: dict[str, Any] = (
+        cast(dict[str, Any], simulation.get("input_readiness"))
+        if isinstance(simulation.get("input_readiness"), dict)
+        else {}
+    )
+    calibration: dict[str, Any] = (
+        cast(dict[str, Any], simulation.get("calibration"))
+        if isinstance(simulation.get("calibration"), dict)
+        else {}
+    )
+    return SimulationOutput(
+        model_version=str(simulation.get("model_version") or ""),
+        calibration_version=simulation.get("calibration_version")
+        if simulation.get("calibration_version") is not None
+        else None,
+        calibration_status=simulation.get("calibration_status")
+        if simulation.get("calibration_status") is not None
+        else None,
+        lambda_home=_float_or_none(simulation.get("lambda_home")),
+        lambda_away=_float_or_none(simulation.get("lambda_away")),
+        fair_ah=_float_or_none(simulation.get("fair_ah")),
+        fair_ou=_float_or_none(simulation.get("fair_ou")),
+        scoreline_picks=scoreline_picks,
+        score_matrix_summary=score_matrix_summary,
+        ah_probabilities=ah_probabilities,
+        ou_probabilities=ou_probabilities,
+        input_readiness=input_readiness,
+        status=str(simulation.get("status")),
+        simulations=int(simulation.get("simulations") or 0),
+        seed=int(simulation.get("seed") or 0),
+        calibration=calibration,
+    )
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class ReadModelRepository:
@@ -1235,6 +1309,38 @@ class ReadModelService:
         score_matrix: dict[tuple[int, int], float] | None = None
         score_direction: Direction | None = None
         scoreline_output: IndependentXgPoissonOutput | None = None
+        latest_home_rating = max(home_ratings, key=lambda row: row.observed_at, default=None)
+        latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
+        latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
+        latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
+        simulation_output = run_simulation(
+            SimulationInputs(
+                fixture_id=fixture_id,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                home_xg_for=latest_home_xg.xg_for if latest_home_xg is not None else None,
+                home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
+                away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
+                away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
+                home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
+                away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
+                home_squad_value_eur=latest_home_value.squad_value_eur
+                if latest_home_value is not None
+                else None,
+                away_squad_value_eur=latest_away_value.squad_value_eur
+                if latest_away_value is not None
+                else None,
+                input_readiness={
+                    "xg_status": xg_readiness["status"],
+                    "history_ready": bool(home_history and away_history),
+                    "h2h_ready": bool(h2h_meetings),
+                    "ratings_ready": latest_home_rating is not None
+                    and latest_away_rating is not None,
+                    "squad_value_ready": latest_home_value is not None
+                    and latest_away_value is not None,
+                },
+            )
+        )
         scoreline_readiness = self._scoreline_readiness(
             status="INSUFFICIENT_INDEPENDENT_XG",
             reason=str(xg_readiness["status"]),
@@ -1289,6 +1395,7 @@ class ReadModelService:
             self._feature_contribution_payload(item)
             for item in feature_set.contributions
         ]
+        payload["simulation"] = simulation_output.as_dict()
         payload["scoreline_readiness"] = scoreline_readiness
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
@@ -1725,6 +1832,8 @@ class ReadModelService:
         readiness = card.get("scoreline_readiness")
         shadow = card.get("pricing_shadow")
         if not isinstance(readiness, dict) or not isinstance(shadow, dict):
+            return
+        if shadow.get("simulation_status") == "READY":
             return
         if (
             readiness.get("status") == "READY"
@@ -2813,6 +2922,9 @@ class ReadModelService:
             current_odds=decorated.get("current_odds")
             if isinstance(decorated.get("current_odds"), dict)
             else None,
+            simulation=decorated.get("simulation")
+            if isinstance(decorated.get("simulation"), dict)
+            else None,
         )
         self._attach_scoreline_pricing_fields(decorated)
         self._attach_market_movement_fields(decorated)
@@ -2829,6 +2941,7 @@ class ReadModelService:
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
         fixture_id = str(card.get("fixture_id") or "")
         timeline = self._market_timeline_payload(fixture_id) if fixture_id else {}
+        self._apply_signed_ah_line_from_timeline(card, timeline)
         movement = build_market_movement(timeline)
         divergence = build_market_divergence(
             pricing_shadow=card.get("pricing_shadow")
@@ -2845,6 +2958,54 @@ class ReadModelService:
             market_movement=movement,
             market_divergence=divergence,
         )
+
+    def _apply_signed_ah_line_from_timeline(
+        self,
+        card: dict[str, Any],
+        timeline: dict[str, Any],
+    ) -> None:
+        signed_line = self._latest_signed_ah_line(timeline)
+        if signed_line is None:
+            return
+        odds = card.get("current_odds")
+        if isinstance(odds, dict):
+            ah = odds.get("ah")
+            if isinstance(ah, dict):
+                ah["home_line"] = f"{signed_line:g}"
+                ah["away_line"] = f"{-signed_line:g}"
+                ah["line"] = f"{abs(signed_line):g}"
+        shadow = card.get("pricing_shadow")
+        if isinstance(shadow, dict):
+            shadow["market_ah"] = signed_line
+            fair = shadow.get("fair_ah")
+            try:
+                if fair is None:
+                    raise TypeError
+                shadow["edge_ah"] = round(float(signed_line) - float(fair), 6)
+            except (TypeError, ValueError):
+                shadow["edge_ah"] = None
+
+    def _latest_signed_ah_line(self, timeline: dict[str, Any]) -> float | None:
+        snapshots = timeline.get("snapshots") if isinstance(timeline, dict) else None
+        if not isinstance(snapshots, list):
+            return None
+        ah_rows = [
+            row
+            for row in snapshots
+            if isinstance(row, dict)
+            and str(row.get("market")) == "ASIAN_HANDICAP"
+            and row.get("line") is not None
+        ]
+        if not ah_rows:
+            return None
+        latest = max(
+            ah_rows,
+            key=lambda row: str(row.get("as_of") or row.get("generated_at") or ""),
+        )
+        try:
+            return float(latest["line"])
+        except (TypeError, ValueError):
+            return None
 
     def _market_timeline_payload(self, fixture_id: str) -> dict[str, Any]:
         configured = os.getenv("W2_MARKET_TIMELINE_RUNTIME_ROOT")
@@ -3478,7 +3639,25 @@ class ReadModelService:
             result=result,
             scoreline_picks=scoreline_picks,
         )
-        recommendation = build_recommendation(card, picked)
+        formal_result = build_formal_recommendation(
+            fixture_status=normalize_match_status(row.get("status")),
+            simulation=run_simulation_from_shadow(card.get("pricing_shadow")),
+            current_odds=card.get("current_odds")
+            if isinstance(card.get("current_odds"), dict)
+            else None,
+            pricing_shadow=card.get("pricing_shadow")
+            if isinstance(card.get("pricing_shadow"), dict)
+            else None,
+            analysis_readiness=analysis_readiness,
+            home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
+            away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
+        )
+        pricing_shadow = card.get("pricing_shadow")
+        if isinstance(pricing_shadow, dict):
+            pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
+            pricing_shadow["formal_eligible"] = formal_result.formal_eligible
+            pricing_shadow["formal_blockers"] = formal_result.blockers
+        recommendation = formal_result.recommendation or build_recommendation(card, picked)
         if recommendation is None:
             recommendation = build_watch_recommendation(
                 readiness=analysis_readiness,
@@ -3514,6 +3693,8 @@ class ReadModelService:
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,
+            "formal_suppressed": formal_result.formal_suppressed,
+            "formal_suppressed_reason": formal_result.formal_suppressed_reason,
             "scoreline_picks": scoreline_picks,
             "scoreline_readiness": card.get("scoreline_readiness"),
             "result": result,
