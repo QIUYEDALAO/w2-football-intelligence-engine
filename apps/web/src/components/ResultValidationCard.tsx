@@ -18,7 +18,7 @@ export function ResultValidationCard({ match }: { match: DashboardMatchCard }) {
         </div>
         <SettlementBadge status={validation.settlement} />
       </header>
-      <p>推荐：{match.recommendation ? `${match.recommendation.market_label_cn} ${match.recommendation.selection_label_cn ?? match.recommendation.selection} ${match.recommendation.line ?? ""} ${match.recommendation.odds ? `@${match.recommendation.odds}` : ""}` : "无推荐 · 不计入命中率"}</p>
+      <p>推荐：{match.recommendation ? `${match.recommendation.market_label_cn} ${match.recommendation.selection_label_cn ?? match.recommendation.selection} ${match.recommendation.line ?? ""} ${match.recommendation.odds ? `@${match.recommendation.odds}` : ""}` : "无推荐 · 不进入赛后统计"}</p>
       <ScorelinePicks picks={match.scoreline_picks} />
       <p className="odds-line">
         收益：{validation.profit_units === undefined ? "--" : `${validation.profit_units > 0 ? "+" : ""}${validation.profit_units.toFixed(2)}u`}

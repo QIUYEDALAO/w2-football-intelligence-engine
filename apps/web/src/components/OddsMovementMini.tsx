@@ -52,7 +52,7 @@ export function OddsMovementMini({ match }: { match: DashboardMatchCard }) {
       <span>{divergenceLine(match)}</span>
       <span>{text}</span>
       <span>{alternatives}</span>
-      <span>样本状态：{hypothesis?.sample_status ?? "观察中"}；不显示命中率。</span>
+      <span>样本状态：{hypothesis?.sample_status ?? "观察中"}；赛后样本不足时不展示统计。</span>
     </div>
   );
 }
