@@ -4,6 +4,9 @@ from typing import Any
 
 
 def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    simulation_picks = _simulation_scoreline_picks(card)
+    if simulation_picks:
+        return simulation_picks[:limit]
     markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
     score_market = next((item for item in markets if item.get("market") == "SCORE"), {})
     references = score_market.get("reference_scores", []) if isinstance(score_market, dict) else []
@@ -28,6 +31,38 @@ def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[d
             }
         )
     return picks[:limit]
+
+
+def _simulation_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]:
+    simulation = card.get("simulation")
+    if not isinstance(simulation, dict):
+        shadow = card.get("pricing_shadow")
+        if isinstance(shadow, dict):
+            simulation = shadow.get("simulation")
+    if not isinstance(simulation, dict) or simulation.get("status") != "READY":
+        return []
+    raw_picks = simulation.get("scoreline_picks")
+    if not isinstance(raw_picks, list):
+        return []
+    picks: list[dict[str, Any]] = []
+    for item in raw_picks:
+        if not isinstance(item, dict) or not item.get("scoreline"):
+            continue
+        scoreline = str(item["scoreline"])
+        probability = _probability(item.get("probability"))
+        picks.append(
+            {
+                "scoreline": scoreline,
+                "home_goals": _score_part(scoreline, 0),
+                "away_goals": _score_part(scoreline, 1),
+                "probability": probability,
+                "probability_label": _probability_label(
+                    item.get("probability_label"),
+                    probability,
+                ),
+            }
+        )
+    return picks
 
 
 def _probability(value: Any) -> float | None:
@@ -65,4 +100,3 @@ def _score_part(scoreline: str, index: int) -> int | None:
         return int(parts[index])
     except ValueError:
         return None
-

@@ -2968,16 +2968,29 @@ class ReadModelService:
         card: dict[str, Any],
         timeline: dict[str, Any],
     ) -> None:
-        signed_line = self._latest_signed_ah_line(timeline)
+        latest_ah = self._latest_ah_snapshot(timeline)
+        signed_line = self._snapshot_float(latest_ah, "line")
         if signed_line is None:
             return
         odds = card.get("current_odds")
-        if isinstance(odds, dict):
-            ah = odds.get("ah")
-            if isinstance(ah, dict):
-                ah["home_line"] = f"{signed_line:g}"
-                ah["away_line"] = f"{-signed_line:g}"
-                ah["line"] = f"{abs(signed_line):g}"
+        if not isinstance(odds, dict):
+            odds = {}
+            card["current_odds"] = odds
+        ah = odds.get("ah")
+        if not isinstance(ah, dict):
+            ah = {}
+            odds["ah"] = ah
+        ah["home_line"] = f"{signed_line:g}"
+        ah["away_line"] = f"{-signed_line:g}"
+        ah["line"] = f"{abs(signed_line):g}"
+        home_price = self._snapshot_float(latest_ah, "home_price")
+        away_price = self._snapshot_float(latest_ah, "away_price")
+        if home_price is not None:
+            ah["home_price"] = home_price
+        if away_price is not None:
+            ah["away_price"] = away_price
+        if home_price is not None or away_price is not None:
+            ah["source"] = "market_timeline_snapshots"
         shadow = card.get("pricing_shadow")
         if isinstance(shadow, dict):
             shadow["market_ah"] = signed_line
@@ -2990,6 +3003,9 @@ class ReadModelService:
                 shadow["edge_ah"] = None
 
     def _latest_signed_ah_line(self, timeline: dict[str, Any]) -> float | None:
+        return self._snapshot_float(self._latest_ah_snapshot(timeline), "line")
+
+    def _latest_ah_snapshot(self, timeline: dict[str, Any]) -> dict[str, Any] | None:
         snapshots = timeline.get("snapshots") if isinstance(timeline, dict) else None
         if not isinstance(snapshots, list):
             return None
@@ -3002,13 +3018,17 @@ class ReadModelService:
         ]
         if not ah_rows:
             return None
-        latest = max(
+        return max(
             ah_rows,
             key=lambda row: str(row.get("as_of") or row.get("generated_at") or ""),
         )
+
+    def _snapshot_float(self, snapshot: dict[str, Any] | None, key: str) -> float | None:
+        if not isinstance(snapshot, dict):
+            return None
         try:
-            return float(latest["line"])
-        except (TypeError, ValueError):
+            return float(snapshot[key])
+        except (KeyError, TypeError, ValueError):
             return None
 
     def _market_timeline_payload(self, fixture_id: str) -> dict[str, Any]:
@@ -3700,7 +3720,7 @@ class ReadModelService:
             "formal_suppressed": formal_result.formal_suppressed,
             "formal_suppressed_reason": formal_result.formal_suppressed_reason,
             "scoreline_picks": scoreline_picks,
-            "scoreline_readiness": card.get("scoreline_readiness"),
+            "scoreline_readiness": self._dashboard_scoreline_readiness(card),
             "result": result,
             "validation": validation,
             "current_odds": card.get("current_odds", {}),
@@ -3717,6 +3737,27 @@ class ReadModelService:
             if recommendation
             else False,
         }
+
+    def _dashboard_scoreline_readiness(self, card: dict[str, Any]) -> dict[str, Any] | None:
+        simulation = card.get("simulation")
+        if not isinstance(simulation, dict):
+            shadow = card.get("pricing_shadow")
+            if isinstance(shadow, dict):
+                simulation = shadow.get("simulation")
+        if isinstance(simulation, dict) and simulation.get("status") == "READY":
+            return {
+                "status": "READY",
+                "reason": None,
+                "source": "formal_simulation",
+                "model_version": simulation.get("model_version"),
+                "calibration_version": simulation.get("calibration_version"),
+                "calibration_status": simulation.get("calibration_status"),
+                "lambda_home": simulation.get("lambda_home"),
+                "lambda_away": simulation.get("lambda_away"),
+                "fair_ou": simulation.get("fair_ou"),
+            }
+        readiness = card.get("scoreline_readiness")
+        return readiness if isinstance(readiness, dict) else None
 
     def _dashboard_data_refresh(
         self,
