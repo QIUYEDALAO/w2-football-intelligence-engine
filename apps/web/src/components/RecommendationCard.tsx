@@ -179,7 +179,7 @@ function displayPick(match: DashboardMatchCard): RecommendationPick | null {
 }
 
 function recommendationReference(pick: RecommendationPick | null): string {
-  if (!pick) return "参考结论：暂无 recommendation";
+  if (!pick) return "参考结论：暂无推荐";
   const tier = TIER_LABELS[pick.tier] ?? pick.tier;
   const market = pick.market_label_cn || MARKET_LABELS[pick.market] || pick.market;
   const selection = pick.selection_label_cn ?? pick.selection;
@@ -190,6 +190,10 @@ function recommendationReference(pick: RecommendationPick | null): string {
 
 function pickMarketLabel(pick: RecommendationPick | null): string {
   if (!pick) return "暂无";
+  if (pick.market === "ASIAN_HANDICAP") return "全场让球";
+  if (pick.market === "TOTALS") return "全场大小球";
+  if (pick.market === "SCORE") return "比分";
+  if (pick.market === "FIRST_HALF_GOALS") return "半场进球";
   return pick.market_label_cn || MARKET_LABELS[pick.market] || pick.market;
 }
 
@@ -199,7 +203,18 @@ function pickDirectionLabel(pick: RecommendationPick | null): string {
 }
 
 function pickLineLabel(pick: RecommendationPick | null): string {
-  return pick?.line ? formatLine(pick.line) : "无盘口";
+  if (!pick?.line) return "无盘口";
+  const line = formatLine(pick.line);
+  const numeric = Number(line);
+  if (
+    pick.market === "ASIAN_HANDICAP"
+    && Number.isFinite(numeric)
+    && numeric > 0
+    && (pick.selection === "AWAY_AH" || pick.selection_label_cn?.includes("受让"))
+  ) {
+    return `+${line}`;
+  }
+  return line;
 }
 
 function pickOddsLabel(pick: RecommendationPick | null): string {
@@ -209,11 +224,26 @@ function pickOddsLabel(pick: RecommendationPick | null): string {
 function formalHeroSummary(pick: RecommendationPick | null): string {
   if (!pick) return "方向待定";
   return [
-    pickMarketLabel(pick),
     pickDirectionLabel(pick),
-    pick.line ? formatLine(pick.line) : null,
+    pick.line ? pickLineLabel(pick) : null,
     pick.odds ? `@${formatOdds(pick.odds)}` : null,
   ].filter(Boolean).join(" · ");
+}
+
+function displayReason(reason: string): string {
+  return reason
+    .replace(/devig\s*基准/gi, "市场基准")
+    .replace(/value\s*gap/gi, "盘口差")
+    .replace(/\bvalue\b/gi, "盘口价值")
+    .replace(/\bedge\b/gi, "盘口差")
+    .replace(/\bmarket\b/gi, "市场")
+    .replace(/(\d+(?:\.\d+)?)\s*pct\b/gi, "$1个百分点")
+    .replace(/\bFORMAL\b/g, "正式推荐")
+    .replace(/\bWATCH\b/g, "观察")
+    .replace(/AH/g, "让球")
+    .replace(/OU/g, "大小球")
+    .replace(/高于\s+市场基准/g, "高于市场基准")
+    .replace(/按价格\/盘口价值\s*输出/g, "按盘口价值输出");
 }
 
 function formalReason(match: DashboardMatchCard): string {
@@ -485,27 +515,27 @@ function FormalDecisionHero({
   verdict: VerdictState;
 }) {
   const reason = isFormal
-    ? pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。"
+    ? displayReason(pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。")
     : formalReason(match);
   return (
     <section className={isFormal ? "formal-decision-hero is-formal" : "formal-decision-hero is-empty"} aria-label="正式推荐状态">
       <div className="formal-decision-topline">
         <span>{isFormal ? "正式推荐" : "当前暂无正式推荐"}</span>
-        <strong>{isFormal ? formalHeroSummary(pick) : VERDICT_LABELS[verdict]}</strong>
+        <strong>{isFormal ? `推荐：${formalHeroSummary(pick)}` : VERDICT_LABELS[verdict]}</strong>
       </div>
       {isFormal ? (
         <div className="formal-pick-grid" aria-label="正式推荐详情">
-          <span>推荐市场</span>
+          <span>市场</span>
           <strong>{pickMarketLabel(pick)}</strong>
-          <span>推荐方向</span>
+          <span>方向</span>
           <strong>{pickDirectionLabel(pick)}</strong>
-          <span>推荐盘口</span>
+          <span>盘口</span>
           <strong>{pickLineLabel(pick)}</strong>
-          <span>推荐赔率</span>
+          <span>赔率</span>
           <strong>{pickOddsLabel(pick)}</strong>
         </div>
       ) : null}
-      <p>{isFormal ? `推荐理由：${reason}` : `未出正式推荐原因：${reason}`}</p>
+      <p>{isFormal ? `理由：${reason}` : `未出正式推荐原因：${displayReason(reason)}`}</p>
       <p className="scoreline-hero-copy">
         <strong>{isFormal ? "模拟比分参考：" : "比分模拟参考："}</strong>
         {scorelineHeroText(match)}
@@ -558,7 +588,7 @@ function MainMarketBox({
         <strong>{fairAh ? `让球 ${fairAh}${shadow?.simulation_status === "READY" || calibrated ? "" : "（未校准）"}` : "未形成"}</strong>
         <span>{calibrated ? "市场主线" : "市场主线（背景）"}</span>
         <strong>{marketAh ? `让球 ${marketAh}` : "盘口等待"}</strong>
-        <span>{calibrated ? "value 差距" : "差距展示"}</span>
+        <span>{calibrated ? "盘口差距" : "差距展示"}</span>
         <strong>{edgeAh}</strong>
       </div>
       <p>
@@ -614,43 +644,48 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
 
       <FormalDecisionHero match={match} pick={pick} isFormal={isFormal} verdict={verdict} />
 
-      <MainMarketBox
-        shadow={match.pricing_shadow}
-        state={verdict}
-        homeName={homeName}
-        awayName={awayName}
-      />
+      <details className="analysis-details">
+        <summary>查看分析依据</summary>
+        <div className="analysis-details-body">
+          <MainMarketBox
+            shadow={match.pricing_shadow}
+            state={verdict}
+            homeName={homeName}
+            awayName={awayName}
+          />
 
-      <DataReadinessPills match={match} />
-      {lowInfo ? <p className="market-strip-line">{signalLine}</p> : null}
+          <DataReadinessPills match={match} />
+          <p className="market-strip-line">{signalLine}</p>
 
-      {lowInfo ? null : (
-        <div className="card-info-lines">
-          <p className={prematchReview ? "prematch-action-line" : ""}>
-            <strong>临场：</strong>
-            {actionabilityLine(match)}
-          </p>
-          <p>
-            <strong>数据：</strong>
-            {dataLine(match)}
-          </p>
-          {scoreSummary && !isFormal ? <p><strong>{scoreSummary}</strong></p> : null}
+          {lowInfo ? null : (
+            <div className="card-info-lines">
+              <p className={prematchReview ? "prematch-action-line" : ""}>
+                <strong>临场：</strong>
+                {actionabilityLine(match)}
+              </p>
+              <p>
+                <strong>数据：</strong>
+                {dataLine(match)}
+              </p>
+              {scoreSummary && !isFormal ? <p><strong>{scoreSummary}</strong></p> : null}
+            </div>
+          )}
+          <OddsMovementMini match={match} />
+          {lowInfo ? null : <p className="market-strip-line">{recommendationReference(pick)}</p>}
+          {lowInfo ? null : <p className="market-strip-line">其他参考：{marketStrip(match)}</p>}
+          <div className="recommendation-footer">
+            <div>
+              <p className="odds-line">{lowInfo ? "市场盘（仅背景）：" : "盘口参考（含备选线）："}{odds.length ? odds.join(" · ") : "等待采集"}</p>
+              {resultLine(match) ? <p className="result-line">{resultLine(match)}</p> : null}
+              {lowInfo ? null : <p className="risk-line">风险：{risks.slice(0, 2).join("、")}</p>}
+            </div>
+            {lowInfo ? null : <span className="watch-stars" aria-label={`关注度 ${stars}/5`}>
+              关注度 {"★".repeat(stars)}
+              {"☆".repeat(5 - stars)}
+            </span>}
+          </div>
         </div>
-      )}
-      <OddsMovementMini match={match} />
-      {lowInfo ? null : <p className="market-strip-line">{recommendationReference(pick)}</p>}
-      {lowInfo ? null : <p className="market-strip-line">其他参考：{marketStrip(match)}</p>}
-      <div className="recommendation-footer">
-        <div>
-          <p className="odds-line">{lowInfo ? "市场盘（仅背景）：" : "盘口参考（含备选线）："}{odds.length ? odds.join(" · ") : "等待采集"}</p>
-          {resultLine(match) ? <p className="result-line">{resultLine(match)}</p> : null}
-          {lowInfo ? null : <p className="risk-line">风险：{risks.slice(0, 2).join("、")}</p>}
-        </div>
-        {lowInfo ? null : <span className="watch-stars" aria-label={`关注度 ${stars}/5`}>
-          关注度 {"★".repeat(stars)}
-          {"☆".repeat(5 - stars)}
-        </span>}
-      </div>
+      </details>
     </article>
   );
 }

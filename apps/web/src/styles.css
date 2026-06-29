@@ -1406,6 +1406,42 @@ button {
   color: var(--mint);
 }
 
+.analysis-details {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.analysis-details summary {
+  width: fit-content;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.analysis-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-details summary::after {
+  content: " ↓";
+  color: var(--subtle);
+}
+
+.analysis-details[open] summary::after {
+  content: " ↑";
+}
+
+.analysis-details-body {
+  margin-top: 8px;
+  opacity: 0.88;
+}
+
 .market-pick-summary {
   gap: 10px;
   margin: 8px 0 7px;
