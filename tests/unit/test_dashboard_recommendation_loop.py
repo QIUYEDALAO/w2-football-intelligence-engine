@@ -600,6 +600,64 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
     assert selected["side_lines"]["away"] == "0.25"
     assert selected["side_prices"]["home"] == 1.93
     assert selected["side_prices"]["away"] == 1.95
+    assert selected["candidate_lines"][0]["home_line"] == "-0.25"
+    assert selected["rejected_lines"]
+
+
+def test_read_model_mainline_allows_low_consensus_balanced_override() -> None:
+    captured = "2026-06-26T08:00:00Z"
+    observations: list[dict[str, Any]] = []
+    for line, home_price, away_price, bookmakers in [
+        ("0", "1.66", "2.26", ("bm1", "bm2", "bm3", "bm4", "bm5")),
+        ("-0.25", "1.93", "1.95", ("bm1",)),
+        ("-0.5", "2.35", "1.61", ("bm1", "bm2", "bm3", "bm4", "bm5")),
+    ]:
+        for bookmaker in bookmakers:
+            observations.extend(
+                [
+                    {
+                        "fixture_id": "future-partial",
+                        "canonical_market": "ASIAN_HANDICAP",
+                        "selection": "Home",
+                        "line": line,
+                        "decimal_odds": home_price,
+                        "captured_at": captured,
+                        "provider_last_update": captured,
+                        "bookmaker_id": bookmaker,
+                        "bookmaker_name": bookmaker,
+                        "suspended": False,
+                        "live": False,
+                    },
+                    {
+                        "fixture_id": "future-partial",
+                        "canonical_market": "ASIAN_HANDICAP",
+                        "selection": "Away",
+                        "line": str(-float(line)),
+                        "decimal_odds": away_price,
+                        "captured_at": captured,
+                        "provider_last_update": captured,
+                        "bookmaker_id": bookmaker,
+                        "bookmaker_name": bookmaker,
+                        "suspended": False,
+                        "live": False,
+                    },
+                ]
+            )
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
+    odds_entry = service._balanced_odds_entry(selected)
+
+    assert selected["status"] == "READY"
+    assert selected["line"] == "0.25"
+    assert selected["side_lines"]["home"] == "-0.25"
+    assert selected["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
+    assert selected["candidate_lines"][0]["home_line"] == "-0.25"
+    assert selected["candidate_lines"][0]["balanced_override_eligible"] is True
+    assert selected["candidate_lines"][0]["consensus_eligible"] is False
+    assert odds_entry is not None
+    assert odds_entry["candidate_lines"][0]["home_line"] == "-0.25"
+    assert odds_entry["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
 
 
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:

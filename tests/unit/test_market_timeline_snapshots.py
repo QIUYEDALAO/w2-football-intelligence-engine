@@ -371,6 +371,52 @@ def test_ah_mainline_ladder_selector_prefers_balanced_netherlands_minus_0_25() -
     assert snapshot["candidate_lines"][0]["line"] == -0.25
 
 
+def test_ah_mainline_ladder_selector_allows_low_consensus_balanced_override() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for line, home_price, away_price, bookmakers in [
+        (0.0, 1.66, 2.26, ("book-a", "book-b", "book-c", "book-d", "book-e")),
+        (-0.25, 1.93, 1.95, ("book-a",)),
+        (-0.5, 2.35, 1.61, ("book-a", "book-b", "book-c", "book-d", "book-e")),
+    ]:
+        for bookmaker in bookmakers:
+            observations.extend(
+                [
+                    _obs(
+                        captured_at=as_of,
+                        selection="HOME",
+                        line=line,
+                        odds=home_price,
+                        bookmaker=bookmaker,
+                    ),
+                    _obs(
+                        captured_at=as_of,
+                        selection="AWAY",
+                        line=-line,
+                        odds=away_price,
+                        bookmaker=bookmaker,
+                    ),
+                ]
+            )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == -0.25
+    assert snapshot["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
+    assert snapshot["candidate_lines"][0]["line"] == -0.25
+    assert snapshot["candidate_lines"][0]["balanced_override_eligible"] is True
+    assert snapshot["candidate_lines"][0]["consensus_eligible"] is False
+    assert {item["line"] for item in snapshot["rejected_lines"]} == {0, -0.5}
+
+
 def test_ah_mainline_consensus_keeps_same_bookmaker_pair_for_selected_line() -> None:
     kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
     as_of = kickoff - timedelta(minutes=30)
@@ -379,8 +425,8 @@ def test_ah_mainline_consensus_keeps_same_bookmaker_pair_for_selected_line() -> 
         _obs(captured_at=as_of, selection="AWAY", line=0.75, odds=1.83, bookmaker="book-a"),
         _obs(captured_at=as_of, selection="HOME", line=-0.75, odds=1.95, bookmaker="book-b"),
         _obs(captured_at=as_of, selection="AWAY", line=0.75, odds=1.95, bookmaker="book-b"),
-        _obs(captured_at=as_of, selection="HOME", line=-0.25, odds=1.91, bookmaker="book-c"),
-        _obs(captured_at=as_of, selection="AWAY", line=0.25, odds=1.97, bookmaker="book-c"),
+        _obs(captured_at=as_of, selection="HOME", line=-0.25, odds=1.55, bookmaker="book-c"),
+        _obs(captured_at=as_of, selection="AWAY", line=0.25, odds=2.4, bookmaker="book-c"),
     ]
 
     snapshot = select_mainline_snapshot(

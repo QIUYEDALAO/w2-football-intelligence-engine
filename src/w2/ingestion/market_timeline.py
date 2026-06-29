@@ -12,6 +12,8 @@ DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
 CHECKPOINTS = ("opening", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "lock")
 AUTO_CHECKPOINT_GRACE = timedelta(minutes=20)
 AUTO_LOCK_WINDOW = timedelta(hours=1)
+BALANCED_MAINLINE_MAX_DISTANCE = 0.06
+BALANCED_MAINLINE_MIN_DELTA = 0.03
 
 _CHECKPOINT_OFFSETS = {
     "T-24h": timedelta(hours=24),
@@ -162,6 +164,8 @@ def select_mainline_snapshot_result(
             "selection_policy",
             "latest_bucket_ladder_balance_same_bookmaker_pair",
         )
+        if selected.get("selection_warning"):
+            snapshot["selection_warning"] = selected.get("selection_warning")
         snapshot["candidate_lines"] = selected.get("candidate_lines", [])
         snapshot["rejected_lines"] = selected.get("rejected_lines", [])
     if market == "ASIAN_HANDICAP":
@@ -424,9 +428,16 @@ def _select_mainline_group(
     ]
     max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
     consensus_floor = _bookmaker_consensus_floor(max_bookmaker_count)
+    override_line = _balanced_override_candidate(candidate_lines)
     eligible_lines = [
         item for item in candidate_lines if int(item["bookmaker_count"]) >= consensus_floor
     ] or candidate_lines
+    if override_line is not None and all(
+        float(item["line"]) != float(override_line["line"]) for item in eligible_lines
+    ):
+        eligible_lines.append(
+            {**override_line, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+        )
     eligible_lines.sort(
         key=lambda item: (
             float(item["balance_distance"]),
@@ -437,6 +448,7 @@ def _select_mainline_group(
         )
     )
     selected_summary = eligible_lines[0]
+    selection_warning = selected_summary.get("selection_warning")
     selected_line = float(selected_summary["line"])
     selected_groups = by_line[round(selected_line, 4)]
     selected = min(
@@ -450,15 +462,43 @@ def _select_mainline_group(
     )
     selected["bookmaker_count"] = int(selected_summary["bookmaker_count"])
     selected["selection_policy"] = "latest_bucket_ladder_balance_same_bookmaker_pair"
+    if selection_warning:
+        selected["selection_warning"] = selection_warning
+    candidate_order = sorted(
+        candidate_lines,
+        key=lambda item: (
+            0 if float(item["line"]) == selected_line else 1,
+            float(item["balance_distance"]),
+            float(item["price_gap"]),
+            float(item["mid_distance"]),
+            -int(item["bookmaker_count"]),
+            abs(float(item["line"])),
+        ),
+    )
     selected["candidate_lines"] = [
-        {**item, "selection_rank": index + 1, "bookmaker_consensus_floor": consensus_floor}
-        for index, item in enumerate(eligible_lines)
+        {
+            **item,
+            "selection_rank": index + 1,
+            "bookmaker_consensus_floor": consensus_floor,
+            "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
+            "balanced_override_eligible": override_line is not None
+            and float(item["line"]) == float(override_line["line"]),
+            **(
+                {"selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+                if selection_warning and float(item["line"]) == selected_line
+                else {}
+            ),
+        }
+        for index, item in enumerate(candidate_order)
     ]
     selected["rejected_lines"] = [
         {
             "line": item["line"],
             "reason": "LOWER_BOOKMAKER_CONSENSUS"
             if int(item["bookmaker_count"]) < consensus_floor
+            and not (
+                override_line is not None and float(item["line"]) == float(override_line["line"])
+            )
             else "TIE_BREAK_LOWER_LADDER_BALANCE",
         }
         for item in candidate_lines
@@ -503,6 +543,31 @@ def _bookmaker_consensus_floor(max_bookmaker_count: int) -> int:
     if max_bookmaker_count <= 1:
         return 1
     return max(2, max_bookmaker_count - 2)
+
+
+def _balanced_override_candidate(candidate_lines: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not candidate_lines:
+        return None
+    ordered = sorted(
+        candidate_lines,
+        key=lambda item: (
+            float(item["balance_distance"]),
+            float(item["price_gap"]),
+            float(item["mid_distance"]),
+            -int(item["bookmaker_count"]),
+            abs(float(item["line"])),
+        ),
+    )
+    best = ordered[0]
+    second_distance = float(ordered[1]["balance_distance"]) if len(ordered) > 1 else 999.0
+    best_distance = float(best["balance_distance"])
+    if (
+        int(best["bookmaker_count"]) >= 1
+        and best_distance <= BALANCED_MAINLINE_MAX_DISTANCE
+        and second_distance - best_distance >= BALANCED_MAINLINE_MIN_DELTA
+    ):
+        return best
+    return None
 
 
 def _valid_two_way_price_pair(

@@ -103,6 +103,8 @@ RUNTIME = ROOT / "runtime"
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
+BALANCED_MAINLINE_MAX_DISTANCE = 0.06
+BALANCED_MAINLINE_MIN_DELTA = 0.03
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -1466,18 +1468,7 @@ class ReadModelService:
                 "observations": [],
                 "bookmaker_count": 0,
             }
-        candidates: list[
-            tuple[
-                Decimal,
-                Decimal,
-                Decimal,
-                int,
-                str,
-                Decimal,
-                list[dict[str, Any]],
-                dict[str, Any],
-            ]
-        ] = []
+        candidates: list[dict[str, Any]] = []
         paired_lines = 0
         for line, rows in grouped.items():
             side_state = self._line_side_state(market, rows)
@@ -1494,16 +1485,16 @@ class ReadModelService:
             if balance_gap > Decimal("0.90") or min_side_price < Decimal("1.40"):
                 continue
             candidates.append(
-                (
-                    Decimal(str(side_state.get("balance_distance") or "999")),
-                    balance_gap,
-                    mid_distance,
-                    -bookmaker_count,
-                    latest_capture,
-                    line,
-                    rows,
-                    side_state,
-                )
+                {
+                    "balance_distance": Decimal(str(side_state.get("balance_distance") or "999")),
+                    "balance_gap": balance_gap,
+                    "mid_distance": mid_distance,
+                    "bookmaker_count": bookmaker_count,
+                    "latest_capture": latest_capture,
+                    "line": line,
+                    "rows": rows,
+                    "side_state": side_state,
+                }
             )
         if not candidates:
             closest_line = min(
@@ -1525,27 +1516,59 @@ class ReadModelService:
                 **side_state,
             }
         if market == "ASIAN_HANDICAP":
-            max_bookmaker_count = max(-item[3] for item in candidates)
+            max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidates)
             consensus_floor = max(2, max_bookmaker_count - 2) if max_bookmaker_count > 1 else 1
-            eligible = [item for item in candidates if -item[3] >= consensus_floor] or candidates
+            override = self._balanced_override_candidate(candidates)
+            eligible = [
+                item for item in candidates if int(item["bookmaker_count"]) >= consensus_floor
+            ] or candidates
+            if override is not None and all(item["line"] != override["line"] for item in eligible):
+                override = {**override, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+                eligible.append(override)
         else:
             eligible = candidates
-        (
-            _balance_distance,
-            _gap,
-            _mid_distance,
-            bookmaker_count_key,
-            _latest,
-            line,
-            rows,
-            side_state,
-        ) = min(eligible)
+            consensus_floor = 1
+            override = None
+        selected = min(
+            eligible,
+            key=lambda item: (
+                item["balance_distance"],
+                item["balance_gap"],
+                item["mid_distance"],
+                -int(item["bookmaker_count"]),
+                abs(Decimal(str(item["line"]))),
+            ),
+        )
+        line = cast(Decimal, selected["line"])
+        rows = cast(list[dict[str, Any]], selected["rows"])
+        side_state = cast(dict[str, Any], selected["side_state"])
+        selection_warning = selected.get("selection_warning")
+        selected_line = Decimal(str(line))
+        candidate_lines = self._mainline_candidate_lines(
+            candidates,
+            selected_line=selected_line,
+            consensus_floor=consensus_floor,
+            override=override,
+            selection_warning=str(selection_warning) if selection_warning else None,
+        )
+        rejected_lines = self._mainline_rejected_lines(
+            candidates,
+            selected_line=selected_line,
+            consensus_floor=consensus_floor,
+            override=override,
+        )
         return {
             "market": market,
             "status": "READY",
             "line": self._format_decimal_line(line),
             "observations": rows,
-            "bookmaker_count": -bookmaker_count_key,
+            "bookmaker_count": int(selected["bookmaker_count"]),
+            "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair"
+            if market == "ASIAN_HANDICAP"
+            else None,
+            "candidate_lines": candidate_lines if market == "ASIAN_HANDICAP" else None,
+            "rejected_lines": rejected_lines if market == "ASIAN_HANDICAP" else None,
+            **({"selection_warning": selection_warning} if selection_warning else {}),
             **side_state,
         }
 
@@ -1694,6 +1717,114 @@ class ReadModelService:
         if len(implied) != 2 or total <= 0:
             return 999.0
         return round(abs((implied[0] / total) - 0.5), 4)
+
+    def _balanced_override_candidate(
+        self,
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not candidates:
+            return None
+        ordered = sorted(
+            candidates,
+            key=lambda item: (
+                item["balance_distance"],
+                item["balance_gap"],
+                item["mid_distance"],
+                -int(item["bookmaker_count"]),
+                abs(Decimal(str(item["line"]))),
+            ),
+        )
+        best = ordered[0]
+        second_distance = (
+            Decimal(str(ordered[1]["balance_distance"])) if len(ordered) > 1 else Decimal("999")
+        )
+        best_distance = Decimal(str(best["balance_distance"]))
+        if (
+            int(best["bookmaker_count"]) >= 1
+            and best_distance <= Decimal(str(BALANCED_MAINLINE_MAX_DISTANCE))
+            and second_distance - best_distance >= Decimal(str(BALANCED_MAINLINE_MIN_DELTA))
+        ):
+            return best
+        return None
+
+    def _mainline_candidate_lines(
+        self,
+        candidates: list[dict[str, Any]],
+        *,
+        selected_line: Decimal,
+        consensus_floor: int,
+        override: dict[str, Any] | None,
+        selection_warning: str | None,
+    ) -> list[dict[str, Any]]:
+        ordered = sorted(
+            candidates,
+            key=lambda item: (
+                0 if Decimal(str(item["line"])) == selected_line else 1,
+                item["balance_distance"],
+                item["balance_gap"],
+                item["mid_distance"],
+                -int(item["bookmaker_count"]),
+                abs(Decimal(str(item["line"]))),
+            ),
+        )
+        override_line = Decimal(str(override["line"])) if override is not None else None
+        rows: list[dict[str, Any]] = []
+        for index, item in enumerate(ordered):
+            line = Decimal(str(item["line"]))
+            candidate: dict[str, Any] = {
+                "line": self._format_decimal_line(line),
+                "bookmaker_count": int(item["bookmaker_count"]),
+                "balance_distance": float(item["balance_distance"]),
+                "price_gap": float(item["balance_gap"]),
+                "mid_distance": float(item["mid_distance"]),
+                "selection_rank": index + 1,
+                "bookmaker_consensus_floor": consensus_floor,
+                "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
+                "balanced_override_eligible": override_line is not None and line == override_line,
+            }
+            side_state = item.get("side_state")
+            if isinstance(side_state, dict):
+                side_prices = side_state.get("side_prices")
+                if isinstance(side_prices, dict):
+                    if side_prices.get("home") is not None:
+                        candidate["home_price"] = side_prices.get("home")
+                    if side_prices.get("away") is not None:
+                        candidate["away_price"] = side_prices.get("away")
+                side_lines = side_state.get("side_lines")
+                if isinstance(side_lines, dict):
+                    if side_lines.get("home") is not None:
+                        candidate["home_line"] = side_lines.get("home")
+                    if side_lines.get("away") is not None:
+                        candidate["away_line"] = side_lines.get("away")
+            if selection_warning and line == selected_line:
+                candidate["selection_warning"] = selection_warning
+            rows.append(candidate)
+        return rows
+
+    def _mainline_rejected_lines(
+        self,
+        candidates: list[dict[str, Any]],
+        *,
+        selected_line: Decimal,
+        consensus_floor: int,
+        override: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        override_line = Decimal(str(override["line"])) if override is not None else None
+        rows: list[dict[str, Any]] = []
+        for item in candidates:
+            line = Decimal(str(item["line"]))
+            if line == selected_line:
+                continue
+            rows.append(
+                {
+                    "line": self._format_decimal_line(line),
+                    "reason": "LOWER_BOOKMAKER_CONSENSUS"
+                    if int(item["bookmaker_count"]) < consensus_floor
+                    and not (override_line is not None and line == override_line)
+                    else "TIE_BREAK_LOWER_LADDER_BALANCE",
+                }
+            )
+        return rows
 
     def _closest_unbalanced_score(
         self,
@@ -2608,6 +2739,14 @@ class ReadModelService:
         ]
         if prices:
             entry["price"] = round(sum(prices) / len(prices), 4)
+        for key in (
+            "selection_policy",
+            "selection_warning",
+            "candidate_lines",
+            "rejected_lines",
+        ):
+            if key in selection and selection.get(key) is not None:
+                entry[key] = selection.get(key)
         return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:
