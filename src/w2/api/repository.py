@@ -90,6 +90,7 @@ from w2.strategy.analysis_recommendation import (
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.formal_recommendation import (
     build_formal_recommendation,
+    canonical_ah_market,
     formal_recommendations_enabled,
 )
 from w2.strategy.score_scenarios import Direction
@@ -2972,6 +2973,8 @@ class ReadModelService:
         signed_line = self._snapshot_float(latest_ah, "line")
         if signed_line is None:
             return
+        if not self._timeline_ah_snapshot_is_canonical_ready(latest_ah):
+            return
         odds = card.get("current_odds")
         if not isinstance(odds, dict):
             odds = {}
@@ -3001,6 +3004,33 @@ class ReadModelService:
                 shadow["edge_ah"] = round(float(signed_line) - float(fair), 6)
             except (TypeError, ValueError):
                 shadow["edge_ah"] = None
+
+    def _timeline_ah_snapshot_is_canonical_ready(
+        self,
+        snapshot: dict[str, Any] | None,
+    ) -> bool:
+        signed_line = self._snapshot_float(snapshot, "line")
+        home_price = self._snapshot_float(snapshot, "home_price")
+        away_price = self._snapshot_float(snapshot, "away_price")
+        if signed_line is None or home_price is None or away_price is None:
+            return False
+        market = canonical_ah_market(
+            current_odds={
+                "ah": {
+                    "home_line": signed_line,
+                    "away_line": -signed_line,
+                    "home_price": home_price,
+                    "away_price": away_price,
+                    "source": "market_timeline_snapshots",
+                    "as_of": snapshot.get("as_of") if isinstance(snapshot, dict) else None,
+                    "bookmaker_count": snapshot.get("bookmaker_count")
+                    if isinstance(snapshot, dict)
+                    else None,
+                }
+            },
+            pricing_shadow={"market_ah": signed_line},
+        )
+        return market is not None and market.validation_status == "READY"
 
     def _latest_signed_ah_line(self, timeline: dict[str, Any]) -> float | None:
         return self._snapshot_float(self._latest_ah_snapshot(timeline), "line")
