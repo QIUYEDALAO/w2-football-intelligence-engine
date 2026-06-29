@@ -169,6 +169,53 @@ def test_selects_provider_text_ah_selection_pairs() -> None:
     assert snapshot["away_price"] == 1.97
 
 
+def test_ah_snapshot_does_not_composite_best_prices_across_bookmakers() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations = [
+        _obs(captured_at=as_of, selection="HOME", line=-1.0, odds=5.55, bookmaker="book-a"),
+        _obs(captured_at=as_of, selection="AWAY", line=1.0, odds=1.75, bookmaker="book-a"),
+        _obs(captured_at=as_of, selection="HOME", line=-1.0, odds=1.84, bookmaker="book-b"),
+        _obs(captured_at=as_of, selection="AWAY", line=1.0, odds=11.50, bookmaker="book-b"),
+        _obs(captured_at=as_of, selection="HOME", line=-1.0, odds=1.91, bookmaker="book-c"),
+        _obs(captured_at=as_of, selection="AWAY", line=1.0, odds=1.97, bookmaker="book-c"),
+    ]
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == -1
+    assert snapshot["home_price"] == 1.91
+    assert snapshot["away_price"] == 1.97
+    assert snapshot["home_price"] != 5.55
+    assert snapshot["away_price"] != 11.5
+
+
+def test_ah_snapshot_requires_same_bookmaker_pair() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations = [
+        _obs(captured_at=as_of, selection="HOME", line=-1.0, odds=1.91, bookmaker="book-a"),
+        _obs(captured_at=as_of, selection="AWAY", line=1.0, odds=1.97, bookmaker="book-b"),
+    ]
+
+    result = select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert result.snapshot is None
+
+
 def test_write_snapshot_is_idempotent_and_rejects_mutation(tmp_path) -> None:
     kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
     as_of = kickoff - timedelta(minutes=30)

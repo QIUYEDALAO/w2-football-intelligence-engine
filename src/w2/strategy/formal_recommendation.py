@@ -4,10 +4,32 @@ import os
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from w2.strategy.simulate import READY, SimulationOutput
+from w2.strategy.simulate import READY, SimulationOutput, ah_expected_value
 
-FORMAL_EDGE_THRESHOLD = 0.055
+FORMAL_EV_THRESHOLD = 0.035
+REVERSE_FACTOR_EV_THRESHOLD = 0.08
 FORMAL_MIN_INDEPENDENT_SIGNALS = 3
+AH_PRICE_MIN = 1.40
+AH_PRICE_MAX = 4.00
+AH_IMPLIED_SUM_MIN = 0.98
+AH_IMPLIED_SUM_MAX = 1.30
+AH_MAX_PRICE_GAP = 0.90
+
+
+@dataclass(frozen=True, kw_only=True)
+class CanonicalAhMarket:
+    home_line: float
+    away_line: float
+    home_price: float
+    away_price: float
+    source: str | None
+    as_of: str | None
+    bookmaker_count: int | None
+    validation_status: str
+    blocker: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -18,6 +40,7 @@ class FormalRecommendationResult:
     formal_suppressed: bool
     formal_suppressed_reason: str | None
     blockers: list[str]
+    canonical_ah_market: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -44,10 +67,11 @@ def build_formal_recommendation(
     enabled: bool | None = None,
 ) -> FormalRecommendationResult:
     enabled = formal_recommendations_enabled() if enabled is None else enabled
+    ah = canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow)
     blockers = _blockers(
         fixture_status=fixture_status,
         simulation=simulation,
-        current_odds=current_odds,
+        canonical_market=ah,
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
@@ -59,30 +83,44 @@ def build_formal_recommendation(
             formal_suppressed=False,
             formal_suppressed_reason=None,
             blockers=blockers,
+            canonical_ah_market=ah.as_dict() if ah else None,
         )
     assert simulation is not None
-    ah = canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow)
-    if ah is None:
-        return _watch("MISSING_AH_MARKET")
-    home_line = ah["home_line"]
-    home_price = ah["home_price"]
-    away_price = ah["away_price"]
-    prices = {"HOME": home_price, "AWAY": away_price}
+    if ah is None or ah.validation_status != "READY":
+        return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
+    home_distribution = _settlement_distribution(simulation, "HOME", ah.home_line)
+    away_distribution = _settlement_distribution(simulation, "AWAY", ah.away_line)
+    if home_distribution is None or away_distribution is None:
+        return _watch("MISSING_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
+    home_ev = ah_expected_value(home_distribution, decimal_price=ah.home_price)
+    away_ev = ah_expected_value(away_distribution, decimal_price=ah.away_price)
+    if home_ev is None or away_ev is None:
+        return _watch("INVALID_AH_EV_INPUTS", canonical_ah_market=ah)
+    home_model = _effective_cover_probability(home_distribution)
+    away_model = _effective_cover_probability(away_distribution)
+    if home_model is None or away_model is None:
+        return _watch("INVALID_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
+    prices = {"HOME": ah.home_price, "AWAY": ah.away_price}
     devig = _devig_probabilities(prices)
-    home_model = _market_side_probability(simulation, "HOME", home_line)
-    away_model = _market_side_probability(simulation, "AWAY", -home_line)
     candidates = [
-        ("HOME", home_model - devig["HOME"], home_model, home_line, home_price),
-        ("AWAY", away_model - devig["AWAY"], away_model, -home_line, away_price),
+        ("HOME", home_ev, home_model, ah.home_line, ah.home_price, home_distribution),
+        ("AWAY", away_ev, away_model, ah.away_line, ah.away_price, away_distribution),
     ]
-    side, edge, model_probability, line, price = max(candidates, key=lambda item: item[1])
-    if edge < FORMAL_EDGE_THRESHOLD:
-        return _watch("EDGE_BELOW_FORMAL_THRESHOLD")
+    side, ev, model_probability, line, price, distribution = max(
+        candidates,
+        key=lambda item: item[1],
+    )
+    if ev < FORMAL_EV_THRESHOLD:
+        return _watch("AH_EV_BELOW_FORMAL_THRESHOLD", canonical_ah_market=ah)
     factor_side = _factor_leader(pricing_shadow)
     reverse = factor_side in {"HOME", "AWAY"} and factor_side != side
     fair_side = _fair_side(simulation)
     if not _direction_supported(side=side, fair_side=fair_side, reverse=reverse):
-        return _watch("SIMULATION_DIRECTION_CONTRADICTION")
+        return _watch("SIMULATION_DIRECTION_CONTRADICTION", canonical_ah_market=ah)
+    if reverse and not _reverse_value_supported(line=line, expected_value=ev):
+        return _watch("REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH", canonical_ah_market=ah)
+    if _scoreline_winner(simulation) not in {side, "NEUTRAL"} and not reverse:
+        return _watch("SCORELINE_DIRECTION_CONTRADICTION", canonical_ah_market=ah)
     reason = _reason(
         side=side,
         reverse=reverse,
@@ -90,7 +128,7 @@ def build_formal_recommendation(
         away_team_name=away_team_name,
         fair_ah=simulation.fair_ah,
         market_line=line,
-        edge=edge,
+        expected_value=ev,
         model_probability=model_probability,
         devig_probability=devig[side],
     )
@@ -109,14 +147,17 @@ def build_formal_recommendation(
         "odds": _format_price(price),
         "model_probability": round(model_probability, 6),
         "fair_odds": _format_price(1 / model_probability) if model_probability > 0 else None,
-        "risk_adjusted_ev": _format_edge(edge),
-        "confidence": round(min(max(0.50 + edge, 0.0), 0.92), 4),
+        "risk_adjusted_ev": _format_edge(ev),
+        "expected_value": round(ev, 6),
+        "ah_settlement_distribution": distribution,
+        "confidence": round(min(max(0.50 + ev, 0.0), 0.92), 4),
         "confidence_label": "策略自洽",
         "reasons": [reason],
         "risks": ["阵容、红牌、临场跳线会改变赛前判断。"],
         "value_explanation": reason,
         "reverse_factor_value": reverse,
         "devig_probability": round(devig[side], 6),
+        "canonical_ah_market": ah.as_dict(),
         "candidate": False,
         "formal_recommendation": True,
         "beats_market_required": False,
@@ -129,6 +170,7 @@ def build_formal_recommendation(
             formal_suppressed=True,
             formal_suppressed_reason="W2_FORMAL_RECOMMENDATION_ENABLED=false",
             blockers=[],
+            canonical_ah_market=ah.as_dict(),
         )
     return FormalRecommendationResult(
         tier="FORMAL",
@@ -137,14 +179,14 @@ def build_formal_recommendation(
         formal_suppressed=False,
         formal_suppressed_reason=None,
         blockers=[],
+        canonical_ah_market=ah.as_dict(),
     )
-
 
 def _blockers(
     *,
     fixture_status: str,
     simulation: SimulationOutput | None,
-    current_odds: dict[str, Any] | None,
+    canonical_market: CanonicalAhMarket | None,
     pricing_shadow: dict[str, Any] | None,
     analysis_readiness: dict[str, Any] | None,
 ) -> list[str]:
@@ -153,8 +195,10 @@ def _blockers(
         blockers.append("FIXTURE_NOT_PREMATCH")
     if simulation is None or simulation.status != READY:
         blockers.append("SIMULATION_NOT_READY")
-    if canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow) is None:
+    if canonical_market is None:
         blockers.append("MISSING_AH_MARKET")
+    elif canonical_market.validation_status != "READY":
+        blockers.append(canonical_market.blocker or "INVALID_AH_MARKET")
     signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))
     if signal_count is None or signal_count < FORMAL_MIN_INDEPENDENT_SIGNALS:
         blockers.append("INSUFFICIENT_INDEPENDENT_SIGNALS")
@@ -173,29 +217,50 @@ def canonical_ah_market(
     *,
     current_odds: dict[str, Any] | None,
     pricing_shadow: dict[str, Any] | None,
-) -> dict[str, float] | None:
+) -> CanonicalAhMarket | None:
     odds = current_odds if isinstance(current_odds, dict) else {}
     raw_ah = odds.get("ah")
     ah: dict[str, Any] = raw_ah if isinstance(raw_ah, dict) else {}
     pricing = pricing_shadow if isinstance(pricing_shadow, dict) else {}
     home_line = _number(ah.get("home_line"))
-    if home_line is None:
-        home_line = _number(pricing.get("market_ah"))
-    if home_line is None:
-        home_line = _number(ah.get("line"))
+    away_line = _number(ah.get("away_line"))
+    market_ah = _number(pricing.get("market_ah"))
     home_price = _number(ah.get("home_price"))
     away_price = _number(ah.get("away_price"))
-    if home_line is None or home_price is None or away_price is None:
+    source = str(ah.get("source")) if ah.get("source") is not None else None
+    as_of = str(ah.get("as_of") or ah.get("captured_at") or ah.get("locked_at") or "") or None
+    bookmaker_count = _int_or_none(ah.get("bookmaker_count"))
+    if home_line is None and market_ah is not None:
+        home_line = market_ah
+    if away_line is None and home_line is not None:
+        away_line = -home_line
+    if home_line is None or away_line is None or home_price is None or away_price is None:
         return None
-    return {
-        "home_line": home_line,
-        "away_line": -home_line,
-        "home_price": home_price,
-        "away_price": away_price,
-    }
+    blocker = _canonical_ah_blocker(
+        home_line=home_line,
+        away_line=away_line,
+        home_price=home_price,
+        away_price=away_price,
+        market_ah=market_ah,
+    )
+    return CanonicalAhMarket(
+        home_line=home_line,
+        away_line=away_line,
+        home_price=home_price,
+        away_price=away_price,
+        source=source,
+        as_of=as_of,
+        bookmaker_count=bookmaker_count,
+        validation_status="BLOCKED" if blocker else "READY",
+        blocker=blocker,
+    )
 
 
-def _watch(reason: str) -> FormalRecommendationResult:
+def _watch(
+    reason: str,
+    *,
+    canonical_ah_market: CanonicalAhMarket | None = None,
+) -> FormalRecommendationResult:
     return FormalRecommendationResult(
         tier="WATCH",
         recommendation=None,
@@ -203,37 +268,85 @@ def _watch(reason: str) -> FormalRecommendationResult:
         formal_suppressed=False,
         formal_suppressed_reason=None,
         blockers=[reason],
+        canonical_ah_market=canonical_ah_market.as_dict() if canonical_ah_market else None,
     )
 
 
-def _market_side_probability(simulation: SimulationOutput, side: str, line: float) -> float:
+def _settlement_distribution(
+    simulation: SimulationOutput,
+    side: str,
+    line: float,
+) -> dict[str, Any] | None:
     ladder = (
         simulation.ah_probabilities.get("ladder")
         if isinstance(simulation.ah_probabilities, dict)
         else None
     )
-    lookup_line = line if side == "HOME" else -line
     if isinstance(ladder, list):
         for row in ladder:
             if not isinstance(row, dict):
                 continue
             row_line = _number(row.get("home_line"))
-            if row_line is None or abs(row_line - lookup_line) > 0.001:
+            if row_line is None or abs(row_line - (line if side == "HOME" else -line)) > 0.001:
                 continue
-            home_cover = _number(row.get("home_cover"))
-            if home_cover is None:
-                break
-            return home_cover if side == "HOME" else round(1 - home_cover, 6)
-    fair = _number(simulation.fair_ah) or 0.0
-    if side == "HOME":
-        return 0.5 + max(min((line - fair) * 0.08, 0.18), -0.18)
-    return 0.5 + max(min((fair - line) * 0.08, 0.18), -0.18)
+            key = (
+                "home_settlement_distribution"
+                if side == "HOME"
+                else "away_settlement_distribution"
+            )
+            distribution = row.get(key)
+            if isinstance(distribution, dict):
+                return distribution
+    return None
+
+
+def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
+    win = _number(distribution.get("WIN")) or 0.0
+    half_win = _number(distribution.get("HALF_WIN")) or 0.0
+    push = _number(distribution.get("PUSH")) or 0.0
+    half_loss = _number(distribution.get("HALF_LOSS")) or 0.0
+    loss = _number(distribution.get("LOSS")) or 0.0
+    total = win + half_win + push + half_loss + loss
+    if abs(total - 1.0) > 0.02:
+        return None
+    return round(win + half_win * 0.5 + push * 0.5, 6)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:
     implied = {side: 1 / price for side, price in prices.items() if price > 1}
     total = sum(implied.values()) or 1.0
     return {side: probability / total for side, probability in implied.items()}
+
+
+def _canonical_ah_blocker(
+    *,
+    home_line: float,
+    away_line: float,
+    home_price: float,
+    away_price: float,
+    market_ah: float | None,
+) -> str | None:
+    if abs(home_line + away_line) > 0.001:
+        return "AH_MARKET_LINE_SIDE_MISMATCH"
+    if market_ah is not None and abs(home_line - market_ah) > 0.001:
+        return "AH_MARKET_LINE_NOT_CANONICAL"
+    if not _is_quarter_line(home_line) or not _is_quarter_line(away_line):
+        return "AH_MARKET_LINE_NOT_QUARTER"
+    if not (
+        AH_PRICE_MIN <= home_price <= AH_PRICE_MAX
+        and AH_PRICE_MIN <= away_price <= AH_PRICE_MAX
+    ):
+        return "AH_MARKET_PRICE_OUT_OF_RANGE"
+    if abs(home_price - away_price) > AH_MAX_PRICE_GAP:
+        return "AH_MARKET_PRICE_GAP_TOO_WIDE"
+    implied_sum = (1 / home_price) + (1 / away_price)
+    if implied_sum < AH_IMPLIED_SUM_MIN or implied_sum > AH_IMPLIED_SUM_MAX:
+        return "AH_MARKET_UNDERROUND_OR_OVERROUND"
+    return None
+
+
+def _is_quarter_line(line: float) -> bool:
+    return abs(line * 4 - round(line * 4)) < 0.001
 
 
 def _factor_leader(pricing_shadow: dict[str, Any] | None) -> str:
@@ -264,6 +377,25 @@ def _direction_supported(*, side: str, fair_side: str, reverse: bool) -> bool:
     return side == fair_side
 
 
+def _reverse_value_supported(*, line: float, expected_value: float) -> bool:
+    return line > 0 and expected_value >= REVERSE_FACTOR_EV_THRESHOLD
+
+
+def _scoreline_winner(simulation: SimulationOutput) -> str:
+    summary = (
+        simulation.score_matrix_summary
+        if isinstance(simulation.score_matrix_summary, dict)
+        else {}
+    )
+    home = _number(summary.get("home_win"))
+    away = _number(summary.get("away_win"))
+    if home is None or away is None:
+        return "NEUTRAL"
+    if abs(home - away) < 0.08:
+        return "NEUTRAL"
+    return "HOME" if home > away else "AWAY"
+
+
 def _reason(
     *,
     side: str,
@@ -272,18 +404,22 @@ def _reason(
     away_team_name: str,
     fair_ah: float | None,
     market_line: float,
-    edge: float,
+    expected_value: float,
     model_probability: float,
     devig_probability: float,
 ) -> str:
     team = home_team_name if side == "HOME" else away_team_name
     base = (
         f"模拟公平盘 { _format_line(fair_ah) }，市场盘 { _format_line(market_line) }，"
-        f"{team} 覆盖概率 {round(model_probability * 100)}% 高于 devig 基准 "
-        f"{round(devig_probability * 100)}%，value gap {round(edge * 100)}pct。"
+        f"{team} 亚洲让球结算期望为 {round(expected_value * 100)}pct；"
+        f"有效覆盖概率 {round(model_probability * 100)}%，市场基准 "
+        f"{round(devig_probability * 100)}%。"
     )
     if reverse:
-        return f"盘口价值：{base} 因子方向与价格方向不同，按价格/value 输出。"
+        return (
+            f"盘口价值逆因子：{base} "
+            "模拟比分和因子方向不完全同向，但受让盘口 EV 达标，仅按同源主线价格输出。"
+        )
     return base
 
 
@@ -321,5 +457,14 @@ def _number(value: Any) -> float | None:
         if value is None:
             return None
         return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
     except (TypeError, ValueError):
         return None

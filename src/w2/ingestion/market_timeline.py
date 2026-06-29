@@ -332,7 +332,7 @@ def _market_groups(
     kickoff: datetime,
 ) -> list[dict[str, Any]]:
     required = {"HOME", "AWAY"} if market == "ASIAN_HANDICAP" else {"OVER", "UNDER"}
-    grouped: dict[tuple[datetime, str], dict[str, Any]] = {}
+    grouped: dict[tuple[datetime, str, str], dict[str, Any]] = {}
     for row in observations:
         if str(row.get("fixture_id")) != fixture_id:
             continue
@@ -348,8 +348,13 @@ def _market_groups(
         line = _float_or_none(row.get("line"))
         if decimal_odds is None or line is None:
             continue
+        bookmaker = str(
+            row.get("bookmaker_id") or row.get("bookmaker") or row.get("bookmaker_name") or ""
+        )
+        if not bookmaker:
+            continue
         group_line = abs(line) if market == "ASIAN_HANDICAP" else line
-        key = (captured_at, f"{group_line:.4f}")
+        key = (captured_at, f"{group_line:.4f}", bookmaker)
         group = grouped.setdefault(
             key,
             {
@@ -363,11 +368,7 @@ def _market_groups(
         )
         if market == "ASIAN_HANDICAP" and side == "HOME":
             group["line"] = line
-        bookmaker = str(
-            row.get("bookmaker_id") or row.get("bookmaker") or row.get("bookmaker_name") or ""
-        )
-        if bookmaker:
-            group["bookmakers"].add(bookmaker)
+        group["bookmakers"].add(bookmaker)
         source_payload_id = (
             row.get("raw_payload_sha256") or row.get("source_payload_id") or row.get("sha256")
         )
@@ -378,10 +379,66 @@ def _market_groups(
             group["sides"][side] = {"decimal_odds": decimal_odds, "bookmaker": bookmaker}
     complete: list[dict[str, Any]] = []
     for group in grouped.values():
-        if set(group["sides"]) >= required:
+        if set(group["sides"]) >= required and _valid_two_way_price_pair(
+            market=market,
+            sides=group["sides"],
+            required=required,
+        ):
             group["bookmaker_count"] = len(group["bookmakers"]) or 1
+            group["balance_gap"] = _price_balance_gap(group["sides"], required)
+            group["mid_distance"] = _price_mid_distance(group["sides"], required)
             complete.append(group)
     return complete
+
+
+def _valid_two_way_price_pair(
+    *,
+    market: str,
+    sides: dict[str, dict[str, Any]],
+    required: set[str],
+) -> bool:
+    prices = [_float_or_none(sides.get(side, {}).get("decimal_odds")) for side in required]
+    if any(price is None for price in prices):
+        return False
+    values = [float(price) for price in prices if price is not None]
+    if any(price < 1.40 or price > 4.00 for price in values):
+        return False
+    if max(values) - min(values) > 0.90:
+        return False
+    implied_sum = sum(1 / price for price in values)
+    if not 0.98 <= implied_sum <= 1.30:
+        return False
+    if market == "ASIAN_HANDICAP" and required != {"HOME", "AWAY"}:
+        return False
+    if market == "TOTALS" and required != {"OVER", "UNDER"}:
+        return False
+    return True
+
+
+def _price_balance_gap(
+    sides: dict[str, dict[str, Any]],
+    required: set[str],
+) -> float:
+    values = [
+        float(sides[side]["decimal_odds"])
+        for side in sorted(required)
+        if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
+    ]
+    return round(max(values) - min(values), 6) if values else 999.0
+
+
+def _price_mid_distance(
+    sides: dict[str, dict[str, Any]],
+    required: set[str],
+) -> float:
+    values = [
+        float(sides[side]["decimal_odds"])
+        for side in sorted(required)
+        if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
+    ]
+    if not values:
+        return 999.0
+    return round(abs((sum(values) / len(values)) - 1.90), 6)
 
 
 def _missing_snapshot_reason(
@@ -463,12 +520,22 @@ def _json_number(value: float) -> int | float:
     return value
 
 
-def _opening_sort_key(group: dict[str, Any]) -> tuple[datetime, int]:
-    return (group["captured_at"], -int(group["bookmaker_count"]))
+def _opening_sort_key(group: dict[str, Any]) -> tuple[datetime, float, float, int]:
+    return (
+        group["captured_at"],
+        float(group.get("balance_gap") or 999.0),
+        float(group.get("mid_distance") or 999.0),
+        -int(group["bookmaker_count"]),
+    )
 
 
-def _latest_sort_key(group: dict[str, Any]) -> tuple[datetime, int]:
-    return (group["captured_at"], int(group["bookmaker_count"]))
+def _latest_sort_key(group: dict[str, Any]) -> tuple[datetime, float, float, int]:
+    return (
+        group["captured_at"],
+        -float(group.get("balance_gap") or 999.0),
+        -float(group.get("mid_distance") or 999.0),
+        int(group["bookmaker_count"]),
+    )
 
 
 def _source_hash(payload: dict[str, Any]) -> str:

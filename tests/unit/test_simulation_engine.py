@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from w2.strategy.simulate import INSUFFICIENT_INPUTS, READY, SimulationInputs, run_simulation
+from w2.strategy.simulate import (
+    INSUFFICIENT_INPUTS,
+    READY,
+    SimulationInputs,
+    ah_expected_value,
+    run_simulation,
+)
 
 
 def inputs(**overrides: object) -> SimulationInputs:
@@ -110,3 +116,16 @@ def test_fair_ou_and_scorelines_change_with_lambdas() -> None:
 
     assert low_total.fair_ou != high_total.fair_ou
     assert low_total.scoreline_picks != high_total.scoreline_picks
+
+
+def test_ah_ladder_exposes_settlement_distribution_for_ev() -> None:
+    output = run_simulation(inputs(fixture_id="ah-distribution"))
+
+    row = next(item for item in output.ah_probabilities["ladder"] if item["home_line"] == -0.5)
+    home_distribution = row["home_settlement_distribution"]
+    away_distribution = row["away_settlement_distribution"]
+
+    assert set(home_distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    assert set(away_distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    assert abs(sum(home_distribution.values()) - 1.0) < 0.01
+    assert ah_expected_value(home_distribution, decimal_price=1.95) is not None
