@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from w2.api.repository import ReadModelService
+from w2.api.schemas import DashboardResponse
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
@@ -189,6 +190,18 @@ def test_dashboard_results_window_uses_football_day_boundaries() -> None:
     assert payload["football_day_start_utc"] == "2026-06-30T04:00:00Z"
     assert payload["football_day_end_utc"] == "2026-07-01T04:00:00Z"
     assert payload["debug"]["selected_date"] == "2026-06-30"
+
+    response_payload = DashboardResponse.model_validate(
+        {"request_id": "test-request", **payload}
+    ).model_dump(mode="json")
+    assert response_payload["selected_date"] == "2026-06-30"
+    assert response_payload["selected_football_day"] == "2026-06-30"
+    assert response_payload["selected_date_has_data"] is True
+    assert response_payload["next_available_date"] == "2026-06-30"
+    assert response_payload["football_day_timezone"] == "Asia/Shanghai"
+    assert response_payload["football_day_cutoff_hour"] == 12
+    assert response_payload["football_day_start_utc"] == "2026-06-30T04:00:00Z"
+    assert response_payload["football_day_end_utc"] == "2026-07-01T04:00:00Z"
 
 
 def _write_formal_snapshot(
