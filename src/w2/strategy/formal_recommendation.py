@@ -213,7 +213,9 @@ def _blockers(
     if simulation is None or simulation.status != READY:
         blockers.append("SIMULATION_NOT_READY")
     if canonical_market is None:
-        blockers.append("MISSING_AH_MARKET")
+        blockers.append(
+            str((pricing_shadow or {}).get("ah_mainline_blocker") or "MISSING_AH_MARKET")
+        )
     elif canonical_market.validation_status != "READY":
         blockers.append(canonical_market.blocker or "INVALID_AH_MARKET")
     signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))

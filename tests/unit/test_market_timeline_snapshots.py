@@ -22,6 +22,7 @@ def _obs(
     line: float,
     odds: float,
     bookmaker: str = "book-a",
+    **extra: object,
 ) -> dict[str, object]:
     return {
         "fixture_id": fixture_id,
@@ -32,6 +33,7 @@ def _obs(
         "decimal_odds": odds,
         "bookmaker_id": bookmaker,
         "raw_payload_sha256": f"{bookmaker}-{selection}-{line}",
+        **extra,
     }
 
 
@@ -275,10 +277,99 @@ def test_ah_mainline_consensus_prefers_bookmaker_count_over_balanced_alternate()
     assert snapshot["home_price"] in {2.05, 2.06, 2.07, 2.08}
     assert snapshot["away_price"] in {1.82, 1.83, 1.84, 1.85}
     assert snapshot["bookmaker_count"] == 5
-    assert snapshot["selection_policy"] == "latest_bucket_ladder_balance_same_bookmaker_pair"
+    assert snapshot["selection_policy"] == "primary_mainline_then_ladder_balance"
     assert snapshot["candidate_lines"][0]["line"] == -0.75
     assert snapshot["candidate_lines"][0]["bookmaker_count"] == 5
     assert snapshot["rejected_lines"][0]["line"] == -0.25
+
+
+def test_ah_mainline_blocks_wide_ladder_without_primary_marker() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for line, home_price, away_price in [
+        (0.0, 2.25, 1.60),
+        (0.25, 1.77, 1.83),
+        (0.5, 1.83, 2.07),
+        (1.5, 1.80, 1.87),
+        (2.0, 1.66, 2.13),
+        (2.5, 1.53, 2.33),
+    ]:
+        for bookmaker in ("book-a", "book-b", "book-c"):
+            observations.extend(
+                [
+                    _obs(
+                        captured_at=as_of,
+                        selection="HOME",
+                        line=line,
+                        odds=home_price,
+                        bookmaker=bookmaker,
+                    ),
+                    _obs(
+                        captured_at=as_of,
+                        selection="AWAY",
+                        line=-line,
+                        odds=away_price,
+                        bookmaker=bookmaker,
+                    ),
+                ]
+            )
+
+    result = select_mainline_snapshot_result(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert result.snapshot is None
+    assert result.reason == "AH_MAINLINE_AMBIGUOUS"
+
+
+def test_ah_mainline_prefers_explicit_primary_marker_over_balanced_alternate() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for line, home_price, away_price, marker in [
+        (0.5, 1.83, 2.07, True),
+        (1.5, 1.80, 1.87, False),
+        (2.0, 1.66, 2.13, False),
+    ]:
+        for bookmaker in ("book-a", "book-b", "book-c"):
+            observations.extend(
+                [
+                    _obs(
+                        captured_at=as_of,
+                        selection="HOME",
+                        line=line,
+                        odds=home_price,
+                        bookmaker=bookmaker,
+                        market_role="main" if marker else "alternate",
+                    ),
+                    _obs(
+                        captured_at=as_of,
+                        selection="AWAY",
+                        line=-line,
+                        odds=away_price,
+                        bookmaker=bookmaker,
+                        market_role="main" if marker else "alternate",
+                    ),
+                ]
+            )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == 0.5
+    assert snapshot["primary_mainline_source"] == "provider_marker"
+    assert snapshot["mainline_confidence"] == "READY"
 
 
 def test_ah_mainline_ladder_selector_prefers_balanced_germany_minus_1_5() -> None:

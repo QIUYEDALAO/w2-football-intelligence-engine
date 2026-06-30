@@ -23,6 +23,7 @@ def build_pricing_shadow(
         feature_contributions=feature_contributions,
     )
     lines = market_lines(current_odds)
+    ah_mainline_blocker = _ah_mainline_blocker(current_odds)
     simulation_payload = _simulation_payload(simulation)
     simulation_status = str(simulation_payload.get("status") or "NOT_RUN")
     if team_scores["independent_signal_count"] == 0:
@@ -66,6 +67,7 @@ def build_pricing_shadow(
         "fair_ou": fair_ou,
         "market_ah": lines["market_ah"],
         "market_ou": lines["market_ou"],
+        "ah_mainline_blocker": ah_mainline_blocker,
         "edge_ah": edge_ah,
         "edge_ou": edge_ou,
         "coverage": team_scores["coverage"],
@@ -110,3 +112,15 @@ def _number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _ah_mainline_blocker(current_odds: dict[str, Any] | None) -> str | None:
+    current = current_odds if isinstance(current_odds, dict) else {}
+    ah = current.get("ah")
+    if not isinstance(ah, dict):
+        return None
+    value = ah.get("mainline_blocker") or ah.get("line_status")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

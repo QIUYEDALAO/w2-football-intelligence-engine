@@ -55,7 +55,12 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyRunModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
-from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
+from w2.ingestion.market_timeline import (
+    DEFAULT_TIMELINE_DIR,
+    load_timeline,
+    select_ah_primary_mainline,
+    timeline_path,
+)
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -1555,6 +1560,7 @@ class ReadModelService:
                     "line": line,
                     "rows": rows,
                     "side_state": side_state,
+                    "has_primary_mainline": bool(side_state.get("has_primary_mainline")),
                 }
             )
         if not candidates:
@@ -1577,61 +1583,124 @@ class ReadModelService:
                 **side_state,
             }
         if market == "ASIAN_HANDICAP":
-            max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidates)
-            consensus_floor = max(2, max_bookmaker_count - 2) if max_bookmaker_count > 1 else 1
-            override = self._balanced_override_candidate(candidates)
-            eligible = [
-                item for item in candidates if int(item["bookmaker_count"]) >= consensus_floor
-            ] or candidates
-            if override is not None and all(item["line"] != override["line"] for item in eligible):
-                override = {**override, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-                eligible.append(override)
+            selection = select_ah_primary_mainline(
+                [
+                    {
+                        **item,
+                        "line": float(item["line"]),
+                        "price_gap": float(item["balance_gap"]),
+                        "balance_distance": float(item["balance_distance"]),
+                        "mid_distance": float(item["mid_distance"]),
+                        "bookmaker_count": int(item["bookmaker_count"]),
+                    }
+                    for item in candidates
+                ],
+            )
+            if selection.status != "READY" or selection.selected is None:
+                return {
+                    "market": market,
+                    "status": selection.mainline_blocker or "AH_PRIMARY_MAINLINE_MISSING",
+                    "line": None,
+                    "observations": [],
+                    "bookmaker_count": 0,
+                    "selection_policy": selection.selection_policy,
+                    "primary_mainline_source": selection.primary_mainline_source,
+                    "preferred_line": selection.preferred_line,
+                    "line_span": selection.line_span,
+                    "mainline_confidence": selection.mainline_confidence,
+                    "mainline_blocker": selection.mainline_blocker,
+                    "candidate_lines": self._merge_mainline_candidate_side_state(
+                        selection.candidate_lines,
+                        candidates,
+                    ),
+                    "rejected_lines": selection.rejected_lines,
+                }
+            selected_line_number = Decimal(str(selection.selected["line"]))
+            selected = next(
+                item for item in candidates if Decimal(str(item["line"])) == selected_line_number
+            )
+            selection_warning = selection.selection_warning
         else:
-            eligible = candidates
-            consensus_floor = 1
-            override = None
-        selected = min(
-            eligible,
-            key=lambda item: (
-                item["balance_distance"],
-                item["balance_gap"],
-                item["mid_distance"],
-                -int(item["bookmaker_count"]),
-                abs(Decimal(str(item["line"]))),
-            ),
-        )
+            selected = min(
+                candidates,
+                key=lambda item: (
+                    item["balance_distance"],
+                    item["balance_gap"],
+                    item["mid_distance"],
+                    -int(item["bookmaker_count"]),
+                    abs(Decimal(str(item["line"]))),
+                ),
+            )
+            selection_warning = selected.get("selection_warning")
         line = cast(Decimal, selected["line"])
         rows = cast(list[dict[str, Any]], selected["rows"])
         side_state = cast(dict[str, Any], selected["side_state"])
-        selection_warning = selected.get("selection_warning")
-        selected_line = Decimal(str(line))
-        candidate_lines = self._mainline_candidate_lines(
-            candidates,
-            selected_line=selected_line,
-            consensus_floor=consensus_floor,
-            override=override,
-            selection_warning=str(selection_warning) if selection_warning else None,
-        )
-        rejected_lines = self._mainline_rejected_lines(
-            candidates,
-            selected_line=selected_line,
-            consensus_floor=consensus_floor,
-            override=override,
-        )
+        if market == "ASIAN_HANDICAP":
+            candidate_lines = self._merge_mainline_candidate_side_state(
+                selection.candidate_lines,
+                candidates,
+            )
+            rejected_lines = selection.rejected_lines
+            selection_policy = selection.selection_policy
+            primary_mainline_source = selection.primary_mainline_source
+            preferred_line = selection.preferred_line
+            line_span = selection.line_span
+            mainline_confidence = selection.mainline_confidence
+            mainline_blocker = selection.mainline_blocker
+        else:
+            candidate_lines = None
+            rejected_lines = None
+            selection_policy = None
+            primary_mainline_source = None
+            preferred_line = None
+            line_span = None
+            mainline_confidence = None
+            mainline_blocker = None
         return {
             "market": market,
             "status": "READY",
             "line": self._format_decimal_line(line),
             "observations": rows,
             "bookmaker_count": int(selected["bookmaker_count"]),
-            "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair"
-            if market == "ASIAN_HANDICAP"
-            else None,
-            "candidate_lines": candidate_lines if market == "ASIAN_HANDICAP" else None,
-            "rejected_lines": rejected_lines if market == "ASIAN_HANDICAP" else None,
+            "selection_policy": selection_policy,
+            "primary_mainline_source": primary_mainline_source,
+            "preferred_line": preferred_line,
+            "line_span": line_span,
+            "mainline_confidence": mainline_confidence,
+            "mainline_blocker": mainline_blocker,
+            "candidate_lines": candidate_lines,
+            "rejected_lines": rejected_lines,
             **({"selection_warning": selection_warning} if selection_warning else {}),
             **side_state,
         }
+
+    def _merge_mainline_candidate_side_state(
+        self,
+        candidate_lines: list[dict[str, Any]],
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        by_line = {Decimal(str(item["line"])): item for item in candidates}
+        rows: list[dict[str, Any]] = []
+        for candidate in candidate_lines:
+            line = Decimal(str(candidate.get("line")))
+            row = dict(candidate)
+            source = by_line.get(line)
+            side_state = source.get("side_state") if isinstance(source, dict) else None
+            if isinstance(side_state, dict):
+                side_prices = side_state.get("side_prices")
+                if isinstance(side_prices, dict):
+                    if side_prices.get("home") is not None:
+                        row["home_price"] = side_prices.get("home")
+                    if side_prices.get("away") is not None:
+                        row["away_price"] = side_prices.get("away")
+                side_lines = side_state.get("side_lines")
+                if isinstance(side_lines, dict):
+                    if side_lines.get("home") is not None:
+                        row["home_line"] = side_lines.get("home")
+                    if side_lines.get("away") is not None:
+                        row["away_line"] = side_lines.get("away")
+            rows.append(row)
+        return rows
 
     def _apply_mainline_market_selection(
         self,
@@ -1674,15 +1743,30 @@ class ReadModelService:
                     market["reasons"] = ["跟随市场 · 无独立优势 · 仅参考"]
                     market["risks"] = ["低赔率或信号不足时不作为主看。"]
                 continue
-            if status in {"EXTREME_LINE_ONLY", "NO_BALANCED_MAINLINE", "UNAVAILABLE"}:
+            if status in {
+                "EXTREME_LINE_ONLY",
+                "NO_BALANCED_MAINLINE",
+                "UNAVAILABLE",
+                "AH_MAINLINE_AMBIGUOUS",
+                "AH_PRIMARY_MAINLINE_MISSING",
+            }:
                 market["decision"] = "SKIP"
                 market["tendency"] = None
                 market["confidence"] = 0.0
                 market["line"] = resolved.get("line")
                 market["balanced_line"] = resolved.get("line")
                 market["balanced_prices"] = resolved.get("side_prices", {})
-                market["reasons"] = ["无有效主盘"]
-                market["risks"] = ["主盘口缺失时保持 SKIP。"]
+                market["line_status"] = status
+                market["mainline_blocker"] = resolved.get("mainline_blocker") or status
+                market["candidate_lines"] = resolved.get("candidate_lines")
+                market["rejected_lines"] = resolved.get("rejected_lines")
+                market["selection_policy"] = resolved.get("selection_policy")
+                if status in {"AH_MAINLINE_AMBIGUOUS", "AH_PRIMARY_MAINLINE_MISSING"}:
+                    market["reasons"] = ["无可信主盘口"]
+                    market["risks"] = ["主盘口缺失或存在多条备选盘口时保持 SKIP。"]
+                else:
+                    market["reasons"] = ["无有效主盘"]
+                    market["risks"] = ["主盘口缺失时保持 SKIP。"]
         self._refresh_analysis_card_decision(payload)
 
     def _refresh_analysis_card_decision(self, payload: dict[str, Any]) -> None:
@@ -1733,6 +1817,11 @@ class ReadModelService:
         common_bookmakers = set.intersection(*side_bookmakers.values())
         if not common_bookmakers:
             return None
+        primary_markers = {
+            bookmaker
+            for (_row_side, bookmaker), row in latest_by_side_bookmaker.items()
+            if self._row_has_primary_mainline_marker(row)
+        }
         pair_candidates: list[tuple[float, float, str, dict[str, float], dict[str, str]]] = []
         for bookmaker in common_bookmakers:
             prices: dict[str, float] = {}
@@ -1768,7 +1857,20 @@ class ReadModelService:
             "balance_gap": round(abs(values[0] - values[1]), 4),
             "mid_price": round(sum(values) / len(values), 4),
             "min_price": round(min(values), 4),
+            "has_primary_mainline": bool(primary_markers & common_bookmakers),
         }
+
+    def _row_has_primary_mainline_marker(self, row: dict[str, Any]) -> bool:
+        for key in ("is_mainline", "is_primary", "provider_mainline"):
+            value = row.get(key)
+            if isinstance(value, bool) and value:
+                return True
+            if str(value).strip().lower() in {"1", "true", "yes", "y"}:
+                return True
+        for key in ("market_role", "line_source", "source_market"):
+            if str(row.get(key) or "").strip().lower() in {"main", "primary", "mainline"}:
+                return True
+        return False
 
     def _devig_balance_distance(self, values: list[float]) -> float:
         if len(values) != 2:
@@ -2503,6 +2605,10 @@ class ReadModelService:
         for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
             selected = mainline_selection.get(market, {})
             if selected.get("status") != "READY":
+                if market == "ASIAN_HANDICAP" and (
+                    selected.get("candidate_lines") or selected.get("mainline_blocker")
+                ):
+                    current_odds[key] = self._blocked_ah_odds_entry(selected)
                 continue
             selected_observations = cast(list[dict[str, Any]], selected.get("observations", []))
             ordered = self._ordered_observations_for_market(selected_observations, market)
@@ -2530,6 +2636,20 @@ class ReadModelService:
                 score_matrix
             )
         return summary
+
+    def _blocked_ah_odds_entry(self, selection: dict[str, Any]) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "line_status": selection.get("status"),
+            "mainline_blocker": selection.get("mainline_blocker") or selection.get("status"),
+            "mainline_confidence": selection.get("mainline_confidence"),
+            "selection_policy": selection.get("selection_policy"),
+            "primary_mainline_source": selection.get("primary_mainline_source"),
+            "preferred_line": selection.get("preferred_line"),
+            "line_span": selection.get("line_span"),
+            "candidate_lines": selection.get("candidate_lines") or [],
+            "rejected_lines": selection.get("rejected_lines") or [],
+        }
+        return {key: value for key, value in entry.items() if value is not None}
 
     def _xg_readiness_status(
         self,
@@ -2803,6 +2923,11 @@ class ReadModelService:
         for key in (
             "selection_policy",
             "selection_warning",
+            "primary_mainline_source",
+            "preferred_line",
+            "line_span",
+            "mainline_confidence",
+            "mainline_blocker",
             "candidate_lines",
             "rejected_lines",
         ):
@@ -3229,7 +3354,17 @@ class ReadModelService:
             ah["away_price"] = away_price
         if home_price is not None or away_price is not None:
             ah["source"] = "market_timeline_snapshots"
-        for key in ("selection_policy", "candidate_lines", "rejected_lines"):
+        for key in (
+            "selection_policy",
+            "selection_warning",
+            "primary_mainline_source",
+            "preferred_line",
+            "line_span",
+            "mainline_confidence",
+            "mainline_blocker",
+            "candidate_lines",
+            "rejected_lines",
+        ):
             if isinstance(latest_ah, dict) and key in latest_ah:
                 ah[key] = latest_ah.get(key)
         shadow = card.get("pricing_shadow")
@@ -3252,6 +3387,25 @@ class ReadModelService:
         away_price = self._snapshot_float(snapshot, "away_price")
         if signed_line is None or home_price is None or away_price is None:
             return False
+        if isinstance(snapshot, dict):
+            if snapshot.get("mainline_blocker"):
+                return False
+            candidates = snapshot.get("candidate_lines")
+            if (
+                snapshot.get("primary_mainline_source") is None
+                and isinstance(candidates, list)
+                and len(candidates) > 2
+            ):
+                lines: list[float] = []
+                for item in candidates:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        lines.append(float(item["line"]))
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                if lines and max(lines) - min(lines) >= 0.75:
+                    return False
         market = canonical_ah_market(
             current_odds={
                 "ah": {
