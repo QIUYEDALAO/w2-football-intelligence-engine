@@ -49,6 +49,7 @@ def scoreline_reference_from_card(
         "source": "formal_simulation",
         "label": "模拟比分参考",
         "top_scorelines": top_scorelines,
+        "midband_scorelines": _midband_scorelines(simulation, top_scorelines=top_scorelines),
         "high_total": {
             "threshold": 4,
             "probability": high_total_probability,
@@ -152,6 +153,62 @@ def _representative_high_total_scoreline(
         "probability_label": _probability_label(None, probability),
         "source": "exact_poisson_from_lambda",
     }
+
+
+def _midband_scorelines(
+    simulation: dict[str, Any],
+    *,
+    top_scorelines: list[dict[str, Any]],
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    lambda_home = _number(simulation.get("lambda_home"))
+    lambda_away = _number(simulation.get("lambda_away"))
+    if lambda_home is None or lambda_away is None:
+        return []
+    top_names = {
+        str(item.get("scoreline"))
+        for item in top_scorelines[:3]
+        if isinstance(item, dict) and item.get("scoreline")
+    }
+    rows: list[tuple[float, int, int]] = []
+    fallback_rows: list[tuple[float, int, int]] = []
+    for home in range(0, 8):
+        for away in range(0, 8):
+            scoreline = f"{home}-{away}"
+            if scoreline in top_names:
+                continue
+            probability = _poisson_probability(lambda_home, home) * _poisson_probability(
+                lambda_away,
+                away,
+            )
+            if probability < 0.01:
+                continue
+            fallback_rows.append((probability, home, away))
+            if home + away < 3 or probability < 0.02:
+                continue
+            rows.append((probability, home, away))
+
+    selected = sorted(rows, reverse=True)[:limit]
+    if len(selected) < limit:
+        selected_names = {f"{home}-{away}" for _, home, away in selected}
+        for item in sorted(fallback_rows, reverse=True):
+            _, home, away = item
+            if f"{home}-{away}" in selected_names:
+                continue
+            selected.append(item)
+            selected_names.add(f"{home}-{away}")
+            if len(selected) >= limit:
+                break
+
+    return [
+        {
+            "scoreline": f"{home}-{away}",
+            "home_goals": home,
+            "away_goals": away,
+            "source": "formal_simulation_midband",
+        }
+        for _, home, away in selected[:limit]
+    ]
 
 
 def _ah_key_scorelines(

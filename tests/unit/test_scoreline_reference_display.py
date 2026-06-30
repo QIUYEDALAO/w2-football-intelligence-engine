@@ -46,6 +46,26 @@ def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
         "2-0",
         "1-1",
     ]
+    assert reference["midband_scorelines"] == [
+        {
+            "scoreline": "2-1",
+            "home_goals": 2,
+            "away_goals": 1,
+            "source": "formal_simulation_midband",
+        },
+        {
+            "scoreline": "3-0",
+            "home_goals": 3,
+            "away_goals": 0,
+            "source": "formal_simulation_midband",
+        },
+        {
+            "scoreline": "3-1",
+            "home_goals": 3,
+            "away_goals": 1,
+            "source": "formal_simulation_midband",
+        },
+    ]
     assert reference["high_total"]["threshold"] == 4
     assert reference["high_total"]["probability"] == 0.2592
     assert reference["high_total"]["probability_label"] == "26%"

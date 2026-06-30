@@ -28,11 +28,26 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert 'AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致"' in card
     assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
-    assert "模拟比分参考，不是推荐比分" in card
-    assert "最可能：" in card
-    assert "总进球≥" in card
-    assert "让球结算关键比分" in card
+    assert "模拟中位比分参考，不是推荐比分：" in card
+    assert "最可能：" not in card
+    assert "总进球≥" not in card
+    assert "让球结算关键比分" not in card
+    assert "全赢" not in card
+    assert "半输" not in card
+    assert "全输" not in card
     assert "推荐比分" not in card.replace("不是推荐比分", "")
+
+
+def test_frontend_normalizes_scoreline_reference_payload() -> None:
+    api = (ROOT / "apps/web/src/lib/dashboardApi.ts").read_text()
+
+    assert "function normalizeScorelineReference" in api
+    assert "scoreline_reference: normalizeScorelineReference(record.scoreline_reference)" in api
+    assert "top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick)" in api
+    assert "midband_scorelines: asArray(record.midband_scorelines)" in api
+    assert "high_total: Object.keys(highTotal).length" in api
+    assert "very_high_total: Object.keys(veryHighTotal).length" in api
+    assert "ah_key_scorelines: asArray(record.ah_key_scorelines)" in api
 
 
 def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:

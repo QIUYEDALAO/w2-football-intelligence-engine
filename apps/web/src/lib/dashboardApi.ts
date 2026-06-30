@@ -16,6 +16,7 @@ import type {
   RecommendationPick,
   ReleaseMeta,
   ReleaseSyncState,
+  ScorelineReference,
   ValidationSummary,
 } from "../types/dashboard";
 
@@ -319,6 +320,69 @@ function normalizeScorelineReadiness(payload: unknown) {
   };
 }
 
+function normalizeScorelinePick(payload: unknown) {
+  const record = asRecord(payload);
+  return {
+    scoreline: textValue(record.scoreline),
+    home_goals: nullableNumber(record.home_goals) ?? undefined,
+    away_goals: nullableNumber(record.away_goals) ?? undefined,
+    probability: nullableNumber(record.probability) ?? undefined,
+    probability_label: textValue(record.probability_label) || undefined,
+  };
+}
+
+function normalizeScorelineReference(payload: unknown): ScorelineReference | null {
+  const record = asRecord(payload);
+  if (!Object.keys(record).length) return null;
+  const highTotal = asRecord(record.high_total);
+  const veryHighTotal = asRecord(record.very_high_total);
+  return {
+    source: textValue(record.source) || null,
+    label: textValue(record.label) || null,
+    top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    midband_scorelines: asArray(record.midband_scorelines).map((item) => {
+      const row = asRecord(item);
+      return {
+        scoreline: textValue(row.scoreline),
+        home_goals: nullableNumber(row.home_goals) ?? undefined,
+        away_goals: nullableNumber(row.away_goals) ?? undefined,
+        source: textValue(row.source) || null,
+      };
+    }).filter((row) => row.scoreline),
+    high_total: Object.keys(highTotal).length ? {
+      threshold: nullableNumber(highTotal.threshold) ?? undefined,
+      probability: nullableNumber(highTotal.probability),
+      probability_label: textValue(highTotal.probability_label) || null,
+      representative_scoreline: Object.keys(asRecord(highTotal.representative_scoreline)).length
+        ? {
+            ...normalizeScorelinePick(highTotal.representative_scoreline),
+            source: textValue(asRecord(highTotal.representative_scoreline).source) || null,
+          }
+        : null,
+    } : null,
+    very_high_total: Object.keys(veryHighTotal).length ? {
+      threshold: nullableNumber(veryHighTotal.threshold) ?? undefined,
+      probability: nullableNumber(veryHighTotal.probability),
+      probability_label: textValue(veryHighTotal.probability_label) || null,
+    } : null,
+    ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => {
+      const row = asRecord(item);
+      return {
+        outcome: textValue(row.outcome) || undefined,
+        label: textValue(row.label) || undefined,
+        scoreline: textValue(row.scoreline) || undefined,
+        home_goals: nullableNumber(row.home_goals) ?? undefined,
+        away_goals: nullableNumber(row.away_goals) ?? undefined,
+        representative_probability: nullableNumber(row.representative_probability),
+        representative_probability_label: textValue(row.representative_probability_label) || null,
+        settlement_probability: nullableNumber(row.settlement_probability),
+        settlement_probability_label: textValue(row.settlement_probability_label) || null,
+        source: textValue(row.source) || null,
+      };
+    }).filter((row) => row.scoreline),
+  };
+}
+
 function normalizeMarketMovement(payload: unknown) {
   const record = asRecord(payload);
   const status = textValue(record.status);
@@ -404,6 +468,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
       probability: typeof row.probability === "number" ? row.probability : undefined,
       probability_label: textValue(row.probability_label),
     })).filter((row) => row.scoreline),
+    scoreline_reference: normalizeScorelineReference(record.scoreline_reference),
     scoreline_readiness: normalizeScorelineReadiness(record.scoreline_readiness),
     result: record.result ? (asRecord(record.result) as unknown as MatchResult) : null,
     validation: record.validation ? (asRecord(record.validation) as unknown as ValidationSummary) : null,
