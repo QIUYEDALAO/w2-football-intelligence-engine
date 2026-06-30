@@ -207,6 +207,35 @@ export interface ScorelinePick {
   direction_hit?: boolean;
 }
 
+export interface ScorelineReference {
+  source?: string | null;
+  label?: string | null;
+  top_scorelines?: ScorelinePick[];
+  high_total?: {
+    threshold?: number;
+    probability?: number | null;
+    probability_label?: string | null;
+    representative_scoreline?: (ScorelinePick & { source?: string | null }) | null;
+  } | null;
+  very_high_total?: {
+    threshold?: number;
+    probability?: number | null;
+    probability_label?: string | null;
+  } | null;
+  ah_key_scorelines?: Array<{
+    outcome?: string;
+    label?: string;
+    scoreline?: string;
+    home_goals?: number;
+    away_goals?: number;
+    representative_probability?: number | null;
+    representative_probability_label?: string | null;
+    settlement_probability?: number | null;
+    settlement_probability_label?: string | null;
+    source?: string | null;
+  }>;
+}
+
 export interface ScorelineReadiness {
   status: "READY" | "INSUFFICIENT_INDEPENDENT_XG" | string;
   reason?: string | null;
@@ -363,6 +392,7 @@ export interface DashboardMatchCard {
   formal_suppressed?: boolean;
   formal_suppressed_reason?: string | null;
   scoreline_picks: ScorelinePick[];
+  scoreline_reference?: ScorelineReference | null;
   scoreline_readiness?: ScorelineReadiness | null;
   result?: MatchResult | null;
   validation?: ValidationSummary | null;

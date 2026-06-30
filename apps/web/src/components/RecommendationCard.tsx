@@ -345,6 +345,73 @@ function scorelineHeroText(match: DashboardMatchCard): string {
   return reason ? `未就绪：${reason}` : "未就绪";
 }
 
+function scorelineItemText(pick: { scoreline?: string; probability_label?: string | null } | null | undefined): string | null {
+  if (!pick?.scoreline) return null;
+  return `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`;
+}
+
+function highTotalText(match: DashboardMatchCard): string | null {
+  const highTotal = match.scoreline_reference?.high_total;
+  if (!highTotal?.probability_label) return null;
+  const representative = scorelineItemText(highTotal.representative_scoreline);
+  const prefix = `总进球≥${highTotal.threshold ?? 4}：${highTotal.probability_label}`;
+  return representative ? `${prefix}，代表 ${representative}` : prefix;
+}
+
+function veryHighTotalText(match: DashboardMatchCard): string | null {
+  const veryHigh = match.scoreline_reference?.very_high_total;
+  if (!veryHigh?.probability_label) return null;
+  return `总进球≥${veryHigh.threshold ?? 5}：${veryHigh.probability_label}`;
+}
+
+function ahKeyScorelineText(match: DashboardMatchCard): string | null {
+  const rows = match.scoreline_reference?.ah_key_scorelines ?? [];
+  const text = rows
+    .filter((row) => row.label && row.scoreline)
+    .map((row) => {
+      const settlement = row.settlement_probability_label ? ` ${row.settlement_probability_label}` : "";
+      return `${row.label}：${row.scoreline}${settlement}`;
+    })
+    .join(" / ");
+  return text || null;
+}
+
+function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCard; isFormal: boolean }) {
+  if (!isFormal) {
+    return (
+      <p className="scoreline-hero-copy">
+        <strong>比分模拟参考：</strong>
+        {scorelineHeroText(match)}
+      </p>
+    );
+  }
+  const reference = match.scoreline_reference;
+  const topScorelines = (reference?.top_scorelines?.length ? reference.top_scorelines : match.scoreline_picks)
+    .slice(0, 3)
+    .map((pick) => scorelineItemText(pick))
+    .filter(Boolean)
+    .join(" · ");
+  const highTotal = highTotalText(match);
+  const veryHighTotal = veryHighTotalText(match);
+  const ahKeys = ahKeyScorelineText(match);
+  if (!topScorelines && !highTotal && !ahKeys) {
+    return (
+      <p className="scoreline-hero-copy">
+        <strong>模拟比分参考：</strong>
+        {scorelineHeroText(match)}
+      </p>
+    );
+  }
+  return (
+    <div className="scoreline-reference-block" aria-label="分层模拟比分参考">
+      <strong>模拟比分参考，不是推荐比分</strong>
+      {topScorelines ? <p>最可能：{topScorelines}</p> : null}
+      {highTotal ? <p>{highTotal}{veryHighTotal ? ` · ${veryHighTotal}` : ""}</p> : null}
+      {ahKeys ? <p>让球结算关键比分：{ahKeys}</p> : null}
+    </div>
+  );
+}
+
 function resultLine(match: DashboardMatchCard): string | null {
   if (!match.result?.final_score && !match.validation) return null;
   const finalScore = match.result?.final_score ? `完场 ${match.result.final_score}` : "完场待同步";
@@ -564,10 +631,7 @@ function FormalDecisionHero({
         </div>
       ) : null}
       <p>{isFormal ? `理由：${reason}` : `未出正式推荐原因：${displayReason(reason)}`}</p>
-      <p className="scoreline-hero-copy">
-        <strong>{isFormal ? "模拟比分参考：" : "比分模拟参考："}</strong>
-        {scorelineHeroText(match)}
-      </p>
+      <ScorelineReferenceBlock match={match} isFormal={isFormal} />
     </section>
   );
 }

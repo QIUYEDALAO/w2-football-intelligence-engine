@@ -33,7 +33,7 @@ from w2.dashboard.results import (
     result_from_dashboard_row,
     result_from_provider_fixture,
 )
-from w2.dashboard.scorelines import scoreline_picks_from_card
+from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
 from w2.dashboard.status_labels import (
     lineups_status_label,
     provider_status_label,
@@ -3902,6 +3902,10 @@ class ReadModelService:
                 readiness=analysis_readiness,
                 fixture_status=normalize_match_status(row.get("status")),
             )
+        scoreline_reference = scoreline_reference_from_card(
+            card,
+            recommendation=recommendation,
+        )
         validation = validate_recommendation(
             fixture_id=fixture_id,
             recommendation=recommendation,
@@ -3935,6 +3939,7 @@ class ReadModelService:
             "formal_suppressed": formal_result.formal_suppressed,
             "formal_suppressed_reason": formal_result.formal_suppressed_reason,
             "scoreline_picks": scoreline_picks,
+            "scoreline_reference": scoreline_reference,
             "scoreline_readiness": self._dashboard_scoreline_readiness(card),
             "result": result,
             "validation": validation,
