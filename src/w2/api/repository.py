@@ -95,6 +95,7 @@ from w2.strategy.analysis_recommendation import (
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.formal_recommendation import (
+    ah_display_contract,
     build_formal_recommendation,
     canonical_ah_market,
     formal_recommendations_enabled,
@@ -3183,6 +3184,7 @@ class ReadModelService:
         )
         self._attach_scoreline_pricing_fields(decorated)
         self._attach_market_movement_fields(decorated)
+        self._attach_ah_display_contract(decorated)
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
             decorated.get("bookmaker_intent")
         )
@@ -3257,6 +3259,28 @@ class ReadModelService:
                 shadow["edge_ah"] = round(float(signed_line) - float(fair), 6)
             except (TypeError, ValueError):
                 shadow["edge_ah"] = None
+        self._attach_ah_display_contract(card)
+
+    def _attach_ah_display_contract(self, card: dict[str, Any]) -> None:
+        odds = card.get("current_odds")
+        if not isinstance(odds, dict):
+            return
+        ah = odds.get("ah")
+        if not isinstance(ah, dict):
+            return
+        shadow = card.get("pricing_shadow")
+        market_ah = (
+            self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
+        )
+        raw_home_line = self._snapshot_float(ah, "home_line")
+        canonical_home_line = market_ah if market_ah is not None else raw_home_line
+        if canonical_home_line is None:
+            return
+        display = ah_display_contract(canonical_home_line)
+        ah["home_line"] = f"{canonical_home_line:g}"
+        ah["away_line"] = f"{-canonical_home_line:g}"
+        ah["line"] = f"{abs(canonical_home_line):g}"
+        ah.update(display)
 
     def _timeline_ah_snapshot_is_canonical_ready(
         self,

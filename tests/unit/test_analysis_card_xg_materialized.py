@@ -313,6 +313,10 @@ def test_analysis_card_prefers_market_balanced_lines_over_fixed_lines(monkeypatc
     assert card["current_odds"]["ah"]["line"] == "1.5"
     assert card["current_odds"]["ah"]["home_line"] == "-1.5"
     assert card["current_odds"]["ah"]["away_line"] == "1.5"
+    assert card["current_odds"]["ah"]["display_line_cn"] == "主队 -1.5"
+    assert card["current_odds"]["ah"]["home_display_line_cn"] == "主队 -1.5"
+    assert card["current_odds"]["ah"]["away_display_line_cn"] == "客队 +1.5"
+    assert card["pricing_shadow"]["market_ah"] == -1.5
     assert card["current_odds"]["ou"]["line"] == "3.5"
     assert card["current_odds"]["ou"]["over_price"] == 1.91
     assert card["current_odds"]["ou"]["under_price"] == 1.93
