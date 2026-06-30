@@ -273,6 +273,36 @@ export interface RecommendationPick {
   formal_recommendation?: boolean;
 }
 
+export type LockedPreMatchStatus = "LOCKED" | "NO_PREMATCH_FORMAL" | string;
+export type LockedSettlementStatus = "PENDING" | "SETTLED" | "WAITING_RESULT" | "NO_BET" | string;
+
+export interface LockedPreMatchRecommendation {
+  status: LockedPreMatchStatus;
+  fixture_id?: string | number | null;
+  snapshot_id?: string | null;
+  captured_at?: string | null;
+  as_of?: string | null;
+  kickoff_utc?: string | null;
+  recommendation?: RecommendationPick | null;
+  scoreline_reference?: ScorelineReference | null;
+  simulation_evidence?: {
+    simulations?: number | string | null;
+    source?: string | null;
+    model_version?: string | null;
+    calibration_version?: string | null;
+  } | null;
+  reason?: string | null;
+  settlement?: {
+    status?: LockedSettlementStatus;
+    result?: MatchResult | Record<string, unknown> | null;
+    pnl?: string | number | null;
+    settlement_outcome?: string | null;
+    sample_included?: boolean | null;
+    win_included?: boolean | null;
+    evaluated_at?: string | null;
+  } | null;
+}
+
 export type PricingShadowStatus = "RULE_BASED_UNCALIBRATED" | "INSUFFICIENT_INDEPENDENT_FACTORS" | "WATCH" | string;
 
 export interface PricingShadowFactor {
@@ -391,6 +421,7 @@ export interface DashboardMatchCard {
   formal_recommendation?: boolean;
   formal_suppressed?: boolean;
   formal_suppressed_reason?: string | null;
+  locked_pre_match_recommendation?: LockedPreMatchRecommendation | null;
   scoreline_picks: ScorelinePick[];
   scoreline_reference?: ScorelineReference | null;
   scoreline_readiness?: ScorelineReadiness | null;

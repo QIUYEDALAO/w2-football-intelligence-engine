@@ -99,6 +99,36 @@ def test_capture_formal_snapshot_is_prematch_and_immutable(tmp_path) -> None:
     assert list((tmp_path / "formal_recommendation_snapshots").glob("*.json"))
 
 
+def test_capture_formal_snapshot_preserves_scoreline_and_simulation_evidence(tmp_path) -> None:
+    card = formal_card()
+    card["scoreline_reference"] = {
+        "source": "formal_simulation",
+        "top_scorelines": [{"scoreline": "1-1", "probability_label": "12%"}],
+    }
+    card["pricing_shadow"] = {
+        **card["pricing_shadow"],  # type: ignore[index]
+        "simulation": {
+            "status": "READY",
+            "simulations": 10000,
+            "model_version": "FORMAL_SIMULATION",
+            "calibration_version": "UNVALIDATED",
+        },
+    }
+
+    capture_formal_snapshots(
+        [card],
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        now=NOW,
+    )
+
+    [snapshot_path] = list((tmp_path / "formal_recommendation_snapshots").glob("*.json"))
+    snapshot = snapshot_path.read_text(encoding="utf-8")
+    assert '"scoreline_reference"' in snapshot
+    assert '"simulations": 10000' in snapshot
+
+
 def test_capture_blocks_post_kickoff_snapshot(tmp_path) -> None:
     result = capture_formal_snapshots(
         [formal_card(kickoff="2026-06-29T11:00:00Z")],

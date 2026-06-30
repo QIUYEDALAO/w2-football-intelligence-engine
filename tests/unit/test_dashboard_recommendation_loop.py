@@ -133,6 +133,134 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert "FIXTURE_NOT_UPCOMING" in card["analysis_readiness"]["blockers"]
 
 
+def _write_formal_snapshot(
+    runtime_root: Path,
+    *,
+    fixture_id: str = "finished-over",
+    snapshot_id: str = "locked-snapshot-1",
+) -> None:
+    path = runtime_root / "formal_recommendation_snapshots" / f"{snapshot_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "w2_formal_recommendation_snapshot.v1",
+                "fixture_id": fixture_id,
+                "snapshot_id": snapshot_id,
+                "captured_at": "2026-06-26T08:30:00Z",
+                "as_of": "2026-06-26T08:30:00Z",
+                "kickoff_utc": "2026-06-26T10:00:00Z",
+                "home_team_name": "Home",
+                "away_team_name": "Away",
+                "recommendation": {
+                    "tier": "FORMAL",
+                    "market": "ASIAN_HANDICAP",
+                    "selection": "AWAY_AH",
+                    "selection_side": "AWAY",
+                    "selection_label_cn": "Away 受让",
+                    "line": "1.5",
+                    "odds": "1.93",
+                    "risk_adjusted_ev": "12.5pct",
+                    "reverse_factor_value": True,
+                },
+                "scoreline_reference": {
+                    "source": "formal_simulation",
+                    "top_scorelines": [{"scoreline": "1-1", "probability_label": "12%"}],
+                },
+                "simulation_evidence": {
+                    "simulations": 10000,
+                    "source": "formal_simulation",
+                },
+                "candidate": False,
+                "formal_recommendation": True,
+                "immutable": True,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_formal_settlement(
+    runtime_root: Path,
+    *,
+    snapshot_id: str = "locked-snapshot-1",
+) -> None:
+    path = runtime_root / "formal_recommendation_settlements" / f"{snapshot_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "w2_formal_recommendation_settlement.v1",
+                "fixture_id": "finished-over",
+                "snapshot_id": snapshot_id,
+                "final_score": {"home_goals": 2, "away_goals": 1, "status": "FINISHED"},
+                "settlement_outcome": "WIN",
+                "settled_units": "1",
+                "sample_included": True,
+                "win_included": True,
+                "evaluated_at": "2026-06-26T12:30:00Z",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_dashboard_exposes_locked_prematch_recommendation_after_kickoff(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
+    _write_formal_snapshot(tmp_path)
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    locked = card["locked_pre_match_recommendation"]
+    assert card["formal_recommendation"] is False
+    assert card["formal_suppressed"] is True
+    assert card["formal_suppressed_reason"] == "FIXTURE_STARTED_LOCKED_PREMATCH"
+    assert locked["status"] == "LOCKED"
+    assert locked["recommendation"]["tier"] == "FORMAL"
+    assert locked["recommendation"]["selection_label_cn"] == "Away 受让"
+    assert locked["settlement"]["status"] == "PENDING"
+    assert locked["simulation_evidence"]["simulations"] == 10000
+
+
+def test_dashboard_reports_no_prematch_formal_when_started_without_snapshot(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    locked = card["locked_pre_match_recommendation"]
+    assert locked["status"] == "NO_PREMATCH_FORMAL"
+    assert locked["reason"] == "NO_PREMATCH_FORMAL_SNAPSHOT"
+    assert locked["recommendation"] is None
+    assert card["formal_suppressed_reason"] == "FIXTURE_STARTED_NO_PREMATCH_FORMAL"
+
+
+def test_dashboard_exposes_locked_prematch_settlement_when_artifact_exists(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
+    _write_formal_snapshot(tmp_path)
+    _write_formal_settlement(tmp_path)
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+
+    settlement = card["locked_pre_match_recommendation"]["settlement"]
+    assert settlement["status"] == "SETTLED"
+    assert settlement["settlement_outcome"] == "WIN"
+    assert settlement["pnl"] == "1"
+
+
 class ReadinessRepository:
     def __init__(
         self,
