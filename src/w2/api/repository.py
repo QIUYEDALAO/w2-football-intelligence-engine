@@ -22,7 +22,12 @@ from w2.analysis.market_movement import (
 )
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
-from w2.dashboard.date_window import default_football_day
+from w2.dashboard.date_window import (
+    FOOTBALL_DAY_CUTOFF_HOUR,
+    FOOTBALL_DAY_TZ,
+    default_football_day,
+    football_day_window,
+)
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
     build_analysis_readiness,
@@ -910,9 +915,16 @@ class ReadModelService:
             data_profile = "real-db"
         if not all_cards and data_profile == "real-db":
             data_profile = "empty"
+        football_day_start, football_day_end = football_day_window(requested_date)
         payload = {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),
+            "selected_date": requested_date.isoformat(),
+            "selected_football_day": requested_date.isoformat(),
+            "football_day_timezone": str(FOOTBALL_DAY_TZ),
+            "football_day_cutoff_hour": FOOTBALL_DAY_CUTOFF_HOUR,
+            "football_day_start_utc": football_day_start.isoformat().replace("+00:00", "Z"),
+            "football_day_end_utc": football_day_end.isoformat().replace("+00:00", "Z"),
             "timezone": timezone,
             "window": window,
             "data_profile": data_profile,

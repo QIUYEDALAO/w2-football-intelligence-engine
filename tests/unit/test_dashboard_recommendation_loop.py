@@ -180,6 +180,12 @@ def test_dashboard_results_window_uses_football_day_boundaries() -> None:
     fixture_ids = [card["fixture_id"] for card in payload["all"]]
     assert fixture_ids == ["football-day-start", "football-day-morning"]
     assert [card["fixture_id"] for card in payload["finished"]] == fixture_ids
+    assert payload["selected_date"] == "2026-06-30"
+    assert payload["selected_football_day"] == "2026-06-30"
+    assert payload["football_day_timezone"] == "Asia/Shanghai"
+    assert payload["football_day_cutoff_hour"] == 12
+    assert payload["football_day_start_utc"] == "2026-06-30T04:00:00Z"
+    assert payload["football_day_end_utc"] == "2026-07-01T04:00:00Z"
     assert payload["debug"]["selected_date"] == "2026-06-30"
 
 
@@ -1076,10 +1082,11 @@ def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
     assert card["scoreline_reference"]["source"] == "formal_simulation"
-    assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
-    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
-    assert card["scoreline_reference"]["ah_key_scorelines"] == []
+    assert len(card["scoreline_reference"]["midband_scorelines"]) == 3
+    assert "top_scorelines" not in card["scoreline_reference"]
+    assert "high_total" not in card["scoreline_reference"]
+    assert "very_high_total" not in card["scoreline_reference"]
+    assert "ah_key_scorelines" not in card["scoreline_reference"]
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

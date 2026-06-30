@@ -117,6 +117,9 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
   REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH: "逆因子盘口价值不足",
   SCORELINE_DIRECTION_CONTRADICTION: "模拟比分方向与推荐方向不一致",
   INVALID_AH_MARKET: "全场让球市场不可用",
+  AH_MAINLINE_AMBIGUOUS: "全场让球主盘口不明确",
+  AH_PRIMARY_MAINLINE_MISSING: "缺少可确认的全场让球主盘口",
+  AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认",
 };
 
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
@@ -288,6 +291,17 @@ function formalReason(match: DashboardMatchCard): string {
   return "当前只保留为观察/分析参考，不伪装成正式推荐。";
 }
 
+function midbandScorelines(match: DashboardMatchCard): string[] {
+  const rows = match.scoreline_reference?.midband_scorelines ?? [];
+  const fromReference = rows.map((item) => item.scoreline).filter(Boolean) as string[];
+  if (fromReference.length) return fromReference.slice(0, 3);
+  return match.scoreline_picks
+    .slice(3, 6)
+    .map((pick) => pick.scoreline)
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 function lockedSettlementText(match: DashboardMatchCard): string {
   const settlement = match.locked_pre_match_recommendation?.settlement;
   if (!settlement?.status) return "待赛果确认";
@@ -369,37 +383,6 @@ function scorelineHeroText(match: DashboardMatchCard): string {
   return reason ? `未就绪：${reason}` : "未就绪";
 }
 
-function scorelineItemText(pick: { scoreline?: string; probability_label?: string | null } | null | undefined): string | null {
-  if (!pick?.scoreline) return null;
-  return `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`;
-}
-
-function highTotalText(match: DashboardMatchCard): string | null {
-  const highTotal = match.scoreline_reference?.high_total;
-  if (!highTotal?.probability_label) return null;
-  const representative = scorelineItemText(highTotal.representative_scoreline);
-  const prefix = `总进球≥${highTotal.threshold ?? 4}：${highTotal.probability_label}`;
-  return representative ? `${prefix}，代表 ${representative}` : prefix;
-}
-
-function veryHighTotalText(match: DashboardMatchCard): string | null {
-  const veryHigh = match.scoreline_reference?.very_high_total;
-  if (!veryHigh?.probability_label) return null;
-  return `总进球≥${veryHigh.threshold ?? 5}：${veryHigh.probability_label}`;
-}
-
-function ahKeyScorelineText(match: DashboardMatchCard): string | null {
-  const rows = match.scoreline_reference?.ah_key_scorelines ?? [];
-  const text = rows
-    .filter((row) => row.label && row.scoreline)
-    .map((row) => {
-      const settlement = row.settlement_probability_label ? ` ${row.settlement_probability_label}` : "";
-      return `${row.label}：${row.scoreline}${settlement}`;
-    })
-    .join(" / ");
-  return text || null;
-}
-
 function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCard; isFormal: boolean }) {
   if (!isFormal) {
     return (
@@ -409,16 +392,8 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
       </p>
     );
   }
-  const reference = match.scoreline_reference;
-  const topScorelines = (reference?.top_scorelines?.length ? reference.top_scorelines : match.scoreline_picks)
-    .slice(0, 3)
-    .map((pick) => scorelineItemText(pick))
-    .filter(Boolean)
-    .join(" · ");
-  const highTotal = highTotalText(match);
-  const veryHighTotal = veryHighTotalText(match);
-  const ahKeys = ahKeyScorelineText(match);
-  if (!topScorelines && !highTotal && !ahKeys) {
+  const scores = midbandScorelines(match).join(" · ");
+  if (!scores) {
     return (
       <p className="scoreline-hero-copy">
         <strong>模拟比分参考：</strong>
@@ -428,10 +403,7 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
   }
   return (
     <div className="scoreline-reference-block" aria-label="分层模拟比分参考">
-      <strong>模拟比分参考，不是推荐比分</strong>
-      {topScorelines ? <p>最可能：{topScorelines}</p> : null}
-      {highTotal ? <p>{highTotal}{veryHighTotal ? ` · ${veryHighTotal}` : ""}</p> : null}
-      {ahKeys ? <p>让球结算关键比分：{ahKeys}</p> : null}
+      <p>模拟中位比分参考，不是推荐比分：{scores}</p>
     </div>
   );
 }

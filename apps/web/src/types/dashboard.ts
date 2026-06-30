@@ -210,6 +210,12 @@ export interface ScorelinePick {
 export interface ScorelineReference {
   source?: string | null;
   label?: string | null;
+  midband_scorelines?: Array<{
+    scoreline?: string;
+    home_goals?: number;
+    away_goals?: number;
+    source?: string | null;
+  }>;
   top_scorelines?: ScorelinePick[];
   high_total?: {
     threshold?: number;
@@ -546,6 +552,12 @@ export interface ReleaseSyncState {
 
 export interface DashboardView {
   date: string;
+  selected_date?: string;
+  selected_football_day?: string;
+  football_day_timezone?: string;
+  football_day_cutoff_hour?: number;
+  football_day_start_utc?: string;
+  football_day_end_utc?: string;
   generated_at: string;
   data_profile: string;
   data_source: string;

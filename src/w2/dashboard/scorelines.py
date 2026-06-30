@@ -42,28 +42,10 @@ def scoreline_reference_from_card(
     simulation = _simulation_from_card(card)
     if not isinstance(simulation, dict) or simulation.get("status") != "READY":
         return None
-    top_scorelines = scoreline_picks_from_card(card)
-    high_total_probability = _over_probability(simulation, 3.5)
-    very_high_total_probability = _over_probability(simulation, 4.5)
     return {
         "source": "formal_simulation",
-        "label": "模拟比分参考",
-        "top_scorelines": top_scorelines,
-        "high_total": {
-            "threshold": 4,
-            "probability": high_total_probability,
-            "probability_label": _probability_label(None, high_total_probability),
-            "representative_scoreline": _representative_high_total_scoreline(
-                simulation,
-                minimum_total=4,
-            ),
-        },
-        "very_high_total": {
-            "threshold": 5,
-            "probability": very_high_total_probability,
-            "probability_label": _probability_label(None, very_high_total_probability),
-        },
-        "ah_key_scorelines": _ah_key_scorelines(simulation, recommendation=recommendation),
+        "label": "模拟中位比分参考",
+        "midband_scorelines": _midband_scorelines(simulation),
     }
 
 
@@ -107,170 +89,78 @@ def _simulation_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]:
     return picks
 
 
-def _over_probability(simulation: dict[str, Any], line: float) -> float | None:
-    ou = simulation.get("ou_probabilities")
-    ladder = ou.get("ladder") if isinstance(ou, dict) else None
-    if not isinstance(ladder, list):
-        return None
-    for item in ladder:
-        if not isinstance(item, dict):
-            continue
-        item_line = _number(item.get("line"))
-        if item_line is not None and math.isclose(item_line, line, abs_tol=1e-9):
-            return _probability(item.get("over"))
-    return None
-
-
-def _representative_high_total_scoreline(
-    simulation: dict[str, Any],
-    *,
-    minimum_total: int,
-) -> dict[str, Any] | None:
-    lambda_home = _number(simulation.get("lambda_home"))
-    lambda_away = _number(simulation.get("lambda_away"))
-    if lambda_home is None or lambda_away is None:
-        return None
-    best: tuple[float, int, int] | None = None
-    for home in range(0, 7):
-        for away in range(0, 7):
-            if home + away < minimum_total:
-                continue
-            probability = _poisson_probability(lambda_home, home) * _poisson_probability(
-                lambda_away,
-                away,
-            )
-            if best is None or probability > best[0]:
-                best = (probability, home, away)
-    if best is None:
-        return None
-    probability, home, away = best
-    return {
-        "scoreline": f"{home}-{away}",
-        "home_goals": home,
-        "away_goals": away,
-        "probability": round(probability, 6),
-        "probability_label": _probability_label(None, probability),
-        "source": "exact_poisson_from_lambda",
-    }
-
-
-def _ah_key_scorelines(
-    simulation: dict[str, Any],
-    *,
-    recommendation: dict[str, Any] | None,
-) -> list[dict[str, Any]]:
-    if not isinstance(recommendation, dict):
+def _midband_scorelines(simulation: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    picks = _scoreline_distribution(simulation)
+    if not picks:
         return []
-    if recommendation.get("market") != "ASIAN_HANDICAP":
-        return []
-    selection = str(recommendation.get("selection") or "")
-    selected_line = _number(recommendation.get("line"))
-    lambda_home = _number(simulation.get("lambda_home"))
-    lambda_away = _number(simulation.get("lambda_away"))
-    if selected_line is None or lambda_home is None or lambda_away is None:
-        return []
-    if selection == "HOME_AH":
-        side = "HOME"
-        home_line = selected_line
-    elif selection == "AWAY_AH":
-        side = "AWAY"
-        home_line = -selected_line
+    ordered = sorted(picks, key=lambda item: float(item["probability"]), reverse=True)
+    if len(ordered) <= limit:
+        selected = ordered[:limit]
     else:
-        return []
+        low_cutoff = max(0.01, float(ordered[0]["probability"]) * 0.25)
+        midband = [
+            item
+            for index, item in enumerate(ordered)
+            if index >= limit and float(item["probability"]) >= low_cutoff
+        ]
+        if len(midband) < limit:
+            midband = [item for item in ordered[limit:] if float(item["probability"]) >= low_cutoff]
+        if len(midband) < limit:
+            midband = ordered[limit : limit + limit]
+        selected = midband[:limit] if midband else ordered[:limit]
+    return [
+        {
+            "scoreline": str(item["scoreline"]),
+            "home_goals": item["home_goals"],
+            "away_goals": item["away_goals"],
+            "source": "formal_simulation_midband",
+        }
+        for item in selected
+        if item.get("scoreline")
+    ]
 
-    grouped: dict[str, dict[str, Any]] = {}
-    totals: dict[str, float] = {}
-    for home in range(0, 8):
-        for away in range(0, 8):
-            outcome = _ah_outcome_for_scoreline(
-                side=side,
-                home_line=home_line,
-                home_goals=home,
-                away_goals=away,
-            )
-            probability = _poisson_probability(lambda_home, home) * _poisson_probability(
-                lambda_away,
-                away,
-            )
-            totals[outcome] = totals.get(outcome, 0.0) + probability
-            current = grouped.get(outcome)
-            if current is not None and probability <= float(current["representative_probability"]):
+
+def _scoreline_distribution(simulation: dict[str, Any]) -> list[dict[str, Any]]:
+    lambda_home = _number(simulation.get("lambda_home"))
+    lambda_away = _number(simulation.get("lambda_away"))
+    if lambda_home is not None and lambda_away is not None:
+        poisson_rows: list[dict[str, Any]] = []
+        for home in range(0, 7):
+            for away in range(0, 7):
+                probability = _poisson_probability(lambda_home, home) * _poisson_probability(
+                    lambda_away,
+                    away,
+                )
+                poisson_rows.append(
+                    {
+                        "scoreline": f"{home}-{away}",
+                        "home_goals": home,
+                        "away_goals": away,
+                        "probability": probability,
+                    }
+                )
+        return poisson_rows
+    raw_picks = simulation.get("scoreline_picks")
+    if isinstance(raw_picks, list) and raw_picks:
+        pick_rows: list[dict[str, Any]] = []
+        for item in raw_picks:
+            if not isinstance(item, dict) or not item.get("scoreline"):
                 continue
-            grouped[outcome] = {
-                "outcome": outcome,
-                "label": _ah_outcome_label(outcome),
-                "scoreline": f"{home}-{away}",
-                "home_goals": home,
-                "away_goals": away,
-                "representative_probability": round(probability, 6),
-                "representative_probability_label": _probability_label(None, probability),
-                "settlement_probability": None,
-                "settlement_probability_label": None,
-                "source": "exact_poisson_from_lambda",
-            }
-
-    ordered: list[dict[str, Any]] = []
-    for outcome in ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"):
-        item = grouped.get(outcome)
-        if item is None:
-            continue
-        settlement_probability = totals.get(outcome)
-        item["settlement_probability"] = (
-            round(settlement_probability, 6)
-            if settlement_probability is not None
-            else None
-        )
-        item["settlement_probability_label"] = _probability_label(None, settlement_probability)
-        ordered.append(item)
-    return ordered
-
-
-def _ah_outcome_for_scoreline(
-    *,
-    side: str,
-    home_line: float,
-    home_goals: int,
-    away_goals: int,
-) -> str:
-    selected_line = home_line if side == "HOME" else -home_line
-    goal_margin = home_goals - away_goals if side == "HOME" else away_goals - home_goals
-    parts = _quarter_line_parts(selected_line)
-    outcomes = [_single_ah_outcome(goal_margin + part) for part in parts]
-    if outcomes[0] == outcomes[1]:
-        return outcomes[0]
-    if set(outcomes) == {"WIN", "PUSH"}:
-        return "HALF_WIN"
-    if set(outcomes) == {"LOSS", "PUSH"}:
-        return "HALF_LOSS"
-    return "PUSH"
-
-
-def _quarter_line_parts(line: float) -> tuple[float, float]:
-    doubled = round(line * 2) / 2
-    if math.isclose(line, doubled, abs_tol=1e-9):
-        return (doubled, doubled)
-    lower = math.floor(line * 2) / 2
-    upper = math.ceil(line * 2) / 2
-    return (lower, upper)
-
-
-def _single_ah_outcome(adjusted_margin: float) -> str:
-    if adjusted_margin > 0:
-        return "WIN"
-    if adjusted_margin < 0:
-        return "LOSS"
-    return "PUSH"
-
-
-def _ah_outcome_label(outcome: str) -> str:
-    labels = {
-        "WIN": "全赢",
-        "HALF_WIN": "半赢",
-        "PUSH": "走水",
-        "HALF_LOSS": "半输",
-        "LOSS": "全输",
-    }
-    return labels.get(outcome, outcome)
+            pick_probability = _probability(item.get("probability"))
+            if pick_probability is None:
+                continue
+            scoreline = str(item["scoreline"])
+            pick_rows.append(
+                {
+                    "scoreline": scoreline,
+                    "home_goals": _score_part(scoreline, 0),
+                    "away_goals": _score_part(scoreline, 1),
+                    "probability": pick_probability,
+                }
+            )
+        if pick_rows:
+            return pick_rows
+    return []
 
 
 def _poisson_probability(rate: float, goals: int) -> float:
