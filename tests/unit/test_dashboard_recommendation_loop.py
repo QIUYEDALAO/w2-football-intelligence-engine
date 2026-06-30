@@ -838,6 +838,11 @@ def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
     assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
+    assert card["scoreline_reference"]["source"] == "formal_simulation"
+    assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
+    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
+    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
+    assert card["scoreline_reference"]["ah_key_scorelines"] == []
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

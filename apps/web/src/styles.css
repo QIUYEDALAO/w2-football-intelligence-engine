@@ -1406,6 +1406,29 @@ button {
   color: var(--mint);
 }
 
+.scoreline-reference-block {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+
+.scoreline-reference-block > strong {
+  color: var(--mint);
+  font-size: 12px;
+  font-weight: 920;
+}
+
+.scoreline-reference-block p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
 .analysis-details {
   margin-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);

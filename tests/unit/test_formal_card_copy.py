@@ -28,6 +28,11 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert 'AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致"' in card
     assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
+    assert "模拟比分参考，不是推荐比分" in card
+    assert "最可能：" in card
+    assert "总进球≥" in card
+    assert "让球结算关键比分" in card
+    assert "推荐比分" not in card.replace("不是推荐比分", "")
 
 
 def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
