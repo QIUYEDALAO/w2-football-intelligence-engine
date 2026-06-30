@@ -636,6 +636,15 @@ def test_dashboard_exposes_market_movement_without_promoting_flags(
 
     assert card["market_movement"]["status"] == "READY"
     assert card["market_movement"]["line_move_direction"] == "HOME_DEEPENED"
+    assert card["market_timeline"]["status"] == "READY"
+    assert card["market_timeline"]["label"] == "盘口时间线 · 参照 · 未验证"
+    assert card["market_timeline"]["verified"] is False
+    assert card["market_timeline"]["direction_allowed"] is False
+    assert card["market_timeline"]["open"]["line"] == -0.5
+    assert card["market_timeline"]["open"]["as_of"] == "2026-06-26T08:00:00Z"
+    assert card["market_timeline"]["current"]["line"] == -1.0
+    assert card["market_timeline"]["current"]["as_of"] == "2026-06-26T09:30:00Z"
+    assert card["market_timeline"]["pattern"] == "JUMP_LINE"
     assert card["market_divergence"]["direction_allowed"] is False
     assert card["market_divergence"]["calibration_status"] == "UNVALIDATED"
     assert card["bookmaker_hypothesis"]["label"] == "盘口假设 · 未验证"
