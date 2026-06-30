@@ -211,6 +211,12 @@ export interface ScorelineReference {
   source?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
+  midband_scorelines?: Array<{
+    scoreline: string;
+    home_goals?: number;
+    away_goals?: number;
+    source?: string | null;
+  }>;
   high_total?: {
     threshold?: number;
     probability?: number | null;

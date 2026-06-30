@@ -350,32 +350,6 @@ function scorelineItemText(pick: { scoreline?: string; probability_label?: strin
   return `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`;
 }
 
-function highTotalText(match: DashboardMatchCard): string | null {
-  const highTotal = match.scoreline_reference?.high_total;
-  if (!highTotal?.probability_label) return null;
-  const representative = scorelineItemText(highTotal.representative_scoreline);
-  const prefix = `总进球≥${highTotal.threshold ?? 4}：${highTotal.probability_label}`;
-  return representative ? `${prefix}，代表 ${representative}` : prefix;
-}
-
-function veryHighTotalText(match: DashboardMatchCard): string | null {
-  const veryHigh = match.scoreline_reference?.very_high_total;
-  if (!veryHigh?.probability_label) return null;
-  return `总进球≥${veryHigh.threshold ?? 5}：${veryHigh.probability_label}`;
-}
-
-function ahKeyScorelineText(match: DashboardMatchCard): string | null {
-  const rows = match.scoreline_reference?.ah_key_scorelines ?? [];
-  const text = rows
-    .filter((row) => row.label && row.scoreline)
-    .map((row) => {
-      const settlement = row.settlement_probability_label ? ` ${row.settlement_probability_label}` : "";
-      return `${row.label}：${row.scoreline}${settlement}`;
-    })
-    .join(" / ");
-  return text || null;
-}
-
 function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCard; isFormal: boolean }) {
   if (!isFormal) {
     return (
@@ -386,15 +360,12 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
     );
   }
   const reference = match.scoreline_reference;
-  const topScorelines = (reference?.top_scorelines?.length ? reference.top_scorelines : match.scoreline_picks)
+  const midbandScorelines = (reference?.midband_scorelines?.length ? reference.midband_scorelines : match.scoreline_picks)
     .slice(0, 3)
-    .map((pick) => scorelineItemText(pick))
+    .map((pick) => pick.scoreline)
     .filter(Boolean)
     .join(" · ");
-  const highTotal = highTotalText(match);
-  const veryHighTotal = veryHighTotalText(match);
-  const ahKeys = ahKeyScorelineText(match);
-  if (!topScorelines && !highTotal && !ahKeys) {
+  if (!midbandScorelines) {
     return (
       <p className="scoreline-hero-copy">
         <strong>模拟比分参考：</strong>
@@ -403,11 +374,9 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
     );
   }
   return (
-    <div className="scoreline-reference-block" aria-label="分层模拟比分参考">
-      <strong>模拟比分参考，不是推荐比分</strong>
-      {topScorelines ? <p>最可能：{topScorelines}</p> : null}
-      {highTotal ? <p>{highTotal}{veryHighTotal ? ` · ${veryHighTotal}` : ""}</p> : null}
-      {ahKeys ? <p>让球结算关键比分：{ahKeys}</p> : null}
+    <div className="scoreline-reference-block" aria-label="模拟中位比分参考">
+      <strong>模拟中位比分参考，不是推荐比分：</strong>
+      <span>{midbandScorelines}</span>
     </div>
   );
 }

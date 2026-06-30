@@ -340,6 +340,15 @@ function normalizeScorelineReference(payload: unknown): ScorelineReference | nul
     source: textValue(record.source) || null,
     label: textValue(record.label) || null,
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    midband_scorelines: asArray(record.midband_scorelines).map((item) => {
+      const row = asRecord(item);
+      return {
+        scoreline: textValue(row.scoreline),
+        home_goals: nullableNumber(row.home_goals) ?? undefined,
+        away_goals: nullableNumber(row.away_goals) ?? undefined,
+        source: textValue(row.source) || null,
+      };
+    }).filter((row) => row.scoreline),
     high_total: Object.keys(highTotal).length ? {
       threshold: nullableNumber(highTotal.threshold) ?? undefined,
       probability: nullableNumber(highTotal.probability),
