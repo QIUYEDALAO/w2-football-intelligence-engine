@@ -54,7 +54,8 @@ export function footballDayShanghai(now = new Date()): string {
   }).formatToParts(now);
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   const localDate = `${value("year")}-${value("month")}-${value("day")}`;
-  const hour = Number(value("hour"));
+  const rawHour = Number(value("hour"));
+  const hour = rawHour === 24 ? 0 : rawHour;
   if (Number.isFinite(hour) && hour < 12) {
     const utcNoon = new Date(`${localDate}T12:00:00+08:00`);
     utcNoon.setUTCDate(utcNoon.getUTCDate() - 1);

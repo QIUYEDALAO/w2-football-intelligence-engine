@@ -65,11 +65,13 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
 
 def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
     assert 'useState<DashboardMode>("next36")' in page
     assert "footballDayShanghai()" in page
     assert "next_available_date" in page
     assert "selected_date_has_data" in page
+    assert "rawHour === 24 ? 0 : rawHour" in formatters
     assert "sortFormalFirst(view.upcoming)" in page
     assert "其他比赛分析参考" in page
 
