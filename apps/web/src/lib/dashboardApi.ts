@@ -8,6 +8,7 @@ import type {
   DashboardMode,
   DashboardPerformance,
   FormalTrackingSummary,
+  LockedPreMatchRecommendation,
   DashboardView,
   MatchResult,
   MatchStatus,
@@ -319,6 +320,65 @@ function normalizeScorelineReadiness(payload: unknown) {
   };
 }
 
+function normalizeScorelinePick(payload: unknown) {
+  const row = asRecord(payload);
+  return {
+    scoreline: textValue(row.scoreline),
+    home_goals: numberValue(row.home_goals) ?? undefined,
+    away_goals: numberValue(row.away_goals) ?? undefined,
+    probability: typeof row.probability === "number" ? row.probability : undefined,
+    probability_label: textValue(row.probability_label),
+  };
+}
+
+function normalizeScorelineReference(payload: unknown) {
+  const record = asRecord(payload);
+  const source = textValue(record.source);
+  if (!source && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
+  return {
+    source: source || null,
+    label: textValue(record.label) || null,
+    top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
+    very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
+    ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => asRecord(item)),
+  };
+}
+
+function normalizeLockedPreMatchRecommendation(payload: unknown): LockedPreMatchRecommendation | null {
+  const record = asRecord(payload);
+  const status = textValue(record.status);
+  if (!status) return null;
+  const settlement = asRecord(record.settlement);
+  const simulationEvidence = asRecord(record.simulation_evidence);
+  return {
+    status,
+    fixture_id: textValue(record.fixture_id) || null,
+    snapshot_id: textValue(record.snapshot_id) || null,
+    captured_at: textValue(record.captured_at) || null,
+    as_of: textValue(record.as_of) || null,
+    kickoff_utc: textValue(record.kickoff_utc) || null,
+    recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
+    scoreline_reference: normalizeScorelineReference(record.scoreline_reference),
+    simulation_evidence: Object.keys(simulationEvidence).length ? {
+      simulations: numberValue(simulationEvidence.simulations) ?? (textValue(simulationEvidence.simulations) || null),
+      source: textValue(simulationEvidence.source) || null,
+      model_version: textValue(simulationEvidence.model_version) || null,
+      calibration_version: textValue(simulationEvidence.calibration_version) || null,
+    } : null,
+    reason: textValue(record.reason) || null,
+    settlement: Object.keys(settlement).length ? {
+      status: textValue(settlement.status),
+      result: asRecord(settlement.result),
+      pnl: numberValue(settlement.pnl) ?? (textValue(settlement.pnl) || null),
+      settlement_outcome: textValue(settlement.settlement_outcome) || null,
+      sample_included: settlement.sample_included === true,
+      win_included: settlement.win_included === true,
+      evaluated_at: textValue(settlement.evaluated_at) || null,
+    } : null,
+  };
+}
+
 function normalizeMarketMovement(payload: unknown) {
   const record = asRecord(payload);
   const status = textValue(record.status);
@@ -399,11 +459,9 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     formal_recommendation: record.formal_recommendation === true,
     formal_suppressed: record.formal_suppressed === true,
     formal_suppressed_reason: textValue(record.formal_suppressed_reason) || null,
-    scoreline_picks: asArray(record.scoreline_picks).map((item) => asRecord(item)).map((row) => ({
-      scoreline: textValue(row.scoreline),
-      probability: typeof row.probability === "number" ? row.probability : undefined,
-      probability_label: textValue(row.probability_label),
-    })).filter((row) => row.scoreline),
+    locked_pre_match_recommendation: normalizeLockedPreMatchRecommendation(record.locked_pre_match_recommendation),
+    scoreline_picks: asArray(record.scoreline_picks).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    scoreline_reference: normalizeScorelineReference(record.scoreline_reference),
     scoreline_readiness: normalizeScorelineReadiness(record.scoreline_readiness),
     result: record.result ? (asRecord(record.result) as unknown as MatchResult) : null,
     validation: record.validation ? (asRecord(record.validation) as unknown as ValidationSummary) : null,

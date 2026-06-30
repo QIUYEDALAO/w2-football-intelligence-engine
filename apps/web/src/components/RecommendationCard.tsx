@@ -288,6 +288,30 @@ function formalReason(match: DashboardMatchCard): string {
   return "当前只保留为观察/分析参考，不伪装成正式推荐。";
 }
 
+function lockedSettlementText(match: DashboardMatchCard): string {
+  const settlement = match.locked_pre_match_recommendation?.settlement;
+  if (!settlement?.status) return "待赛果确认";
+  if (settlement.status === "SETTLED") {
+    const outcome = settlement.settlement_outcome ? ` · ${settlement.settlement_outcome}` : "";
+    return `已结算${outcome}`;
+  }
+  if (settlement.status === "PENDING") return "待结算";
+  if (settlement.status === "WAITING_RESULT") return "待赛果确认";
+  if (settlement.status === "NO_BET") return "无需结算";
+  return "待赛果确认";
+}
+
+function lockedPrematchReason(match: DashboardMatchCard): string {
+  const locked = match.locked_pre_match_recommendation;
+  if (locked?.status === "LOCKED") {
+    return `赛前推荐已锁定，不随开赛后盘口或赛果重算；${lockedSettlementText(match)}。`;
+  }
+  if (locked?.status === "NO_PREMATCH_FORMAL") {
+    return "没有赛前正式推荐快照，不能在开赛后补造推荐。";
+  }
+  return formalReason(match);
+}
+
 function dataLine(match: DashboardMatchCard): string {
   const items = readinessItems({ data_readiness: match.data_readiness });
   const odds = items.find((item) => item.key === "odds");
@@ -609,28 +633,35 @@ function FormalDecisionHero({
   isFormal: boolean;
   verdict: VerdictState;
 }) {
+  const locked = match.locked_pre_match_recommendation;
+  const lockedPick = locked?.status === "LOCKED" ? locked.recommendation ?? null : null;
+  const noPrematchFormal = locked?.status === "NO_PREMATCH_FORMAL";
+  const visiblePick = lockedPick ?? pick;
+  const showPickGrid = isFormal || Boolean(lockedPick);
+  const title = isFormal ? "正式推荐" : lockedPick ? "赛前锁定推荐" : noPrematchFormal ? "赛前无正式推荐" : "当前暂无正式推荐";
+  const headline = isFormal || lockedPick ? `推荐：${formalHeroSummary(visiblePick)}` : VERDICT_LABELS[verdict];
   const reason = isFormal
     ? displayReason(pick?.reasons?.[0] ?? "模拟公平盘与市场盘形成策略自洽。")
-    : formalReason(match);
+    : lockedPrematchReason(match);
   return (
-    <section className={isFormal ? "formal-decision-hero is-formal" : "formal-decision-hero is-empty"} aria-label="正式推荐状态">
+    <section className={isFormal || lockedPick ? "formal-decision-hero is-formal" : "formal-decision-hero is-empty"} aria-label="正式推荐状态">
       <div className="formal-decision-topline">
-        <span>{isFormal ? "正式推荐" : "当前暂无正式推荐"}</span>
-        <strong>{isFormal ? `推荐：${formalHeroSummary(pick)}` : VERDICT_LABELS[verdict]}</strong>
+        <span>{title}</span>
+        <strong>{headline}</strong>
       </div>
-      {isFormal ? (
+      {showPickGrid ? (
         <div className="formal-pick-grid" aria-label="正式推荐详情">
           <span>市场</span>
-          <strong>{pickMarketLabel(pick)}</strong>
+          <strong>{pickMarketLabel(visiblePick)}</strong>
           <span>方向</span>
-          <strong>{pickDirectionLabel(pick)}</strong>
+          <strong>{pickDirectionLabel(visiblePick)}</strong>
           <span>盘口</span>
-          <strong>{pickLineLabel(pick)}</strong>
+          <strong>{pickLineLabel(visiblePick)}</strong>
           <span>赔率</span>
-          <strong>{pickOddsLabel(pick)}</strong>
+          <strong>{pickOddsLabel(visiblePick)}</strong>
         </div>
       ) : null}
-      <p>{isFormal ? `理由：${reason}` : `未出正式推荐原因：${displayReason(reason)}`}</p>
+      <p>{isFormal ? `理由：${reason}` : `${lockedPick ? "锁定说明" : "未出正式推荐原因"}：${displayReason(reason)}`}</p>
       <ScorelineReferenceBlock match={match} isFormal={isFormal} />
     </section>
   );

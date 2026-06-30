@@ -95,7 +95,15 @@ from w2.strategy.formal_recommendation import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
-from w2.tracking.formal_results import endpoint_summary as formal_tracking_endpoint_summary
+from w2.tracking.formal_results import (
+    endpoint_summary as formal_tracking_endpoint_summary,
+)
+from w2.tracking.formal_results import (
+    load_settlements as load_formal_settlements,
+)
+from w2.tracking.formal_results import (
+    load_snapshots as load_formal_snapshots,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -122,6 +130,8 @@ INTENT_LABELS_CN = {
     "LEAKAGE_BLOCKED": "防泄漏拦截",
 }
 
+LOCKED_PREMATCH_STATUSES = {"LIVE", "FINISHED"}
+
 
 def load_json(path: Path, default: Any) -> Any:
     try:
@@ -130,6 +140,20 @@ def load_json(path: Path, default: Any) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return default
+
+
+def _parse_utc_text(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
@@ -636,6 +660,8 @@ class ReadModelService:
         self._team_xg_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] = {}
         self._team_xg_matches_cache: list[dict[str, Any]] | None = None
         self._raw_payloads_by_endpoint_cache: dict[str, list[dict[str, Any]]] = {}
+        self._formal_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
+        self._formal_settlements_by_snapshot_cache: dict[str, dict[str, Any]] | None = None
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
         ] = {}
@@ -648,6 +674,8 @@ class ReadModelService:
         self._team_xg_snapshots_by_fixture_cache = {}
         self._team_xg_matches_cache = None
         self._raw_payloads_by_endpoint_cache = {}
+        self._formal_snapshots_by_fixture_cache = None
+        self._formal_settlements_by_snapshot_cache = None
 
     def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
         if self._future_refresh_repository_cache is None:
@@ -696,6 +724,34 @@ class ReadModelService:
         fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
         self._future_market_observations_cache = reader(fixture_ids)
         self._observations_by_fixture_cache = None
+
+    def _formal_snapshots_by_fixture(self) -> dict[str, list[dict[str, Any]]]:
+        if self._formal_snapshots_by_fixture_cache is None:
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for snapshot in load_formal_snapshots():
+                fixture_id = str(snapshot.get("fixture_id") or "")
+                if fixture_id:
+                    grouped.setdefault(fixture_id, []).append(snapshot)
+            for snapshots in grouped.values():
+                snapshots.sort(
+                    key=lambda row: (
+                        _parse_utc_text(row.get("as_of")) or datetime.min.replace(tzinfo=UTC),
+                        _parse_utc_text(row.get("captured_at")) or datetime.min.replace(tzinfo=UTC),
+                    ),
+                    reverse=True,
+                )
+            self._formal_snapshots_by_fixture_cache = grouped
+        return self._formal_snapshots_by_fixture_cache
+
+    def _formal_settlements_by_snapshot(self) -> dict[str, dict[str, Any]]:
+        if self._formal_settlements_by_snapshot_cache is None:
+            rows: dict[str, dict[str, Any]] = {}
+            for settlement in load_formal_settlements():
+                snapshot_id = str(settlement.get("snapshot_id") or "")
+                if snapshot_id:
+                    rows[snapshot_id] = settlement
+            self._formal_settlements_by_snapshot_cache = rows
+        return self._formal_settlements_by_snapshot_cache
 
     def version(self) -> dict[str, Any]:
         generated_at = datetime.now(UTC)
@@ -3833,6 +3889,79 @@ class ReadModelService:
             deduped.append(row)
         return deduped
 
+    def _locked_pre_match_recommendation(
+        self,
+        *,
+        fixture_id: str,
+        fixture_status: str,
+        result: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if fixture_status not in LOCKED_PREMATCH_STATUSES:
+            return None
+        snapshot = next(iter(self._formal_snapshots_by_fixture().get(fixture_id, [])), None)
+        if snapshot is None:
+            return {
+                "status": "NO_PREMATCH_FORMAL",
+                "fixture_id": fixture_id,
+                "reason": "NO_PREMATCH_FORMAL_SNAPSHOT",
+                "recommendation": None,
+                "settlement": {
+                    "status": "NO_BET",
+                    "result": result,
+                    "pnl": None,
+                },
+            }
+        snapshot_id = str(snapshot.get("snapshot_id") or "")
+        settlement = self._formal_settlements_by_snapshot().get(snapshot_id)
+        settlement_payload = self._locked_settlement_payload(
+            settlement=settlement,
+            result=result,
+            fixture_status=fixture_status,
+        )
+        return {
+            "status": "LOCKED",
+            "fixture_id": fixture_id,
+            "snapshot_id": snapshot.get("snapshot_id"),
+            "captured_at": snapshot.get("captured_at"),
+            "as_of": snapshot.get("as_of"),
+            "kickoff_utc": snapshot.get("kickoff_utc"),
+            "home_team_name": snapshot.get("home_team_name"),
+            "away_team_name": snapshot.get("away_team_name"),
+            "recommendation": snapshot.get("recommendation"),
+            "scoreline_reference": snapshot.get("scoreline_reference"),
+            "simulation_evidence": snapshot.get("simulation_evidence"),
+            "settlement": settlement_payload,
+        }
+
+    def _locked_settlement_payload(
+        self,
+        *,
+        settlement: dict[str, Any] | None,
+        result: dict[str, Any] | None,
+        fixture_status: str,
+    ) -> dict[str, Any]:
+        if settlement is not None:
+            return {
+                "status": "SETTLED",
+                "result": settlement.get("final_score") or result,
+                "pnl": settlement.get("settled_units"),
+                "settlement_outcome": settlement.get("settlement_outcome"),
+                "sample_included": settlement.get("sample_included"),
+                "win_included": settlement.get("win_included"),
+                "evaluated_at": settlement.get("evaluated_at"),
+            }
+        if fixture_status == "FINISHED" and result is not None:
+            return {
+                "status": "PENDING",
+                "result": result,
+                "pnl": None,
+            }
+        return {
+            "status": "WAITING_RESULT",
+            "result": result,
+            "pnl": None,
+        }
+
     def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
         analysis: dict[str, Any] | None = None
@@ -3913,6 +4042,21 @@ class ReadModelService:
             scoreline_picks=scoreline_picks,
         )
         raw_status = row.get("status")
+        fixture_status = normalize_match_status(raw_status)
+        locked_recommendation = self._locked_pre_match_recommendation(
+            fixture_id=fixture_id,
+            fixture_status=fixture_status,
+            result=result,
+        )
+        formal_suppressed = formal_result.formal_suppressed
+        formal_suppressed_reason = formal_result.formal_suppressed_reason
+        if isinstance(locked_recommendation, dict):
+            formal_suppressed = True
+            formal_suppressed_reason = (
+                "FIXTURE_STARTED_LOCKED_PREMATCH"
+                if locked_recommendation.get("status") == "LOCKED"
+                else "FIXTURE_STARTED_NO_PREMATCH_FORMAL"
+            )
         data_refresh = self._dashboard_data_refresh(
             card=card,
             readiness=analysis_readiness,
@@ -3927,7 +4071,7 @@ class ReadModelService:
             "competition_name": card.get("competition_cn") or row.get("competition_name"),
             "home_team_name": card.get("home_cn") or row.get("home_team_name"),
             "away_team_name": card.get("away_cn") or row.get("away_team_name"),
-            "status": normalize_match_status(raw_status),
+            "status": fixture_status,
             "raw_status": raw_status,
             "data_state": row.get("data_health") or row.get("data_state"),
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
@@ -3936,8 +4080,9 @@ class ReadModelService:
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,
-            "formal_suppressed": formal_result.formal_suppressed,
-            "formal_suppressed_reason": formal_result.formal_suppressed_reason,
+            "formal_suppressed": formal_suppressed,
+            "formal_suppressed_reason": formal_suppressed_reason,
+            "locked_pre_match_recommendation": locked_recommendation,
             "scoreline_picks": scoreline_picks,
             "scoreline_reference": scoreline_reference,
             "scoreline_readiness": self._dashboard_scoreline_readiness(card),

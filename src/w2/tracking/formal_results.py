@@ -253,6 +253,8 @@ def snapshot_from_card(
             "posthoc_only": True,
             "min_bucket_samples_for_rate": MIN_BUCKET_SAMPLES_FOR_RATE,
         },
+        "scoreline_reference": first_dict(card.get("scoreline_reference")) or None,
+        "simulation_evidence": _simulation_evidence(card),
         "candidate": False,
         "formal_recommendation": True,
         "release_sha": release_sha,
@@ -267,6 +269,29 @@ def snapshot_from_card(
         }
     )
     return snapshot, None
+
+
+def _simulation_evidence(card: dict[str, Any]) -> dict[str, Any] | None:
+    pricing_shadow = first_dict(card.get("pricing_shadow"))
+    simulation = first_dict(card.get("simulation"), pricing_shadow.get("simulation"))
+    if not simulation:
+        return None
+    runs = (
+        simulation.get("simulations")
+        or simulation.get("simulation_runs")
+        or simulation.get("runs")
+    )
+    source = (
+        "formal_simulation"
+        if simulation.get("status") == "READY"
+        else simulation.get("source")
+    )
+    return {
+        "simulations": runs,
+        "source": source,
+        "model_version": simulation.get("model_version"),
+        "calibration_version": simulation.get("calibration_version"),
+    }
 
 
 def capture_formal_snapshots(
