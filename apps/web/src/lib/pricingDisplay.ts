@@ -24,15 +24,32 @@ export function formatAhMainLine(value: unknown): string | null {
   if (numeric == null) return null;
   if (Math.abs(numeric) < 0.005) return "平手";
   const abs = formatLine(Math.abs(numeric));
-  return numeric < 0 ? `主 -${abs}` : `客 -${abs}`;
+  return numeric < 0 ? `主队 -${abs}` : `客队 -${abs}`;
 }
 
 export function formatAhSideLines(homeLine: unknown): { home: string; away: string } | null {
   const numeric = numericValue(homeLine);
   if (numeric == null) return null;
   return {
-    home: `主 ${formatSignedLine(numeric)}`,
-    away: `客 ${formatSignedLine(-numeric)}`,
+    home: `主队 ${formatSignedLine(numeric)}`,
+    away: `客队 ${formatSignedLine(-numeric)}`,
+  };
+}
+
+export function ahDisplayContract(homeLine: unknown): {
+  display_line_cn: string;
+  home_display_line_cn: string;
+  away_display_line_cn: string;
+} | null {
+  const numeric = numericValue(homeLine);
+  if (numeric == null) return null;
+  const sideLines = formatAhSideLines(numeric);
+  const mainLine = formatAhMainLine(numeric);
+  if (!sideLines || !mainLine) return null;
+  return {
+    display_line_cn: Math.abs(numeric) < 0.005 ? "平手 0" : mainLine,
+    home_display_line_cn: sideLines.home,
+    away_display_line_cn: sideLines.away,
   };
 }
 

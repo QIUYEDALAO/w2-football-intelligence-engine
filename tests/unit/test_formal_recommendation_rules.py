@@ -235,6 +235,9 @@ def test_canonical_ah_uses_pricing_shadow_market_line_with_real_prices() -> None
         "away_line": 1.5,
         "home_price": 1.91,
         "away_price": 1.97,
+        "display_line_cn": "主队 -1.5",
+        "home_display_line_cn": "主队 -1.5",
+        "away_display_line_cn": "客队 +1.5",
         "source": None,
         "as_of": None,
         "bookmaker_count": None,
@@ -270,6 +273,9 @@ def test_canonical_ah_normalizes_raw_away_line_sign_without_blocking() -> None:
     assert payload["away_line"] == 1.5
     assert payload["raw_away_line"] == -1.5
     assert payload["canonical_away_line"] == 1.5
+    assert payload["display_line_cn"] == "主队 -1.5"
+    assert payload["home_display_line_cn"] == "主队 -1.5"
+    assert payload["away_display_line_cn"] == "客队 +1.5"
     assert payload["line_normalization_warning"] == "AH_RAW_AWAY_LINE_SIGN_NORMALIZED"
     assert payload["validation_status"] == "READY"
     assert payload["blocker"] is None
@@ -295,9 +301,35 @@ def test_canonical_ah_normalizes_raw_home_line_sign_without_blocking() -> None:
     assert payload["away_line"] == 1.5
     assert payload["raw_home_line"] == 1.5
     assert payload["canonical_home_line"] == -1.5
+    assert payload["display_line_cn"] == "主队 -1.5"
+    assert payload["home_display_line_cn"] == "主队 -1.5"
+    assert payload["away_display_line_cn"] == "客队 +1.5"
     assert payload["line_normalization_warning"] == "AH_RAW_HOME_LINE_SIGN_NORMALIZED"
     assert payload["validation_status"] == "READY"
     assert payload["blocker"] is None
+
+
+def test_canonical_ah_display_contract_uses_home_team_view_for_away_favorite() -> None:
+    market = canonical_ah_market(
+        current_odds={
+            "ah": {
+                "line": 0.5,
+                "home_line": 0.5,
+                "away_line": -0.5,
+                "home_price": 1.91,
+                "away_price": 1.97,
+            }
+        },
+        pricing_shadow={**ready_shadow(), "market_ah": 0.5},
+    )
+
+    assert market is not None
+    payload = market.as_dict()
+    assert payload["home_line"] == 0.5
+    assert payload["away_line"] == -0.5
+    assert payload["display_line_cn"] == "客队 -0.5"
+    assert payload["home_display_line_cn"] == "主队 +0.5"
+    assert payload["away_display_line_cn"] == "客队 -0.5"
 
 
 def test_canonical_ah_blocks_raw_home_line_magnitude_mismatch() -> None:

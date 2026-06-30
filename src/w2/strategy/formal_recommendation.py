@@ -39,6 +39,9 @@ class CanonicalAhMarket:
     canonical_away_line: float | None = None
     line_normalization_status: str | None = None
     line_normalization_warning: str | None = None
+    display_line_cn: str | None = None
+    home_display_line_cn: str | None = None
+    away_display_line_cn: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -252,6 +255,7 @@ def canonical_ah_market(
     bookmaker_count = _int_or_none(ah.get("bookmaker_count"))
     if home_line is None or away_line is None or home_price is None or away_price is None:
         return None
+    display = ah_display_contract(home_line)
     blocker = _canonical_ah_blocker(
         home_line=home_line,
         away_line=away_line,
@@ -279,12 +283,50 @@ def canonical_ah_market(
         canonical_away_line=away_line,
         line_normalization_status="BLOCKED" if blocker else "READY",
         line_normalization_warning=warning,
+        display_line_cn=display["display_line_cn"],
+        home_display_line_cn=display["home_display_line_cn"],
+        away_display_line_cn=display["away_display_line_cn"],
         source=source,
         as_of=as_of,
         bookmaker_count=bookmaker_count,
         validation_status="BLOCKED" if blocker else "READY",
         blocker=blocker,
     )
+
+
+def ah_display_contract(home_line: float | int | str | None) -> dict[str, str | None]:
+    canonical_home_line = _number(home_line)
+    if canonical_home_line is None:
+        return {
+            "display_line_cn": None,
+            "home_display_line_cn": None,
+            "away_display_line_cn": None,
+        }
+    home_display = f"主队 {_format_signed_line(canonical_home_line)}"
+    away_display = f"客队 {_format_signed_line(-canonical_home_line)}"
+    if abs(canonical_home_line) < 0.005:
+        display = "平手 0"
+    elif canonical_home_line < 0:
+        display = f"主队 -{_format_abs_line(canonical_home_line)}"
+    else:
+        display = f"客队 -{_format_abs_line(canonical_home_line)}"
+    return {
+        "display_line_cn": display,
+        "home_display_line_cn": home_display,
+        "away_display_line_cn": away_display,
+    }
+
+
+def _format_signed_line(value: float) -> str:
+    if abs(value) < 0.005:
+        return "0"
+    sign = "+" if value > 0 else "-"
+    return f"{sign}{_format_abs_line(value)}"
+
+
+def _format_abs_line(value: float) -> str:
+    text = f"{abs(float(value)):.2f}"
+    return text.rstrip("0").rstrip(".")
 
 
 def _watch(

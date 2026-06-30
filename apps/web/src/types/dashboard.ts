@@ -104,8 +104,26 @@ export interface BookmakerHypothesisPayload {
   direction_allowed?: boolean;
 }
 
+export interface AhOddsPayload {
+  line?: string | number | null;
+  home_line?: string | number | null;
+  away_line?: string | number | null;
+  home_price?: string | number | null;
+  away_price?: string | number | null;
+  price?: string | number | null;
+  display_line_cn?: string | null;
+  home_display_line_cn?: string | null;
+  away_display_line_cn?: string | null;
+  source?: string | null;
+  as_of?: string | null;
+  selection_policy?: string | null;
+  selection_warning?: string | null;
+  candidate_lines?: unknown;
+  rejected_lines?: unknown;
+}
+
 export interface CurrentOddsPayload {
-  ah?: unknown;
+  ah?: AhOddsPayload | null;
   ou?: unknown;
 }
 

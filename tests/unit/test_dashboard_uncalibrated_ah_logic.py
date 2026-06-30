@@ -60,8 +60,8 @@ def test_ah_display_uses_home_perspective_sign_convention() -> None:
     normalize = read("apps/web/src/lib/normalize.ts")
     card = read("apps/web/src/components/RecommendationCard.tsx")
 
-    assert "numeric < 0 ? `主 -" in helper
-    assert ": `客 -" in helper
+    assert "numeric < 0 ? `主队 -" in helper
+    assert ": `客队 -" in helper
     assert "formatSignedLine(-numeric)" in helper
     assert "canonicalAhLine: match.pricing_shadow?.market_ah" in card
     assert "formatAhSideLines(canonicalAhLine ?? ah.line ?? ah.home_line)" in normalize

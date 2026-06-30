@@ -79,6 +79,20 @@ def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     assert "其他比赛分析参考" in page
 
 
+def test_ah_display_helpers_use_home_team_view_contract() -> None:
+    pricing_display = (ROOT / "apps/web/src/lib/pricingDisplay.ts").read_text()
+    types = (ROOT / "apps/web/src/types/dashboard.ts").read_text()
+
+    assert "ahDisplayContract" in pricing_display
+    assert 'display_line_cn: Math.abs(numeric) < 0.005 ? "平手 0" : mainLine' in pricing_display
+    assert 'numeric < 0 ? `主队 -${abs}` : `客队 -${abs}`' in pricing_display
+    assert "home: `主队 ${formatSignedLine(numeric)}`" in pricing_display
+    assert "away: `客队 ${formatSignedLine(-numeric)}`" in pricing_display
+    assert "display_line_cn?: string | null" in types
+    assert "home_display_line_cn?: string | null" in types
+    assert "away_display_line_cn?: string | null" in types
+
+
 def test_completed_recap_empty_state_hides_diagnostics_by_default() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
 
