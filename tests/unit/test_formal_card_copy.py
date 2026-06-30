@@ -35,6 +35,17 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert "推荐比分" not in card.replace("不是推荐比分", "")
 
 
+def test_frontend_normalizes_scoreline_reference_payload() -> None:
+    api = (ROOT / "apps/web/src/lib/dashboardApi.ts").read_text()
+
+    assert "function normalizeScorelineReference" in api
+    assert "scoreline_reference: normalizeScorelineReference(record.scoreline_reference)" in api
+    assert "top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick)" in api
+    assert "high_total: Object.keys(highTotal).length" in api
+    assert "very_high_total: Object.keys(veryHighTotal).length" in api
+    assert "ah_key_scorelines: asArray(record.ah_key_scorelines)" in api
+
+
 def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
 
