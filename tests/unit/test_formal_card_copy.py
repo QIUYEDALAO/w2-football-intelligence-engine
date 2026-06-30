@@ -26,12 +26,30 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert 'AH_EV_BELOW_FORMAL_THRESHOLD: "让球结算期望未达正式推荐阈值"' in card
     assert 'MISSING_AH_SETTLEMENT_DISTRIBUTION: "缺少让球结算分布"' in card
     assert 'AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致"' in card
-    assert 'source === "formal_simulation"' in card
+    assert 'AH_MAINLINE_AMBIGUOUS: "全场让球主盘口不明确"' in card
+    assert 'AH_PRIMARY_MAINLINE_MISSING: "缺少可确认的全场让球主盘口"' in card
+    assert (
+        'AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认"'
+        in card
+    )
     assert "未出正式推荐原因" in card
-    assert "模拟比分参考，不是推荐比分" in card
-    assert "最可能：" in card
-    assert "总进球≥" in card
-    assert "让球结算关键比分" in card
+    assert "模拟中位比分参考，不是推荐比分" in card
+    assert "模拟中位比分参考未就绪" in card
+    assert "scorelineHeroText" not in card
+    assert "scoreText(match)" not in card
+    assert "scoreline_picks" not in card
+    assert "比分模拟参考" not in card
+    assert "模拟比分参考：" not in card
+    assert "最可能比分" not in card
+    assert "最可能：" not in card
+    assert "总进球≥" not in card
+    assert "让球结算关键比分" not in card
+    assert "全赢" not in card
+    assert "半输" not in card
+    assert "全输" not in card
+    assert "高概率" not in card
+    assert "中概率" not in card
+    assert "低概率" not in card
     assert "推荐比分" not in card.replace("不是推荐比分", "")
 
 
@@ -53,6 +71,7 @@ def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
 
     assert 'useState<DashboardMode>("next36")' in page
+    assert "footballDayShanghai()" in page
     assert "sortFormalFirst(view.upcoming)" in page
     assert "其他比赛分析参考" in page
 

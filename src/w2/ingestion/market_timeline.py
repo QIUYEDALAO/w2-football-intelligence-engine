@@ -14,6 +14,9 @@ AUTO_CHECKPOINT_GRACE = timedelta(minutes=20)
 AUTO_LOCK_WINDOW = timedelta(hours=1)
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
+AH_BALANCED_FALLBACK_MAX_CANDIDATES = 2
+AH_BALANCED_FALLBACK_MAX_SPAN = 0.5
+AH_AMBIGUOUS_LADDER_MIN_SPAN = 0.75
 
 _CHECKPOINT_OFFSETS = {
     "T-24h": timedelta(hours=24),
@@ -36,6 +39,37 @@ class TimelineWriteResult:
 class SnapshotSelectionResult:
     snapshot: dict[str, Any] | None
     reason: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class MainlineSelection:
+    status: str
+    selected: dict[str, Any] | None
+    candidate_lines: list[dict[str, Any]]
+    rejected_lines: list[dict[str, Any]]
+    consensus_floor: int
+    selection_policy: str
+    primary_mainline_source: str
+    preferred_line: float | None
+    line_span: float | None
+    mainline_confidence: str
+    mainline_blocker: str | None
+    selection_warning: str | None = None
+
+    def diagnostics(self) -> dict[str, Any]:
+        return {
+            "selection_policy": self.selection_policy,
+            "primary_mainline_source": self.primary_mainline_source,
+            "preferred_line": _json_number(self.preferred_line)
+            if self.preferred_line is not None
+            else None,
+            "line_span": _json_number(self.line_span) if self.line_span is not None else None,
+            "mainline_confidence": self.mainline_confidence,
+            "mainline_blocker": self.mainline_blocker,
+            "candidate_lines": self.candidate_lines,
+            "rejected_lines": self.rejected_lines,
+            **({"selection_warning": self.selection_warning} if self.selection_warning else {}),
+        }
 
 
 def parse_utc(value: Any) -> datetime | None:
@@ -137,6 +171,11 @@ def select_mainline_snapshot_result(
                 reason="NO_FRESH_LOCK_OBSERVATION",
             )
     selected = _select_mainline_group(groups, market=market, checkpoint=checkpoint)
+    if selected.get("status") == "BLOCKED":
+        return SnapshotSelectionResult(
+            snapshot=None,
+            reason=str(selected.get("mainline_blocker") or "AH_PRIMARY_MAINLINE_MISSING"),
+        )
     captured_at = selected["captured_at"]
     line = selected["line"]
     sides = selected["sides"]
@@ -166,6 +205,15 @@ def select_mainline_snapshot_result(
         )
         if selected.get("selection_warning"):
             snapshot["selection_warning"] = selected.get("selection_warning")
+        for key in (
+            "primary_mainline_source",
+            "preferred_line",
+            "line_span",
+            "mainline_confidence",
+            "mainline_blocker",
+        ):
+            if selected.get(key) is not None:
+                snapshot[key] = selected.get(key)
         snapshot["candidate_lines"] = selected.get("candidate_lines", [])
         snapshot["rejected_lines"] = selected.get("rejected_lines", [])
     if market == "ASIAN_HANDICAP":
@@ -370,6 +418,7 @@ def _market_groups(
                 "sides": {},
                 "bookmakers": set(),
                 "source_payload_ids": set(),
+                "primary_markers": set(),
                 "provider": row.get("provider") or row.get("source") or "read_model",
             },
         )
@@ -381,6 +430,8 @@ def _market_groups(
         )
         if source_payload_id:
             group["source_payload_ids"].add(str(source_payload_id))
+        if _row_has_primary_mainline_marker(row):
+            group["primary_markers"].add(bookmaker)
         current_side = group["sides"].get(side)
         if current_side is None or decimal_odds > current_side["decimal_odds"]:
             group["sides"][side] = {"decimal_odds": decimal_odds, "bookmaker": bookmaker}
@@ -426,29 +477,14 @@ def _select_mainline_group(
         _line_candidate_summary(line, line_groups)
         for line, line_groups in by_line.items()
     ]
-    max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
-    consensus_floor = _bookmaker_consensus_floor(max_bookmaker_count)
-    override_line = _balanced_override_candidate(candidate_lines)
-    eligible_lines = [
-        item for item in candidate_lines if int(item["bookmaker_count"]) >= consensus_floor
-    ] or candidate_lines
-    if override_line is not None and all(
-        float(item["line"]) != float(override_line["line"]) for item in eligible_lines
-    ):
-        eligible_lines.append(
-            {**override_line, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-        )
-    eligible_lines.sort(
-        key=lambda item: (
-            float(item["balance_distance"]),
-            float(item["price_gap"]),
-            float(item["mid_distance"]),
-            -int(item["bookmaker_count"]),
-            abs(float(item["line"])),
-        )
-    )
-    selected_summary = eligible_lines[0]
-    selection_warning = selected_summary.get("selection_warning")
+    selection = select_ah_primary_mainline(candidate_lines)
+    if selection.status != "READY" or selection.selected is None:
+        return {
+            "status": "BLOCKED",
+            **selection.diagnostics(),
+        }
+    selected_summary = selection.selected
+    selection_warning = selection.selection_warning
     selected_line = float(selected_summary["line"])
     selected_groups = by_line[round(selected_line, 4)]
     selected = min(
@@ -461,49 +497,16 @@ def _select_mainline_group(
         ),
     )
     selected["bookmaker_count"] = int(selected_summary["bookmaker_count"])
-    selected["selection_policy"] = "latest_bucket_ladder_balance_same_bookmaker_pair"
+    selected["selection_policy"] = selection.selection_policy
+    selected["primary_mainline_source"] = selection.primary_mainline_source
+    selected["preferred_line"] = selection.preferred_line
+    selected["line_span"] = selection.line_span
+    selected["mainline_confidence"] = selection.mainline_confidence
+    selected["mainline_blocker"] = selection.mainline_blocker
     if selection_warning:
         selected["selection_warning"] = selection_warning
-    candidate_order = sorted(
-        candidate_lines,
-        key=lambda item: (
-            0 if float(item["line"]) == selected_line else 1,
-            float(item["balance_distance"]),
-            float(item["price_gap"]),
-            float(item["mid_distance"]),
-            -int(item["bookmaker_count"]),
-            abs(float(item["line"])),
-        ),
-    )
-    selected["candidate_lines"] = [
-        {
-            **item,
-            "selection_rank": index + 1,
-            "bookmaker_consensus_floor": consensus_floor,
-            "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
-            "balanced_override_eligible": override_line is not None
-            and float(item["line"]) == float(override_line["line"]),
-            **(
-                {"selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-                if selection_warning and float(item["line"]) == selected_line
-                else {}
-            ),
-        }
-        for index, item in enumerate(candidate_order)
-    ]
-    selected["rejected_lines"] = [
-        {
-            "line": item["line"],
-            "reason": "LOWER_BOOKMAKER_CONSENSUS"
-            if int(item["bookmaker_count"]) < consensus_floor
-            and not (
-                override_line is not None and float(item["line"]) == float(override_line["line"])
-            )
-            else "TIE_BREAK_LOWER_LADDER_BALANCE",
-        }
-        for item in candidate_lines
-        if float(item["line"]) != selected_line
-    ]
+    selected["candidate_lines"] = selection.candidate_lines
+    selected["rejected_lines"] = selection.rejected_lines
     return selected
 
 
@@ -536,6 +539,7 @@ def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[s
         "price_gap": round(_median(price_gaps), 6),
         "mid_distance": round(_median(mid_distances), 6),
         "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair",
+        "has_primary_mainline": any(_group_has_primary_mainline_marker(group) for group in groups),
     }
 
 
@@ -543,6 +547,294 @@ def _bookmaker_consensus_floor(max_bookmaker_count: int) -> int:
     if max_bookmaker_count <= 1:
         return 1
     return max(2, max_bookmaker_count - 2)
+
+
+def select_ah_primary_mainline(
+    candidate_lines: list[dict[str, Any]],
+    *,
+    preferred_line: float | None = None,
+    previous_checkpoint_line: float | None = None,
+    allow_balanced_fallback: bool = True,
+) -> MainlineSelection:
+    if not candidate_lines:
+        return MainlineSelection(
+            status="BLOCKED",
+            selected=None,
+            candidate_lines=[],
+            rejected_lines=[],
+            consensus_floor=1,
+            selection_policy="primary_mainline_then_ladder_balance",
+            primary_mainline_source="none",
+            preferred_line=preferred_line,
+            line_span=None,
+            mainline_confidence="MISSING",
+            mainline_blocker="AH_PRIMARY_MAINLINE_MISSING",
+        )
+    max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
+    consensus_floor = _bookmaker_consensus_floor(max_bookmaker_count)
+    lines = [float(item["line"]) for item in candidate_lines]
+    line_span = round(max(lines) - min(lines), 6) if lines else None
+    primary_candidates = [
+        item for item in candidate_lines if _candidate_has_primary_mainline_marker(item)
+    ]
+    primary_source = "provider_marker" if primary_candidates else "none"
+    effective_preferred = preferred_line if preferred_line is not None else previous_checkpoint_line
+    if effective_preferred is not None:
+        matching = [
+            item
+            for item in candidate_lines
+            if abs(float(item["line"]) - float(effective_preferred)) <= 0.25
+        ]
+        if matching:
+            primary_candidates = matching
+            primary_source = "preferred_line"
+        else:
+            return _blocked_mainline_selection(
+                candidate_lines,
+                consensus_floor=consensus_floor,
+                selected_line=None,
+                reason="AH_PRIMARY_MAINLINE_MISSING",
+                primary_source="preferred_line",
+                preferred_line=effective_preferred,
+                line_span=line_span,
+            )
+    if primary_candidates:
+        selected = _select_balanced_candidate(primary_candidates)
+        return _ready_mainline_selection(
+            candidate_lines,
+            selected=selected,
+            consensus_floor=consensus_floor,
+            primary_source=primary_source,
+            preferred_line=effective_preferred,
+            line_span=line_span,
+            policy="primary_mainline_then_ladder_balance",
+        )
+    if not allow_balanced_fallback:
+        return _blocked_mainline_selection(
+            candidate_lines,
+            consensus_floor=consensus_floor,
+            selected_line=None,
+            reason="AH_PRIMARY_MAINLINE_MISSING",
+            primary_source="none",
+            preferred_line=effective_preferred,
+            line_span=line_span,
+        )
+    if len(candidate_lines) > AH_BALANCED_FALLBACK_MAX_CANDIDATES and (
+        line_span is None or line_span >= AH_AMBIGUOUS_LADDER_MIN_SPAN
+    ):
+        return _blocked_mainline_selection(
+            candidate_lines,
+            consensus_floor=consensus_floor,
+            selected_line=None,
+            reason="AH_MAINLINE_AMBIGUOUS",
+            primary_source="none",
+            preferred_line=effective_preferred,
+            line_span=line_span,
+        )
+    if line_span is not None and line_span > AH_BALANCED_FALLBACK_MAX_SPAN:
+        return _blocked_mainline_selection(
+            candidate_lines,
+            consensus_floor=consensus_floor,
+            selected_line=None,
+            reason="AH_MAINLINE_AMBIGUOUS",
+            primary_source="none",
+            preferred_line=effective_preferred,
+            line_span=line_span,
+        )
+    override_line = _balanced_override_candidate(candidate_lines)
+    eligible = [
+        item for item in candidate_lines if int(item["bookmaker_count"]) >= consensus_floor
+    ] or candidate_lines
+    selection_warning = None
+    if override_line is not None and all(
+        float(item["line"]) != float(override_line["line"]) for item in eligible
+    ):
+        override_line = {**override_line, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
+        eligible.append(override_line)
+        selection_warning = "LOW_CONSENSUS_BALANCED_MAINLINE"
+    selected = _select_balanced_candidate(eligible)
+    return _ready_mainline_selection(
+        candidate_lines,
+        selected=selected,
+        consensus_floor=consensus_floor,
+        primary_source="balanced_fallback",
+        preferred_line=effective_preferred,
+        line_span=line_span,
+        policy="primary_mainline_then_ladder_balance",
+        override=override_line,
+        selection_warning=selection_warning
+        if selected.get("selection_warning")
+        else None,
+    )
+
+
+def _ready_mainline_selection(
+    candidate_lines: list[dict[str, Any]],
+    *,
+    selected: dict[str, Any],
+    consensus_floor: int,
+    primary_source: str,
+    preferred_line: float | None,
+    line_span: float | None,
+    policy: str,
+    override: dict[str, Any] | None = None,
+    selection_warning: str | None = None,
+) -> MainlineSelection:
+    selected_line = float(selected["line"])
+    diagnostics = _ordered_candidate_diagnostics(
+        candidate_lines,
+        selected_line=selected_line,
+        consensus_floor=consensus_floor,
+        override=override,
+        selection_warning=selection_warning,
+    )
+    return MainlineSelection(
+        status="READY",
+        selected=selected,
+        candidate_lines=diagnostics,
+        rejected_lines=_rejected_candidate_diagnostics(
+            candidate_lines,
+            selected_line=selected_line,
+            consensus_floor=consensus_floor,
+            override=override,
+        ),
+        consensus_floor=consensus_floor,
+        selection_policy=policy,
+        primary_mainline_source=primary_source,
+        preferred_line=preferred_line,
+        line_span=line_span,
+        mainline_confidence="READY",
+        mainline_blocker=None,
+        selection_warning=selection_warning,
+    )
+
+
+def _blocked_mainline_selection(
+    candidate_lines: list[dict[str, Any]],
+    *,
+    consensus_floor: int,
+    selected_line: float | None,
+    reason: str,
+    primary_source: str,
+    preferred_line: float | None,
+    line_span: float | None,
+) -> MainlineSelection:
+    return MainlineSelection(
+        status="BLOCKED",
+        selected=None,
+        candidate_lines=_ordered_candidate_diagnostics(
+            candidate_lines,
+            selected_line=selected_line,
+            consensus_floor=consensus_floor,
+            override=None,
+            selection_warning=None,
+        ),
+        rejected_lines=[
+            {
+                "line": item["line"],
+                "reason": reason,
+            }
+            for item in sorted(candidate_lines, key=_candidate_sort_key)
+        ],
+        consensus_floor=consensus_floor,
+        selection_policy="primary_mainline_then_ladder_balance",
+        primary_mainline_source=primary_source,
+        preferred_line=preferred_line,
+        line_span=line_span,
+        mainline_confidence="AMBIGUOUS" if reason == "AH_MAINLINE_AMBIGUOUS" else "MISSING",
+        mainline_blocker=reason,
+    )
+
+
+def _select_balanced_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    return min(candidates, key=_candidate_sort_key)
+
+
+def _candidate_sort_key(item: dict[str, Any]) -> tuple[float, float, float, int, float]:
+    return (
+        float(item["balance_distance"]),
+        float(item.get("price_gap", item.get("balance_gap", 999.0))),
+        float(item["mid_distance"]),
+        -int(item["bookmaker_count"]),
+        abs(float(item["line"])),
+    )
+
+
+def _ordered_candidate_diagnostics(
+    candidate_lines: list[dict[str, Any]],
+    *,
+    selected_line: float | None,
+    consensus_floor: int,
+    override: dict[str, Any] | None,
+    selection_warning: str | None,
+) -> list[dict[str, Any]]:
+    ordered = sorted(
+        candidate_lines,
+        key=lambda item: (
+            0
+            if selected_line is not None and float(item["line"]) == float(selected_line)
+            else 1,
+            *_candidate_sort_key(item),
+        ),
+    )
+    override_line = float(override["line"]) if override is not None else None
+    rows: list[dict[str, Any]] = []
+    for index, item in enumerate(ordered):
+        line = float(item["line"])
+        public_item = {
+            key: value
+            for key, value in item.items()
+            if key not in {"rows", "side_state", "groups"}
+        }
+        row = {
+            **public_item,
+            "selection_rank": index + 1,
+            "bookmaker_consensus_floor": consensus_floor,
+            "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
+            "balanced_override_eligible": override_line is not None and line == override_line,
+            "primary_mainline_eligible": _candidate_has_primary_mainline_marker(item),
+        }
+        if selection_warning and selected_line is not None and line == float(selected_line):
+            row["selection_warning"] = selection_warning
+        rows.append(row)
+    return rows
+
+
+def _rejected_candidate_diagnostics(
+    candidate_lines: list[dict[str, Any]],
+    *,
+    selected_line: float,
+    consensus_floor: int,
+    override: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    override_line = float(override["line"]) if override is not None else None
+    rows: list[dict[str, Any]] = []
+    for item in candidate_lines:
+        line = float(item["line"])
+        if line == float(selected_line):
+            continue
+        rows.append(
+            {
+                "line": item["line"],
+                "reason": "LOWER_BOOKMAKER_CONSENSUS"
+                if int(item["bookmaker_count"]) < consensus_floor
+                and not (override_line is not None and line == override_line)
+                else "TIE_BREAK_LOWER_LADDER_BALANCE",
+            }
+        )
+    return rows
+
+
+def _candidate_has_primary_mainline_marker(item: dict[str, Any]) -> bool:
+    if bool(item.get("has_primary_mainline")):
+        return True
+    for key in ("is_mainline", "is_primary", "provider_mainline"):
+        if _truthy(item.get(key)):
+            return True
+    for key in ("market_role", "line_source", "source_market"):
+        if str(item.get(key) or "").strip().lower() in {"main", "primary", "mainline"}:
+            return True
+    return False
 
 
 def _balanced_override_candidate(candidate_lines: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -568,6 +860,28 @@ def _balanced_override_candidate(candidate_lines: list[dict[str, Any]]) -> dict[
     ):
         return best
     return None
+
+
+def _group_has_primary_mainline_marker(group: dict[str, Any]) -> bool:
+    markers = group.get("primary_markers")
+    return bool(markers)
+
+
+def _row_has_primary_mainline_marker(row: dict[str, Any]) -> bool:
+    for key in ("is_mainline", "is_primary", "provider_mainline"):
+        if _truthy(row.get(key)):
+            return True
+    for key in ("market_role", "line_source", "source_market"):
+        if str(row.get(key) or "").strip().lower() in {"main", "primary", "mainline"}:
+            return True
+    return False
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "main", "primary", "mainline"}
+
 
 
 def _valid_two_way_price_pair(

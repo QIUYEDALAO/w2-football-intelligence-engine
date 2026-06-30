@@ -21,7 +21,7 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v2";
+const DASHBOARD_CACHE_VERSION = "dashboard-v3-football-day-midband";
 
 interface FetchDashboardArgs {
   date: string;
@@ -334,10 +334,19 @@ function normalizeScorelinePick(payload: unknown) {
 function normalizeScorelineReference(payload: unknown) {
   const record = asRecord(payload);
   const source = textValue(record.source);
-  if (!source && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
+  if (!source && !record.midband_scorelines && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
   return {
     source: source || null,
     label: textValue(record.label) || null,
+    midband_scorelines: asArray(record.midband_scorelines).map((item) => {
+      const row = asRecord(item);
+      return {
+        scoreline: textValue(row.scoreline),
+        home_goals: numberValue(row.home_goals) ?? undefined,
+        away_goals: numberValue(row.away_goals) ?? undefined,
+        source: textValue(row.source) || null,
+      };
+    }).filter((row) => row.scoreline),
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
     high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
     very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
@@ -623,6 +632,12 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
   const all = asArray(dashboard.all).map(normalizeCard);
   const view = {
     date: textValue(dashboard.date, date),
+    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date, date),
+    selected_football_day: textValue(dashboard.selected_football_day) || textValue(dashboard.selected_date) || textValue(dashboard.date, date),
+    football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
+    football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
+    football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
+    football_day_end_utc: textValue(dashboard.football_day_end_utc) || undefined,
     generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
     data_profile: release.data_profile,
     data_source: release.data_source,
