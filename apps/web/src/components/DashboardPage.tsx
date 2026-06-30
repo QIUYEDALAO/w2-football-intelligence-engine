@@ -26,9 +26,17 @@ function emptyCopy(mode: DashboardMode): { title: string; detail: string } {
     return { title: "未来 36 小时暂无比赛", detail: "白名单赛程进入 read-model 后会自动显示。" };
   }
   if (mode === "results") {
-    return { title: "暂无完场复盘", detail: "比赛完场并同步结果后会显示验证状态。" };
+    return { title: "本足球日暂无完场比赛", detail: "北京时间中午 12:00 到次日 11:59 的比赛完场并同步赛果后，会显示复盘。" };
   }
+  if (mode === "today") return { title: "本足球日暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
+  if (mode === "all") return { title: "本足球日暂无比赛", detail: "当前足球日没有可展示比赛；未来赛程进入窗口后会自动出现。" };
   return { title: "暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
+}
+
+function shouldShowDiagnostics(): boolean {
+  if (import.meta.env.DEV) return true;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("debug") === "1" || params.get("diagnostics") === "1";
 }
 
 function sortByKickoffUrgency<T extends { kickoff_utc: string }>(matches: T[]): T[] {
@@ -124,6 +132,7 @@ export function DashboardPage() {
   }, [visibleMatches]);
 
   const empty = emptyCopy(mode);
+  const showDiagnostics = shouldShowDiagnostics();
 
   return (
     <main className="app-shell dashboard-v2">
@@ -180,7 +189,13 @@ export function DashboardPage() {
 
       {state === "error" ? <EmptySection title="加载失败" detail="请确认公网 /v1 API 可访问；不会用假数据顶替真实数据。" /> : null}
 
-      {state === "empty" && view ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
+      {state === "empty" && view ? (
+        showDiagnostics ? (
+          <DataDiagnosticsPanel debug={view.debug} release={view.release} />
+        ) : (
+          <EmptySection title={empty.title} detail={empty.detail} />
+        )
+      ) : null}
 
       {state === "ok" && view ? (
         <>
