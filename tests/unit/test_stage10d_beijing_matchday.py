@@ -14,22 +14,23 @@ from w2.matchday.timezone import (
 def test_beijing_operational_day_crosses_utc_date() -> None:
     policy = BeijingOperationalDayPolicy()
     window = policy.window_for_date(date(2026, 6, 23))
-    assert window.start_utc == datetime(2026, 6, 22, 16, tzinfo=UTC)
-    assert window.end_utc == datetime(2026, 6, 23, 16, tzinfo=UTC)
-    assert policy.provider_utc_dates_for_window(window) == ["2026-06-22", "2026-06-23"]
+    assert window.start_utc == datetime(2026, 6, 23, 4, tzinfo=UTC)
+    assert window.end_utc == datetime(2026, 6, 24, 4, tzinfo=UTC)
+    assert policy.provider_utc_dates_for_window(window) == ["2026-06-23", "2026-06-24"]
 
 
 def test_beijing_window_left_closed_right_open() -> None:
     window = BeijingOperationalDayPolicy().window_for_date(date(2026, 6, 23))
-    assert window.contains(datetime(2026, 6, 22, 16, tzinfo=UTC))
-    assert not window.contains(datetime(2026, 6, 23, 16, tzinfo=UTC))
+    assert window.contains(datetime(2026, 6, 23, 4, tzinfo=UTC))
+    assert not window.contains(datetime(2026, 6, 24, 4, tzinfo=UTC))
 
 
 def test_operational_date_beijing_conversion() -> None:
     resolver = FixtureOperationalDateResolver()
     annotation = resolver.annotate(datetime(2026, 6, 22, 17, tzinfo=UTC))
     assert annotation["kickoff_beijing"] == "2026-06-23T01:00:00+08:00"
-    assert annotation["operational_date_beijing"] == "2026-06-23"
+    assert annotation["operational_date_beijing"] == "2026-06-22"
+    assert annotation["operational_day_cutoff_beijing"] == "12:00"
 
 
 def test_same_fixture_unique_reason_and_missing_distribution() -> None:
@@ -40,23 +41,23 @@ def test_same_fixture_unique_reason_and_missing_distribution() -> None:
             {
                 "fixture_id": "a",
                 "competition": "World Cup",
-                "kickoff_utc": "2026-06-22T17:00:00Z",
+                "kickoff_utc": "2026-06-23T05:00:00Z",
             },
             {
                 "fixture_id": "a",
                 "competition": "World Cup",
-                "kickoff_utc": "2026-06-22T17:00:00Z",
+                "kickoff_utc": "2026-06-23T05:00:00Z",
             },
             {
                 "fixture_id": "b",
                 "competition": "World Cup",
-                "kickoff_utc": "2026-06-22T18:00:00Z",
+                "kickoff_utc": "2026-06-23T06:00:00Z",
             },
         ],
         cards=[{"fixture": {"fixture_id": "a"}}],
         read_model_fixtures=[{"fixture_id": "a"}],
         displayed_fixtures=[{"fixture_id": "a"}],
-        now_utc=datetime(2026, 6, 22, 15, tzinfo=UTC),
+        now_utc=datetime(2026, 6, 23, 3, tzinfo=UTC),
     )
     reasons = {row["fixture_id"]: row["reason"] for row in audit["fixtures"]}
     assert reasons["a"] in MISSING_REASONS
@@ -72,7 +73,7 @@ def test_matchday_service_filters_by_beijing_date() -> None:
                 "fixture_id": "in",
                 "competition_id": "1",
                 "competition_name": "World Cup",
-                "kickoff_utc": "2026-06-22T17:00:00+00:00",
+                "kickoff_utc": "2026-06-23T05:00:00+00:00",
                 "status": "NS",
                 "home_team_id": "h",
                 "home_team_name": "Home",
@@ -90,7 +91,7 @@ def test_matchday_service_filters_by_beijing_date() -> None:
                 "fixture_id": "out",
                 "competition_id": "1",
                 "competition_name": "World Cup",
-                "kickoff_utc": "2026-06-23T16:00:00+00:00",
+                "kickoff_utc": "2026-06-24T04:00:00+00:00",
                 "status": "NS",
                 "home_team_id": "h",
                 "home_team_name": "Home",

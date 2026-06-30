@@ -22,6 +22,7 @@ from w2.analysis.market_movement import (
 )
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
+from w2.dashboard.date_window import default_football_day
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
     build_analysis_readiness,
@@ -803,7 +804,7 @@ class ReadModelService:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
-            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+            else default_football_day(datetime.now(UTC))
         )
         cache_key = (requested_date.isoformat(), window, timezone, include_debug)
         cached = self._dashboard_response_cache.get(cache_key)
@@ -837,8 +838,12 @@ class ReadModelService:
         result_rows = [
             row
             for row in self._all_matchday_rows()
-            if str(row.get("status", "")).upper() in {"FT", "AET", "PEN", "FINISHED"}
+            if self._is_finished_row(row)
         ]
+        result_rows = self._filter_rows_for_operational_date(
+            result_rows,
+            requested_date=requested_date,
+        )
         future_rows, future_parse_error_count = self._future_fixture_rows_with_errors()
         future_today_rows = self._filter_rows_for_operational_date(
             future_rows,
@@ -1043,7 +1048,7 @@ class ReadModelService:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
-            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+            else default_football_day(datetime.now(UTC))
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
@@ -1099,7 +1104,7 @@ class ReadModelService:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
-            else datetime.now(UTC).astimezone(ZoneInfo(BEIJING_TZ)).date()
+            else default_football_day(datetime.now(UTC))
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
@@ -3852,11 +3857,22 @@ class ReadModelService:
         *,
         requested_date: date,
     ) -> list[dict[str, Any]]:
-        return [
-            row
-            for row in rows
-            if str(row.get("operational_date_beijing") or "") == requested_date.isoformat()
-        ]
+        window = self.day_policy.window_for_date(requested_date)
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is not None and window.contains(kickoff):
+                filtered.append(row)
+        return filtered
+
+    def _is_finished_row(self, row: dict[str, Any]) -> bool:
+        status = str(row.get("status", "")).upper()
+        raw_status = str(row.get("raw_status", "")).upper()
+        if status in {"FT", "AET", "PEN", "FINISHED", "MATCH_FINISHED"}:
+            return True
+        if raw_status in {"FT", "AET", "PEN", "FINISHED", "MATCH_FINISHED"}:
+            return True
+        return row.get("_result") is not None or row.get("result") is not None
 
     def _filter_rows_for_next36(
         self,

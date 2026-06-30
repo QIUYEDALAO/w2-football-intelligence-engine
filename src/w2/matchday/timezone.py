@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+from w2.dashboard.date_window import (
+    FOOTBALL_DAY_CUTOFF_HOUR,
+    default_football_day,
+    football_day_for_kickoff,
+    football_day_window,
+)
 
 BEIJING_TZ = "Asia/Shanghai"
 STORAGE_TZ = "UTC"
@@ -59,14 +66,15 @@ class BeijingOperationalDayPolicy:
         return cls(operations_timezone=payload["operations_timezone"])
 
     def window_for_date(self, local_date: date) -> OperationalDayWindow:
-        start_local = datetime.combine(local_date, time.min, tzinfo=self.timezone)
-        end_local = start_local + timedelta(days=1)
+        start_utc, end_utc = football_day_window(local_date)
+        start_local = start_utc.astimezone(self.timezone)
+        end_local = end_utc.astimezone(self.timezone)
         return OperationalDayWindow(
             local_date=local_date,
             start_local=start_local,
             end_local=end_local,
-            start_utc=start_local.astimezone(UTC),
-            end_utc=end_local.astimezone(UTC),
+            start_utc=start_utc,
+            end_utc=end_utc,
             window_semantics=WINDOW_SEMANTICS,
             operational_day_key=local_date.isoformat(),
         )
@@ -75,7 +83,7 @@ class BeijingOperationalDayPolicy:
         now = now_utc or datetime.now(UTC)
         if now.tzinfo is None:
             raise ValueError("now_utc must be timezone-aware")
-        return self.window_for_date(now.astimezone(self.timezone).date())
+        return self.window_for_date(default_football_day(now))
 
     def provider_utc_dates_for_window(self, window: OperationalDayWindow) -> list[str]:
         cursor = window.start_utc.date()
@@ -99,13 +107,14 @@ class FixtureOperationalDateResolver:
         return kickoff_utc.astimezone(self.timezone)
 
     def operational_date(self, kickoff_utc: datetime) -> date:
-        return self.kickoff_beijing(kickoff_utc).date()
+        return football_day_for_kickoff(kickoff_utc)
 
     def annotate(self, kickoff_utc: datetime) -> dict[str, str]:
         beijing = self.kickoff_beijing(kickoff_utc)
         return {
             "kickoff_beijing": beijing.isoformat(),
-            "operational_date_beijing": beijing.date().isoformat(),
+            "operational_date_beijing": self.operational_date(kickoff_utc).isoformat(),
+            "operational_day_cutoff_beijing": f"{FOOTBALL_DAY_CUTOFF_HOUR:02d}:00",
         }
 
 

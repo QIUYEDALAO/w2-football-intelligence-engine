@@ -55,3 +55,14 @@ def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     assert 'useState<DashboardMode>("next36")' in page
     assert "sortFormalFirst(view.upcoming)" in page
     assert "其他比赛分析参考" in page
+
+
+def test_completed_recap_empty_state_hides_diagnostics_by_default() -> None:
+    page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+
+    assert "本足球日暂无完场比赛" in page
+    assert "北京时间中午 12:00 到次日 11:59" in page
+    assert "shouldShowDiagnostics" in page
+    assert 'params.get("debug") === "1"' in page
+    assert 'params.get("diagnostics") === "1"' in page
+    assert 'state === "empty" && view ? <DataDiagnosticsPanel' not in page

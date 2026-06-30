@@ -100,6 +100,45 @@ class RecommendationLoopRepository:
         ]
 
 
+class FootballDayResultsRepository(RecommendationLoopRepository):
+    def release_counts(self) -> dict[str, int]:
+        return {
+            "read_model_fixture_count": 4,
+            "matchday_card_count": 4,
+            "future_fixture_count": 0,
+            "result_event_count": 4,
+        }
+
+    def matchday_cards(self) -> list[dict[str, Any]]:
+        return [
+            self._card("previous-football-day", "2026-06-30T03:59:00Z"),
+            self._card("football-day-start", "2026-06-30T04:00:00Z"),
+            self._card("football-day-morning", "2026-07-01T03:30:00Z"),
+            self._card("next-football-day", "2026-07-01T04:00:00Z"),
+        ]
+
+    @staticmethod
+    def _card(fixture_id: str, kickoff_utc: str) -> dict[str, Any]:
+        return {
+            "fixture": {
+                "fixture_id": fixture_id,
+                "competition_id": "1",
+                "competition_name": "World Cup",
+                "kickoff_utc": kickoff_utc,
+                "status": "FT",
+                "home_team_id": "10",
+                "home_team_name": "Home",
+                "away_team_id": "20",
+                "away_team_name": "Away",
+                "home_goals": 1,
+                "away_goals": 0,
+            },
+            "card": {"action": "DATA"},
+            "temporal": {},
+            "analysis_card": {"decision": "WATCH", "markets": []},
+        }
+
+
 def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> None:
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
 
@@ -131,6 +170,17 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert performance["analysis_pick_count"] == 1
     assert card["analysis_readiness"]["status"] in {"PARTIAL", "BLOCKED"}
     assert "FIXTURE_NOT_UPCOMING" in card["analysis_readiness"]["blockers"]
+
+
+def test_dashboard_results_window_uses_football_day_boundaries() -> None:
+    service = ReadModelService(repository=cast(Any, FootballDayResultsRepository()))
+
+    payload = service.dashboard(target_date="2026-06-30", window="results")
+
+    fixture_ids = [card["fixture_id"] for card in payload["all"]]
+    assert fixture_ids == ["football-day-start", "football-day-morning"]
+    assert [card["fixture_id"] for card in payload["finished"]] == fixture_ids
+    assert payload["debug"]["selected_date"] == "2026-06-30"
 
 
 def _write_formal_snapshot(
