@@ -110,6 +110,9 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
   AH_MARKET_PRICE_OUT_OF_RANGE: "全场让球赔率超出可信范围",
   AH_MARKET_PRICE_GAP_TOO_WIDE: "全场让球双边赔率差过大",
   AH_MARKET_UNDERROUND_OR_OVERROUND: "全场让球市场水位异常",
+  AH_MAINLINE_AMBIGUOUS: "全场让球主盘口不明确",
+  AH_PRIMARY_MAINLINE_MISSING: "缺少可确认的全场让球主盘口",
+  AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认",
   INSUFFICIENT_INDEPENDENT_SIGNALS: "独立信号不足",
   AS_OF_BLOCKED: "赛前时间点校验未通过",
   LEAKAGE_BLOCKED: "赛前数据防泄漏校验未通过",
@@ -157,6 +160,41 @@ function cardTone(state: VerdictState): string {
 function blockerLabels(match: DashboardMatchCard): string[] {
   const blockers = match.analysis_readiness?.blockers ?? match.missing_inputs;
   return blockers.map((blocker) => BLOCKER_LABELS[blocker] ?? "数据不足").filter(Boolean).slice(0, 4);
+}
+
+function formalBlockerLabel(blocker: string): string {
+  const known = FORMAL_BLOCKER_LABELS[blocker];
+  if (known) return known;
+  if (/^[A-Z0-9_:.-]+$/.test(blocker)) return "未达到正式推荐条件";
+  return displayReason(blocker);
+}
+
+function ahMainlineBlocker(match: DashboardMatchCard): string | null {
+  const shadow = match.pricing_shadow;
+  const currentAh = asRecord(asRecord(match.current_odds).ah);
+  const blocker = (
+    textValue(shadow?.ah_mainline_blocker)
+    || textValue(shadow?.canonical_ah_market_blocker)
+    || textValue(currentAh.mainline_blocker)
+    || textValue(currentAh.line_status)
+    || null
+  );
+  if (!blocker || blocker === "READY") return null;
+  return blocker;
+}
+
+function ahMarketStateLabel(match: DashboardMatchCard): string {
+  const blocker = ahMainlineBlocker(match);
+  if (blocker && FORMAL_BLOCKER_LABELS[blocker]) return FORMAL_BLOCKER_LABELS[blocker];
+  if (blocker) return "全场让球主盘口不明确";
+  const readinessBlockers = new Set(match.analysis_readiness?.blockers ?? []);
+  if (readinessBlockers.has("MISSING_MARKET_OBSERVATIONS") || readinessBlockers.has("MISSING_ODDS_TIMELINE")) {
+    return "盘口未采集";
+  }
+  if (readinessBlockers.has("MISSING_BOOKMAKER_QUOTES") || readinessBlockers.has("ODDS_UNAVAILABLE")) {
+    return "盘口未返回";
+  }
+  return "盘口等待";
 }
 
 function nextActionLabel(match: DashboardMatchCard): string {
@@ -277,7 +315,7 @@ function formalReason(match: DashboardMatchCard): string {
   const blockers = match.pricing_shadow?.formal_blockers ?? [];
   if (blockers.length) {
     return blockers
-      .map((blocker) => FORMAL_BLOCKER_LABELS[blocker] ?? blocker)
+      .map(formalBlockerLabel)
       .slice(0, 3)
       .join(" · ");
   }
@@ -318,8 +356,9 @@ function dataLine(match: DashboardMatchCard): string {
   const xg = items.find((item) => item.key === "xg");
   const lineups = items.find((item) => item.key === "lineups");
   const blockers = blockerLabels(match);
+  const ahState = ahMarketStateLabel(match);
   const status = [
-    odds ? odds.short.replace("盘口等待", "盘口等待") : "盘口等待",
+    ahState !== "盘口等待" ? ahState : odds?.ready ? odds.short : ahState,
     xg ? xg.short : "xG 等待",
     lineups?.ready ? "首发已出" : "首发未出",
   ];
@@ -340,6 +379,7 @@ function actionabilityLine(match: DashboardMatchCard): string {
     if (!oddsReady) return "临场待确认：盘口快照不足，需复核";
     return "临场可参考：仍需赛前复核阵容与盘口跳线";
   }
+  if (ahMainlineBlocker(match)) return "全场让球主盘口不明确，保持观察";
   if (!oddsReady) return "等待盘口快照后再看";
   return "赛前分析参考，等待正式条件";
 }
@@ -586,6 +626,8 @@ function statusText(value: unknown): string {
 }
 
 function oddsPillLabel(match: DashboardMatchCard): string {
+  const ahState = ahMarketStateLabel(match);
+  if (ahState !== "盘口等待") return ahState;
   const status = statusText(match.data_refresh?.odds_status);
   if (status === "READY") return "已更新";
   if (status === "STALE") return "可能过期";
@@ -682,6 +724,9 @@ function MainMarketBox({
   const calibrated = hasValidatedAhCalibration(shadow);
   const fairAh = lineValue(shadow?.fair_ah ?? null, "ah");
   const marketAh = lineValue(shadow?.market_ah ?? null, "ah");
+  const marketAhFallback = shadow?.ah_mainline_blocker || shadow?.canonical_ah_market_blocker
+    ? "主盘口不明确"
+    : "盘口未采集";
   const edgeAh = edgeDisplayText(shadow?.edge_ah ?? null, calibrated);
   const factors = (shadow?.factors ?? [])
     .filter((factor) => factor.status === "READY")
@@ -710,7 +755,7 @@ function MainMarketBox({
         <span>{shadow?.simulation_status === "READY" ? "模拟公平盘" : calibrated ? "独立公平盘" : "规则公平盘"}</span>
         <strong>{fairAh ? `让球 ${fairAh}${shadow?.simulation_status === "READY" || calibrated ? "" : "（未校准）"}` : "未形成"}</strong>
         <span>{calibrated ? "市场主线" : "市场主线（背景）"}</span>
-        <strong>{marketAh ? `让球 ${marketAh}` : "盘口等待"}</strong>
+        <strong>{marketAh ? `让球 ${marketAh}` : marketAhFallback}</strong>
         <span>{calibrated ? "盘口差距" : "差距展示"}</span>
         <strong>{edgeAh}</strong>
       </div>

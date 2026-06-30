@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
-import { todayShanghai } from "../lib/formatters";
+import { footballDayShanghai } from "../lib/formatters";
 import { matchPhase, minutesToKickoff } from "../lib/matchPhase";
 import { hasValidatedAhCalibration } from "../lib/pricingDisplay";
 import type { DashboardMatchCard, DashboardMode, DashboardView, LoadState } from "../types/dashboard";
@@ -61,7 +61,7 @@ export function DashboardPage() {
   const [view, setView] = useState<DashboardView | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [mode, setMode] = useState<DashboardMode>("next36");
-  const [date, setDate] = useState(todayShanghai());
+  const [date, setDate] = useState(footballDayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -79,6 +79,17 @@ export function DashboardPage() {
       try {
         const nextView = await fetchDashboardView({ date, mode });
         if (cancelled) return;
+        const fallbackDate = nextView.next_available_date ?? nextView.debug.next_available_date;
+        if (nextView.selected_date_has_data === false && fallbackDate && fallbackDate !== date) {
+          setView(nextView);
+          setDate(fallbackDate);
+          setUpdatedAt(updatedAtShanghai());
+          setState("loading");
+          return;
+        }
+        if (nextView.selected_football_day && nextView.selected_football_day !== date) {
+          setDate(nextView.selected_football_day);
+        }
         setView(nextView);
         setUpdatedAt(updatedAtShanghai());
         setState(nextView.all.length ? "ok" : "empty");

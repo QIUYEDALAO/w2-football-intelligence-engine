@@ -21,7 +21,7 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v2";
+const DASHBOARD_CACHE_VERSION = "dashboard-v4-football-day-fallback";
 
 interface FetchDashboardArgs {
   date: string;
@@ -291,6 +291,8 @@ function normalizePricingShadow(payload: unknown): PricingShadow | null {
     simulation_status: textValue(record.simulation_status) || null,
     formal_eligible: record.formal_eligible === true,
     formal_blockers: asArray(record.formal_blockers).map((item) => textValue(item)).filter(Boolean),
+    ah_mainline_blocker: textValue(record.ah_mainline_blocker) || null,
+    canonical_ah_market_blocker: textValue(record.canonical_ah_market_blocker) || null,
     asof_market_snapshot_id: textValue(record.asof_market_snapshot_id) || null,
     devig_method: textValue(record.devig_method) || null,
     settlement_outcome: textValue(record.settlement_outcome) || null,
@@ -623,6 +625,14 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
   const all = asArray(dashboard.all).map(normalizeCard);
   const view = {
     date: textValue(dashboard.date, date),
+    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date, date),
+    selected_football_day: textValue(dashboard.selected_football_day) || textValue(dashboard.selected_date) || textValue(dashboard.date, date),
+    selected_date_has_data: Boolean(dashboard.selected_date_has_data),
+    next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date,
+    football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
+    football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
+    football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
+    football_day_end_utc: textValue(dashboard.football_day_end_utc) || undefined,
     generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
     data_profile: release.data_profile,
     data_source: release.data_source,

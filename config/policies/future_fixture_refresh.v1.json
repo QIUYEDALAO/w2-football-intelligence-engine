@@ -23,7 +23,7 @@
       ],
       "feature_enrichment_request_budget": 9,
       "max_fixture_candidates": 20,
-      "max_odds_requests": 10,
+      "max_odds_requests": 20,
       "market_freshness_seconds": 3600,
       "enabled": true
     }

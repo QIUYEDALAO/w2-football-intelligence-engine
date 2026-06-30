@@ -180,6 +180,14 @@ def test_dashboard_results_window_uses_football_day_boundaries() -> None:
     fixture_ids = [card["fixture_id"] for card in payload["all"]]
     assert fixture_ids == ["football-day-start", "football-day-morning"]
     assert [card["fixture_id"] for card in payload["finished"]] == fixture_ids
+    assert payload["selected_date"] == "2026-06-30"
+    assert payload["selected_football_day"] == "2026-06-30"
+    assert payload["selected_date_has_data"] is True
+    assert payload["next_available_date"] == "2026-06-30"
+    assert payload["football_day_timezone"] == "Asia/Shanghai"
+    assert payload["football_day_cutoff_hour"] == 12
+    assert payload["football_day_start_utc"] == "2026-06-30T04:00:00Z"
+    assert payload["football_day_end_utc"] == "2026-07-01T04:00:00Z"
     assert payload["debug"]["selected_date"] == "2026-06-30"
 
 
