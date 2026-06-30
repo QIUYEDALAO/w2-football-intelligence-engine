@@ -15,6 +15,9 @@ const BLOCKER_LABELS: Record<string, string> = {
   AS_OF_BLOCKED: "赛前时间点拦截",
   SCORE_MARKET_UNAVAILABLE: "比分市场不可用",
   ODDS_UNAVAILABLE: "缺当前赔率",
+  AH_MAINLINE_AMBIGUOUS: "全场让球主盘口不明确",
+  AH_PRIMARY_MAINLINE_MISSING: "缺少可确认的全场让球主盘口",
+  AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认",
   FIXTURE_NOT_UPCOMING: "非赛前",
   UNSUPPORTED_MARKET: "市场不支持",
   UNKNOWN_BLOCKER: "未知阻塞",
@@ -39,6 +42,12 @@ function pricingShadowLine(shadow?: PricingShadow | null): string | null {
   const coverage = typeof shadow.coverage === "number" ? ` · 覆盖率 ${Math.round(Math.max(0, Math.min(1, shadow.coverage)) * 100)}%` : "";
   if (shadow.status === "WATCH") return `无明显独立优势 · 观察${coverage}`;
   return `独立评分参考 · 待校准${coverage}`;
+}
+
+function blockerLabel(blocker: string): string {
+  const known = BLOCKER_LABELS[blocker];
+  if (known) return known;
+  return /^[A-Z0-9_:.-]+$/.test(blocker) ? "数据状态待确认" : blocker;
 }
 
 export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
@@ -71,7 +80,7 @@ export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
       {blockers.length ? (
         <div className="blocker-chips" aria-label="分析阻塞原因">
           {blockers.slice(0, 5).map((blocker) => (
-            <span key={blocker}>{BLOCKER_LABELS[blocker] ?? blocker}</span>
+            <span key={blocker}>{blockerLabel(blocker)}</span>
           ))}
         </div>
       ) : null}

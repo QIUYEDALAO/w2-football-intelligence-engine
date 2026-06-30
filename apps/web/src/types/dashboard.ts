@@ -352,6 +352,8 @@ export interface PricingShadow {
   simulation_status?: string | null;
   formal_eligible?: boolean;
   formal_blockers?: string[];
+  ah_mainline_blocker?: string | null;
+  canonical_ah_market_blocker?: string | null;
   asof_market_snapshot_id?: string | null;
   devig_method?: string | null;
   settlement_outcome?: string | null;
@@ -546,6 +548,14 @@ export interface ReleaseSyncState {
 
 export interface DashboardView {
   date: string;
+  selected_date?: string;
+  selected_football_day?: string;
+  selected_date_has_data?: boolean;
+  next_available_date?: string | null;
+  football_day_timezone?: string;
+  football_day_cutoff_hour?: number;
+  football_day_start_utc?: string;
+  football_day_end_utc?: string;
   generated_at: string;
   data_profile: string;
   data_source: string;

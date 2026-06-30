@@ -63,7 +63,7 @@ class FutureRefreshConfig:
     season: str = "2026"
     horizon_days: int = 4
     max_fixture_candidates: int = 20
-    max_odds_requests: int = 10
+    max_odds_requests: int = 20
     quota_reserve: int = 1500
     market_freshness_seconds: int = 3600
     request_budget: int = 40
@@ -585,6 +585,7 @@ class FutureFixtureRefreshService:
         self._attempt_count = 0
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
+        self._odds_request_fixture_ids: list[str] = []
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -756,6 +757,7 @@ class FutureFixtureRefreshService:
             fixture_id = fixture_id_from_payload(item)
             if not fixture_id:
                 continue
+            self._odds_request_fixture_ids.append(fixture_id)
             response = self._request("odds", {"fixture": fixture_id})
             if bookmaker_count(response.payload) > 0:
                 odds.append((fixture_id, response))
@@ -1032,6 +1034,14 @@ class FutureFixtureRefreshService:
             "fixture_count": result.fixture_count,
             "mapping_count": result.mapping_count,
             "market_snapshot_count": result.market_snapshot_count,
+            "odds_request_fixture_ids": list(self._odds_request_fixture_ids),
+            "odds_request_attempt_count": len(self._odds_request_fixture_ids),
+            "odds_request_limit": self.config.max_odds_requests,
+            "odds_request_coverage_ratio": (
+                round(len(self._odds_request_fixture_ids) / result.fixture_count, 4)
+                if result.fixture_count
+                else None
+            ),
             "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
             "ledger_appended_count": result.ledger_appended_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,

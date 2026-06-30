@@ -21,11 +21,28 @@ def test_formal_card_copy_does_not_surface_performance_terms() -> None:
 
 def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> None:
     card = (ROOT / "apps/web/src/components/RecommendationCard.tsx").read_text()
+    upcoming = (ROOT / "apps/web/src/components/UpcomingFixtureCard.tsx").read_text()
 
     assert 'FIXTURE_NOT_PREMATCH: "比赛已开赛或已完场"' in card
     assert 'AH_EV_BELOW_FORMAL_THRESHOLD: "让球结算期望未达正式推荐阈值"' in card
     assert 'MISSING_AH_SETTLEMENT_DISTRIBUTION: "缺少让球结算分布"' in card
     assert 'AH_MARKET_LINE_SIDE_MISMATCH: "全场让球双边盘口方向不一致"' in card
+    assert 'AH_MAINLINE_AMBIGUOUS: "全场让球主盘口不明确"' in card
+    assert 'AH_PRIMARY_MAINLINE_MISSING: "缺少可确认的全场让球主盘口"' in card
+    assert (
+        'AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认"'
+        in card
+    )
+    assert "formalBlockerLabel" in card
+    assert 'W2_FORMAL_RECOMMENDATION_ENABLED: "正式推荐开关未开启"' in card
+    assert "formalSuppressedReasonLabel" in card
+    assert 'reason.split("=")' in card
+    assert "未达到正式推荐条件" in card
+    assert "全场让球主盘口不明确" in card
+    assert "盘口未采集" in card
+    assert "盘口未返回" in card
+    assert "blockerLabel(blocker)" in upcoming
+    assert "数据状态待确认" in upcoming
     assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
     assert "模拟比分参考，不是推荐比分" in card
@@ -51,8 +68,13 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
 
 def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
     assert 'useState<DashboardMode>("next36")' in page
+    assert "footballDayShanghai()" in page
+    assert "next_available_date" in page
+    assert "selected_date_has_data" in page
+    assert "rawHour === 24 ? 0 : rawHour" in formatters
     assert "sortFormalFirst(view.upcoming)" in page
     assert "其他比赛分析参考" in page
 

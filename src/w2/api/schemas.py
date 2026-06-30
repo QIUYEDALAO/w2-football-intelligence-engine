@@ -135,6 +135,14 @@ class DashboardResponse(BaseModel):
     request_id: str
     generated_at: datetime
     date: str
+    selected_date: str
+    selected_football_day: str
+    selected_date_has_data: bool
+    next_available_date: str | None = None
+    football_day_timezone: str
+    football_day_cutoff_hour: int
+    football_day_start_utc: str
+    football_day_end_utc: str
     timezone: str
     window: str
     data_profile: str

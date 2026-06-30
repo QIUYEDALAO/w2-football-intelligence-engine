@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -144,6 +145,29 @@ class FakeApiFootballClient:
         raise AssertionError(endpoint)
 
 
+class ManyFutureFixturesClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint != "fixtures":
+            return super().payload(endpoint, params)
+        return {
+            "response": [
+                {
+                    "fixture": {
+                        "id": 1489400 + index,
+                        "date": f"2026-06-23T{11 + index:02d}:00:00+00:00",
+                        "status": {"short": "NS"},
+                    },
+                    "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                    "teams": {
+                        "home": {"id": 100 + index, "name": f"Team H {index}"},
+                        "away": {"id": 200 + index, "name": f"Team A {index}"},
+                    },
+                }
+                for index in range(12)
+            ]
+        }
+
+
 def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
@@ -204,6 +228,33 @@ def test_future_fixture_refresh_preserves_core_tasks_when_reserve_locked(
     assert all(endpoint != "statistics" for endpoint, _ in client.calls)
     assert all(endpoint != "injuries" for endpoint, _ in client.calls)
     assert (tmp_path / "future_refresh_audit.json").is_file()
+
+
+def test_future_refresh_requests_odds_for_all_fixture_candidates(tmp_path: Path) -> None:
+    client = ManyFutureFixturesClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        max_fixture_candidates=12,
+        max_odds_requests=12,
+        request_budget=30,
+        persistence="file",
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+    odds_calls = [params["fixture"] for endpoint, params in client.calls if endpoint == "odds"]
+
+    assert result.fixture_count == 12
+    assert odds_calls == [str(1489400 + index) for index in range(12)]
+    assert audit["odds_request_fixture_ids"] == odds_calls
+    assert audit["odds_request_attempt_count"] == 12
+    assert audit["odds_request_limit"] == 12
+    assert audit["odds_request_coverage_ratio"] == 1.0
 
 
 def test_future_refresh_daily_quota_is_not_burst_quota(tmp_path: Path) -> None:
@@ -316,7 +367,7 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
               "quota_reserve": 1500,
               "request_budget": 40,
               "max_fixture_candidates": 20,
-              "max_odds_requests": 10,
+              "max_odds_requests": 20,
               "market_freshness_seconds": 3600,
               "enabled": true
             }
@@ -335,6 +386,7 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
 
     assert policy.provider_league_id == "1"
     assert config.season == "2026"
+    assert config.max_odds_requests == 20
     try:
         load_refresh_policy(competition_id="premier_league", policy_path=policy_path)
     except FutureRefreshError as exc:

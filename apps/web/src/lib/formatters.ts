@@ -43,6 +43,32 @@ export function todayShanghai(): string {
   }).format(new Date());
 }
 
+export function footballDayShanghai(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const localDate = `${value("year")}-${value("month")}-${value("day")}`;
+  const rawHour = Number(value("hour"));
+  const hour = rawHour === 24 ? 0 : rawHour;
+  if (Number.isFinite(hour) && hour < 12) {
+    const utcNoon = new Date(`${localDate}T12:00:00+08:00`);
+    utcNoon.setUTCDate(utcNoon.getUTCDate() - 1);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(utcNoon);
+  }
+  return localDate;
+}
+
 export function fmtTime(iso?: unknown): string {
   const raw = typeof iso === "string" && iso ? iso : "";
   if (!raw) {
