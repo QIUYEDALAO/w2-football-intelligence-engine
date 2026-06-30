@@ -34,6 +34,9 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
         in card
     )
     assert "formalBlockerLabel" in card
+    assert 'W2_FORMAL_RECOMMENDATION_ENABLED: "正式推荐开关未开启"' in card
+    assert "formalSuppressedReasonLabel" in card
+    assert 'reason.split("=")' in card
     assert "未达到正式推荐条件" in card
     assert "全场让球主盘口不明确" in card
     assert "盘口未采集" in card

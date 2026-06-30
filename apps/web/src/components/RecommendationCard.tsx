@@ -87,6 +87,7 @@ const SIGNAL_GROUP_LABELS: Record<string, string> = {
 };
 
 const FORMAL_BLOCKER_LABELS: Record<string, string> = {
+  W2_FORMAL_RECOMMENDATION_ENABLED: "正式推荐开关未开启",
   EDGE_BELOW_FORMAL_THRESHOLD: "盘口价值差未达正式推荐阈值",
   SIMULATION_NOT_READY: "模拟引擎未就绪",
   MISSING_AH_MARKET: "缺少可锁定的全场让球市场盘",
@@ -167,6 +168,14 @@ function formalBlockerLabel(blocker: string): string {
   if (known) return known;
   if (/^[A-Z0-9_:.-]+$/.test(blocker)) return "未达到正式推荐条件";
   return displayReason(blocker);
+}
+
+function formalSuppressedReasonLabel(reason: string): string {
+  const [key] = reason.split("=");
+  const known = FORMAL_BLOCKER_LABELS[key] ?? FORMAL_BLOCKER_LABELS[reason];
+  if (known) return known;
+  if (/^[A-Z0-9_:.-]+(?:=(?:true|false))?$/i.test(reason)) return "未达到正式推荐条件";
+  return displayReason(reason);
 }
 
 function ahMainlineBlocker(match: DashboardMatchCard): string | null {
@@ -311,7 +320,9 @@ function displayReason(reason: string): string {
 }
 
 function formalReason(match: DashboardMatchCard): string {
-  if (match.formal_suppressed_reason) return `正式推荐被抑制：${match.formal_suppressed_reason}`;
+  if (match.formal_suppressed_reason) {
+    return `正式推荐被抑制：${formalSuppressedReasonLabel(match.formal_suppressed_reason)}`;
+  }
   const blockers = match.pricing_shadow?.formal_blockers ?? [];
   if (blockers.length) {
     return blockers
