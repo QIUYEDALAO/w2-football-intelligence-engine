@@ -19,6 +19,7 @@ from w2.analysis.market_movement import (
     build_bookmaker_hypothesis,
     build_market_divergence,
     build_market_movement,
+    build_market_timeline_reference,
 )
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
@@ -3210,6 +3211,7 @@ class ReadModelService:
             away_team_name=str(card.get("away_cn") or card.get("away_name") or ""),
         )
         card["market_movement"] = movement
+        card["market_timeline"] = build_market_timeline_reference(timeline)
         card["market_divergence"] = divergence
         card["bookmaker_hypothesis"] = build_bookmaker_hypothesis(
             market_movement=movement,
@@ -4148,6 +4150,7 @@ class ReadModelService:
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),
             "market_movement": card.get("market_movement", {}),
+            "market_timeline": card.get("market_timeline", {}),
             "market_divergence": card.get("market_divergence", {}),
             "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),

@@ -49,6 +49,10 @@ def scoreline_reference_from_card(
         "source": "formal_simulation",
         "label": "模拟比分参考",
         "top_scorelines": top_scorelines,
+        "direction_top3": _direction_top3_scorelines(
+            simulation,
+            recommendation=recommendation,
+        ),
         "high_total": {
             "threshold": 4,
             "probability": high_total_probability,
@@ -65,6 +69,63 @@ def scoreline_reference_from_card(
         },
         "ah_key_scorelines": _ah_key_scorelines(simulation, recommendation=recommendation),
     }
+
+
+def _direction_top3_scorelines(
+    simulation: dict[str, Any],
+    *,
+    recommendation: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(recommendation, dict):
+        return []
+    if recommendation.get("market") != "ASIAN_HANDICAP":
+        return []
+    if recommendation.get("tier") != "FORMAL" and not recommendation.get("formal_recommendation"):
+        return []
+    selection = str(recommendation.get("selection") or "")
+    selected_line = _number(recommendation.get("line"))
+    lambda_home = _number(simulation.get("lambda_home"))
+    lambda_away = _number(simulation.get("lambda_away"))
+    if selected_line is None or lambda_home is None or lambda_away is None:
+        return []
+    if selection == "HOME_AH":
+        side = "HOME"
+        home_line = selected_line
+    elif selection == "AWAY_AH":
+        side = "AWAY"
+        home_line = -selected_line
+    else:
+        return []
+
+    matches: list[dict[str, Any]] = []
+    for home in range(0, 11):
+        for away in range(0, 11):
+            outcome = _ah_outcome_for_scoreline(
+                side=side,
+                home_line=home_line,
+                home_goals=home,
+                away_goals=away,
+            )
+            if outcome not in {"WIN", "HALF_WIN"}:
+                continue
+            probability = _poisson_probability(lambda_home, home) * _poisson_probability(
+                lambda_away,
+                away,
+            )
+            matches.append(
+                {
+                    "scoreline": f"{home}-{away}",
+                    "home_goals": home,
+                    "away_goals": away,
+                    "probability": round(probability, 6),
+                    "probability_label": _probability_label(None, probability),
+                    "selection": selection,
+                    "line": selected_line,
+                    "outcome": outcome,
+                    "source": "formal_simulation_direction_top3",
+                }
+            )
+    return sorted(matches, key=lambda item: float(item["probability"]), reverse=True)[:3]
 
 
 def _simulation_from_card(card: dict[str, Any]) -> dict[str, Any] | None:

@@ -41,6 +41,9 @@ def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
 
     assert reference is not None
     assert reference["source"] == "formal_simulation"
+    assert reference["direction_top3"] == []
+    assert "midband_scorelines" not in reference
+    assert "_midband_scorelines" not in reference
     assert [item["scoreline"] for item in reference["top_scorelines"]] == [
         "1-0",
         "2-0",
@@ -95,6 +98,86 @@ def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
             "source": "exact_poisson_from_lambda",
         },
     ]
+
+
+def test_scoreline_reference_direction_top3_filters_by_formal_home_ah_direction() -> None:
+    card = {
+        "pricing_shadow": {
+            "simulation": {
+                "status": "READY",
+                "lambda_home": 1.9,
+                "lambda_away": 0.7,
+                "scoreline_picks": [
+                    {"scoreline": "1-0", "probability": 0.14},
+                    {"scoreline": "2-0", "probability": 0.13},
+                    {"scoreline": "1-1", "probability": 0.10},
+                ],
+                "ou_probabilities": {"ladder": []},
+            },
+        },
+    }
+
+    reference = scoreline_reference_from_card(
+        card,
+        recommendation={
+            "tier": "FORMAL",
+            "formal_recommendation": True,
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "line": "-0.5",
+        },
+    )
+
+    assert reference is not None
+    direction_top3 = reference["direction_top3"]
+    assert len(direction_top3) == 3
+    assert [item["source"] for item in direction_top3] == [
+        "formal_simulation_direction_top3",
+        "formal_simulation_direction_top3",
+        "formal_simulation_direction_top3",
+    ]
+    assert all(item["home_goals"] > item["away_goals"] for item in direction_top3)
+    assert [item["probability"] for item in direction_top3] == sorted(
+        [item["probability"] for item in direction_top3],
+        reverse=True,
+    )
+    assert all(item["probability_label"] for item in direction_top3)
+    assert "midband_scorelines" not in reference
+
+
+def test_scoreline_reference_direction_top3_filters_by_formal_away_ah_direction() -> None:
+    card = {
+        "pricing_shadow": {
+            "simulation": {
+                "status": "READY",
+                "lambda_home": 0.7,
+                "lambda_away": 1.9,
+                "scoreline_picks": [
+                    {"scoreline": "0-1", "probability": 0.14},
+                    {"scoreline": "0-2", "probability": 0.13},
+                    {"scoreline": "1-1", "probability": 0.10},
+                ],
+                "ou_probabilities": {"ladder": []},
+            },
+        },
+    }
+
+    reference = scoreline_reference_from_card(
+        card,
+        recommendation={
+            "tier": "FORMAL",
+            "formal_recommendation": True,
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY_AH",
+            "line": "-0.5",
+        },
+    )
+
+    assert reference is not None
+    direction_top3 = reference["direction_top3"]
+    assert len(direction_top3) == 3
+    assert all(item["away_goals"] > item["home_goals"] for item in direction_top3)
+    assert all(item["selection"] == "AWAY_AH" for item in direction_top3)
 
 
 def test_scoreline_reference_returns_none_without_ready_simulation() -> None:

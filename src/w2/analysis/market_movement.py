@@ -62,6 +62,34 @@ def build_market_movement(timeline: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def build_market_timeline_reference(timeline: dict[str, Any] | None) -> dict[str, Any]:
+    snapshots = _market_snapshots(timeline, "ASIAN_HANDICAP")
+    base = {
+        "source": TIMELINE_SOURCE,
+        "label": "盘口时间线 · 参照 · 未验证",
+        "verified": False,
+        "direction_allowed": False,
+        "open": None,
+        "current": None,
+        "as_of": None,
+        "pattern": "INSUFFICIENT",
+        "checkpoints_seen": [str(item.get("checkpoint") or "") for item in snapshots],
+    }
+    if not snapshots:
+        return {"status": "INSUFFICIENT", **base}
+    opening = _opening_snapshot(snapshots)
+    latest = _latest_snapshot(snapshots)
+    pattern = _movement_pattern(snapshots) if len(snapshots) > 1 else "INSUFFICIENT"
+    return {
+        "status": "READY" if len(snapshots) > 1 else "PARTIAL",
+        **base,
+        "open": _timeline_point(opening),
+        "current": _timeline_point(latest),
+        "as_of": latest.get("as_of"),
+        "pattern": pattern,
+    }
+
+
 def build_market_divergence(
     *,
     pricing_shadow: dict[str, Any] | None,
@@ -153,6 +181,17 @@ def build_bookmaker_hypothesis(
         "sample_count": 0,
         "verified": False,
         "direction_allowed": False,
+    }
+
+
+def _timeline_point(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "line": _number(snapshot.get("line")),
+        "home_price": _number(snapshot.get("home_price")),
+        "away_price": _number(snapshot.get("away_price")),
+        "as_of": snapshot.get("as_of"),
+        "checkpoint": snapshot.get("checkpoint"),
+        "bookmaker_count": snapshot.get("bookmaker_count"),
     }
 
 
