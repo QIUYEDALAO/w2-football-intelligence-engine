@@ -293,13 +293,7 @@ function formalReason(match: DashboardMatchCard): string {
 
 function midbandScorelines(match: DashboardMatchCard): string[] {
   const rows = match.scoreline_reference?.midband_scorelines ?? [];
-  const fromReference = rows.map((item) => item.scoreline).filter(Boolean) as string[];
-  if (fromReference.length) return fromReference.slice(0, 3);
-  return match.scoreline_picks
-    .slice(3, 6)
-    .map((pick) => pick.scoreline)
-    .filter(Boolean)
-    .slice(0, 3);
+  return rows.map((item) => item.scoreline).filter(Boolean).slice(0, 3) as string[];
 }
 
 function lockedSettlementText(match: DashboardMatchCard): string {
@@ -358,46 +352,12 @@ function actionabilityLine(match: DashboardMatchCard): string {
   return "赛前分析参考，等待正式条件";
 }
 
-function canShowScoreline(match: DashboardMatchCard): boolean {
-  const source = match.scoreline_readiness?.source;
-  return (
-    match.scoreline_readiness?.status === "READY"
-    && (source === "independent_xg_poisson" || source === "formal_simulation")
-    && match.scoreline_picks.length > 0
-  );
-}
-
-function scoreText(match: DashboardMatchCard): string | null {
-  if (!canShowScoreline(match)) return null;
-  const prefix = match.scoreline_readiness?.source === "formal_simulation" ? "模拟比分参考：" : "最可能比分（基于我们的 xG）：";
-  return `${prefix}${match.scoreline_picks
-    .slice(0, 3)
-    .map((pick) => `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`)
-    .join(" · ")}`;
-}
-
-function scorelineHeroText(match: DashboardMatchCard): string {
-  const scoreSummary = scoreText(match);
-  if (scoreSummary) return scoreSummary.replace("最可能比分（基于我们的 xG）：", "").replace("模拟比分参考：", "");
-  const reason = match.scoreline_readiness?.reason;
-  return reason ? `未就绪：${reason}` : "未就绪";
-}
-
-function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCard; isFormal: boolean }) {
-  if (!isFormal) {
-    return (
-      <p className="scoreline-hero-copy">
-        <strong>比分模拟参考：</strong>
-        {scorelineHeroText(match)}
-      </p>
-    );
-  }
+function ScorelineReferenceBlock({ match }: { match: DashboardMatchCard }) {
   const scores = midbandScorelines(match).join(" · ");
   if (!scores) {
     return (
       <p className="scoreline-hero-copy">
-        <strong>模拟比分参考：</strong>
-        {scorelineHeroText(match)}
+        模拟中位比分参考未就绪
       </p>
     );
   }
@@ -634,7 +594,7 @@ function FormalDecisionHero({
         </div>
       ) : null}
       <p>{isFormal ? `理由：${reason}` : `${lockedPick ? "锁定说明" : "未出正式推荐原因"}：${displayReason(reason)}`}</p>
-      <ScorelineReferenceBlock match={match} isFormal={isFormal} />
+      <ScorelineReferenceBlock match={match} />
     </section>
   );
 }
@@ -712,7 +672,6 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
     },
   );
   const signalLine = independentSignalLine(match.pricing_shadow, match);
-  const scoreSummary = scoreText(match);
   const isFormal = pick?.tier === "FORMAL" && match.formal_recommendation === true;
   return (
     <article className={`recommendation-card ${cardTone(verdict)} ${prematchReview ? "is-prematch" : ""}`}>
@@ -762,7 +721,6 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
                 <strong>数据：</strong>
                 {dataLine(match)}
               </p>
-              {scoreSummary && !isFormal ? <p><strong>{scoreSummary}</strong></p> : null}
             </div>
           )}
           <OddsMovementMini match={match} />

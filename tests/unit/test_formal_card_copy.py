@@ -32,9 +32,15 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
         'AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION: "全场让球主盘口跳线缺少确认"'
         in card
     )
-    assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
     assert "模拟中位比分参考，不是推荐比分" in card
+    assert "模拟中位比分参考未就绪" in card
+    assert "scorelineHeroText" not in card
+    assert "scoreText(match)" not in card
+    assert "scoreline_picks" not in card
+    assert "比分模拟参考" not in card
+    assert "模拟比分参考：" not in card
+    assert "最可能比分" not in card
     assert "最可能：" not in card
     assert "总进球≥" not in card
     assert "让球结算关键比分" not in card
