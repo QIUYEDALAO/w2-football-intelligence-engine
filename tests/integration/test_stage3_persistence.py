@@ -173,7 +173,146 @@ def test_raw_payload_and_recommendation_lock_are_not_updatable(session: Session)
         session.commit()
 
 
-def test_settlement_requires_existing_result_and_recommendation(session: Session) -> None:
+def test_recommendation_lock_can_store_reproducible_prematch_snapshot(
+    session: Session,
+) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    recommendation = RecommendationModel(
+        fixture_id=fixture.id,
+        prediction_id=None,
+        status="LOCKED",
+        created_at=NOW,
+    )
+    session.add(recommendation)
+    session.flush()
+    lock = RecommendationLockModel(
+        recommendation_id=recommendation.id,
+        fixture_id=fixture.id,
+        status="LOCKED",
+        locked_at=NOW,
+        as_of=NOW,
+        kickoff_utc=fixture.kickoff_at,
+        reason="T-30m formal lock",
+        tier="FORMAL",
+        pick_side="HOME_AH",
+        pick_line=Decimal("-0.25"),
+        our_fair_ah=Decimal("-0.50"),
+        market_ah=Decimal("0.00"),
+        home_price=Decimal("1.5900"),
+        away_price=Decimal("2.3800"),
+        expected_value=Decimal("0.112465"),
+        devig_method="POWER",
+        team_score_home=Decimal("6.2000"),
+        team_score_away=Decimal("5.9000"),
+        factors_json={"items": [{"id": "F9_TRUE_XG", "status": "READY"}]},
+        independent_signal_count=4,
+        signal_groups={"groups": ["xg", "market", "rest", "importance"]},
+        missing_sources={"items": ["h2h"]},
+        scoreline_top3_json={"items": [{"scoreline": "1-0", "probability": 0.108751}]},
+        lineups_status="PARTIAL",
+        xg_status="READY",
+        model_version="w2.formal.mc_poisson.v1",
+        calibration_version="w2.formal.lambda_baseline_prior.v1",
+        coherent=True,
+        reverse_value=False,
+        data_profile="real-db",
+        reproducible=True,
+        legacy_marker_only=False,
+        snapshot_schema_version="w2.recommendation_lock_snapshot.v1",
+    )
+    session.add(lock)
+    session.commit()
+
+    stored = session.get(RecommendationLockModel, lock.id)
+    assert stored.recommendation.id == recommendation.id
+    assert stored.fixture_id == fixture.id
+    assert stored.reproducible is True
+    assert stored.legacy_marker_only is False
+    assert stored.scoreline_top3_json["items"][0]["scoreline"] == "1-0"
+    assert stored.data_profile == "real-db"
+
+
+def test_legacy_recommendation_lock_defaults_to_non_reproducible_marker(
+    session: Session,
+) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    recommendation = RecommendationModel(
+        fixture_id=fixture.id,
+        prediction_id=None,
+        status="LOCKED",
+        created_at=NOW,
+    )
+    session.add(recommendation)
+    session.flush()
+    lock = RecommendationLockModel(
+        recommendation_id=recommendation.id,
+        status="LOCKED",
+        locked_at=NOW,
+        reason="legacy marker",
+    )
+    session.add(lock)
+    session.commit()
+
+    stored = session.get(RecommendationLockModel, lock.id)
+    assert stored.reproducible is False
+    assert stored.legacy_marker_only is True
+    assert stored.as_of is None
+    assert stored.pick_side is None
+
+
+def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
+    session: Session,
+) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    recommendation = RecommendationModel(
+        fixture_id=fixture.id,
+        prediction_id=None,
+        status="LOCKED",
+        created_at=NOW,
+    )
+    result = ResultModel(fixture_id=fixture.id, home_goals=1, away_goals=1, confirmed_at=NOW)
+    session.add_all([recommendation, result])
+    session.flush()
+    lock = RecommendationLockModel(
+        recommendation_id=recommendation.id,
+        fixture_id=fixture.id,
+        status="LOCKED",
+        locked_at=NOW,
+        as_of=NOW,
+        kickoff_utc=fixture.kickoff_at,
+        reason="synthetic",
+        tier="FORMAL",
+        pick_side="HOME_AH",
+        pick_line=Decimal("0.00"),
+        market_ah=Decimal("0.00"),
+        home_price=Decimal("1.5900"),
+        away_price=Decimal("2.3800"),
+        reproducible=True,
+        legacy_marker_only=False,
+        snapshot_schema_version="w2.recommendation_lock_snapshot.v1",
+    )
+    session.add(lock)
+    session.flush()
+    settlement = SettlementModel(
+        recommendation_id=recommendation.id,
+        lock_id=lock.id,
+        result_id=result.id,
+        outcome="PUSH",
+        settled_at=NOW,
+        matched_recommendation=True,
+        tier="FORMAL",
+        movement_pattern="JUMP_LINE",
+    )
+    session.add(settlement)
+    session.commit()
+    stored = session.get(SettlementModel, settlement.id)
+    assert stored.result.home_goals == 1
+    assert stored.lock.id == lock.id
+    assert stored.matched_recommendation is True
+    assert stored.tier == "FORMAL"
+
+
+def test_settlement_is_append_only(session: Session) -> None:
     fixture, _bookmaker = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
@@ -192,4 +331,7 @@ def test_settlement_requires_existing_result_and_recommendation(session: Session
     )
     session.add(settlement)
     session.commit()
-    assert session.get(SettlementModel, settlement.id).result.home_goals == 1
+
+    settlement.outcome = "WIN"
+    with pytest.raises(ValueError):
+        session.commit()

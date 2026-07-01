@@ -361,17 +361,54 @@ class RecommendationModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     settlement: Mapped[SettlementModel | None] = relationship(back_populates="recommendation")
+    lock: Mapped[RecommendationLockModel | None] = relationship(back_populates="recommendation")
 
 
 class RecommendationLockModel(Base):
     __tablename__ = "recommendation_locks"
-    __table_args__ = (UniqueConstraint("recommendation_id", name="uq_recommendation_lock_once"),)
+    __table_args__ = (
+        UniqueConstraint("recommendation_id", name="uq_recommendation_lock_once"),
+        Index("ix_recommendation_locks_fixture", "fixture_id"),
+        Index("ix_recommendation_locks_as_of", "as_of"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     recommendation_id: Mapped[str] = mapped_column(ForeignKey("recommendations.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     reason: Mapped[str] = mapped_column(String(512), nullable=False)
+    fixture_id: Mapped[str | None] = mapped_column(ForeignKey("fixtures.id"))
+    as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kickoff_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tier: Mapped[str | None] = mapped_column(String(32))
+    pick_side: Mapped[str | None] = mapped_column(String(32))
+    pick_line: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    our_fair_ah: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    market_ah: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    home_price: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    away_price: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    expected_value: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    devig_method: Mapped[str | None] = mapped_column(String(64))
+    team_score_home: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    team_score_away: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    factors_json: Mapped[Any | None] = mapped_column(JSON)
+    independent_signal_count: Mapped[int | None] = mapped_column(Integer)
+    signal_groups: Mapped[Any | None] = mapped_column(JSON)
+    missing_sources: Mapped[Any | None] = mapped_column(JSON)
+    scoreline_top3_json: Mapped[Any | None] = mapped_column(JSON)
+    lineups_status: Mapped[str | None] = mapped_column(String(32))
+    xg_status: Mapped[str | None] = mapped_column(String(32))
+    model_version: Mapped[str | None] = mapped_column(String(128))
+    calibration_version: Mapped[str | None] = mapped_column(String(128))
+    coherent: Mapped[bool | None] = mapped_column(Boolean)
+    reverse_value: Mapped[bool | None] = mapped_column(Boolean)
+    data_profile: Mapped[str | None] = mapped_column(String(64))
+    reproducible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    legacy_marker_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    snapshot_schema_version: Mapped[str | None] = mapped_column(String(64))
+
+    recommendation: Mapped[RecommendationModel] = relationship(back_populates="lock")
+    settlements: Mapped[list[SettlementModel]] = relationship(back_populates="lock")
 
 
 class ResultModel(Base):
@@ -392,15 +429,21 @@ class SettlementModel(Base):
     __tablename__ = "settlements"
     __table_args__ = (
         UniqueConstraint("recommendation_id", "result_id", name="uq_settlement_once"),
+        Index("ix_settlements_lock", "lock_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     recommendation_id: Mapped[str] = mapped_column(ForeignKey("recommendations.id"), nullable=False)
+    lock_id: Mapped[str | None] = mapped_column(ForeignKey("recommendation_locks.id"))
     result_id: Mapped[str] = mapped_column(ForeignKey("results.id"), nullable=False)
     outcome: Mapped[str] = mapped_column(String(32), nullable=False)
     settled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    matched_recommendation: Mapped[bool | None] = mapped_column(Boolean)
+    tier: Mapped[str | None] = mapped_column(String(32))
+    movement_pattern: Mapped[str | None] = mapped_column(String(64))
 
     recommendation: Mapped[RecommendationModel] = relationship(back_populates="settlement")
+    lock: Mapped[RecommendationLockModel | None] = relationship(back_populates="settlements")
     result: Mapped[ResultModel] = relationship(back_populates="settlements")
 
 
@@ -420,6 +463,11 @@ def _prevent_update_delete(_mapper: Any, _connection: Any, target: Any) -> None:
     raise ValueError(f"{target.__class__.__name__} is append-only or immutable")
 
 
-for immutable_model in (RawPayloadReferenceModel, RecommendationLockModel, AuditEventModel):
+for immutable_model in (
+    RawPayloadReferenceModel,
+    RecommendationLockModel,
+    SettlementModel,
+    AuditEventModel,
+):
     event.listen(immutable_model, "before_update", _prevent_update_delete)
     event.listen(immutable_model, "before_delete", _prevent_update_delete)
