@@ -254,6 +254,28 @@ def _float_or_none(value: Any) -> float | None:
         return None
 
 
+def _valid_formal_recommendation_payload(value: Any) -> bool:
+    recommendation = value if isinstance(value, dict) else {}
+    tier = str(recommendation.get("tier") or "").upper()
+    if tier != "FORMAL" and recommendation.get("formal_recommendation") is not True:
+        return False
+    if str(recommendation.get("market") or "").upper() != "ASIAN_HANDICAP":
+        return False
+    if str(recommendation.get("selection") or "").upper() not in {"HOME_AH", "AWAY_AH"}:
+        return False
+    if _float_or_none(recommendation.get("line")) is None:
+        return False
+    odds = recommendation.get("odds")
+    return odds is None or _float_or_none(odds) is not None
+
+
+def _formal_payload_blocker(formal_result: Any) -> str:
+    reason = getattr(formal_result, "formal_suppressed_reason", None)
+    if reason:
+        return str(reason)
+    return "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
 class ReadModelRepository:
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
@@ -4069,11 +4091,21 @@ class ReadModelService:
             home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
             away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
         )
+        formal_recommendation = (
+            formal_result.recommendation
+            if _valid_formal_recommendation_payload(formal_result.recommendation)
+            else None
+        )
+        formal_blockers = list(formal_result.blockers)
+        if formal_result.formal_eligible and formal_recommendation is None:
+            blocker = _formal_payload_blocker(formal_result)
+            if blocker not in formal_blockers:
+                formal_blockers.append(blocker)
         pricing_shadow = card.get("pricing_shadow")
         if isinstance(pricing_shadow, dict):
             pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
-            pricing_shadow["formal_eligible"] = formal_result.formal_eligible
-            pricing_shadow["formal_blockers"] = formal_result.blockers
+            pricing_shadow["formal_eligible"] = formal_recommendation is not None
+            pricing_shadow["formal_blockers"] = formal_blockers
             canonical_market = formal_result.canonical_ah_market
             pricing_shadow["canonical_ah_market"] = canonical_market
             if isinstance(canonical_market, dict):
@@ -4082,7 +4114,7 @@ class ReadModelService:
                 pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
                     "validation_status",
                 )
-        recommendation = formal_result.recommendation or build_recommendation(card, picked)
+        recommendation = formal_recommendation or build_recommendation(card, picked)
         if recommendation is None:
             recommendation = build_watch_recommendation(
                 readiness=analysis_readiness,

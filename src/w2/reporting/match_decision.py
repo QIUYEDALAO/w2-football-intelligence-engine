@@ -122,6 +122,12 @@ def decide_match(
             "RECOMMENDATION_DIRECTION_INCONSISTENT",
             "观察",
         )
+    if not _has_formal_recommendation_intent(match):
+        return MatchDecision(
+            MatchDecisionState.WATCH,
+            "NO_FORMAL_RECOMMENDATION_PAYLOAD",
+            "观察",
+        )
     if not _has_valid_formal_recommendation(match):
         return MatchDecision(
             MatchDecisionState.WATCH,
@@ -181,6 +187,15 @@ def _direction_inconsistent(match: dict[str, Any], edge_ah: float) -> bool:
     if edge_ah < 0:
         return selection != "AWAY_AH"
     return True
+
+
+def _has_formal_recommendation_intent(match: dict[str, Any]) -> bool:
+    recommendation = _dict(match.get("recommendation"))
+    return (
+        match.get("formal_recommendation") is True
+        or str(recommendation.get("tier") or "").upper() == "FORMAL"
+        or recommendation.get("formal_recommendation") is True
+    )
 
 
 def _has_valid_formal_recommendation(match: dict[str, Any]) -> bool:
