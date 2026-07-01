@@ -40,6 +40,7 @@ def calibrate_lambdas(
     home_squad_value_eur: float | None,
     away_squad_value_eur: float | None,
     lineup_strength_adjustment: float = 0.0,
+    apply_home_advantage: bool = True,
     params: LambdaCalibrationParams | None = None,
 ) -> LambdaCalibrationOutput:
     params = params or LambdaCalibrationParams()
@@ -64,9 +65,12 @@ def calibrate_lambdas(
         value_delta = log(float(home_squad_value_eur) / float(away_squad_value_eur)) * (
             params.squad_value_log_weight
         )
+    applied_home_advantage_goals = (
+        params.home_advantage_goals if apply_home_advantage else 0.0
+    )
     adjusted_delta = (
         raw_delta
-        + params.home_advantage_goals
+        + applied_home_advantage_goals
         + elo_delta
         + value_delta
         + float(lineup_strength_adjustment) * params.lineup_adjustment_weight
@@ -90,6 +94,7 @@ def calibrate_lambdas(
         lambda_away=round(lambda_away, 6),
         params={
             "home_advantage_goals": params.home_advantage_goals,
+            "applied_home_advantage_goals": applied_home_advantage_goals,
             "elo_gap_weight": params.elo_gap_weight,
             "squad_value_log_weight": params.squad_value_log_weight,
             "lineup_adjustment_weight": params.lineup_adjustment_weight,

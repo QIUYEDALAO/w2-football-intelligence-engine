@@ -138,6 +138,9 @@ INTENT_LABELS_CN = {
     "LEAKAGE_BLOCKED": "防泄漏拦截",
 }
 
+PROXY_ELO_SOURCE = "rolling_xg_proxy"
+PROXY_COLLECTION_STATUS = "PROXY_ONLY"
+
 LOCKED_PREMATCH_STATUSES = {"LIVE", "FINISHED"}
 
 
@@ -162,6 +165,45 @@ def _parse_utc_text(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _truthy_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return False
+
+
+def _fixture_neutral_site(item: dict[str, Any]) -> bool:
+    fixture = item.get("fixture", {})
+    dashboard = item.get("_dashboard", {})
+    venue = fixture.get("venue", {}) if isinstance(fixture, dict) else {}
+    candidates = (
+        item.get("neutral_site"),
+        item.get("neutral"),
+        dashboard.get("neutral_site") if isinstance(dashboard, dict) else None,
+        dashboard.get("neutral") if isinstance(dashboard, dict) else None,
+        fixture.get("neutral_site") if isinstance(fixture, dict) else None,
+        fixture.get("neutral") if isinstance(fixture, dict) else None,
+        venue.get("neutral_site") if isinstance(venue, dict) else None,
+        venue.get("neutral") if isinstance(venue, dict) else None,
+    )
+    return any(_truthy_flag(value) for value in candidates)
+
+
+def _rating_for_simulation(
+    rating: TeamRatingSnapshot | None,
+) -> TeamRatingSnapshot | None:
+    if rating is None:
+        return None
+    if str(rating.collection_status or "").upper() == PROXY_COLLECTION_STATUS:
+        return None
+    if str(rating.source or "").lower() == PROXY_ELO_SOURCE:
+        return None
+    return rating
 
 
 def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
@@ -1418,8 +1460,11 @@ class ReadModelService:
         scoreline_output: IndependentXgPoissonOutput | None = None
         latest_home_rating = max(home_ratings, key=lambda row: row.observed_at, default=None)
         latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
+        simulation_home_rating = _rating_for_simulation(latest_home_rating)
+        simulation_away_rating = _rating_for_simulation(latest_away_rating)
         latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
         latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
+        neutral_site = _fixture_neutral_site(item)
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
@@ -1429,19 +1474,38 @@ class ReadModelService:
                 home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
                 away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
                 away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
-                home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
-                away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
+                home_elo=simulation_home_rating.elo
+                if simulation_home_rating is not None
+                else None,
+                away_elo=simulation_away_rating.elo
+                if simulation_away_rating is not None
+                else None,
+                home_elo_source=latest_home_rating.source
+                if latest_home_rating is not None
+                else None,
+                away_elo_source=latest_away_rating.source
+                if latest_away_rating is not None
+                else None,
+                home_elo_collection_status=latest_home_rating.collection_status
+                if latest_home_rating is not None
+                else None,
+                away_elo_collection_status=latest_away_rating.collection_status
+                if latest_away_rating is not None
+                else None,
                 home_squad_value_eur=latest_home_value.squad_value_eur
                 if latest_home_value is not None
                 else None,
                 away_squad_value_eur=latest_away_value.squad_value_eur
                 if latest_away_value is not None
                 else None,
+                neutral_site=neutral_site,
                 input_readiness={
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
-                    "ratings_ready": latest_home_rating is not None
+                    "ratings_ready": simulation_home_rating is not None
+                    and simulation_away_rating is not None,
+                    "raw_ratings_ready": latest_home_rating is not None
                     and latest_away_rating is not None,
                     "squad_value_ready": latest_home_value is not None
                     and latest_away_value is not None,

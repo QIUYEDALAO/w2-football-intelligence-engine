@@ -29,9 +29,14 @@ class SimulationInputs:
     away_xg_against: float | None
     home_elo: float | None = None
     away_elo: float | None = None
+    home_elo_source: str | None = None
+    away_elo_source: str | None = None
+    home_elo_collection_status: str | None = None
+    away_elo_collection_status: str | None = None
     home_squad_value_eur: float | None = None
     away_squad_value_eur: float | None = None
     lineup_strength_adjustment: float = 0.0
+    neutral_site: bool = False
     input_readiness: dict[str, bool | str | int | float | None] = field(default_factory=dict)
 
 
@@ -89,16 +94,27 @@ def run_simulation(
             simulations=simulations,
             seed=seed,
         )
+    eligible_home_elo = _eligible_elo(
+        inputs.home_elo,
+        source=inputs.home_elo_source,
+        collection_status=inputs.home_elo_collection_status,
+    )
+    eligible_away_elo = _eligible_elo(
+        inputs.away_elo,
+        source=inputs.away_elo_source,
+        collection_status=inputs.away_elo_collection_status,
+    )
     calibration = calibrate_lambdas(
         home_xg_for=_required_float(inputs.home_xg_for),
         home_xg_against=_required_float(inputs.home_xg_against),
         away_xg_for=_required_float(inputs.away_xg_for),
         away_xg_against=_required_float(inputs.away_xg_against),
-        home_elo=inputs.home_elo,
-        away_elo=inputs.away_elo,
+        home_elo=eligible_home_elo,
+        away_elo=eligible_away_elo,
         home_squad_value_eur=inputs.home_squad_value_eur,
         away_squad_value_eur=inputs.away_squad_value_eur,
         lineup_strength_adjustment=inputs.lineup_strength_adjustment,
+        apply_home_advantage=not inputs.neutral_site,
     )
     rng = random.Random(seed)  # noqa: S311 - deterministic simulation seed, not security.
     score_counts: Counter[tuple[int, int]] = Counter()
@@ -260,16 +276,61 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
             inputs.away_xg_against,
         )
     )
+    eligible_home_elo = _eligible_elo(
+        inputs.home_elo,
+        source=inputs.home_elo_source,
+        collection_status=inputs.home_elo_collection_status,
+    )
+    eligible_away_elo = _eligible_elo(
+        inputs.away_elo,
+        source=inputs.away_elo_source,
+        collection_status=inputs.away_elo_collection_status,
+    )
+    home_proxy_elo = _is_proxy_elo_source(
+        source=inputs.home_elo_source,
+        collection_status=inputs.home_elo_collection_status,
+    )
+    away_proxy_elo = _is_proxy_elo_source(
+        source=inputs.away_elo_source,
+        collection_status=inputs.away_elo_collection_status,
+    )
+    proxy_elo_excluded = (
+        (inputs.home_elo is not None and home_proxy_elo)
+        or (inputs.away_elo is not None and away_proxy_elo)
+    )
     readiness = dict(inputs.input_readiness)
     readiness.update(
         {
             "xg_ready": xg_ready,
-            "elo_ready": inputs.home_elo is not None and inputs.away_elo is not None,
+            "elo_ready": eligible_home_elo is not None and eligible_away_elo is not None,
+            "proxy_elo_excluded": proxy_elo_excluded,
+            "neutral_site": inputs.neutral_site,
+            "home_advantage_applied": not inputs.neutral_site,
             "squad_value_ready": inputs.home_squad_value_eur is not None
             and inputs.away_squad_value_eur is not None,
         }
     )
     return readiness
+
+
+def _eligible_elo(
+    value: float | None,
+    *,
+    source: str | None,
+    collection_status: str | None,
+) -> float | None:
+    if value is None:
+        return None
+    if _is_proxy_elo_source(source=source, collection_status=collection_status):
+        return None
+    return value
+
+
+def _is_proxy_elo_source(*, source: str | None, collection_status: str | None) -> bool:
+    return (
+        str(collection_status or "").upper() == "PROXY_ONLY"
+        or str(source or "").lower() == "rolling_xg_proxy"
+    )
 
 
 def _fair_ah(

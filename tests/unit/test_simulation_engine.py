@@ -78,6 +78,84 @@ def test_balanced_inputs_stay_near_pickem_and_deterministic() -> None:
     assert first.as_dict() == second.as_dict()
 
 
+def test_neutral_site_does_not_apply_home_advantage_to_lambdas() -> None:
+    neutral = run_simulation(
+        inputs(
+            fixture_id="neutral-balanced",
+            home_xg_for=1.2,
+            home_xg_against=1.1,
+            away_xg_for=1.2,
+            away_xg_against=1.1,
+            home_elo=None,
+            away_elo=None,
+            home_squad_value_eur=None,
+            away_squad_value_eur=None,
+            neutral_site=True,
+        )
+    )
+    nominal_home = run_simulation(
+        inputs(
+            fixture_id="nominal-home-balanced",
+            home_xg_for=1.2,
+            home_xg_against=1.1,
+            away_xg_for=1.2,
+            away_xg_against=1.1,
+            home_elo=None,
+            away_elo=None,
+            home_squad_value_eur=None,
+            away_squad_value_eur=None,
+            neutral_site=False,
+        )
+    )
+
+    assert neutral.lambda_home == neutral.lambda_away
+    assert neutral.calibration["params"]["applied_home_advantage_goals"] == 0.0
+    assert neutral.input_readiness["home_advantage_applied"] is False
+    assert nominal_home.lambda_home is not None and nominal_home.lambda_away is not None
+    assert nominal_home.lambda_home > nominal_home.lambda_away
+    assert nominal_home.calibration["params"]["applied_home_advantage_goals"] == 0.12
+
+
+def test_proxy_elo_is_excluded_from_lambda_inputs() -> None:
+    no_elo = run_simulation(
+        inputs(
+            fixture_id="proxy-elo-baseline",
+            home_xg_for=1.2,
+            home_xg_against=1.1,
+            away_xg_for=1.2,
+            away_xg_against=1.1,
+            home_elo=None,
+            away_elo=None,
+            home_squad_value_eur=None,
+            away_squad_value_eur=None,
+            neutral_site=True,
+        )
+    )
+    proxy_elo = run_simulation(
+        inputs(
+            fixture_id="proxy-elo-excluded",
+            home_xg_for=1.2,
+            home_xg_against=1.1,
+            away_xg_for=1.2,
+            away_xg_against=1.1,
+            home_elo=1900.0,
+            away_elo=1100.0,
+            home_elo_source="rolling_xg_proxy",
+            away_elo_source="rolling_xg_proxy",
+            home_elo_collection_status="PROXY_ONLY",
+            away_elo_collection_status="PROXY_ONLY",
+            home_squad_value_eur=None,
+            away_squad_value_eur=None,
+            neutral_site=True,
+        )
+    )
+
+    assert proxy_elo.lambda_home == no_elo.lambda_home
+    assert proxy_elo.lambda_away == no_elo.lambda_away
+    assert proxy_elo.input_readiness["elo_ready"] is False
+    assert proxy_elo.input_readiness["proxy_elo_excluded"] is True
+
+
 def test_market_odds_are_not_simulation_inputs() -> None:
     first = run_simulation(inputs(fixture_id="same-real-inputs"))
     second = run_simulation(inputs(fixture_id="same-real-inputs"))
