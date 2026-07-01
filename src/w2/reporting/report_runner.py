@@ -12,6 +12,10 @@ from w2.reporting.report_generator import ReportFormat, ReportType, render_repor
 ReportSink = Literal["stdout", "file"]
 
 
+class HealthCheckError(RuntimeError):
+    pass
+
+
 @dataclass(frozen=True)
 class ReportRunResult:
     report: str
@@ -97,7 +101,7 @@ def _health_precheck(
             timeout_seconds=timeout_seconds,
         ),
     }
-    return {
+    health = {
         "status": "PASS",
         "health": _endpoint_status(checks["health"]),
         "ready": _endpoint_status(checks["ready"]),
@@ -107,6 +111,19 @@ def _health_precheck(
         "dashboard_rows": len(_list(checks["dashboard"].get("all"))),
         "version": checks["version"],
     }
+    _raise_for_unhealthy(health)
+    return health
+
+
+def _raise_for_unhealthy(health: dict[str, Any]) -> None:
+    failed = [
+        key
+        for key in ("health", "ready", "version_status", "dashboard")
+        if health.get(key) != "PASS"
+    ]
+    if failed:
+        detail = ", ".join(f"{key}={health.get(key)}" for key in failed)
+        raise HealthCheckError(f"HEALTH_CHECK_FAILED: {detail}")
 
 
 def _fetch_json(url: str, *, timeout_seconds: float) -> dict[str, Any]:

@@ -8,7 +8,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import ClassVar
 
-from w2.reporting.report_runner import run_report_job
+import pytest
+
+from w2.reporting.report_runner import HealthCheckError, run_report_job
 
 
 def _payload() -> dict[str, object]:
@@ -51,11 +53,18 @@ def _payload() -> dict[str, object]:
 class ReportRunnerHandler(BaseHTTPRequestHandler):
     payload: ClassVar[bytes] = json.dumps(_payload()).encode("utf-8")
     seen_paths: ClassVar[list[str]] = []
+    fail_ready: ClassVar[bool] = False
 
     def do_GET(self) -> None:
         self.__class__.seen_paths.append(self.path)
-        if self.path in {"/health", "/ready"}:
+        if self.path == "/health":
             self._write({"database": "ok", "redis": "ok"})
+            return
+        if self.path == "/ready":
+            if self.__class__.fail_ready:
+                self._write({"database": "ok"})
+            else:
+                self._write({"database": "ok", "redis": "ok"})
             return
         if self.path == "/v1/version":
             self._write(
@@ -88,6 +97,7 @@ class ReportRunnerHandler(BaseHTTPRequestHandler):
 
 def _serve() -> tuple[HTTPServer, threading.Thread, str]:
     ReportRunnerHandler.seen_paths = []
+    ReportRunnerHandler.fail_ready = False
     server = HTTPServer(("127.0.0.1", 0), ReportRunnerHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -136,6 +146,19 @@ def test_report_runner_file_sink_writes_runtime_reports(tmp_path: Path) -> None:
     assert result.output_path.parent == tmp_path / "reports"
     assert result.output_path.suffix == ".txt"
     assert "W2 足球日报告 · 2026-06-30" in result.output_path.read_text(encoding="utf-8")
+
+
+def test_report_runner_health_gate_fails_before_file_write(tmp_path: Path) -> None:
+    server, thread, base_url = _serve()
+    ReportRunnerHandler.fail_ready = True
+    try:
+        with pytest.raises(HealthCheckError, match="HEALTH_CHECK_FAILED: ready=UNKNOWN"):
+            run_report_job(base_url=base_url, sink="file", runtime_root=tmp_path)
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert not (tmp_path / "reports").exists()
 
 
 def test_report_runner_cli_dry_run_prints_report_and_summary(tmp_path: Path) -> None:
@@ -195,3 +218,33 @@ def test_report_runner_cli_file_sink_writes_report(tmp_path: Path) -> None:
     assert output_path.exists()
     assert output_path.parent == tmp_path / "reports"
     assert "W2 足球日报告 · 2026-06-30" in output_path.read_text(encoding="utf-8")
+
+
+def test_report_runner_cli_health_failure_exits_nonzero_without_file(
+    tmp_path: Path,
+) -> None:
+    server, thread, base_url = _serve()
+    ReportRunnerHandler.fail_ready = True
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/run_w2_report_runner.py",
+                "--base-url",
+                base_url,
+                "--file-sink",
+                "--runtime-root",
+                str(tmp_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert result.returncode != 0
+    assert "HEALTH_CHECK_FAILED: ready=UNKNOWN" in result.stderr
+    assert result.stdout == ""
+    assert not (tmp_path / "reports").exists()

@@ -29,15 +29,19 @@ def main() -> int:
     args = parser.parse_args()
 
     sink_name = "file" if args.file_sink else "stdout"
-    result = run_report_job(
-        base_url=args.base_url,
-        window=args.window,
-        report_type=cast(Any, args.report_type),
-        output_format=cast(Any, args.format),
-        sink=cast(Any, sink_name),
-        runtime_root=args.runtime_root,
-        timeout_seconds=args.timeout,
-    )
+    try:
+        result = run_report_job(
+            base_url=args.base_url,
+            window=args.window,
+            report_type=cast(Any, args.report_type),
+            output_format=cast(Any, args.format),
+            sink=cast(Any, sink_name),
+            runtime_root=args.runtime_root,
+            timeout_seconds=args.timeout,
+        )
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     summary = json.dumps(result.summary(), ensure_ascii=False, sort_keys=True)
     if sink_name == "stdout":
         sys.stdout.write(result.report)
