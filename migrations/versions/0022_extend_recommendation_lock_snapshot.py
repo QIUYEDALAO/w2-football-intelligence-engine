@@ -126,6 +126,26 @@ def upgrade() -> None:
     )
     _add_column_if_missing(
         "recommendation_locks",
+        sa.Column("snapshot_payload_json", sa.JSON(), nullable=True),
+    )
+    _add_column_if_missing(
+        "recommendation_locks",
+        sa.Column("snapshot_payload_hash", sa.String(length=64), nullable=True),
+    )
+    _add_column_if_missing(
+        "recommendation_locks",
+        sa.Column("release_sha", sa.String(length=64), nullable=True),
+    )
+    _add_column_if_missing(
+        "recommendation_locks",
+        sa.Column("market_timeline_json", sa.JSON(), nullable=True),
+    )
+    _add_column_if_missing(
+        "recommendation_locks",
+        sa.Column("ah_settlement_distribution_json", sa.JSON(), nullable=True),
+    )
+    _add_column_if_missing(
+        "recommendation_locks",
         sa.Column("team_score_home", sa.Numeric(8, 4), nullable=True),
     )
     _add_column_if_missing(
@@ -262,6 +282,11 @@ def downgrade() -> None:
         "factors_json",
         "team_score_away",
         "team_score_home",
+        "ah_settlement_distribution_json",
+        "market_timeline_json",
+        "release_sha",
+        "snapshot_payload_hash",
+        "snapshot_payload_json",
         "devig_method",
         "expected_value",
         "away_price",
