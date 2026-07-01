@@ -162,6 +162,26 @@ def test_render_report_hides_scorelines_for_non_formal_matches() -> None:
     assert "1-1 14%" not in report
 
 
+def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -> None:
+    match = _formal_match()
+    match["recommendation"] = {
+        "tier": "FORMAL",
+        "market": "ASIAN_HANDICAP",
+        "selection": "UNKNOWN",
+        "line": 2.5,
+        "odds": 1.87,
+    }
+
+    report = render_report(_payload(match), output_format="text")
+
+    assert "状态：观察（正式推荐字段不完整）" in report
+    assert "说明：正式推荐字段不完整，当前不输出方向。" in report
+    assert "推荐：" not in report
+    assert "推荐比分" not in report
+    assert "方向未识别" not in report
+    assert "全场让球，看 方向未识别" not in report
+
+
 def test_render_report_hides_scoreline_line_when_formal_direction_top3_missing() -> None:
     match = _formal_match()
     match["scoreline_reference"] = {"direction_top3": []}
@@ -249,6 +269,18 @@ def test_render_report_rejects_forbidden_terms() -> None:
 def test_render_report_rejects_added_forbidden_terms() -> None:
     match = _formal_match()
     match["competition_name"] = "可买杯"
+
+    try:
+        render_report(_payload(match), output_format="text")
+    except ValueError as exc:
+        assert "forbidden term" in str(exc)
+    else:
+        raise AssertionError("expected forbidden term guard")
+
+
+def test_render_report_rejects_unrecognized_direction_text_anywhere_visible() -> None:
+    match = _non_formal_match()
+    match["competition_name"] = "方向未识别杯"
 
     try:
         render_report(_payload(match), output_format="text")

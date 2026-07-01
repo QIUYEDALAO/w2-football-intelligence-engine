@@ -92,3 +92,56 @@ def test_decide_match_formal_when_data_market_and_edge_are_ready() -> None:
 
     assert decision.state == MatchDecisionState.FORMAL
     assert decision.reason == "FORMAL_REPORTABLE"
+
+
+def test_decide_match_downgrades_formal_when_recommendation_selection_is_invalid() -> None:
+    decision = decide_match(
+        _match(
+            formal_recommendation=True,
+            recommendation={
+                "tier": "FORMAL",
+                "market": "ASIAN_HANDICAP",
+                "selection": "UNKNOWN",
+                "line": 2.5,
+                "odds": 1.87,
+            },
+        ),
+    )
+
+    assert decision.state == MatchDecisionState.WATCH
+    assert decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
+def test_decide_match_downgrades_formal_when_recommendation_line_is_missing() -> None:
+    decision = decide_match(
+        _match(
+            formal_recommendation=True,
+            recommendation={
+                "tier": "FORMAL",
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+                "odds": 1.87,
+            },
+        ),
+    )
+
+    assert decision.state == MatchDecisionState.WATCH
+    assert decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
+def test_decide_match_downgrades_formal_when_recommendation_market_is_not_ah() -> None:
+    decision = decide_match(
+        _match(
+            formal_recommendation=True,
+            recommendation={
+                "tier": "FORMAL",
+                "market": "OVER_UNDER",
+                "selection": "HOME_AH",
+                "line": -0.75,
+                "odds": 1.87,
+            },
+        ),
+    )
+
+    assert decision.state == MatchDecisionState.WATCH
+    assert decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"

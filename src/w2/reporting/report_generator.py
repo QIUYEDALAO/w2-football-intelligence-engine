@@ -17,6 +17,7 @@ _FORBIDDEN_TERMS = (
     "ROI",
     "必中",
     "可买",
+    "方向未识别",
     "庄家开错",
     "照这个买",
     "跟庄",
@@ -140,6 +141,8 @@ def _non_formal_line(match: dict[str, Any], decision: MatchDecision) -> str:
         return f"说明：独立信号不足，当前不输出方向。独立信号数：{signal_count}。"
     if decision.state == MatchDecisionState.MARKET_NOT_READY:
         return f"说明：盘口未就绪，{_reason_cn(decision.reason)}，当前不输出方向。"
+    if decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD":
+        return "说明：正式推荐字段不完整，当前不输出方向。"
     return "说明：盘口差距未达正式推荐阈值，当前只观察。"
 
 
@@ -194,7 +197,7 @@ def _recommendation_text(match: dict[str, Any], recommendation: dict[str, Any]) 
     elif selection == "AWAY_AH":
         side = away
     else:
-        side = "方向未识别"
+        raise ValueError("formal recommendation missing valid AH selection")
     odds_text = f" @{_format_number(odds, digits=2)}" if _number(odds) is not None else ""
     return f"全场让球，看 {side} {_signed_line(line)}{odds_text}"
 
@@ -349,6 +352,7 @@ def _reason_cn(reason: str) -> str:
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
         "MISSING_FAIR_AH": "缺少模拟公平让球盘",
         "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",
+        "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐字段不完整",
         "FORMAL_REPORTABLE": "达到报告正式推荐条件",
     }.get(reason, "状态原因已记录")
 
