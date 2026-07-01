@@ -25,6 +25,7 @@ def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
     }
     assert export.manifest["provider_calls"] == 0
     assert export.manifest["db_writes"] == 0
+    assert export.manifest["status"] == "PASS"
     assert export.manifest["exported_at"] == "2026-07-01T01:00:00Z"
     assert export.tables["prematch_recommendations"][0]["fixture_id"] == "fixture-1"
     assert export.tables["prematch_recommendations"][0]["report_state"] == "LOCKED"

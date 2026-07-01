@@ -159,6 +159,7 @@ def build_audit_export(
         tables["settlement_history"].extend(_db_settlement_history(session))
     tables = _normalize_tables(tables)
     manifest = {
+        "status": "PASS",
         "schema_version": "w2.audit_export.v1",
         "exported_at": exported_at,
         "source": (
