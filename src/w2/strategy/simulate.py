@@ -303,7 +303,13 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
         {
             "xg_ready": xg_ready,
             "elo_ready": eligible_home_elo is not None and eligible_away_elo is not None,
+            "ratings_used_in_lambda": eligible_home_elo is not None
+            and eligible_away_elo is not None,
             "proxy_elo_excluded": proxy_elo_excluded,
+            "home_elo_source": inputs.home_elo_source,
+            "away_elo_source": inputs.away_elo_source,
+            "home_elo_collection_status": inputs.home_elo_collection_status,
+            "away_elo_collection_status": inputs.away_elo_collection_status,
             "neutral_site": inputs.neutral_site,
             "home_advantage_applied": not inputs.neutral_site,
             "squad_value_ready": inputs.home_squad_value_eur is not None

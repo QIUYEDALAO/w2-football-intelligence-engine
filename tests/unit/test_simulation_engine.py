@@ -153,6 +153,7 @@ def test_proxy_elo_is_excluded_from_lambda_inputs() -> None:
     assert proxy_elo.lambda_home == no_elo.lambda_home
     assert proxy_elo.lambda_away == no_elo.lambda_away
     assert proxy_elo.input_readiness["elo_ready"] is False
+    assert proxy_elo.input_readiness["ratings_used_in_lambda"] is False
     assert proxy_elo.input_readiness["proxy_elo_excluded"] is True
 
 

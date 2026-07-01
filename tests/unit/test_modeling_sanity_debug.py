@@ -34,6 +34,11 @@ def _payload() -> dict[str, object]:
                             "proxy_elo_excluded": True,
                             "elo_ready": False,
                             "raw_ratings_ready": True,
+                            "ratings_used_in_lambda": False,
+                            "home_elo_source": "rolling_xg_proxy",
+                            "away_elo_source": "rolling_xg_proxy",
+                            "home_elo_collection_status": "PROXY_ONLY",
+                            "away_elo_collection_status": "PROXY_ONLY",
                             "xg_ready": True,
                             "xg_status": "READY",
                         },
@@ -52,11 +57,16 @@ def test_modeling_sanity_audit_exposes_neutral_and_proxy_elo_fields() -> None:
     assert audit["db_writes"] == 0
     assert audit["summary"]["neutral_site_count"] == 1
     assert audit["summary"]["proxy_elo_excluded_count"] == 1
+    assert audit["summary"]["ratings_used_in_lambda_count"] == 0
     row = audit["rows"][0]
     assert row["neutral_site"] is True
     assert row["home_advantage_applied"] is False
     assert row["applied_home_advantage_goals"] == 0.0
     assert row["proxy_elo_excluded"] is True
+    assert row["raw_ratings_ready"] is True
+    assert row["ratings_used_in_lambda"] is False
+    assert row["home_elo_source"] == "rolling_xg_proxy"
+    assert row["home_elo_collection_status"] == "PROXY_ONLY"
 
 
 def test_debug_w2_modeling_sanity_cli_reads_input_file(tmp_path: Path) -> None:

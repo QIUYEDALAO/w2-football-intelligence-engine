@@ -138,9 +138,6 @@ INTENT_LABELS_CN = {
     "LEAKAGE_BLOCKED": "防泄漏拦截",
 }
 
-PROXY_ELO_SOURCE = "rolling_xg_proxy"
-PROXY_COLLECTION_STATUS = "PROXY_ONLY"
-
 LOCKED_PREMATCH_STATUSES = {"LIVE", "FINISHED"}
 
 
@@ -283,18 +280,6 @@ def _is_host_team(name: str, *, profile: dict[str, Any]) -> bool:
 
 def _normalize_team_name(value: Any) -> str:
     return "".join(char for char in str(value).lower() if char.isalnum())
-
-
-def _rating_for_simulation(
-    rating: TeamRatingSnapshot | None,
-) -> TeamRatingSnapshot | None:
-    if rating is None:
-        return None
-    if str(rating.collection_status or "").upper() == PROXY_COLLECTION_STATUS:
-        return None
-    if str(rating.source or "").lower() == PROXY_ELO_SOURCE:
-        return None
-    return rating
 
 
 def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
@@ -1551,8 +1536,6 @@ class ReadModelService:
         scoreline_output: IndependentXgPoissonOutput | None = None
         latest_home_rating = max(home_ratings, key=lambda row: row.observed_at, default=None)
         latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
-        simulation_home_rating = _rating_for_simulation(latest_home_rating)
-        simulation_away_rating = _rating_for_simulation(latest_away_rating)
         latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
         latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
         neutral_site = _fixture_neutral_site(item)
@@ -1565,12 +1548,8 @@ class ReadModelService:
                 home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
                 away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
                 away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
-                home_elo=simulation_home_rating.elo
-                if simulation_home_rating is not None
-                else None,
-                away_elo=simulation_away_rating.elo
-                if simulation_away_rating is not None
-                else None,
+                home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
+                away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
                 home_elo_source=latest_home_rating.source
                 if latest_home_rating is not None
                 else None,
@@ -1594,8 +1573,8 @@ class ReadModelService:
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
-                    "ratings_ready": simulation_home_rating is not None
-                    and simulation_away_rating is not None,
+                    "ratings_ready": latest_home_rating is not None
+                    and latest_away_rating is not None,
                     "raw_ratings_ready": latest_home_rating is not None
                     and latest_away_rating is not None,
                     "squad_value_ready": latest_home_value is not None

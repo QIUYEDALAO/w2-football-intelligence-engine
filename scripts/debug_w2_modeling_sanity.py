@@ -56,6 +56,9 @@ def build_modeling_sanity_audit(payload: dict[str, Any]) -> dict[str, Any]:
             "proxy_elo_excluded_count": sum(
                 1 for row in rows if row["proxy_elo_excluded"] is True
             ),
+            "ratings_used_in_lambda_count": sum(
+                1 for row in rows if row["ratings_used_in_lambda"] is True
+            ),
         },
         "rows": rows,
     }
@@ -82,7 +85,12 @@ def _match_row(match: Any) -> dict[str, Any]:
         "applied_home_advantage_goals": params.get("applied_home_advantage_goals"),
         "elo_ready": readiness.get("elo_ready"),
         "raw_ratings_ready": readiness.get("raw_ratings_ready"),
+        "ratings_used_in_lambda": readiness.get("ratings_used_in_lambda"),
         "proxy_elo_excluded": readiness.get("proxy_elo_excluded"),
+        "home_elo_source": readiness.get("home_elo_source"),
+        "away_elo_source": readiness.get("away_elo_source"),
+        "home_elo_collection_status": readiness.get("home_elo_collection_status"),
+        "away_elo_collection_status": readiness.get("away_elo_collection_status"),
         "xg_ready": readiness.get("xg_ready"),
         "xg_status": readiness.get("xg_status"),
     }
@@ -122,15 +130,18 @@ def _render_markdown(audit: dict[str, Any]) -> str:
         f"- neutral_site_count: {summary.get('neutral_site_count')}",
         f"- home_advantage_applied_count: {summary.get('home_advantage_applied_count')}",
         f"- proxy_elo_excluded_count: {summary.get('proxy_elo_excluded_count')}",
+        f"- ratings_used_in_lambda_count: {summary.get('ratings_used_in_lambda_count')}",
         "",
-        "| fixture | teams | neutral | HA applied | applied HA | proxy Elo excluded | lambda |",
-        "|---|---|---:|---:|---:|---:|---|",
+        "| fixture | teams | neutral | HA applied | applied HA | "
+        "ratings used | proxy Elo excluded | lambda |",
+        "|---|---|---:|---:|---:|---:|---:|---|",
     ]
     for row in _list(audit.get("rows")):
         item = _dict(row)
         lines.append(
             "| {fixture_id} | {teams} | {neutral_site} | {home_advantage_applied} | "
-            "{applied_home_advantage_goals} | {proxy_elo_excluded} | "
+            "{applied_home_advantage_goals} | {ratings_used_in_lambda} | "
+            "{proxy_elo_excluded} | "
             "{lambda_home}/{lambda_away} |".format(**item)
         )
     lines.append("")
