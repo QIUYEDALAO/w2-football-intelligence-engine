@@ -69,6 +69,10 @@ AUDIT_TABLE_COLUMNS = {
         "verified",
         "direction_allowed",
         "market_comparable",
+        "line",
+        "home_price",
+        "away_price",
+        "bookmaker_count",
         "snapshot_json",
         "raw_timeline_json",
     ),
@@ -260,6 +264,7 @@ def _market_timeline_snapshots(matches: list[dict[str, Any]]) -> list[dict[str, 
             ("current", timeline.get("current")),
         ]
         for name, snapshot in checkpoints:
+            snapshot_fields = _market_snapshot_fields(snapshot)
             rows.append(
                 {
                     "source": "dashboard_payload",
@@ -276,6 +281,10 @@ def _market_timeline_snapshots(matches: list[dict[str, Any]]) -> list[dict[str, 
                     "verified": timeline.get("verified"),
                     "direction_allowed": timeline.get("direction_allowed"),
                     "market_comparable": None,
+                    "line": snapshot_fields["line"],
+                    "home_price": snapshot_fields["home_price"],
+                    "away_price": snapshot_fields["away_price"],
+                    "bookmaker_count": snapshot_fields["bookmaker_count"],
                     "snapshot_json": snapshot,
                     "raw_timeline_json": timeline,
                 }
@@ -368,6 +377,7 @@ def _db_market_timeline_snapshots(session: Session) -> list[dict[str, Any]]:
         )
     ):
         payload = item.payload or {}
+        snapshot_fields = _market_snapshot_fields(payload)
         rows.append(
             {
                 "source": "forward_market_snapshot_model",
@@ -384,6 +394,10 @@ def _db_market_timeline_snapshots(session: Session) -> list[dict[str, Any]]:
                 "direction_allowed": (
                     payload.get("direction_allowed") if isinstance(payload, dict) else None
                 ),
+                "line": snapshot_fields["line"],
+                "home_price": snapshot_fields["home_price"],
+                "away_price": snapshot_fields["away_price"],
+                "bookmaker_count": snapshot_fields["bookmaker_count"],
                 "snapshot_json": payload,
                 "raw_timeline_json": payload,
             }
@@ -508,6 +522,24 @@ def _payload_as_of(payload: dict[str, Any]) -> str:
 
 def _lock_snapshot_status(lock_id: Any) -> str:
     return "READY" if lock_id not in {None, ""} else "MISSING_LOCK_SNAPSHOT"
+
+
+def _market_snapshot_fields(snapshot: Any) -> dict[str, Any]:
+    payload = _dict(snapshot)
+    return {
+        "line": _first_present(payload, "line", "home_line", "market_ah"),
+        "home_price": payload.get("home_price"),
+        "away_price": payload.get("away_price"),
+        "bookmaker_count": payload.get("bookmaker_count"),
+    }
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value is not None and value != "":
+            return value
+    return None
 
 
 def _teams(match: dict[str, Any]) -> str:

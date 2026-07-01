@@ -35,6 +35,14 @@ def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
         "current",
     ]
     assert export.tables["market_timeline_snapshots"][0]["pattern"] == "STABLE"
+    assert export.tables["market_timeline_snapshots"][0]["line"] == -0.5
+    assert export.tables["market_timeline_snapshots"][0]["home_price"] == 1.91
+    assert export.tables["market_timeline_snapshots"][0]["away_price"] == 1.95
+    assert export.tables["market_timeline_snapshots"][0]["bookmaker_count"] == 4
+    assert export.tables["market_timeline_snapshots"][1]["line"] == -0.75
+    assert export.tables["market_timeline_snapshots"][1]["home_price"] == 2.02
+    assert export.tables["market_timeline_snapshots"][1]["away_price"] == 1.84
+    assert export.tables["market_timeline_snapshots"][1]["bookmaker_count"] == 5
     assert export.tables["locked_recommendation_snapshots"][0]["snapshot_payload_hash"] == "abc"
     assert export.tables["settlement_history"][0]["status"] == "PENDING"
     assert export.tables["settlement_history"][0]["lock_snapshot_status"] == "MISSING_LOCK_SNAPSHOT"
@@ -80,6 +88,19 @@ def test_audit_export_keeps_recommendation_fields_for_formal_only() -> None:
     assert row["recommendation_odds"] == "1.91"
 
 
+def test_audit_export_preserves_zero_market_timeline_line() -> None:
+    payload = _dashboard_payload()
+    match = payload["all"][0]  # type: ignore[index]
+    assert isinstance(match, dict)
+    timeline = match["market_timeline"]
+    assert isinstance(timeline, dict)
+    timeline["open"] = {"line": 0, "home_price": 1.91, "away_price": 1.91, "bookmaker_count": 2}
+
+    export = build_audit_export(payload)
+
+    assert export.tables["market_timeline_snapshots"][0]["line"] == 0
+
+
 def test_audit_export_requires_payload_as_of_for_deterministic_manifest() -> None:
     payload = _dashboard_payload()
     payload.pop("generated_at")
@@ -98,7 +119,14 @@ def test_audit_export_appends_existing_model_rows_read_only() -> None:
                 phase="lock",
                 captured_at=datetime(2026, 7, 1, 1, 0, tzinfo=UTC),
                 market_comparable=True,
-                payload={"as_of": "2026-07-01T01:00:00Z", "pattern": "JUMP_LINE"},
+                payload={
+                    "as_of": "2026-07-01T01:00:00Z",
+                    "pattern": "JUMP_LINE",
+                    "home_line": 0.25,
+                    "home_price": 1.88,
+                    "away_price": 2.02,
+                    "bookmaker_count": 3,
+                },
             )
         )
         session.add(
@@ -134,6 +162,10 @@ def test_audit_export_appends_existing_model_rows_read_only() -> None:
 
     assert any(
         row["source"] == "forward_market_snapshot_model"
+        and row["line"] == 0.25
+        and row["home_price"] == 1.88
+        and row["away_price"] == 2.02
+        and row["bookmaker_count"] == 3
         for row in export.tables["market_timeline_snapshots"]
     )
     assert any(
@@ -164,6 +196,13 @@ def test_audit_export_writes_fixed_headers_for_empty_tables(tmp_path) -> None:
     with (tmp_path / "locked_recommendation_snapshots.csv").open(encoding="utf-8") as handle:
         header = next(csv.reader(handle))
     assert header[:4] == ["source", "lock_id", "recommendation_id", "fixture_id"]
+
+    with (tmp_path / "market_timeline_snapshots.csv").open(encoding="utf-8") as handle:
+        timeline_header = next(csv.reader(handle))
+    assert "line" in timeline_header
+    assert "home_price" in timeline_header
+    assert "away_price" in timeline_header
+    assert "bookmaker_count" in timeline_header
 
 
 def _dashboard_payload() -> dict[str, object]:
@@ -213,8 +252,18 @@ def _dashboard_payload() -> dict[str, object]:
                     "pattern": "STABLE",
                     "verified": False,
                     "direction_allowed": False,
-                    "open": {"line": -0.5},
-                    "current": {"line": -0.5},
+                    "open": {
+                        "line": -0.5,
+                        "home_price": 1.91,
+                        "away_price": 1.95,
+                        "bookmaker_count": 4,
+                    },
+                    "current": {
+                        "home_line": -0.75,
+                        "home_price": 2.02,
+                        "away_price": 1.84,
+                        "bookmaker_count": 5,
+                    },
                     "checkpoints_seen": ["opening", "lock"],
                 },
                 "locked_pre_match_recommendation": {
