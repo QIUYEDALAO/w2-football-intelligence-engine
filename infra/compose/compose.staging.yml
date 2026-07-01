@@ -9,6 +9,7 @@ services:
   postgres:
     image: postgres:16-alpine
     shm_size: 256m
+    mem_limit: 1g
     environment:
       POSTGRES_DB: w2
       POSTGRES_USER: w2_user
@@ -26,13 +27,14 @@ services:
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
     expose:
       - "5432"
 
   redis:
     image: redis:7-alpine
+    mem_limit: 256m
     volumes:
       - redis-data:/data
     networks:
@@ -46,8 +48,8 @@ services:
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
     expose:
       - "6379"
 
@@ -76,12 +78,13 @@ services:
         condition: service_healthy
     networks:
       - w2-staging
+    mem_limit: 1g
     restart: no
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "5m"
+        max-file: "2"
 
   api:
     build:
@@ -142,12 +145,13 @@ services:
       start_period: 30s
     networks:
       - w2-staging
+    mem_limit: 1g
     restart: unless-stopped
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
 
   worker:
     build:
@@ -166,6 +170,8 @@ services:
       - "worker"
       - "--loglevel=INFO"
       - "--concurrency=1"
+      - "--max-tasks-per-child=10"
+      - "--max-memory-per-child=1200000"
     volumes:
       - ../../runtime:/app/runtime
       - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
@@ -205,12 +211,13 @@ services:
       start_period: 60s
     networks:
       - w2-staging
+    mem_limit: 2g
     restart: unless-stopped
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
 
   scheduler:
     build:
@@ -269,12 +276,13 @@ services:
       start_period: 30s
     networks:
       - w2-staging
+    mem_limit: 768m
     restart: unless-stopped
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
 
   web:
     build:
@@ -300,12 +308,13 @@ services:
       start_period: 15s
     networks:
       - w2-staging
+    mem_limit: 256m
     restart: unless-stopped
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "5m"
+        max-file: "3"
 
 networks:
   w2-staging:
