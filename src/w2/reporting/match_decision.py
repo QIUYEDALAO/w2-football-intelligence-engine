@@ -47,6 +47,7 @@ _MARKET_BLOCKERS = {
     "AH_MARKET_ABS_LINE_MISMATCH",
     "AH_MARKET_LINE_SIDE_MISMATCH",
 }
+_VALID_FORMAL_SELECTIONS = {"HOME_AH", "AWAY_AH"}
 
 
 def decide_match(
@@ -121,6 +122,12 @@ def decide_match(
             "RECOMMENDATION_DIRECTION_INCONSISTENT",
             "观察",
         )
+    if not _has_valid_formal_recommendation(match):
+        return MatchDecision(
+            MatchDecisionState.WATCH,
+            "INVALID_FORMAL_RECOMMENDATION_PAYLOAD",
+            "观察",
+        )
     return MatchDecision(
         MatchDecisionState.FORMAL,
         "FORMAL_REPORTABLE",
@@ -167,13 +174,31 @@ def _market_blocker(shadow: dict[str, Any]) -> str | None:
 def _direction_inconsistent(match: dict[str, Any], edge_ah: float) -> bool:
     recommendation = _dict(match.get("recommendation"))
     selection = str(recommendation.get("selection") or "")
-    if selection not in {"HOME_AH", "AWAY_AH"}:
+    if selection not in _VALID_FORMAL_SELECTIONS:
         return False
     if edge_ah > 0:
         return selection != "HOME_AH"
     if edge_ah < 0:
         return selection != "AWAY_AH"
     return True
+
+
+def _has_valid_formal_recommendation(match: dict[str, Any]) -> bool:
+    recommendation = _dict(match.get("recommendation"))
+    tier = str(recommendation.get("tier") or "").upper()
+    formal_payload = tier == "FORMAL" or match.get("formal_recommendation") is True
+    if not formal_payload:
+        return False
+    market = str(recommendation.get("market") or "").upper()
+    if market != "ASIAN_HANDICAP":
+        return False
+    selection = str(recommendation.get("selection") or "").upper()
+    if selection not in _VALID_FORMAL_SELECTIONS:
+        return False
+    if _number(recommendation.get("line")) is None:
+        return False
+    odds = recommendation.get("odds")
+    return odds is None or _number(odds) is not None
 
 
 def _dict(value: Any) -> dict[str, Any]:
