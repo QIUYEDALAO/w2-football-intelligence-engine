@@ -164,6 +164,124 @@ def _parse_utc_text(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _truthy_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return False
+
+
+def _optional_truthy_flag(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return _truthy_flag(value)
+
+
+def _fixture_neutral_site(item: dict[str, Any]) -> bool:
+    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
+    explicit = _explicit_neutral_site(item)
+    profile = load_json(WORLD_CUP_PROFILE, {})
+    policy = str(profile.get("neutral_site_policy") or "")
+    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
+        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
+            home_name, away_name = _team_names_from_item(item)
+            if _is_host_team(home_name, profile=profile):
+                return False
+            if _is_host_team(away_name, profile=profile):
+                return True
+        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
+            return explicit if explicit is not None else True
+    return explicit if explicit is not None else False
+
+
+def _explicit_neutral_site(item: dict[str, Any]) -> bool | None:
+    fixture = item.get("fixture", {})
+    dashboard = item.get("_dashboard", {})
+    venue = fixture.get("venue", {}) if isinstance(fixture, dict) else {}
+    candidates: tuple[Any, ...] = (
+        item.get("neutral_site"),
+        item.get("neutral"),
+        dashboard.get("neutral_site") if isinstance(dashboard, dict) else None,
+        dashboard.get("neutral") if isinstance(dashboard, dict) else None,
+        fixture.get("neutral_site") if isinstance(fixture, dict) else None,
+        fixture.get("neutral") if isinstance(fixture, dict) else None,
+        venue.get("neutral_site") if isinstance(venue, dict) else None,
+        venue.get("neutral") if isinstance(venue, dict) else None,
+    )
+    for value in candidates:
+        parsed = _optional_truthy_flag(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _is_world_cup_2026_item(
+    item: dict[str, Any],
+    *,
+    profile: dict[str, Any],
+    league: dict[str, Any],
+) -> bool:
+    provider_mapping = profile.get("provider_mapping", {})
+    provider_league_id = (
+        str(provider_mapping.get("api_football_league_id"))
+        if isinstance(provider_mapping, dict)
+        else ""
+    )
+    provider_season = (
+        str(provider_mapping.get("api_football_season"))
+        if isinstance(provider_mapping, dict)
+        else ""
+    )
+    competition_id = str(profile.get("competition_id") or "world_cup_2026")
+    identifiers = {
+        str(item.get("competition_id") or ""),
+        str(league.get("id") or ""),
+    }
+    names = {
+        str(item.get("competition_name") or "").lower(),
+        str(league.get("name") or "").lower(),
+    }
+    season = str(league.get("season") or item.get("season") or "")
+    return (
+        competition_id in identifiers
+        or (
+            provider_league_id in identifiers
+            and (not provider_season or season == provider_season)
+        )
+        or any("world cup" in name or "世界杯" in name for name in names)
+    )
+
+
+def _team_names_from_item(item: dict[str, Any]) -> tuple[str, str]:
+    teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
+    home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
+    away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
+    home_name = str(item.get("home_team_name") or home.get("name") or "")
+    away_name = str(item.get("away_team_name") or away.get("name") or "")
+    return home_name, away_name
+
+
+def _is_host_team(name: str, *, profile: dict[str, Any]) -> bool:
+    normalized = _normalize_team_name(name)
+    hosts = profile.get("hosts", [])
+    if not isinstance(hosts, list):
+        hosts = []
+    host_names = {_normalize_team_name(value) for value in hosts}
+    host_aliases = {
+        "unitedstates": {"usa", "us", "unitedstates", "unitedstatesofamerica"},
+    }
+    for host_name in list(host_names):
+        host_names.update(host_aliases.get(host_name, set()))
+    return normalized in host_names
+
+
+def _normalize_team_name(value: Any) -> str:
+    return "".join(char for char in str(value).lower() if char.isalnum())
+
+
 def future_refresh_db_repository() -> FutureRefreshDbRepository | None:
     try:
         return FutureRefreshDbRepository()
@@ -1420,6 +1538,7 @@ class ReadModelService:
         latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
         latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
         latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
+        neutral_site = _fixture_neutral_site(item)
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
@@ -1431,17 +1550,32 @@ class ReadModelService:
                 away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
                 home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
                 away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
+                home_elo_source=latest_home_rating.source
+                if latest_home_rating is not None
+                else None,
+                away_elo_source=latest_away_rating.source
+                if latest_away_rating is not None
+                else None,
+                home_elo_collection_status=latest_home_rating.collection_status
+                if latest_home_rating is not None
+                else None,
+                away_elo_collection_status=latest_away_rating.collection_status
+                if latest_away_rating is not None
+                else None,
                 home_squad_value_eur=latest_home_value.squad_value_eur
                 if latest_home_value is not None
                 else None,
                 away_squad_value_eur=latest_away_value.squad_value_eur
                 if latest_away_value is not None
                 else None,
+                neutral_site=neutral_site,
                 input_readiness={
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
                     "ratings_ready": latest_home_rating is not None
+                    and latest_away_rating is not None,
+                    "raw_ratings_ready": latest_home_rating is not None
                     and latest_away_rating is not None,
                     "squad_value_ready": latest_home_value is not None
                     and latest_away_value is not None,
