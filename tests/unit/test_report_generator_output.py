@@ -173,6 +173,17 @@ def test_render_report_hides_scoreline_line_when_formal_direction_top3_missing()
     assert "暂无" not in report
 
 
+def test_render_report_hides_scoreline_line_when_direction_top3_is_malformed() -> None:
+    match = _formal_match()
+    match["scoreline_reference"] = {"direction_top3": [{"probability": 0.1}]}
+
+    report = render_report(_payload(match), output_format="text")
+
+    assert "状态：正式推荐" in report
+    assert "推荐比分" not in report
+    assert "暂无" not in report
+
+
 def test_render_report_separates_market_not_ready_from_data_insufficient() -> None:
     data_match = _non_formal_match()
     data_match["pricing_shadow"] = {"status": "READY", "independent_signal_count": 2}

@@ -156,7 +156,9 @@ def _score_line(match: dict[str, Any]) -> str | None:
         label = item.get("probability_label") or _probability_label(item.get("probability"))
         if scoreline:
             parts.append(f"{scoreline} {label}" if label else str(scoreline))
-    return f"推荐比分（与主推一致 · 高方差仅参考）：{' · '.join(parts) if parts else '暂无'}。"
+    if not parts:
+        return None
+    return f"推荐比分（与主推一致 · 高方差仅参考）：{' · '.join(parts)}。"
 
 
 def _market_line(match: dict[str, Any]) -> str:
