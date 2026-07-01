@@ -35,6 +35,8 @@ def test_export_w2_audit_tables_cli_writes_four_tables(tmp_path: Path) -> None:
             str(output_dir),
             "--format",
             "csv",
+            "--timeout",
+            "3",
             "--no-db",
         ],
         check=True,

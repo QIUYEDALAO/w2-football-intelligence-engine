@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
+from w2.reporting.match_decision import MatchDecisionState, decide_match
 
 AUDIT_TABLE_NAMES = (
     "prematch_recommendations",
@@ -20,6 +21,110 @@ AUDIT_TABLE_NAMES = (
     "locked_recommendation_snapshots",
     "settlement_history",
 )
+
+AUDIT_TABLE_COLUMNS = {
+    "prematch_recommendations": (
+        "source",
+        "fixture_id",
+        "kickoff_utc",
+        "teams",
+        "competition",
+        "as_of",
+        "fixture_status",
+        "report_state",
+        "reason_code",
+        "reason_cn",
+        "formal_recommendation",
+        "recommendation_tier",
+        "recommendation_market",
+        "recommendation_selection",
+        "recommendation_line",
+        "recommendation_odds",
+        "formal_blockers",
+        "fair_ah",
+        "market_ah",
+        "edge_ah",
+        "market_ah_display",
+        "home_display_line",
+        "away_display_line",
+        "independent_signal_count",
+        "missing_independent_sources",
+        "model_version",
+        "calibration_version",
+        "data_profile",
+        "raw_recommendation_json",
+    ),
+    "market_timeline_snapshots": (
+        "source",
+        "fixture_id",
+        "teams",
+        "kickoff_utc",
+        "checkpoint",
+        "checkpoint_status",
+        "captured_at",
+        "as_of",
+        "phase",
+        "status",
+        "pattern",
+        "verified",
+        "direction_allowed",
+        "market_comparable",
+        "snapshot_json",
+        "raw_timeline_json",
+    ),
+    "locked_recommendation_snapshots": (
+        "source",
+        "lock_id",
+        "recommendation_id",
+        "fixture_id",
+        "teams",
+        "captured_at",
+        "locked_at",
+        "as_of",
+        "kickoff_utc",
+        "status",
+        "tier",
+        "pick_side",
+        "pick_line",
+        "recommendation_market",
+        "recommendation_selection",
+        "recommendation_line",
+        "recommendation_odds",
+        "fair_ah",
+        "market_ah",
+        "home_price",
+        "away_price",
+        "expected_value",
+        "reproducible",
+        "legacy_marker_only",
+        "snapshot_payload_hash",
+        "release_sha",
+        "data_profile",
+        "market_timeline_json",
+        "ah_settlement_distribution_json",
+        "snapshot_payload_json",
+        "raw_locked_snapshot_json",
+    ),
+    "settlement_history": (
+        "source",
+        "settlement_id",
+        "recommendation_id",
+        "lock_id",
+        "lock_snapshot_status",
+        "fixture_id",
+        "teams",
+        "result_id",
+        "status",
+        "outcome",
+        "result",
+        "pnl",
+        "settled_at",
+        "matched_recommendation",
+        "tier",
+        "movement_pattern",
+        "raw_settlement_json",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -34,7 +139,9 @@ def build_audit_export(
     session: Session | None = None,
     generated_at: datetime | None = None,
 ) -> AuditExport:
-    exported_at = generated_at or datetime.now(UTC)
+    exported_at = (
+        _iso(generated_at) if generated_at is not None else _payload_as_of(dashboard_payload)
+    )
     matches = [item for item in _list(dashboard_payload.get("all")) if isinstance(item, dict)]
     tables = {
         "prematch_recommendations": _prematch_recommendations(dashboard_payload, matches),
@@ -46,9 +153,10 @@ def build_audit_export(
         tables["market_timeline_snapshots"].extend(_db_market_timeline_snapshots(session))
         tables["locked_recommendation_snapshots"].extend(_db_locked_snapshots(session))
         tables["settlement_history"].extend(_db_settlement_history(session))
+    tables = _normalize_tables(tables)
     manifest = {
         "schema_version": "w2.audit_export.v1",
-        "exported_at": _iso(exported_at),
+        "exported_at": exported_at,
         "source": (
             "dashboard_payload+existing_models" if session is not None else "dashboard_payload"
         ),
@@ -95,10 +203,14 @@ def _prematch_recommendations(
     payload: dict[str, Any],
     matches: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    payload_as_of = payload.get("generated_at") or payload.get("as_of") or payload.get("asof")
+    payload_as_of = _payload_as_of(payload)
     rows = []
     for match in matches:
+        decision = decide_match(match)
         recommendation = _dict(match.get("recommendation"))
+        recommendation_for_export = (
+            recommendation if decision.state == MatchDecisionState.FORMAL else {}
+        )
         pricing = _dict(match.get("pricing_shadow"))
         ah = _dict(_dict(match.get("current_odds")).get("ah"))
         rows.append(
@@ -109,13 +221,16 @@ def _prematch_recommendations(
                 "teams": _teams(match),
                 "competition": match.get("competition") or match.get("competition_name"),
                 "as_of": _as_of(match, payload_as_of),
-                "status": match.get("status"),
+                "fixture_status": match.get("status"),
+                "report_state": decision.state.value,
+                "reason_code": decision.reason,
+                "reason_cn": decision.label_cn,
                 "formal_recommendation": match.get("formal_recommendation"),
-                "recommendation_tier": recommendation.get("tier"),
-                "recommendation_market": recommendation.get("market"),
-                "recommendation_selection": recommendation.get("selection"),
-                "recommendation_line": recommendation.get("line"),
-                "recommendation_odds": recommendation.get("odds"),
+                "recommendation_tier": recommendation_for_export.get("tier"),
+                "recommendation_market": recommendation_for_export.get("market"),
+                "recommendation_selection": recommendation_for_export.get("selection"),
+                "recommendation_line": recommendation_for_export.get("line"),
+                "recommendation_odds": recommendation_for_export.get("odds"),
                 "formal_blockers": pricing.get("formal_blockers"),
                 "fair_ah": pricing.get("fair_ah"),
                 "market_ah": pricing.get("market_ah"),
@@ -128,7 +243,7 @@ def _prematch_recommendations(
                 "model_version": pricing.get("model_version"),
                 "calibration_version": pricing.get("calibration_version"),
                 "data_profile": match.get("data_profile") or payload.get("data_profile"),
-                "raw_recommendation_json": recommendation or None,
+                "raw_recommendation_json": recommendation_for_export or None,
             }
         )
     return rows
@@ -140,23 +255,31 @@ def _market_timeline_snapshots(matches: list[dict[str, Any]]) -> list[dict[str, 
         timeline = _dict(match.get("market_timeline"))
         if not timeline:
             continue
-        rows.append(
-            {
-                "source": "dashboard_payload",
-                "fixture_id": match.get("fixture_id"),
-                "teams": _teams(match),
-                "kickoff_utc": match.get("kickoff_utc"),
-                "status": timeline.get("status"),
-                "as_of": timeline.get("as_of"),
-                "pattern": timeline.get("pattern"),
-                "verified": timeline.get("verified"),
-                "direction_allowed": timeline.get("direction_allowed"),
-                "open_json": timeline.get("open"),
-                "current_json": timeline.get("current"),
-                "checkpoints_seen_json": timeline.get("checkpoints_seen"),
-                "raw_timeline_json": timeline,
-            }
-        )
+        checkpoints = [
+            ("open", timeline.get("open")),
+            ("current", timeline.get("current")),
+        ]
+        for name, snapshot in checkpoints:
+            rows.append(
+                {
+                    "source": "dashboard_payload",
+                    "fixture_id": match.get("fixture_id"),
+                    "teams": _teams(match),
+                    "kickoff_utc": match.get("kickoff_utc"),
+                    "checkpoint": name,
+                    "checkpoint_status": "READY" if snapshot is not None else "MISSING",
+                    "captured_at": _dict(snapshot).get("captured_at"),
+                    "as_of": _dict(snapshot).get("as_of") or timeline.get("as_of"),
+                    "phase": None,
+                    "status": timeline.get("status"),
+                    "pattern": timeline.get("pattern"),
+                    "verified": timeline.get("verified"),
+                    "direction_allowed": timeline.get("direction_allowed"),
+                    "market_comparable": None,
+                    "snapshot_json": snapshot,
+                    "raw_timeline_json": timeline,
+                }
+            )
     return rows
 
 
@@ -170,17 +293,35 @@ def _locked_recommendation_snapshots(matches: list[dict[str, Any]]) -> list[dict
         rows.append(
             {
                 "source": "dashboard_payload",
+                "lock_id": locked.get("lock_id"),
+                "recommendation_id": locked.get("recommendation_id"),
                 "fixture_id": locked.get("fixture_id") or match.get("fixture_id"),
                 "teams": _teams(match),
                 "captured_at": locked.get("captured_at"),
+                "locked_at": locked.get("locked_at"),
                 "as_of": locked.get("as_of"),
+                "kickoff_utc": locked.get("kickoff_utc") or match.get("kickoff_utc"),
                 "status": locked.get("status"),
+                "tier": recommendation.get("tier"),
+                "pick_side": recommendation.get("selection"),
+                "pick_line": recommendation.get("line"),
                 "recommendation_market": recommendation.get("market"),
                 "recommendation_selection": recommendation.get("selection"),
                 "recommendation_line": recommendation.get("line"),
                 "recommendation_odds": recommendation.get("odds"),
+                "fair_ah": locked.get("fair_ah"),
+                "market_ah": locked.get("market_ah"),
+                "home_price": locked.get("home_price"),
+                "away_price": locked.get("away_price"),
+                "expected_value": recommendation.get("expected_value"),
                 "reproducible": locked.get("reproducible"),
+                "legacy_marker_only": locked.get("legacy_marker_only"),
                 "snapshot_payload_hash": locked.get("snapshot_payload_hash"),
+                "release_sha": locked.get("release_sha"),
+                "data_profile": locked.get("data_profile"),
+                "market_timeline_json": locked.get("market_timeline"),
+                "ah_settlement_distribution_json": locked.get("ah_settlement_distribution"),
+                "snapshot_payload_json": locked.get("snapshot_payload"),
                 "raw_locked_snapshot_json": locked,
             }
         )
@@ -197,11 +338,21 @@ def _settlement_history(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "source": "dashboard_payload",
+                "settlement_id": settlement.get("settlement_id"),
+                "recommendation_id": locked.get("recommendation_id"),
+                "lock_id": locked.get("lock_id"),
+                "lock_snapshot_status": _lock_snapshot_status(locked.get("lock_id")),
                 "fixture_id": locked.get("fixture_id") or match.get("fixture_id"),
                 "teams": _teams(match),
+                "result_id": settlement.get("result_id"),
                 "status": settlement.get("status"),
+                "outcome": settlement.get("outcome"),
                 "result": settlement.get("result"),
                 "pnl": settlement.get("pnl"),
+                "settled_at": settlement.get("settled_at"),
+                "matched_recommendation": settlement.get("matched_recommendation"),
+                "tier": settlement.get("tier"),
+                "movement_pattern": settlement.get("movement_pattern"),
                 "raw_settlement_json": settlement,
             }
         )
@@ -221,11 +372,19 @@ def _db_market_timeline_snapshots(session: Session) -> list[dict[str, Any]]:
             {
                 "source": "forward_market_snapshot_model",
                 "fixture_id": item.fixture_id,
+                "checkpoint": item.phase,
+                "checkpoint_status": "READY",
                 "phase": item.phase,
                 "captured_at": item.captured_at,
                 "market_comparable": item.market_comparable,
                 "as_of": payload.get("as_of") if isinstance(payload, dict) else None,
+                "status": payload.get("status") if isinstance(payload, dict) else None,
                 "pattern": payload.get("pattern") if isinstance(payload, dict) else None,
+                "verified": payload.get("verified") if isinstance(payload, dict) else None,
+                "direction_allowed": (
+                    payload.get("direction_allowed") if isinstance(payload, dict) else None
+                ),
+                "snapshot_json": payload,
                 "raw_timeline_json": payload,
             }
         )
@@ -280,8 +439,12 @@ def _db_settlement_history(session: Session) -> list[dict[str, Any]]:
                 "settlement_id": item.id,
                 "recommendation_id": item.recommendation_id,
                 "lock_id": item.lock_id,
+                "lock_snapshot_status": _lock_snapshot_status(item.lock_id),
                 "result_id": item.result_id,
+                "status": None,
                 "outcome": item.outcome,
+                "result": None,
+                "pnl": None,
                 "settled_at": item.settled_at,
                 "matched_recommendation": item.matched_recommendation,
                 "tier": item.tier,
@@ -292,12 +455,23 @@ def _db_settlement_history(session: Session) -> list[dict[str, Any]]:
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
-    fieldnames = sorted({key for row in rows for key in row})
+    table_name = path.stem
+    fieldnames = list(AUDIT_TABLE_COLUMNS[table_name])
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow({key: _cell(row.get(key)) for key in fieldnames})
+
+
+def _normalize_tables(tables: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        table_name: [
+            {column: row.get(column) for column in AUDIT_TABLE_COLUMNS[table_name]}
+            for row in rows
+        ]
+        for table_name, rows in tables.items()
+    }
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -316,6 +490,24 @@ def _as_of(match: dict[str, Any], payload_as_of: Any) -> Any:
         or recommendation.get("generated_at")
         or payload_as_of
     )
+
+
+def _payload_as_of(payload: dict[str, Any]) -> str:
+    value = (
+        payload.get("generated_at")
+        or payload.get("as_of")
+        or payload.get("asof")
+        or payload.get("build_time")
+        or payload.get("api_build_time")
+        or payload.get("web_build_time")
+    )
+    if not value:
+        raise ValueError("dashboard payload missing generated_at/as_of")
+    return str(value)
+
+
+def _lock_snapshot_status(lock_id: Any) -> str:
+    return "READY" if lock_id not in {None, ""} else "MISSING_LOCK_SNAPSHOT"
 
 
 def _teams(match: dict[str, Any]) -> str:

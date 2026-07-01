@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import csv
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -23,11 +25,67 @@ def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
     }
     assert export.manifest["provider_calls"] == 0
     assert export.manifest["db_writes"] == 0
+    assert export.manifest["exported_at"] == "2026-07-01T01:00:00Z"
     assert export.tables["prematch_recommendations"][0]["fixture_id"] == "fixture-1"
+    assert export.tables["prematch_recommendations"][0]["report_state"] == "LOCKED"
+    assert "status" not in export.tables["prematch_recommendations"][0]
     assert export.tables["prematch_recommendations"][0]["market_ah_display"] == "主队 -0.5"
+    assert [row["checkpoint"] for row in export.tables["market_timeline_snapshots"]] == [
+        "open",
+        "current",
+    ]
     assert export.tables["market_timeline_snapshots"][0]["pattern"] == "STABLE"
     assert export.tables["locked_recommendation_snapshots"][0]["snapshot_payload_hash"] == "abc"
     assert export.tables["settlement_history"][0]["status"] == "PENDING"
+    assert export.tables["settlement_history"][0]["lock_snapshot_status"] == "MISSING_LOCK_SNAPSHOT"
+
+
+def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> None:
+    payload = _dashboard_payload()
+    match = payload["all"][0]  # type: ignore[index]
+    assert isinstance(match, dict)
+    match.pop("locked_pre_match_recommendation")
+    match["formal_recommendation"] = False
+    match["pricing_shadow"] = {
+        "market_ah": "-0.5",
+        "fair_ah": "-0.6",
+        "edge_ah": "0.1",
+        "independent_signal_count": 5,
+    }
+
+    export = build_audit_export(payload)
+    row = export.tables["prematch_recommendations"][0]
+
+    assert row["report_state"] == "WATCH"
+    assert row["recommendation_market"] is None
+    assert row["recommendation_selection"] is None
+    assert row["recommendation_line"] is None
+    assert row["recommendation_odds"] is None
+    assert row["raw_recommendation_json"] is None
+
+
+def test_audit_export_keeps_recommendation_fields_for_formal_only() -> None:
+    payload = _dashboard_payload()
+    match = payload["all"][0]  # type: ignore[index]
+    assert isinstance(match, dict)
+    match.pop("locked_pre_match_recommendation")
+
+    export = build_audit_export(payload)
+    row = export.tables["prematch_recommendations"][0]
+
+    assert row["report_state"] == "FORMAL"
+    assert row["recommendation_market"] == "ASIAN_HANDICAP"
+    assert row["recommendation_selection"] == "HOME_AH"
+    assert row["recommendation_line"] == "-0.5"
+    assert row["recommendation_odds"] == "1.91"
+
+
+def test_audit_export_requires_payload_as_of_for_deterministic_manifest() -> None:
+    payload = _dashboard_payload()
+    payload.pop("generated_at")
+
+    with pytest.raises(ValueError, match="dashboard payload missing generated_at/as_of"):
+        build_audit_export(payload)
 
 
 def test_audit_export_appends_existing_model_rows_read_only() -> None:
@@ -96,6 +154,16 @@ def test_audit_export_writes_manifest_csv_and_json(tmp_path) -> None:
     assert "prematch_recommendations.json" in names
     assert (tmp_path / "prematch_recommendations.csv").read_text(encoding="utf-8")
     assert '"provider_calls": 0' in (tmp_path / "manifest.json").read_text(encoding="utf-8")
+
+
+def test_audit_export_writes_fixed_headers_for_empty_tables(tmp_path) -> None:
+    export = build_audit_export({"generated_at": "2026-07-01T01:00:00Z", "all": []})
+
+    write_audit_export(export, tmp_path, output_format="csv")
+
+    with (tmp_path / "locked_recommendation_snapshots.csv").open(encoding="utf-8") as handle:
+        header = next(csv.reader(handle))
+    assert header[:4] == ["source", "lock_id", "recommendation_id", "fixture_id"]
 
 
 def _dashboard_payload() -> dict[str, object]:

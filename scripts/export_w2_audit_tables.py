@@ -20,10 +20,11 @@ def main() -> int:
     source.add_argument("--url", help="Dashboard JSON URL.")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--format", choices=["csv", "json", "both"], default="csv")
+    parser.add_argument("--timeout", type=float, default=20.0, help="HTTP timeout in seconds.")
     parser.add_argument("--no-db", action="store_true", help="Skip read-only DB model export.")
     args = parser.parse_args()
 
-    payload = _load_dashboard_payload(input_path=args.input, url=args.url)
+    payload = _load_dashboard_payload(input_path=args.input, url=args.url, timeout=args.timeout)
     if args.no_db:
         export = build_audit_export(payload)
     else:
@@ -44,11 +45,16 @@ def main() -> int:
     return 0
 
 
-def _load_dashboard_payload(*, input_path: Path | None, url: str | None) -> dict[str, Any]:
+def _load_dashboard_payload(
+    *,
+    input_path: Path | None,
+    url: str | None,
+    timeout: float,
+) -> dict[str, Any]:
     if input_path is not None:
         raw = input_path.read_text(encoding="utf-8")
     elif url is not None:
-        with urlopen(url, timeout=20) as response:  # noqa: S310
+        with urlopen(url, timeout=timeout) as response:  # noqa: S310
             raw = response.read().decode("utf-8")
     else:
         raise ValueError("input_path or url is required")
