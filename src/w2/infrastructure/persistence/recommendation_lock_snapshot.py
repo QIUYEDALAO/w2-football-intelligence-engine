@@ -31,11 +31,16 @@ def build_recommendation_lock_snapshot(
     reason: str,
     release_sha: str | None,
 ) -> RecommendationLockModel:
+    if not release_sha:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_RELEASE_SHA")
     recommendation = _dict(card.get("recommendation"))
     pricing = _dict(card.get("pricing_shadow"))
     current_ah = _dict(_dict(card.get("current_odds")).get("ah"))
     canonical_ah = _dict(pricing.get("canonical_ah_market"))
     data_refresh = _dict(card.get("data_refresh"))
+    data_profile = _string(card.get("data_profile") or card.get("data_source"))
+    if data_profile is None:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_DATA_PROFILE")
 
     _require_formal_ah_recommendation(card, recommendation)
 
@@ -111,7 +116,7 @@ def build_recommendation_lock_snapshot(
         "data_status": {
             "lineups_status": data_refresh.get("lineups_status"),
             "xg_status": data_refresh.get("xg_status"),
-            "data_profile": card.get("data_profile") or card.get("data_source"),
+            "data_profile": data_profile,
         },
         "versions": {
             "release_sha": release_sha,
@@ -156,7 +161,7 @@ def build_recommendation_lock_snapshot(
         calibration_version=_string(pricing.get("calibration_version")),
         coherent=_bool(pricing.get("coherent")),
         reverse_value=_bool(recommendation.get("reverse_factor_value")),
-        data_profile=_string(card.get("data_profile") or card.get("data_source")),
+        data_profile=data_profile,
         reproducible=True,
         legacy_marker_only=False,
         snapshot_schema_version=SNAPSHOT_SCHEMA_VERSION,

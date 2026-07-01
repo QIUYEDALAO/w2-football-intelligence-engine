@@ -28,6 +28,7 @@ from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     SNAPSHOT_SCHEMA_VERSION,
     build_recommendation_lock_snapshot,
 )
+from w2.tracking.formal_results import capture_formal_locks
 
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 6, 22, 3, 0, tzinfo=UTC)
@@ -242,6 +243,50 @@ def test_legacy_recommendation_lock_defaults_to_non_reproducible_marker(
     assert stored.legacy_marker_only is True
     assert stored.as_of is None
     assert stored.pick_side is None
+
+
+def test_formal_tracking_db_capture_uses_reproducible_lock_builder(session: Session) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    recommendation = RecommendationModel(
+        fixture_id=fixture.id,
+        prediction_id=None,
+        status="LOCKED",
+        created_at=NOW,
+    )
+    session.add(recommendation)
+    session.flush()
+    card = _formal_card(fixture.id, fixture.kickoff_at)
+    card["recommendation"]["recommendation_id"] = recommendation.id
+
+    result = capture_formal_locks(
+        [card],
+        session=session,
+        now=NOW,
+        release_sha="release-sha",
+    )
+    session.commit()
+
+    assert result["written"] == 1
+    stored = session.get(RecommendationLockModel, result["results"][0]["lock_id"])
+    assert stored.reproducible is True
+    assert stored.legacy_marker_only is False
+    assert stored.release_sha == "release-sha"
+    assert stored.snapshot_payload_hash == result["results"][0]["snapshot_payload_hash"]
+
+
+def test_formal_tracking_db_capture_blocks_missing_recommendation_id(session: Session) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    card = _formal_card(fixture.id, fixture.kickoff_at)
+
+    result = capture_formal_locks(
+        [card],
+        session=session,
+        now=NOW,
+        release_sha="release-sha",
+    )
+
+    assert result["written"] == 0
+    assert result["blockers"]["MISSING_RECOMMENDATION_ID"] == 1
 
 
 def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(

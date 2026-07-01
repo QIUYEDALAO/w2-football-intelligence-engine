@@ -77,6 +77,33 @@ def test_lock_snapshot_builder_rejects_invalid_formal_payload() -> None:
         )
 
 
+def test_lock_snapshot_builder_requires_release_sha() -> None:
+    card = _card()
+
+    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_REQUIRES_RELEASE_SHA"):
+        build_recommendation_lock_snapshot(
+            recommendation_id="rec-1",
+            card=card,
+            locked_at=NOW,
+            reason="formal prematch lock",
+            release_sha=None,
+        )
+
+
+def test_lock_snapshot_builder_requires_data_profile() -> None:
+    card = _card()
+    card.pop("data_profile")
+
+    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_REQUIRES_DATA_PROFILE"):
+        build_recommendation_lock_snapshot(
+            recommendation_id="rec-1",
+            card=card,
+            locked_at=NOW,
+            reason="formal prematch lock",
+            release_sha="release-sha",
+        )
+
+
 def test_lock_snapshot_builder_rejects_post_kickoff_freeze() -> None:
     card = _card()
 

@@ -9,6 +9,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from w2.infrastructure.persistence.models import RecommendationLockModel
+from w2.infrastructure.persistence.recommendation_lock_snapshot import (
+    build_recommendation_lock_snapshot,
+)
 from w2.settlement.settle import WIN_UNITS, settle_market
 
 MIN_BUCKET_SAMPLES_FOR_RATE = 30
@@ -343,6 +350,88 @@ def capture_formal_snapshots(
         "not_a_formal_gate": True,
         "posthoc_only": True,
     }
+
+
+def capture_formal_locks(
+    cards: list[dict[str, Any]],
+    *,
+    session: Session,
+    now: datetime | None = None,
+    release_sha: str | None = None,
+) -> dict[str, Any]:
+    captured_at = now or utc_now()
+    results: list[dict[str, Any]] = []
+    counts: Counter[str] = Counter()
+    for card in cards:
+        recommendation = first_dict(card.get("recommendation"))
+        recommendation_id = _recommendation_id(card)
+        if recommendation_id is None:
+            if card.get("formal_recommendation") is True or recommendation.get("tier") == "FORMAL":
+                counts["MISSING_RECOMMENDATION_ID"] += 1
+            else:
+                counts["NOT_FORMAL"] += 1
+            continue
+        existing = session.scalars(
+            select(RecommendationLockModel).where(
+                RecommendationLockModel.recommendation_id == recommendation_id
+            )
+        ).first()
+        if existing is not None:
+            counts["ALREADY_LOCKED"] += 1
+            results.append(
+                {
+                    "fixture_id": card.get("fixture_id"),
+                    "recommendation_id": recommendation_id,
+                    "lock_id": existing.id,
+                    "status": "ALREADY_LOCKED",
+                }
+            )
+            continue
+        try:
+            lock = build_recommendation_lock_snapshot(
+                recommendation_id=recommendation_id,
+                card=card,
+                locked_at=captured_at,
+                reason="formal prematch lock",
+                release_sha=release_sha,
+            )
+        except ValueError as exc:
+            counts[str(exc)] += 1
+            continue
+        session.add(lock)
+        session.flush()
+        counts["LOCKED"] += 1
+        results.append(
+            {
+                "fixture_id": card.get("fixture_id"),
+                "recommendation_id": recommendation_id,
+                "lock_id": lock.id,
+                "snapshot_payload_hash": lock.snapshot_payload_hash,
+                "status": "LOCKED",
+            }
+        )
+    return {
+        "status": "PASS",
+        "captured_at": iso(captured_at),
+        "written": counts["LOCKED"],
+        "already_locked": counts["ALREADY_LOCKED"],
+        "blockers": dict(counts),
+        "results": results,
+        "not_a_formal_gate": True,
+        "posthoc_only": True,
+    }
+
+
+def _recommendation_id(card: dict[str, Any]) -> str | None:
+    recommendation = first_dict(card.get("recommendation"))
+    for value in (
+        recommendation.get("recommendation_id"),
+        recommendation.get("id"),
+        card.get("recommendation_id"),
+    ):
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def snapshot_to_result(card: dict[str, Any]) -> dict[str, Any] | None:

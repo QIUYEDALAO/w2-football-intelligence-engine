@@ -6,9 +6,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from w2.api.repository import ReadModelService
+from w2.infrastructure.database import create_engine
 from w2.tracking.formal_results import (
     build_tracking_report,
+    capture_formal_locks,
     capture_formal_snapshots,
     settle_formal_snapshots,
 )
@@ -16,7 +20,15 @@ from w2.tracking.formal_results import (
 
 def dashboard_cards(service: ReadModelService, window: str) -> list[dict[str, Any]]:
     payload = service.dashboard(window=window, include_debug=True)
-    return [row for row in payload.get("all", []) if isinstance(row, dict)]
+    data_profile = payload.get("data_profile") or payload.get("data_source")
+    rows = []
+    for row in payload.get("all", []):
+        if not isinstance(row, dict):
+            continue
+        if data_profile and not (row.get("data_profile") or row.get("data_source")):
+            row = {**row, "data_profile": data_profile}
+        rows.append(row)
+    return rows
 
 
 def main() -> int:
@@ -28,6 +40,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", default=True)
     parser.add_argument("--no-dry-run", action="store_false", dest="dry_run")
     parser.add_argument("--write-artifacts", action="store_true")
+    parser.add_argument("--write-db-locks", action="store_true")
     parser.add_argument("--runtime-root", type=Path, default=None)
     parser.add_argument("--output-report", type=Path, default=None)
     parser.add_argument("--json", action="store_true", dest="json_output")
@@ -51,6 +64,18 @@ def main() -> int:
             runtime_root=args.runtime_root,
             release_sha=release_sha,
         )
+        if args.write_db_locks:
+            engine = create_engine()
+            with Session(engine) as session:
+                output["lock_capture"] = capture_formal_locks(
+                    cards,
+                    session=session,
+                    release_sha=release_sha,
+                )
+                if not args.dry_run:
+                    session.commit()
+                else:
+                    session.rollback()
     if args.mode in {"settle", "all"}:
         cards = dashboard_cards(service, "all")
         output["settle"] = settle_formal_snapshots(
