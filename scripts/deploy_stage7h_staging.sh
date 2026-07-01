@@ -22,6 +22,8 @@ SSH_HOST="${1:?Usage: $0 <ssh-host>}"
 REVISION="$(git rev-parse HEAD)"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
+START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
+PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
 echo "  SSH host:  ${SSH_HOST}"
@@ -123,26 +125,75 @@ echo "--- Building staging images for ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
+echo '--- Pre-build resource snapshot ---'
+uptime
+free -h | sed -n '1,2p'
+df -h / /opt /var/lib/docker 2>/dev/null || df -h / /opt
+sudo docker system df || true
 export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
 sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
 echo 'staging images built for current release'
+if [ '${PRUNE_BUILD_CACHE}' = 'true' ]; then
+  echo '--- Pruning unused Docker build cache (no volumes) ---'
+  sudo docker builder prune -f
+fi
+echo '--- Post-build resource snapshot ---'
+uptime
+sudo docker system df || true
 "
 
-# ── Step 8: Reload systemd (do not enable — done on first success) ──
+# ── Step 8: Reload systemd and install staging watchdog ─────────────
 echo "--- Reloading systemd ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
 sudo cp /opt/w2/current/infra/systemd/w2-staging.service /etc/systemd/system/w2-staging.service
+sudo cp /opt/w2/current/infra/systemd/w2-staging-watchdog.service /etc/systemd/system/w2-staging-watchdog.service
+sudo cp /opt/w2/current/infra/systemd/w2-staging-watchdog.timer /etc/systemd/system/w2-staging-watchdog.timer
 sudo systemctl daemon-reload
-echo 'systemd unit w2-staging.service installed and reloaded'
+sudo systemctl enable w2-staging-watchdog.timer >/dev/null
+echo 'systemd units installed and reloaded'
 "
+
+if [ "${START_AFTER_DEPLOY}" = "true" ]; then
+  echo "--- Starting/restarting staging and running stability probe ---"
+  ssh "${SSH_HOST}" "
+set -euo pipefail
+cd /opt/w2/current
+sudo systemctl restart w2-staging.service
+sudo systemctl start w2-staging-watchdog.timer
+for attempt in 1 2 3 4 5 6; do
+  echo \"stability_probe_attempt=\${attempt}\"
+  health=false
+  ready=false
+  version=false
+  meta=false
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json && meta=true || true
+  echo \"health=\${health} ready=\${ready} version=\${version} meta=\${meta}\"
+  if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
+    echo 'stability_probe=PASS'
+    exit 0
+  fi
+  sleep 10
+done
+echo 'stability_probe=FAIL' >&2
+exit 1
+"
+fi
 
 echo ""
 echo "=== Deployment complete ==="
 echo "  Revision: ${REVISION}"
 echo "  Release:  /opt/w2/releases/${REVISION}"
 echo "  Current:  /opt/w2/current"
-echo "  Run 'sudo systemctl start w2-staging.service' to start."
+if [ "${START_AFTER_DEPLOY}" = "true" ]; then
+  echo "  Staging service restarted and stability probe passed."
+else
+  echo "  Run 'sudo systemctl start w2-staging.service' to start."
+  echo "  Optional: W2_STAGING_START_AFTER_DEPLOY=true enables post-deploy stability probe."
+fi
 echo ""

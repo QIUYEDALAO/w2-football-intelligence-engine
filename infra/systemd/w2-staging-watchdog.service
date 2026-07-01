@@ -1,0 +1,17 @@
+[Unit]
+Description=W2 Staging Runtime Watchdog
+Documentation=https://github.com/openclaw/w2-football-intelligence-engine
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/w2/current
+ExecStart=/bin/bash /opt/w2/current/scripts/watch_staging_runtime.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
