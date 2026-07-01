@@ -12,6 +12,7 @@ from typing import ClassVar
 def _payload() -> dict[str, object]:
     return {
         "selected_football_day": "2026-06-30",
+        "generated_at": "2026-06-30T23:40:00Z",
         "all": [
             {
                 "fixture_id": "f1",

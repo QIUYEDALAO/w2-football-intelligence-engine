@@ -202,6 +202,27 @@ def test_render_report_uses_payload_as_of_when_match_as_of_is_missing() -> None:
     assert "as-of：未知" not in report
 
 
+def test_render_report_requires_payload_as_of_for_determinism() -> None:
+    payload = _payload(_non_formal_match())
+    payload.pop("generated_at")
+
+    try:
+        render_report(payload, output_format="text")
+    except ValueError as exc:
+        assert str(exc) == "dashboard payload missing generated_at/as_of"
+    else:
+        raise AssertionError("expected missing as-of error")
+
+
+def test_render_report_is_deterministic_for_same_input() -> None:
+    payload = _payload(_formal_match(), _non_formal_match())
+
+    assert render_report(payload, output_format="text") == render_report(
+        payload,
+        output_format="text",
+    )
+
+
 def test_render_report_rejects_forbidden_terms() -> None:
     match = _formal_match()
     match["competition_name"] = "必中杯"

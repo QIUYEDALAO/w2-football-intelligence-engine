@@ -238,13 +238,15 @@ def _time_label(value: Any) -> str:
 
 
 def _payload_as_of(payload: dict[str, Any]) -> str:
-    return str(
+    value = (
         payload.get("generated_at")
         or payload.get("as_of")
         or payload.get("asof")
         or payload.get("build_time")
-        or datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("dashboard payload missing generated_at/as_of")
+    return value
 
 
 def _as_of(match: dict[str, Any], *, payload_as_of: str) -> str:
