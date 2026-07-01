@@ -276,3 +276,15 @@ def test_render_report_rejects_added_forbidden_terms() -> None:
         assert "forbidden term" in str(exc)
     else:
         raise AssertionError("expected forbidden term guard")
+
+
+def test_render_report_rejects_unrecognized_direction_text_anywhere_visible() -> None:
+    match = _non_formal_match()
+    match["competition_name"] = "方向未识别杯"
+
+    try:
+        render_report(_payload(match), output_format="text")
+    except ValueError as exc:
+        assert "forbidden term" in str(exc)
+    else:
+        raise AssertionError("expected forbidden term guard")
