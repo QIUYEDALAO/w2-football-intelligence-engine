@@ -26,6 +26,34 @@ class FakeRepository:
         return []
 
 
+def test_world_cup_neutral_site_policy_keeps_host_home_advantage_only() -> None:
+    host_home = {
+        "league": {"id": "1", "season": "2026", "name": "World Cup"},
+        "teams": {
+            "home": {"id": "10", "name": "United States"},
+            "away": {"id": "20", "name": "France"},
+        },
+    }
+    non_host_home = {
+        "league": {"id": "1", "season": "2026", "name": "World Cup"},
+        "teams": {
+            "home": {"id": "10", "name": "France"},
+            "away": {"id": "20", "name": "Sweden"},
+        },
+    }
+    host_away = {
+        "league": {"id": "1", "season": "2026", "name": "World Cup"},
+        "teams": {
+            "home": {"id": "10", "name": "France"},
+            "away": {"id": "20", "name": "USA"},
+        },
+    }
+
+    assert api_repository._fixture_neutral_site(host_home) is False
+    assert api_repository._fixture_neutral_site(non_host_home) is True
+    assert api_repository._fixture_neutral_site(host_away) is True
+
+
 class ExistingFeatureRepository(FakeRepository):
     def fixture_payloads(self) -> list[dict[str, Any]]:
         return [

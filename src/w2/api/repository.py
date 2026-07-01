@@ -177,11 +177,34 @@ def _truthy_flag(value: Any) -> bool:
     return False
 
 
+def _optional_truthy_flag(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return _truthy_flag(value)
+
+
 def _fixture_neutral_site(item: dict[str, Any]) -> bool:
+    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
+    explicit = _explicit_neutral_site(item)
+    profile = load_json(WORLD_CUP_PROFILE, {})
+    policy = str(profile.get("neutral_site_policy") or "")
+    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
+        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
+            home_name, away_name = _team_names_from_item(item)
+            if _is_host_team(home_name, profile=profile):
+                return False
+            if _is_host_team(away_name, profile=profile):
+                return True
+        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
+            return explicit if explicit is not None else True
+    return explicit if explicit is not None else False
+
+
+def _explicit_neutral_site(item: dict[str, Any]) -> bool | None:
     fixture = item.get("fixture", {})
     dashboard = item.get("_dashboard", {})
     venue = fixture.get("venue", {}) if isinstance(fixture, dict) else {}
-    candidates = (
+    candidates: tuple[Any, ...] = (
         item.get("neutral_site"),
         item.get("neutral"),
         dashboard.get("neutral_site") if isinstance(dashboard, dict) else None,
@@ -191,7 +214,75 @@ def _fixture_neutral_site(item: dict[str, Any]) -> bool:
         venue.get("neutral_site") if isinstance(venue, dict) else None,
         venue.get("neutral") if isinstance(venue, dict) else None,
     )
-    return any(_truthy_flag(value) for value in candidates)
+    for value in candidates:
+        parsed = _optional_truthy_flag(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _is_world_cup_2026_item(
+    item: dict[str, Any],
+    *,
+    profile: dict[str, Any],
+    league: dict[str, Any],
+) -> bool:
+    provider_mapping = profile.get("provider_mapping", {})
+    provider_league_id = (
+        str(provider_mapping.get("api_football_league_id"))
+        if isinstance(provider_mapping, dict)
+        else ""
+    )
+    provider_season = (
+        str(provider_mapping.get("api_football_season"))
+        if isinstance(provider_mapping, dict)
+        else ""
+    )
+    competition_id = str(profile.get("competition_id") or "world_cup_2026")
+    identifiers = {
+        str(item.get("competition_id") or ""),
+        str(league.get("id") or ""),
+    }
+    names = {
+        str(item.get("competition_name") or "").lower(),
+        str(league.get("name") or "").lower(),
+    }
+    season = str(league.get("season") or item.get("season") or "")
+    return (
+        competition_id in identifiers
+        or (
+            provider_league_id in identifiers
+            and (not provider_season or season == provider_season)
+        )
+        or any("world cup" in name or "世界杯" in name for name in names)
+    )
+
+
+def _team_names_from_item(item: dict[str, Any]) -> tuple[str, str]:
+    teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
+    home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
+    away = teams.get("away", {}) if isinstance(teams.get("away"), dict) else {}
+    home_name = str(item.get("home_team_name") or home.get("name") or "")
+    away_name = str(item.get("away_team_name") or away.get("name") or "")
+    return home_name, away_name
+
+
+def _is_host_team(name: str, *, profile: dict[str, Any]) -> bool:
+    normalized = _normalize_team_name(name)
+    hosts = profile.get("hosts", [])
+    if not isinstance(hosts, list):
+        hosts = []
+    host_names = {_normalize_team_name(value) for value in hosts}
+    host_aliases = {
+        "unitedstates": {"usa", "us", "unitedstates", "unitedstatesofamerica"},
+    }
+    for host_name in list(host_names):
+        host_names.update(host_aliases.get(host_name, set()))
+    return normalized in host_names
+
+
+def _normalize_team_name(value: Any) -> str:
+    return "".join(char for char in str(value).lower() if char.isalnum())
 
 
 def _rating_for_simulation(
