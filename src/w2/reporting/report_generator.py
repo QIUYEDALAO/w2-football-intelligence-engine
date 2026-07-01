@@ -13,8 +13,10 @@ ReportType = Literal["morning", "final"]
 _BEIJING = ZoneInfo("Asia/Shanghai")
 _FORBIDDEN_TERMS = (
     "命中率",
+    "胜率",
     "ROI",
     "必中",
+    "可买",
     "庄家开错",
     "照这个买",
     "跟庄",
@@ -37,13 +39,26 @@ def render_report(
     matches = [item for item in _list(payload.get("all")) if isinstance(item, dict)]
     decisions = [decide_match(match) for match in matches]
     formal_count = sum(1 for decision in decisions if decision.state == MatchDecisionState.FORMAL)
+    payload_as_of = _payload_as_of(payload)
     lines = [
         _report_title(payload, options),
-        _report_subtitle(matches=matches, formal_count=formal_count, options=options),
+        _report_subtitle(
+            matches=matches,
+            formal_count=formal_count,
+            options=options,
+            payload_as_of=payload_as_of,
+        ),
         "",
     ]
     for index, match in enumerate(matches):
-        lines.extend(_render_match(match, decisions[index], options=options))
+        lines.extend(
+            _render_match(
+                match,
+                decisions[index],
+                options=options,
+                payload_as_of=payload_as_of,
+            )
+        )
         lines.append("")
     text = "\n".join(lines).rstrip() + "\n"
     _assert_safe_report_text(text)
@@ -67,9 +82,11 @@ def _report_subtitle(
     matches: list[dict[str, Any]],
     formal_count: int,
     options: ReportOptions,
+    payload_as_of: str,
 ) -> str:
-    note = "暂定 · 会变" if options.report_type == "morning" else "临场锁定 · as-of"
-    return f"场次 {len(matches)} · 正式推荐 {formal_count} · {note}"
+    note = "暂定 · 会变" if options.report_type == "morning" else "临场锁定"
+    as_of = _time_label(payload_as_of)
+    return f"场次 {len(matches)} · 正式推荐 {formal_count} · {note} · as-of {as_of}"
 
 
 def _render_match(
@@ -77,6 +94,7 @@ def _render_match(
     decision: MatchDecision,
     *,
     options: ReportOptions,
+    payload_as_of: str,
 ) -> list[str]:
     prefix = "## " if options.output_format == "markdown" else ""
     lines = [
@@ -85,14 +103,16 @@ def _render_match(
     ]
     if decision.state == MatchDecisionState.FORMAL:
         lines.extend(_formal_lines(match))
-        lines.append(_score_line(match))
+        score_line = _score_line(match)
+        if score_line is not None:
+            lines.append(score_line)
     elif decision.state == MatchDecisionState.LOCKED:
         lines.append(_locked_line(match))
     else:
         lines.append(_non_formal_line(match, decision))
     lines.append(_market_line(match))
     lines.append(_data_line(match))
-    lines.append(f"as-of：{_as_of(match)}")
+    lines.append(f"as-of：{_as_of(match, payload_as_of=payload_as_of)}")
     return lines
 
 
@@ -123,13 +143,13 @@ def _non_formal_line(match: dict[str, Any], decision: MatchDecision) -> str:
     return "说明：盘口差距未达正式推荐阈值，当前只观察。"
 
 
-def _score_line(match: dict[str, Any]) -> str:
+def _score_line(match: dict[str, Any]) -> str | None:
     if decide_match(match).state != MatchDecisionState.FORMAL:
-        return "推荐比分：无正式推荐方向，本场不输出比分。"
+        return None
     reference = _dict(match.get("scoreline_reference"))
     rows = [item for item in _list(reference.get("direction_top3")) if isinstance(item, dict)]
     if not rows:
-        return "推荐比分（与主推一致 · 高方差仅参考）：暂无。"
+        return None
     parts = []
     for item in rows[:3]:
         scoreline = item.get("scoreline")
@@ -217,7 +237,17 @@ def _time_label(value: Any) -> str:
     return parsed.astimezone(_BEIJING).strftime("%m-%d %H:%M")
 
 
-def _as_of(match: dict[str, Any]) -> str:
+def _payload_as_of(payload: dict[str, Any]) -> str:
+    return str(
+        payload.get("generated_at")
+        or payload.get("as_of")
+        or payload.get("asof")
+        or payload.get("build_time")
+        or datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
+
+
+def _as_of(match: dict[str, Any], *, payload_as_of: str) -> str:
     refresh = _dict(match.get("data_refresh"))
     timeline = _dict(match.get("market_timeline"))
     payload_value = (
@@ -225,6 +255,7 @@ def _as_of(match: dict[str, Any]) -> str:
         or refresh.get("as_of")
         or timeline.get("as_of")
         or match.get("generated_at")
+        or payload_as_of
     )
     return _time_label(payload_value)
 
@@ -307,7 +338,7 @@ def _reason_cn(reason: str) -> str:
         "MATCH_STARTED_OR_SETTLEMENT_PRESENT": "比赛已开始或进入复盘",
         "MISSING_PRICING_SHADOW": "缺少独立评分",
         "INSUFFICIENT_INDEPENDENT_FACTORS": "独立信号不足",
-        "INDEPENDENT_SIGNAL_COUNT_BELOW_MINIMUM": "独立信号数不足",
+        "INDEPENDENT_SIGNAL_COUNT_BELOW_MINIMUM": "独立信号不足",
         "MISSING_MARKET_AH": "缺少全场让球市场盘",
         "AH_MAINLINE_AMBIGUOUS": "全场让球主盘口不明确",
         "AH_PRIMARY_MAINLINE_MISSING": "缺少可确认的全场让球主盘口",

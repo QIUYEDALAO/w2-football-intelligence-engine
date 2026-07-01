@@ -67,21 +67,21 @@ def decide_match(
         return MatchDecision(
             MatchDecisionState.DATA_INSUFFICIENT,
             "MISSING_PRICING_SHADOW",
-            "独立信号不足",
+            "数据不足",
         )
     shadow_status = str(shadow.get("status") or "")
     if shadow_status == "INSUFFICIENT_INDEPENDENT_FACTORS":
         return MatchDecision(
             MatchDecisionState.DATA_INSUFFICIENT,
             shadow_status,
-            "独立信号不足",
+            "数据不足",
         )
     signal_count = _number(shadow.get("independent_signal_count"))
     if signal_count is not None and signal_count < independent_signal_minimum:
         return MatchDecision(
             MatchDecisionState.DATA_INSUFFICIENT,
             "INDEPENDENT_SIGNAL_COUNT_BELOW_MINIMUM",
-            "独立信号不足",
+            "数据不足",
         )
 
     market_blocker = _market_blocker(shadow)

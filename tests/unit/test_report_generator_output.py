@@ -6,7 +6,7 @@ from w2.reporting import render_report
 def _payload(*matches: dict[str, object]) -> dict[str, object]:
     return {
         "selected_football_day": "2026-06-30",
-        "generated_at": "2026-06-30T23:00:00Z",
+        "generated_at": "2026-06-30T23:40:00Z",
         "all": list(matches),
     }
 
@@ -140,6 +140,7 @@ def test_render_report_outputs_formal_direction_scorelines_and_as_of() -> None:
     report = render_report(_payload(_formal_match()), report_type="final", output_format="markdown")
 
     assert "# W2 足球日报告 · 2026-06-30 · 临场最终" in report
+    assert "场次 1 · 正式推荐 1 · 临场锁定 · as-of 07-01 07:40" in report
     assert "状态：正式推荐" in report
     assert "推荐：全场让球，看 France -1.25 @1.93" in report
     assert "推荐比分（与主推一致 · 高方差仅参考）：2-0 17% · 3-1 12% · 2-1 11%" in report
@@ -155,9 +156,21 @@ def test_render_report_hides_scorelines_for_non_formal_matches() -> None:
     )
 
     assert "W2 足球日报告 · 2026-06-30 · 早间预览" in report
+    assert "场次 1 · 正式推荐 0 · 暂定 · 会变 · as-of 07-01 07:40" in report
     assert "状态：观察" in report
     assert "推荐比分" not in report
     assert "1-1 14%" not in report
+
+
+def test_render_report_hides_scoreline_line_when_formal_direction_top3_missing() -> None:
+    match = _formal_match()
+    match["scoreline_reference"] = {"direction_top3": []}
+
+    report = render_report(_payload(match), output_format="text")
+
+    assert "状态：正式推荐" in report
+    assert "推荐比分" not in report
+    assert "暂无" not in report
 
 
 def test_render_report_separates_market_not_ready_from_data_insufficient() -> None:
@@ -173,14 +186,37 @@ def test_render_report_separates_market_not_ready_from_data_insufficient() -> No
 
     report = render_report(_payload(data_match, market_match), output_format="text")
 
-    assert "状态：独立信号不足" in report
+    assert "状态：数据不足（独立信号不足）" in report
     assert "状态：盘口未就绪" in report
     assert "全场让球主盘口不明确" in report
+
+
+def test_render_report_uses_payload_as_of_when_match_as_of_is_missing() -> None:
+    match = _non_formal_match()
+    match["data_refresh"] = {}
+    match["market_timeline"] = {"status": "INSUFFICIENT"}
+
+    report = render_report(_payload(match), output_format="text")
+
+    assert "as-of：07-01 07:40" in report
+    assert "as-of：未知" not in report
 
 
 def test_render_report_rejects_forbidden_terms() -> None:
     match = _formal_match()
     match["competition_name"] = "必中杯"
+
+    try:
+        render_report(_payload(match), output_format="text")
+    except ValueError as exc:
+        assert "forbidden term" in str(exc)
+    else:
+        raise AssertionError("expected forbidden term guard")
+
+
+def test_render_report_rejects_added_forbidden_terms() -> None:
+    match = _formal_match()
+    match["competition_name"] = "可买杯"
 
     try:
         render_report(_payload(match), output_format="text")

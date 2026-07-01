@@ -47,6 +47,7 @@ def test_decide_match_separates_data_insufficient_from_market_not_ready() -> Non
     )
 
     assert data_decision.state == MatchDecisionState.DATA_INSUFFICIENT
+    assert data_decision.label_cn == "数据不足"
     assert market_decision.state == MatchDecisionState.MARKET_NOT_READY
     assert market_decision.reason == "MISSING_MARKET_AH"
 
