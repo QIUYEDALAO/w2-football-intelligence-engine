@@ -112,6 +112,24 @@ def test_decide_match_downgrades_formal_when_recommendation_selection_is_invalid
     assert decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
 
 
+def test_decide_match_does_not_infer_formal_from_edge_without_formal_payload() -> None:
+    decision = decide_match(
+        _match(
+            formal_recommendation=False,
+            recommendation={
+                "tier": "ANALYSIS_PICK",
+                "market": "TOTALS",
+                "selection": "OVER",
+                "line": 1.5,
+                "odds": 1.87,
+            },
+        ),
+    )
+
+    assert decision.state == MatchDecisionState.WATCH
+    assert decision.reason == "NO_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
 def test_decide_match_downgrades_formal_when_recommendation_line_is_missing() -> None:
     decision = decide_match(
         _match(

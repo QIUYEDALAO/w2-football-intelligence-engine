@@ -758,6 +758,11 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     assert card["pricing_shadow"]["canonical_ah_market"]["home_line"] == -1.0
     assert card["pricing_shadow"]["canonical_ah_market"]["away_line"] == 1.0
     assert "MISSING_AH_MARKET" not in card["pricing_shadow"]["formal_blockers"]
+    assert card["formal_recommendation"] is False
+    assert card["recommendation"]["tier"] == "WATCH"
+    assert card["recommendation"]["formal_recommendation"] is False
+    assert card["pricing_shadow"]["formal_eligible"] is False
+    assert card["pricing_shadow"]["formal_blockers"]
 
 
 def test_read_model_mainline_prefers_ladder_balance_center() -> None:

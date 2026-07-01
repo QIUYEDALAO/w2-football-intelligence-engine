@@ -143,6 +143,8 @@ def _non_formal_line(match: dict[str, Any], decision: MatchDecision) -> str:
         return f"说明：盘口未就绪，{_reason_cn(decision.reason)}，当前不输出方向。"
     if decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD":
         return "说明：正式推荐字段不完整，当前不输出方向。"
+    if decision.reason == "NO_FORMAL_RECOMMENDATION_PAYLOAD":
+        return "说明：未形成正式推荐，当前只观察。"
     return "说明：盘口差距未达正式推荐阈值，当前只观察。"
 
 
@@ -353,6 +355,7 @@ def _reason_cn(reason: str) -> str:
         "MISSING_FAIR_AH": "缺少模拟公平让球盘",
         "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",
         "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐字段不完整",
+        "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐",
         "FORMAL_REPORTABLE": "达到报告正式推荐条件",
     }.get(reason, "状态原因已记录")
 
