@@ -9,7 +9,6 @@ from w2.strategy.simulate import (
     SimulationOutput,
     ah_expected_value,
     ah_expected_value_uncertainty_from_lambdas,
-    ah_settlement_distribution_from_lambdas,
 )
 
 FORMAL_EV_THRESHOLD = 0.035
@@ -355,7 +354,7 @@ def _watch(
     )
 
 
-def _settlement_distribution(
+def _settlement_distribution_from_ladder(
     simulation: SimulationOutput,
     side: str,
     line: float,
@@ -380,12 +379,7 @@ def _settlement_distribution(
             distribution = row.get(key)
             if isinstance(distribution, dict):
                 return distribution
-    return ah_settlement_distribution_from_lambdas(
-        lambda_home=simulation.lambda_home,
-        lambda_away=simulation.lambda_away,
-        selection=side,
-        line=line,
-    )
+    return None
 
 
 def _settlement_distribution_with_ev_se(
@@ -394,7 +388,7 @@ def _settlement_distribution_with_ev_se(
     line: float,
     price: float,
 ) -> tuple[dict[str, Any] | None, float | None, float | None]:
-    ladder_distribution = _settlement_distribution(simulation, side, line)
+    ladder_distribution = _settlement_distribution_from_ladder(simulation, side, line)
     scenario_distribution, scenario_ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
         lambda_home=simulation.lambda_home,
         lambda_away=simulation.lambda_away,
