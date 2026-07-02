@@ -139,6 +139,33 @@ def _non_formal_match() -> dict[str, object]:
     }
 
 
+def _non_formal_with_blockers(
+    *,
+    fixture_id: str,
+    formal_blockers: list[str] | None = None,
+    analysis_blockers: list[str] | None = None,
+    missing_sources: list[str] | None = None,
+    tier: str = "ANALYSIS_PICK",
+) -> dict[str, object]:
+    match = _non_formal_match()
+    match["fixture_id"] = fixture_id
+    match["home_team_name"] = f"Home {fixture_id}"
+    match["away_team_name"] = f"Away {fixture_id}"
+    match["recommendation"] = {
+        "tier": tier,
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "line": -0.75,
+        "odds": 1.91,
+    }
+    shadow = dict(match["pricing_shadow"])  # type: ignore[arg-type]
+    shadow["formal_blockers"] = formal_blockers or []
+    shadow["missing_independent_sources"] = missing_sources or []
+    match["pricing_shadow"] = shadow
+    match["analysis_readiness"] = {"blockers": analysis_blockers or []}
+    return match
+
+
 def test_render_report_outputs_formal_direction_scorelines_and_as_of() -> None:
     report = render_report(_payload(_formal_match()), report_type="final", output_format="markdown")
 
@@ -161,6 +188,8 @@ def test_render_report_hides_scorelines_for_non_formal_matches() -> None:
     assert "W2 足球日报告 · 2026-06-30 · 早间预览" in report
     assert "场次 1 · 正式推荐 0 · 暂定 · 会变 · as-of 07-01 07:40" in report
     assert "状态：观察" in report
+    assert "正式推荐判定摘要：" in report
+    assert "今日正式推荐数量：0" in report
     assert "推荐比分" not in report
     assert "1-1 14%" not in report
 
@@ -179,7 +208,7 @@ def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -
 
     assert "状态：观察（正式推荐信息缺失）" in report
     assert "说明：正式推荐信息缺失，当前不输出方向。" in report
-    assert "推荐：" not in report
+    assert "推荐：全场让球" not in report
     assert "推荐比分" not in report
     assert "方向未识别" not in report
     assert "全场让球，看 方向未识别" not in report
@@ -194,7 +223,7 @@ def test_render_report_does_not_emit_formal_lines_for_missing_formal_ev() -> Non
     report = render_report(_payload(match), output_format="text")
 
     assert "状态：观察（正式推荐EV字段不完整）" in report
-    assert "推荐：" not in report
+    assert "推荐：全场让球" not in report
     assert "推荐比分" not in report
 
 
@@ -289,7 +318,9 @@ def test_render_html_empty_day_has_header_and_no_forbidden_terms() -> None:
     assert "W2 足球日报告 · 2026-06-30 · 临场最终" in report
     assert "场次 0 · 正式推荐 0" in report
     assert "场次 0 · 正式 0 · 观察 0 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
-    assert "推荐：" not in report
+    assert "今日正式推荐：0" in report
+    assert "当前无 FORMAL + recommendation_id + future kickoff" in report
+    assert "推荐：全场让球" not in report
     assert "命中率" not in report
     assert "方向未识别" not in report
 
@@ -327,10 +358,13 @@ def test_render_html_uses_one_decision_per_match_for_scorelines(monkeypatch) -> 
 
     monkeypatch.setattr(report_generator, "decide_match", counting_decide)
 
-    report = report_generator.render_report(_payload(_formal_match()), output_format="html")
+    report = report_generator.render_report(
+        _payload(_formal_match(), _non_formal_match()),
+        output_format="html",
+    )
 
     assert "推荐比分" in report
-    assert calls == 1
+    assert calls == 2
 
 
 def test_render_html_no_formal_day_does_not_fake_recommendations_or_scorelines() -> None:
@@ -341,10 +375,89 @@ def test_render_html_no_formal_day_does_not_fake_recommendations_or_scorelines()
 
     assert "状态：观察" in report
     assert "场次 2 · 正式 0 · 观察 2 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
-    assert "推荐：" not in report
+    assert "正式推荐表" in report
+    assert "非 FORMAL 判定表" in report
+    assert "今日正式推荐：0" in report
+    assert "推荐：全场让球" not in report
     assert "推荐比分" not in report
     assert "1-1 14%" not in report
     assert "方向未识别" not in report
+
+
+def test_render_html_non_formal_decision_table_explains_blockers() -> None:
+    no_formal_payload = _non_formal_with_blockers(fixture_id="no-formal")
+    shadow = dict(no_formal_payload["pricing_shadow"])  # type: ignore[arg-type]
+    shadow.update(
+        {
+            "fair_ah": -1.0,
+            "market_ah": -0.5,
+            "edge_ah": 0.5,
+            "formal_blockers": [],
+            "missing_independent_sources": [],
+        }
+    )
+    no_formal_payload["pricing_shadow"] = shadow
+
+    report = render_report(
+        _payload(
+            _non_formal_with_blockers(
+                fixture_id="ev",
+                formal_blockers=["AH_EV_BELOW_FORMAL_THRESHOLD"],
+            ),
+            _non_formal_with_blockers(
+                fixture_id="lineups",
+                analysis_blockers=["MISSING_LINEUPS"],
+            ),
+            _non_formal_with_blockers(
+                fixture_id="h2h",
+                missing_sources=["h2h"],
+            ),
+            _non_formal_with_blockers(
+                fixture_id="switch",
+                formal_blockers=["W2_FORMAL_RECOMMENDATION_ENABLED=false"],
+            ),
+            no_formal_payload,
+        ),
+        output_format="html",
+    )
+
+    assert "非 FORMAL 判定表" in report
+    assert "blocker_codes" in report
+    assert "AH_EV_BELOW_FORMAL_THRESHOLD" in report
+    assert "让球结算期望未达正式推荐阈值" in report
+    assert "MISSING_LINEUPS" in report
+    assert "首发未返回" in report
+    assert "h2h" in report
+    assert "H2H 独立信号缺失" in report
+    assert "W2_FORMAL_RECOMMENDATION_ENABLED=false" in report
+    assert "正式推荐开关未开启" in report
+    assert "NO_FORMAL_RECOMMENDATION_PAYLOAD" in report
+    assert "推荐：全场让球" not in report
+    assert "推荐比分" not in report
+    assert "命中率" not in report
+    assert "方向未识别" not in report
+
+
+def test_render_markdown_includes_formal_decision_summary_with_blocker_counts() -> None:
+    report = render_report(
+        _payload(
+            _non_formal_with_blockers(
+                fixture_id="ev",
+                formal_blockers=["AH_EV_BELOW_FORMAL_THRESHOLD"],
+            ),
+            _non_formal_with_blockers(
+                fixture_id="lineups",
+                analysis_blockers=["MISSING_LINEUPS"],
+            ),
+        ),
+        output_format="markdown",
+    )
+
+    assert "正式推荐判定摘要：" in report
+    assert "今日正式推荐数量：0" in report
+    assert "lock eligible 数量：0" in report
+    assert "AH_EV_BELOW_FORMAL_THRESHOLD=1" in report
+    assert "MISSING_LINEUPS=1" in report
 
 
 def test_render_report_rejects_added_forbidden_terms() -> None:

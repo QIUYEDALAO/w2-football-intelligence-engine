@@ -165,7 +165,7 @@ def test_report_runner_html_file_sink_writes_day_page(tmp_path: Path) -> None:
     html = result.output_path.read_text(encoding="utf-8") if result.output_path else ""
     assert "<!doctype html>" in html
     assert "W2 足球日报告 · 2026-06-30" in html
-    assert "推荐：" not in html
+    assert "推荐：全场让球" not in html
     assert "方向未识别" not in html
 
 
