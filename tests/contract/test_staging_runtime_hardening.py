@@ -83,6 +83,19 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
 
 
+def test_deploy_makes_shared_runtime_writable_for_staging_runtime_tasks() -> None:
+    text = read(DEPLOY)
+    assert "sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime" in text
+    assert (
+        "sudo install -d -o 10001 -g 10001 -m 0775 "
+        "/opt/w2/shared/runtime/independent_signal_backfill/raw_payloads"
+    ) in text
+    assert "sudo chown 10001:10001 /opt/w2/shared/runtime" in text
+    assert "sudo chown -R 10001:10001 /opt/w2/shared/runtime/independent_signal_backfill" in text
+    assert "sudo chmod u+rwX,g+rwX /opt/w2/shared/runtime" in text
+    assert "sudo chmod -R u+rwX,g+rwX /opt/w2/shared/runtime/independent_signal_backfill" in text
+
+
 def test_watchdog_units_restart_only_staging_service() -> None:
     service = read(WATCHDOG_SERVICE)
     timer = read(WATCHDOG_TIMER)
