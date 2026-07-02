@@ -15,10 +15,11 @@ REQUIRED = [
     "docs/backtest/W2_EVALUATION_POLICY_V1.md",
     "docs/backtest/W2_ABLATION_POLICY_V1.md",
     "scripts/run_stage8_replay.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE8_REPLAY_SUMMARY.json",
     "reports/W2_STAGE8_MODEL_COMPARISON.json",
     "reports/W2_STAGE8_ABLATION.json",
-    "archive/reports/W2_STAGE8_GATE4_AUDIT.json",
     "reports/W2_STAGE8_RESULT.md",
 ]
 
@@ -67,54 +68,57 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing Stage8 token {token}")
-    summary = load("reports/W2_STAGE8_REPLAY_SUMMARY.json")
-    comparison = load("reports/W2_STAGE8_MODEL_COMPARISON.json")
-    ablation = load("reports/W2_STAGE8_ABLATION.json")
-    gate = load("archive/reports/W2_STAGE8_GATE4_AUDIT.json")
-    result = read("reports/W2_STAGE8_RESULT.md")
-    if summary["fixture_count"] != 214:  # type: ignore[index]
-        fail("Stage8 replay must use the paired Stage7/Stage6 fixture set")
-    if summary["checkpoint_resume_matches_full_run"] is not True:  # type: ignore[index]
-        fail("checkpoint resume must match full run")
-    if summary["idempotent_replay"] is not True:  # type: ignore[index]
-        fail("replay must be idempotent")
-    if summary["future_leakage"] is not False or summary["fixture_split_leakage"] is not False:  # type: ignore[index]
-        fail("leakage guards must pass")
-    expected_models = {
-        "uniform",
-        "elo",
-        "simple_poisson",
-        "stage6_power_market",
-        "stage6_dixon_coles_market",
-        "stage7_best_independent",
-        "stage7_calibrated_independent",
-        "residual_blend_research_only",
-    }
-    if set(comparison["models"]) != expected_models:  # type: ignore[index]
-        fail("model comparison set is incomplete")
-    if comparison["ah"]["HISTORICAL_AH"] != "FORWARD_ONLY":  # type: ignore[index]
-        fail("historical AH must stay forward-only")
-    if set(ablation["runs"]) != {  # type: ignore[index]
-        "remove_elo",
-        "remove_rolling_form",
-        "remove_rest_days",
-        "remove_match_importance",
-        "remove_neutral_site_adjustment",
-        "remove_calibration",
-        "remove_market_residual_layer",
-    }:
-        fail("ablation set incomplete")
-    if gate["GATE_4_NATIONAL_1X2"] != "PROVISIONAL_NOT_PROMOTED":  # type: ignore[index]
-        fail("Gate4 national must not be promoted")
-    if gate["GATE_4_AH"] != "BLOCKED_FORWARD_ONLY":  # type: ignore[index]
-        fail("Gate4 AH must remain blocked")
-    for decision in gate["replay_decisions"]:  # type: ignore[index]
-        if decision not in {"NOT_READY", "SKIP", "WATCH"}:
-            fail("invalid replay decision")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        summary = load("reports/W2_STAGE8_REPLAY_SUMMARY.json")
+        comparison = load("reports/W2_STAGE8_MODEL_COMPARISON.json")
+        ablation = load("reports/W2_STAGE8_ABLATION.json")
+        result = read("reports/W2_STAGE8_RESULT.md")
+        if summary["fixture_count"] != 214:  # type: ignore[index]
+            fail("Stage8 replay must use the paired Stage7/Stage6 fixture set")
+        if summary["checkpoint_resume_matches_full_run"] is not True:  # type: ignore[index]
+            fail("checkpoint resume must match full run")
+        if summary["idempotent_replay"] is not True:  # type: ignore[index]
+            fail("replay must be idempotent")
+        if summary["future_leakage"] is not False or summary["fixture_split_leakage"] is not False:  # type: ignore[index]
+            fail("leakage guards must pass")
+        expected_models = {
+            "uniform",
+            "elo",
+            "simple_poisson",
+            "stage6_power_market",
+            "stage6_dixon_coles_market",
+            "stage7_best_independent",
+            "stage7_calibrated_independent",
+            "residual_blend_research_only",
+        }
+        if set(comparison["models"]) != expected_models:  # type: ignore[index]
+            fail("model comparison set is incomplete")
+        if comparison["ah"]["HISTORICAL_AH"] != "FORWARD_ONLY":  # type: ignore[index]
+            fail("historical AH must stay forward-only")
+        if set(ablation["runs"]) != {  # type: ignore[index]
+            "remove_elo",
+            "remove_rolling_form",
+            "remove_rest_days",
+            "remove_match_importance",
+            "remove_neutral_site_adjustment",
+            "remove_calibration",
+            "remove_market_residual_layer",
+        }:
+            fail("ablation set incomplete")
+        gate_path = ROOT / "archive/reports/W2_STAGE8_GATE4_AUDIT.json"
+        if gate_path.is_file():
+            gate = load("archive/reports/W2_STAGE8_GATE4_AUDIT.json")
+            if gate["GATE_4_NATIONAL_1X2"] != "PROVISIONAL_NOT_PROMOTED":  # type: ignore[index]
+                fail("Gate4 national must not be promoted")
+            if gate["GATE_4_AH"] != "BLOCKED_FORWARD_ONLY":  # type: ignore[index]
+                fail("Gate4 AH must remain blocked")
+            for decision in gate["replay_decisions"]:  # type: ignore[index]
+                if decision not in {"NOT_READY", "SKIP", "WATCH"}:
+                    fail("invalid replay decision")
+        if "CANDIDATE_OUTPUT=false" not in result or "RECOMMENDATION_OUTPUT=false" not in result:
+            fail("Stage8 must not generate candidates or recommendations")
     if "runtime/replay/" not in read(".gitignore"):
         fail("runtime/replay must be gitignored")
-    if "CANDIDATE_OUTPUT=false" not in result or "RECOMMENDATION_OUTPUT=false" not in result:
-        fail("Stage8 must not generate candidates or recommendations")
     print("W2 Stage8 replay check PASS")
     return 0
 

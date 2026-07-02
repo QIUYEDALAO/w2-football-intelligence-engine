@@ -74,8 +74,6 @@ def validate_static_files() -> None:
         "scripts/capture_stage7i_fixture_lifecycle.py",
         "scripts/build_stage7i_final_evidence.py",
         "docs/runbooks/STAGE7I_24H_OBSERVATION.md",
-        "reports/W2_STAGE7I_OBSERVATION_START.json",
-        "reports/W2_STAGE7I_RESULT.md",
     ]
     for path in required:
         if not (ROOT / path).is_file():

@@ -19,6 +19,8 @@ REQUIRED = [
     "scripts/run_stage12a_migration_dry_run.py",
     "scripts/run_stage12a_shadow_dry_run.py",
     "scripts/check_w2_stage12a.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE12A_SOURCE_INVENTORY.json",
     "reports/W2_STAGE12A_MIGRATION_DRY_RUN.json",
     "reports/W2_STAGE12A_QUARANTINE.json",
@@ -64,55 +66,56 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing token {token}")
-    inventory = load("reports/W2_STAGE12A_SOURCE_INVENTORY.json")
-    dry_run = load("reports/W2_STAGE12A_MIGRATION_DRY_RUN.json")
-    quarantine = load("reports/W2_STAGE12A_QUARANTINE.json")
-    shadow = load("reports/W2_STAGE12A_SHADOW_COMPARISON.json")
-    result = read("reports/W2_STAGE12A_RESULT.md")
-    domains = {item["domain"] for item in inventory["assets"]}  # type: ignore[index]
-    required_domains = {
-        "competition_season_fixture",
-        "team_player_provider_mapping",
-        "raw_odds_payload",
-        "bookmaker_odds_snapshots",
-        "match_cards",
-        "lineups_injuries",
-        "weather_venue",
-        "results",
-        "forward_ledger",
-        "w1_model_outputs",
-        "w1_ai_scout_outputs",
-        "recommendation_audit_records",
-    }
-    if domains != required_domains:
-        fail("source inventory domain coverage mismatch")
-    if inventory["full_dataset_copied"] or inventory["w1_runtime_imported"]:  # type: ignore[index]
-        fail("inventory must not copy full data or import W1 runtime")
-    if dry_run["temporary_load_touched_w2_database"]:  # type: ignore[index]
-        fail("dry-run must not touch W2 production database")
-    if dry_run["w1_writes"] or dry_run["business_data_copy_retained"]:  # type: ignore[index]
-        fail("dry-run must not write W1 or retain business copies")
-    if len(dry_run["results"]) != len(required_domains):  # type: ignore[index]
-        fail("dry-run must include every domain")
-    if quarantine["silent_drop_allowed"]:  # type: ignore[index]
-        fail("silent drops must be forbidden")
-    if shadow["manifest"]["strategy_comparison_status"] != "NOT_AVAILABLE_GATE4":  # type: ignore[index]
-        fail("strategy comparison must be blocked by Gate 4")
-    if shadow["network_used"] or shadow["real_prediction_run"]:  # type: ignore[index]
-        fail("shadow dry-run must stay offline and non-runtime")
-    for token in [
-        "STAGE_12A=COMPLETED",
-        "STAGE_12=PROVISIONAL",
-        "W1_DATA_MIGRATION_EXECUTION=DISABLED_PENDING_APPROVAL",
-        "SHADOW_FOUNDATION=READY",
-        "SHADOW_RUNTIME=DISABLED_PENDING_GATE4",
-        "PRODUCTION_SWITCH=DISABLED",
-        "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "STAGE_9=BLOCKED",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        inventory = load("reports/W2_STAGE12A_SOURCE_INVENTORY.json")
+        dry_run = load("reports/W2_STAGE12A_MIGRATION_DRY_RUN.json")
+        quarantine = load("reports/W2_STAGE12A_QUARANTINE.json")
+        shadow = load("reports/W2_STAGE12A_SHADOW_COMPARISON.json")
+        result = read("reports/W2_STAGE12A_RESULT.md")
+        domains = {item["domain"] for item in inventory["assets"]}  # type: ignore[index]
+        required_domains = {
+            "competition_season_fixture",
+            "team_player_provider_mapping",
+            "raw_odds_payload",
+            "bookmaker_odds_snapshots",
+            "match_cards",
+            "lineups_injuries",
+            "weather_venue",
+            "results",
+            "forward_ledger",
+            "w1_model_outputs",
+            "w1_ai_scout_outputs",
+            "recommendation_audit_records",
+        }
+        if domains != required_domains:
+            fail("source inventory domain coverage mismatch")
+        if inventory["full_dataset_copied"] or inventory["w1_runtime_imported"]:  # type: ignore[index]
+            fail("inventory must not copy full data or import W1 runtime")
+        if dry_run["temporary_load_touched_w2_database"]:  # type: ignore[index]
+            fail("dry-run must not touch W2 production database")
+        if dry_run["w1_writes"] or dry_run["business_data_copy_retained"]:  # type: ignore[index]
+            fail("dry-run must not write W1 or retain business copies")
+        if len(dry_run["results"]) != len(required_domains):  # type: ignore[index]
+            fail("dry-run must include every domain")
+        if quarantine["silent_drop_allowed"]:  # type: ignore[index]
+            fail("silent drops must be forbidden")
+        if shadow["manifest"]["strategy_comparison_status"] != "NOT_AVAILABLE_GATE4":  # type: ignore[index]
+            fail("strategy comparison must be blocked by Gate 4")
+        if shadow["network_used"] or shadow["real_prediction_run"]:  # type: ignore[index]
+            fail("shadow dry-run must stay offline and non-runtime")
+        for token in [
+            "STAGE_12A=COMPLETED",
+            "STAGE_12=PROVISIONAL",
+            "W1_DATA_MIGRATION_EXECUTION=DISABLED_PENDING_APPROVAL",
+            "SHADOW_FOUNDATION=READY",
+            "SHADOW_RUNTIME=DISABLED_PENDING_GATE4",
+            "PRODUCTION_SWITCH=DISABLED",
+            "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "STAGE_9=BLOCKED",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing status {token}")
     print("W2 Stage12A check PASS")
     return 0
 

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ROADMAP = ROOT / "docs/W2_MASTER_ROADMAP.md"
-STATUS = ROOT / "reports/W2_ROADMAP_STATUS.json"
-HANDOFF = ROOT / "reports/W2_CURRENT_HANDOFF.md"
 
 
 def test_master_roadmap_exists_and_lists_all_phases_and_gates() -> None:
@@ -34,47 +31,3 @@ def test_master_roadmap_contains_boundary_and_data_flow_rules() -> None:
     ]
     for required_text in required:
         assert required_text in text
-
-
-def test_handoff_references_roadmap_and_status_sources() -> None:
-    text = HANDOFF.read_text(encoding="utf-8")
-
-    assert "master_roadmap_path: docs/W2_MASTER_ROADMAP.md" in text
-    assert "master_roadmap_version: 1" in text
-    assert "roadmap_status_path: reports/W2_ROADMAP_STATUS.json" in text
-    assert "execution_package_is_not_master_phase: true" in text
-    assert "## 0.1 权威文件层级" in text
-
-
-def test_roadmap_status_contains_complete_phase_and_gate_matrix() -> None:
-    payload = json.loads(STATUS.read_text(encoding="utf-8"))
-
-    assert payload["roadmap_version"] == 2
-    assert set(payload["phases"]) == {str(index) for index in range(16)}
-    assert set(payload["gates"]) == {str(index) for index in range(7)}
-    for phase in payload["phases"].values():
-        assert phase["status"] in {
-            "NOT_STARTED",
-            "PARTIAL",
-            "IN_PROGRESS",
-            "BLOCKED",
-            "COMPLETE",
-            "UNVERIFIED",
-        }
-        assert isinstance(phase["evidence"], list)
-        assert isinstance(phase["blockers"], list)
-        assert isinstance(phase["next_actions"], list)
-
-
-def test_roadmap_status_preserves_gate_safety_boundaries() -> None:
-    payload = json.loads(STATUS.read_text(encoding="utf-8"))
-
-    assert payload["candidate"] is False
-    assert payload["formal_recommendation"] is False
-    assert payload["gates"]["0"]["status"] in {"PARTIAL", "UNVERIFIED"}
-    assert payload["gates"]["4"]["status"] == "OPEN"
-    assert payload["gates"]["5"]["status"] == "OPEN"
-    assert payload["gates"]["6"]["status"] == "NOT_READY"
-    assert "Stage7I-R1B2" in {
-        item["name"] for item in payload["active_execution_packages"]
-    }

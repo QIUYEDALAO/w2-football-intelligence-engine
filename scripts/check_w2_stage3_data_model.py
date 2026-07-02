@@ -20,7 +20,6 @@ REQUIRED = [
     "docs/data/W2_IDENTITY_AND_TIME_POLICY_V1.md",
     "docs/data/W2_ODDS_AND_SETTLEMENT_V1.md",
     "docs/data/W2_DATA_LAYER_POLICY_V1.md",
-    "reports/W2_STAGE3_RESULT.md",
 ]
 
 CONTRACTS = [

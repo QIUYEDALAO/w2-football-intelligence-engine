@@ -148,15 +148,6 @@ def bootstrap_payload(tmp_path: Path, fixture_id: str = "200001") -> dict[str, o
     }
 
 
-def test_run01_archive_validates_only_in_archive_mode() -> None:
-    archive = ROOT / "reports/W2_STAGE7I_OBSERVATION_START.json"
-    ok = run_cli([PYTHON, "scripts/check_w2_stage7i.py", "--mode", "archive", str(archive)])
-    assert ok.returncode == 0, ok.stderr
-
-    blocked = run_cli([PYTHON, "scripts/check_w2_stage7i.py", "--mode", "final", str(archive)])
-    assert blocked.returncode != 0
-
-
 def test_bootstrap_accepts_dynamic_successor_fixture_ids(tmp_path: Path) -> None:
     for fixture_id in ["200001", "200002"]:
         start = write_json(

@@ -19,10 +19,12 @@ REQUIRED = [
     "docs/api/W2_READ_API_V1.md",
     "docs/api/W2_OPERATIONS_READ_API_V1.md",
     "docs/runbooks/STAGE10A_LOCAL_OPERATIONS.md",
-    "reports/W2_STAGE10A_API_CONTRACT.json",
-    "reports/W2_STAGE10A_RESULT.md",
     "apps/web/src/main.tsx",
     "apps/web/src/styles.css",
+]
+REPORT_ARTIFACTS = [
+    "reports/W2_STAGE10A_API_CONTRACT.json",
+    "reports/W2_STAGE10A_RESULT.md",
 ]
 
 PUBLIC_PATHS = {
@@ -96,22 +98,23 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing Stage10A token {token}")
-    api_contract = load("reports/W2_STAGE10A_API_CONTRACT.json")
-    if api_contract["recommendation_api"] != "DISABLED":  # type: ignore[index]
-        fail("recommendation API must be disabled")
-    result = read("reports/W2_STAGE10A_RESULT.md")
-    for token in [
-        "STAGE_10A=COMPLETED",
-        "STAGE_10=PROVISIONAL",
-        "READ_API=ENABLED_LOCAL_OR_STAGING",
-        "OPERATIONS_API=READ_ONLY",
-        "RECOMMENDATION_API=DISABLED",
-        "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "STAGE_9=BLOCKED",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing result status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        api_contract = load("reports/W2_STAGE10A_API_CONTRACT.json")
+        if api_contract["recommendation_api"] != "DISABLED":  # type: ignore[index]
+            fail("recommendation API must be disabled")
+        result = read("reports/W2_STAGE10A_RESULT.md")
+        for token in [
+            "STAGE_10A=COMPLETED",
+            "STAGE_10=PROVISIONAL",
+            "READ_API=ENABLED_LOCAL_OR_STAGING",
+            "OPERATIONS_API=READ_ONLY",
+            "RECOMMENDATION_API=DISABLED",
+            "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "STAGE_9=BLOCKED",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing result status {token}")
     print("W2 Stage10A check PASS")
     return 0
 

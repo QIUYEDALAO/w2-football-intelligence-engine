@@ -29,4 +29,3 @@ def test_offline_replay_script_passes_without_live() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert '"gate2_status": "PROVISIONAL"' in result.stdout
-
