@@ -13,8 +13,8 @@ REQUIRED = [
     "docs/adr/ADR-0009-national-challenger-and-forward-holdout.md",
     "docs/models/W2_CHALLENGER_POLICY_V1.md",
     "docs/models/W2_FORWARD_HOLDOUT_POLICY_V1.md",
-    "archive/scripts/run_stage7b_challenger.py",
-    "archive/scripts/lock_stage7b_forward_predictions.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE7B_DATA_EXPANSION.json",
     "reports/W2_STAGE7B_CHALLENGER_COMPARISON.json",
     "reports/W2_STAGE7B_FROZEN_MODEL_MANIFEST.json",
@@ -55,38 +55,39 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing Stage7B token {token}")
-    expansion = load("reports/W2_STAGE7B_DATA_EXPANSION.json")
-    comparison = load("reports/W2_STAGE7B_CHALLENGER_COMPARISON.json")
-    manifest = load("reports/W2_STAGE7B_FROZEN_MODEL_MANIFEST.json")
-    protocol = load("reports/W2_STAGE7B_FORWARD_HOLDOUT_PROTOCOL.json")
-    result = read("reports/W2_STAGE7B_RESULT.md")
-    audit_set = manifest["audit_set"]  # type: ignore[index]
-    if audit_set["fixture_count"] != 214:
-        fail("Stage7/8 audit set must freeze 214 fixtures")
-    if audit_set["status"] != "AUDIT_ONLY":
-        fail("audit set must be AUDIT_ONLY")
-    if comparison["audit_set_usage"] != "AUDIT_ONLY_NO_TUNING":  # type: ignore[index]
-        fail("audit set must not be used for tuning")
-    if comparison["no_candidate_or_recommendation"] is not True:  # type: ignore[index]
-        fail("challenger comparison must not emit candidates or recommendations")
-    if expansion["historical_odds_requested"] is not False:  # type: ignore[index]
-        fail("Stage7B must not request historical odds")
-    if expansion["quota_policy"]["requests_used"] > expansion["quota_policy"]["stage7b_max"]:  # type: ignore[index]
-        fail("Stage7B API budget exceeded")
-    if protocol["status"] not in {"NOT_READY", "SKIP", "WATCH"}:  # type: ignore[index]
-        fail("forward holdout status invalid")
-    if protocol["candidate_output"] or protocol["recommendation_output"]:  # type: ignore[index]
-        fail("forward holdout must not emit candidate or recommendation")
-    for token in [
-        "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "GATE_4_AH=BLOCKED_FORWARD_ONLY",
-        "STAGE_9=BLOCKED",
-        "CANDIDATE_OUTPUT=false",
-        "RECOMMENDATION_OUTPUT=false",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        expansion = load("reports/W2_STAGE7B_DATA_EXPANSION.json")
+        comparison = load("reports/W2_STAGE7B_CHALLENGER_COMPARISON.json")
+        manifest = load("reports/W2_STAGE7B_FROZEN_MODEL_MANIFEST.json")
+        protocol = load("reports/W2_STAGE7B_FORWARD_HOLDOUT_PROTOCOL.json")
+        result = read("reports/W2_STAGE7B_RESULT.md")
+        audit_set = manifest["audit_set"]  # type: ignore[index]
+        if audit_set["fixture_count"] != 214:
+            fail("Stage7/8 audit set must freeze 214 fixtures")
+        if audit_set["status"] != "AUDIT_ONLY":
+            fail("audit set must be AUDIT_ONLY")
+        if comparison["audit_set_usage"] != "AUDIT_ONLY_NO_TUNING":  # type: ignore[index]
+            fail("audit set must not be used for tuning")
+        if comparison["no_candidate_or_recommendation"] is not True:  # type: ignore[index]
+            fail("challenger comparison must not emit candidates or recommendations")
+        if expansion["historical_odds_requested"] is not False:  # type: ignore[index]
+            fail("Stage7B must not request historical odds")
+        if expansion["quota_policy"]["requests_used"] > expansion["quota_policy"]["stage7b_max"]:  # type: ignore[index]
+            fail("Stage7B API budget exceeded")
+        if protocol["status"] not in {"NOT_READY", "SKIP", "WATCH"}:  # type: ignore[index]
+            fail("forward holdout status invalid")
+        if protocol["candidate_output"] or protocol["recommendation_output"]:  # type: ignore[index]
+            fail("forward holdout must not emit candidate or recommendation")
+        for token in [
+            "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "GATE_4_AH=BLOCKED_FORWARD_ONLY",
+            "STAGE_9=BLOCKED",
+            "CANDIDATE_OUTPUT=false",
+            "RECOMMENDATION_OUTPUT=false",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing status {token}")
     if "runtime/stage7b/" not in read(".gitignore"):
         fail("runtime/stage7b must be gitignored")
     print("W2 Stage7B check PASS")

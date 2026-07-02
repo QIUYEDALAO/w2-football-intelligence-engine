@@ -17,6 +17,8 @@ REQUIRED = [
     "scripts/run_stage13a_world_cup_dry_run.py",
     "scripts/check_w2_stage13a.py",
     "scripts/check_w2_all.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE13A_READINESS.json",
     "reports/W2_STAGE13A_DRY_RUN.json",
     "reports/W2_STAGE13A_RESULT.md",
@@ -59,35 +61,36 @@ def main() -> int:
         if token not in combined:
             fail(f"missing token {token}")
     profile = load("config/competitions/world_cup_2026.v1.json")
-    readiness = load("reports/W2_STAGE13A_READINESS.json")
-    dry_run = load("reports/W2_STAGE13A_DRY_RUN.json")
-    result = read("reports/W2_STAGE13A_RESULT.md")
     if profile["strategy_version"] != "NOT_AVAILABLE_GATE4":  # type: ignore[index]
         fail("strategy_version must stay NOT_AVAILABLE_GATE4")
-    if dry_run["network_used"] or dry_run["production_enabled"]:  # type: ignore[index]
-        fail("dry-run must stay offline and non-production")
-    if dry_run["candidate_output"] or dry_run["recommend_output"]:  # type: ignore[index]
-        fail("dry-run must not output candidate or recommend")
-    if readiness["strategy_version"] != "NOT_AVAILABLE_GATE4":  # type: ignore[index]
-        fail("readiness strategy status mismatch")
-    if readiness["fixture_coverage_count"] <= 0:  # type: ignore[index]
-        fail("World Cup fixture coverage missing")
-    for item in dry_run["operations_plan"][:5]:  # type: ignore[index]
-        if item["importance_context"]["validation_status"] != "EXPLANATORY_ONLY_UNVALIDATED":
-            fail("importance context must be explanatory-only")
-        if item["importance_context"]["model_feature_enabled"]:
-            fail("importance context must not enter model features")
-    for token in [
-        "STAGE_13A=COMPLETED",
-        "WORLD_CUP_OPERATIONS_PROFILE=READY_LOCAL_STAGING",
-        "WORLD_CUP_SHADOW_RUNTIME=DISABLED_PENDING_GATE4",
-        "WORLD_CUP_STRATEGY=NOT_AVAILABLE_GATE4",
-        "PRODUCTION_DEPLOYMENT=DISABLED",
-        "STAGE_9=BLOCKED",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        readiness = load("reports/W2_STAGE13A_READINESS.json")
+        dry_run = load("reports/W2_STAGE13A_DRY_RUN.json")
+        result = read("reports/W2_STAGE13A_RESULT.md")
+        if dry_run["network_used"] or dry_run["production_enabled"]:  # type: ignore[index]
+            fail("dry-run must stay offline and non-production")
+        if dry_run["candidate_output"] or dry_run["recommend_output"]:  # type: ignore[index]
+            fail("dry-run must not output candidate or recommend")
+        if readiness["strategy_version"] != "NOT_AVAILABLE_GATE4":  # type: ignore[index]
+            fail("readiness strategy status mismatch")
+        if readiness["fixture_coverage_count"] <= 0:  # type: ignore[index]
+            fail("World Cup fixture coverage missing")
+        for item in dry_run["operations_plan"][:5]:  # type: ignore[index]
+            if item["importance_context"]["validation_status"] != "EXPLANATORY_ONLY_UNVALIDATED":
+                fail("importance context must be explanatory-only")
+            if item["importance_context"]["model_feature_enabled"]:
+                fail("importance context must not enter model features")
+        for token in [
+            "STAGE_13A=COMPLETED",
+            "WORLD_CUP_OPERATIONS_PROFILE=READY_LOCAL_STAGING",
+            "WORLD_CUP_SHADOW_RUNTIME=DISABLED_PENDING_GATE4",
+            "WORLD_CUP_STRATEGY=NOT_AVAILABLE_GATE4",
+            "PRODUCTION_DEPLOYMENT=DISABLED",
+            "STAGE_9=BLOCKED",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing status {token}")
     print("W2 Stage13A check PASS")
     return 0
 

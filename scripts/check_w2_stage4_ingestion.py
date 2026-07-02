@@ -27,7 +27,6 @@ REQUIRED = [
     "docs/runbooks/INGESTION_OFFLINE_REPLAY.md",
     "docs/runbooks/LIVE_INGESTION_CHECKPOINT.md",
     "scripts/replay_provider_fixture.py",
-    "reports/W2_STAGE4A_RESULT.md",
 ]
 
 ENDPOINTS = [

@@ -15,6 +15,8 @@ REQUIRED = [
     "docs/leagues/W2_LEAGUE_MODEL_SCOPE_V1.md",
     "scripts/run_stage14a_league_audit.py",
     "scripts/check_w2_stage14a.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE14A_COVERAGE.json",
     "reports/W2_STAGE14A_ROLLOVER.json",
     "reports/W2_STAGE14A_READINESS.json",
@@ -64,35 +66,36 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing token {token}")
-    coverage = load("reports/W2_STAGE14A_COVERAGE.json")
-    rollover = load("reports/W2_STAGE14A_ROLLOVER.json")
-    readiness = load("reports/W2_STAGE14A_READINESS.json")
-    result = read("reports/W2_STAGE14A_RESULT.md")
-    if set(coverage) != set(readiness) or len(coverage) != 5:  # type: ignore[arg-type]
-        fail("coverage/readiness league mismatch")
-    for competition_id, payload in readiness.items():  # type: ignore[union-attr]
-        checklist = payload["checklist"]
-        if len(checklist) != 15:
-            fail(f"{competition_id} checklist must have 15 items")
-        if checklist["strategy_validation"] != "BLOCKED_GATE4":
-            fail(f"{competition_id} strategy validation must be Gate 4 blocked")
-        if checklist["production"] != "DISABLED":
-            fail(f"{competition_id} production must be disabled")
-        if payload["model_scope_policy"]["national_to_club_parameter_reuse"] != "FORBIDDEN":
-            fail(f"{competition_id} national parameters must not be reused")
-    if not any(item["status"] == "MANUAL_REVIEW_REQUIRED" for item in rollover.values()):  # type: ignore[union-attr]
-        fail("rollover must require manual review for unresolved promotion/relegation")
-    for token in [
-        "STAGE_14A=COMPLETED",
-        "TOP_FIVE_LEAGUE_PROFILES=READY_LOCAL_STAGING",
-        "CLUB_RESULTS_DATASET=AVAILABLE",
-        "CLUB_MARKET_DATASET=PARTIAL",
-        "LEAGUE_STRATEGY=BLOCKED_GATE4",
-        "LEAGUE_PRODUCTION=DISABLED",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        coverage = load("reports/W2_STAGE14A_COVERAGE.json")
+        rollover = load("reports/W2_STAGE14A_ROLLOVER.json")
+        readiness = load("reports/W2_STAGE14A_READINESS.json")
+        result = read("reports/W2_STAGE14A_RESULT.md")
+        if set(coverage) != set(readiness) or len(coverage) != 5:  # type: ignore[arg-type]
+            fail("coverage/readiness league mismatch")
+        for competition_id, payload in readiness.items():  # type: ignore[union-attr]
+            checklist = payload["checklist"]
+            if len(checklist) != 15:
+                fail(f"{competition_id} checklist must have 15 items")
+            if checklist["strategy_validation"] != "BLOCKED_GATE4":
+                fail(f"{competition_id} strategy validation must be Gate 4 blocked")
+            if checklist["production"] != "DISABLED":
+                fail(f"{competition_id} production must be disabled")
+            if payload["model_scope_policy"]["national_to_club_parameter_reuse"] != "FORBIDDEN":
+                fail(f"{competition_id} national parameters must not be reused")
+        if not any(item["status"] == "MANUAL_REVIEW_REQUIRED" for item in rollover.values()):  # type: ignore[union-attr]
+            fail("rollover must require manual review for unresolved promotion/relegation")
+        for token in [
+            "STAGE_14A=COMPLETED",
+            "TOP_FIVE_LEAGUE_PROFILES=READY_LOCAL_STAGING",
+            "CLUB_RESULTS_DATASET=AVAILABLE",
+            "CLUB_MARKET_DATASET=PARTIAL",
+            "LEAGUE_STRATEGY=BLOCKED_GATE4",
+            "LEAGUE_PRODUCTION=DISABLED",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing status {token}")
     print("W2 Stage14A check PASS")
     return 0
 

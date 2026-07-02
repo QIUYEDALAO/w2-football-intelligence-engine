@@ -44,6 +44,10 @@ jobs:
         run: uv sync --python 3.12 --all-groups --frozen
       - name: Stage 1 contract checker
         run: uv run --python 3.12 python scripts/check_w2_stage1_contracts.py
+      - name: Tracked output guard
+        run: uv run --python 3.12 python scripts/check_tracked_outputs.py
+      - name: All-stage checker
+        run: uv run --python 3.12 python scripts/check_w2_all.py
       - name: Ruff
         run: uv run --python 3.12 ruff check .
       - name: Mypy

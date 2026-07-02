@@ -1,9 +1,0 @@
-{
-  "append_only": true,
-  "calibration_updated": false,
-  "idempotent_replay": true,
-  "model_feature_calibration_feedback": false,
-  "result_events": [],
-  "settled_event_count": 0,
-  "training_performed": false
-}

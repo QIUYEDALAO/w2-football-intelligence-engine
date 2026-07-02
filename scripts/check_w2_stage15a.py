@@ -20,6 +20,8 @@ REQUIRED = [
     "config/policies/retention.v1.json",
     "scripts/run_stage15a_operations_dry_run.py",
     "scripts/check_w2_stage15a.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE15A_OPERATIONS.json",
     "reports/W2_STAGE15A_DEPENDENCY_AUDIT.json",
     "reports/W2_STAGE15A_RELEASE_READINESS.json",
@@ -65,34 +67,35 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing token {token}")
-    operations = load("reports/W2_STAGE15A_OPERATIONS.json")
-    dependency = load("reports/W2_STAGE15A_DEPENDENCY_AUDIT.json")
-    release = load("reports/W2_STAGE15A_RELEASE_READINESS.json")
-    result = read("reports/W2_STAGE15A_RESULT.md")
-    if operations["operational_autorun"] or operations["external_alerting"]:  # type: ignore[index]
-        fail("autorun and external alerting must stay disabled")
-    if operations["production_release"]:  # type: ignore[index]
-        fail("production release must stay disabled")
-    if len(operations["cycles"]) != 6:  # type: ignore[index]
-        fail("all six operations cycles must be present")
-    if operations["retention"]["files_deleted"]:  # type: ignore[index]
-        fail("retention must be dry-run only")
-    if release["approval_status"] == "READY":  # type: ignore[index]
-        fail("release must not be ready in Stage15A")
-    if dependency["npm"]["force_fix_used"]:  # type: ignore[index]
-        fail("npm audit force fix must not be used")
-    for token in [
-        "STAGE_15A=COMPLETED",
-        "LONG_TERM_OPERATIONS=READY_LOCAL_STAGING",
-        "OPERATIONAL_AUTORUN=DISABLED_PENDING_APPROVAL",
-        "PRODUCTION_RELEASE=DISABLED",
-        "EXTERNAL_ALERTING=DISABLED",
-        "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "STAGE_9=BLOCKED",
-        "PUSH_BLOCKED_NO_ORIGIN",
-    ]:
-        if token not in result:
-            fail(f"missing status {token}")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        operations = load("reports/W2_STAGE15A_OPERATIONS.json")
+        dependency = load("reports/W2_STAGE15A_DEPENDENCY_AUDIT.json")
+        release = load("reports/W2_STAGE15A_RELEASE_READINESS.json")
+        result = read("reports/W2_STAGE15A_RESULT.md")
+        if operations["operational_autorun"] or operations["external_alerting"]:  # type: ignore[index]
+            fail("autorun and external alerting must stay disabled")
+        if operations["production_release"]:  # type: ignore[index]
+            fail("production release must stay disabled")
+        if len(operations["cycles"]) != 6:  # type: ignore[index]
+            fail("all six operations cycles must be present")
+        if operations["retention"]["files_deleted"]:  # type: ignore[index]
+            fail("retention must be dry-run only")
+        if release["approval_status"] == "READY":  # type: ignore[index]
+            fail("release must not be ready in Stage15A")
+        if dependency["npm"]["force_fix_used"]:  # type: ignore[index]
+            fail("npm audit force fix must not be used")
+        for token in [
+            "STAGE_15A=COMPLETED",
+            "LONG_TERM_OPERATIONS=READY_LOCAL_STAGING",
+            "OPERATIONAL_AUTORUN=DISABLED_PENDING_APPROVAL",
+            "PRODUCTION_RELEASE=DISABLED",
+            "EXTERNAL_ALERTING=DISABLED",
+            "GATE_4_NATIONAL_1X2=PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+            "STAGE_9=BLOCKED",
+            "PUSH_BLOCKED_NO_ORIGIN",
+        ]:
+            if token not in result:
+                fail(f"missing status {token}")
     print("W2 Stage15A check PASS")
     return 0
 

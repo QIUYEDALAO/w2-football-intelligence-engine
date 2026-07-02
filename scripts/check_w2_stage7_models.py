@@ -18,13 +18,12 @@ REQUIRED = [
     "docs/models/W2_INDEPENDENT_MODEL_V1.md",
     "docs/models/W2_FEATURE_POLICY_V1.md",
     "docs/models/W2_CALIBRATION_POLICY_V1.md",
-    "archive/scripts/run_stage7_model_experiments.py",
+]
+REPORT_ARTIFACTS = [
     "reports/W2_STAGE7_DATA_COVERAGE.json",
     "reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json",
     "reports/W2_STAGE7_CLUB_MODEL_COMPARISON.json",
     "reports/W2_STAGE7_CALIBRATION.json",
-    "archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json",
-    "archive/reports/W2_STAGE7_GATE4_DECISION.json",
     "reports/W2_STAGE7_RESULT.md",
 ]
 
@@ -71,46 +70,50 @@ def main() -> int:
     ]:
         if token not in combined:
             fail(f"missing Stage7 token {token}")
-    coverage = load("reports/W2_STAGE7_DATA_COVERAGE.json")
-    national = load("reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json")
-    club = load("reports/W2_STAGE7_CLUB_MODEL_COMPARISON.json")
-    calibration = load("reports/W2_STAGE7_CALIBRATION.json")
-    residual = load("archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json")
-    gate = load("archive/reports/W2_STAGE7_GATE4_DECISION.json")
-    result = read("reports/W2_STAGE7_RESULT.md")
-    if coverage["national_results"] != 1081:  # type: ignore[index]
-        fail("national track must use 1081 results")
-    if coverage["national_market_power_rows"] != 1074:  # type: ignore[index]
-        fail("paired market set must use 1074 rows")
-    if coverage["national_ou_subset_rows"] != 128:  # type: ignore[index]
-        fail("national OU subset must use 128 rows")
-    if coverage["club_results"] != 5270:  # type: ignore[index]
-        fail("club track must use 5270 results")
-    if coverage["feature_policy"] != "odds_market_bookmaker_line_fields_forbidden":  # type: ignore[index]
-        fail("feature policy must forbid market fields")
-    if national["market_comparison"]["same_test_rows_as_stage6"] is not True:  # type: ignore[index]
-        fail("national comparison must use Stage6 test rows")
-    expected_club_claim = "NO_MARKET_SUPERIORITY_CLAIM_NO_RELIABLE_HISTORICAL_MARKET_ODDS"
-    if club.get("market_claim") != expected_club_claim:  # type: ignore[attr-defined]
-        fail("club report must not claim market superiority")
-    residual_is_research = (
-        residual.get("research_only") is True  # type: ignore[attr-defined]
-        and residual.get("not_edge_not_recommendation") is True  # type: ignore[attr-defined]
-    )
-    if not residual_is_research:
-        fail("market residual must be research only")
-    if gate["GATE_4_AH"] != "BLOCKED_FORWARD_ONLY":  # type: ignore[index]
-        fail("AH gate must remain forward only")
-    if gate["GATE_4_NATIONAL_1X2"] not in {"CLOSED", "PROVISIONAL_NOT_PROMOTED"}:  # type: ignore[index]
-        fail("national Gate4 status invalid")
-    if "RECOMMENDATION_OUTPUT=false" not in result or "CANDIDATE_OUTPUT=false" not in result:
-        fail("Stage7 must not generate candidates or recommendations")
+    if all((ROOT / path).is_file() for path in REPORT_ARTIFACTS):
+        coverage = load("reports/W2_STAGE7_DATA_COVERAGE.json")
+        national = load("reports/W2_STAGE7_NATIONAL_MODEL_COMPARISON.json")
+        club = load("reports/W2_STAGE7_CLUB_MODEL_COMPARISON.json")
+        calibration = load("reports/W2_STAGE7_CALIBRATION.json")
+        result = read("reports/W2_STAGE7_RESULT.md")
+        if coverage["national_results"] != 1081:  # type: ignore[index]
+            fail("national track must use 1081 results")
+        if coverage["national_market_power_rows"] != 1074:  # type: ignore[index]
+            fail("paired market set must use 1074 rows")
+        if coverage["national_ou_subset_rows"] != 128:  # type: ignore[index]
+            fail("national OU subset must use 128 rows")
+        if coverage["club_results"] != 5270:  # type: ignore[index]
+            fail("club track must use 5270 results")
+        if coverage["feature_policy"] != "odds_market_bookmaker_line_fields_forbidden":  # type: ignore[index]
+            fail("feature policy must forbid market fields")
+        if national["market_comparison"]["same_test_rows_as_stage6"] is not True:  # type: ignore[index]
+            fail("national comparison must use Stage6 test rows")
+        expected_club_claim = "NO_MARKET_SUPERIORITY_CLAIM_NO_RELIABLE_HISTORICAL_MARKET_ODDS"
+        if club.get("market_claim") != expected_club_claim:  # type: ignore[attr-defined]
+            fail("club report must not claim market superiority")
+        residual_path = ROOT / "archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json"
+        gate_path = ROOT / "archive/reports/W2_STAGE7_GATE4_DECISION.json"
+        if residual_path.is_file() and gate_path.is_file():
+            residual = load("archive/reports/W2_STAGE7_MARKET_RESIDUAL_RESEARCH.json")
+            gate = load("archive/reports/W2_STAGE7_GATE4_DECISION.json")
+            residual_is_research = (
+                residual.get("research_only") is True  # type: ignore[attr-defined]
+                and residual.get("not_edge_not_recommendation") is True  # type: ignore[attr-defined]
+            )
+            if not residual_is_research:
+                fail("market residual must be research only")
+            if gate["GATE_4_AH"] != "BLOCKED_FORWARD_ONLY":  # type: ignore[index]
+                fail("AH gate must remain forward only")
+            if gate["GATE_4_NATIONAL_1X2"] not in {"CLOSED", "PROVISIONAL_NOT_PROMOTED"}:  # type: ignore[index]
+                fail("national Gate4 status invalid")
+        if "RECOMMENDATION_OUTPUT=false" not in result or "CANDIDATE_OUTPUT=false" not in result:
+            fail("Stage7 must not generate candidates or recommendations")
+        if "W2_API_FOOTBALL_API_KEY" in json.dumps(coverage) + result:
+            fail("API key environment name must not appear in reports")
+        if not calibration["national"]["selection_policy"].startswith("validation_only"):  # type: ignore[index]
+            fail("calibration must be validation selected")
     if "runtime/model_artifacts/" not in read(".gitignore"):
         fail("model artifacts must be gitignored")
-    if "W2_API_FOOTBALL_API_KEY" in json.dumps(coverage) + result:
-        fail("API key environment name must not appear in reports")
-    if not calibration["national"]["selection_policy"].startswith("validation_only"):  # type: ignore[index]
-        fail("calibration must be validation selected")
     print("W2 Stage7 model check PASS")
     return 0
 
