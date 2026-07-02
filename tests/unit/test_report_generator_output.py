@@ -26,6 +26,7 @@ def _formal_match() -> dict[str, object]:
             "selection": "HOME_AH",
             "line": -1.25,
             "odds": 1.93,
+            "expected_value": 0.041,
         },
         "formal_recommendation": True,
         "current_odds": {
@@ -180,6 +181,19 @@ def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -
     assert "推荐比分" not in report
     assert "方向未识别" not in report
     assert "全场让球，看 方向未识别" not in report
+
+
+def test_render_report_does_not_emit_formal_lines_for_missing_formal_ev() -> None:
+    match = _formal_match()
+    recommendation = dict(match["recommendation"])  # type: ignore[arg-type]
+    recommendation.pop("expected_value")
+    match["recommendation"] = recommendation
+
+    report = render_report(_payload(match), output_format="text")
+
+    assert "状态：观察（正式推荐EV字段不完整）" in report
+    assert "推荐：" not in report
+    assert "推荐比分" not in report
 
 
 def test_render_report_hides_scoreline_line_when_formal_direction_top3_missing() -> None:
