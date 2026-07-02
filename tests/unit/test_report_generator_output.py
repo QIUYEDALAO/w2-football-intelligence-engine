@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import w2.reporting.report_generator as report_generator
 from w2.reporting import render_report
+from w2.reporting.match_decision import MatchDecision
 
 
 def _payload(*matches: dict[str, object]) -> dict[str, object]:
@@ -175,8 +177,8 @@ def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -
 
     report = render_report(_payload(match), output_format="text")
 
-    assert "状态：观察（正式推荐字段不完整）" in report
-    assert "说明：正式推荐字段不完整，当前不输出方向。" in report
+    assert "状态：观察（正式推荐信息缺失）" in report
+    assert "说明：正式推荐信息缺失，当前不输出方向。" in report
     assert "推荐：" not in report
     assert "推荐比分" not in report
     assert "方向未识别" not in report
@@ -278,6 +280,71 @@ def test_render_report_rejects_forbidden_terms() -> None:
         assert "forbidden term" in str(exc)
     else:
         raise AssertionError("expected forbidden term guard")
+
+
+def test_render_html_empty_day_has_header_and_no_forbidden_terms() -> None:
+    report = render_report(_payload(), output_format="html")
+
+    assert "<!doctype html>" in report
+    assert "W2 足球日报告 · 2026-06-30 · 临场最终" in report
+    assert "场次 0 · 正式推荐 0" in report
+    assert "场次 0 · 正式 0 · 观察 0 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
+    assert "推荐：" not in report
+    assert "命中率" not in report
+    assert "方向未识别" not in report
+
+
+def test_render_html_orders_formal_cards_first_without_redecision() -> None:
+    matches = []
+    for index in range(50):
+        match = _formal_match() if index in {7, 31} else _non_formal_match()
+        match = dict(match)
+        match["fixture_id"] = f"f-{index}"
+        match["home_team_name"] = f"Home {index}"
+        match["away_team_name"] = f"Away {index}"
+        matches.append(match)
+
+    report = render_report(_payload(*matches), output_format="html")
+
+    first_formal = report.index('class="match-card formal"')
+    first_watch = report.index('class="match-card watch"')
+    assert first_formal < first_watch
+    assert report.count('class="match-card') == 50
+    assert "推荐：全场让球，看 Home 7" in report
+    assert "场次 50 · 正式 2 · 观察 48 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
+    assert "方向未识别" not in report
+    assert "命中率" not in report
+
+
+def test_render_html_uses_one_decision_per_match_for_scorelines(monkeypatch) -> None:
+    calls = 0
+    original_decide = report_generator.decide_match
+
+    def counting_decide(match: dict[str, object]) -> MatchDecision:
+        nonlocal calls
+        calls += 1
+        return original_decide(match)
+
+    monkeypatch.setattr(report_generator, "decide_match", counting_decide)
+
+    report = report_generator.render_report(_payload(_formal_match()), output_format="html")
+
+    assert "推荐比分" in report
+    assert calls == 1
+
+
+def test_render_html_no_formal_day_does_not_fake_recommendations_or_scorelines() -> None:
+    report = render_report(
+        _payload(_non_formal_match(), _non_formal_match()),
+        output_format="html",
+    )
+
+    assert "状态：观察" in report
+    assert "场次 2 · 正式 0 · 观察 2 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
+    assert "推荐：" not in report
+    assert "推荐比分" not in report
+    assert "1-1 14%" not in report
+    assert "方向未识别" not in report
 
 
 def test_render_report_rejects_added_forbidden_terms() -> None:

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from html import escape
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from w2.reporting.match_decision import MatchDecision, MatchDecisionState, decide_match
 
-ReportFormat = Literal["markdown", "text"]
+ReportFormat = Literal["markdown", "text", "html"]
 ReportType = Literal["morning", "final"]
 
 _BEIJING = ZoneInfo("Asia/Shanghai")
@@ -16,8 +17,12 @@ _FORBIDDEN_TERMS = (
     "胜率",
     "ROI",
     "必中",
+    "必胜",
+    "稳赢",
+    "稳赚",
     "可买",
     "方向未识别",
+    "正式推荐字段不完整",
     "庄家开错",
     "照这个买",
     "跟庄",
@@ -40,7 +45,18 @@ def render_report(
     matches = [item for item in _list(payload.get("all")) if isinstance(item, dict)]
     decisions = [decide_match(match) for match in matches]
     formal_count = sum(1 for decision in decisions if decision.state == MatchDecisionState.FORMAL)
+    state_counts = _state_counts(decisions)
     payload_as_of = _payload_as_of(payload)
+    if output_format == "html":
+        return _render_html_report(
+            payload,
+            matches=matches,
+            decisions=decisions,
+            formal_count=formal_count,
+            state_counts=state_counts,
+            options=options,
+            payload_as_of=payload_as_of,
+        )
     lines = [
         _report_title(payload, options),
         _report_subtitle(
@@ -64,6 +80,121 @@ def render_report(
     text = "\n".join(lines).rstrip() + "\n"
     _assert_safe_report_text(text)
     return text
+
+
+def _render_html_report(
+    payload: dict[str, Any],
+    *,
+    matches: list[dict[str, Any]],
+    decisions: list[MatchDecision],
+    formal_count: int,
+    state_counts: dict[MatchDecisionState, int],
+    options: ReportOptions,
+    payload_as_of: str,
+) -> str:
+    ordered = sorted(
+        enumerate(zip(matches, decisions, strict=True)),
+        key=lambda item: (
+            0 if item[1][1].state == MatchDecisionState.FORMAL else 1,
+            item[0],
+        ),
+    )
+    cards = []
+    text_options = ReportOptions(report_type=options.report_type, output_format="text")
+    for _, (match, decision) in ordered:
+        lines = _render_match(
+            match,
+            decision,
+            options=text_options,
+            payload_as_of=payload_as_of,
+        )
+        state_class = decision.state.value.lower()
+        title = escape(lines[0])
+        body = "\n".join(f"<p>{escape(line)}</p>" for line in lines[1:])
+        cards.append(
+            f'<article class="match-card {state_class}" '
+            f'data-state="{escape(decision.state.value)}">'
+            f"<h2>{title}</h2>{body}</article>"
+        )
+    title = _report_title(payload, ReportOptions(options.report_type, "text"))
+    subtitle = _report_subtitle(
+        matches=matches,
+        formal_count=formal_count,
+        options=options,
+        payload_as_of=payload_as_of,
+    )
+    state_summary = _html_state_summary(state_counts)
+    generated = _time_label(payload_as_of)
+    html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(title)}</title>
+  <style>
+    :root {{
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }}
+    body {{ margin: 0; background: #f6f7f9; color: #17202a; }}
+    main {{ max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }}
+    header {{ margin-bottom: 24px; }}
+    h1 {{ margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }}
+    .subtitle, .state-summary {{ margin: 0; color: #52606d; }}
+    .state-summary {{ margin-top: 8px; font-weight: 600; }}
+    .grid {{ display: grid; gap: 14px; }}
+    .match-card {{
+      border: 1px solid #d6dbe1;
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }}
+    .match-card.formal {{ border-color: #0f766e; box-shadow: inset 4px 0 0 #0f766e; }}
+    .match-card h2 {{ margin: 0 0 12px; font-size: 18px; letter-spacing: 0; }}
+    .match-card p {{ margin: 7px 0; line-height: 1.55; }}
+    footer {{ margin-top: 18px; color: #697586; font-size: 13px; }}
+    @media (prefers-color-scheme: dark) {{
+      body {{ background: #111827; color: #e5e7eb; }}
+      .subtitle, .state-summary, footer {{ color: #aeb7c2; }}
+      .match-card {{ background: #1f2937; border-color: #374151; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>{escape(title)}</h1>
+      <p class="subtitle">{escape(subtitle)}</p>
+      <p class="state-summary">{escape(state_summary)}</p>
+    </header>
+    <section class="grid">
+      {''.join(cards)}
+    </section>
+    <footer>生成时间：{escape(generated)} · 只读报告 · 数据来自 dashboard payload</footer>
+  </main>
+</body>
+</html>
+"""
+    _assert_safe_report_text(html)
+    return html
+
+
+def _state_counts(decisions: list[MatchDecision]) -> dict[MatchDecisionState, int]:
+    return {
+        state: sum(1 for decision in decisions if decision.state == state)
+        for state in MatchDecisionState
+    }
+
+
+def _html_state_summary(state_counts: dict[MatchDecisionState, int]) -> str:
+    return (
+        f"场次 {sum(state_counts.values())} · "
+        f"正式 {state_counts[MatchDecisionState.FORMAL]} · "
+        f"观察 {state_counts[MatchDecisionState.WATCH]} · "
+        f"数据不足 {state_counts[MatchDecisionState.DATA_INSUFFICIENT]} · "
+        f"盘口未就绪 {state_counts[MatchDecisionState.MARKET_NOT_READY]} · "
+        f"已锁定 {state_counts[MatchDecisionState.LOCKED]}"
+    )
 
 
 def _report_title(payload: dict[str, Any], options: ReportOptions) -> str:
@@ -104,7 +235,7 @@ def _render_match(
     ]
     if decision.state == MatchDecisionState.FORMAL:
         lines.extend(_formal_lines(match))
-        score_line = _score_line(match)
+        score_line = _score_line(match, decision)
         if score_line is not None:
             lines.append(score_line)
     elif decision.state == MatchDecisionState.LOCKED:
@@ -142,7 +273,7 @@ def _non_formal_line(match: dict[str, Any], decision: MatchDecision) -> str:
     if decision.state == MatchDecisionState.MARKET_NOT_READY:
         return f"说明：盘口未就绪，{_reason_cn(decision.reason)}，当前不输出方向。"
     if decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD":
-        return "说明：正式推荐字段不完整，当前不输出方向。"
+        return "说明：正式推荐信息缺失，当前不输出方向。"
     if decision.reason == "INVALID_FORMAL_EV_PAYLOAD":
         return "说明：正式推荐EV字段不完整，当前不输出方向。"
     if decision.reason == "NO_FORMAL_RECOMMENDATION_PAYLOAD":
@@ -150,8 +281,8 @@ def _non_formal_line(match: dict[str, Any], decision: MatchDecision) -> str:
     return "说明：盘口差距未达正式推荐阈值，当前只观察。"
 
 
-def _score_line(match: dict[str, Any]) -> str | None:
-    if decide_match(match).state != MatchDecisionState.FORMAL:
+def _score_line(match: dict[str, Any], decision: MatchDecision) -> str | None:
+    if decision.state != MatchDecisionState.FORMAL:
         return None
     reference = _dict(match.get("scoreline_reference"))
     rows = [item for item in _list(reference.get("direction_top3")) if isinstance(item, dict)]
@@ -356,7 +487,7 @@ def _reason_cn(reason: str) -> str:
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
         "MISSING_FAIR_AH": "缺少模拟公平让球盘",
         "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",
-        "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐字段不完整",
+        "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐信息缺失",
         "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整",
         "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐",
         "FORMAL_REPORTABLE": "达到报告正式推荐条件",

@@ -16,7 +16,7 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://43.155.208.138")
     parser.add_argument("--window", default="today")
     parser.add_argument("--report-type", choices=["morning", "final"], default="final")
-    parser.add_argument("--format", choices=["markdown", "text"], default="markdown")
+    parser.add_argument("--format", choices=["markdown", "text", "html"], default="markdown")
     sink = parser.add_mutually_exclusive_group()
     sink.add_argument("--dry-run", action="store_true", help="Print the report to stdout.")
     sink.add_argument(

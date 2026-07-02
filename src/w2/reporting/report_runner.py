@@ -58,10 +58,7 @@ def run_report_job(
         include_debug=include_debug,
         timeout_seconds=timeout_seconds,
     )
-    dashboard = _fetch_json(
-        _dashboard_url(normalized_base, window=window, include_debug=include_debug),
-        timeout_seconds=timeout_seconds,
-    )
+    dashboard = _dict(health.pop("_dashboard_payload"))
     report = render_report(dashboard, report_type=report_type, output_format=output_format)
     output_path = None
     if sink == "file":
@@ -110,6 +107,7 @@ def _health_precheck(
         "version_sha": checks["version"].get("api_git_sha"),
         "dashboard_rows": len(_list(checks["dashboard"].get("all"))),
         "version": checks["version"],
+        "_dashboard_payload": checks["dashboard"],
     }
     _raise_for_unhealthy(health)
     return health
@@ -199,10 +197,16 @@ def _write_report_file(
         .replace("+", "")
         .replace("Z", "Z")
     )
-    extension = "md" if output_format == "markdown" else "txt"
+    extension = {"markdown": "md", "text": "txt", "html": "html"}[output_format]
     reports_dir = runtime_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-    output_path = reports_dir / f"w2_{report_type}_{window}_{safe_generated_at}.{extension}"
+    if output_format == "html":
+        football_day = str(
+            payload.get("selected_football_day") or payload.get("selected_date") or "unknown"
+        )
+        output_path = reports_dir / f"w2_day_{football_day}.{extension}"
+    else:
+        output_path = reports_dir / f"w2_{report_type}_{window}_{safe_generated_at}.{extension}"
     output_path.write_text(report, encoding="utf-8")
     return output_path
 

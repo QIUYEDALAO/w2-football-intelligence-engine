@@ -113,3 +113,31 @@ def test_generate_w2_report_cli_reads_url(tmp_path: Path) -> None:
     assert "W2 足球日报告 · 2026-06-30 · 早间预览" in output_path.read_text(
         encoding="utf-8"
     )
+
+
+def test_generate_w2_report_cli_writes_html_output(tmp_path: Path) -> None:
+    payload_path = tmp_path / "dashboard.json"
+    output_path = tmp_path / "report.html"
+    payload_path.write_text(json.dumps(_payload()), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/generate_w2_report.py",
+            "--input",
+            str(payload_path),
+            "--format",
+            "html",
+            "--output",
+            str(output_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout == ""
+    html = output_path.read_text(encoding="utf-8")
+    assert "<!doctype html>" in html
+    assert "W2 足球日报告 · 2026-06-30" in html
+    assert "方向未识别" not in html
