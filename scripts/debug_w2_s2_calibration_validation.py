@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -49,7 +49,7 @@ def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
         parsed = urlparse(str(args.url))
         if parsed.scheme not in {"http", "https"}:
             raise ValueError("url must use http or https")
-        with urllib.request.urlopen(  # noqa: S310 - URL scheme is restricted above.
+        with urlopen(  # noqa: S310 - URL scheme is restricted above.
             str(args.url),
             timeout=float(args.timeout),
         ) as response:
