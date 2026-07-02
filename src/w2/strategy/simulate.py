@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import random
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
@@ -11,9 +10,10 @@ from typing import Any
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap
 from w2.markets.poisson import round_to_quarter
+from w2.models.dixon_coles import tau_correction
 from w2.strategy.calibration import calibrate_lambdas
 
-SIMULATION_MODEL_VERSION = "w2.formal.mc_poisson.v1"
+SIMULATION_MODEL_VERSION = "w2.formal.exact_dc_poisson.v1"
 READY = "READY"
 INSUFFICIENT_INPUTS = "INSUFFICIENT_INPUTS"
 
@@ -36,6 +36,8 @@ class SimulationInputs:
     home_squad_value_eur: float | None = None
     away_squad_value_eur: float | None = None
     lineup_strength_adjustment: float = 0.0
+    lambda_sigma_home: float = 0.0
+    lambda_sigma_away: float = 0.0
     neutral_site: bool = False
     input_readiness: dict[str, bool | str | int | float | None] = field(default_factory=dict)
 
@@ -47,6 +49,8 @@ class SimulationOutput:
     calibration_status: str | None
     lambda_home: float | None
     lambda_away: float | None
+    lambda_sigma_home: float | None
+    lambda_sigma_away: float | None
     fair_ah: float | None
     fair_ou: float | None
     scoreline_picks: list[dict[str, Any]]
@@ -67,7 +71,7 @@ def run_simulation(
     inputs: SimulationInputs,
     *,
     simulations: int = 10_000,
-    max_goals: int = 10,
+    max_goals: int = 12,
 ) -> SimulationOutput:
     seed = _seed(inputs.fixture_id, SIMULATION_MODEL_VERSION)
     readiness = _input_readiness(inputs)
@@ -78,6 +82,8 @@ def run_simulation(
             calibration_status=None,
             lambda_home=None,
             lambda_away=None,
+            lambda_sigma_home=None,
+            lambda_sigma_away=None,
             fair_ah=None,
             fair_ou=None,
             scoreline_picks=[],
@@ -116,37 +122,52 @@ def run_simulation(
         lineup_strength_adjustment=inputs.lineup_strength_adjustment,
         apply_home_advantage=not inputs.neutral_site,
     )
-    rng = random.Random(seed)  # noqa: S311 - deterministic simulation seed, not security.
-    score_counts: Counter[tuple[int, int]] = Counter()
-    total_counts: Counter[int] = Counter()
-    diff_counts: Counter[int] = Counter()
-    for _ in range(simulations):
-        home_goals = _sample_poisson(rng, calibration.lambda_home, max_goals=max_goals)
-        away_goals = _sample_poisson(rng, calibration.lambda_away, max_goals=max_goals)
-        score_counts[(home_goals, away_goals)] += 1
-        total_counts[home_goals + away_goals] += 1
-        diff_counts[home_goals - away_goals] += 1
-    fair_ah, ah_probabilities = _fair_ah(score_counts, simulations)
-    fair_ou, ou_probabilities = _fair_ou(total_counts, simulations)
+    sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
+    sigma_away = max(float(inputs.lambda_sigma_away), 0.0)
+    score_counts = _exact_score_matrix_with_uncertainty(
+        calibration.lambda_home,
+        calibration.lambda_away,
+        sigma_home=sigma_home,
+        sigma_away=sigma_away,
+        rho=float(calibration.params.get("dixon_coles_rho") or 0.0),
+        max_goals=max_goals,
+    )
+    total_counts: dict[int, float] = {}
+    diff_counts: dict[int, float] = {}
+    for (home_goals, away_goals), probability in score_counts.items():
+        total_counts[home_goals + away_goals] = (
+            total_counts.get(home_goals + away_goals, 0.0) + probability
+        )
+        diff_counts[home_goals - away_goals] = (
+            diff_counts.get(home_goals - away_goals, 0.0) + probability
+        )
+    fair_ah, ah_probabilities = _fair_ah(score_counts, 1)
+    fair_ou, ou_probabilities = _fair_ou(total_counts, 1)
     top_scorelines = [
         {
             "scoreline": f"{home}-{away}",
             "home_goals": home,
             "away_goals": away,
-            "probability": round(count / simulations, 6),
-            "probability_label": f"{round(count / simulations * 100)}%",
+            "probability": round(probability, 6),
+            "probability_label": f"{round(probability * 100)}%",
         }
-        for (home, away), count in score_counts.most_common(3)
+        for (home, away), probability in sorted(
+            score_counts.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:3]
     ]
-    home_win = sum(count for diff, count in diff_counts.items() if diff > 0) / simulations
-    draw = diff_counts.get(0, 0) / simulations
-    away_win = sum(count for diff, count in diff_counts.items() if diff < 0) / simulations
+    home_win = sum(probability for diff, probability in diff_counts.items() if diff > 0)
+    draw = diff_counts.get(0, 0.0)
+    away_win = sum(probability for diff, probability in diff_counts.items() if diff < 0)
     return SimulationOutput(
         model_version=SIMULATION_MODEL_VERSION,
         calibration_version=calibration.calibration_version,
         calibration_status=calibration.calibration_status,
         lambda_home=calibration.lambda_home,
         lambda_away=calibration.lambda_away,
+        lambda_sigma_home=round(sigma_home, 6),
+        lambda_sigma_away=round(sigma_away, 6),
         fair_ah=fair_ah,
         fair_ou=fair_ou,
         scoreline_picks=top_scorelines,
@@ -165,6 +186,11 @@ def run_simulation(
         calibration={
             "params": calibration.params,
             "input_weights": calibration.input_weights,
+            "seed_policy": "unused_exact_solution",
+            "max_goals": max_goals,
+            "lambda_uncertainty_method": (
+                "none" if sigma_home == 0 and sigma_away == 0 else "deterministic_three_point"
+            ),
         },
     )
 
@@ -233,6 +259,32 @@ def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> 
     return round(ev, 6)
 
 
+def ah_expected_value_standard_error(
+    distribution: dict[str, Any],
+    *,
+    decimal_price: float,
+) -> float | None:
+    ev = ah_expected_value(distribution, decimal_price=decimal_price)
+    if ev is None:
+        return None
+    profit = decimal_price - 1
+    outcomes = {
+        SettlementOutcome.WIN: profit,
+        SettlementOutcome.HALF_WIN: profit / 2,
+        SettlementOutcome.PUSH: 0.0,
+        SettlementOutcome.HALF_LOSS: -0.5,
+        SettlementOutcome.LOSS: -1.0,
+    }
+    second_moment = 0.0
+    for outcome, value in outcomes.items():
+        probability = _distribution_value(distribution, outcome)
+        if probability is None:
+            return None
+        second_moment += probability * (value**2)
+    variance = max(second_moment - ev**2, 0.0)
+    return float(round(variance**0.5, 6))
+
+
 def ah_settlement_distribution_from_lambdas(
     *,
     lambda_home: float | None,
@@ -243,23 +295,8 @@ def ah_settlement_distribution_from_lambdas(
 ) -> dict[str, float] | None:
     if lambda_home is None or lambda_away is None or lambda_home <= 0 or lambda_away <= 0:
         return None
-    score_weights: dict[tuple[int, int], float] = {}
-    total_weight = 0.0
-    home_probs = _poisson_probabilities(lambda_home, max_goals=max_goals)
-    away_probs = _poisson_probabilities(lambda_away, max_goals=max_goals)
-    for home_goals, home_prob in enumerate(home_probs):
-        for away_goals, away_prob in enumerate(away_probs):
-            weight = home_prob * away_prob
-            score_weights[(home_goals, away_goals)] = weight
-            total_weight += weight
-    if total_weight <= 0:
-        return None
-    normalized = {
-        score: weight / total_weight
-        for score, weight in score_weights.items()
-    }
     return ah_settlement_distribution(
-        normalized,
+        _exact_score_matrix(lambda_home, lambda_away, rho=0.0, max_goals=max_goals),
         simulations=1,
         selection=selection,
         line=line,
@@ -312,6 +349,8 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
             "away_elo_collection_status": inputs.away_elo_collection_status,
             "neutral_site": inputs.neutral_site,
             "home_advantage_applied": not inputs.neutral_site,
+            "lambda_sigma_home": inputs.lambda_sigma_home,
+            "lambda_sigma_away": inputs.lambda_sigma_away,
             "squad_value_ready": inputs.home_squad_value_eur is not None
             and inputs.away_squad_value_eur is not None,
         }
@@ -340,7 +379,7 @@ def _is_proxy_elo_source(*, source: str | None, collection_status: str | None) -
 
 
 def _fair_ah(
-    score_counts: Counter[tuple[int, int]],
+    score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int | float],
     simulations: int,
 ) -> tuple[float, dict[str, Any]]:
     ladder = [round(step * 0.25, 2) for step in range(-12, 13)]
@@ -383,7 +422,10 @@ def _fair_ah(
     return float(fair["home_line"]), {"fair_home_cover": fair["home_cover"], "ladder": rows}
 
 
-def _fair_ou(total_counts: Counter[int], simulations: int) -> tuple[float, dict[str, Any]]:
+def _fair_ou(
+    total_counts: Counter[int] | dict[int, int | float],
+    simulations: int,
+) -> tuple[float, dict[str, Any]]:
     total_mean = sum(total * count for total, count in total_counts.items()) / max(simulations, 1)
     fair_line = round_to_quarter(total_mean)
     ladder = []
@@ -403,21 +445,6 @@ def _fair_ou(total_counts: Counter[int], simulations: int) -> tuple[float, dict[
     return float(fair_line), {"fair_total_goals": round(total_mean, 6), "ladder": ladder}
 
 
-def _sample_poisson(rng: random.Random, mu: float, *, max_goals: int) -> int:
-    threshold = rng.random()
-    cumulative = 0.0
-    probability = exp(-mu)
-    for goals in range(max_goals):
-        if goals == 0:
-            probability = exp(-mu)
-        elif goals > 0:
-            probability *= mu / goals
-        cumulative += probability
-        if threshold <= cumulative:
-            return goals
-    return max_goals
-
-
 def _poisson_probabilities(mu: float, *, max_goals: int) -> list[float]:
     values: list[float] = []
     probability = exp(-mu)
@@ -428,6 +455,66 @@ def _poisson_probabilities(mu: float, *, max_goals: int) -> list[float]:
             probability *= mu / goals
         values.append(probability)
     return values
+
+
+def _exact_score_matrix(
+    lambda_home: float,
+    lambda_away: float,
+    *,
+    rho: float,
+    max_goals: int,
+) -> dict[tuple[int, int], float]:
+    home_probs = _poisson_probabilities(lambda_home, max_goals=max_goals)
+    away_probs = _poisson_probabilities(lambda_away, max_goals=max_goals)
+    weights: dict[tuple[int, int], float] = {}
+    for home_goals, home_prob in enumerate(home_probs):
+        for away_goals, away_prob in enumerate(away_probs):
+            correction = tau_correction(
+                home_goals,
+                away_goals,
+                lambda_home,
+                lambda_away,
+                rho,
+            )
+            weights[(home_goals, away_goals)] = max(home_prob * away_prob * correction, 0.0)
+    total = sum(weights.values())
+    if total <= 0:
+        raise ValueError("exact score matrix has no positive probability")
+    return {score: probability / total for score, probability in weights.items()}
+
+
+def _exact_score_matrix_with_uncertainty(
+    lambda_home: float,
+    lambda_away: float,
+    *,
+    sigma_home: float,
+    sigma_away: float,
+    rho: float,
+    max_goals: int,
+) -> dict[tuple[int, int], float]:
+    if sigma_home <= 0 and sigma_away <= 0:
+        return _exact_score_matrix(lambda_home, lambda_away, rho=rho, max_goals=max_goals)
+    weights: dict[tuple[int, int], float] = {}
+    for home_lambda, home_weight in _lambda_quadrature(lambda_home, sigma_home):
+        for away_lambda, away_weight in _lambda_quadrature(lambda_away, sigma_away):
+            matrix = _exact_score_matrix(home_lambda, away_lambda, rho=rho, max_goals=max_goals)
+            scenario_weight = home_weight * away_weight
+            for score, probability in matrix.items():
+                weights[score] = weights.get(score, 0.0) + scenario_weight * probability
+    total = sum(weights.values())
+    if total <= 0:
+        raise ValueError("uncertain score matrix has no positive probability")
+    return {score: probability / total for score, probability in weights.items()}
+
+
+def _lambda_quadrature(mu: float, sigma: float) -> tuple[tuple[float, float], ...]:
+    if sigma <= 0:
+        return ((max(mu, 0.01), 1.0),)
+    return (
+        (max(mu - sigma, 0.01), 0.158655),
+        (max(mu, 0.01), 0.68269),
+        (max(mu + sigma, 0.01), 0.158655),
+    )
 
 
 def _effective_probability_score(outcome: SettlementOutcome) -> float:

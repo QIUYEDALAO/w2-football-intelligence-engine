@@ -8,6 +8,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationOutput,
     ah_expected_value,
+    ah_expected_value_standard_error,
     ah_settlement_distribution_from_lambdas,
 )
 
@@ -109,6 +110,8 @@ def build_formal_recommendation(
         return _watch("MISSING_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
     home_ev = ah_expected_value(home_distribution, decimal_price=ah.home_price)
     away_ev = ah_expected_value(away_distribution, decimal_price=ah.away_price)
+    home_ev_se = ah_expected_value_standard_error(home_distribution, decimal_price=ah.home_price)
+    away_ev_se = ah_expected_value_standard_error(away_distribution, decimal_price=ah.away_price)
     if home_ev is None or away_ev is None:
         return _watch("INVALID_AH_EV_INPUTS", canonical_ah_market=ah)
     home_model = _effective_cover_probability(home_distribution)
@@ -118,10 +121,10 @@ def build_formal_recommendation(
     prices = {"HOME": ah.home_price, "AWAY": ah.away_price}
     devig = _devig_probabilities(prices)
     candidates = [
-        ("HOME", home_ev, home_model, ah.home_line, ah.home_price, home_distribution),
-        ("AWAY", away_ev, away_model, ah.away_line, ah.away_price, away_distribution),
+        ("HOME", home_ev, home_ev_se, home_model, ah.home_line, ah.home_price, home_distribution),
+        ("AWAY", away_ev, away_ev_se, away_model, ah.away_line, ah.away_price, away_distribution),
     ]
-    side, ev, model_probability, line, price, distribution = max(
+    side, ev, ev_se, model_probability, line, price, distribution = max(
         candidates,
         key=lambda item: item[1],
     )
@@ -169,6 +172,7 @@ def build_formal_recommendation(
         "fair_odds": _format_price(1 / model_probability) if model_probability > 0 else None,
         "risk_adjusted_ev": _format_edge(ev),
         "expected_value": round(ev, 6),
+        "ev_se": ev_se,
         "ah_settlement_distribution": distribution,
         "confidence": round(min(max(0.50 + ev, 0.0), 0.92), 4),
         "confidence_label": "策略自洽",

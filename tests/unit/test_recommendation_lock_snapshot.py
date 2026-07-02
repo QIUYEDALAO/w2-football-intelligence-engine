@@ -33,6 +33,7 @@ def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
     assert first.reproducible is True
     assert first.legacy_marker_only is False
     assert first.snapshot_payload_json["recommendation"]["selection"] == "AWAY_AH"
+    assert first.snapshot_payload_json["recommendation"]["ev_se"] == "0.21"
     assert first.snapshot_payload_hash == second.snapshot_payload_hash
     assert first.snapshot_payload_hash == canonical_snapshot_hash(first.snapshot_payload_json)
     assert first.release_sha == "release-sha"
@@ -134,6 +135,7 @@ def _card() -> dict[str, object]:
             "line": "0.75",
             "odds": "1.87",
             "expected_value": "0.083",
+            "ev_se": "0.21",
             "reverse_factor_value": True,
             "ah_settlement_distribution": {
                 "win": 0.41,

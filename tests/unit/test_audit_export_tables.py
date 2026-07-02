@@ -88,6 +88,7 @@ def test_audit_export_keeps_recommendation_fields_for_formal_only() -> None:
     assert row["recommendation_selection"] == "HOME_AH"
     assert row["recommendation_line"] == "-0.5"
     assert row["recommendation_odds"] == "1.91"
+    assert row["ev_se"] == "0.21"
 
 
 def test_audit_export_preserves_zero_market_timeline_line() -> None:
@@ -230,6 +231,7 @@ def _dashboard_payload() -> dict[str, object]:
                     "line": "-0.5",
                     "odds": "1.91",
                     "expected_value": "0.041",
+                    "ev_se": "0.21",
                 },
                 "current_odds": {
                     "ah": {

@@ -76,6 +76,45 @@ def test_balanced_inputs_stay_near_pickem_and_deterministic() -> None:
 
     assert first.fair_ah is not None and abs(first.fair_ah) <= 0.25
     assert first.as_dict() == second.as_dict()
+    assert first.model_version == "w2.formal.exact_dc_poisson.v1"
+    assert first.calibration["seed_policy"] == "unused_exact_solution"
+
+
+def test_exact_solution_does_not_depend_on_fixture_seed() -> None:
+    first = run_simulation(inputs(fixture_id="exact-a"))
+    second = run_simulation(inputs(fixture_id="exact-b"))
+
+    assert first.seed != second.seed
+    assert first.lambda_home == second.lambda_home
+    assert first.lambda_away == second.lambda_away
+    assert first.fair_ah == second.fair_ah
+    assert first.fair_ou == second.fair_ou
+    assert first.scoreline_picks == second.scoreline_picks
+
+
+def test_lambda_uncertainty_defaults_to_exact_solution_and_thickens_tails() -> None:
+    exact = run_simulation(inputs(fixture_id="sigma-zero"))
+    explicit_zero = run_simulation(
+        inputs(fixture_id="sigma-zero-other-seed", lambda_sigma_home=0.0, lambda_sigma_away=0.0)
+    )
+    uncertain = run_simulation(
+        inputs(fixture_id="sigma-positive", lambda_sigma_home=0.45, lambda_sigma_away=0.45)
+    )
+
+    assert exact.scoreline_picks == explicit_zero.scoreline_picks
+    assert exact.calibration["lambda_uncertainty_method"] == "none"
+    assert uncertain.calibration["lambda_uncertainty_method"] == "deterministic_three_point"
+    exact_tail = sum(
+        row["over"]
+        for row in exact.ou_probabilities["ladder"]
+        if row["line"] == 4.0
+    )
+    uncertain_tail = sum(
+        row["over"]
+        for row in uncertain.ou_probabilities["ladder"]
+        if row["line"] == 4.0
+    )
+    assert uncertain_tail > exact_tail
 
 
 def test_neutral_site_does_not_apply_home_advantage_to_lambdas() -> None:

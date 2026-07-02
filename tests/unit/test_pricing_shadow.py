@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from w2.pricing.shadow import build_pricing_shadow
+from w2.pricing.team_score import independent_team_scores
 from w2.pricing.value_vs_market import edge
 
 
@@ -134,6 +135,73 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
     assert shadow["beats_market"] is False
     assert shadow["formal_enabled"] is False
     assert shadow["candidate_enabled"] is False
+    assert shadow["team_score_audit"]["weight_sum_used"] > 0
+    assert shadow["team_score_audit"]["factor_count_used"] > 0
+    assert shadow["factor_scale_version"] == "w2.factor_scale.v1"
+    assert shadow["factor_scale"]["supremacy_score_per_quarter_line"] == 0.16
+    assert all("sigma" in factor for factor in shadow["factors"])
+
+
+def test_weighted_score_normalizes_by_available_ready_factor_weight() -> None:
+    compact = independent_team_scores(
+        feature_contributions=[
+            contribution(
+                "F3_REST_FITNESS",
+                side="HOME",
+                score=0.8,
+                weight=1.0,
+                source_group="team_fixture_history",
+            ),
+            contribution(
+                "F6_H2H",
+                side="AWAY",
+                score=0.2,
+                weight=1.0,
+                source_group="h2h",
+            ),
+        ]
+    )
+    expanded = independent_team_scores(
+        feature_contributions=[
+            contribution(
+                "F3_REST_FITNESS",
+                side="HOME",
+                score=0.8,
+                weight=1.0,
+                source_group="team_fixture_history",
+            ),
+            contribution(
+                "F5_RECENT_AH_COVER",
+                side="HOME",
+                score=0.8,
+                weight=1.0,
+                source_group="team_fixture_history",
+            ),
+            contribution(
+                "F6_H2H",
+                side="AWAY",
+                score=0.2,
+                weight=1.0,
+                source_group="h2h",
+            ),
+            contribution(
+                "F7_STRENGTH_FORM",
+                side="AWAY",
+                score=0.2,
+                weight=1.0,
+                source_group="ratings",
+            ),
+        ]
+    )
+
+    assert compact["weight_sum_used"] == 2.0
+    assert expanded["weight_sum_used"] == 4.0
+    assert compact["factor_count_used"] == 2
+    assert expanded["factor_count_used"] == 4
+    assert compact["home_score"] - compact["away_score"] == expanded[
+        "home_score"
+    ] - expanded["away_score"]
+    assert compact["factor_scale"]["version"] == "w2.factor_scale.v1"
 
 
 def test_coverage_below_half_watches_without_promotion() -> None:

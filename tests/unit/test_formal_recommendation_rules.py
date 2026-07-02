@@ -49,6 +49,8 @@ def reverse_value_simulation() -> SimulationOutput:
         calibration_status="BASELINE_PRIOR",
         lambda_home=1.38,
         lambda_away=1.29,
+        lambda_sigma_home=0.0,
+        lambda_sigma_away=0.0,
         fair_ah=0.0,
         fair_ou=2.75,
         scoreline_picks=[
@@ -101,6 +103,8 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
+    assert result.recommendation["ev_se"] is not None
+    assert result.recommendation["ev_se"] > 0
 
 
 def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:

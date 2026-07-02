@@ -349,6 +349,8 @@ def run_simulation_from_shadow(payload: Any) -> SimulationOutput | None:
         else None,
         lambda_home=_float_or_none(simulation.get("lambda_home")),
         lambda_away=_float_or_none(simulation.get("lambda_away")),
+        lambda_sigma_home=_float_or_none(simulation.get("lambda_sigma_home")),
+        lambda_sigma_away=_float_or_none(simulation.get("lambda_sigma_away")),
         fair_ah=_float_or_none(simulation.get("fair_ah")),
         fair_ou=_float_or_none(simulation.get("fair_ou")),
         scoreline_picks=scoreline_picks,

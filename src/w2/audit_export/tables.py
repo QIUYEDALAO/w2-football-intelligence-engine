@@ -40,6 +40,7 @@ AUDIT_TABLE_COLUMNS = {
         "recommendation_selection",
         "recommendation_line",
         "recommendation_odds",
+        "ev_se",
         "formal_blockers",
         "fair_ah",
         "market_ah",
@@ -99,6 +100,7 @@ AUDIT_TABLE_COLUMNS = {
         "home_price",
         "away_price",
         "expected_value",
+        "ev_se",
         "reproducible",
         "legacy_marker_only",
         "snapshot_payload_hash",
@@ -236,6 +238,7 @@ def _prematch_recommendations(
                 "recommendation_selection": recommendation_for_export.get("selection"),
                 "recommendation_line": recommendation_for_export.get("line"),
                 "recommendation_odds": recommendation_for_export.get("odds"),
+                "ev_se": recommendation_for_export.get("ev_se"),
                 "formal_blockers": pricing.get("formal_blockers"),
                 "fair_ah": pricing.get("fair_ah"),
                 "market_ah": pricing.get("market_ah"),
@@ -324,6 +327,7 @@ def _locked_recommendation_snapshots(matches: list[dict[str, Any]]) -> list[dict
                 "home_price": locked.get("home_price"),
                 "away_price": locked.get("away_price"),
                 "expected_value": recommendation.get("expected_value"),
+                "ev_se": recommendation.get("ev_se"),
                 "reproducible": locked.get("reproducible"),
                 "legacy_marker_only": locked.get("legacy_marker_only"),
                 "snapshot_payload_hash": locked.get("snapshot_payload_hash"),
@@ -432,6 +436,7 @@ def _db_locked_snapshots(session: Session) -> list[dict[str, Any]]:
                 "home_price": item.home_price,
                 "away_price": item.away_price,
                 "expected_value": item.expected_value,
+                "ev_se": _snapshot_recommendation_field(item.snapshot_payload_json, "ev_se"),
                 "snapshot_payload_hash": item.snapshot_payload_hash,
                 "release_sha": item.release_sha,
                 "reproducible": item.reproducible,
@@ -523,6 +528,11 @@ def _payload_as_of(payload: dict[str, Any]) -> str:
 
 def _lock_snapshot_status(lock_id: Any) -> str:
     return "READY" if lock_id not in {None, ""} else "MISSING_LOCK_SNAPSHOT"
+
+
+def _snapshot_recommendation_field(snapshot_payload: Any, field: str) -> Any:
+    recommendation = _dict(_dict(snapshot_payload).get("recommendation"))
+    return recommendation.get(field)
 
 
 def _market_snapshot_fields(snapshot: Any) -> dict[str, Any]:
