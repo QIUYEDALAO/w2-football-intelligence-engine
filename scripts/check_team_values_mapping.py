@@ -17,9 +17,19 @@ REQUIRED_ITEM_FIELDS = (
     "source_system",
     "source_url",
     "currency",
+    "source_tier",
+    "primary_source_review_status",
     "reviewed_by",
 )
 REQUIRED_POLICY_TERMS = ("no scraping", "no credentials", "no market-derived values")
+SOURCE_TIER_CONFIDENCE_CAPS = {
+    "primary_reviewed": 0.95,
+    "secondary_with_primary_reference": 0.85,
+}
+PRIMARY_REVIEW_STATUSES = {
+    "reviewed_against_primary",
+    "pending_primary_review",
+}
 
 
 @dataclass(frozen=True)
@@ -106,6 +116,7 @@ def validate_mapping(
         _validate_observed_at(item, prefix=prefix, as_of=as_of, errors=errors)
         _validate_source_url(item, prefix=prefix, errors=errors)
         _validate_confidence(item, prefix=prefix, errors=errors)
+        _validate_source_tier(item, prefix=prefix, errors=errors)
         _validate_no_forbidden_terms(item, prefix=prefix, errors=errors)
 
     unmapped = len(known_team_ids - mapped_ids) if known_team_ids else 0
@@ -182,6 +193,36 @@ def _validate_confidence(item: dict[str, Any], *, prefix: str, errors: list[str]
         return
     if not 0 <= confidence <= 1:
         errors.append(f"{prefix}.confidence must be between 0 and 1")
+
+
+def _validate_source_tier(item: dict[str, Any], *, prefix: str, errors: list[str]) -> None:
+    source_tier = str(item.get("source_tier") or "")
+    review_status = str(item.get("primary_source_review_status") or "")
+    if source_tier not in SOURCE_TIER_CONFIDENCE_CAPS:
+        errors.append(f"{prefix}.source_tier unsupported: {source_tier}")
+        return
+    if review_status not in PRIMARY_REVIEW_STATUSES:
+        errors.append(f"{prefix}.primary_source_review_status unsupported: {review_status}")
+    raw_confidence = item.get("confidence")
+    if raw_confidence is None:
+        return
+    try:
+        confidence = float(raw_confidence)
+    except (TypeError, ValueError):
+        return
+    cap = SOURCE_TIER_CONFIDENCE_CAPS[source_tier]
+    if confidence > cap:
+        errors.append(
+            f"{prefix}.confidence exceeds {source_tier} cap: {confidence} > {cap}"
+        )
+    if source_tier == "secondary_with_primary_reference" and not str(
+        item.get("primary_source") or ""
+    ):
+        errors.append(f"{prefix}.primary_source is required for secondary source tier")
+    if source_tier == "primary_reviewed" and review_status != "reviewed_against_primary":
+        errors.append(
+            f"{prefix}.primary_source_review_status must be reviewed_against_primary"
+        )
 
 
 def _validate_no_forbidden_terms(
