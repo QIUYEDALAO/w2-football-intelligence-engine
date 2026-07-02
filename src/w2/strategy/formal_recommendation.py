@@ -12,6 +12,7 @@ from w2.strategy.simulate import (
 )
 
 FORMAL_EV_THRESHOLD = 0.035
+FORMAL_EV_SE_MULTIPLIER = 1.0
 REVERSE_FACTOR_EV_THRESHOLD = 0.08
 FORMAL_MIN_INDEPENDENT_SIGNALS = 3
 AH_PRICE_MIN = 1.40
@@ -133,8 +134,12 @@ def build_formal_recommendation(
         candidates,
         key=lambda item: item[1],
     )
+    if ev_se is None:
+        return _watch("EV_UNCERTAINTY_MISSING", canonical_ah_market=ah)
     if ev < FORMAL_EV_THRESHOLD:
         return _watch("AH_EV_BELOW_FORMAL_THRESHOLD", canonical_ah_market=ah)
+    if ev < FORMAL_EV_THRESHOLD + FORMAL_EV_SE_MULTIPLIER * ev_se:
+        return _watch("EV_WITHIN_UNCERTAINTY_BAND", canonical_ah_market=ah)
     factor_side = _factor_leader(pricing_shadow)
     reverse = is_reverse_value_recommendation(
         selected_side=side,
@@ -145,7 +150,7 @@ def build_formal_recommendation(
     fair_side = _fair_side(simulation)
     if not _direction_supported(side=side, fair_side=fair_side, reverse=reverse):
         return _watch("SIMULATION_DIRECTION_CONTRADICTION", canonical_ah_market=ah)
-    if reverse and not _reverse_value_supported(line=line, expected_value=ev):
+    if reverse and not _reverse_value_supported(line=line, expected_value=ev, ev_se=ev_se):
         return _watch("REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH", canonical_ah_market=ah)
     if _scoreline_winner(simulation) not in {side, "NEUTRAL"} and not reverse:
         return _watch("SCORELINE_DIRECTION_CONTRADICTION", canonical_ah_market=ah)
@@ -543,8 +548,9 @@ def _direction_supported(*, side: str, fair_side: str, reverse: bool) -> bool:
     return side == fair_side
 
 
-def _reverse_value_supported(*, line: float, expected_value: float) -> bool:
-    return line > 0 and expected_value >= REVERSE_FACTOR_EV_THRESHOLD
+def _reverse_value_supported(*, line: float, expected_value: float, ev_se: float) -> bool:
+    threshold = REVERSE_FACTOR_EV_THRESHOLD + FORMAL_EV_SE_MULTIPLIER * ev_se
+    return line > 0 and expected_value >= threshold
 
 
 def _scoreline_winner(simulation: SimulationOutput) -> str:
