@@ -23,6 +23,7 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/run_w2_report_runner.py \
      scripts/export_w2_audit_tables.py \
      scripts/debug_w2_modeling_sanity.py \
+     scripts/debug_w2_s2_calibration_validation.py \
      ./scripts/
 RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-gate5-preflight
@@ -34,7 +35,8 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/run_w2_independent_signal_backfill.py \
  && test -f /app/scripts/run_w2_report_runner.py \
  && test -f /app/scripts/export_w2_audit_tables.py \
- && test -f /app/scripts/debug_w2_modeling_sanity.py
+ && test -f /app/scripts/debug_w2_modeling_sanity.py \
+ && test -f /app/scripts/debug_w2_s2_calibration_validation.py
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \
