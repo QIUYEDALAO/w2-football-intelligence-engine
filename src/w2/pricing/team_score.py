@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from w2.pricing.scale import DEFAULT_FACTOR_SCALE_PARAMS, FactorScaleParams
+
 ALLOWED_INDEPENDENT_FACTORS = frozenset(
     {
         "F3_REST_FITNESS",
@@ -23,9 +25,11 @@ NON_SCORING_GROUPS = frozenset({"match_importance"})
 def independent_team_scores(
     *,
     feature_contributions: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+    scale: FactorScaleParams | None = None,
 ) -> dict[str, Any]:
+    scale = scale or DEFAULT_FACTOR_SCALE_PARAMS
     all_factors = [
-        _factor(item)
+        _factor(item, scale=scale)
         for item in feature_contributions or []
         if _factor_id(item) in ALLOWED_INDEPENDENT_FACTORS
     ]
@@ -54,9 +58,10 @@ def independent_team_scores(
         for factor in all_factors
     }
     coverage = round(len(factors) / len(ALLOWED_INDEPENDENT_FACTORS), 6)
+    score_meta = _weighted_scores(scoring_factors)
     return {
-        "home_score": _weighted_score(scoring_factors, side="HOME"),
-        "away_score": _weighted_score(scoring_factors, side="AWAY"),
+        "home_score": score_meta["home_score"],
+        "away_score": score_meta["away_score"],
         "factors": factors,
         "coverage": coverage,
         "independent_signal_count": len(signal_groups),
@@ -66,10 +71,14 @@ def independent_team_scores(
             group for group in REQUIRED_SIGNAL_GROUPS if group not in signal_groups
         ],
         "factor_source_summary": source_summary,
+        "weight_sum_used": score_meta["weight_sum_used"],
+        "weight_sum_possible": score_meta["weight_sum_possible"],
+        "factor_count_used": score_meta["factor_count_used"],
+        "factor_scale": scale.snapshot(),
     }
 
 
-def _factor(item: dict[str, Any]) -> dict[str, Any]:
+def _factor(item: dict[str, Any], *, scale: FactorScaleParams) -> dict[str, Any]:
     side = str(item.get("side") or "NEUTRAL")
     if side not in {"HOME", "AWAY", "NEUTRAL"}:
         side = "UNKNOWN"
@@ -85,6 +94,7 @@ def _factor(item: dict[str, Any]) -> dict[str, Any]:
         "proxy_of": _optional_text(item.get("proxy_of")),
         "collection_status": _optional_text(item.get("collection_status")) or "READY",
         "inputs": item.get("inputs") if isinstance(item.get("inputs"), dict) else {},
+        "sigma": _sigma(item, side=side, scale=scale),
     }
 
 
@@ -92,18 +102,52 @@ def _factor_id(item: dict[str, Any]) -> str:
     return str(item.get("id") or item.get("feature_id") or "")
 
 
-def _weighted_score(factors: list[dict[str, Any]], *, side: str) -> float:
+def _weighted_scores(factors: list[dict[str, Any]]) -> dict[str, Any]:
+    scoring = [
+        factor
+        for factor in factors
+        if factor["source_group"] not in NON_SCORING_GROUPS and factor["weight"] > 0
+    ]
+    weight_sum_used = sum(float(factor["weight"]) for factor in scoring)
+    if weight_sum_used <= 0:
+        return {
+            "home_score": 0.0,
+            "away_score": 0.0,
+            "weight_sum_used": 0.0,
+            "weight_sum_possible": 0.0,
+            "factor_count_used": 0,
+        }
+    return {
+        "home_score": _weighted_score(scoring, side="HOME", denominator=weight_sum_used),
+        "away_score": _weighted_score(scoring, side="AWAY", denominator=weight_sum_used),
+        "weight_sum_used": round(weight_sum_used, 6),
+        "weight_sum_possible": round(
+            sum(
+                float(factor["weight"])
+                for factor in factors
+                if factor["source_group"] not in NON_SCORING_GROUPS
+            ),
+            6,
+        ),
+        "factor_count_used": len(scoring),
+    }
+
+
+def _weighted_score(
+    factors: list[dict[str, Any]],
+    *,
+    side: str,
+    denominator: float,
+) -> float:
     total = 0.0
     for factor in factors:
-        if factor["source_group"] in NON_SCORING_GROUPS:
-            continue
         score = float(factor["score"])
         weight = float(factor["weight"])
         if factor["side"] == side:
             total += weight * score
         elif factor["side"] == "NEUTRAL":
             total += weight * score * 0.5
-    return round(total, 6)
+    return round(total / denominator, 6)
 
 
 def _number(value: Any) -> float:
@@ -118,3 +162,19 @@ def _optional_text(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+def _sigma(item: dict[str, Any], *, side: str, scale: FactorScaleParams) -> float:
+    explicit = item.get("sigma")
+    if explicit is not None:
+        return _number(explicit)
+    if (
+        _optional_text(item.get("proxy_of"))
+        or str(item.get("collection_status") or "").upper() == "PROXY_ONLY"
+    ):
+        return scale.factor_sigma_proxy
+    if side == "NEUTRAL":
+        return scale.factor_sigma_neutral
+    if side == "UNKNOWN":
+        return scale.factor_sigma_unknown
+    return scale.factor_sigma_default

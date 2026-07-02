@@ -13,6 +13,7 @@ class LambdaCalibrationParams:
     elo_gap_weight: float = 0.28
     squad_value_log_weight: float = 0.18
     lineup_adjustment_weight: float = 0.08
+    dixon_coles_rho: float = 0.0
     minimum_lambda: float = 0.15
     maximum_lambda: float = 4.25
     minimum_total_goals: float = 1.35
@@ -98,6 +99,7 @@ def calibrate_lambdas(
             "elo_gap_weight": params.elo_gap_weight,
             "squad_value_log_weight": params.squad_value_log_weight,
             "lineup_adjustment_weight": params.lineup_adjustment_weight,
+            "dixon_coles_rho": params.dixon_coles_rho,
             "minimum_lambda": params.minimum_lambda,
             "maximum_lambda": params.maximum_lambda,
             "minimum_total_goals": params.minimum_total_goals,

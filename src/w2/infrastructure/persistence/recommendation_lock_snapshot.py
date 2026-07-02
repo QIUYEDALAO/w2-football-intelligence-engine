@@ -93,6 +93,7 @@ def build_recommendation_lock_snapshot(
             "line": _decimal_text(pick_line),
             "odds": _decimal_text(_decimal(recommendation.get("odds"))),
             "expected_value": _decimal_text(expected_value),
+            "ev_se": _decimal_text(_decimal(recommendation.get("ev_se"))),
             "reverse_factor_value": bool(recommendation.get("reverse_factor_value")),
         },
         "market": {

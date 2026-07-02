@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from w2.strategy.formal_recommendation import (
+    _settlement_distribution_with_ev_se,
     build_formal_recommendation,
     canonical_ah_market,
     is_reverse_value_recommendation,
 )
-from w2.strategy.simulate import READY, SimulationInputs, SimulationOutput, run_simulation
+from w2.strategy.simulate import (
+    READY,
+    SimulationInputs,
+    SimulationOutput,
+    ah_expected_value_uncertainty_from_lambdas,
+    run_simulation,
+)
 
 
 def ready_shadow(*, fair_ah: float = -1.25, leader: str = "HOME") -> dict[str, object]:
@@ -49,6 +56,8 @@ def reverse_value_simulation() -> SimulationOutput:
         calibration_status="BASELINE_PRIOR",
         lambda_home=1.38,
         lambda_away=1.29,
+        lambda_sigma_home=0.0,
+        lambda_sigma_away=0.0,
         fair_ah=0.0,
         fair_ou=2.75,
         scoreline_picks=[
@@ -84,6 +93,29 @@ def reverse_value_simulation() -> SimulationOutput:
     )
 
 
+def off_ladder_simulation(*, rho: float = 0.12) -> SimulationOutput:
+    return SimulationOutput(
+        model_version="w2.formal.exact_dc_poisson.v1",
+        calibration_version="w2.formal.lambda_baseline_prior.v1",
+        calibration_status="BASELINE_PRIOR",
+        lambda_home=1.4,
+        lambda_away=1.2,
+        lambda_sigma_home=0.35,
+        lambda_sigma_away=0.35,
+        fair_ah=-0.25,
+        fair_ou=2.75,
+        scoreline_picks=[],
+        score_matrix_summary={"home_win": 0.4, "draw": 0.27, "away_win": 0.33},
+        ah_probabilities={"ladder": []},
+        ou_probabilities={},
+        input_readiness={"xg_ready": True},
+        status=READY,
+        simulations=10_000,
+        seed=456,
+        calibration={"params": {"dixon_coles_rho": rho}},
+    )
+
+
 def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
@@ -101,6 +133,77 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
+    assert result.recommendation["ev_se"] == 0.0
+
+
+def test_formal_ev_se_uses_lambda_uncertainty() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=simulation(lambda_sigma_home=0.35, lambda_sigma_away=0.35),
+        current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        pricing_shadow=ready_shadow(),
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
+    assert result.recommendation["ev_se"] is not None
+    assert result.recommendation["ev_se"] > 0.0
+
+
+def test_off_ladder_formal_fallback_uses_scenario_ev_uncertainty() -> None:
+    formal_simulation = off_ladder_simulation()
+
+    distribution, ev, ev_se = _settlement_distribution_with_ev_se(
+        formal_simulation,
+        "HOME",
+        -3.5,
+        1.91,
+    )
+    scenario_distribution, scenario_ev, scenario_ev_se = (
+        ah_expected_value_uncertainty_from_lambdas(
+            lambda_home=1.4,
+            lambda_away=1.2,
+            lambda_sigma_home=0.35,
+            lambda_sigma_away=0.35,
+            rho=0.12,
+            selection="HOME",
+            line=-3.5,
+            decimal_price=1.91,
+        )
+    )
+
+    assert distribution == scenario_distribution
+    assert ev == scenario_ev
+    assert ev_se == scenario_ev_se
+    assert ev_se is not None and ev_se > 0.0
+    assert distribution is not None
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
+def test_off_ladder_formal_fallback_uses_simulation_rho() -> None:
+    zero_rho_distribution, _, _ = _settlement_distribution_with_ev_se(
+        off_ladder_simulation(rho=0.0),
+        "HOME",
+        -0.25,
+        1.91,
+    )
+    dc_distribution, _, _ = _settlement_distribution_with_ev_se(
+        off_ladder_simulation(rho=0.12),
+        "HOME",
+        -0.25,
+        1.91,
+    )
+
+    assert zero_rho_distribution is not None
+    assert dc_distribution is not None
+    assert any(
+        abs(zero_rho_distribution[outcome] - dc_distribution[outcome]) > 0.000001
+        for outcome in zero_rho_distribution
+    )
 
 
 def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:

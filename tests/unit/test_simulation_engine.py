@@ -5,6 +5,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationInputs,
     ah_expected_value,
+    ah_expected_value_uncertainty_from_lambdas,
     ah_settlement_distribution_from_lambdas,
     run_simulation,
 )
@@ -76,6 +77,45 @@ def test_balanced_inputs_stay_near_pickem_and_deterministic() -> None:
 
     assert first.fair_ah is not None and abs(first.fair_ah) <= 0.25
     assert first.as_dict() == second.as_dict()
+    assert first.model_version == "w2.formal.exact_dc_poisson.v1"
+    assert first.calibration["seed_policy"] == "unused_exact_solution"
+
+
+def test_exact_solution_does_not_depend_on_fixture_seed() -> None:
+    first = run_simulation(inputs(fixture_id="exact-a"))
+    second = run_simulation(inputs(fixture_id="exact-b"))
+
+    assert first.seed != second.seed
+    assert first.lambda_home == second.lambda_home
+    assert first.lambda_away == second.lambda_away
+    assert first.fair_ah == second.fair_ah
+    assert first.fair_ou == second.fair_ou
+    assert first.scoreline_picks == second.scoreline_picks
+
+
+def test_lambda_uncertainty_defaults_to_exact_solution_and_thickens_tails() -> None:
+    exact = run_simulation(inputs(fixture_id="sigma-zero"))
+    explicit_zero = run_simulation(
+        inputs(fixture_id="sigma-zero-other-seed", lambda_sigma_home=0.0, lambda_sigma_away=0.0)
+    )
+    uncertain = run_simulation(
+        inputs(fixture_id="sigma-positive", lambda_sigma_home=0.45, lambda_sigma_away=0.45)
+    )
+
+    assert exact.scoreline_picks == explicit_zero.scoreline_picks
+    assert exact.calibration["lambda_uncertainty_method"] == "none"
+    assert uncertain.calibration["lambda_uncertainty_method"] == "deterministic_three_point"
+    exact_tail = sum(
+        row["over"]
+        for row in exact.ou_probabilities["ladder"]
+        if row["line"] == 4.0
+    )
+    uncertain_tail = sum(
+        row["over"]
+        for row in uncertain.ou_probabilities["ladder"]
+        if row["line"] == 4.0
+    )
+    assert uncertain_tail > exact_tail
 
 
 def test_neutral_site_does_not_apply_home_advantage_to_lambdas() -> None:
@@ -223,3 +263,63 @@ def test_ah_settlement_distribution_from_lambdas_supports_lines_outside_ladder()
     assert set(distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
     assert abs(sum(distribution.values()) - 1.0) < 0.02
     assert ah_expected_value(distribution, decimal_price=1.85) is not None
+
+
+def test_ah_ev_uncertainty_is_zero_with_exact_lambdas() -> None:
+    distribution, ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.8,
+        lambda_away=1.1,
+        selection="HOME",
+        line=-0.75,
+        decimal_price=1.91,
+        lambda_sigma_home=0.0,
+        lambda_sigma_away=0.0,
+    )
+
+    assert distribution is not None
+    assert ev is not None
+    assert ev_se == 0.0
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
+def test_ah_ev_uncertainty_increases_with_lambda_sigma() -> None:
+    distribution, ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.8,
+        lambda_away=1.1,
+        selection="HOME",
+        line=-0.75,
+        decimal_price=1.91,
+        lambda_sigma_home=0.35,
+        lambda_sigma_away=0.35,
+    )
+
+    assert distribution is not None
+    assert ev is not None
+    assert ev_se is not None and ev_se > 0.0
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
+def test_ah_ev_uncertainty_respects_dixon_coles_rho_for_lambda_fallback() -> None:
+    distribution_zero_rho, _, _ = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.4,
+        lambda_away=1.2,
+        selection="HOME",
+        line=-0.25,
+        decimal_price=1.91,
+        rho=0.0,
+    )
+    distribution_with_rho, _, _ = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.4,
+        lambda_away=1.2,
+        selection="HOME",
+        line=-0.25,
+        decimal_price=1.91,
+        rho=0.12,
+    )
+
+    assert distribution_zero_rho is not None
+    assert distribution_with_rho is not None
+    assert any(
+        abs(distribution_zero_rho[outcome] - distribution_with_rho[outcome]) > 0.000001
+        for outcome in distribution_zero_rho
+    )

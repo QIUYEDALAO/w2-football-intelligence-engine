@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from w2.pricing.scale import DEFAULT_FACTOR_SCALE_PARAMS
 from w2.pricing.supremacy import fair_handicap_from_supremacy
 from w2.pricing.team_score import independent_team_scores
 from w2.pricing.value_vs_market import edge, market_lines, pricing_status
@@ -62,6 +63,13 @@ def build_pricing_shadow(
             "home": team_scores["home_score"],
             "away": team_scores["away_score"],
         },
+        "team_score_audit": {
+            "weight_sum_used": team_scores["weight_sum_used"],
+            "weight_sum_possible": team_scores["weight_sum_possible"],
+            "factor_count_used": team_scores["factor_count_used"],
+        },
+        "factor_scale": team_scores["factor_scale"],
+        "factor_scale_version": DEFAULT_FACTOR_SCALE_PARAMS.version,
         "fair_ah": fair_ah,
         "fair_ou": fair_ou,
         "market_ah": lines["market_ah"],
