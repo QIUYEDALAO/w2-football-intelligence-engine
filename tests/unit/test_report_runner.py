@@ -126,7 +126,7 @@ def test_report_runner_dry_run_is_read_only_and_returns_summary(tmp_path: Path) 
     assert "/health" in ReportRunnerHandler.seen_paths
     assert "/ready" in ReportRunnerHandler.seen_paths
     assert "/v1/version" in ReportRunnerHandler.seen_paths
-    assert any(path.startswith("/v1/dashboard?") for path in ReportRunnerHandler.seen_paths)
+    assert sum(path.startswith("/v1/dashboard?") for path in ReportRunnerHandler.seen_paths) == 1
 
 
 def test_report_runner_file_sink_writes_runtime_reports(tmp_path: Path) -> None:
@@ -146,6 +146,27 @@ def test_report_runner_file_sink_writes_runtime_reports(tmp_path: Path) -> None:
     assert result.output_path.parent == tmp_path / "reports"
     assert result.output_path.suffix == ".txt"
     assert "W2 足球日报告 · 2026-06-30" in result.output_path.read_text(encoding="utf-8")
+
+
+def test_report_runner_html_file_sink_writes_day_page(tmp_path: Path) -> None:
+    server, thread, base_url = _serve()
+    try:
+        result = run_report_job(
+            base_url=base_url,
+            sink="file",
+            runtime_root=tmp_path,
+            output_format="html",
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert result.output_path == tmp_path / "reports" / "w2_day_2026-06-30.html"
+    html = result.output_path.read_text(encoding="utf-8") if result.output_path else ""
+    assert "<!doctype html>" in html
+    assert "W2 足球日报告 · 2026-06-30" in html
+    assert "推荐：" not in html
+    assert "方向未识别" not in html
 
 
 def test_report_runner_health_gate_fails_before_file_write(tmp_path: Path) -> None:
@@ -218,6 +239,36 @@ def test_report_runner_cli_file_sink_writes_report(tmp_path: Path) -> None:
     assert output_path.exists()
     assert output_path.parent == tmp_path / "reports"
     assert "W2 足球日报告 · 2026-06-30" in output_path.read_text(encoding="utf-8")
+
+
+def test_report_runner_cli_html_file_sink_writes_report(tmp_path: Path) -> None:
+    server, thread, base_url = _serve()
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/run_w2_report_runner.py",
+                "--base-url",
+                base_url,
+                "--file-sink",
+                "--format",
+                "html",
+                "--runtime-root",
+                str(tmp_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    summary = json.loads(result.stdout)
+    assert summary["sink"] == "file"
+    output_path = Path(summary["output_path"])
+    assert output_path == tmp_path / "reports" / "w2_day_2026-06-30.html"
+    assert "<!doctype html>" in output_path.read_text(encoding="utf-8")
 
 
 def test_report_runner_cli_health_failure_exits_nonzero_without_file(

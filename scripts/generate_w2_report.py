@@ -18,7 +18,7 @@ def main() -> int:
     source.add_argument("--input", type=Path, help="Read dashboard JSON payload from a file.")
     source.add_argument("--url", help="Read dashboard JSON payload from a URL.")
     parser.add_argument("--report-type", choices=["morning", "final"], default="final")
-    parser.add_argument("--format", choices=["markdown", "text"], default="markdown")
+    parser.add_argument("--format", choices=["markdown", "text", "html"], default="markdown")
     parser.add_argument("--output", type=Path, help="Optional output path. Defaults to stdout.")
     args = parser.parse_args()
 
