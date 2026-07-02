@@ -1022,25 +1022,42 @@ class ReadModelService:
         else:
             selected_rows = today_rows
 
-        self._prime_observations_for_rows(selected_rows)
-        all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+        if window == "all":
+            all_cards = [
+                self._dashboard_index_card_from_matchday(row) for row in selected_rows
+            ]
+            response_cards = [self._compact_all_window_card(card) for card in all_cards]
+        else:
+            self._prime_observations_for_rows(selected_rows)
+            all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+            response_cards = all_cards
         recommendations = [
             card
-            for card in all_cards
+            for card in response_cards
             if isinstance(card.get("recommendation"), dict)
             and str(cast(dict[str, Any], card["recommendation"]).get("tier"))
             in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
         ]
         upcoming = [
             card
-            for card in all_cards
+            for card in response_cards
             if str(card.get("status", "")).upper() != "FINISHED"
         ]
         finished = [
             card
-            for card in all_cards
+            for card in response_cards
             if str(card.get("status", "")).upper() == "FINISHED"
         ]
+        if window == "all":
+            recommendations_payload = [
+                self._all_window_card_reference(card) for card in recommendations
+            ]
+            upcoming_payload = [self._all_window_card_reference(card) for card in upcoming]
+            finished_payload = [self._all_window_card_reference(card) for card in finished]
+        else:
+            recommendations_payload = recommendations
+            upcoming_payload = upcoming
+            finished_payload = finished
         debug = self._dashboard_debug(
             counts=counts,
             requested_date=requested_date,
@@ -1049,6 +1066,8 @@ class ReadModelService:
             future_parse_error_count=future_parse_error_count,
             include=include_debug,
         )
+        if window == "all":
+            debug.update(self._all_window_surface_contract(include=include_debug))
         data_profile = str(version["data_profile"])
         if all_cards and data_profile == "empty":
             data_profile = "real-db"
@@ -1056,6 +1075,9 @@ class ReadModelService:
             data_profile = "empty"
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
+        performance = self._dashboard_performance(all_cards)
+        if window == "all":
+            performance.update(self._all_window_surface_contract(include=True))
         payload = {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),
@@ -1076,11 +1098,11 @@ class ReadModelService:
                 "release_id": version["release_id"],
             },
             "debug": debug,
-            "performance": self._dashboard_performance(all_cards),
-            "recommendations": recommendations,
-            "upcoming": upcoming,
-            "finished": finished,
-            "all": all_cards,
+            "performance": performance,
+            "recommendations": recommendations_payload,
+            "upcoming": upcoming_payload,
+            "finished": finished_payload,
+            "all": response_cards,
         }
         self._dashboard_response_cache[cache_key] = (now, payload)
         return payload
@@ -1089,6 +1111,104 @@ class ReadModelService:
         if include_debug:
             return 300.0 if window in {"today", "next36"} else 600.0
         return 900.0 if window in {"today", "next36"} else 1800.0
+
+    def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
+        if not include:
+            return {}
+        return {
+            "all_window_surface": "INDEX_ONLY",
+            "all_window_formal_monitor_contract": "NOT_AUTHORITATIVE",
+            "formal_candidate_detection": "USE_TODAY_NEXT36_OR_FULL_DETAIL",
+        }
+
+    def _dashboard_index_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Return a cheap all-window index card without loading analysis payloads."""
+        recommendation = row.get("recommendation")
+        compact_recommendation = (
+            {
+                "recommendation_id": cast(dict[str, Any], recommendation).get(
+                    "recommendation_id",
+                )
+                or cast(dict[str, Any], recommendation).get("id"),
+                "id": cast(dict[str, Any], recommendation).get("id"),
+                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "market": cast(dict[str, Any], recommendation).get("market"),
+                "selection": cast(dict[str, Any], recommendation).get("selection"),
+                "line": cast(dict[str, Any], recommendation).get("line"),
+                "formal_recommendation": cast(dict[str, Any], recommendation).get(
+                    "formal_recommendation",
+                ),
+            }
+            if isinstance(recommendation, dict)
+            else None
+        )
+        return {
+            "fixture_id": row.get("fixture_id"),
+            "kickoff_utc": row.get("kickoff_utc"),
+            "kickoff_beijing": row.get("kickoff_beijing"),
+            "operational_date_beijing": row.get("operational_date_beijing"),
+            "competition_id": row.get("competition_id"),
+            "competition_name": row.get("competition_name"),
+            "home_team_name": row.get("home_team_name"),
+            "away_team_name": row.get("away_team_name"),
+            "status": normalize_match_status(row.get("status")),
+            "raw_status": row.get("raw_status") or row.get("status"),
+            "recommendation": compact_recommendation,
+            "candidate": bool(row.get("candidate")),
+            "formal_recommendation": bool(
+                row.get("formal_recommendation")
+                or (
+                    isinstance(compact_recommendation, dict)
+                    and compact_recommendation.get("formal_recommendation") is True
+                ),
+            ),
+            "formal_suppressed": row.get("formal_suppressed"),
+            "formal_suppressed_reason": row.get("formal_suppressed_reason"),
+        }
+
+    def _compact_all_window_card(self, card: dict[str, Any]) -> dict[str, Any]:
+        """Return a lightweight index row for large all-window payloads."""
+        payload = self._all_window_card_reference(card)
+        payload.update(
+            {
+                "kickoff_beijing": card.get("kickoff_beijing"),
+                "operational_date_beijing": card.get("operational_date_beijing"),
+                "competition_id": card.get("competition_id"),
+                "competition_name": card.get("competition_name"),
+                "raw_status": card.get("raw_status"),
+                "formal_suppressed": card.get("formal_suppressed"),
+                "formal_suppressed_reason": card.get("formal_suppressed_reason"),
+            }
+        )
+        return payload
+
+    def _all_window_card_reference(self, card: dict[str, Any]) -> dict[str, Any]:
+        recommendation = card.get("recommendation")
+        return {
+            "fixture_id": card.get("fixture_id"),
+            "kickoff_utc": card.get("kickoff_utc"),
+            "home_team_name": card.get("home_team_name"),
+            "away_team_name": card.get("away_team_name"),
+            "status": card.get("status"),
+            "recommendation": {
+                "recommendation_id": cast(dict[str, Any], recommendation).get(
+                    "recommendation_id",
+                )
+                or cast(dict[str, Any], recommendation).get("id"),
+                "id": cast(dict[str, Any], recommendation).get("id"),
+                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "market": cast(dict[str, Any], recommendation).get("market"),
+                "selection": cast(dict[str, Any], recommendation).get("selection"),
+                "line": cast(dict[str, Any], recommendation).get("line"),
+                "formal_recommendation": cast(dict[str, Any], recommendation).get(
+                    "formal_recommendation",
+                ),
+            }
+            if isinstance(recommendation, dict)
+            else None,
+            "candidate": card.get("candidate"),
+            "formal_recommendation": card.get("formal_recommendation"),
+        }
 
     def dashboard_summary(
         self,
