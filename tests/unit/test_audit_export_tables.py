@@ -55,6 +55,7 @@ def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> Non
     assert isinstance(match, dict)
     match.pop("locked_pre_match_recommendation")
     match["formal_recommendation"] = False
+    match["recommendation"] = {"tier": "WATCH", "market": "ASIAN_HANDICAP"}
     match["pricing_shadow"] = {
         "market_ah": "-0.5",
         "fair_ah": "-0.6",
@@ -228,6 +229,7 @@ def _dashboard_payload() -> dict[str, object]:
                     "selection": "HOME_AH",
                     "line": "-0.5",
                     "odds": "1.91",
+                    "expected_value": "0.041",
                 },
                 "current_odds": {
                     "ah": {
