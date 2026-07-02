@@ -66,6 +66,8 @@ def render_report(
             payload_as_of=payload_as_of,
         ),
         "",
+        *_formal_decision_summary_lines(matches, decisions, payload_as_of=payload_as_of),
+        "",
     ]
     for index, match in enumerate(matches):
         lines.extend(
@@ -124,6 +126,12 @@ def _render_html_report(
         payload_as_of=payload_as_of,
     )
     state_summary = _html_state_summary(state_counts)
+    formal_table = _html_formal_recommendation_table(
+        matches,
+        decisions,
+        payload_as_of=payload_as_of,
+    )
+    non_formal_table = _html_non_formal_decision_table(matches, decisions)
     generated = _time_label(payload_as_of)
     html = f"""<!doctype html>
 <html lang="zh-CN">
@@ -142,6 +150,30 @@ def _render_html_report(
     h1 {{ margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }}
     .subtitle, .state-summary {{ margin: 0; color: #52606d; }}
     .state-summary {{ margin-top: 8px; font-weight: 600; }}
+    .decision-section {{
+      margin: 18px 0;
+      border: 1px solid #d6dbe1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }}
+    .decision-section h2 {{
+      margin: 0;
+      padding: 14px 16px 6px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }}
+    .decision-section p {{ margin: 0; padding: 0 16px 14px; color: #52606d; }}
+    .table-wrap {{ overflow-x: auto; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+    th, td {{
+      padding: 9px 10px;
+      border-top: 1px solid #e4e7eb;
+      text-align: left;
+      vertical-align: top;
+    }}
+    th {{ white-space: nowrap; background: #f2f4f7; color: #344054; }}
+    td {{ line-height: 1.45; }}
     .grid {{ display: grid; gap: 14px; }}
     .match-card {{
       border: 1px solid #d6dbe1;
@@ -157,6 +189,10 @@ def _render_html_report(
       body {{ background: #111827; color: #e5e7eb; }}
       .subtitle, .state-summary, footer {{ color: #aeb7c2; }}
       .match-card {{ background: #1f2937; border-color: #374151; }}
+      .decision-section {{ background: #1f2937; border-color: #374151; }}
+      .decision-section p {{ color: #aeb7c2; }}
+      th {{ background: #111827; color: #d1d5db; }}
+      th, td {{ border-color: #374151; }}
     }}
   </style>
 </head>
@@ -167,6 +203,8 @@ def _render_html_report(
       <p class="subtitle">{escape(subtitle)}</p>
       <p class="state-summary">{escape(state_summary)}</p>
     </header>
+    {formal_table}
+    {non_formal_table}
     <section class="grid">
       {''.join(cards)}
     </section>
@@ -195,6 +233,296 @@ def _html_state_summary(state_counts: dict[MatchDecisionState, int]) -> str:
         f"盘口未就绪 {state_counts[MatchDecisionState.MARKET_NOT_READY]} · "
         f"已锁定 {state_counts[MatchDecisionState.LOCKED]}"
     )
+
+
+def _formal_decision_summary_lines(
+    matches: list[dict[str, Any]],
+    decisions: list[MatchDecision],
+    *,
+    payload_as_of: str,
+) -> list[str]:
+    formal_count = sum(1 for decision in decisions if decision.state == MatchDecisionState.FORMAL)
+    lock_eligible = sum(
+        1
+        for match, decision in zip(matches, decisions, strict=True)
+        if decision.state == MatchDecisionState.FORMAL
+        and _recommendation_id(match)
+        and _kickoff_after_as_of(match, payload_as_of)
+    )
+    blocker_counts = _blocker_counts(matches, decisions)
+    blocker_text = "无" if not blocker_counts else " · ".join(
+        f"{code}={count}" for code, count in sorted(blocker_counts.items())
+    )
+    return [
+        "正式推荐判定摘要：",
+        f"- 今日正式推荐数量：{formal_count}",
+        f"- lock eligible 数量：{lock_eligible}",
+        f"- 主要 blocker 统计：{blocker_text}",
+    ]
+
+
+def _html_formal_recommendation_table(
+    matches: list[dict[str, Any]],
+    decisions: list[MatchDecision],
+    *,
+    payload_as_of: str,
+) -> str:
+    rows = [
+        _formal_table_row(match, payload_as_of=payload_as_of)
+        for match, decision in zip(matches, decisions, strict=True)
+        if decision.state == MatchDecisionState.FORMAL
+    ]
+    lock_eligible_count = sum(1 for row in rows if row[-1] == "true")
+    if not rows:
+        return (
+            '<section class="decision-section">'
+            "<h2>正式推荐表</h2>"
+            "<p>今日正式推荐：0</p>"
+            "<p>当前无 FORMAL + recommendation_id + future kickoff</p>"
+            "</section>"
+        )
+    headers = (
+        "fixture_id",
+        "kickoff",
+        "match",
+        "market",
+        "selection",
+        "line",
+        "odds",
+        "expected_value / risk_adjusted_ev",
+        "ev_se",
+        "recommendation_id",
+        "lock_eligible",
+    )
+    return (
+        '<section class="decision-section">'
+        "<h2>正式推荐表</h2>"
+        f"<p>今日正式推荐：{len(rows)} · lock eligible：{lock_eligible_count}</p>"
+        f'<div class="table-wrap">{_html_table(headers, rows)}</div>'
+        "</section>"
+    )
+
+
+def _html_non_formal_decision_table(
+    matches: list[dict[str, Any]],
+    decisions: list[MatchDecision],
+) -> str:
+    rows = [
+        _non_formal_table_row(match, decision)
+        for match, decision in zip(matches, decisions, strict=True)
+        if decision.state != MatchDecisionState.FORMAL
+    ]
+    if not rows:
+        return (
+            '<section class="decision-section">'
+            "<h2>非 FORMAL 判定表</h2>"
+            "<p>无非 FORMAL 场次。</p>"
+            "</section>"
+        )
+    headers = (
+        "fixture_id",
+        "match",
+        "current_state",
+        "recommendation.tier",
+        "formal_recommendation",
+        "recommendation_id / id",
+        "market",
+        "selection",
+        "line",
+        "odds",
+        "fair_ah",
+        "market_ah",
+        "edge_ah",
+        "expected_value / risk_adjusted_ev",
+        "ev_se",
+        "pricing_shadow.formal_blockers",
+        "analysis_readiness.blockers",
+        "independent_signal_count",
+        "missing_independent_sources",
+        "blocker_codes",
+        "explanation_cn",
+    )
+    return (
+        '<section class="decision-section">'
+        "<h2>非 FORMAL 判定表</h2>"
+        f"<p>非 FORMAL 场次：{len(rows)}</p>"
+        f'<div class="table-wrap">{_html_table(headers, rows)}</div>'
+        "</section>"
+    )
+
+
+def _formal_table_row(match: dict[str, Any], *, payload_as_of: str) -> tuple[str, ...]:
+    recommendation = _dict(match.get("recommendation"))
+    return (
+        _text(match.get("fixture_id")),
+        _kickoff_label(match),
+        _teams(match),
+        _text(recommendation.get("market")),
+        _text(recommendation.get("selection")),
+        _format_optional_number(recommendation.get("line")),
+        _format_optional_number(recommendation.get("odds"), digits=2),
+        _ev_text(recommendation),
+        _format_optional_number(recommendation.get("ev_se")),
+        _recommendation_id(match),
+        (
+            "true"
+            if _recommendation_id(match) and _kickoff_after_as_of(match, payload_as_of)
+            else "false"
+        ),
+    )
+
+
+def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tuple[str, ...]:
+    recommendation = _dict(match.get("recommendation"))
+    shadow = _dict(match.get("pricing_shadow"))
+    analysis = _dict(match.get("analysis_readiness"))
+    return (
+        _text(match.get("fixture_id")),
+        _teams(match),
+        _current_state(match, decision),
+        _text(recommendation.get("tier")),
+        str(match.get("formal_recommendation") is True).lower(),
+        _recommendation_id(match),
+        _text(recommendation.get("market")),
+        _text(recommendation.get("selection")),
+        _format_optional_number(recommendation.get("line")),
+        _format_optional_number(recommendation.get("odds"), digits=2),
+        _format_optional_number(shadow.get("fair_ah")),
+        _format_optional_number(shadow.get("market_ah")),
+        _format_optional_number(shadow.get("edge_ah")),
+        _ev_text(recommendation),
+        _format_optional_number(recommendation.get("ev_se")),
+        _join_codes(shadow.get("formal_blockers")),
+        _join_codes(analysis.get("blockers")),
+        _text(shadow.get("independent_signal_count")),
+        _join_codes(shadow.get("missing_independent_sources")),
+        _join_codes(_blocker_codes(match, decision)),
+        _explanation_cn(match, decision),
+    )
+
+
+def _html_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:
+    head = "".join(f"<th>{escape(header)}</th>" for header in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{escape(value)}</td>" for value in row) + "</tr>"
+        for row in rows
+    )
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+
+
+def _blocker_counts(
+    matches: list[dict[str, Any]],
+    decisions: list[MatchDecision],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for match, decision in zip(matches, decisions, strict=True):
+        if decision.state == MatchDecisionState.FORMAL:
+            continue
+        for code in _blocker_codes(match, decision):
+            counts[code] = counts.get(code, 0) + 1
+    return counts
+
+
+def _blocker_codes(match: dict[str, Any], decision: MatchDecision) -> list[str]:
+    shadow = _dict(match.get("pricing_shadow"))
+    analysis = _dict(match.get("analysis_readiness"))
+    codes: list[str] = []
+    for item in _list(shadow.get("formal_blockers")):
+        if isinstance(item, str) and item:
+            codes.append(item)
+    for item in _list(analysis.get("blockers")):
+        if isinstance(item, str) and item:
+            codes.append(item)
+    missing_sources = {
+        str(item).lower()
+        for item in _list(shadow.get("missing_independent_sources"))
+    }
+    if "h2h" in missing_sources:
+        codes.append("MISSING_H2H")
+    if decision.reason and decision.reason not in codes:
+        codes.append(decision.reason)
+    return codes
+
+
+def _explanation_cn(match: dict[str, Any], decision: MatchDecision) -> str:
+    messages: list[str] = []
+    for code in _blocker_codes(match, decision):
+        message = _blocker_explanation_cn(code)
+        if message not in messages:
+            messages.append(message)
+    return "；".join(messages) if messages else "未形成正式推荐，当前只观察"
+
+
+def _blocker_explanation_cn(code: str) -> str:
+    return {
+        "AH_EV_BELOW_FORMAL_THRESHOLD": "让球结算期望未达正式推荐阈值",
+        "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
+        "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
+        "MISSING_LINEUPS": "首发未返回",
+        "MISSING_H2H": "H2H 独立信号缺失",
+        "W2_FORMAL_RECOMMENDATION_ENABLED=false": "正式推荐开关未开启",
+        "MARKET_NOT_READY": "盘口未就绪",
+        "DATA_INSUFFICIENT": "独立信号不足",
+        "INSUFFICIENT_INDEPENDENT_FACTORS": "独立信号不足",
+        "INDEPENDENT_SIGNAL_COUNT_BELOW_MINIMUM": "独立信号不足",
+        "MISSING_MARKET_AH": "盘口未就绪",
+        "MISSING_AH_MARKET": "盘口未就绪",
+        "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",
+        "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐，当前只观察",
+        "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
+        "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐信息缺失，当前不输出方向",
+        "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整，当前不输出方向",
+    }.get(code, "未形成正式推荐，当前只观察")
+
+
+def _current_state(match: dict[str, Any], decision: MatchDecision) -> str:
+    if decision.state != MatchDecisionState.WATCH:
+        return decision.state.value
+    recommendation = _dict(match.get("recommendation"))
+    tier = str(recommendation.get("tier") or "").upper()
+    return tier if tier else MatchDecisionState.WATCH.value
+
+
+def _recommendation_id(match: dict[str, Any]) -> str:
+    recommendation = _dict(match.get("recommendation"))
+    return _text(recommendation.get("recommendation_id") or recommendation.get("id"))
+
+
+def _ev_text(recommendation: dict[str, Any]) -> str:
+    value = recommendation.get("expected_value")
+    if _number(value) is None:
+        value = recommendation.get("risk_adjusted_ev")
+    return _format_optional_number(value)
+
+
+def _format_optional_number(value: Any, *, digits: int = 4) -> str:
+    return "" if _number(value) is None else _format_number(value, digits=digits)
+
+
+def _join_codes(value: Any) -> str:
+    return " / ".join(str(item) for item in _list(value) if str(item))
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _kickoff_after_as_of(match: dict[str, Any], payload_as_of: str) -> bool:
+    kickoff = _parse_time(match.get("kickoff_utc"))
+    as_of = _parse_time(payload_as_of)
+    return kickoff is not None and as_of is not None and kickoff > as_of
+
+
+def _parse_time(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _report_title(payload: dict[str, Any], options: ReportOptions) -> str:
