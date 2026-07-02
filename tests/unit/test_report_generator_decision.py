@@ -18,6 +18,7 @@ def _match(**overrides: object) -> dict[str, object]:
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "line": -0.75,
+            "expected_value": 0.041,
         },
     }
     base.update(overrides)
@@ -73,6 +74,8 @@ def test_five_signals_with_ah_mainline_blocker_is_market_not_ready() -> None:
 def test_decide_match_watch_when_edge_below_threshold() -> None:
     decision = decide_match(
         _match(
+            formal_recommendation=False,
+            recommendation={"tier": "WATCH", "market": "ASIAN_HANDICAP"},
             pricing_shadow={
                 "status": "READY",
                 "independent_signal_count": 5,
@@ -85,6 +88,31 @@ def test_decide_match_watch_when_edge_below_threshold() -> None:
 
     assert decision.state == MatchDecisionState.WATCH
     assert decision.reason == "EDGE_BELOW_FORMAL_THRESHOLD"
+
+
+def test_decide_match_does_not_apply_report_edge_threshold_to_valid_formal_payload() -> None:
+    decision = decide_match(
+        _match(
+            formal_recommendation=True,
+            pricing_shadow={
+                "status": "READY",
+                "independent_signal_count": 5,
+                "fair_ah": -1.0,
+                "market_ah": -0.9,
+                "edge_ah": 0.1,
+            },
+            recommendation={
+                "tier": "FORMAL",
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+                "line": -0.9,
+                "expected_value": 0.041,
+            },
+        ),
+    )
+
+    assert decision.state == MatchDecisionState.FORMAL
+    assert decision.reason == "FORMAL_REPORTABLE"
 
 
 def test_decide_match_formal_when_data_market_and_edge_are_ready() -> None:
@@ -163,3 +191,15 @@ def test_decide_match_downgrades_formal_when_recommendation_market_is_not_ah() -
 
     assert decision.state == MatchDecisionState.WATCH
     assert decision.reason == "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
+def test_decide_match_downgrades_formal_when_expected_value_is_missing() -> None:
+    match = _match(formal_recommendation=True)
+    recommendation = dict(match["recommendation"])  # type: ignore[index]
+    recommendation.pop("expected_value")
+    match["recommendation"] = recommendation
+
+    decision = decide_match(match)
+
+    assert decision.state == MatchDecisionState.WATCH
+    assert decision.reason == "INVALID_FORMAL_EV_PAYLOAD"

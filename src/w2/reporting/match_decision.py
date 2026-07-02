@@ -110,34 +110,41 @@ def decide_match(
         )
     if edge_ah is None:
         edge_ah = market_ah - fair_ah
-    if abs(edge_ah) < edge_minimum:
-        return MatchDecision(
-            MatchDecisionState.WATCH,
-            "EDGE_BELOW_FORMAL_THRESHOLD",
-            "观察",
-        )
     if _direction_inconsistent(match, edge_ah):
         return MatchDecision(
             MatchDecisionState.WATCH,
             "RECOMMENDATION_DIRECTION_INCONSISTENT",
             "观察",
         )
-    if not _has_formal_recommendation_intent(match):
+    has_formal_intent = _has_formal_recommendation_intent(match)
+    if has_formal_intent:
+        if not _has_valid_formal_recommendation(match):
+            return MatchDecision(
+                MatchDecisionState.WATCH,
+                "INVALID_FORMAL_RECOMMENDATION_PAYLOAD",
+                "观察",
+            )
+        if not _has_valid_formal_ev(match):
+            return MatchDecision(
+                MatchDecisionState.WATCH,
+                "INVALID_FORMAL_EV_PAYLOAD",
+                "观察",
+            )
         return MatchDecision(
-            MatchDecisionState.WATCH,
-            "NO_FORMAL_RECOMMENDATION_PAYLOAD",
-            "观察",
+            MatchDecisionState.FORMAL,
+            "FORMAL_REPORTABLE",
+            "正式推荐",
         )
-    if not _has_valid_formal_recommendation(match):
+    if abs(edge_ah) < edge_minimum:
         return MatchDecision(
             MatchDecisionState.WATCH,
-            "INVALID_FORMAL_RECOMMENDATION_PAYLOAD",
+            "EDGE_BELOW_FORMAL_THRESHOLD",
             "观察",
         )
     return MatchDecision(
-        MatchDecisionState.FORMAL,
-        "FORMAL_REPORTABLE",
-        "正式推荐",
+        MatchDecisionState.WATCH,
+        "NO_FORMAL_RECOMMENDATION_PAYLOAD",
+        "观察",
     )
 
 
@@ -214,6 +221,12 @@ def _has_valid_formal_recommendation(match: dict[str, Any]) -> bool:
         return False
     odds = recommendation.get("odds")
     return odds is None or _number(odds) is not None
+
+
+def _has_valid_formal_ev(match: dict[str, Any]) -> bool:
+    recommendation = _dict(match.get("recommendation"))
+    expected_value = _number(recommendation.get("expected_value"))
+    return expected_value is not None and expected_value > 0
 
 
 def _dict(value: Any) -> dict[str, Any]:
