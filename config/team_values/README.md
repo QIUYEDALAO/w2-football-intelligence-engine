@@ -13,8 +13,27 @@ Required item fields:
 - `observed_at`: ISO timestamp that must be at or before the fixture `as_of`.
 - `source_system`: reviewed source label.
 - `source_url`: reviewable HTTP(S) source URL.
+- `source_tier`: confidence tier for the value source.
+- `primary_source_review_status`: whether the primary source was directly reviewed.
 - `confidence`: optional number from 0 to 1.
 - `reviewed_by`: human reviewer identifier.
+
+Confidence policy:
+
+- `primary_reviewed`: direct human review against the primary source page, capped at `0.95`.
+- `secondary_with_primary_reference`: reviewed secondary publication with a retained
+  primary-source URL, capped at `0.85`.
+
+The current `world_cup_2026.v1.json` artifact is graded as
+`secondary_with_primary_reference` with `primary_source_review_status=pending_primary_review`.
+It must not be described as directly verified against Transfermarkt until a human reviewer
+records a primary-source sample review.
+
+Update cadence:
+
+- Refresh once after the group stage.
+- Refresh once before the knockout stage.
+- Keep older artifacts immutable; create a new version when values change.
 
 Validation flow:
 

@@ -55,7 +55,9 @@ def valid_mapping_payload() -> dict[str, Any]:
                 "observed_at": "2026-06-27T00:00:00Z",
                 "source_system": "transfermarkt_national_team_page",
                 "source_url": "https://www.transfermarkt.com/strong/startseite/verein/10",
-                "confidence": 1.0,
+                "source_tier": "primary_reviewed",
+                "primary_source_review_status": "reviewed_against_primary",
+                "confidence": 0.95,
                 "reviewed_by": "human:reviewer-a",
                 "note": "Manually reviewed team total market value.",
             },
@@ -67,7 +69,9 @@ def valid_mapping_payload() -> dict[str, Any]:
                 "observed_at": "2026-06-27T00:00:00Z",
                 "source_system": "transfermarkt_national_team_page",
                 "source_url": "https://www.transfermarkt.com/weak/startseite/verein/20",
-                "confidence": 1.0,
+                "source_tier": "primary_reviewed",
+                "primary_source_review_status": "reviewed_against_primary",
+                "confidence": 0.95,
                 "reviewed_by": "human:reviewer-b",
                 "note": "Manually reviewed team total market value.",
             },
@@ -275,6 +279,25 @@ def test_validator_rejects_invalid_mapping_cases() -> None:
         ("fake", lambda item: [{**item, "note": "fake value"}], "forbidden"),
         ("negative", lambda item: [{**item, "squad_value_eur": -1}], "positive"),
         ("confidence", lambda item: [{**item, "confidence": 1.5}], "confidence"),
+        ("missing_source_tier", lambda item: [{**item, "source_tier": ""}], "source_tier"),
+        (
+            "missing_review_status",
+            lambda item: [{**item, "primary_source_review_status": ""}],
+            "primary_source_review_status",
+        ),
+        (
+            "secondary_over_cap",
+            lambda item: [
+                {
+                    **item,
+                    "source_tier": "secondary_with_primary_reference",
+                    "primary_source": "https://www.transfermarkt.com/example",
+                    "primary_source_review_status": "pending_primary_review",
+                    "confidence": 0.9,
+                }
+            ],
+            "exceeds secondary_with_primary_reference cap",
+        ),
     ]
     for _name, mutate, expected in cases:
         item = valid_mapping_payload()["items"][0]
@@ -293,6 +316,22 @@ def test_validator_loads_csv_and_mapping(tmp_path: Path) -> None:
 
     assert mapping["version"] == "world_cup_2026.team_values.v1"
     assert team_ids == {"10", "20", "30"}
+
+
+def test_world_cup_team_values_are_marked_secondary_until_primary_review() -> None:
+    path = Path("config/team_values/world_cup_2026.v1.json")
+    mapping = load_mapping(path)
+
+    assert mapping["primary_review_status"] == "pending_primary_review"
+    assert mapping["confidence_policy"]["secondary_with_primary_reference"][
+        "max_confidence"
+    ] == 0.85
+    assert len(mapping["items"]) == 48
+    for item in mapping["items"]:
+        assert item["source_tier"] == "secondary_with_primary_reference"
+        assert item["primary_source_review_status"] == "pending_primary_review"
+        assert item["confidence"] == 0.85
+        assert item["primary_source"].startswith("https://www.transfermarkt.com/")
 
 
 def tmp_json(tmp_path: Path, payload: Any) -> Path:
