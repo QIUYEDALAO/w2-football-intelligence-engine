@@ -5,6 +5,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationInputs,
     ah_expected_value,
+    ah_expected_value_uncertainty_from_lambdas,
     ah_settlement_distribution_from_lambdas,
     run_simulation,
 )
@@ -262,3 +263,63 @@ def test_ah_settlement_distribution_from_lambdas_supports_lines_outside_ladder()
     assert set(distribution) == {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
     assert abs(sum(distribution.values()) - 1.0) < 0.02
     assert ah_expected_value(distribution, decimal_price=1.85) is not None
+
+
+def test_ah_ev_uncertainty_is_zero_with_exact_lambdas() -> None:
+    distribution, ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.8,
+        lambda_away=1.1,
+        selection="HOME",
+        line=-0.75,
+        decimal_price=1.91,
+        lambda_sigma_home=0.0,
+        lambda_sigma_away=0.0,
+    )
+
+    assert distribution is not None
+    assert ev is not None
+    assert ev_se == 0.0
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
+def test_ah_ev_uncertainty_increases_with_lambda_sigma() -> None:
+    distribution, ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.8,
+        lambda_away=1.1,
+        selection="HOME",
+        line=-0.75,
+        decimal_price=1.91,
+        lambda_sigma_home=0.35,
+        lambda_sigma_away=0.35,
+    )
+
+    assert distribution is not None
+    assert ev is not None
+    assert ev_se is not None and ev_se > 0.0
+    assert abs(sum(distribution.values()) - 1.0) < 0.02
+
+
+def test_ah_ev_uncertainty_respects_dixon_coles_rho_for_lambda_fallback() -> None:
+    distribution_zero_rho, _, _ = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.4,
+        lambda_away=1.2,
+        selection="HOME",
+        line=-0.25,
+        decimal_price=1.91,
+        rho=0.0,
+    )
+    distribution_with_rho, _, _ = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.4,
+        lambda_away=1.2,
+        selection="HOME",
+        line=-0.25,
+        decimal_price=1.91,
+        rho=0.12,
+    )
+
+    assert distribution_zero_rho is not None
+    assert distribution_with_rho is not None
+    assert any(
+        abs(distribution_zero_rho[outcome] - distribution_with_rho[outcome]) > 0.000001
+        for outcome in distribution_zero_rho
+    )

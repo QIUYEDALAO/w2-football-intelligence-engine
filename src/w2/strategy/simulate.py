@@ -259,32 +259,6 @@ def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> 
     return round(ev, 6)
 
 
-def ah_expected_value_standard_error(
-    distribution: dict[str, Any],
-    *,
-    decimal_price: float,
-) -> float | None:
-    ev = ah_expected_value(distribution, decimal_price=decimal_price)
-    if ev is None:
-        return None
-    profit = decimal_price - 1
-    outcomes = {
-        SettlementOutcome.WIN: profit,
-        SettlementOutcome.HALF_WIN: profit / 2,
-        SettlementOutcome.PUSH: 0.0,
-        SettlementOutcome.HALF_LOSS: -0.5,
-        SettlementOutcome.LOSS: -1.0,
-    }
-    second_moment = 0.0
-    for outcome, value in outcomes.items():
-        probability = _distribution_value(distribution, outcome)
-        if probability is None:
-            return None
-        second_moment += probability * (value**2)
-    variance = max(second_moment - ev**2, 0.0)
-    return float(round(variance**0.5, 6))
-
-
 def ah_settlement_distribution_from_lambdas(
     *,
     lambda_home: float | None,
@@ -293,14 +267,92 @@ def ah_settlement_distribution_from_lambdas(
     line: float,
     max_goals: int = 12,
 ) -> dict[str, float] | None:
-    if lambda_home is None or lambda_away is None or lambda_home <= 0 or lambda_away <= 0:
-        return None
-    return ah_settlement_distribution(
-        _exact_score_matrix(lambda_home, lambda_away, rho=0.0, max_goals=max_goals),
-        simulations=1,
+    result = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
         selection=selection,
         line=line,
+        decimal_price=2.0,
+        max_goals=max_goals,
     )
+    return result[0]
+
+
+def ah_expected_value_uncertainty_from_lambdas(
+    *,
+    lambda_home: float | None,
+    lambda_away: float | None,
+    selection: str,
+    line: float,
+    decimal_price: float,
+    lambda_sigma_home: float = 0.0,
+    lambda_sigma_away: float = 0.0,
+    rho: float = 0.0,
+    max_goals: int = 12,
+) -> tuple[dict[str, float] | None, float | None, float | None]:
+    if (
+        lambda_home is None
+        or lambda_away is None
+        or lambda_home <= 0
+        or lambda_away <= 0
+        or decimal_price <= 1
+    ):
+        return None, None, None
+    scenario_rows: list[tuple[float, dict[str, float], float]] = []
+    for scenario_home_lambda, home_weight in _lambda_quadrature(
+        lambda_home,
+        max(float(lambda_sigma_home), 0.0),
+    ):
+        for scenario_away_lambda, away_weight in _lambda_quadrature(
+            lambda_away,
+            max(float(lambda_sigma_away), 0.0),
+        ):
+            distribution = ah_settlement_distribution(
+                _exact_score_matrix(
+                    scenario_home_lambda,
+                    scenario_away_lambda,
+                    rho=rho,
+                    max_goals=max_goals,
+                ),
+                simulations=1,
+                selection=selection,
+                line=line,
+            )
+            scenario_ev = ah_expected_value(distribution, decimal_price=decimal_price)
+            if scenario_ev is None:
+                return distribution, None, None
+            scenario_rows.append((home_weight * away_weight, distribution, scenario_ev))
+    total_weight = sum(weight for weight, _, _ in scenario_rows)
+    if total_weight <= 0:
+        return None, None, None
+    mixed_distribution = {
+        outcome.value: 0.0
+        for outcome in (
+            SettlementOutcome.WIN,
+            SettlementOutcome.HALF_WIN,
+            SettlementOutcome.PUSH,
+            SettlementOutcome.HALF_LOSS,
+            SettlementOutcome.LOSS,
+        )
+    }
+    normalized_rows: list[tuple[float, dict[str, float], float]] = []
+    for weight, distribution, scenario_ev in scenario_rows:
+        normalized_weight = weight / total_weight
+        normalized_rows.append((normalized_weight, distribution, scenario_ev))
+        for outcome in mixed_distribution:
+            mixed_distribution[outcome] += normalized_weight * distribution.get(outcome, 0.0)
+    rounded_distribution = {
+        outcome: round(probability, 6)
+        for outcome, probability in mixed_distribution.items()
+    }
+    mixed_ev = ah_expected_value(rounded_distribution, decimal_price=decimal_price)
+    if mixed_ev is None:
+        return rounded_distribution, None, None
+    variance = sum(
+        weight * ((scenario_ev - mixed_ev) ** 2)
+        for weight, _, scenario_ev in normalized_rows
+    )
+    return rounded_distribution, mixed_ev, float(round(max(variance, 0.0) ** 0.5, 6))
 
 
 def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:

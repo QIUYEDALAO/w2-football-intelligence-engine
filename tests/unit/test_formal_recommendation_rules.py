@@ -103,8 +103,25 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
+    assert result.recommendation["ev_se"] == 0.0
+
+
+def test_formal_ev_se_uses_lambda_uncertainty() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=simulation(lambda_sigma_home=0.35, lambda_sigma_away=0.35),
+        current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        pricing_shadow=ready_shadow(),
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
     assert result.recommendation["ev_se"] is not None
-    assert result.recommendation["ev_se"] > 0
+    assert result.recommendation["ev_se"] > 0.0
 
 
 def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:

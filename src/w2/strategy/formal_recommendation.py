@@ -8,7 +8,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationOutput,
     ah_expected_value,
-    ah_expected_value_standard_error,
+    ah_expected_value_uncertainty_from_lambdas,
     ah_settlement_distribution_from_lambdas,
 )
 
@@ -104,14 +104,20 @@ def build_formal_recommendation(
     assert simulation is not None
     if ah is None or ah.validation_status != "READY":
         return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
-    home_distribution = _settlement_distribution(simulation, "HOME", ah.home_line)
-    away_distribution = _settlement_distribution(simulation, "AWAY", ah.away_line)
+    home_distribution, home_ev, home_ev_se = _settlement_distribution_with_ev_se(
+        simulation,
+        "HOME",
+        ah.home_line,
+        ah.home_price,
+    )
+    away_distribution, away_ev, away_ev_se = _settlement_distribution_with_ev_se(
+        simulation,
+        "AWAY",
+        ah.away_line,
+        ah.away_price,
+    )
     if home_distribution is None or away_distribution is None:
         return _watch("MISSING_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
-    home_ev = ah_expected_value(home_distribution, decimal_price=ah.home_price)
-    away_ev = ah_expected_value(away_distribution, decimal_price=ah.away_price)
-    home_ev_se = ah_expected_value_standard_error(home_distribution, decimal_price=ah.home_price)
-    away_ev_se = ah_expected_value_standard_error(away_distribution, decimal_price=ah.away_price)
     if home_ev is None or away_ev is None:
         return _watch("INVALID_AH_EV_INPUTS", canonical_ah_market=ah)
     home_model = _effective_cover_probability(home_distribution)
@@ -380,6 +386,40 @@ def _settlement_distribution(
         selection=side,
         line=line,
     )
+
+
+def _settlement_distribution_with_ev_se(
+    simulation: SimulationOutput,
+    side: str,
+    line: float,
+    price: float,
+) -> tuple[dict[str, Any] | None, float | None, float | None]:
+    ladder_distribution = _settlement_distribution(simulation, side, line)
+    scenario_distribution, scenario_ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=simulation.lambda_home,
+        lambda_away=simulation.lambda_away,
+        lambda_sigma_home=simulation.lambda_sigma_home or 0.0,
+        lambda_sigma_away=simulation.lambda_sigma_away or 0.0,
+        rho=_simulation_rho(simulation),
+        selection=side,
+        line=line,
+        decimal_price=price,
+    )
+    if ladder_distribution is not None:
+        return (
+            ladder_distribution,
+            ah_expected_value(ladder_distribution, decimal_price=price),
+            ev_se,
+        )
+    return scenario_distribution, scenario_ev, ev_se
+
+
+def _simulation_rho(simulation: SimulationOutput) -> float:
+    calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
+    params = calibration.get("params")
+    if not isinstance(params, dict):
+        return 0.0
+    return _number(params.get("dixon_coles_rho")) or 0.0
 
 
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
