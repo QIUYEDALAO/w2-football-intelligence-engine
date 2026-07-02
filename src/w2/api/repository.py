@@ -1454,14 +1454,23 @@ class ReadModelService:
             home_team_id=home_id,
             away_team_id=away_id,
         )
-        home_ratings, away_ratings = self._team_ratings_from_history(
+        history_home_ratings, history_away_ratings = self._team_ratings_from_history(
             context=context,
             home_team_id=home_id,
             away_team_id=away_id,
             home_history=home_history,
             away_history=away_history,
         )
-        if not home_ratings and not away_ratings:
+        home_ratings, away_ratings = self._team_ratings_from_static_mapping(
+            context=context,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            history_home_ratings=history_home_ratings,
+            history_away_ratings=history_away_ratings,
+        )
+        if not (home_ratings and away_ratings):
+            home_ratings, away_ratings = history_home_ratings, history_away_ratings
+        if not (home_ratings and away_ratings):
             home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
             away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
         home_values, away_values = self._team_values_from_static_mapping(
@@ -2386,6 +2395,77 @@ class ReadModelService:
             as_of=context.as_of,
         )
         return ([home] if home is not None else []), ([away] if away is not None else [])
+
+    def _team_ratings_from_static_mapping(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+        history_home_ratings: list[TeamRatingSnapshot],
+        history_away_ratings: list[TeamRatingSnapshot],
+    ) -> tuple[list[TeamRatingSnapshot], list[TeamRatingSnapshot]]:
+        ratings = self._team_rating_mapping()
+        home = self._team_rating_snapshot(
+            ratings.get(home_team_id),
+            context=context,
+            history_ratings=history_home_ratings,
+        )
+        away = self._team_rating_snapshot(
+            ratings.get(away_team_id),
+            context=context,
+            history_ratings=history_away_ratings,
+        )
+        return ([home] if home is not None else []), ([away] if away is not None else [])
+
+    def _team_rating_mapping(self) -> dict[str, dict[str, Any]]:
+        path = ROOT / "config/team_ratings/world_cup_2026.v1.json"
+        payload = load_json(path, {})
+        rows = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            return {}
+        mapping: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_id") or row.get("provider_team_id") or "")
+            if team_id:
+                mapping[team_id] = row
+        return mapping
+
+    def _team_rating_snapshot(
+        self,
+        row: dict[str, Any] | None,
+        *,
+        context: FeatureContext,
+        history_ratings: list[TeamRatingSnapshot],
+    ) -> TeamRatingSnapshot | None:
+        if not row:
+            return None
+        observed = parse_provider_time(row.get("observed_at"))
+        if observed is None or observed > context.as_of:
+            return None
+        try:
+            elo = float(row["elo"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        base = max(
+            (rating for rating in history_ratings if rating.observed_at <= context.as_of),
+            key=lambda rating: rating.observed_at,
+            default=None,
+        )
+        return TeamRatingSnapshot(
+            team_id=str(row.get("team_id") or row.get("provider_team_id") or ""),
+            observed_at=observed,
+            elo=elo,
+            attack_strength=base.attack_strength if base is not None else 1.0,
+            defence_strength=base.defence_strength if base is not None else 1.0,
+            form_index=base.form_index if base is not None else 0.0,
+            source=str(row.get("source_system") or "world_football_elo"),
+            source_group="ratings",
+            is_independent_signal=True,
+            collection_status="REAL_ELO",
+        )
 
     def _team_values_from_static_mapping(
         self,
