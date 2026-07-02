@@ -1,0 +1,5 @@
+HTTP/2 200
+content-type: text/tab-separated-values
+last-modified: Wed, 01 Jul 2026 22:50:30 GMT
+date: Thu, 02 Jul 2026 00:40:30 GMT
+source: https://www.eloratings.net/World.tsv

@@ -223,6 +223,47 @@ def write_value_mapping(root: Path) -> None:
     )
 
 
+def write_rating_mapping(
+    root: Path,
+    *,
+    observed_at: str = "2026-07-01T00:00:00Z",
+) -> None:
+    path = root / "config/team_ratings/world_cup_2026.v1.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "version": "world_cup_2026.real_elo.test",
+                "source_system": "world_football_elo",
+                "source_url": "https://www.eloratings.net/World.tsv",
+                "items": [
+                    {
+                        "team_id": "10",
+                        "team_name": "Strong",
+                        "elo": 2010,
+                        "observed_at": observed_at,
+                        "source_system": "world_football_elo",
+                        "source_url": "https://www.eloratings.net/World.tsv",
+                        "confidence": 0.95,
+                        "reviewed_by": "liudehua",
+                    },
+                    {
+                        "team_id": "20",
+                        "team_name": "Weak",
+                        "elo": 1610,
+                        "observed_at": observed_at,
+                        "source_system": "world_football_elo",
+                        "source_url": "https://www.eloratings.net/World.tsv",
+                        "confidence": 0.95,
+                        "reviewed_by": "liudehua",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_path: Path) -> None:
     write_value_mapping(tmp_path)
     monkeypatch.setattr(api_repository, "ROOT", tmp_path)
@@ -254,6 +295,65 @@ def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_pat
     assert card["pricing_shadow"]["beats_market"] is False
     assert card["formal_recommendation"] is False
     assert card["candidate"] is False
+
+
+def test_static_real_elo_overrides_history_rating_and_enters_lambda(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    write_value_mapping(tmp_path)
+    write_rating_mapping(tmp_path)
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: IndependentSourceStore(),
+    )
+    service = ReadModelService(repository=cast(Any, IndependentSourceRepository()))
+
+    card = service.analysis_card("future-1")
+
+    assert card is not None
+    factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
+    strength = factors["F7_STRENGTH_FORM"]
+    assert strength["source"] == "world_football_elo"
+    assert strength["source_group"] == "ratings"
+    assert strength["collection_status"] == "REAL_ELO"
+    assert strength["is_independent_signal"] is True
+    assert strength["inputs"]["home_elo"] == 2010.0
+    assert strength["inputs"]["away_elo"] == 1610.0
+    readiness = card["pricing_shadow"]["simulation"]["input_readiness"]
+    assert readiness["home_elo_source"] == "world_football_elo"
+    assert readiness["away_elo_source"] == "world_football_elo"
+    assert readiness["home_elo_collection_status"] == "REAL_ELO"
+    assert readiness["away_elo_collection_status"] == "REAL_ELO"
+    assert readiness["ratings_used_in_lambda"] is True
+    assert readiness["proxy_elo_excluded"] is False
+    assert "ratings" in card["pricing_shadow"]["independent_signal_groups"]
+
+
+def test_static_real_elo_after_as_of_is_not_used(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    write_value_mapping(tmp_path)
+    write_rating_mapping(tmp_path, observed_at="2026-08-01T00:00:00Z")
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: IndependentSourceStore(),
+    )
+    service = ReadModelService(repository=cast(Any, IndependentSourceRepository()))
+
+    card = service.analysis_card("future-1")
+
+    assert card is not None
+    factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
+    strength = factors["F7_STRENGTH_FORM"]
+    assert strength["source"] != "world_football_elo"
+    assert strength["collection_status"] != "REAL_ELO"
+    assert strength["inputs"]["home_elo"] != 2010.0
 
 
 def test_missing_ah_and_h2h_are_reported_without_fake_ready(
