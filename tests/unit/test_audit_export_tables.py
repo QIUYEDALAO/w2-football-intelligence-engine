@@ -14,7 +14,7 @@ from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapsh
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
 
 
-def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
+def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     export = build_audit_export(_dashboard_payload())
 
     assert set(export.tables) == {
@@ -22,6 +22,7 @@ def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
         "market_timeline_snapshots",
         "locked_recommendation_snapshots",
         "settlement_history",
+        "calibration_report",
     }
     assert export.manifest["provider_calls"] == 0
     assert export.manifest["db_writes"] == 0
@@ -47,6 +48,7 @@ def test_audit_export_builds_four_tables_from_dashboard_payload() -> None:
     assert export.tables["locked_recommendation_snapshots"][0]["snapshot_payload_hash"] == "abc"
     assert export.tables["settlement_history"][0]["status"] == "PENDING"
     assert export.tables["settlement_history"][0]["lock_snapshot_status"] == "MISSING_LOCK_SNAPSHOT"
+    assert export.tables["calibration_report"] == []
 
 
 def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> None:
@@ -89,6 +91,23 @@ def test_audit_export_keeps_recommendation_fields_for_formal_only() -> None:
     assert row["recommendation_line"] == "-0.5"
     assert row["recommendation_odds"] == "1.91"
     assert row["ev_se"] == "0.21"
+
+
+def test_audit_export_exposes_ev_uncertainty_blocker() -> None:
+    payload = _dashboard_payload()
+    match = payload["all"][0]  # type: ignore[index]
+    assert isinstance(match, dict)
+    match.pop("locked_pre_match_recommendation")
+    match["formal_recommendation"] = False
+    match["recommendation"] = None
+    pricing_shadow = match["pricing_shadow"]
+    assert isinstance(pricing_shadow, dict)
+    pricing_shadow["formal_blockers"] = ["EV_WITHIN_UNCERTAINTY_BAND"]
+
+    export = build_audit_export(payload)
+    row = export.tables["prematch_recommendations"][0]
+
+    assert row["formal_blockers"] == ["EV_WITHIN_UNCERTAINTY_BAND"]
 
 
 def test_audit_export_preserves_zero_market_timeline_line() -> None:
@@ -176,6 +195,7 @@ def test_audit_export_appends_existing_model_rows_read_only() -> None:
         for row in export.tables["locked_recommendation_snapshots"]
     )
     assert any(row["source"] == "settlement_model" for row in export.tables["settlement_history"])
+    assert "calibration_report" in export.manifest["table_counts"]
 
 
 def test_audit_export_writes_manifest_csv_and_json(tmp_path) -> None:
@@ -187,6 +207,8 @@ def test_audit_export_writes_manifest_csv_and_json(tmp_path) -> None:
     assert "manifest.json" in names
     assert "prematch_recommendations.csv" in names
     assert "prematch_recommendations.json" in names
+    assert "calibration_report.csv" in names
+    assert "calibration_report.json" in names
     assert (tmp_path / "prematch_recommendations.csv").read_text(encoding="utf-8")
     assert '"provider_calls": 0' in (tmp_path / "manifest.json").read_text(encoding="utf-8")
 
@@ -206,6 +228,13 @@ def test_audit_export_writes_fixed_headers_for_empty_tables(tmp_path) -> None:
     assert "home_price" in timeline_header
     assert "away_price" in timeline_header
     assert "bookmaker_count" in timeline_header
+
+    with (tmp_path / "calibration_report.csv").open(encoding="utf-8") as handle:
+        calibration_header = next(csv.reader(handle))
+    assert calibration_header[:4] == ["schema_version", "generated_at", "as_of", "release_sha"]
+    assert "actual_cover_probability" in calibration_header
+    assert "win_rate" not in calibration_header
+    assert "ROI" not in calibration_header
 
 
 def _dashboard_payload() -> dict[str, object]:

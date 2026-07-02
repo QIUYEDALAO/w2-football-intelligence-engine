@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from w2.strategy.formal_recommendation import (
     _settlement_distribution_with_ev_se,
     build_formal_recommendation,
@@ -116,6 +118,55 @@ def off_ladder_simulation(*, rho: float = 0.12) -> SimulationOutput:
     )
 
 
+def ev_gate_simulation(
+    *,
+    lambda_sigma_home: float = 0.0,
+    lambda_sigma_away: float = 0.0,
+    lambda_home: float | None = 1.4,
+    lambda_away: float | None = 1.2,
+) -> SimulationOutput:
+    return SimulationOutput(
+        model_version="w2.formal.exact_dc_poisson.v1",
+        calibration_version="w2.formal.lambda_baseline_prior.v1",
+        calibration_status="BASELINE_PRIOR",
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
+        lambda_sigma_home=lambda_sigma_home,
+        lambda_sigma_away=lambda_sigma_away,
+        fair_ah=0.0,
+        fair_ou=2.75,
+        scoreline_picks=[],
+        score_matrix_summary={"home_win": 0.4, "draw": 0.27, "away_win": 0.35},
+        ah_probabilities={
+            "ladder": [
+                {
+                    "home_line": 0.0,
+                    "home_settlement_distribution": {
+                        "WIN": 0.518,
+                        "HALF_WIN": 0.0,
+                        "PUSH": 0.0,
+                        "HALF_LOSS": 0.0,
+                        "LOSS": 0.482,
+                    },
+                    "away_settlement_distribution": {
+                        "WIN": 0.482,
+                        "HALF_WIN": 0.0,
+                        "PUSH": 0.0,
+                        "HALF_LOSS": 0.0,
+                        "LOSS": 0.518,
+                    },
+                }
+            ]
+        },
+        ou_probabilities={},
+        input_readiness={"xg_ready": True},
+        status=READY,
+        simulations=10_000,
+        seed=789,
+        calibration={"params": {"dixon_coles_rho": 0.12}},
+    )
+
+
 def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
@@ -140,7 +191,7 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=simulation(lambda_sigma_home=0.35, lambda_sigma_away=0.35),
-        current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        current_odds={"ah": {"home_line": 0.5, "home_price": 2.20, "away_price": 1.65}},
         pricing_shadow=ready_shadow(),
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -152,6 +203,58 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
     assert result.recommendation is not None
     assert result.recommendation["ev_se"] is not None
     assert result.recommendation["ev_se"] > 0.0
+
+
+def test_ev_se_zero_keeps_existing_threshold_behavior() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
+    assert result.recommendation["expected_value"] == 0.036
+    assert result.recommendation["ev_se"] == 0.0
+
+
+def test_ev_within_uncertainty_band_returns_watch() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(lambda_sigma_home=0.35, lambda_sigma_away=0.35),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert "EV_WITHIN_UNCERTAINTY_BAND" in result.blockers
+    assert result.recommendation is None
+
+
+def test_missing_ev_uncertainty_returns_watch() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(lambda_home=None),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert "EV_UNCERTAINTY_MISSING" in result.blockers
+    assert result.recommendation is None
 
 
 def test_off_ladder_formal_fallback_uses_scenario_ev_uncertainty() -> None:
@@ -259,6 +362,36 @@ def test_scoreline_reverse_value_sets_reverse_flag_without_changing_ev_gate() ->
     assert result.recommendation["selection"] == "AWAY_AH"
     assert result.recommendation["reverse_factor_value"] is True
     assert result.recommendation["expected_value"] >= 0.08
+
+
+def test_reverse_value_threshold_includes_ev_uncertainty_penalty() -> None:
+    uncertain_reverse = replace(
+        reverse_value_simulation(),
+        lambda_sigma_home=0.35,
+        lambda_sigma_away=0.35,
+    )
+
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=uncertain_reverse,
+        current_odds={
+            "ah": {
+                "home_line": -0.25,
+                "away_line": 0.25,
+                "home_price": 1.85,
+                "away_price": 2.20,
+            }
+        },
+        pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.25},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert "REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH" in result.blockers
+    assert result.recommendation is None
 
 
 def test_reverse_value_helper_detects_scoreline_dominant_opposite_side() -> None:

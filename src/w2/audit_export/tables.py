@@ -14,12 +14,14 @@ from sqlalchemy.orm import Session
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
 from w2.reporting.match_decision import MatchDecisionState, decide_match
+from w2.tracking.calibration_report import build_calibration_report
 
 AUDIT_TABLE_NAMES = (
     "prematch_recommendations",
     "market_timeline_snapshots",
     "locked_recommendation_snapshots",
     "settlement_history",
+    "calibration_report",
 )
 
 AUDIT_TABLE_COLUMNS = {
@@ -130,6 +132,26 @@ AUDIT_TABLE_COLUMNS = {
         "movement_pattern",
         "raw_settlement_json",
     ),
+    "calibration_report": (
+        "schema_version",
+        "generated_at",
+        "as_of",
+        "release_sha",
+        "bucket",
+        "tier",
+        "movement_pattern",
+        "line_bucket",
+        "sample_count",
+        "min_bucket_samples_for_rate",
+        "status",
+        "label",
+        "not_a_formal_gate",
+        "posthoc_only",
+        "predicted_cover_probability",
+        "actual_cover_probability",
+        "brier",
+        "log_loss",
+    ),
 }
 
 
@@ -149,16 +171,24 @@ def build_audit_export(
         _iso(generated_at) if generated_at is not None else _payload_as_of(dashboard_payload)
     )
     matches = [item for item in _list(dashboard_payload.get("all")) if isinstance(item, dict)]
+    locked_rows = _locked_recommendation_snapshots(matches)
+    settlement_rows = _settlement_history(matches)
     tables = {
         "prematch_recommendations": _prematch_recommendations(dashboard_payload, matches),
         "market_timeline_snapshots": _market_timeline_snapshots(matches),
-        "locked_recommendation_snapshots": _locked_recommendation_snapshots(matches),
-        "settlement_history": _settlement_history(matches),
+        "locked_recommendation_snapshots": locked_rows,
+        "settlement_history": settlement_rows,
+        "calibration_report": [],
     }
     if session is not None:
         tables["market_timeline_snapshots"].extend(_db_market_timeline_snapshots(session))
         tables["locked_recommendation_snapshots"].extend(_db_locked_snapshots(session))
         tables["settlement_history"].extend(_db_settlement_history(session))
+    tables["calibration_report"] = build_calibration_report(
+        lock_rows=tables["locked_recommendation_snapshots"],
+        settlement_rows=tables["settlement_history"],
+        generated_at=exported_at,
+    )
     tables = _normalize_tables(tables)
     manifest = {
         "status": "PASS",
