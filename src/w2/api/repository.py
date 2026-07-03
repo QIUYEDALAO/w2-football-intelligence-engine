@@ -176,6 +176,10 @@ def _truthy_flag(value: Any) -> bool:
     return False
 
 
+def _runtime_ah_mainline_recompute_enabled() -> bool:
+    return _truthy_flag(os.getenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ"))
+
+
 def _optional_truthy_flag(value: Any) -> bool | None:
     if value is None:
         return None
@@ -3580,6 +3584,8 @@ class ReadModelService:
         card: dict[str, Any],
         timeline: dict[str, Any],
     ) -> None:
+        if not _runtime_ah_mainline_recompute_enabled():
+            return
         latest_ah = self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline))
         signed_line = self._snapshot_float(latest_ah, "line")
         if signed_line is None:

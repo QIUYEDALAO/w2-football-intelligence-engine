@@ -134,6 +134,8 @@ input[type=search], select { background: #0f1726; border: 1px solid #243349; col
 .ao { color: #44546b; font-size: 10.5px; white-space: nowrap; text-align: right; }
 .n { color: #aebfd4; font-size: 11.5px; white-space: nowrap; text-align: right; }
 .dq { color: #e2b04a; font-size: 10.5px; margin-left: 6px; }
+.ah-review { display: inline-block; margin-left: 3px; color: #e2b04a;
+  font-size: 10px; vertical-align: 1px; }
 .badge { display: inline-block; font-size: 10.5px; font-weight: 500; border-radius: 2px;
   padding: 0 6px; justify-self: start; }
 .b-formal { background: #123726; color: #43e59a; }
@@ -395,7 +397,7 @@ def _html_match_card(
     recommendation = _dict(match.get("recommendation"))
     is_formal = decision.state == MatchDecisionState.FORMAL
     ev = _number(recommendation.get("expected_value")) if is_formal else None
-    edge = _number(shadow.get("edge_ah")) if _market_ready_for_display(match) else None
+    edge = _number(shadow.get("edge_ah"))
     ev_attr = "" if ev is None else f"{ev:.6f}"
     edge_attr = "" if edge is None else f"{edge:.4f}"
     attrs = (
@@ -468,6 +470,10 @@ def _number_cell(value: Any, *, signed: bool = False) -> str:
 
 
 def _market_ready_for_display(match: dict[str, Any]) -> bool:
+    return not _has_stale_mainline_diagnostic(match)
+
+
+def _has_stale_mainline_diagnostic(match: dict[str, Any]) -> bool:
     shadow = _dict(match.get("pricing_shadow"))
     stale = "AH_MAINLINE_STALE_MATERIALIZATION"
     blockers = [
@@ -477,19 +483,18 @@ def _market_ready_for_display(match: dict[str, Any]) -> bool:
     ]
     canonical = _dict(shadow.get("canonical_ah_market"))
     blockers.append(canonical.get("blocker"))
-    return stale not in {str(item) for item in blockers if item}
+    return stale in {str(item) for item in blockers if item}
 
 
 def _market_display_cell(match: dict[str, Any]) -> str:
-    if not _market_ready_for_display(match):
-        return "—"
     shadow = _dict(match.get("pricing_shadow"))
-    return _number_cell(shadow.get("market_ah"))
+    cell = _number_cell(shadow.get("market_ah"))
+    if cell != "—" and _has_stale_mainline_diagnostic(match):
+        cell += '<span class="ah-review" title="主线待复核">!</span>'
+    return cell
 
 
 def _edge_display_cell(match: dict[str, Any]) -> str:
-    if not _market_ready_for_display(match):
-        return "—"
     shadow = _dict(match.get("pricing_shadow"))
     return _number_cell(shadow.get("edge_ah"), signed=True)
 
@@ -899,12 +904,8 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
             digits=2,
         ),
         _format_optional_number(shadow.get("fair_ah")),
-        _format_optional_number(shadow.get("market_ah"))
-        if _market_ready_for_display(match)
-        else "",
-        _format_optional_number(shadow.get("edge_ah"))
-        if _market_ready_for_display(match)
-        else "",
+        _format_optional_number(shadow.get("market_ah")),
+        _format_optional_number(shadow.get("edge_ah")),
         _ev_text(recommendation),
         _format_optional_number(recommendation.get("ev_se")),
         _join_codes(shadow.get("formal_blockers")),
@@ -1005,12 +1006,20 @@ def _blocker_explanation_cn(code: str) -> str:
         "INDEPENDENT_SIGNAL_COUNT_BELOW_MINIMUM": "独立信号不足",
         "MISSING_MARKET_AH": "盘口未就绪",
         "MISSING_AH_MARKET": "盘口未就绪",
+        "MISSING_ODDS": "赔率未就绪",
+        "AH_MAINLINE_AMBIGUOUS": "全场让球主盘口不明确",
+        "AH_PRIMARY_MAINLINE_MISSING": "缺少可确认的全场让球主盘口",
+        "AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION": "盘口跳线需要多庄或连续时间桶确认",
+        "AH_MARKET_LINE_MAGNITUDE_MISMATCH": "让球盘口幅度不一致",
+        "AH_MARKET_HOME_LINE_MAGNITUDE_MISMATCH": "主队让球盘口幅度不一致",
+        "AH_MARKET_ABS_LINE_MISMATCH": "让球盘口绝对值不一致",
+        "AH_MARKET_LINE_SIDE_MISMATCH": "让球盘口方向不一致",
         "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",
         "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐，当前只观察",
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
         "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐信息缺失，当前不输出方向",
         "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整，当前不输出方向",
-    }.get(code, "未形成正式推荐，当前只观察")
+    }.get(code, f"未映射原因：{code}")
 
 
 def _current_state(match: dict[str, Any], decision: MatchDecision) -> str:
@@ -1362,6 +1371,14 @@ def _reason_cn(reason: str) -> str:
         "AH_MAINLINE_AMBIGUOUS": "全场让球主盘口不明确",
         "AH_PRIMARY_MAINLINE_MISSING": "缺少可确认的全场让球主盘口",
         "AH_MAINLINE_CONSENSUS_CONFLICT": "全场让球主盘口与庄家共识冲突",
+        "AH_MAINLINE_STALE_MATERIALIZATION": "主线物化待复核",
+        "AH_MAINLINE_JUMP_REQUIRES_PRIMARY_CONFIRMATION": "盘口跳线需要多庄或连续时间桶确认",
+        "AH_MARKET_LINE_MAGNITUDE_MISMATCH": "让球盘口幅度不一致",
+        "AH_MARKET_HOME_LINE_MAGNITUDE_MISMATCH": "主队让球盘口幅度不一致",
+        "AH_MARKET_ABS_LINE_MISMATCH": "让球盘口绝对值不一致",
+        "AH_MARKET_LINE_SIDE_MISMATCH": "让球盘口方向不一致",
+        "MISSING_ODDS": "赔率未就绪",
+        "MISSING_AH_MARKET": "缺少全场让球市场盘",
         "AH_FAIR_MARKET_GAP_TOO_WIDE": "模拟公平盘与市场盘分歧过大",
         "EV_IMPLAUSIBLY_HIGH": "EV 异常偏高，保守拦截",
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
@@ -1371,7 +1388,7 @@ def _reason_cn(reason: str) -> str:
         "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整",
         "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐",
         "FORMAL_REPORTABLE": "达到报告正式推荐条件",
-    }.get(reason, "状态原因已记录")
+    }.get(reason, f"未映射原因：{reason}")
 
 
 def _assert_safe_report_text(text: str) -> None:
