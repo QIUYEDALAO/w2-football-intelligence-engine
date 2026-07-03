@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from w2.ingestion.checkpoint_refresh import (
     checkpoint_plan_for_fixture,
     line_jump_confirmation_plan,
+    lineups_retry_plans,
     projected_calls_for_checkpoint_batch,
     saturday_budget_projection,
     select_checkpoint_batch,
@@ -38,6 +39,21 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
     assert [plan.plan_id for plan in plans].count("fixture-1:T24") == 1
 
 
+def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
+    kickoff_tokyo = datetime.fromisoformat("2026-07-05T09:00:00+09:00")
+
+    plans = checkpoint_plan_for_fixture(
+        fixture_id="fixture-tz",
+        kickoff_utc=kickoff_tokyo,
+        generated_at_utc=NOW,
+    )
+
+    assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
+    assert plans[1].due_at_utc == datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
+    assert plans[6].checkpoint == "T15M_CLOSE"
+    assert plans[6].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
+
+
 def test_line_jump_confirmation_triggers_after_half_ball_move() -> None:
     kickoff = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 
@@ -66,6 +82,32 @@ def test_line_jump_confirmation_ignores_small_moves() -> None:
         )
         is None
     )
+
+
+def test_lineups_provider_empty_schedules_t45_and_t30_retries_at_due_windows() -> None:
+    kickoff = NOW + timedelta(hours=1)
+
+    t45_plans = lineups_retry_plans(
+        fixture_id="fixture-lineups",
+        kickoff_utc=kickoff,
+        now=NOW + timedelta(minutes=20),
+        lineups_status="PROVIDER_EMPTY",
+    )
+    t30_plans = lineups_retry_plans(
+        fixture_id="fixture-lineups",
+        kickoff_utc=kickoff,
+        now=NOW + timedelta(minutes=30),
+        lineups_status="PROVIDER_EMPTY",
+    )
+
+    assert [plan.checkpoint for plan in t45_plans] == ["T45_LINEUPS_RETRY"]
+    assert [plan.checkpoint for plan in t30_plans] == [
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+    ]
+    plans = [*t45_plans, *t30_plans]
+    assert all(plan.endpoints == ("lineups",) for plan in plans)
+    assert all(plan.source == "lineups_retry" for plan in plans)
 
 
 def test_checkpoint_batch_respects_hard_cap() -> None:
