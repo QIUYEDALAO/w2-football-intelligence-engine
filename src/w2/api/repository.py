@@ -3857,10 +3857,10 @@ class ReadModelService:
         if market.get("decision") == "SKIP":
             return None
         tendency = str(market.get("tendency") or "")
+        if tendency in {"HOME_AH", "AWAY_AH"}:
+            return None
         line = market.get("line")
         mapping = {
-            "HOME_AH": "主队方向",
-            "AWAY_AH": "客队方向",
             "OVER": "大球",
             "UNDER": "小球",
             "1H_OVER": "半场有球",

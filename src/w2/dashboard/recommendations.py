@@ -75,7 +75,7 @@ def build_recommendation(
     if not risks:
         risks = _string_list(card.get("risks_cn") or card.get("risks"))
 
-    return {
+    recommendation = {
         "tier": tier.value,
         "market": market_code,
         "market_label_cn": market.get("label_cn")
@@ -99,6 +99,36 @@ def build_recommendation(
         "formal_recommendation": truthy(card.get("formal_recommendation"))
         or truthy(market.get("formal_recommendation")),
     }
+    if tier is not RecommendationTier.FORMAL:
+        return _non_formal_recommendation_shell(recommendation)
+    return recommendation
+
+
+def _non_formal_recommendation_shell(recommendation: dict[str, Any]) -> dict[str, Any]:
+    """Keep analysis metadata, but never expose actionable direction fields."""
+    stripped = dict(recommendation)
+    for key in (
+        "selection",
+        "selection_label_cn",
+        "line",
+        "odds",
+        "hong_kong_odds",
+        "model_probability",
+        "fair_odds",
+        "risk_adjusted_ev",
+        "expected_value",
+        "ev_se",
+        "reasons",
+        "risks",
+        "value_explanation",
+        "value_explanation_cn",
+        "explanation",
+        "explanation_cn",
+    ):
+        stripped.pop(key, None)
+    stripped["candidate"] = False
+    stripped["formal_recommendation"] = False
+    return stripped
 
 
 def _optional_string(value: Any) -> str | None:
@@ -125,4 +155,3 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str) and value.strip():
         return [value]
     return []
-

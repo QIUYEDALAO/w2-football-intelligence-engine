@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
 from w2.api.repository import ReadModelService
 from w2.api.schemas import DashboardResponse
+from w2.strategy.formal_recommendation import ah_display_contract
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
@@ -153,9 +155,18 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["recommendation"]["tier"] == "ANALYSIS_PICK"
     assert card["recommendation"]["candidate"] is False
     assert card["recommendation"]["formal_recommendation"] is False
+    assert "selection" not in card["recommendation"]
+    assert "selection_label_cn" not in card["recommendation"]
+    assert "line" not in card["recommendation"]
+    assert "odds" not in card["recommendation"]
+    recommendation_text = json.dumps(card["recommendation"], ensure_ascii=False)
+    assert "HOME_AH" not in recommendation_text
+    assert "AWAY_AH" not in recommendation_text
+    assert "盘口变化支持大球" not in recommendation_text
+    assert not re.search(r"(让|受让)\s*[+-]?\d+(?:\.\d+)?", recommendation_text)
     assert card["result"]["final_score"] == "2-1"
-    assert card["validation"]["settlement"] == "HIT"
-    assert card["validation"]["market_hit"] is True
+    assert card["validation"]["settlement"] == "UNKNOWN"
+    assert card["validation"]["market_hit"] is None
     assert card["validation"]["score_exact_hit"] is True
     assert card["validation"]["counted_in_official"] is False
     assert card["validation"]["counted_in_analysis_shadow"] is True
@@ -165,12 +176,86 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     performance = payload["performance"]
     assert performance["sample_size"] == 0
     assert performance["official"]["sample_size"] == 0
-    assert performance["analysis_shadow"]["sample_size"] == 1
-    assert performance["analysis_shadow"]["hit_rate"] == 1.0
+    assert performance["analysis_shadow"]["sample_size"] == 0
+    assert performance["analysis_shadow"]["hit_rate"] is None
     assert performance["candidate_count"] == 0
     assert performance["analysis_pick_count"] == 1
     assert card["analysis_readiness"]["status"] in {"PARTIAL", "BLOCKED"}
     assert "FIXTURE_NOT_UPCOMING" in card["analysis_readiness"]["blockers"]
+
+
+def test_non_formal_ah_market_lean_does_not_hand_build_direction_text() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    decorated = service._decorate_analysis_market(
+        {
+            "market": "ASIAN_HANDICAP",
+            "decision": "ANALYSIS_PICK",
+            "tendency": "AWAY_AH",
+            "line": "0.25",
+            "odds": "2.00",
+            "confidence": 0.7,
+        }
+    )
+
+    assert decorated["lean_cn"] is None
+    assert decorated["lean"] is None
+    text = json.dumps(decorated, ensure_ascii=False)
+    assert "客队方向 0.25" not in text
+    assert not re.search(r"(让|受让)\s*[+-]?\d+(?:\.\d+)?", text)
+
+
+def test_egypt_api_football_away_plus_quarter_is_canonical_away_favorite() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+    captured = "2026-07-03T17:22:00Z"
+    observations: list[dict[str, Any]] = []
+    for bookmaker, home_price, away_price in [
+        ("Betano", "1.85", "2.00"),
+        ("Pinnacle", "1.91", "2.02"),
+        ("SBO", "1.94", "1.99"),
+        ("Bet365", "1.88", "1.98"),
+    ]:
+        observations.extend(
+            [
+                {
+                    "fixture_id": "1567306",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Home +0.25",
+                    "line": "0.25",
+                    "decimal_odds": home_price,
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+                {
+                    "fixture_id": "1567306",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "selection": "Away +0.25",
+                    "line": "0.25",
+                    "decimal_odds": away_price,
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+            ]
+        )
+
+    selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
+    display = ah_display_contract(selected["line"])
+
+    assert selected["status"] == "READY"
+    assert selected["line"] == "0.25"
+    assert selected["side_lines"] == {"home": "0.25", "away": "0.25"}
+    assert selected["side_prices"]["away"] > selected["side_prices"]["home"]
+    assert display["display_line_cn"] == "客队 -0.25"
+    assert display["home_display_line_cn"] == "主队 +0.25"
+    assert display["away_display_line_cn"] == "客队 -0.25"
 
 
 def test_dashboard_results_window_uses_football_day_boundaries() -> None:

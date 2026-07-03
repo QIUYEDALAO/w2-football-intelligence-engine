@@ -194,6 +194,55 @@ def test_render_report_hides_scorelines_for_non_formal_matches() -> None:
     assert "1-1 14%" not in report
 
 
+def test_render_report_suppresses_non_formal_ah_direction_fields() -> None:
+    match = _non_formal_with_blockers(
+        fixture_id="egypt",
+        formal_blockers=["AH_EV_BELOW_FORMAL_THRESHOLD"],
+    )
+    match["home_team_name"] = "Australia"
+    match["away_team_name"] = "Egypt"
+    match["recommendation"] = {
+        "tier": "ANALYSIS_PICK",
+        "market": "ASIAN_HANDICAP",
+        "selection": "AWAY_AH",
+        "selection_label_cn": "客队方向 0.25",
+        "line": "0.25",
+        "odds": "2.00",
+        "reasons": ["客队方向 0.25"],
+    }
+
+    html = render_report(_payload(match), output_format="html")
+    markdown = render_report(_payload(match), output_format="markdown")
+
+    for output in (html, markdown):
+        assert "客队方向 0.25" not in output
+        assert "AWAY_AH" not in output
+        assert "2.00" not in output
+        assert "推荐：全场让球" not in output
+        assert "AH_EV_BELOW_FORMAL_THRESHOLD" in output
+
+
+def test_render_report_keeps_invalid_formal_payload_only_as_diagnostic() -> None:
+    match = _formal_match()
+    match["formal_recommendation"] = True
+    match["recommendation"] = {
+        "tier": "FORMAL",
+        "market": "ASIAN_HANDICAP",
+        "selection": "AWAY_AH",
+        "selection_label_cn": "客队方向 0.25",
+        "line": "0.25",
+    }
+
+    html = render_report(_payload(match), output_format="html")
+    text = render_report(_payload(match), output_format="text")
+
+    assert "推荐：全场让球" not in html
+    assert "推荐：全场让球" not in text
+    assert "INVALID: AWAY_AH" in html
+    assert "INVALID: 0.25" in html
+    assert "客队方向 0.25" not in html
+
+
 def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -> None:
     match = _formal_match()
     match["recommendation"] = {

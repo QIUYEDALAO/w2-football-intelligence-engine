@@ -84,7 +84,7 @@ def render_report(
     return text
 
 
-HTML_RENDERER_VERSION = "w2.html_dashboard.v3"
+HTML_RENDERER_VERSION = "w2.html_dashboard.v4"
 
 _TERMINAL_CSS = """
 :root { color-scheme: dark; }
@@ -622,6 +622,9 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
     recommendation = _dict(match.get("recommendation"))
     shadow = _dict(match.get("pricing_shadow"))
     analysis = _dict(match.get("analysis_readiness"))
+    invalid_formal = _has_formal_recommendation_intent(match) and (
+        decision.state != MatchDecisionState.FORMAL
+    )
     return (
         _text(match.get("fixture_id")),
         _teams(match),
@@ -630,9 +633,18 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
         str(match.get("formal_recommendation") is True).lower(),
         _recommendation_id(match),
         _text(recommendation.get("market")),
-        _text(recommendation.get("selection")),
-        _format_optional_number(recommendation.get("line")),
-        _format_optional_number(recommendation.get("odds"), digits=2),
+        _diagnostic_recommendation_field(
+            recommendation,
+            "selection",
+            invalid_formal=invalid_formal,
+        ),
+        _diagnostic_recommendation_field(recommendation, "line", invalid_formal=invalid_formal),
+        _diagnostic_recommendation_field(
+            recommendation,
+            "odds",
+            invalid_formal=invalid_formal,
+            digits=2,
+        ),
         _format_optional_number(shadow.get("fair_ah")),
         _format_optional_number(shadow.get("market_ah")),
         _format_optional_number(shadow.get("edge_ah")),
@@ -645,6 +657,25 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
         _join_codes(_blocker_codes(match, decision)),
         _explanation_cn(match, decision),
     )
+
+
+def _diagnostic_recommendation_field(
+    recommendation: dict[str, Any],
+    key: str,
+    *,
+    invalid_formal: bool,
+    digits: int = 4,
+) -> str:
+    if not invalid_formal:
+        return ""
+    value = recommendation.get(key)
+    if value is None:
+        return ""
+    if key in {"line", "odds"}:
+        text = _format_optional_number(value, digits=digits)
+    else:
+        text = _text(value)
+    return f"INVALID: {text}" if text else ""
 
 
 def _html_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:
@@ -730,6 +761,15 @@ def _current_state(match: dict[str, Any], decision: MatchDecision) -> str:
     recommendation = _dict(match.get("recommendation"))
     tier = str(recommendation.get("tier") or "").upper()
     return tier if tier else MatchDecisionState.WATCH.value
+
+
+def _has_formal_recommendation_intent(match: dict[str, Any]) -> bool:
+    recommendation = _dict(match.get("recommendation"))
+    return (
+        match.get("formal_recommendation") is True
+        or str(recommendation.get("tier") or "").upper() == "FORMAL"
+        or recommendation.get("formal_recommendation") is True
+    )
 
 
 def _recommendation_id(match: dict[str, Any]) -> str:
