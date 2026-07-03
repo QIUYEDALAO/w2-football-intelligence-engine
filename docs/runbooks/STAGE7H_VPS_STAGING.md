@@ -97,6 +97,28 @@ bash scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
 The deployment script assumes `/opt/w2/shared/.env` has already been provisioned
 with mode `600`. It must not print or rewrite sensitive values.
 
+## Static Daily Report Guard
+
+Until A-151 makes the static daily report a first-class web root artifact, any
+web container recreate or rebuild can fall back to the bundled React shell. After
+every deploy that touches `web`, run these checks before accepting the release:
+
+```bash
+curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v5'
+curl -fsS http://43.155.208.138/ | grep -c '命中率\|胜率\|ROI\|必中\|必胜\|稳赢\|稳赚\|可买\|庄家开错\|跟庄\|照这个买\|方向未识别\|正式推荐字段不完整'
+curl -fsS http://43.155.208.138/v1/version
+```
+
+Acceptance:
+
+- renderer watermark count is at least `2`
+- forbidden-term count is `0`
+- API SHA matches the deployed main SHA
+
+If the watermark check fails, the public dashboard has likely reverted to the
+React shell. Regenerate the static report from the authoritative dashboard
+payload and do not accept the deploy until the checks pass.
+
 ## Compose Preflight
 
 Do not save or print expanded `docker compose config` output because it can
