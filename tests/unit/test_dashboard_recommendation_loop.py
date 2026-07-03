@@ -743,6 +743,7 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
+    monkeypatch.setenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ", "true")
     monkeypatch.setenv("W2_MARKET_TIMELINE_RUNTIME_ROOT", str(tmp_path))
     (tmp_path / "future-partial.json").write_text(
         json.dumps(
@@ -1001,6 +1002,7 @@ def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
+    monkeypatch.setenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ", "true")
     monkeypatch.setenv("W2_MARKET_TIMELINE_RUNTIME_ROOT", str(tmp_path))
     (tmp_path / "future-partial.json").write_text(
         json.dumps(
@@ -1124,6 +1126,41 @@ def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
     assert shadow["canonical_ah_market_validation_status"] == "BLOCKED"
     assert "AH_MAINLINE_STALE_MATERIALIZATION" in shadow["formal_blockers"]
     assert card["formal_recommendation"] is False
+
+
+def test_runtime_ah_mainline_recompute_is_disabled_by_default(monkeypatch: Any) -> None:
+    monkeypatch.delenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ", raising=False)
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+    card: dict[str, Any] = {
+        "current_odds": {
+            "ah": {
+                "home_line": "-2.5",
+                "away_line": "2.5",
+                "home_price": 1.93,
+                "away_price": 1.86,
+            }
+        },
+        "pricing_shadow": {"market_ah": -2.5, "fair_ah": -0.25, "edge_ah": -2.25},
+    }
+    timeline = {
+        "snapshots": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "line": -1.25,
+                "home_price": 2.24,
+                "away_price": 1.685,
+                "bookmaker_count": 4,
+                "selection_policy": "consensus_first_bookmaker_count_then_balance",
+            }
+        ]
+    }
+
+    service._apply_signed_ah_line_from_timeline(card, timeline)
+
+    assert card["current_odds"]["ah"]["home_line"] == "-2.5"
+    assert card["pricing_shadow"]["market_ah"] == -2.5
+    assert "materialized_market_ah" not in card["pricing_shadow"]
+    assert "selector_market_ah" not in card["pricing_shadow"]
 
 
 def test_pricing_shadow_mainline_reconciliation_recomputes_edge() -> None:
