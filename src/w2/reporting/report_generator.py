@@ -84,6 +84,163 @@ def render_report(
     return text
 
 
+HTML_RENDERER_VERSION = "w2.html_dashboard.v3"
+
+_TERMINAL_CSS = """
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0e14; color: #c9d5e3; font-size: 12.5px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif; }
+main { max-width: 1360px; margin: 0 auto; padding: 0 12px 28px; }
+.ko, .n, .ao, .evt, .chip .n, .statusline { font-family: ui-monospace, SFMono-Regular,
+  Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.topbar { position: sticky; top: 0; z-index: 9; background: #0d1320;
+  border-bottom: 1px solid #1b2534; margin: 0 -12px 6px; padding: 5px 12px 6px;
+  display: flex; flex-direction: column; gap: 4px; }
+.tb1 { display: flex; flex-wrap: wrap; gap: 3px 12px; align-items: baseline; }
+h1 { margin: 0; font-size: 13.5px; font-weight: 600; color: #e8f0fa; }
+.asof { color: #5d7290; font-size: 11px; }
+.statusline { color: #5d7290; font-size: 11px; }
+.tools { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.chip { border: 1px solid #243349; background: #111a29; color: #8ea4c0; border-radius: 3px;
+  padding: 1px 8px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+.chip.on { border-color: #2f6df6; color: #dce9ff; background: #14233f; }
+.chip .n { color: #e8f0fa; font-weight: 600; margin-left: 4px; }
+input[type=search], select { background: #0f1726; border: 1px solid #243349; color: #c9d5e3;
+  border-radius: 3px; padding: 2px 7px; font-size: 11.5px; font-family: inherit; }
+#cards { display: grid; gap: 0; border: 1px solid #141d2b; border-radius: 3px;
+  overflow: hidden; }
+.g { display: grid; gap: 8px; align-items: baseline; min-width: 0;
+  grid-template-columns: 72px 44px minmax(190px, 1.2fr) 66px minmax(150px, 1fr)
+    60px 60px 36px 64px 46px; }
+.hdr { padding: 4px 10px; background: #0d1320; border-bottom: 1px solid #1b2534;
+  color: #44546b; font-size: 10.5px; }
+.hdr span { white-space: nowrap; overflow: hidden; }
+.match-card { border-left: 3px solid #2a3548; background: #0e1522; padding: 3px 10px;
+  min-width: 0; }
+.match-card:nth-child(odd) { background: #0c121c; }
+.ko { color: #8ea4c0; font-size: 11.5px; white-space: nowrap; }
+.lg { color: #5d7290; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.tm { color: #dce6f2; font-weight: 600; font-size: 12.5px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.rs { color: #64788f; font-size: 11px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.pt { color: #64788f; font-size: 11px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.ao { color: #44546b; font-size: 10.5px; white-space: nowrap; text-align: right; }
+.n { color: #aebfd4; font-size: 11.5px; white-space: nowrap; text-align: right; }
+.dq { color: #e2b04a; font-size: 10.5px; margin-left: 6px; }
+.badge { display: inline-block; font-size: 10.5px; font-weight: 500; border-radius: 2px;
+  padding: 0 6px; justify-self: start; }
+.b-formal { background: #123726; color: #43e59a; }
+.b-watch { background: #182234; color: #8ea4c0; }
+.b-data_insufficient { background: #33270f; color: #e2b04a; }
+.b-market_not_ready { background: #331616; color: #e57373; }
+.b-locked { background: #221c3d; color: #a89bf0; }
+.match-card.formal { border-left-color: #22c07e; background: #0d1a17; padding: 5px 10px; }
+.match-card.formal:nth-child(odd) { background: #0d1a17; }
+.match-card.formal .tm { color: #eafff5; }
+.rec { margin: 2px 0 0; display: flex; gap: 12px; align-items: baseline; min-width: 0;
+  overflow: hidden; }
+.rt { color: #43e59a; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.evt { color: #43e59a; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.rx { color: #7fa895; font-size: 11px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; flex: 1; min-width: 0; }
+.match-card.locked { border-left-color: #8a7bf7; }
+.match-card.data_insufficient { border-left-color: #d9a13c; }
+.match-card.market_not_ready { border-left-color: #d95c5c; }
+.empty { color: #5d7290; border: 1px dashed #243349; border-radius: 3px; padding: 14px;
+  text-align: center; }
+details.debug { border: 1px solid #141d2b; border-radius: 3px; background: #0d1320;
+  margin: 8px 0; }
+details.debug summary { cursor: pointer; padding: 6px 10px; color: #8ea4c0;
+  font-size: 11.5px; }
+.decision-section h2 { margin: 0; padding: 8px 10px 3px; font-size: 12.5px; color: #dce6f2; }
+.decision-section p { margin: 0; padding: 0 10px 8px; color: #5d7290; font-size: 11.5px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px;
+  font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 7px; border-top: 1px solid #17202f; text-align: left;
+  vertical-align: top; line-height: 1.4; }
+th { color: #5d7290; background: #0d1320; white-space: nowrap; font-weight: 500; }
+footer { margin-top: 16px; color: #4d6076; font-size: 10.5px; line-height: 1.6;
+  border-top: 1px solid #17202f; padding-top: 8px; }
+.hide { display: none; }
+@media (max-width: 900px) {
+  .g { grid-template-columns: 64px minmax(0, 1.4fr) 60px minmax(0, 1fr) 52px 36px; }
+  .lg, .pt, .ao, .n-market, .hdr .h-lg, .hdr .h-pt, .hdr .h-ao, .hdr .h-market {
+    display: none; }
+}
+"""
+
+_TERMINAL_JS = """
+(function () {
+  var cards = [].slice.call(document.querySelectorAll(".match-card"));
+  var grid = document.getElementById("cards");
+  var chips = [].slice.call(document.querySelectorAll(".chip[data-state]"));
+  var q = document.getElementById("q");
+  var lg = document.getElementById("lg");
+  var srt = document.getElementById("srt");
+  var stateFilter = "ALL";
+  function num(card, key) {
+    var value = parseFloat(card.getAttribute(key));
+    return isNaN(value) ? null : value;
+  }
+  function apply() {
+    var term = q && q.value ? q.value.toLowerCase() : "";
+    var league = lg && lg.value ? lg.value : "";
+    cards.forEach(function (card) {
+      var okState = stateFilter === "ALL" || card.getAttribute("data-state") === stateFilter;
+      var okLeague = !league || card.getAttribute("data-league") === league;
+      var okTerm = !term || (card.getAttribute("data-teams") || "").indexOf(term) >= 0;
+      card.classList.toggle("hide", !(okState && okLeague && okTerm));
+    });
+  }
+  function resort() {
+    if (!grid || !srt) { return; }
+    var mode = srt.value;
+    var sorted = cards.slice().sort(function (a, b) {
+      var fa = a.getAttribute("data-state") === "FORMAL" ? 0 : 1;
+      var fb = b.getAttribute("data-state") === "FORMAL" ? 0 : 1;
+      if (mode === "ko") {
+        return (a.getAttribute("data-ko") || "").localeCompare(b.getAttribute("data-ko") || "");
+      }
+      if (mode === "edge") {
+        return Math.abs(num(b, "data-edge") || 0) - Math.abs(num(a, "data-edge") || 0);
+      }
+      if (fa !== fb) { return fa - fb; }
+      var ea = num(a, "data-ev");
+      var eb = num(b, "data-ev");
+      if (ea === null && eb === null) {
+        return (a.getAttribute("data-ko") || "").localeCompare(b.getAttribute("data-ko") || "");
+      }
+      return (eb === null ? -1 : eb) - (ea === null ? -1 : ea);
+    });
+    sorted.forEach(function (card) { grid.appendChild(card); });
+  }
+  chips.forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      stateFilter = chip.getAttribute("data-state");
+      chips.forEach(function (other) { other.classList.toggle("on", other === chip); });
+      apply();
+    });
+  });
+  if (q) { q.addEventListener("input", apply); }
+  if (lg) { lg.addEventListener("change", apply); }
+  if (srt) { srt.addEventListener("change", resort); }
+})();
+"""
+
+_STATE_CHIP_LABELS: tuple[tuple[MatchDecisionState, str], ...] = (
+    (MatchDecisionState.FORMAL, "正式"),
+    (MatchDecisionState.WATCH, "观察"),
+    (MatchDecisionState.DATA_INSUFFICIENT, "数据不足"),
+    (MatchDecisionState.MARKET_NOT_READY, "盘口未就绪"),
+    (MatchDecisionState.LOCKED, "已锁定"),
+)
+
+
 def _render_html_report(
     payload: dict[str, Any],
     *,
@@ -94,30 +251,49 @@ def _render_html_report(
     options: ReportOptions,
     payload_as_of: str,
 ) -> str:
-    ordered = sorted(
-        enumerate(zip(matches, decisions, strict=True)),
-        key=lambda item: (
-            0 if item[1][1].state == MatchDecisionState.FORMAL else 1,
-            item[0],
-        ),
-    )
-    cards = []
+    def _order_key(item: tuple[int, tuple[dict[str, Any], MatchDecision]]) -> tuple[Any, ...]:
+        index, (match, decision) = item
+        if decision.state == MatchDecisionState.FORMAL:
+            ev = _number(_dict(match.get("recommendation")).get("expected_value"))
+            return (0, -(ev if ev is not None else 0.0), index)
+        return (1, 0.0, index)
+
+    ordered = sorted(enumerate(zip(matches, decisions, strict=True)), key=_order_key)
     text_options = ReportOptions(report_type=options.report_type, output_format="text")
-    for _, (match, decision) in ordered:
-        lines = _render_match(
+    cards = [
+        _html_match_card(
             match,
             decision,
-            options=text_options,
+            text_options=text_options,
             payload_as_of=payload_as_of,
         )
-        state_class = decision.state.value.lower()
-        title = escape(lines[0])
-        body = "\n".join(f"<p>{escape(line)}</p>" for line in lines[1:])
-        cards.append(
-            f'<article class="match-card {state_class}" '
-            f'data-state="{escape(decision.state.value)}">'
-            f"<h2>{title}</h2>{body}</article>"
-        )
+        for _, (match, decision) in ordered
+    ]
+    header_row = (
+        '<div class="g hdr">'
+        "<span>时间</span>"
+        '<span class="h-lg">联赛</span>'
+        "<span>对阵</span>"
+        "<span>状态</span>"
+        "<span>原因</span>"
+        '<span class="h-market" style="text-align:right">盘</span>'
+        '<span style="text-align:right">差</span>'
+        '<span style="text-align:right">ISC</span>'
+        '<span class="h-pt">走势·参照</span>'
+        '<span class="h-ao" style="text-align:right">as-of</span>'
+        "</div>"
+    )
+    cards_html = (
+        header_row + "".join(cards) if cards else '<p class="empty">本足球日无场次。</p>'
+    )
+    leagues: list[str] = []
+    for match in matches:
+        name = _competition(match)
+        if name not in leagues:
+            leagues.append(name)
+    league_options = "".join(
+        f'<option value="{escape(name)}">{escape(name)}</option>' for name in leagues
+    )
     title = _report_title(payload, ReportOptions(options.report_type, "text"))
     subtitle = _report_subtitle(
         matches=matches,
@@ -126,6 +302,11 @@ def _render_html_report(
         payload_as_of=payload_as_of,
     )
     state_summary = _html_state_summary(state_counts)
+    state_chips = "".join(
+        f'<button class="chip" data-state="{state.value}">'
+        f'{label}<span class="n">{state_counts[state]}</span></button>'
+        for state, label in _STATE_CHIP_LABELS
+    )
     formal_table = _html_formal_recommendation_table(
         matches,
         decisions,
@@ -133,88 +314,153 @@ def _render_html_report(
     )
     non_formal_table = _html_non_formal_decision_table(matches, decisions)
     generated = _time_label(payload_as_of)
-    html = f"""<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{escape(title)}</title>
-  <style>
-    :root {{
-      color-scheme: light dark;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }}
-    body {{ margin: 0; background: #f6f7f9; color: #17202a; }}
-    main {{ max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }}
-    header {{ margin-bottom: 24px; }}
-    h1 {{ margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }}
-    .subtitle, .state-summary {{ margin: 0; color: #52606d; }}
-    .state-summary {{ margin-top: 8px; font-weight: 600; }}
-    .decision-section {{
-      margin: 18px 0;
-      border: 1px solid #d6dbe1;
-      border-radius: 8px;
-      background: #fff;
-      overflow: hidden;
-    }}
-    .decision-section h2 {{
-      margin: 0;
-      padding: 14px 16px 6px;
-      font-size: 18px;
-      letter-spacing: 0;
-    }}
-    .decision-section p {{ margin: 0; padding: 0 16px 14px; color: #52606d; }}
-    .table-wrap {{ overflow-x: auto; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-    th, td {{
-      padding: 9px 10px;
-      border-top: 1px solid #e4e7eb;
-      text-align: left;
-      vertical-align: top;
-    }}
-    th {{ white-space: nowrap; background: #f2f4f7; color: #344054; }}
-    td {{ line-height: 1.45; }}
-    .grid {{ display: grid; gap: 14px; }}
-    .match-card {{
-      border: 1px solid #d6dbe1;
-      border-radius: 8px;
-      background: #fff;
-      padding: 18px;
-    }}
-    .match-card.formal {{ border-color: #0f766e; box-shadow: inset 4px 0 0 #0f766e; }}
-    .match-card h2 {{ margin: 0 0 12px; font-size: 18px; letter-spacing: 0; }}
-    .match-card p {{ margin: 7px 0; line-height: 1.55; }}
-    footer {{ margin-top: 18px; color: #697586; font-size: 13px; }}
-    @media (prefers-color-scheme: dark) {{
-      body {{ background: #111827; color: #e5e7eb; }}
-      .subtitle, .state-summary, footer {{ color: #aeb7c2; }}
-      .match-card {{ background: #1f2937; border-color: #374151; }}
-      .decision-section {{ background: #1f2937; border-color: #374151; }}
-      .decision-section p {{ color: #aeb7c2; }}
-      th {{ background: #111827; color: #d1d5db; }}
-      th, td {{ border-color: #374151; }}
-    }}
-  </style>
-</head>
-<body>
-  <main>
-    <header>
-      <h1>{escape(title)}</h1>
-      <p class="subtitle">{escape(subtitle)}</p>
-      <p class="state-summary">{escape(state_summary)}</p>
-    </header>
-    {formal_table}
-    {non_formal_table}
-    <section class="grid">
-      {''.join(cards)}
-    </section>
-    <footer>生成时间：{escape(generated)} · 只读报告 · 数据来自 dashboard payload</footer>
-  </main>
-</body>
-</html>
-"""
+    data_profile = str(payload.get("data_profile") or "")
+    profile_suffix = f" · data_profile {escape(data_profile)}" if data_profile else ""
+    html = (
+        "<!doctype html>\n"
+        '<html lang="zh-CN">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<meta name="w2-renderer" content="{HTML_RENDERER_VERSION}">\n'
+        f"<title>{escape(title)}</title>\n"
+        f"<style>{_TERMINAL_CSS}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<main>\n"
+        '<div class="topbar">'
+        '<div class="tb1">'
+        f"<h1>{escape(title)}</h1>"
+        f'<span class="asof">{escape(subtitle)}</span>'
+        f'<span class="statusline">{escape(state_summary)}{profile_suffix}</span>'
+        "</div>"
+        '<div class="tools">'
+        '<button class="chip on" data-state="ALL">全部</button>'
+        f"{state_chips}"
+        '<input type="search" id="q" placeholder="搜索球队">'
+        f'<select id="lg"><option value="">全部联赛</option>{league_options}</select>'
+        '<select id="srt">'
+        '<option value="smart">正式优先 · EV 降序</option>'
+        '<option value="ko">开球时间</option>'
+        '<option value="edge">差距绝对值</option>'
+        "</select>"
+        "</div>"
+        "</div>\n"
+        f'<section id="cards">{cards_html}</section>\n'
+        '<details class="debug"><summary>正式推荐表（审计明细）</summary>'
+        f"{formal_table}</details>\n"
+        '<details class="debug"><summary>非 FORMAL 判定表（blocker 解释）</summary>'
+        f"{non_formal_table}</details>\n"
+        "<footer>"
+        f"生成时间：{escape(generated)} · 只读报告 · 数据来自 dashboard payload · "
+        f"renderer {HTML_RENDERER_VERSION}<br>"
+        "盘口走势仅作参照、未验证，不构成方向；"
+        "非 FORMAL 场次不显示推荐方向与比分参考。"
+        "</footer>\n"
+        "</main>\n"
+        f"<script>{_TERMINAL_JS}</script>\n"
+        "</body>\n"
+        "</html>\n"
+    )
     _assert_safe_report_text(html)
     return html
+
+
+def _html_match_card(
+    match: dict[str, Any],
+    decision: MatchDecision,
+    *,
+    text_options: ReportOptions,
+    payload_as_of: str,
+) -> str:
+    lines = _render_match(match, decision, options=text_options, payload_as_of=payload_as_of)
+    state_class = decision.state.value.lower()
+    shadow = _dict(match.get("pricing_shadow"))
+    recommendation = _dict(match.get("recommendation"))
+    is_formal = decision.state == MatchDecisionState.FORMAL
+    ev = _number(recommendation.get("expected_value")) if is_formal else None
+    edge = _number(shadow.get("edge_ah"))
+    ev_attr = "" if ev is None else f"{ev:.6f}"
+    edge_attr = "" if edge is None else f"{edge:.4f}"
+    attrs = (
+        f' data-state="{escape(decision.state.value)}"'
+        f' data-league="{escape(_competition(match))}"'
+        f' data-teams="{escape(_teams(match).lower())}"'
+        f' data-ev="{ev_attr}"'
+        f' data-edge="{edge_attr}"'
+        f' data-ko="{escape(str(match.get("kickoff_utc") or ""))}"'
+    )
+    status_line = lines[1]
+    rec_line: str | None = None
+    core_parts: list[str] = []
+    meta_parts: list[str] = []
+    for line in lines[2:]:
+        if line.startswith("推荐："):
+            rec_line = line
+        elif line.startswith(("我们的盘", "推荐比分")):
+            core_parts.append(line)
+        else:
+            meta_parts.append(line)
+    tooltip = escape(" ｜ ".join([status_line, *meta_parts]))
+    market_cell = _number_cell(shadow.get("market_ah"))
+    edge_cell = _number_cell(shadow.get("edge_ah"), signed=True)
+    signal_count = shadow.get("independent_signal_count")
+    isc_cell = escape(str(signal_count)) if signal_count is not None else "—"
+    timeline = _dict(match.get("market_timeline"))
+    pattern_cell = (
+        escape(_pattern_label(str(timeline.get("pattern") or "INSUFFICIENT")))
+        if timeline
+        else "—"
+    )
+    as_of_cell = escape(_as_of(match, payload_as_of=payload_as_of)[-5:])
+    reason = escape(_reason_cn(decision.reason))
+    flag = _data_quality_flag(match)
+    row = (
+        '<div class="g">'
+        f'<span class="ko">{escape(_kickoff_label(match))}</span>'
+        f'<span class="lg">{escape(_competition(match))}</span>'
+        f'<span class="tm">{escape(_teams(match))}</span>'
+        f'<span class="badge b-{state_class}">{escape(decision.label_cn)}</span>'
+        f'<span class="rs">{reason}{flag}</span>'
+        f'<span class="n n-market">{market_cell}</span>'
+        f'<span class="n">{edge_cell}</span>'
+        f'<span class="n">{isc_cell}</span>'
+        f'<span class="pt">{pattern_cell}</span>'
+        f'<span class="ao">{as_of_cell}</span>'
+        "</div>"
+    )
+    parts = [row]
+    if is_formal and rec_line is not None:
+        ev_tag = f'<span class="evt">EV {ev * 100:+.1f}%</span>' if ev is not None else ""
+        core_text = (
+            f'<span class="rx">{escape(" ｜ ".join(core_parts))}</span>' if core_parts else ""
+        )
+        parts.append(
+            f'<p class="rec"><span class="rt">{escape(rec_line)}</span>{ev_tag}{core_text}</p>'
+        )
+    return (
+        f'<article class="match-card {state_class}"{attrs} title="{tooltip}">'
+        f'{"".join(parts)}</article>'
+    )
+
+
+def _number_cell(value: Any, *, signed: bool = False) -> str:
+    numeric = _number(value)
+    if numeric is None:
+        return "—"
+    return escape(_signed_line(numeric) if signed else _line_value(numeric))
+
+
+def _data_quality_flag(match: dict[str, Any]) -> str:
+    refresh = _dict(match.get("data_refresh"))
+    statuses = (
+        refresh.get("odds_status"),
+        refresh.get("lineups_status"),
+        refresh.get("xg_status"),
+    )
+    if all(str(status or "") == "READY" for status in statuses):
+        return ""
+    return '<span class="dq">数据未齐</span>'
 
 
 def _state_counts(decisions: list[MatchDecision]) -> dict[MatchDecisionState, int]:
