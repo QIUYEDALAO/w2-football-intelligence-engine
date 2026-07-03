@@ -14,6 +14,8 @@ from w2.strategy.simulate import (
 
 FORMAL_EV_THRESHOLD = 0.035
 FORMAL_EV_SE_MULTIPLIER = 1.0
+FORMAL_MAX_IMPLAUSIBLE_EV = 0.15
+FORMAL_MAX_FAIR_MARKET_AH_GAP = 1.0
 REVERSE_FACTOR_EV_THRESHOLD = 0.08
 FORMAL_MIN_INDEPENDENT_SIGNALS = 3
 AH_PRICE_MIN = 1.40
@@ -109,6 +111,7 @@ def build_formal_recommendation(
         fixture_status=fixture_status,
         simulation=simulation,
         canonical_market=ah,
+        current_odds=current_odds,
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
@@ -157,6 +160,8 @@ def build_formal_recommendation(
     )
     if ev_se is None:
         return _watch("EV_UNCERTAINTY_MISSING", canonical_ah_market=ah)
+    if ev > FORMAL_MAX_IMPLAUSIBLE_EV:
+        return _watch("EV_IMPLAUSIBLY_HIGH", canonical_ah_market=ah)
     if ev < FORMAL_EV_THRESHOLD:
         return _watch("AH_EV_BELOW_FORMAL_THRESHOLD", canonical_ah_market=ah)
     if ev < FORMAL_EV_THRESHOLD + FORMAL_EV_SE_MULTIPLIER * ev_se:
@@ -242,6 +247,7 @@ def _blockers(
     fixture_status: str,
     simulation: SimulationOutput | None,
     canonical_market: CanonicalAhMarket | None,
+    current_odds: dict[str, Any] | None,
     pricing_shadow: dict[str, Any] | None,
     analysis_readiness: dict[str, Any] | None,
 ) -> list[str]:
@@ -254,6 +260,18 @@ def _blockers(
         blockers.append("MISSING_AH_MARKET")
     elif canonical_market.validation_status != "READY":
         blockers.append(canonical_market.blocker or "INVALID_AH_MARKET")
+    else:
+        fair_market_blocker = _fair_market_gap_blocker(
+            pricing_shadow=pricing_shadow,
+        )
+        if fair_market_blocker:
+            blockers.append(fair_market_blocker)
+        consensus_blocker = _ah_mainline_consensus_blocker(
+            current_odds=current_odds,
+            canonical_market=canonical_market,
+        )
+        if consensus_blocker:
+            blockers.append(consensus_blocker)
     signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))
     if signal_count is None or signal_count < FORMAL_MIN_INDEPENDENT_SIGNALS:
         blockers.append("INSUFFICIENT_INDEPENDENT_SIGNALS")
@@ -266,6 +284,48 @@ def _blockers(
         ]
     blockers.extend(readiness_blockers)
     return blockers
+
+
+def _fair_market_gap_blocker(
+    *,
+    pricing_shadow: dict[str, Any] | None,
+) -> str | None:
+    fair_ah = _number((pricing_shadow or {}).get("fair_ah"))
+    market_ah = _number((pricing_shadow or {}).get("market_ah"))
+    if fair_ah is None or market_ah is None:
+        return None
+    if abs(fair_ah - market_ah) > FORMAL_MAX_FAIR_MARKET_AH_GAP:
+        return "AH_FAIR_MARKET_GAP_TOO_WIDE"
+    return None
+
+
+def _ah_mainline_consensus_blocker(
+    *,
+    current_odds: dict[str, Any] | None,
+    canonical_market: CanonicalAhMarket,
+) -> str | None:
+    odds = current_odds if isinstance(current_odds, dict) else {}
+    ah = odds.get("ah")
+    if not isinstance(ah, dict):
+        return None
+    candidate_lines = ah.get("candidate_lines")
+    if not isinstance(candidate_lines, list):
+        return None
+    max_count = 0
+    selected_count = canonical_market.bookmaker_count or 0
+    for item in candidate_lines:
+        if not isinstance(item, dict):
+            continue
+        count = _int_or_none(item.get("bookmaker_count")) or 0
+        max_count = max(max_count, count)
+        line = _number(item.get("line"))
+        if line is not None and abs(abs(line) - abs(canonical_market.home_line)) <= 0.001:
+            selected_count = max(selected_count, count)
+    if max_count <= 0 or selected_count <= 0:
+        return None
+    if selected_count * 2 <= max_count:
+        return "AH_MAINLINE_CONSENSUS_CONFLICT"
+    return None
 
 
 def canonical_ah_market(

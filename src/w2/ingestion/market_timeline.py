@@ -427,23 +427,16 @@ def _select_mainline_group(
         for line, line_groups in by_line.items()
     ]
     max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
-    consensus_floor = _bookmaker_consensus_floor(max_bookmaker_count)
-    override_line = _balanced_override_candidate(candidate_lines)
+    consensus_floor = max_bookmaker_count
     eligible_lines = [
-        item for item in candidate_lines if int(item["bookmaker_count"]) >= consensus_floor
+        item for item in candidate_lines if int(item["bookmaker_count"]) == max_bookmaker_count
     ] or candidate_lines
-    if override_line is not None and all(
-        float(item["line"]) != float(override_line["line"]) for item in eligible_lines
-    ):
-        eligible_lines.append(
-            {**override_line, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-        )
     eligible_lines.sort(
         key=lambda item: (
+            -int(item["bookmaker_count"]),
             float(item["balance_distance"]),
             float(item["price_gap"]),
             float(item["mid_distance"]),
-            -int(item["bookmaker_count"]),
             abs(float(item["line"])),
         )
     )
@@ -468,10 +461,10 @@ def _select_mainline_group(
         candidate_lines,
         key=lambda item: (
             0 if float(item["line"]) == selected_line else 1,
+            -int(item["bookmaker_count"]),
             float(item["balance_distance"]),
             float(item["price_gap"]),
             float(item["mid_distance"]),
-            -int(item["bookmaker_count"]),
             abs(float(item["line"])),
         ),
     )
@@ -481,13 +474,8 @@ def _select_mainline_group(
             "selection_rank": index + 1,
             "bookmaker_consensus_floor": consensus_floor,
             "consensus_eligible": int(item["bookmaker_count"]) >= consensus_floor,
-            "balanced_override_eligible": override_line is not None
-            and float(item["line"]) == float(override_line["line"]),
-            **(
-                {"selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-                if selection_warning and float(item["line"]) == selected_line
-                else {}
-            ),
+            "balanced_override_eligible": False,
+            **({"selection_warning": selection_warning} if selection_warning else {}),
         }
         for index, item in enumerate(candidate_order)
     ]
@@ -496,9 +484,6 @@ def _select_mainline_group(
             "line": item["line"],
             "reason": "LOWER_BOOKMAKER_CONSENSUS"
             if int(item["bookmaker_count"]) < consensus_floor
-            and not (
-                override_line is not None and float(item["line"]) == float(override_line["line"])
-            )
             else "TIE_BREAK_LOWER_LADDER_BALANCE",
         }
         for item in candidate_lines

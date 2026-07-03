@@ -702,6 +702,9 @@ def _explanation_cn(match: dict[str, Any], decision: MatchDecision) -> str:
 def _blocker_explanation_cn(code: str) -> str:
     return {
         "AH_EV_BELOW_FORMAL_THRESHOLD": "让球结算期望未达正式推荐阈值",
+        "EV_IMPLAUSIBLY_HIGH": "EV 异常偏高，保守拦截",
+        "AH_FAIR_MARKET_GAP_TOO_WIDE": "模型公平盘与市场盘分歧过大",
+        "AH_MAINLINE_CONSENSUS_CONFLICT": "主盘口与庄家共识冲突",
         "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
         "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
         "MISSING_LINEUPS": "首发未返回",
@@ -1058,6 +1061,9 @@ def _reason_cn(reason: str) -> str:
         "MISSING_MARKET_AH": "缺少全场让球市场盘",
         "AH_MAINLINE_AMBIGUOUS": "全场让球主盘口不明确",
         "AH_PRIMARY_MAINLINE_MISSING": "缺少可确认的全场让球主盘口",
+        "AH_MAINLINE_CONSENSUS_CONFLICT": "全场让球主盘口与庄家共识冲突",
+        "AH_FAIR_MARKET_GAP_TOO_WIDE": "模拟公平盘与市场盘分歧过大",
+        "EV_IMPLAUSIBLY_HIGH": "EV 异常偏高，保守拦截",
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
         "MISSING_FAIR_AH": "缺少模拟公平让球盘",
         "RECOMMENDATION_DIRECTION_INCONSISTENT": "推荐方向与盘口差距不一致",

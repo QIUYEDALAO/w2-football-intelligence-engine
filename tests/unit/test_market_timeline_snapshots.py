@@ -371,7 +371,7 @@ def test_ah_mainline_ladder_selector_prefers_balanced_netherlands_minus_0_25() -
     assert snapshot["candidate_lines"][0]["line"] == -0.25
 
 
-def test_ah_mainline_ladder_selector_allows_low_consensus_balanced_override() -> None:
+def test_ah_mainline_ladder_selector_rejects_low_consensus_balanced_override() -> None:
     kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
     as_of = kickoff - timedelta(minutes=30)
     observations: list[dict[str, object]] = []
@@ -409,12 +409,87 @@ def test_ah_mainline_ladder_selector_allows_low_consensus_balanced_override() ->
     )
 
     assert snapshot is not None
-    assert snapshot["line"] == -0.25
-    assert snapshot["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
-    assert snapshot["candidate_lines"][0]["line"] == -0.25
-    assert snapshot["candidate_lines"][0]["balanced_override_eligible"] is True
-    assert snapshot["candidate_lines"][0]["consensus_eligible"] is False
-    assert {item["line"] for item in snapshot["rejected_lines"]} == {0, -0.5}
+    assert snapshot["line"] == 0
+    assert "selection_warning" not in snapshot
+    assert snapshot["candidate_lines"][0]["line"] == 0
+    assert snapshot["candidate_lines"][0]["bookmaker_count"] == 5
+    assert snapshot["candidate_lines"][0]["balanced_override_eligible"] is False
+    assert snapshot["candidate_lines"][0]["consensus_eligible"] is True
+    assert {item["line"] for item in snapshot["rejected_lines"]} == {-0.25, -0.5}
+
+
+def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_line() -> None:
+    kickoff = datetime(2026, 7, 4, 1, 30, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for bookmaker, home_price, away_price in [
+        ("32", 2.24, 1.68),
+        ("36", 2.25, 1.69),
+        ("4", 2.23, 1.68),
+        ("5", 2.24, 1.69),
+    ]:
+        observations.extend(
+            [
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="HOME",
+                    line=-1.25,
+                    odds=home_price,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="AWAY",
+                    line=1.25,
+                    odds=away_price,
+                    bookmaker=bookmaker,
+                ),
+            ]
+        )
+    for bookmaker, home_price, away_price in [
+        ("32", 1.91, 1.83),
+        ("4", 1.90, 1.84),
+    ]:
+        observations.extend(
+            [
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="HOME",
+                    line=-2.5,
+                    odds=home_price,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="AWAY",
+                    line=2.5,
+                    odds=away_price,
+                    bookmaker=bookmaker,
+                ),
+            ]
+        )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="1567310",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == -1.25
+    assert snapshot["bookmaker_count"] == 4
+    assert snapshot["candidate_lines"][0]["line"] == -1.25
+    assert snapshot["candidate_lines"][0]["bookmaker_count"] == 4
+    assert snapshot["rejected_lines"][0] == {
+        "line": -2.5,
+        "reason": "LOWER_BOOKMAKER_CONSENSUS",
+    }
 
 
 def test_ah_mainline_consensus_keeps_same_bookmaker_pair_for_selected_line() -> None:

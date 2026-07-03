@@ -817,7 +817,7 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
     assert selected["rejected_lines"]
 
 
-def test_read_model_mainline_allows_low_consensus_balanced_override() -> None:
+def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
     captured = "2026-06-26T08:00:00Z"
     observations: list[dict[str, Any]] = []
     for line, home_price, away_price, bookmakers in [
@@ -862,15 +862,15 @@ def test_read_model_mainline_allows_low_consensus_balanced_override() -> None:
     odds_entry = service._balanced_odds_entry(selected)
 
     assert selected["status"] == "READY"
-    assert selected["line"] == "0.25"
-    assert selected["side_lines"]["home"] == "-0.25"
-    assert selected["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
-    assert selected["candidate_lines"][0]["home_line"] == "-0.25"
-    assert selected["candidate_lines"][0]["balanced_override_eligible"] is True
-    assert selected["candidate_lines"][0]["consensus_eligible"] is False
+    assert selected["line"] == "0"
+    assert selected["side_lines"]["home"] == "0"
+    assert "selection_warning" not in selected
+    assert selected["candidate_lines"][0]["home_line"] == "0"
+    assert selected["candidate_lines"][0]["balanced_override_eligible"] is False
+    assert selected["candidate_lines"][0]["consensus_eligible"] is True
     assert odds_entry is not None
-    assert odds_entry["candidate_lines"][0]["home_line"] == "-0.25"
-    assert odds_entry["selection_warning"] == "LOW_CONSENSUS_BALANCED_MAINLINE"
+    assert odds_entry["candidate_lines"][0]["home_line"] == "0"
+    assert "selection_warning" not in odds_entry
 
 
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
