@@ -289,6 +289,35 @@ def test_formal_tracking_db_capture_blocks_missing_recommendation_id(session: Se
     assert result["blockers"]["MISSING_RECOMMENDATION_ID"] == 1
 
 
+def test_formal_tracking_capture_creates_recommendation_marker_for_payload_id(
+    session: Session,
+) -> None:
+    fixture, _bookmaker = _fixture_graph(session)
+    card = _formal_card(fixture.id, fixture.kickoff_at)
+    recommendation_id = "11111111-1111-5111-8111-111111111111"
+    card["recommendation"]["recommendation_id"] = recommendation_id  # type: ignore[index]
+    card["recommendation"]["id"] = recommendation_id  # type: ignore[index]
+
+    result = capture_formal_locks(
+        [card],
+        session=session,
+        now=NOW,
+        release_sha="release-sha",
+    )
+    session.commit()
+
+    assert result["written"] == 1
+    assert result["blockers"]["RECOMMENDATION_MARKER_CREATED"] == 1
+    marker = session.get(RecommendationModel, recommendation_id)
+    assert marker is not None
+    assert marker.fixture_id == fixture.id
+    assert marker.status == "FORMAL"
+    stored = session.get(RecommendationLockModel, result["results"][0]["lock_id"])
+    assert stored is not None
+    assert stored.recommendation_id == recommendation_id
+    assert stored.reproducible is True
+
+
 def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
     session: Session,
 ) -> None:

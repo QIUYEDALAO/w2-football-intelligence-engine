@@ -6,6 +6,7 @@ from w2.strategy.formal_recommendation import (
     _settlement_distribution_with_ev_se,
     build_formal_recommendation,
     canonical_ah_market,
+    formal_recommendation_id,
     is_reverse_value_recommendation,
 )
 from w2.strategy.simulate import (
@@ -185,6 +186,29 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
     assert result.recommendation["ev_se"] == 0.0
+
+
+def test_formal_recommendation_id_is_stable_for_same_payload() -> None:
+    recommendation = {
+        "tier": "FORMAL",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "line": "-0.5",
+        "odds": "1.91",
+        "expected_value": 0.112465,
+        "ev_se": 0.0,
+    }
+
+    first = formal_recommendation_id(fixture_id="fixture-1", recommendation=recommendation)
+    second = formal_recommendation_id(fixture_id="fixture-1", recommendation=recommendation)
+    changed = formal_recommendation_id(
+        fixture_id="fixture-1",
+        recommendation={**recommendation, "selection": "AWAY_AH"},
+    )
+
+    assert first == second
+    assert len(first) == 36
+    assert first != changed
 
 
 def test_formal_ev_se_uses_lambda_uncertainty() -> None:
