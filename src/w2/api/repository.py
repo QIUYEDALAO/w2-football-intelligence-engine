@@ -3584,13 +3584,21 @@ class ReadModelService:
         card: dict[str, Any],
         timeline: dict[str, Any],
     ) -> None:
-        if not _runtime_ah_mainline_recompute_enabled():
-            return
         latest_ah = self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline))
         signed_line = self._snapshot_float(latest_ah, "line")
         if signed_line is None:
             return
         if not self._timeline_ah_snapshot_is_canonical_ready(latest_ah):
+            return
+        if not _runtime_ah_mainline_recompute_enabled():
+            shadow = card.get("pricing_shadow")
+            if isinstance(shadow, dict):
+                self._reconcile_pricing_shadow_ah_mainline(
+                    shadow,
+                    signed_line,
+                    overwrite_materialized=False,
+                )
+                self._attach_ah_display_contract(card)
             return
         odds = card.get("current_odds")
         if not isinstance(odds, dict):
@@ -3623,6 +3631,8 @@ class ReadModelService:
         self,
         pricing_shadow: dict[str, Any],
         selector_line: float,
+        *,
+        overwrite_materialized: bool = True,
     ) -> None:
         materialized_line = self._snapshot_float(pricing_shadow, "market_ah")
         if materialized_line is not None and abs(materialized_line - selector_line) > 0.001:
@@ -3634,6 +3644,8 @@ class ReadModelService:
             )
         elif materialized_line is not None:
             pricing_shadow["mainline_materialization_status"] = "READY"
+        if not overwrite_materialized:
+            return
         pricing_shadow["market_ah"] = selector_line
         fair = pricing_shadow.get("fair_ah")
         try:

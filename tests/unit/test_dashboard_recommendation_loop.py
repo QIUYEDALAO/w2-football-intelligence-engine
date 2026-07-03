@@ -1128,7 +1128,9 @@ def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
     assert card["formal_recommendation"] is False
 
 
-def test_runtime_ah_mainline_recompute_is_disabled_by_default(monkeypatch: Any) -> None:
+def test_runtime_ah_mainline_recompute_is_diagnostic_only_by_default(
+    monkeypatch: Any,
+) -> None:
     monkeypatch.delenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ", raising=False)
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
     card: dict[str, Any] = {
@@ -1159,8 +1161,13 @@ def test_runtime_ah_mainline_recompute_is_disabled_by_default(monkeypatch: Any) 
 
     assert card["current_odds"]["ah"]["home_line"] == "-2.5"
     assert card["pricing_shadow"]["market_ah"] == -2.5
-    assert "materialized_market_ah" not in card["pricing_shadow"]
-    assert "selector_market_ah" not in card["pricing_shadow"]
+    assert card["pricing_shadow"]["edge_ah"] == -2.25
+    assert card["pricing_shadow"]["materialized_market_ah"] == -2.5
+    assert card["pricing_shadow"]["selector_market_ah"] == -1.25
+    assert (
+        card["pricing_shadow"]["mainline_materialization_blocker"]
+        == "AH_MAINLINE_STALE_MATERIALIZATION"
+    )
 
 
 def test_pricing_shadow_mainline_reconciliation_recomputes_edge() -> None:
