@@ -20,6 +20,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
+from w2.markets.asian_handicap_scope import canonical_market_from_label
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
@@ -428,16 +429,7 @@ class MarketObservationLedger:
 
 
 def canonical_market(raw_label: str) -> str:
-    label = raw_label.strip().lower()
-    if label in {"match winner", "1x2", "winner"}:
-        return "ONE_X_TWO"
-    if "asian handicap" in label or label == "handicap":
-        return "ASIAN_HANDICAP"
-    if "goals over/under" in label or "over/under" in label or label == "total goals":
-        return "TOTALS"
-    if "both teams" in label or "btts" in label:
-        return "BTTS"
-    return raw_label.upper().replace(" ", "_")
+    return canonical_market_from_label(raw_label)
 
 
 def parse_line(value: Any) -> str | None:

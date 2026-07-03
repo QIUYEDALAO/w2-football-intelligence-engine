@@ -903,6 +903,87 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
     assert selected["rejected_lines"]
 
 
+def test_read_model_mainline_excludes_non_full_time_ah_market_labels() -> None:
+    captured = "2026-07-03T17:22:42Z"
+    observations: list[dict[str, Any]] = []
+    for bookmaker in ("bm1", "bm2", "bm3", "bm4"):
+        observations.extend(
+            [
+                {
+                    "fixture_id": "colombia-ghana",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Home -1.25",
+                    "line": "-1.25",
+                    "decimal_odds": "1.92",
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+                {
+                    "fixture_id": "colombia-ghana",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Away +1.25",
+                    "line": "1.25",
+                    "decimal_odds": "1.96",
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+            ]
+        )
+    for bookmaker in ("cards1", "cards2", "cards3", "cards4", "cards5", "cards6"):
+        observations.extend(
+            [
+                {
+                    "fixture_id": "colombia-ghana",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Cards Asian Handicap",
+                    "selection": "Home -1.5",
+                    "line": "-1.5",
+                    "decimal_odds": "1.93",
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+                {
+                    "fixture_id": "colombia-ghana",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Cards Asian Handicap",
+                    "selection": "Away +1.5",
+                    "line": "1.5",
+                    "decimal_odds": "1.95",
+                    "captured_at": captured,
+                    "provider_last_update": captured,
+                    "bookmaker_id": bookmaker,
+                    "bookmaker_name": bookmaker,
+                    "suspended": False,
+                    "live": False,
+                },
+            ]
+        )
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
+
+    assert selected["status"] == "READY"
+    assert selected["side_lines"]["home"] == "-1.25"
+    assert selected["side_lines"]["away"] == "1.25"
+    assert selected["bookmaker_count"] == 4
+    assert selected["candidate_lines"][0]["home_line"] == "-1.25"
+    assert all(item["line"] != -1.5 for item in selected["candidate_lines"])
+
+
 def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
     captured = "2026-06-26T08:00:00Z"
     observations: list[dict[str, Any]] = []

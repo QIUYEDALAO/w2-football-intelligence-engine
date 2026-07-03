@@ -7,6 +7,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
+
 MARKET_TIMELINE_SCHEMA_VERSION = "w2.market_timeline.v1"
 DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
 CHECKPOINTS = ("opening", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "lock")
@@ -344,6 +346,8 @@ def _market_groups(
         if str(row.get("fixture_id")) != fixture_id:
             continue
         if _normalize_market(row.get("canonical_market") or row.get("market")) != market:
+            continue
+        if market == "ASIAN_HANDICAP" and not is_full_time_asian_handicap_observation(row):
             continue
         captured_at = parse_utc(row.get("captured_at") or row.get("captured_at_utc"))
         if captured_at is None or captured_at > target or captured_at >= kickoff:

@@ -62,6 +62,7 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
+from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -1826,6 +1827,8 @@ class ReadModelService:
                 or row.get("suspended")
                 or row.get("live")
             ):
+                continue
+            if market == "ASIAN_HANDICAP" and not is_full_time_asian_handicap_observation(row):
                 continue
             line = self._decimal_line(row)
             if line is None:
