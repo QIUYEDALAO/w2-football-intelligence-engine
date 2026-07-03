@@ -87,6 +87,8 @@ class FutureRefreshConfig:
     daily_reserve: int = 1500
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
+    checkpoint_fixture_ids: tuple[str, ...] = ()
+    refresh_checkpoints: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -983,6 +985,8 @@ class FutureFixtureRefreshService:
         return core_calls + odds_calls + enrichment_calls
 
     def _fixture_candidate_estimate(self) -> int:
+        if self.config.checkpoint_fixture_ids:
+            return len(set(self.config.checkpoint_fixture_ids))
         if self.config.persistence == "db":
             try:
                 fixture_payloads = self._db_repository().fixture_payloads()
@@ -1053,9 +1057,13 @@ class FutureFixtureRefreshService:
         response = payload.get("response")
         if not isinstance(response, list):
             return []
+        allowed_fixture_ids = set(self.config.checkpoint_fixture_ids)
         rows: list[dict[str, Any]] = []
         for item in response:
             if not isinstance(item, dict):
+                continue
+            fixture_id = fixture_id_from_payload(item)
+            if allowed_fixture_ids and fixture_id not in allowed_fixture_ids:
                 continue
             status = item.get("fixture", {}).get("status", {}).get("short")
             kickoff = kickoff_from_payload(item)
@@ -1366,11 +1374,54 @@ class FutureFixtureRefreshService:
         }
         if self.config.persistence == "db":
             try:
-                self._db_repository().write_run_audit(payload)
+                repository = self._db_repository()
+                repository.write_run_audit(payload)
+                self._write_checkpoint_audits(repository, result)
                 return
             except FutureRefreshPersistenceError as exc:
                 raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         write_json_atomic(self.config.runtime_root / "future_refresh_audit.json", payload)
+
+    def _write_checkpoint_audits(
+        self,
+        repository: FutureRefreshDbRepository,
+        result: FutureRefreshResult,
+    ) -> None:
+        if not self.config.refresh_checkpoints:
+            return
+        calls_by_fixture: dict[str, int] = {}
+        for item in self._audit:
+            params = item.get("params") if isinstance(item, dict) else None
+            fixture_id = (
+                str(params.get("fixture"))
+                if isinstance(params, dict) and params.get("fixture")
+                else ""
+            )
+            if fixture_id:
+                calls_by_fixture[fixture_id] = calls_by_fixture.get(fixture_id, 0) + int(
+                    item.get("attempt") or 0
+                )
+        for checkpoint in self.config.refresh_checkpoints:
+            fixture_id = str(checkpoint.get("fixture_id") or "")
+            name = str(checkpoint.get("checkpoint") or "")
+            if not fixture_id or not name:
+                continue
+            status = "COMPLETED" if not result.blockers else result.status
+            repository.write_checkpoint_audit(
+                fixture_id=fixture_id,
+                checkpoint=name,
+                as_of=result.generated_at_utc,
+                calls_used=max(calls_by_fixture.get(fixture_id, 0), 0),
+                status=status,
+                details={
+                    "contract": "w2.checkpoint_refresh.v1",
+                    "request_count": result.request_count,
+                    "selected_market_fixture_ids": result.selected_market_fixture_ids,
+                    "blockers": result.blockers,
+                    "endpoints": list(checkpoint.get("endpoints") or []),
+                    "source": checkpoint.get("source"),
+                },
+            )
 
 
 def deterministic_time_bucket(now: datetime, interval_seconds: int) -> str:
@@ -1398,6 +1449,8 @@ def run_future_fixture_refresh(
     now: datetime | None = None,
     policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
     persistence: str | None = None,
+    checkpoint_fixture_ids: tuple[str, ...] = (),
+    refresh_checkpoints: tuple[dict[str, Any], ...] = (),
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -1406,6 +1459,30 @@ def run_future_fixture_refresh(
     )
     if persistence is not None:
         config = replace(config, persistence=persistence)
+    if checkpoint_fixture_ids or refresh_checkpoints:
+        lineups_count = sum(
+            1
+            for item in refresh_checkpoints
+            if "lineups" in set(item.get("endpoints") or [])
+        )
+        config = replace(
+            config,
+            checkpoint_fixture_ids=tuple(dict.fromkeys(checkpoint_fixture_ids)),
+            refresh_checkpoints=tuple(refresh_checkpoints),
+            max_fixture_candidates=max(len(set(checkpoint_fixture_ids)), 1),
+            max_odds_requests=sum(
+                1
+                for item in refresh_checkpoints
+                if "odds" in set(item.get("endpoints") or [])
+            ),
+            feature_enrichment_enabled=lineups_count > 0,
+            feature_enrichment_endpoints=("lineups",),
+            feature_enrichment_request_budget=lineups_count,
+            request_budget=max(
+                config.request_budget,
+                2 + len(set(checkpoint_fixture_ids)) + lineups_count,
+            ),
+        )
     return FutureFixtureRefreshService(client=client, config=config, now=now).run()
 
 
@@ -1425,6 +1502,8 @@ def run_future_refresh_task(
     requested_interval_seconds: int | None = None,
     effective_interval_seconds: int | None = None,
     provider_refresh_min_interval_seconds: int | None = None,
+    checkpoint_fixture_ids: tuple[str, ...] = (),
+    refresh_checkpoints: tuple[dict[str, Any], ...] = (),
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -1500,6 +1579,8 @@ def run_future_refresh_task(
             client=client,
             now=started_at,
             persistence=resolved_persistence,
+            checkpoint_fixture_ids=checkpoint_fixture_ids,
+            refresh_checkpoints=refresh_checkpoints,
         )
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
@@ -1513,6 +1594,8 @@ def run_future_refresh_task(
             "blockers": result.blockers,
             "candidate": False,
             "formal_recommendation": False,
+            "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
+            "refresh_checkpoints": list(refresh_checkpoints),
         }
     except Exception as exc:
         summary = {

@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
-    fixture_refresh_gradient_interval_seconds,
+    due_checkpoint_refresh_batch,
     future_fixture_refresh_tick,
     heartbeat,
     market_timeline_refresh_tick,
-    provider_refresh_effective_interval_seconds,
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
@@ -39,16 +38,49 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
 
 
-def test_scheduler_future_refresh_dispatches_worker_task_without_running_provider(
+def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_running_provider(
     monkeypatch,
 ) -> None:
     sent: list[dict[str, object]] = []
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
     def fake_send_task(name: str, **kwargs: object) -> None:
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now: {
+            "status": "READY",
+            "generated_plan_count": 8,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "1489404",
+                    "checkpoint": "T24",
+                    "kickoff_utc": "2026-06-26T12:00:00Z",
+                    "due_at": "2026-06-25T12:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {"now": staticmethod(lambda tz=None: now), "fromisoformat": datetime.fromisoformat},
+        ),
+    )
     monkeypatch.setattr(
         scheduler_main,
         "provider_task_key_gate",
@@ -63,10 +95,14 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_key"]).startswith("future-refresh:world_cup_2026:2026:")
+    assert str(result["task_key"]).startswith("checkpoint-refresh:world_cup_2026:2026:")
+    assert result["provider_refresh_min_interval_policy"] == (
+        "REPLACED_BY_PER_FIXTURE_CHECKPOINTS"
+    )
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
-    assert sent[0]["kwargs"]["effective_interval_seconds"] == result["effective_interval_seconds"]
+    assert sent[0]["kwargs"]["checkpoint_fixture_ids"] == ["1489404"]
+    assert sent[0]["kwargs"]["refresh_checkpoints"] == result["checkpoints"]
 
 
 def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) -> None:
@@ -90,6 +126,29 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now: {
+            "status": "READY",
+            "generated_plan_count": 8,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "1489404",
+                    "checkpoint": "T24",
+                    "kickoff_utc": "2026-06-26T12:00:00Z",
+                    "due_at": "2026-06-25T12:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        scheduler_main,
         "provider_task_key_gate",
         lambda **kwargs: type(
             "Gate",
@@ -110,7 +169,7 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
     assert sent == []
 
 
-def test_scheduler_future_refresh_clamps_provider_interval_and_task_key(
+def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
     monkeypatch,
 ) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
@@ -141,18 +200,28 @@ def test_scheduler_future_refresh_clamps_provider_interval_and_task_key(
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS", "900")
     monkeypatch.setattr(
         scheduler_main,
-        "future_refresh_fixture_payloads",
-        lambda: [
-            {
-                "fixture": {
-                    "date": (now + timedelta(minutes=5)).isoformat(),
-                    "status": {"short": "NS"},
+        "due_checkpoint_refresh_batch",
+        lambda now: {
+            "status": "READY",
+            "generated_plan_count": 8,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "1489404",
+                    "checkpoint": "OPEN",
+                    "kickoff_utc": "2026-06-25T17:00:00Z",
+                    "due_at": "2026-06-25T12:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
                 }
-            }
-        ],
+            ],
+        },
     )
     monkeypatch.setattr(
         scheduler_main,
@@ -172,13 +241,8 @@ def test_scheduler_future_refresh_clamps_provider_interval_and_task_key(
     first = future_fixture_refresh_tick()
     second = future_fixture_refresh_tick()
 
-    assert fixture_refresh_gradient_interval_seconds(now=now) == 60
-    assert provider_refresh_effective_interval_seconds(60, policy_interval_seconds=900) == 900
-    assert first["requested_interval_seconds"] == 60
-    assert first["effective_interval_seconds"] == 900
-    assert first["provider_refresh_min_interval_seconds"] == 900
     assert second["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
-    assert second["effective_interval_seconds"] == 900
+    assert first["projected_calls"] == 3
     assert len(sent) == 1
 
 
@@ -315,87 +379,26 @@ def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
     assert result["result"]["provider_calls"] == 0
 
 
-def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:
+def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
-    def fixture_payloads(seconds_until_kickoff: int) -> list[dict[str, Any]]:
-        return [
-            {
-                "fixture": {
-                    "date": (now + timedelta(seconds=seconds_until_kickoff)).isoformat(),
-                    "status": {"short": "NS"},
-                }
-            }
-        ]
+    class FakeRepository:
+        def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
+            return len(plans)
 
-    for seconds_until_kickoff, expected_interval in [
-        (72 * 60 * 60, 3600),
-        (24 * 60 * 60, 1800),
-        (6 * 60 * 60, 900),
-        (2 * 60 * 60, 300),
-        (30 * 60, 120),
-        (5 * 60, 60),
-    ]:
-        monkeypatch.setattr(
-            scheduler_main,
-            "future_refresh_fixture_payloads",
-            lambda seconds_until_kickoff=seconds_until_kickoff: fixture_payloads(
-                seconds_until_kickoff
-            ),
-        )
-        assert fixture_refresh_gradient_interval_seconds(now=now) == expected_interval
+        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            return []
 
-
-def test_scheduler_refresh_interval_ignores_started_and_finished_fixtures(
-    monkeypatch,
-) -> None:
-    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
-
+    monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda: [])
     monkeypatch.setattr(
-        scheduler_main,
-        "future_refresh_fixture_payloads",
-        lambda: [
-            {
-                "fixture": {
-                    "date": (now - timedelta(minutes=5)).isoformat(),
-                    "status": {"short": "NS"},
-                }
-            },
-            {
-                "fixture": {
-                    "date": (now + timedelta(minutes=5)).isoformat(),
-                    "status": {"short": "1H"},
-                }
-            },
-        ],
+        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        FakeRepository,
     )
 
-    assert (
-        fixture_refresh_gradient_interval_seconds(
-            now=now,
-            default_interval_seconds=900,
-        )
-        == 3600
-    )
+    result = due_checkpoint_refresh_batch(now)
 
-
-def test_scheduler_refresh_interval_falls_back_when_db_unavailable(monkeypatch) -> None:
-    def unavailable_repository() -> list[dict[str, Any]]:
-        raise RuntimeError("db unavailable")
-
-    monkeypatch.setattr(
-        scheduler_main,
-        "future_refresh_fixture_payloads",
-        unavailable_repository,
-    )
-
-    assert (
-        fixture_refresh_gradient_interval_seconds(
-            now=datetime(2026, 6, 25, 12, tzinfo=UTC),
-            default_interval_seconds=777,
-        )
-        == 777
-    )
+    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["projected_calls"] == 0
 
 
 def test_worker_future_refresh_task_is_registered() -> None:

@@ -11,6 +11,8 @@ from w2.config import Settings
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
+    FutureRefreshCheckpointAuditModel,
+    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -460,6 +462,118 @@ class FutureRefreshDbRepository:
                 .limit(1)
             )
         return row is not None
+
+    def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
+        if not plans:
+            return 0
+        upserted = 0
+        with Session(self.engine) as session:
+            for row in plans:
+                plan_id = str(row["id"])
+                existing = session.get(FutureRefreshCheckpointPlanModel, plan_id)
+                if existing is not None and existing.status == "COMPLETED":
+                    continue
+                session.merge(
+                    FutureRefreshCheckpointPlanModel(
+                        id=plan_id,
+                        fixture_id=str(row["fixture_id"]),
+                        checkpoint=str(row["checkpoint"]),
+                        kickoff_utc=parse_db_datetime(row["kickoff_utc"]),
+                        due_at=parse_db_datetime(row["due_at"]),
+                        endpoints=list(row["endpoints"]),
+                        source=str(row["source"]),
+                        status=str(row.get("status") or "PENDING"),
+                        executed_at=(
+                            parse_db_datetime(row["executed_at"])
+                            if row.get("executed_at")
+                            else None
+                        ),
+                        last_audit_id=row.get("last_audit_id"),
+                    )
+                )
+                upserted += 1
+            try:
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("CHECKPOINT_PLAN_WRITE_FAILED") from exc
+        return upserted
+
+    def due_checkpoint_plans(
+        self,
+        *,
+        now: datetime,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        current = parse_db_datetime(now)
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(FutureRefreshCheckpointPlanModel)
+                    .where(
+                        FutureRefreshCheckpointPlanModel.status == "PENDING",
+                        FutureRefreshCheckpointPlanModel.due_at <= current,
+                    )
+                    .order_by(
+                        FutureRefreshCheckpointPlanModel.due_at,
+                        FutureRefreshCheckpointPlanModel.kickoff_utc,
+                        FutureRefreshCheckpointPlanModel.fixture_id,
+                        FutureRefreshCheckpointPlanModel.checkpoint,
+                    )
+                    .limit(limit)
+                )
+            )
+        return [self._checkpoint_plan_dict(row) for row in rows]
+
+    def write_checkpoint_audit(
+        self,
+        *,
+        fixture_id: str,
+        checkpoint: str,
+        as_of: datetime,
+        calls_used: int,
+        status: str,
+        details: dict[str, Any],
+    ) -> int:
+        with Session(self.engine) as session:
+            try:
+                audit = FutureRefreshCheckpointAuditModel(
+                    fixture_id=str(fixture_id),
+                    checkpoint=str(checkpoint),
+                    as_of=parse_db_datetime(as_of),
+                    calls_used=int(calls_used),
+                    status=str(status),
+                    details=dict(details),
+                )
+                session.add(audit)
+                plan = session.get(
+                    FutureRefreshCheckpointPlanModel,
+                    f"{fixture_id}:{checkpoint}",
+                )
+                if plan is not None and status in {"COMPLETED", "BLOCKED", "PARTIAL_FAILED"}:
+                    plan.status = status
+                    plan.executed_at = parse_db_datetime(as_of)
+                    session.flush()
+                    plan.last_audit_id = audit.id
+                session.commit()
+                return int(audit.id)
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("CHECKPOINT_AUDIT_WRITE_FAILED") from exc
+
+    def _checkpoint_plan_dict(self, row: FutureRefreshCheckpointPlanModel) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "fixture_id": row.fixture_id,
+            "checkpoint": row.checkpoint,
+            "kickoff_utc": iso_z(row.kickoff_utc),
+            "due_at": iso_z(row.due_at),
+            "endpoints": list(row.endpoints),
+            "source": row.source,
+            "status": row.status,
+            "executed_at": iso_z(row.executed_at) if row.executed_at is not None else None,
+            "last_audit_id": row.last_audit_id,
+        }
 
     def write_run_audit(self, payload: dict[str, Any]) -> None:
         with Session(self.engine) as session:

@@ -41,6 +41,8 @@ def future_fixture_refresh(
     requested_interval_seconds: int | None = None,
     effective_interval_seconds: int | None = None,
     provider_refresh_min_interval_seconds: int | None = None,
+    checkpoint_fixture_ids: list[str] | None = None,
+    refresh_checkpoints: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     if not provider_scheduler_enabled():
         return {
@@ -55,6 +57,8 @@ def future_fixture_refresh(
                 "provider_calls": 0,
                 "candidate": False,
                 "formal_recommendation": False,
+                "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
+                "refresh_checkpoints": refresh_checkpoints or [],
             },
             "candidate": False,
             "formal_recommendation": False,
@@ -82,6 +86,8 @@ def future_fixture_refresh(
         requested_interval_seconds=requested_interval_seconds,
         effective_interval_seconds=effective_interval_seconds,
         provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
+        checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
+        refresh_checkpoints=tuple(refresh_checkpoints or ()),
     )
     return {
         "task_id": audit.task_id,
@@ -90,6 +96,8 @@ def future_fixture_refresh(
         "requested_interval_seconds": requested_interval_seconds,
         "effective_interval_seconds": effective_interval_seconds,
         "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
+        "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
+        "refresh_checkpoints": refresh_checkpoints or [],
         "result": audit.result,
         "candidate": False,
         "formal_recommendation": False,

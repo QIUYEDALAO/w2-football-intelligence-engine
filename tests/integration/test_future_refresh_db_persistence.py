@@ -13,6 +13,8 @@ from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
+    FutureRefreshCheckpointAuditModel,
+    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -218,6 +220,52 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert snapshots[0]["fixture_id"] == "1489404"
     assert provider["remaining_quota"] == 7000
     assert provider["blockers"] == []
+
+
+def test_checkpoint_plan_is_idempotent_and_audited(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    due_at = NOW - timedelta(minutes=1)
+    row = {
+        "id": "1489404:T24",
+        "fixture_id": "1489404",
+        "checkpoint": "T24",
+        "kickoff_utc": NOW + timedelta(hours=24),
+        "due_at": due_at,
+        "endpoints": ["odds"],
+        "source": "scheduled",
+        "status": "PENDING",
+    }
+
+    assert repository.upsert_checkpoint_plans([row]) == 1
+    assert repository.upsert_checkpoint_plans([row]) == 1
+    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == [
+        "1489404:T24"
+    ]
+    audit_id = repository.write_checkpoint_audit(
+        fixture_id="1489404",
+        checkpoint="T24",
+        as_of=NOW,
+        calls_used=1,
+        status="COMPLETED",
+        details={"contract": "w2.checkpoint_refresh.v1"},
+    )
+
+    assert audit_id >= 1
+    assert repository.due_checkpoint_plans(now=NOW) == []
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert (
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel))
+            == 1
+        )
+        assert (
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel))
+            == 1
+        )
 
 
 def test_request_count_since_includes_provider_request_logs(
