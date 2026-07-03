@@ -99,6 +99,7 @@ from w2.strategy.formal_recommendation import (
     ah_display_contract,
     build_formal_recommendation,
     canonical_ah_market,
+    formal_recommendation_id,
     formal_recommendations_enabled,
 )
 from w2.strategy.score_scenarios import Direction
@@ -4432,6 +4433,16 @@ class ReadModelService:
             if _valid_formal_recommendation_payload(formal_result.recommendation)
             else None
         )
+        if formal_recommendation is not None and fixture_id:
+            recommendation_id = formal_recommendation_id(
+                fixture_id=fixture_id,
+                recommendation=formal_recommendation,
+            )
+            formal_recommendation = {
+                **formal_recommendation,
+                "recommendation_id": recommendation_id,
+                "id": recommendation_id,
+            }
         formal_blockers = list(formal_result.blockers)
         if formal_result.formal_eligible and formal_recommendation is None:
             blocker = _formal_payload_blocker(formal_result)

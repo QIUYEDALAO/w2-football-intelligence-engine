@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from w2.infrastructure.persistence.models import RecommendationLockModel
+from w2.infrastructure.persistence.models import RecommendationLockModel, RecommendationModel
 from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     build_recommendation_lock_snapshot,
 )
@@ -387,6 +387,22 @@ def capture_formal_locks(
                 }
             )
             continue
+        recommendation_marker = session.get(RecommendationModel, recommendation_id)
+        if recommendation_marker is None:
+            fixture_id = card.get("fixture_id")
+            if not isinstance(fixture_id, str) or not fixture_id:
+                counts["MISSING_FIXTURE_ID"] += 1
+                continue
+            recommendation_marker = RecommendationModel(
+                id=recommendation_id,
+                fixture_id=fixture_id,
+                prediction_id=None,
+                status="FORMAL",
+                created_at=captured_at,
+            )
+            session.add(recommendation_marker)
+            session.flush()
+            counts["RECOMMENDATION_MARKER_CREATED"] += 1
         try:
             lock = build_recommendation_lock_snapshot(
                 recommendation_id=recommendation_id,

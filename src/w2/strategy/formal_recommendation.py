@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import asdict, dataclass
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 from w2.strategy.simulate import (
     READY,
@@ -20,6 +21,26 @@ AH_PRICE_MAX = 4.00
 AH_IMPLIED_SUM_MIN = 0.98
 AH_IMPLIED_SUM_MAX = 1.30
 AH_MAX_PRICE_GAP = 0.90
+
+
+def formal_recommendation_id(
+    *,
+    fixture_id: str,
+    recommendation: dict[str, Any],
+) -> str:
+    """Build a stable id for a concrete FORMAL payload without changing the pick."""
+    parts = [
+        "w2.formal_recommendation.v1",
+        str(fixture_id),
+        str(recommendation.get("tier") or ""),
+        str(recommendation.get("market") or ""),
+        str(recommendation.get("selection") or ""),
+        str(recommendation.get("line") or ""),
+        str(recommendation.get("odds") or ""),
+        str(recommendation.get("expected_value") or ""),
+        str(recommendation.get("ev_se") or ""),
+    ]
+    return str(uuid5(NAMESPACE_URL, "|".join(parts)))
 
 
 @dataclass(frozen=True, kw_only=True)
