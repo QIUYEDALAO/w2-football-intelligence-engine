@@ -632,6 +632,36 @@ def test_render_html_non_formal_decision_table_explains_blockers() -> None:
     assert "方向未识别" not in report
 
 
+def test_render_html_hides_stale_materialized_ah_mainline() -> None:
+    match = _non_formal_match()
+    match["pricing_shadow"] = {
+        **match["pricing_shadow"],  # type: ignore[dict-item]
+        "fair_ah": -0.25,
+        "market_ah": -1.0,
+        "edge_ah": -0.75,
+        "materialized_market_ah": -2.5,
+        "selector_market_ah": -1.0,
+        "mainline_materialization_blocker": "AH_MAINLINE_STALE_MATERIALIZATION",
+        "canonical_ah_market_blocker": "AH_MAINLINE_STALE_MATERIALIZATION",
+        "formal_blockers": ["AH_MAINLINE_STALE_MATERIALIZATION"],
+    }
+    match["current_odds"] = {
+        "ah": {
+            "display_line_cn": "主队 -1",
+            "home_line": "-1",
+            "away_line": "1",
+        }
+    }
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "盘口未就绪" in report
+    assert "AH_MAINLINE_STALE_MATERIALIZATION" in report
+    assert "盘口物化陈旧，等待重建" in report
+    assert ">-1<" not in report
+    assert "主队 -1" not in report
+
+
 def test_render_markdown_includes_formal_decision_summary_with_blocker_counts() -> None:
     report = render_report(
         _payload(

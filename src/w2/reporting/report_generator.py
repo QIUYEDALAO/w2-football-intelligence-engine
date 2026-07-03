@@ -395,7 +395,7 @@ def _html_match_card(
     recommendation = _dict(match.get("recommendation"))
     is_formal = decision.state == MatchDecisionState.FORMAL
     ev = _number(recommendation.get("expected_value")) if is_formal else None
-    edge = _number(shadow.get("edge_ah"))
+    edge = _number(shadow.get("edge_ah")) if _market_ready_for_display(match) else None
     ev_attr = "" if ev is None else f"{ev:.6f}"
     edge_attr = "" if edge is None else f"{edge:.4f}"
     attrs = (
@@ -418,8 +418,8 @@ def _html_match_card(
         else:
             meta_parts.append(line)
     tooltip = escape(" ｜ ".join([status_line, *meta_parts]))
-    market_cell = _number_cell(shadow.get("market_ah"))
-    edge_cell = _number_cell(shadow.get("edge_ah"), signed=True)
+    market_cell = _market_display_cell(match)
+    edge_cell = _edge_display_cell(match)
     signal_count = shadow.get("independent_signal_count")
     isc_cell = escape(str(signal_count)) if signal_count is not None else "—"
     timeline = _dict(match.get("market_timeline"))
@@ -465,6 +465,33 @@ def _number_cell(value: Any, *, signed: bool = False) -> str:
     if numeric is None:
         return "—"
     return escape(_signed_line(numeric) if signed else _line_value(numeric))
+
+
+def _market_ready_for_display(match: dict[str, Any]) -> bool:
+    shadow = _dict(match.get("pricing_shadow"))
+    stale = "AH_MAINLINE_STALE_MATERIALIZATION"
+    blockers = [
+        shadow.get("mainline_materialization_blocker"),
+        shadow.get("canonical_ah_market_blocker"),
+        *list(_list(shadow.get("formal_blockers"))),
+    ]
+    canonical = _dict(shadow.get("canonical_ah_market"))
+    blockers.append(canonical.get("blocker"))
+    return stale not in {str(item) for item in blockers if item}
+
+
+def _market_display_cell(match: dict[str, Any]) -> str:
+    if not _market_ready_for_display(match):
+        return "—"
+    shadow = _dict(match.get("pricing_shadow"))
+    return _number_cell(shadow.get("market_ah"))
+
+
+def _edge_display_cell(match: dict[str, Any]) -> str:
+    if not _market_ready_for_display(match):
+        return "—"
+    shadow = _dict(match.get("pricing_shadow"))
+    return _number_cell(shadow.get("edge_ah"), signed=True)
 
 
 def _data_quality_flag(match: dict[str, Any]) -> str:
@@ -872,8 +899,12 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
             digits=2,
         ),
         _format_optional_number(shadow.get("fair_ah")),
-        _format_optional_number(shadow.get("market_ah")),
-        _format_optional_number(shadow.get("edge_ah")),
+        _format_optional_number(shadow.get("market_ah"))
+        if _market_ready_for_display(match)
+        else "",
+        _format_optional_number(shadow.get("edge_ah"))
+        if _market_ready_for_display(match)
+        else "",
         _ev_text(recommendation),
         _format_optional_number(recommendation.get("ev_se")),
         _join_codes(shadow.get("formal_blockers")),
@@ -962,6 +993,7 @@ def _blocker_explanation_cn(code: str) -> str:
         "EV_IMPLAUSIBLY_HIGH": "EV 异常偏高，保守拦截",
         "AH_FAIR_MARKET_GAP_TOO_WIDE": "模型公平盘与市场盘分歧过大",
         "AH_MAINLINE_CONSENSUS_CONFLICT": "主盘口与庄家共识冲突",
+        "AH_MAINLINE_STALE_MATERIALIZATION": "盘口物化陈旧，等待重建",
         "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
         "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
         "MISSING_LINEUPS": "首发未返回",
@@ -1181,6 +1213,8 @@ def _recommendation_text(match: dict[str, Any], recommendation: dict[str, Any]) 
 
 
 def _market_display(match: dict[str, Any]) -> str:
+    if not _market_ready_for_display(match):
+        return "盘口未就绪"
     current = _dict(match.get("current_odds"))
     ah = _dict(current.get("ah"))
     display = ah.get("display_line_cn")
