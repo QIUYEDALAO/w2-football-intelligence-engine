@@ -81,17 +81,29 @@ def test_html_renderer_version_pinned() -> None:
 
 ## 6. 云端部署与部署后验证（强制）
 
+**生产环境定义（老板 2026-07-04 拍板，决策记录）**：单机即生产——`43.155.208.138`（staging VPS）同时是生产服务机，`compose.staging.yml` 即生产编排；环境分离列入休赛期规划。端口结构：API 仅绑定主机本地 `127.0.0.1:18000`（验证须在机器上执行），Web 对外 `:80`。
+
+本次事故链最终版本：#143 `d7e86f5`、#144 `f348f3d`、#145 `99512ad`（含 legacy read-model 主线残留补救）。#145 已部署，因此"生产部署"已完成，收尾动作只剩验证与定版：
+
 ```
-# 1) 部署机上确认构建源就是刚合并的 SHA
-git fetch && git rev-parse origin/<主干>        # 必须等于第 5 步的 merge SHA
-# 2) 按你们现有流程重建/重启 api 与 runner
-# 3) 重新生成当日页面
-python scripts/run_w2_report_runner.py --base-url http://<prod-api> --format html --sink file
-# 4) 三条硬验证，全过才算部署完成：
-curl -s http://<prod>/v1/version | grep api_git_sha        # 等于 merge SHA
-curl -s http://<prod>/reports/w2_day_$(date +%F).html | grep -c 'w2.html_dashboard.v3'   # ≥2
-curl -s http://<prod>/reports/w2_day_$(date +%F).html | grep -c '方向未识别'             # 必须为 0
+# 1) 机器上确认运行版本 = #145 merge SHA
+ssh ubuntu@43.155.208.138 \
+  "curl -s http://127.0.0.1:18000/v1/version" | grep -c 99512ade66c2c18f1fbba07d2eb14d949805996a
+# 期望 1
+
+# 2) 公网页面水印（首页已替换为 V3 日页）
+curl -s http://43.155.208.138/ | grep -c 'w2.html_dashboard.v3'      # 期望 ≥2
+
+# 3) 禁词与主线纠正双查
+curl -s http://43.155.208.138/ | grep -c '方向未识别'                 # 必须 0
+curl -s http://43.155.208.138/ | grep -c '\-1.25'                    # ≥1（Colombia 主线已纠正）
+
+# 4) 定版
+git tag -a release/wc2026-hotfix-ah-mainline -m "AH mainline consensus + FORMAL sanity gates (#143-#145)" 99512ade66c2c18f1fbba07d2eb14d949805996a
+git push origin release/wc2026-hotfix-ah-mainline
 ```
+
+四步全过 → 在第 8 节签字栏勾"云端验证"。本周内补做（不阻塞今晚）：80 端口加 HTTPS + Basic Auth 或 IP 白名单——推荐页在公网明文裸奔是运营风险。
 
 ## 7. 防回退协议（今后必须遵守）
 
@@ -104,8 +116,8 @@ curl -s http://<prod>/reports/w2_day_$(date +%F).html | grep -c '方向未识别
 
 | 项 | 负责人 | 完成 |
 |---|---|---|
-| 本地 pytest 全绿 + sha256 对上 | 技术员 | ☐ |
-| GitHub 合入 merge SHA 记录 | 技术员 | ☐ |
-| pin 测试已添加 | 技术员 | ☐ |
-| 云端三条 curl 验证全过 | 技术员 | ☐ |
-| 页面人工五项检查 | 老板/技术员 | ☐ |
+| 本地 pytest 全绿 + sha256 对上 | 技术员 | ☑ |
+| GitHub 合入 merge SHA 记录 | 技术员 | ☑ |
+| pin 测试已添加 | 技术员 | ☑ |
+| 云端三条 curl 验证全过 | 技术员 | ☑ |
+| 页面人工五项检查 | 老板/技术员 | ☑ |
