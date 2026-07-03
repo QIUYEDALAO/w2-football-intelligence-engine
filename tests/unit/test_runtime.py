@@ -47,6 +47,16 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )(),
+    )
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
     result = future_fixture_refresh_tick()
@@ -55,6 +65,47 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
     assert str(result["task_key"]).startswith("future-refresh:world_cup_2026:2026:")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
+
+
+def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
+    monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append({}))
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
+    assert result["provider_calls"] == 0
+    assert sent == []
+
+
+def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {
+                "allowed": False,
+                "status": "DUPLICATE_TASK_KEY_SUPPRESSED",
+                "backend": "redis",
+            },
+        )(),
+    )
+    monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append({}))
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
+    assert result["provider_calls"] == 0
+    assert sent == []
 
 
 def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
@@ -66,6 +117,7 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_XG_BACKFILL_ENABLED", "true")
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
@@ -86,6 +138,7 @@ def test_scheduler_market_timeline_dispatches_worker_task_without_running_provid
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_MARKET_TIMELINE_MAX_FIXTURES", "7")
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
@@ -109,6 +162,7 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
                 "formal_recommendation": False,
             }
 
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app.run_xg_history_backfill",
         lambda: FakeResult(),
@@ -124,6 +178,7 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
 
 
 def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app.run_market_timeline_refresh",
         lambda **kwargs: {
@@ -148,6 +203,7 @@ def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
 
 
 def test_worker_market_timeline_task_reports_blocked_without_promotion(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app.run_market_timeline_refresh",
         lambda **kwargs: {
@@ -170,6 +226,19 @@ def test_worker_market_timeline_task_reports_blocked_without_promotion(monkeypat
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
     assert result["beats_market"] is False
+
+
+def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
+    monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_xg_history_backfill",
+        lambda: (_ for _ in ()).throw(AssertionError("must not run provider task")),
+    )
+
+    result = xg_history_backfill.run(queued_at_utc="2026-06-26T12:00:00Z")
+
+    assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
+    assert result["result"]["provider_calls"] == 0
 
 
 def test_scheduler_refresh_interval_uses_roadmap_frequency_gradient(monkeypatch) -> None:

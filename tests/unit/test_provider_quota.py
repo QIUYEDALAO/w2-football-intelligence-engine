@@ -8,6 +8,7 @@ from w2.ingestion.quota_budget import independent_signal_quota_decision
 from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,
+    provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
 
@@ -183,6 +184,32 @@ def test_quota_guard_blocks_unknown_or_exhausted_quota() -> None:
     assert quota_guard_decision(remaining_quota=0, task_type="lineups")["blocker"] == (
         "DAILY_QUOTA_EXHAUSTED"
     )
+
+
+def test_provider_daily_hard_cap_blocks_before_exceeding_reserve() -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=6000,
+        planned_calls=100,
+        daily_cap=7500,
+        reserve_bucket=1500,
+    )
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_RESERVE_PROTECTED"
+    assert decision["projected_total"] == 6100
+    assert decision["remaining_after_plan"] == 1400
+
+
+def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=7495,
+        planned_calls=10,
+        daily_cap=7500,
+        reserve_bucket=0,
+    )
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
 
 
 def test_independent_signal_budget_allows_only_prematch_when_quota_unknown() -> None:

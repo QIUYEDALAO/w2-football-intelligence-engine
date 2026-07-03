@@ -34,6 +34,15 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
+        assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
+        assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+        assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
+        assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
+        for service in ("api", "worker"):
+            env = env_for(path, service)
+            assert env["W2_PROVIDER_CALLS_DISABLED"] == "true"
+            assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+            assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         for service in ("api", "web", "worker"):
             assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in env_for(path, service)
 
@@ -111,6 +120,15 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        "apps.scheduler.main.provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )(),
+    )
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
     result = future_fixture_refresh_tick()

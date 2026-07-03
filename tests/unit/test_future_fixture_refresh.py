@@ -352,6 +352,50 @@ def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
     assert "PROVIDER_HTTP_401" in audit
 
 
+def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(status_code=429)
+    config = FutureRefreshConfig(runtime_root=tmp_path, persistence="file")
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
+
+    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert len(client.calls) == 1
+    assert "PROVIDER_HTTP_429" in audit
+
+
+def test_future_refresh_daily_hard_cap_blocks_before_provider_call(tmp_path: Path) -> None:
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        daily_hard_cap=7500,
+        daily_reserve=1500,
+        actual_provider_calls_today=6000,
+        max_odds_requests=20,
+        feature_enrichment_enabled=True,
+        feature_enrichment_request_budget=9,
+    )
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_RESERVE_PROTECTED"]
+    assert result.request_count == 0
+    assert client.calls == []
+    assert audit["request_count"] == 0
+    assert audit["requests"][0]["error_code"] == "PROVIDER_RESERVE_PROTECTED"
+
+
 def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Path) -> None:
     policy_path = tmp_path / "policy.json"
     policy_path.write_text(

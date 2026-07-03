@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,12 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
 )
+from w2.infrastructure.persistence.ingestion_models import (
+    ProviderRequestLogModel,
+    QuotaUsageModel,
+)
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -155,7 +160,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         runtime_root.chmod(0o700)
 
     assert first.status == "COMPLETED"
-    assert second.status == "COMPLETED"
+    assert second.status == "ALREADY_RUNNING"
     assert first.result["candidate"] is False
     assert first.result["formal_recommendation"] is False
     assert not any(runtime_root.iterdir())
@@ -164,7 +169,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
     with Session(engine) as session:
         assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 1
         assert session.scalar(select(func.count()).select_from(FutureRefreshTaskAuditModel)) == 2
-        assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 2
+        assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 1
         assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 5
         observation = session.scalar(select(FutureMarketObservationModel))
         assert observation is not None
@@ -208,3 +213,52 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert snapshots[0]["fixture_id"] == "1489404"
     assert provider["remaining_quota"] == 7000
     assert provider["blockers"] == []
+
+
+def test_request_count_since_includes_provider_request_logs(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        for index in range(120):
+            requested_at = since + timedelta(seconds=index)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="odds",
+                    request_hash=f"{index:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.commit()
+
+    assert FutureRefreshDbRepository().request_count_since(since) >= 120
+
+
+def test_request_count_since_includes_quota_usage(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="odds",
+                used=7000,
+                limit=7500,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    assert FutureRefreshDbRepository().request_count_since(since) >= 7000

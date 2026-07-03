@@ -122,6 +122,7 @@ def test_report_runner_dry_run_is_read_only_and_returns_summary(tmp_path: Path) 
         "network_quota_required": False,
         "provider_calls": 0,
         "status": "NOT_REQUIRED_READ_ONLY_REPORT",
+        "scope": "report_runner_dashboard_payload_only",
     }
     assert "/health" in ReportRunnerHandler.seen_paths
     assert "/ready" in ReportRunnerHandler.seen_paths

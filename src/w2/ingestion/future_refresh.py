@@ -21,7 +21,12 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
-from w2.providers.quota import parse_api_football_quota, quota_guard_decision
+from w2.providers.control import env_int
+from w2.providers.quota import (
+    parse_api_football_quota,
+    provider_daily_hard_cap_decision,
+    quota_guard_decision,
+)
 
 
 class FutureRefreshError(RuntimeError):
@@ -74,6 +79,9 @@ class FutureRefreshConfig:
     source_revision: str = "LOCAL_UNDEPLOYED"
     enabled: bool = True
     persistence: str = "db"
+    daily_hard_cap: int = 7500
+    daily_reserve: int = 1500
+    actual_provider_calls_today: int | None = None
 
 
 @dataclass(frozen=True)
@@ -258,6 +266,7 @@ def config_from_policy(
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
+        daily_reserve=policy.quota_reserve,
     )
 
 
@@ -617,6 +626,42 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
             return result
+        preflight = self._provider_hard_cap_preflight()
+        if not preflight["allowed"]:
+            blocker = str(preflight["blocker"])
+            self._audit.append(
+                {
+                    "endpoint": "provider_daily_hard_cap_preflight",
+                    "params": {},
+                    "attempt": 0,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(utc_now()),
+                    "remaining_quota": self._latest_remaining,
+                    "payload_sha256": None,
+                    "error_code": blocker,
+                    "quota_guard_mode": preflight["mode"],
+                    "actual_calls_today": preflight["actual_calls_today"],
+                    "planned_calls": preflight["planned_calls"],
+                    "daily_cap": preflight["daily_cap"],
+                    "reserve_bucket": preflight["reserve_bucket"],
+                }
+            )
+            result = FutureRefreshResult(
+                generated_at_utc=self.now,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
+                ledger_appended_count=0,
+                request_count=0,
+                remaining_quota=None,
+                selected_market_fixture_ids=[],
+                blockers=[blocker],
+                status="BLOCKED",
+            )
+            self._write_audit(result)
+            return result
         try:
             self._request("status", {})
             fixtures_response = self._request(
@@ -658,7 +703,7 @@ class FutureFixtureRefreshService:
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         last_error: Exception | None = None
-        max_attempts = 3
+        max_attempts = max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1)
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
@@ -731,6 +776,37 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
+
+    def _provider_hard_cap_preflight(self) -> dict[str, Any]:
+        daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
+        reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
+        planned_calls = self._planned_provider_calls()
+        actual_calls_today = self._actual_provider_calls_today()
+        return provider_daily_hard_cap_decision(
+            actual_calls_today=actual_calls_today,
+            planned_calls=planned_calls,
+            daily_cap=daily_cap,
+            reserve_bucket=reserve,
+        )
+
+    def _planned_provider_calls(self) -> int:
+        enrichment_budget = (
+            max(self.config.feature_enrichment_request_budget, 0)
+            if self.config.feature_enrichment_enabled
+            else 0
+        )
+        return 2 + max(self.config.max_odds_requests, 0) + enrichment_budget
+
+    def _actual_provider_calls_today(self) -> int:
+        if self.config.actual_provider_calls_today is not None:
+            return max(self.config.actual_provider_calls_today, 0)
+        if self.config.persistence != "db":
+            return 0
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            return self._db_repository().request_count_since(day_start)
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc
 
     def _future_fixtures(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         response = payload.get("response")
@@ -1115,15 +1191,35 @@ def run_future_refresh_task(
     resolved_persistence = (
         persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
     ).lower()
+    resolved_settings = settings or get_settings()
     lock: RefreshSingletonLock | None = None
     if resolved_persistence == "db":
-        lock_acquired = True
+        try:
+            existing_task_key = FutureRefreshDbRepository(
+                settings=resolved_settings
+            ).task_key_exists(key)
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError(f"PERSISTENCE_READ_FAILED:{exc}") from exc
+        if existing_task_key:
+            lock_acquired = False
+        elif redis_client is not None or resolved_settings.redis_url is not None:
+            lock = RefreshSingletonLock(
+                key=key,
+                owner=owner_marker,
+                ttl_seconds=900,
+                settings=resolved_settings,
+                runtime_root=root,
+                redis_client=redis_client,
+            )
+            lock_acquired = lock.acquire(now=started_at)
+        else:
+            lock_acquired = True
     else:
         lock = RefreshSingletonLock(
             key=key,
             owner=owner_marker,
             ttl_seconds=900,
-            settings=settings,
+            settings=resolved_settings,
             runtime_root=root,
             redis_client=redis_client,
         )

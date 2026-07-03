@@ -8,6 +8,7 @@ from w2.config import get_settings
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
+from w2.providers.control import PROVIDER_SCHEDULER_DISABLED, provider_scheduler_enabled
 
 settings = get_settings()
 
@@ -38,6 +39,20 @@ def future_fixture_refresh(
     task_key: str | None = None,
     queued_at_utc: str | None = None,
 ) -> dict[str, object]:
+    if not provider_scheduler_enabled():
+        return {
+            "task_id": task_key or "future-refresh",
+            "task_key": task_key,
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "result": {
+                "blockers": [PROVIDER_SCHEDULER_DISABLED],
+                "provider_calls": 0,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+            "candidate": False,
+            "formal_recommendation": False,
+        }
     now = datetime.now(UTC)
     key = task_key or deterministic_task_key(
         competition_id=competition_id,
@@ -74,9 +89,23 @@ def xg_history_backfill(
     self: object,
     queued_at_utc: str | None = None,
 ) -> dict[str, object]:
-    result = run_xg_history_backfill()
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "xg-history-backfill")
+    if not provider_scheduler_enabled():
+        return {
+            "task_id": task_id,
+            "queued_at_utc": queued_at_utc,
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "result": {
+                "blockers": [PROVIDER_SCHEDULER_DISABLED],
+                "provider_calls": 0,
+                "candidate": False,
+                "formal_recommendation": False,
+            },
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    result = run_xg_history_backfill()
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
@@ -97,6 +126,22 @@ def market_timeline_refresh(
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
+    if not provider_scheduler_enabled():
+        return {
+            "task_id": task_id,
+            "queued_at_utc": queued_at_utc,
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "result": {
+                "blockers": [PROVIDER_SCHEDULER_DISABLED],
+                "provider_calls": 0,
+                "candidate": False,
+                "formal_recommendation": False,
+                "beats_market": False,
+            },
+            "candidate": False,
+            "formal_recommendation": False,
+            "beats_market": False,
+        }
     result = run_market_timeline_refresh(
         window=window,
         checkpoint=checkpoint,
