@@ -172,7 +172,7 @@ def test_render_report_outputs_formal_direction_scorelines_and_as_of() -> None:
     assert "# W2 足球日报告 · 2026-06-30 · 临场最终" in report
     assert "场次 1 · 正式推荐 1 · 临场锁定 · as-of 07-01 07:40" in report
     assert "状态：正式推荐" in report
-    assert "推荐：全场让球，看 France -1.25 @1.93" in report
+    assert "推荐：全场让球，看 法国 -1.25 @1.93" in report
     assert "推荐比分（与主推一致 · 高方差仅参考）：2-0 17% · 3-1 12% · 2-1 11%" in report
     assert "盘口走势（参照 · 未验证）" in report
     assert "as-of：" in report
@@ -365,6 +365,17 @@ def test_render_html_uses_one_decision_per_match_for_scorelines(monkeypatch) -> 
 
     assert "推荐比分" in report
     assert calls == 2
+
+
+def test_render_html_prefers_chinese_team_display_names() -> None:
+    match = _non_formal_match()
+    match["home_team_name"] = "Portugal"
+    match["away_team_name"] = "Croatia"
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "葡萄牙 vs 克罗地亚" in report
+    assert "Portugal vs Croatia" not in report
 
 
 def test_render_html_no_formal_day_does_not_fake_recommendations_or_scorelines() -> None:
