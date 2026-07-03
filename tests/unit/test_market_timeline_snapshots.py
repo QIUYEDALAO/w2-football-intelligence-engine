@@ -492,6 +492,76 @@ def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_li
     }
 
 
+def test_ah_mainline_snapshot_excludes_non_full_time_ah_market_labels() -> None:
+    kickoff = datetime(2026, 7, 4, 1, 30, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for bookmaker in ("ft-a", "ft-b", "ft-c", "ft-d"):
+        observations.extend(
+            [
+                {
+                    **_obs(
+                        captured_at=as_of,
+                        selection="HOME",
+                        line=-1.25,
+                        odds=1.92,
+                        bookmaker=bookmaker,
+                    ),
+                    "raw_market_label": "Asian Handicap",
+                },
+                {
+                    **_obs(
+                        captured_at=as_of,
+                        selection="AWAY",
+                        line=1.25,
+                        odds=1.96,
+                        bookmaker=bookmaker,
+                    ),
+                    "raw_market_label": "Asian Handicap",
+                },
+            ]
+        )
+    for bookmaker in ("card-a", "card-b", "card-c", "card-d", "card-e", "card-f"):
+        observations.extend(
+            [
+                {
+                    **_obs(
+                        captured_at=as_of,
+                        selection="HOME",
+                        line=-1.5,
+                        odds=1.93,
+                        bookmaker=bookmaker,
+                    ),
+                    "raw_market_label": "Cards Asian Handicap",
+                },
+                {
+                    **_obs(
+                        captured_at=as_of,
+                        selection="AWAY",
+                        line=1.5,
+                        odds=1.95,
+                        bookmaker=bookmaker,
+                    ),
+                    "raw_market_label": "Cards Asian Handicap",
+                },
+            ]
+        )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == -1.25
+    assert snapshot["bookmaker_count"] == 4
+    assert snapshot["candidate_lines"][0]["line"] == -1.25
+    assert all(item["line"] != -1.5 for item in snapshot["candidate_lines"])
+
+
 def test_ah_mainline_consensus_keeps_same_bookmaker_pair_for_selected_line() -> None:
     kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
     as_of = kickoff - timedelta(minutes=30)

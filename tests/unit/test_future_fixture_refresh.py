@@ -10,9 +10,11 @@ from w2.ingestion.future_refresh import (
     FutureRefreshConfig,
     FutureRefreshError,
     RefreshSingletonLock,
+    canonical_market,
     config_from_policy,
     deterministic_task_key,
     load_refresh_policy,
+    observations_from_odds_payload,
     run_future_refresh_task,
 )
 from w2.providers.api_football import LiveApiFootballResponse
@@ -143,6 +145,83 @@ class FakeApiFootballClient:
         if endpoint == "injuries":
             return {"response": []}
         raise AssertionError(endpoint)
+
+
+def test_canonical_market_keeps_only_full_time_asian_handicap_in_ah_pool() -> None:
+    assert canonical_market("Asian Handicap") == "ASIAN_HANDICAP"
+    assert canonical_market("Handicap") == "ASIAN_HANDICAP"
+    assert canonical_market("Asian Handicap First Half") == "ASIAN_HANDICAP_FIRST_HALF"
+    assert canonical_market("Asian Handicap (2nd Half)") == "ASIAN_HANDICAP_(2ND_HALF)"
+    assert canonical_market("Corners Asian Handicap") == "CORNERS_ASIAN_HANDICAP"
+    assert canonical_market("Yellow Asian Handicap") == "YELLOW_ASIAN_HANDICAP"
+
+
+def test_odds_payload_does_not_put_half_or_card_handicap_into_full_time_ah_pool() -> None:
+    payload = {
+        "response": [
+            {
+                "fixture": {"id": 1489404},
+                "bookmakers": [
+                    {
+                        "id": 1,
+                        "name": "Book A",
+                        "bets": [
+                            {
+                                "id": 4,
+                                "name": "Asian Handicap",
+                                "values": [
+                                    {"value": "Home -1.25", "odd": "1.91"},
+                                    {"value": "Away +1.25", "odd": "1.97"},
+                                ],
+                            },
+                            {
+                                "id": 5,
+                                "name": "Asian Handicap First Half",
+                                "values": [
+                                    {"value": "Home -0.5", "odd": "1.88"},
+                                    {"value": "Away +0.5", "odd": "2.00"},
+                                ],
+                            },
+                            {
+                                "id": 6,
+                                "name": "Cards Asian Handicap",
+                                "values": [
+                                    {"value": "Home -1.5", "odd": "1.90"},
+                                    {"value": "Away +1.5", "odd": "1.98"},
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=NOW,
+    )
+
+    rows = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=response,
+        source_revision="test",
+        raw_payload_sha256="payload",
+    )
+
+    full_time_ah_rows = [row for row in rows if row["canonical_market"] == "ASIAN_HANDICAP"]
+    assert {row["raw_market_label"] for row in full_time_ah_rows} == {"Asian Handicap"}
+    assert {row["line"] for row in full_time_ah_rows} == {"-1.25", "+1.25"}
+    assert {
+        row["canonical_market"]
+        for row in rows
+        if row["raw_market_label"] != "Asian Handicap"
+    } == {"ASIAN_HANDICAP_FIRST_HALF", "CARDS_ASIAN_HANDICAP"}
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):
