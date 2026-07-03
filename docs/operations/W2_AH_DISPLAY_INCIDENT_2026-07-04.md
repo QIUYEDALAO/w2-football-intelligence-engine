@@ -2,7 +2,15 @@
 
 ## Scope
 
-This incident note records the July 4 matchday AH display failures that were caught before lock or settlement. It is intentionally diagnostic only. The #146 hotfix blocks non-FORMAL AH recommendation display. Selector consolidation and canonical AH refactoring remain assigned to #147.
+This incident note records the July 4 matchday AH display failures that were caught before lock or settlement. It is intentionally diagnostic only. The A-146 hotfix blocks non-FORMAL AH recommendation display. Selector consolidation and canonical AH refactoring remain assigned to A-150.
+
+## Naming Ledger
+
+- A task IDs are the canonical audit and communication identifiers.
+- GitHub PR numbers are link references only, because they can drift from task IDs.
+- GitHub PR #147 corresponds to A-148.
+- GitHub PR #148 corresponds to A-149.
+- The canonical AH consolidation follow-up that was previously discussed as "#147" is now A-150.
 
 ## Specimens
 
@@ -24,9 +32,9 @@ This incident note records the July 4 matchday AH display failures that were cau
 
 ## Why the 01:12 Mainline Stayed Pick'em
 
-The read-model current AH snapshot still selected the pick'em family because the available read-model ladder had stronger bookmaker consensus on `0` than on the alternate `+0.25` family. The controlled refresh later showed richer raw odds, but this #146 hotfix does not change selector or materialization behavior. That follow-up belongs to #147, where canonical AH sign, mainline selection, and display will be consolidated behind one module and one outlet.
+The read-model current AH snapshot still selected the pick'em family because the available read-model ladder had stronger bookmaker consensus on `0` than on the alternate `+0.25` family. The controlled refresh later showed richer raw odds, but this A-146 hotfix does not change selector or materialization behavior. That follow-up belongs to A-150, where canonical AH sign, mainline selection, and display will be consolidated behind one module and one outlet.
 
-## #146 Contract
+## A-146 Contract
 
 - `ANALYSIS_PICK` and `WATCH` recommendation payloads must not carry AH `selection`, `line`, `odds`, or direction-bearing free text.
 - FORMAL payloads that fail validation may keep raw direction fields only inside diagnostic table cells marked `INVALID`.
