@@ -174,6 +174,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
             "fixtures",
             "odds",
             "lineups",
+            "status",
         }
         observation = session.scalar(select(FutureMarketObservationModel))
         assert observation is not None

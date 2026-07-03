@@ -86,6 +86,7 @@ class FutureRefreshConfig:
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
     actual_provider_calls_today: int | None = None
+    provider_refresh_batch_size: int = 3
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,8 @@ class FutureRefreshResult:
     selected_market_fixture_ids: list[str]
     blockers: list[str] = field(default_factory=list)
     status: str = "COMPLETED"
+    raw_payload_written_count: int = 0
+    error_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -466,8 +469,9 @@ def observations_from_odds_payload(
     payload: dict[str, Any],
     response: LiveApiFootballResponse,
     source_revision: str,
+    raw_payload_sha256: str | None = None,
 ) -> list[dict[str, Any]]:
-    raw_hash = sha256_payload(payload)
+    raw_hash = raw_payload_sha256 or sha256_payload(payload)
     captured_at = iso(response.captured_at)
     rows: list[dict[str, Any]] = []
     provider_updated = captured_at
@@ -599,6 +603,9 @@ class FutureFixtureRefreshService:
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
         self._odds_request_fixture_ids: list[str] = []
+        self._raw_payload_written: set[str] = set()
+        self._raw_payload_written_count = 0
+        self._feature_enrichment_batch_count = 0
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -661,6 +668,7 @@ class FutureFixtureRefreshService:
                 selected_market_fixture_ids=[],
                 blockers=[blocker],
                 status="BLOCKED",
+                raw_payload_written_count=self._raw_payload_written_count,
             )
             self._write_audit(result)
             return result
@@ -697,6 +705,7 @@ class FutureFixtureRefreshService:
                 selected_market_fixture_ids=[],
                 blockers=[blocker],
                 status="BLOCKED",
+                raw_payload_written_count=self._raw_payload_written_count,
             )
             self._write_audit(result)
             return result
@@ -735,6 +744,26 @@ class FutureFixtureRefreshService:
                 selected_market_fixture_ids=[],
                 blockers=blockers,
                 status="BLOCKED",
+                raw_payload_written_count=self._raw_payload_written_count,
+                error_code=str(exc),
+            )
+            self._write_audit(result)
+        except Exception as exc:
+            blockers.append(exc.__class__.__name__)
+            result = FutureRefreshResult(
+                generated_at_utc=self.now,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
+                ledger_appended_count=0,
+                request_count=self._attempt_count,
+                remaining_quota=self._latest_remaining,
+                selected_market_fixture_ids=[],
+                blockers=blockers,
+                status="PARTIAL_FAILED",
+                raw_payload_written_count=self._raw_payload_written_count,
+                error_code=exc.__class__.__name__,
             )
             self._write_audit(result)
         return result
@@ -779,6 +808,20 @@ class FutureFixtureRefreshService:
             remaining = quota.daily_remaining
             self._latest_remaining = remaining
             status = response.status_code
+            raw_payload = self._raw_payload_record(
+                endpoint=endpoint,
+                params=params,
+                payload=response.payload,
+            )
+            payload_sha = sha256_payload(raw_payload)
+            response_size = response_count(response.payload)
+            raw_payload_persisted, raw_payload_error = self._save_raw_payload_first(
+                endpoint=endpoint,
+                params=params,
+                response=response,
+                payload_hash=payload_sha,
+                payload=raw_payload,
+            )
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -793,8 +836,14 @@ class FutureFixtureRefreshService:
                     "quota_observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
                     "burst_source": quota.burst_source,
-                    "response_count": response_count(response.payload),
-                    "payload_sha256": sha256_payload(response.payload),
+                    "response_count": response_size,
+                    "payload_sha256": payload_sha,
+                    "raw_payload_persisted": raw_payload_persisted,
+                    "raw_payload_error": raw_payload_error,
+                    "diagnostic_code": self._diagnostic_code_for_response(
+                        endpoint=endpoint,
+                        response_count=response_size,
+                    ),
                     "error_code": None if status < 400 else f"PROVIDER_HTTP_{status}",
                 }
             )
@@ -816,6 +865,83 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
+
+    def _save_raw_payload_first(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        response: LiveApiFootballResponse,
+        payload_hash: str,
+        payload: dict[str, Any],
+    ) -> tuple[bool, str | None]:
+        if payload_hash in self._raw_payload_written:
+            return True, None
+        try:
+            if self.config.persistence == "db":
+                self._db_repository().save_raw_payload(
+                    sha256=payload_hash,
+                    endpoint=endpoint,
+                    captured_at=response.captured_at,
+                    payload=payload,
+                )
+            elif self.config.persistence == "file":
+                fixture_id = params.get("fixture")
+                suffix = f"_{fixture_id}" if fixture_id else ""
+                write_raw_once(
+                    self.config.runtime_root / "raw" / f"{endpoint}{suffix}_{payload_hash}.json",
+                    {
+                        "payload": payload,
+                        "audit": {
+                            "endpoint": endpoint,
+                            "params": sanitize_params(params),
+                            "captured_at_utc": iso(response.captured_at),
+                            "payload_sha256": payload_hash,
+                        },
+                    },
+                )
+            else:
+                return False, f"FUTURE_REFRESH_PERSISTENCE_INVALID:{self.config.persistence}"
+        except Exception as exc:
+            return False, exc.__class__.__name__
+        self._raw_payload_written.add(payload_hash)
+        self._raw_payload_written_count += 1
+        return True, None
+
+    def _raw_payload_record(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        record = dict(payload)
+        record["parameters"] = sanitize_params(params)
+        record["endpoint"] = endpoint
+        return record
+
+    def _request_payload_hash(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        payload: dict[str, Any],
+    ) -> str:
+        return sha256_payload(
+            self._raw_payload_record(endpoint=endpoint, params=params, payload=payload)
+        )
+
+    def _diagnostic_code_for_response(
+        self,
+        *,
+        endpoint: str,
+        response_count: int,
+    ) -> str | None:
+        if endpoint != "lineups":
+            return None
+        if response_count == 0:
+            return "PROVIDER_LINEUPS_EMPTY"
+        return "LINEUPS_MATERIALIZATION_MISSING"
 
     def _provider_hard_cap_preflight(self) -> dict[str, Any]:
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
@@ -957,7 +1083,7 @@ class FutureFixtureRefreshService:
     def _fetch_feature_enrichment(
         self,
         fixtures: list[dict[str, Any]],
-    ) -> list[tuple[str, str, LiveApiFootballResponse]]:
+    ) -> list[tuple[str, str, int]]:
         if not self.config.feature_enrichment_enabled:
             return []
         allowed = {"statistics", "lineups", "injuries"}
@@ -971,7 +1097,15 @@ class FutureFixtureRefreshService:
         budget = max(self.config.feature_enrichment_request_budget, 0)
         if budget == 0:
             return []
-        responses: list[tuple[str, str, LiveApiFootballResponse]] = []
+        responses: list[tuple[str, str, int]] = []
+        batch_size = max(
+            env_int(
+                "W2_PROVIDER_REFRESH_BATCH_SIZE",
+                default=self.config.provider_refresh_batch_size,
+            ),
+            1,
+        )
+        pending: list[tuple[str, str, int]] = []
         for item in fixtures:
             fixture_id = fixture_id_from_payload(item)
             if not fixture_id:
@@ -980,7 +1114,10 @@ class FutureFixtureRefreshService:
                 if not self._endpoint_authorized(endpoint):
                     self._append_unauthorized_endpoint_skip(endpoint, fixture_id)
                     continue
-                if len(responses) >= budget:
+                if len(responses) + len(pending) >= budget:
+                    if pending:
+                        self._feature_enrichment_batch_count += 1
+                        responses.extend(pending)
                     return responses
                 if self._latest_remaining is not None:
                     guard = quota_guard_decision(
@@ -1005,7 +1142,14 @@ class FutureFixtureRefreshService:
                         )
                         continue
                 response = self._request(endpoint, {"fixture": fixture_id})
-                responses.append((fixture_id, endpoint, response))
+                pending.append((fixture_id, endpoint, response_count(response.payload)))
+                if len(pending) >= batch_size:
+                    self._feature_enrichment_batch_count += 1
+                    responses.extend(pending)
+                    pending = []
+        if pending:
+            self._feature_enrichment_batch_count += 1
+            responses.extend(pending)
         return responses
 
     def _persist(
@@ -1013,7 +1157,7 @@ class FutureFixtureRefreshService:
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
-        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
+        enrichment_responses: list[tuple[str, str, int]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         if self.config.persistence == "db":
@@ -1028,39 +1172,24 @@ class FutureFixtureRefreshService:
             raise FutureRefreshError(
                 f"FUTURE_REFRESH_PERSISTENCE_INVALID:{self.config.persistence}"
             )
-        raw_dir = self.config.runtime_root / "raw"
         read_model = self.config.runtime_root / "read_model"
         ledger = MarketObservationLedger(
             self.config.runtime_root / "ledger" / "market_observations.jsonl"
         )
-        fixtures_hash = sha256_payload(fixtures_response.payload)
-        write_raw_once(
-            raw_dir / f"fixtures_{fixtures_hash}.json",
-            {
-                "payload": fixtures_response.payload,
-                "audit": self._audit_for_payload(fixtures_hash),
-            },
-        )
         observations: list[dict[str, Any]] = []
         for fixture_id, response in odds_responses:
-            payload_hash = sha256_payload(response.payload)
-            write_raw_once(
-                raw_dir / f"odds_{fixture_id}_{payload_hash}.json",
-                {"payload": response.payload, "audit": self._audit_for_payload(payload_hash)},
-            )
             observations.extend(
                 observations_from_odds_payload(
                     fixture_id=fixture_id,
                     payload=response.payload,
                     response=response,
                     source_revision=self.config.source_revision,
+                    raw_payload_sha256=self._request_payload_hash(
+                        endpoint="odds",
+                        params={"fixture": fixture_id},
+                        payload=response.payload,
+                    ),
                 )
-            )
-        for fixture_id, endpoint, response in enrichment_responses:
-            payload_hash = sha256_payload(response.payload)
-            write_raw_once(
-                raw_dir / f"{endpoint}_{fixture_id}_{payload_hash}.json",
-                {"payload": response.payload, "audit": self._audit_for_payload(payload_hash)},
             )
         appended = ledger.append_observations(observations)
         latest_rows = project_ledger_to_read_model(ledger=ledger, read_model_dir=read_model)
@@ -1084,6 +1213,7 @@ class FutureFixtureRefreshService:
             remaining_quota=self._latest_remaining,
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
+            raw_payload_written_count=self._raw_payload_written_count,
         )
         self._write_audit(result)
         return result
@@ -1093,45 +1223,30 @@ class FutureFixtureRefreshService:
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
-        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
+        enrichment_responses: list[tuple[str, str, int]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         repository = self._db_repository()
         try:
-            fixtures_hash = sha256_payload(fixtures_response.payload)
-            repository.save_raw_payload(
-                sha256=fixtures_hash,
-                endpoint="fixtures",
-                captured_at=fixtures_response.captured_at,
-                payload=fixtures_response.payload,
-            )
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
-                payload_hash = sha256_payload(response.payload)
-                repository.save_raw_payload(
-                    sha256=payload_hash,
-                    endpoint="odds",
-                    captured_at=response.captured_at,
-                    payload=response.payload,
-                )
                 observations.extend(
                     observations_from_odds_payload(
                         fixture_id=fixture_id,
                         payload=response.payload,
                         response=response,
                         source_revision=self.config.source_revision,
+                        raw_payload_sha256=self._request_payload_hash(
+                            endpoint="odds",
+                            params={"fixture": fixture_id},
+                            payload=response.payload,
+                        ),
                     )
                 )
-            for _fixture_id, endpoint, response in enrichment_responses:
-                payload_hash = sha256_payload(response.payload)
-                repository.save_raw_payload(
-                    sha256=payload_hash,
-                    endpoint=endpoint,
-                    captured_at=response.captured_at,
-                    payload=response.payload,
-                )
             appended = repository.append_observations(observations)
-            latest_rows = repository.latest_market_observations()
+            latest_rows = repository.latest_market_observations_for_fixtures(
+                [fixture_id for fixture_id, _response in odds_responses]
+            )
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
@@ -1150,6 +1265,7 @@ class FutureFixtureRefreshService:
             remaining_quota=self._latest_remaining,
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
+            raw_payload_written_count=self._raw_payload_written_count,
         )
         self._write_audit(result)
         return result
@@ -1237,9 +1353,13 @@ class FutureFixtureRefreshService:
                 else None
             ),
             "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
+            "feature_enrichment_batch_count": self._feature_enrichment_batch_count,
             "ledger_appended_count": result.ledger_appended_count,
+            "raw_payload_written_count": result.raw_payload_written_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
+            "status": result.status,
+            "error_code": result.error_code,
             "requests": self._audit,
             "candidate": False,
             "formal_recommendation": False,
