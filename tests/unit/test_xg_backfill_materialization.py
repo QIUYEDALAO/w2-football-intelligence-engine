@@ -146,10 +146,11 @@ class LowQuotaFakeClient(FakeClient):
 
 
 class FakeRepository:
-    def __init__(self) -> None:
+    def __init__(self, *, request_count_today: int = 0) -> None:
         self.raw: list[tuple[str, str]] = []
         self.matches: list[dict[str, Any]] = []
         self.snapshots: list[dict[str, Any]] = []
+        self.request_count_today = request_count_today
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
         return [
@@ -204,6 +205,14 @@ class FakeRepository:
         self.snapshots = snapshots
         return len(snapshots)
 
+    def request_count_since(self, since: datetime) -> int:
+        return self.request_count_today
+
+
+class BrokenUsageRepository(FakeRepository):
+    def request_count_since(self, since: datetime) -> int:
+        raise RuntimeError("usage audit unavailable")
+
 
 def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> None:
     repository = FakeRepository()
@@ -241,3 +250,53 @@ def test_xg_backfill_stops_before_consuming_live_reserve() -> None:
     assert client.calls[0][0] == "fixtures"
     assert all(endpoint != "statistics" for endpoint, _ in client.calls)
     assert repository.raw == []
+
+
+def test_xg_backfill_daily_hard_cap_blocks_before_provider_call() -> None:
+    client = FakeClient()
+    repository = FakeRepository(request_count_today=6000)
+
+    result = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(
+            request_budget=120,
+            daily_hard_cap=7500,
+            daily_reserve=1500,
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["PROVIDER_RESERVE_PROTECTED"]
+    assert result.statistics_request_count == 0
+    assert result.as_dict()["provider_calls"] == 0
+    assert client.calls == []
+    assert repository.raw == []
+    assert repository.matches == []
+    assert repository.snapshots == []
+    assert result.requests[0]["error_code"] == "PROVIDER_RESERVE_PROTECTED"
+
+
+def test_xg_backfill_fails_closed_when_provider_usage_audit_unavailable() -> None:
+    client = FakeClient()
+    repository = BrokenUsageRepository()
+
+    result = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(
+            request_budget=120,
+            daily_hard_cap=7500,
+            daily_reserve=1500,
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["PROVIDER_USAGE_AUDIT_UNAVAILABLE"]
+    assert result.statistics_request_count == 0
+    assert result.as_dict()["provider_calls"] == 0
+    assert client.calls == []
+    assert repository.raw == []
+    assert repository.matches == []
+    assert repository.snapshots == []
+    assert result.requests[0]["error_code"] == "PROVIDER_USAGE_AUDIT_UNAVAILABLE"

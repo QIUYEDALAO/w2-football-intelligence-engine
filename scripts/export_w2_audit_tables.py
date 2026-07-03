@@ -40,6 +40,7 @@ def main() -> int:
         "provider_calls": 0,
         "db_writes": 0,
         "read_only": True,
+        "provider_call_scope": "audit_export_dashboard_payload_only",
     }
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2), file=sys.stderr)
     return 0

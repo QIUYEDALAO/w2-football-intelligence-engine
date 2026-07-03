@@ -175,6 +175,7 @@ def _quota_summary() -> dict[str, Any]:
         "network_quota_required": False,
         "provider_calls": 0,
         "status": "NOT_REQUIRED_READ_ONLY_REPORT",
+        "scope": "report_runner_dashboard_payload_only",
     }
 
 

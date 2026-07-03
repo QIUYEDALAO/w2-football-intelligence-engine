@@ -7,6 +7,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from w2.providers.control import (
+    PROVIDER_SCHEDULER_DISABLED,
+    provider_scheduler_enabled,
+    provider_task_key_gate,
+)
+
 logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
@@ -34,7 +40,7 @@ def future_fixture_refresh_enabled() -> bool:
 def xg_history_backfill_enabled() -> bool:
     if not future_fixture_refresh_enabled():
         return False
-    return os.environ.get("W2_XG_BACKFILL_ENABLED", "true").lower() == "true"
+    return os.environ.get("W2_XG_BACKFILL_ENABLED", "false").lower() == "true"
 
 
 def market_timeline_refresh_enabled() -> bool:
@@ -107,6 +113,14 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
+    if not provider_scheduler_enabled():
+        return {
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "blockers": [PROVIDER_SCHEDULER_DISABLED],
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+        }
     from apps.worker.celery_app import celery_app
     from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
 
@@ -126,6 +140,20 @@ def future_fixture_refresh_tick() -> dict[str, object]:
         now=now,
         interval_seconds=config.scheduler_interval_seconds,
     )
+    gate = provider_task_key_gate(task_key=task_key)
+    if not gate.allowed:
+        return {
+            "status": gate.status,
+            "task_key": task_key,
+            "competition_id": config.competition_id,
+            "season": config.season,
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "blockers": [gate.status],
+            "dedup_backend": gate.backend,
+        }
     task_id = f"{task_key}:{uuid4()}"
     celery_app.send_task(
         "w2.future_fixture_refresh",
@@ -155,6 +183,14 @@ def xg_history_backfill_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
+    if not provider_scheduler_enabled():
+        return {
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "blockers": [PROVIDER_SCHEDULER_DISABLED],
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+        }
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
@@ -180,6 +216,15 @@ def market_timeline_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
             "beats_market": False,
+        }
+    if not provider_scheduler_enabled():
+        return {
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "blockers": [PROVIDER_SCHEDULER_DISABLED],
+            "candidate": False,
+            "formal_recommendation": False,
+            "beats_market": False,
+            "provider_calls": 0,
         }
     from apps.worker.celery_app import celery_app
 

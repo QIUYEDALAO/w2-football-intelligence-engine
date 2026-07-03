@@ -136,9 +136,32 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
         dispatched.append({"name": name, "kwargs": kwargs, "task_id": task_id})
         worker_module.celery_app.tasks[name].apply(kwargs=kwargs, task_id=task_id).get()
 
+    gate_seen: set[str] = set()
+
+    def fake_task_key_gate(**kwargs: Any) -> Any:
+        task_key = str(kwargs["task_key"])
+        if task_key in gate_seen:
+            return type(
+                "Gate",
+                (),
+                {
+                    "allowed": False,
+                    "status": "DUPLICATE_TASK_KEY_SUPPRESSED",
+                    "backend": "test",
+                },
+            )()
+        gate_seen.add(task_key)
+        return type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )()
+
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
+    monkeypatch.setattr(scheduler_main, "provider_task_key_gate", fake_task_key_gate)
     monkeypatch.setattr(worker_module, "run_future_refresh_task", fake_runtime_run_task)
     monkeypatch.setattr(worker_module.celery_app, "send_task", eager_send_task)
     monkeypatch.setattr(worker_module.celery_app.conf, "task_always_eager", True)
@@ -147,25 +170,19 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     second = scheduler_main.future_fixture_refresh_tick()
 
     assert first["status"] == "QUEUED"
-    assert second["status"] == "QUEUED"
+    assert second["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
     assert first["task_key"] == second["task_key"]
     assert first["candidate"] is False
     assert first["formal_recommendation"] is False
     assert second["candidate"] is False
     assert second["formal_recommendation"] is False
-    assert [item["name"] for item in dispatched] == [
-        "w2.future_fixture_refresh",
-        "w2.future_fixture_refresh",
-    ]
+    assert [item["name"] for item in dispatched] == ["w2.future_fixture_refresh"]
 
     task_audits = sorted((runtime_root / "task_audit").glob("*.json"))
-    assert len(task_audits) == 2
+    assert len(task_audits) == 1
     first_audit = read_json(task_audits[0])
-    second_audit = read_json(task_audits[1])
     assert first_audit["result"]["candidate"] is False
     assert first_audit["result"]["formal_recommendation"] is False
-    assert second_audit["result"]["candidate"] is False
-    assert second_audit["result"]["formal_recommendation"] is False
 
     ledger = runtime_root / "ledger/market_observations.jsonl"
     ledger_lines = ledger.read_text(encoding="utf-8").splitlines()
@@ -178,4 +195,4 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     assert (runtime_root / "read_model/market_coverage.json").is_file()
     assert (runtime_root / "read_model/provider_status.json").is_file()
     assert read_json(runtime_root / "future_refresh_audit.json")["candidate"] is False
-    assert len(fake_client.calls) == 12
+    assert len(fake_client.calls) == 6

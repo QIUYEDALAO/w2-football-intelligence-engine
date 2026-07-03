@@ -161,3 +161,39 @@ def quota_guard_decision(
         "core_only_threshold": core_only,
         "task_type": task_type,
     }
+
+
+def provider_daily_hard_cap_decision(
+    *,
+    actual_calls_today: int,
+    planned_calls: int,
+    daily_cap: int = API_FOOTBALL_DAILY_BUDGET,
+    reserve_bucket: int = API_FOOTBALL_RESERVE_BUCKET,
+) -> dict[str, Any]:
+    actual = max(actual_calls_today, 0)
+    planned = max(planned_calls, 0)
+    projected_total = actual + planned
+    remaining_after_plan = daily_cap - projected_total
+    if projected_total > daily_cap:
+        allowed = False
+        blocker = "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+        mode = "HARD_CAP"
+    elif remaining_after_plan < reserve_bucket:
+        allowed = False
+        blocker = "PROVIDER_RESERVE_PROTECTED"
+        mode = "RESERVE_PROTECTED"
+    else:
+        allowed = True
+        blocker = None
+        mode = "NORMAL"
+    return {
+        "allowed": allowed,
+        "mode": mode,
+        "blocker": blocker,
+        "actual_calls_today": actual,
+        "planned_calls": planned,
+        "projected_total": projected_total,
+        "daily_cap": daily_cap,
+        "reserve_bucket": reserve_bucket,
+        "remaining_after_plan": remaining_after_plan,
+    }

@@ -11,6 +11,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.ingestion.ports import API_FOOTBALL_ENDPOINTS, ProviderRequest, ProviderResponse
+from w2.providers.control import (
+    PROVIDER_CALLS_DISABLED,
+    ProviderCallsDisabledError,
+    provider_calls_disabled,
+)
+from w2.providers.ledger import ProviderRequestLedger, provider_request_ledger_from_env
 
 
 class LiveNetworkDisabledError(RuntimeError):
@@ -44,6 +50,7 @@ class ApiFootballClient:
     provider: str = "api_football"
     base_url: str = "https://v3.football.api-sports.io"
     auth_header_name: str = "x-apisports-key"
+    request_ledger: ProviderRequestLedger | None = None
 
     def fetch(self, request: ProviderRequest) -> ProviderResponse:
         if request.endpoint not in API_FOOTBALL_ENDPOINTS:
@@ -78,6 +85,8 @@ class ApiFootballClient:
             raise LiveNetworkDisabledError(
                 "network is disabled unless --live is explicitly approved"
             )
+        if provider_calls_disabled():
+            raise ProviderCallsDisabledError(PROVIDER_CALLS_DISABLED)
         self._require_endpoint_allowed(endpoint)
         api_key = os.environ.get(self.api_key_env_name)
         if not api_key:
@@ -101,6 +110,21 @@ class ApiFootballClient:
             status_code = exc.code
             headers = self._sanitize_headers(exc.headers)
         payload = json.loads(raw.decode("utf-8")) if raw else {}
+        completed_at = datetime.now(UTC)
+        ledger = self.request_ledger or provider_request_ledger_from_env()
+        if ledger is not None:
+            ledger.record_request(
+                provider=self.provider,
+                endpoint=endpoint,
+                params=params,
+                live=True,
+                status_code=status_code,
+                requested_at=captured_at,
+                completed_at=completed_at,
+                headers=headers,
+                payload=payload,
+                error=None if status_code < 400 else f"PROVIDER_HTTP_{status_code}",
+            )
         return LiveApiFootballResponse(
             endpoint=endpoint,
             params=params,

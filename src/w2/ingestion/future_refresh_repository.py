@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Engine, desc, func, select
@@ -16,6 +16,10 @@ from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
+)
+from w2.infrastructure.persistence.ingestion_models import (
+    ProviderRequestLogModel,
+    QuotaUsageModel,
 )
 
 
@@ -448,6 +452,15 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("TASK_AUDIT_WRITE_FAILED") from exc
 
+    def task_key_exists(self, key: str) -> bool:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(FutureRefreshTaskAuditModel.task_id)
+                .where(FutureRefreshTaskAuditModel.key == key)
+                .limit(1)
+            )
+        return row is not None
+
     def write_run_audit(self, payload: dict[str, Any]) -> None:
         with Session(self.engine) as session:
             try:
@@ -472,6 +485,39 @@ class FutureRefreshDbRepository:
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RUN_AUDIT_WRITE_FAILED") from exc
+
+    def request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        day_start = since_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        try:
+            with Session(self.engine) as session:
+                future_refresh_requests = session.scalar(
+                    select(func.coalesce(func.sum(FutureRefreshRunAuditModel.request_count), 0))
+                    .where(FutureRefreshRunAuditModel.generated_at >= since_utc)
+                )
+                provider_request_logs = session.scalar(
+                    select(func.count())
+                    .select_from(ProviderRequestLogModel)
+                    .where(
+                        ProviderRequestLogModel.provider == "api_football",
+                        ProviderRequestLogModel.requested_at >= since_utc,
+                    )
+                )
+                quota_usage = session.scalar(
+                    select(func.coalesce(func.max(QuotaUsageModel.used), 0)).where(
+                        QuotaUsageModel.provider == "api_football",
+                        QuotaUsageModel.window_start >= day_start,
+                        QuotaUsageModel.window_start < day_end,
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
+        return max(
+            int(future_refresh_requests or 0),
+            int(provider_request_logs or 0),
+            int(quota_usage or 0),
+        )
 
     def _observation_model(self, row: dict[str, Any]) -> FutureMarketObservationModel:
         return FutureMarketObservationModel(

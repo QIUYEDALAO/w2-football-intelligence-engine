@@ -27,7 +27,12 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
-from w2.providers.quota import parse_api_football_quota, quota_guard_decision
+from w2.providers.control import env_int
+from w2.providers.quota import (
+    parse_api_football_quota,
+    provider_daily_hard_cap_decision,
+    quota_guard_decision,
+)
 
 
 class XgBackfillError(RuntimeError):
@@ -57,6 +62,9 @@ class XgBackfillRepository(Protocol):
     def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
         pass
 
+    def request_count_since(self, since: datetime) -> int:
+        pass
+
 
 @dataclass(frozen=True, kw_only=True)
 class XgBackfillConfig:
@@ -67,6 +75,9 @@ class XgBackfillConfig:
     min_rolling_matches: int = 3
     max_rolling_matches: int = 5
     source_revision: str = "LOCAL_UNDEPLOYED"
+    daily_hard_cap: int = 7500
+    daily_reserve: int = 1500
+    actual_provider_calls_today: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -92,6 +103,11 @@ class XgBackfillResult:
             "team_xg_match_rows": self.team_xg_match_rows,
             "rolling_snapshot_rows": self.rolling_snapshot_rows,
             "remaining_quota": self.remaining_quota,
+            "provider_calls": sum(
+                1
+                for request in self.requests
+                if request.get("endpoint") != "provider_daily_hard_cap_preflight"
+            ),
             "blockers": self.blockers,
             "requests": self.requests,
             "candidate": False,
@@ -128,6 +144,49 @@ class XgHistoryBackfillService:
             if self._is_target_future_fixture(item)
         ]
         team_ids = sorted(self._world_cup_team_ids(future_fixtures))
+        try:
+            preflight = self._provider_hard_cap_preflight()
+        except XgBackfillError as exc:
+            preflight = {
+                "allowed": False,
+                "blocker": str(exc),
+                "mode": "HARD_CAP_AUDIT_UNAVAILABLE",
+                "actual_calls_today": None,
+                "planned_calls": max(self.config.request_budget, 0),
+                "daily_cap": self.config.daily_hard_cap,
+                "reserve_bucket": self.config.daily_reserve,
+            }
+        if not preflight["allowed"]:
+            blocker = str(preflight["blocker"])
+            return XgBackfillResult(
+                generated_at_utc=self.now,
+                team_count=len(team_ids),
+                historical_fixture_count=0,
+                statistics_request_count=0,
+                team_xg_match_rows=0,
+                rolling_snapshot_rows=0,
+                remaining_quota=self._remaining_quota,
+                blockers=[blocker],
+                requests=[
+                    {
+                        "endpoint": "provider_daily_hard_cap_preflight",
+                        "params": {},
+                        "status_code": None,
+                        "elapsed_ms": 0,
+                        "captured_at_utc": iso(self.now),
+                        "payload_sha256": None,
+                        "remaining_quota": None,
+                        "error_code": blocker,
+                        "quota_guard_mode": preflight["mode"],
+                        "actual_calls_today": preflight["actual_calls_today"],
+                        "planned_calls": preflight["planned_calls"],
+                        "daily_cap": preflight["daily_cap"],
+                        "reserve_bucket": preflight["reserve_bucket"],
+                        "candidate": False,
+                        "formal_recommendation": False,
+                    }
+                ],
+            )
         historical_fixtures: dict[str, dict[str, Any]] = {}
         blockers: list[str] = []
         try:
@@ -230,6 +289,26 @@ class XgHistoryBackfillService:
         if response.status_code in {401, 403}:
             return response
         return response
+
+    def _provider_hard_cap_preflight(self) -> dict[str, Any]:
+        daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
+        reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
+        actual_calls_today = self._actual_provider_calls_today()
+        return provider_daily_hard_cap_decision(
+            actual_calls_today=actual_calls_today,
+            planned_calls=max(self.config.request_budget, 0),
+            daily_cap=daily_cap,
+            reserve_bucket=reserve,
+        )
+
+    def _actual_provider_calls_today(self) -> int:
+        if self.config.actual_provider_calls_today is not None:
+            return max(self.config.actual_provider_calls_today, 0)
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            return self.repository.request_count_since(day_start)
+        except Exception as exc:
+            raise XgBackfillError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc
 
     def _save_raw(self, response: LiveApiFootballResponse) -> None:
         self.repository.save_raw_payload(
@@ -368,6 +447,8 @@ def run_xg_history_backfill(
             recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
             request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
             quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
+            daily_hard_cap=env_int("W2_PROVIDER_DAILY_HARD_CAP", default=7500),
+            daily_reserve=env_int("W2_PROVIDER_DAILY_RESERVE", default=1500),
             source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
         ),
     ).run()
