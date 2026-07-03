@@ -42,6 +42,7 @@ def test_api_football_statistics_uses_fixtures_statistics_http_path(monkeypatch)
         return FakeResponse()
 
     monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "statistics")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     client = ApiFootballClient(

@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from w2.providers.control import (
     PROVIDER_SCHEDULER_DISABLED,
+    provider_refresh_min_interval_seconds,
     provider_scheduler_enabled,
     provider_task_key_gate,
 )
@@ -106,6 +107,18 @@ def fixture_refresh_gradient_interval_seconds(
     return 3600
 
 
+def provider_refresh_effective_interval_seconds(
+    requested_interval_seconds: int,
+    *,
+    policy_interval_seconds: int = DEFAULT_REFRESH_INTERVAL_SECONDS,
+) -> int:
+    return max(
+        int(requested_interval_seconds),
+        int(policy_interval_seconds),
+        provider_refresh_min_interval_seconds(),
+    )
+
+
 def future_fixture_refresh_tick() -> dict[str, object]:
     if not future_fixture_refresh_enabled():
         return {
@@ -134,11 +147,20 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
+    requested_interval_seconds = fixture_refresh_gradient_interval_seconds(
+        now=now,
+        default_interval_seconds=config.scheduler_interval_seconds,
+    )
+    effective_interval_seconds = provider_refresh_effective_interval_seconds(
+        requested_interval_seconds,
+        policy_interval_seconds=config.scheduler_interval_seconds,
+    )
+    min_interval_seconds = provider_refresh_min_interval_seconds()
     task_key = deterministic_task_key(
         competition_id=config.competition_id,
         season=config.season,
         now=now,
-        interval_seconds=config.scheduler_interval_seconds,
+        interval_seconds=effective_interval_seconds,
     )
     gate = provider_task_key_gate(task_key=task_key)
     if not gate.allowed:
@@ -153,6 +175,9 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "provider_calls": 0,
             "blockers": [gate.status],
             "dedup_backend": gate.backend,
+            "requested_interval_seconds": requested_interval_seconds,
+            "effective_interval_seconds": effective_interval_seconds,
+            "provider_refresh_min_interval_seconds": min_interval_seconds,
         }
     task_id = f"{task_key}:{uuid4()}"
     celery_app.send_task(
@@ -161,6 +186,9 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "competition_id": config.competition_id,
             "task_key": task_key,
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "requested_interval_seconds": requested_interval_seconds,
+            "effective_interval_seconds": effective_interval_seconds,
+            "provider_refresh_min_interval_seconds": min_interval_seconds,
         },
         task_id=task_id,
     )
@@ -173,6 +201,9 @@ def future_fixture_refresh_tick() -> dict[str, object]:
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
+        "requested_interval_seconds": requested_interval_seconds,
+        "effective_interval_seconds": effective_interval_seconds,
+        "provider_refresh_min_interval_seconds": min_interval_seconds,
     }
 
 
@@ -266,17 +297,25 @@ def run_forever() -> None:
                 from w2.ingestion.future_refresh import config_from_policy
 
                 config = config_from_policy()
-                refresh_interval_seconds = fixture_refresh_gradient_interval_seconds(
+                requested_refresh_interval_seconds = fixture_refresh_gradient_interval_seconds(
                     now=datetime.now(UTC),
                     default_interval_seconds=config.scheduler_interval_seconds,
                 )
+                refresh_interval_seconds = provider_refresh_effective_interval_seconds(
+                    requested_refresh_interval_seconds,
+                    policy_interval_seconds=config.scheduler_interval_seconds,
+                )
             except Exception:
                 logger.exception("w2 future fixture refresh failed")
-                refresh_interval_seconds = int(
+                requested_refresh_interval_seconds = int(
                     os.environ.get(
                         "W2_FUTURE_FIXTURE_REFRESH_INTERVAL_SECONDS",
                         str(DEFAULT_REFRESH_INTERVAL_SECONDS),
                     )
+                )
+                refresh_interval_seconds = provider_refresh_effective_interval_seconds(
+                    requested_refresh_interval_seconds,
+                    policy_interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS,
                 )
             next_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_refresh_at = next_refresh_at.fromtimestamp(

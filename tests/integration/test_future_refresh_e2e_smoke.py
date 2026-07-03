@@ -160,6 +160,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
     monkeypatch.setattr(scheduler_main, "provider_task_key_gate", fake_task_key_gate)
     monkeypatch.setattr(worker_module, "run_future_refresh_task", fake_runtime_run_task)
@@ -195,4 +196,10 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     assert (runtime_root / "read_model/market_coverage.json").is_file()
     assert (runtime_root / "read_model/provider_status.json").is_file()
     assert read_json(runtime_root / "future_refresh_audit.json")["candidate"] is False
-    assert len(fake_client.calls) == 6
+    assert len(fake_client.calls) == 4
+    assert [endpoint for endpoint, _params in fake_client.calls] == [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+    ]

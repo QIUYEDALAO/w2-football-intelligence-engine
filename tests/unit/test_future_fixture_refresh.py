@@ -326,14 +326,111 @@ def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
 
     assert result.blockers == []
-    assert result.feature_enrichment_payload_count == 2
-    assert ("statistics", {"fixture": "1489404"}) in client.calls
+    assert result.feature_enrichment_payload_count == 1
+    assert ("statistics", {"fixture": "1489404"}) not in client.calls
     assert ("lineups", {"fixture": "1489404"}) in client.calls
     assert ("injuries", {"fixture": "1489404"}) not in client.calls
-    assert list((tmp_path / "raw").glob("statistics_*.json"))
     assert list((tmp_path / "raw").glob("lineups_*.json"))
+    assert "ENDPOINT_NOT_AUTHORIZED:statistics" in audit
+    assert "ENDPOINT_NOT_AUTHORIZED:injuries" in audit
     assert '"candidate": false' in audit
     assert '"formal_recommendation": false' in audit
+
+
+def test_future_refresh_endpoint_allowlist_skips_unauthorized_enrichment(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        quota_reserve=1500,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("statistics", "lineups", "injuries"),
+        feature_enrichment_request_budget=3,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.blockers == []
+    assert result.request_count == 4
+    assert [endpoint for endpoint, _params in client.calls] == [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+    ]
+    assert result.feature_enrichment_payload_count == 1
+    assert any(
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:statistics"
+        for item in audit["requests"]
+    )
+    assert any(
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:injuries"
+        for item in audit["requests"]
+    )
+
+
+def test_future_refresh_tick_hard_cap_blocks_before_provider_call(tmp_path: Path) -> None:
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        max_fixture_candidates=31,
+        max_odds_requests=31,
+        request_budget=40,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_REFRESH_BUDGET_TOO_HIGH"]
+    assert result.request_count == 0
+    assert client.calls == []
+    assert audit["request_count"] == 0
+    assert audit["requests"][0]["projected_calls"] == 33
+
+
+def test_future_refresh_projected_calls_ignore_disallowed_enrichment(tmp_path: Path) -> None:
+    client = ManyFutureFixturesClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        max_fixture_candidates=5,
+        max_odds_requests=5,
+        request_budget=30,
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("statistics", "lineups", "injuries"),
+        feature_enrichment_request_budget=15,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.blockers == []
+    assert result.request_count == 12
+    assert result.feature_enrichment_payload_count == 5
+    assert all(endpoint != "statistics" for endpoint, _params in client.calls)
+    assert all(endpoint != "injuries" for endpoint, _params in client.calls)
+    assert len([endpoint for endpoint, _params in client.calls if endpoint == "lineups"]) == 5
 
 
 def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
@@ -368,7 +465,11 @@ def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
     assert "PROVIDER_HTTP_429" in audit
 
 
-def test_future_refresh_daily_hard_cap_blocks_before_provider_call(tmp_path: Path) -> None:
+def test_future_refresh_daily_hard_cap_blocks_before_provider_call(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(
         runtime_root=tmp_path,
