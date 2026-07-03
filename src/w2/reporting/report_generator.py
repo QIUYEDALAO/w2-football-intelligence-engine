@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from html import escape
@@ -84,7 +85,7 @@ def render_report(
     return text
 
 
-HTML_RENDERER_VERSION = "w2.html_dashboard.v4"
+HTML_RENDERER_VERSION = "w2.html_dashboard.v5"
 
 _TERMINAL_CSS = """
 :root { color-scheme: dark; }
@@ -107,6 +108,8 @@ h1 { margin: 0; font-size: 13.5px; font-weight: 600; color: #e8f0fa; }
   padding: 1px 8px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
 .chip.on { border-color: #2f6df6; color: #dce9ff; background: #14233f; }
 .chip .n { color: #e8f0fa; font-weight: 600; margin-left: 4px; }
+.chip.settled { border-color: #3d5a43; background: #101b16; cursor: default; }
+.chip.settled .obs { color: #8da18f; margin-left: 5px; }
 input[type=search], select { background: #0f1726; border: 1px solid #243349; color: #c9d5e3;
   border-radius: 3px; padding: 2px 7px; font-size: 11.5px; font-family: inherit; }
 #cards { display: grid; gap: 0; border: 1px solid #141d2b; border-radius: 3px;
@@ -239,6 +242,7 @@ _STATE_CHIP_LABELS: tuple[tuple[MatchDecisionState, str], ...] = (
     (MatchDecisionState.MARKET_NOT_READY, "盘口未就绪"),
     (MatchDecisionState.LOCKED, "已锁定"),
 )
+_SETTLEMENT_OBSERVING_SAMPLE_TARGET = 30
 
 
 def _render_html_report(
@@ -307,12 +311,20 @@ def _render_html_report(
         f'{label}<span class="n">{state_counts[state]}</span></button>'
         for state, label in _STATE_CHIP_LABELS
     )
+    settled_rows = _settled_recommendation_rows(payload)
+    settlement_tile = (
+        '<span class="chip settled" title="观察中口径，只读 settlement_history 与 lock 快照">'
+        f'已结算<span class="obs">观察中</span>'
+        f'<span class="n">{len(settled_rows)}/{_SETTLEMENT_OBSERVING_SAMPLE_TARGET}</span>'
+        "</span>"
+    )
     formal_table = _html_formal_recommendation_table(
         matches,
         decisions,
         payload_as_of=payload_as_of,
     )
     non_formal_table = _html_non_formal_decision_table(matches, decisions)
+    settled_table = _html_settled_recommendation_table(settled_rows)
     generated = _time_label(payload_as_of)
     data_profile = str(payload.get("data_profile") or "")
     profile_suffix = f" · data_profile {escape(data_profile)}" if data_profile else ""
@@ -337,6 +349,7 @@ def _render_html_report(
         '<div class="tools">'
         '<button class="chip on" data-state="ALL">全部</button>'
         f"{state_chips}"
+        f"{settlement_tile}"
         '<input type="search" id="q" placeholder="搜索球队">'
         f'<select id="lg"><option value="">全部联赛</option>{league_options}</select>'
         '<select id="srt">'
@@ -351,11 +364,14 @@ def _render_html_report(
         f"{formal_table}</details>\n"
         '<details class="debug"><summary>非 FORMAL 判定表（blocker 解释）</summary>'
         f"{non_formal_table}</details>\n"
+        '<details class="debug"><summary>已结算推荐（观察中）</summary>'
+        f"{settled_table}</details>\n"
         "<footer>"
         f"生成时间：{escape(generated)} · 只读报告 · 数据来自 dashboard payload · "
         f"renderer {HTML_RENDERER_VERSION}<br>"
         "盘口走势仅作参照、未验证，不构成方向；"
-        "非 FORMAL 场次不显示推荐方向与比分参考。"
+        "非 FORMAL 场次不显示推荐方向与比分参考；"
+        "已结算区为观察中事实表。"
         "</footer>\n"
         "</main>\n"
         f"<script>{_TERMINAL_JS}</script>\n"
@@ -595,6 +611,216 @@ def _html_non_formal_decision_table(
         f'<div class="table-wrap">{_html_table(headers, rows)}</div>'
         "</section>"
     )
+
+
+def _html_settled_recommendation_table(rows: list[dict[str, str]]) -> str:
+    count_text = f"观察中 {len(rows)}/{_SETTLEMENT_OBSERVING_SAMPLE_TARGET}"
+    if not rows:
+        return (
+            '<section class="decision-section">'
+            "<h2>已结算推荐</h2>"
+            f"<p>已结算推荐：{count_text}</p>"
+            "</section>"
+        )
+    headers = (
+        "fixture_id",
+        "kickoff",
+        "match",
+        "recommendation_id",
+        "lock_id",
+        "market",
+        "selection",
+        "line",
+        "odds",
+        "closing_odds",
+        "CLV",
+        "result",
+        "settlement_status",
+        "settled_at",
+        "source",
+    )
+    table_rows = [tuple(row.get(header, "") for header in headers) for row in rows]
+    return (
+        '<section class="decision-section">'
+        "<h2>已结算推荐</h2>"
+        f"<p>已结算推荐：{count_text}</p>"
+        f'<div class="table-wrap">{_html_table(headers, table_rows)}</div>'
+        "</section>"
+    )
+
+
+def _settled_recommendation_rows(payload: dict[str, Any]) -> list[dict[str, str]]:
+    settlements = _audit_table_rows(payload, "settlement_history")
+    locks = _audit_table_rows(payload, "locked_recommendation_snapshots")
+    locks_by_lock_id = {
+        str(lock.get("lock_id")): lock
+        for lock in locks
+        if lock.get("lock_id") not in {None, ""}
+    }
+    locks_by_recommendation_id = {
+        str(lock.get("recommendation_id")): lock
+        for lock in locks
+        if lock.get("recommendation_id") not in {None, ""}
+    }
+    locks_by_fixture_id = {
+        str(lock.get("fixture_id")): lock
+        for lock in locks
+        if lock.get("fixture_id") not in {None, ""}
+    }
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for settlement in settlements:
+        fixture_id = _text(settlement.get("fixture_id"))
+        recommendation_id = _text(settlement.get("recommendation_id"))
+        lock_id = _text(settlement.get("lock_id"))
+        key = (
+            _text(settlement.get("settlement_id")),
+            lock_id,
+            recommendation_id,
+            _text(settlement.get("settled_at")),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        lock = (
+            locks_by_lock_id.get(lock_id)
+            or locks_by_recommendation_id.get(recommendation_id)
+            or locks_by_fixture_id.get(fixture_id)
+            or {}
+        )
+        snapshot = _json_dict(lock.get("snapshot_payload_json"))
+        raw_settlement = _json_dict(settlement.get("raw_settlement_json"))
+        recommendation = _dict(snapshot.get("recommendation"))
+        locked_odds = _first_present(
+            lock,
+            recommendation,
+            "recommendation_odds",
+            "odds",
+        )
+        closing_odds = _first_present(
+            settlement,
+            raw_settlement,
+            "closing_odds",
+            "closing_decimal_odds",
+            "closing_price",
+        )
+        clv = _first_present(settlement, raw_settlement, "clv", "clv_decimal")
+        rows.append(
+            {
+                "fixture_id": _text(
+                    fixture_id or lock.get("fixture_id") or snapshot.get("fixture_id")
+                ),
+                "kickoff": _time_label(
+                    lock.get("kickoff_utc")
+                    or snapshot.get("kickoff_utc")
+                    or settlement.get("kickoff_utc")
+                ),
+                "match": _settled_match_label(settlement, lock, snapshot),
+                "recommendation_id": _text(recommendation_id or lock.get("recommendation_id")),
+                "lock_id": _text(lock_id or lock.get("lock_id")),
+                "market": _text(
+                    _first_present(
+                        lock,
+                        recommendation,
+                        "recommendation_market",
+                        "market",
+                    )
+                ),
+                "selection": _text(
+                    _first_present(
+                        lock,
+                        recommendation,
+                        "recommendation_selection",
+                        "selection",
+                    )
+                ),
+                "line": _format_optional_number(
+                    _first_present(lock, recommendation, "recommendation_line", "line")
+                ),
+                "odds": _format_optional_number(locked_odds, digits=2),
+                "closing_odds": _format_optional_number(closing_odds, digits=2),
+                "CLV": _clv_text(clv, locked_odds=locked_odds, closing_odds=closing_odds),
+                "result": _text(settlement.get("result") or raw_settlement.get("result")),
+                "settlement_status": _text(
+                    settlement.get("status")
+                    or settlement.get("outcome")
+                    or raw_settlement.get("status")
+                    or raw_settlement.get("outcome")
+                ),
+                "settled_at": _time_label(
+                    settlement.get("settled_at") or raw_settlement.get("settled_at")
+                ),
+                "source": _text(settlement.get("source")),
+            }
+        )
+    return rows
+
+
+def _audit_table_rows(payload: dict[str, Any], table_name: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    candidates: list[Any] = [
+        payload.get(table_name),
+        _dict(payload.get("audit_tables")).get(table_name),
+        _dict(payload.get("tables")).get(table_name),
+        _dict(payload.get("audit_export")).get(table_name),
+        _dict(_dict(payload.get("audit_export")).get("tables")).get(table_name),
+    ]
+    for candidate in candidates:
+        for row in _list(candidate):
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
+def _json_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _first_present(
+    primary: dict[str, Any],
+    secondary: dict[str, Any],
+    *keys: str,
+) -> Any:
+    for key in keys:
+        if key in primary and primary.get(key) not in {None, ""}:
+            return primary.get(key)
+        if key in secondary and secondary.get(key) not in {None, ""}:
+            return secondary.get(key)
+    return None
+
+
+def _settled_match_label(
+    settlement: dict[str, Any],
+    lock: dict[str, Any],
+    snapshot: dict[str, Any],
+) -> str:
+    for value in (settlement.get("teams"), lock.get("teams"), snapshot.get("teams")):
+        if isinstance(value, str) and value.strip():
+            return value
+    home = snapshot.get("home_team_name") or lock.get("home_team_name")
+    away = snapshot.get("away_team_name") or lock.get("away_team_name")
+    if home or away:
+        return f"{home or '主队'} vs {away or '客队'}"
+    return ""
+
+
+def _clv_text(clv: Any, *, locked_odds: Any, closing_odds: Any) -> str:
+    value = _number(clv)
+    if value is None:
+        locked = _number(locked_odds)
+        closing = _number(closing_odds)
+        if locked is None or closing is None:
+            return "—"
+        value = closing - locked
+    return _format_number(value, digits=4)
 
 
 def _formal_table_row(match: dict[str, Any], *, payload_as_of: str) -> tuple[str, ...]:

@@ -367,11 +367,156 @@ def test_render_html_empty_day_has_header_and_no_forbidden_terms() -> None:
     assert "W2 足球日报告 · 2026-06-30 · 临场最终" in report
     assert "场次 0 · 正式推荐 0" in report
     assert "场次 0 · 正式 0 · 观察 0 · 数据不足 0 · 盘口未就绪 0 · 已锁定 0" in report
+    assert "已结算" in report
+    assert "观察中" in report
+    assert "0/30" in report
+    assert "已结算推荐：观察中 0/30" in report
     assert "今日正式推荐：0" in report
     assert "当前无 FORMAL + recommendation_id + future kickoff" in report
     assert "推荐：全场让球" not in report
     assert "命中率" not in report
     assert "方向未识别" not in report
+
+
+def test_render_html_adds_settled_recommendation_fact_table_with_clv() -> None:
+    payload = _payload(_non_formal_match())
+    payload["locked_recommendation_snapshots"] = [
+        {
+            "source": "recommendation_lock_model",
+            "lock_id": "lock-1",
+            "recommendation_id": "rec-1",
+            "fixture_id": "f-settled",
+            "teams": "Portugal vs Croatia",
+            "kickoff_utc": "2026-07-03T23:00:00Z",
+            "recommendation_market": "ASIAN_HANDICAP",
+            "recommendation_selection": "HOME_AH",
+            "recommendation_line": -0.25,
+            "recommendation_odds": 1.91,
+        }
+    ]
+    payload["settlement_history"] = [
+        {
+            "source": "settlement_model",
+            "settlement_id": "settle-1",
+            "recommendation_id": "rec-1",
+            "lock_id": "lock-1",
+            "fixture_id": "f-settled",
+            "status": "SETTLED",
+            "result": "1-0",
+            "settled_at": "2026-07-04T01:15:00Z",
+            "closing_decimal_odds": 1.84,
+            "clv_decimal": -0.07,
+        }
+    ]
+
+    report = render_report(payload, output_format="html")
+
+    assert "已结算推荐（观察中）" in report
+    assert "已结算推荐：观察中 1/30" in report
+    assert "CLV" in report
+    assert "f-settled" in report
+    assert "Portugal vs Croatia" in report
+    assert "rec-1" in report
+    assert "lock-1" in report
+    assert "1.84" in report
+    assert "-0.07" in report
+    assert "settlement_model" in report
+    assert "命中率" not in report
+
+
+def test_render_html_reads_settlement_tables_from_audit_export_payload() -> None:
+    payload = _payload()
+    payload["audit_export"] = {
+        "tables": {
+            "locked_recommendation_snapshots": [
+                {
+                    "lock_id": "lock-2",
+                    "recommendation_id": "rec-2",
+                    "fixture_id": "f-audit",
+                    "snapshot_payload_json": {
+                        "home_team_name": "Argentina",
+                        "away_team_name": "France",
+                        "kickoff_utc": "2026-07-04T21:00:00Z",
+                        "recommendation": {
+                            "market": "ASIAN_HANDICAP",
+                            "selection": "AWAY_AH",
+                            "line": 0.5,
+                            "odds": 1.88,
+                        },
+                    },
+                }
+            ],
+            "settlement_history": [
+                {
+                    "settlement_id": "settle-2",
+                    "recommendation_id": "rec-2",
+                    "lock_id": "lock-2",
+                    "fixture_id": "f-audit",
+                    "outcome": "PUSH",
+                    "settled_at": "2026-07-05T00:00:00Z",
+                    "closing_odds": 1.9,
+                }
+            ],
+        }
+    }
+
+    report = render_report(payload, output_format="html")
+
+    assert "已结算推荐：观察中 1/30" in report
+    assert "Argentina vs France" in report
+    assert "AWAY_AH" in report
+    assert "0.5" in report
+    assert "1.88" in report
+    assert "0.02" in report
+
+
+def test_render_html_uses_dash_when_clv_is_not_yet_available() -> None:
+    payload = _payload()
+    payload["locked_recommendation_snapshots"] = [
+        {
+            "lock_id": "lock-no-close",
+            "recommendation_id": "rec-no-close",
+            "fixture_id": "f-no-close",
+            "teams": "Colombia vs Ghana",
+            "recommendation_market": "ASIAN_HANDICAP",
+            "recommendation_selection": "AWAY_AH",
+            "recommendation_line": 1.25,
+            "recommendation_odds": 1.86,
+        }
+    ]
+    payload["settlement_history"] = [
+        {
+            "settlement_id": "settle-no-close",
+            "recommendation_id": "rec-no-close",
+            "lock_id": "lock-no-close",
+            "fixture_id": "f-no-close",
+            "status": "OBSERVING",
+        }
+    ]
+
+    report = render_report(payload, output_format="html")
+
+    assert "已结算推荐：观察中 1/30" in report
+    assert "<th>CLV</th>" in report
+    assert "<td>—</td>" in report
+
+
+def test_render_html_settlement_panel_keeps_forbidden_guard() -> None:
+    payload = _payload()
+    payload["settlement_history"] = [
+        {
+            "settlement_id": "settle-forbidden",
+            "fixture_id": "f-bad",
+            "result": "命中率",
+        }
+    ]
+
+    try:
+        render_report(payload, output_format="html")
+    except ValueError as exc:
+        assert "forbidden term" in str(exc)
+    else:
+        raise AssertionError("expected forbidden term guard")
 
 
 def test_render_html_orders_formal_cards_first_without_redecision() -> None:
