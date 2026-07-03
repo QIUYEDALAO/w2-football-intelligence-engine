@@ -4,7 +4,7 @@ from w2.reporting.report_generator import HTML_RENDERER_VERSION, render_report
 
 
 def test_html_renderer_version_pinned() -> None:
-    assert HTML_RENDERER_VERSION == "w2.html_dashboard.v5"
+    assert HTML_RENDERER_VERSION == "w2.html_dashboard.v6"
 
     html = render_report(
         {
@@ -15,5 +15,5 @@ def test_html_renderer_version_pinned() -> None:
         output_format="html",
     )
 
-    assert 'name="w2-renderer" content="w2.html_dashboard.v5"' in html
-    assert "renderer w2.html_dashboard.v5" in html
+    assert 'name="w2-renderer" content="w2.html_dashboard.v6"' in html
+    assert "renderer w2.html_dashboard.v6" in html
