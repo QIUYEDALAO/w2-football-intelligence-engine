@@ -997,6 +997,152 @@ def test_read_model_corrects_legacy_timeline_snapshot_to_consensus_mainline() ->
     assert corrected["selection_warning"] == "READTIME_CONSENSUS_MAINLINE_CORRECTED"
 
 
+def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("W2_MARKET_TIMELINE_RUNTIME_ROOT", str(tmp_path))
+    (tmp_path / "future-partial.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.market_timeline.v1",
+                "fixture_id": "future-partial",
+                "kickoff_utc": "2026-06-26T10:00:00Z",
+                "snapshots": [
+                    {
+                        "schema_version": "w2.market_timeline.v1",
+                        "fixture_id": "future-partial",
+                        "checkpoint": "opening",
+                        "market": "ASIAN_HANDICAP",
+                        "as_of": "2026-06-26T08:00:00Z",
+                        "kickoff_utc": "2026-06-26T10:00:00Z",
+                        "line": -2.5,
+                        "home_price": 1.93,
+                        "away_price": 1.86,
+                        "bookmaker_count": 2,
+                        "candidate_lines": [
+                            {
+                                "selection_rank": 1,
+                                "line": -2.5,
+                                "home_price": 1.93,
+                                "away_price": 1.86,
+                                "bookmaker_count": 2,
+                                "balance_distance": 0.010052,
+                            },
+                            {
+                                "selection_rank": 6,
+                                "line": -1.25,
+                                "home_price": 2.24,
+                                "away_price": 1.685,
+                                "bookmaker_count": 4,
+                                "balance_distance": 0.070525,
+                            },
+                        ],
+                        "immutable": True,
+                        "source_hash": "legacy-mainline",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            ReadinessRepository(
+                analysis_card={
+                    "fixture_id": "future-partial",
+                    "decision": "SKIP",
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "source": "db_feature_materialized_analysis",
+                    "data_readiness": {
+                        "market_observations": 8,
+                        "bookmakers": 4,
+                        "odds_snapshots": 2,
+                        "xg": True,
+                    },
+                    "feature_contributions": [
+                        {
+                            "id": "F3_REST_FITNESS",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.6,
+                            "status": "READY",
+                            "source_group": "team_fixture_history",
+                        },
+                        {
+                            "id": "F7_STRENGTH_FORM",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "ratings",
+                        },
+                        {
+                            "id": "F8_SQUAD_VALUE",
+                            "side": "HOME",
+                            "weight": 0.2,
+                            "score": 0.7,
+                            "status": "READY",
+                            "source_group": "squad_value",
+                        },
+                    ],
+                    "current_odds": {
+                        "ah": {
+                            "home_line": "-2.5",
+                            "away_line": "2.5",
+                            "home_price": 1.93,
+                            "away_price": 1.86,
+                            "source": "read_model_mainline",
+                        }
+                    },
+                    "simulation": formal_ready_simulation_payload(),
+                    "markets": [{"market": "ASIAN_HANDICAP", "decision": "SKIP"}],
+                },
+            ),
+        )
+    )
+
+    card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
+    shadow = card["pricing_shadow"]
+
+    assert card["current_odds"]["ah"]["home_line"] == "-1.25"
+    assert shadow["market_ah"] == -1.25
+    assert shadow["materialized_market_ah"] == -2.5
+    assert shadow["selector_market_ah"] == -1.25
+    assert shadow["edge_ah"] is None
+    assert shadow["mainline_materialization_status"] == "STALE"
+    assert (
+        shadow["mainline_materialization_blocker"]
+        == "AH_MAINLINE_STALE_MATERIALIZATION"
+    )
+    assert (
+        shadow["canonical_ah_market_blocker"]
+        == "AH_MAINLINE_STALE_MATERIALIZATION"
+    )
+    assert shadow["canonical_ah_market_validation_status"] == "BLOCKED"
+    assert "AH_MAINLINE_STALE_MATERIALIZATION" in shadow["formal_blockers"]
+    assert card["formal_recommendation"] is False
+
+
+def test_pricing_shadow_mainline_reconciliation_recomputes_edge() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+    shadow = {"market_ah": -2.5, "fair_ah": -0.25}
+
+    service._reconcile_pricing_shadow_ah_mainline(shadow, -1.25)
+
+    assert shadow["market_ah"] == -1.25
+    assert shadow["edge_ah"] == -1.0
+    assert shadow["materialized_market_ah"] == -2.5
+    assert shadow["selector_market_ah"] == -1.25
+    assert shadow["mainline_materialization_status"] == "STALE"
+    assert (
+        shadow["mainline_materialization_blocker"]
+        == "AH_MAINLINE_STALE_MATERIALIZATION"
+    )
+
+
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
     captured = "2026-06-26T08:00:00Z"
     observations = [

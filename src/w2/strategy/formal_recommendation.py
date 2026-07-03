@@ -16,6 +16,7 @@ FORMAL_EV_THRESHOLD = 0.035
 FORMAL_EV_SE_MULTIPLIER = 1.0
 FORMAL_MAX_IMPLAUSIBLE_EV = 0.15
 FORMAL_MAX_FAIR_MARKET_AH_GAP = 1.0
+AH_MAINLINE_STALE_MATERIALIZATION = "AH_MAINLINE_STALE_MATERIALIZATION"
 REVERSE_FACTOR_EV_THRESHOLD = 0.08
 FORMAL_MIN_INDEPENDENT_SIGNALS = 3
 AH_PRICE_MIN = 1.40
@@ -351,15 +352,20 @@ def canonical_ah_market(
     if home_line is None or away_line is None or home_price is None or away_price is None:
         return None
     display = ah_display_contract(home_line)
-    blocker = _canonical_ah_blocker(
-        home_line=home_line,
-        away_line=away_line,
-        raw_home_line=raw_home_line,
-        raw_away_line=raw_away_line,
-        raw_abs_line=raw_abs_line,
-        home_price=home_price,
-        away_price=away_price,
-        market_ah=market_ah,
+    materialization_blocker = str(pricing.get("mainline_materialization_blocker") or "")
+    blocker = (
+        AH_MAINLINE_STALE_MATERIALIZATION
+        if materialization_blocker == AH_MAINLINE_STALE_MATERIALIZATION
+        else _canonical_ah_blocker(
+            home_line=home_line,
+            away_line=away_line,
+            raw_home_line=raw_home_line,
+            raw_away_line=raw_away_line,
+            raw_abs_line=raw_abs_line,
+            home_price=home_price,
+            away_price=away_price,
+            market_ah=market_ah,
+        )
     )
     warning = _canonical_ah_line_warning(
         canonical_home_line=home_line,
