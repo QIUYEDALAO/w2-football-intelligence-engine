@@ -1883,14 +1883,11 @@ class ReadModelService:
             }
         if market == "ASIAN_HANDICAP":
             max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidates)
-            consensus_floor = max(2, max_bookmaker_count - 2) if max_bookmaker_count > 1 else 1
-            override = self._balanced_override_candidate(candidates)
+            consensus_floor = max_bookmaker_count
+            override = None
             eligible = [
-                item for item in candidates if int(item["bookmaker_count"]) >= consensus_floor
+                item for item in candidates if int(item["bookmaker_count"]) == max_bookmaker_count
             ] or candidates
-            if override is not None and all(item["line"] != override["line"] for item in eligible):
-                override = {**override, "selection_warning": "LOW_CONSENSUS_BALANCED_MAINLINE"}
-                eligible.append(override)
         else:
             eligible = candidates
             consensus_floor = 1
@@ -1898,10 +1895,10 @@ class ReadModelService:
         selected = min(
             eligible,
             key=lambda item: (
+                -int(item["bookmaker_count"]),
                 item["balance_distance"],
                 item["balance_gap"],
                 item["mid_distance"],
-                -int(item["bookmaker_count"]),
                 abs(Decimal(str(item["line"]))),
             ),
         )
@@ -2126,10 +2123,10 @@ class ReadModelService:
             candidates,
             key=lambda item: (
                 0 if Decimal(str(item["line"])) == selected_line else 1,
+                -int(item["bookmaker_count"]),
                 item["balance_distance"],
                 item["balance_gap"],
                 item["mid_distance"],
-                -int(item["bookmaker_count"]),
                 abs(Decimal(str(item["line"]))),
             ),
         )
