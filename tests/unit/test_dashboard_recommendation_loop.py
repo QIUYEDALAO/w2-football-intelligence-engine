@@ -873,6 +873,45 @@ def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
     assert "selection_warning" not in odds_entry
 
 
+def test_read_model_corrects_legacy_timeline_snapshot_to_consensus_mainline() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+    corrected = service._consensus_first_ah_snapshot(
+        {
+            "market": "ASIAN_HANDICAP",
+            "line": -2.5,
+            "home_price": 1.93,
+            "away_price": 1.86,
+            "bookmaker_count": 2,
+            "candidate_lines": [
+                {
+                    "selection_rank": 1,
+                    "line": -2.5,
+                    "home_price": 1.93,
+                    "away_price": 1.86,
+                    "bookmaker_count": 2,
+                    "balance_distance": 0.010052,
+                },
+                {
+                    "selection_rank": 6,
+                    "line": -1.25,
+                    "home_price": 2.24,
+                    "away_price": 1.685,
+                    "bookmaker_count": 4,
+                    "balance_distance": 0.070525,
+                },
+            ],
+        }
+    )
+
+    assert corrected is not None
+    assert corrected["line"] == -1.25
+    assert corrected["home_price"] == 2.24
+    assert corrected["away_price"] == 1.685
+    assert corrected["bookmaker_count"] == 4
+    assert corrected["selection_policy"] == "consensus_first_bookmaker_count_then_balance"
+    assert corrected["selection_warning"] == "READTIME_CONSENSUS_MAINLINE_CORRECTED"
+
+
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
     captured = "2026-06-26T08:00:00Z"
     observations = [
