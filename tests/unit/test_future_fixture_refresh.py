@@ -168,6 +168,36 @@ class ManyFutureFixturesClient(FakeApiFootballClient):
         }
 
 
+class EmptyLineupsClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "lineups":
+            return {"response": []}
+        return super().payload(endpoint, params)
+
+
+class NineFutureFixturesClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint != "fixtures":
+            return super().payload(endpoint, params)
+        return {
+            "response": [
+                {
+                    "fixture": {
+                        "id": 1489400 + index,
+                        "date": f"2026-06-23T{11 + index:02d}:00:00+00:00",
+                        "status": {"short": "NS"},
+                    },
+                    "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                    "teams": {
+                        "home": {"id": 100 + index, "name": f"Team H {index}"},
+                        "away": {"id": 200 + index, "name": f"Team A {index}"},
+                    },
+                }
+                for index in range(9)
+            ]
+        }
+
+
 def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=1500, persistence="file")
@@ -199,6 +229,143 @@ def test_future_fixture_refresh_writes_idempotent_read_model(tmp_path: Path) -> 
     assert second.ledger_appended_count == 0
     ledger_lines = (tmp_path / "ledger/market_observations.jsonl").read_text().splitlines()
     assert len(ledger_lines) == 3
+
+
+def test_future_refresh_saves_lineups_raw_before_materialization_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    def fail_projection(**_kwargs: Any) -> list[dict[str, Any]]:
+        raise RuntimeError("materialization exploded")
+
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.project_ledger_to_read_model",
+        fail_projection,
+    )
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups",),
+        feature_enrichment_request_budget=1,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.status == "PARTIAL_FAILED"
+    assert result.error_code == "RuntimeError"
+    assert list((tmp_path / "raw").glob("lineups_1489404_*.json"))
+    assert audit["status"] == "PARTIAL_FAILED"
+    assert audit["error_code"] == "RuntimeError"
+    assert audit["raw_payload_written_count"] >= 3
+    assert any(
+        item["endpoint"] == "lineups" and item["raw_payload_persisted"] is True
+        for item in audit["requests"]
+    )
+
+
+def test_future_refresh_lineups_empty_diagnostic(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    client = EmptyLineupsClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups",),
+        feature_enrichment_request_budget=1,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.blockers == []
+    assert any(
+        item["endpoint"] == "lineups"
+        and item["response_count"] == 0
+        and item["diagnostic_code"] == "PROVIDER_LINEUPS_EMPTY"
+        for item in audit["requests"]
+    )
+
+
+def test_future_refresh_lineups_materialization_missing_diagnostic(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups",),
+        feature_enrichment_request_budget=1,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.blockers == []
+    assert any(
+        item["endpoint"] == "lineups"
+        and item["response_count"] > 0
+        and item["diagnostic_code"] == "LINEUPS_MATERIALIZATION_MISSING"
+        for item in audit["requests"]
+    )
+
+
+def test_future_refresh_batches_lineups_without_disallowed_endpoints(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_BATCH_SIZE", "3")
+    client = NineFutureFixturesClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        max_fixture_candidates=9,
+        max_odds_requests=0,
+        request_budget=20,
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups", "statistics", "injuries"),
+        feature_enrichment_request_budget=9,
+        provider_refresh_batch_size=3,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    endpoints = [endpoint for endpoint, _params in client.calls]
+    assert endpoints.count("lineups") == 9
+    assert "statistics" not in endpoints
+    assert "injuries" not in endpoints
+    assert "h2h" not in endpoints
+    assert result.feature_enrichment_payload_count == 9
+    assert audit["feature_enrichment_batch_count"] == 3
+    assert len(list((tmp_path / "raw").glob("lineups_*.json"))) == 9
 
 
 def test_future_fixture_refresh_preserves_core_tasks_when_reserve_locked(
