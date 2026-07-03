@@ -39,6 +39,10 @@ jobs:
       W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_XG_BACKFILL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -71,6 +75,10 @@ jobs:
       W2_ENVIRONMENT: test
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_XG_BACKFILL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -91,6 +99,10 @@ jobs:
       W2_ENVIRONMENT: test
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_XG_BACKFILL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3

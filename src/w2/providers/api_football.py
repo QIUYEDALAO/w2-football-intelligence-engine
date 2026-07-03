@@ -15,6 +15,7 @@ from w2.providers.control import (
     PROVIDER_CALLS_DISABLED,
     ProviderCallsDisabledError,
     provider_calls_disabled,
+    provider_endpoint_allowlist,
 )
 from w2.providers.ledger import ProviderRequestLedger, provider_request_ledger_from_env
 
@@ -180,9 +181,10 @@ class ApiFootballClient:
         }
 
     def _require_endpoint_allowed(self, endpoint: str) -> None:
-        if self.allowed_live_endpoints is None:
-            return
-        if endpoint not in self.allowed_live_endpoints:
+        env_allowlist = provider_endpoint_allowlist()
+        if endpoint not in env_allowlist:
+            raise LiveNetworkDisabledError(f"live endpoint not approved: {endpoint}")
+        if self.allowed_live_endpoints is not None and endpoint not in self.allowed_live_endpoints:
             raise LiveNetworkDisabledError(f"live endpoint not approved: {endpoint}")
 
 

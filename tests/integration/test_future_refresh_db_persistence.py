@@ -170,7 +170,11 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 1
         assert session.scalar(select(func.count()).select_from(FutureRefreshTaskAuditModel)) == 2
         assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 1
-        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 5
+        assert set(session.scalars(select(RawPayloadModel.endpoint)).all()) == {
+            "fixtures",
+            "odds",
+            "lineups",
+        }
         observation = session.scalar(select(FutureMarketObservationModel))
         assert observation is not None
         assert observation.candidate is False

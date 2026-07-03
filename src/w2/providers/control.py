@@ -36,12 +36,34 @@ def env_int(name: str, *, default: int) -> int:
         return default
 
 
+def env_csv_set(name: str, *, default: set[str] | frozenset[str]) -> frozenset[str]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return frozenset(default)
+    return frozenset(item.strip() for item in raw.split(",") if item.strip())
+
+
 def provider_calls_disabled() -> bool:
     return env_flag("W2_PROVIDER_CALLS_DISABLED", default=False)
 
 
 def provider_scheduler_enabled() -> bool:
     return env_flag("W2_PROVIDER_SCHEDULER_ENABLED", default=False)
+
+
+def provider_endpoint_allowlist() -> frozenset[str]:
+    return env_csv_set(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        default={"status", "fixtures", "odds", "lineups"},
+    )
+
+
+def provider_refresh_min_interval_seconds() -> int:
+    return max(env_int("W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS", default=900), 1)
+
+
+def provider_refresh_tick_hard_cap() -> int:
+    return max(env_int("W2_PROVIDER_REFRESH_TICK_HARD_CAP", default=30), 0)
 
 
 @dataclass(frozen=True)

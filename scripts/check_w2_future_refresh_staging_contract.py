@@ -282,6 +282,14 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler market timeline max fixtures must be 10")
     if scheduler_env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != MARKET_TIMELINE_MOUNT_TARGET:
         fail(f"{path}: scheduler market timeline runtime root mismatch")
+    safe_defaults = {
+        "W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS": "900",
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
+        "W2_PROVIDER_REFRESH_TICK_HARD_CAP": "30",
+    }
+    for flag, expected in safe_defaults.items():
+        if scheduler_env.get(flag) != expected:
+            fail(f"{path}: scheduler {flag} mismatch")
     for service in ("api", "web", "worker"):
         env = service_env(compose, service)
         if "W2_FUTURE_FIXTURE_REFRESH_ENABLED" in env:
@@ -290,6 +298,12 @@ def assert_compose(path: Path) -> None:
             MARKET_TIMELINE_MOUNT_TARGET
         ):
             fail(f"{path}: {service} market timeline runtime root mismatch")
+        if service in {"api", "worker"}:
+            for flag, expected in safe_defaults.items():
+                if env.get(flag) != expected:
+                    fail(f"{path}: {service} {flag} mismatch")
+            if str(env.get("W2_XG_BACKFILL_ENABLED")).lower() != "false":
+                fail(f"{path}: {service} W2_XG_BACKFILL_ENABLED must stay false")
     for flag in FORBIDDEN_TRUE_FLAGS:
         if str(scheduler_env.get(flag)).lower() != "false":
             fail(f"{path}: {flag} must stay false")

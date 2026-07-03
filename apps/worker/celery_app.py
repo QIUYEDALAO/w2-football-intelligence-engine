@@ -38,12 +38,18 @@ def future_fixture_refresh(
     competition_id: str = "world_cup_2026",
     task_key: str | None = None,
     queued_at_utc: str | None = None,
+    requested_interval_seconds: int | None = None,
+    effective_interval_seconds: int | None = None,
+    provider_refresh_min_interval_seconds: int | None = None,
 ) -> dict[str, object]:
     if not provider_scheduler_enabled():
         return {
             "task_id": task_key or "future-refresh",
             "task_key": task_key,
             "status": PROVIDER_SCHEDULER_DISABLED,
+            "requested_interval_seconds": requested_interval_seconds,
+            "effective_interval_seconds": effective_interval_seconds,
+            "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
             "result": {
                 "blockers": [PROVIDER_SCHEDULER_DISABLED],
                 "provider_calls": 0,
@@ -73,11 +79,17 @@ def future_fixture_refresh(
         queued_at=queued_at,
         competition_id=competition_id,
         now=now,
+        requested_interval_seconds=requested_interval_seconds,
+        effective_interval_seconds=effective_interval_seconds,
+        provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
     )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
         "status": audit.status,
+        "requested_interval_seconds": requested_interval_seconds,
+        "effective_interval_seconds": effective_interval_seconds,
+        "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
         "result": audit.result,
         "candidate": False,
         "formal_recommendation": False,

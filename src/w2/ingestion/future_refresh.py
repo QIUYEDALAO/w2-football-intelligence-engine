@@ -21,7 +21,11 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
-from w2.providers.control import env_int
+from w2.providers.control import (
+    env_int,
+    provider_endpoint_allowlist,
+    provider_refresh_tick_hard_cap,
+)
 from w2.providers.quota import (
     parse_api_football_quota,
     provider_daily_hard_cap_decision,
@@ -606,7 +610,8 @@ class FutureFixtureRefreshService:
             if config.feature_enrichment_enabled
             else set()
         )
-        return frozenset(base | (enrichment & {"statistics", "lineups", "injuries"}))
+        configured = base | (enrichment & {"statistics", "lineups", "injuries"})
+        return frozenset(configured & set(provider_endpoint_allowlist()))
 
     def run(self) -> FutureRefreshResult:
         blockers: list[str] = []
@@ -622,6 +627,39 @@ class FutureFixtureRefreshService:
                 remaining_quota=None,
                 selected_market_fixture_ids=[],
                 blockers=["FUTURE_REFRESH_POLICY_DISABLED"],
+                status="BLOCKED",
+            )
+            self._write_audit(result)
+            return result
+        tick_cap = self._provider_tick_hard_cap_preflight()
+        if not tick_cap["allowed"]:
+            blocker = str(tick_cap["blocker"])
+            self._audit.append(
+                {
+                    "endpoint": "provider_refresh_tick_hard_cap_preflight",
+                    "params": {},
+                    "attempt": 0,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(utc_now()),
+                    "remaining_quota": self._latest_remaining,
+                    "payload_sha256": None,
+                    "error_code": blocker,
+                    "projected_calls": tick_cap["projected_calls"],
+                    "tick_hard_cap": tick_cap["tick_hard_cap"],
+                }
+            )
+            result = FutureRefreshResult(
+                generated_at_utc=self.now,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
+                ledger_appended_count=0,
+                request_count=0,
+                remaining_quota=None,
+                selected_market_fixture_ids=[],
+                blockers=[blocker],
                 status="BLOCKED",
             )
             self._write_audit(result)
@@ -702,6 +740,8 @@ class FutureFixtureRefreshService:
         return result
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        if not self._endpoint_authorized(endpoint):
+            raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
         max_attempts = max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1)
         for attempt in range(1, max_attempts + 1):
@@ -789,13 +829,88 @@ class FutureFixtureRefreshService:
             reserve_bucket=reserve,
         )
 
-    def _planned_provider_calls(self) -> int:
-        enrichment_budget = (
-            max(self.config.feature_enrichment_request_budget, 0)
-            if self.config.feature_enrichment_enabled
-            else 0
+    def _provider_tick_hard_cap_preflight(self) -> dict[str, Any]:
+        projected_calls = self._projected_provider_calls()
+        tick_hard_cap = provider_refresh_tick_hard_cap()
+        return {
+            "allowed": projected_calls <= tick_hard_cap,
+            "blocker": None
+            if projected_calls <= tick_hard_cap
+            else "PROVIDER_REFRESH_BUDGET_TOO_HIGH",
+            "projected_calls": projected_calls,
+            "tick_hard_cap": tick_hard_cap,
+        }
+
+    def _projected_provider_calls(self) -> int:
+        core_calls = sum(
+            1 for endpoint in ("status", "fixtures") if self._endpoint_authorized(endpoint)
         )
-        return 2 + max(self.config.max_odds_requests, 0) + enrichment_budget
+        fixture_estimate = self._fixture_candidate_estimate()
+        odds_calls = min(
+            max(self.config.max_odds_requests, 0),
+            max(self.config.max_fixture_candidates, 0),
+            fixture_estimate,
+        )
+        if not self._endpoint_authorized("odds"):
+            odds_calls = 0
+        enrichment_calls = self._projected_feature_enrichment_calls(fixture_estimate)
+        return core_calls + odds_calls + enrichment_calls
+
+    def _fixture_candidate_estimate(self) -> int:
+        if self.config.persistence == "db":
+            try:
+                fixture_payloads = self._db_repository().fixture_payloads()
+            except FutureRefreshPersistenceError:
+                return max(self.config.max_fixture_candidates, 0)
+            count = 0
+            for item in fixture_payloads:
+                fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
+                status = fixture.get("status", {}) if isinstance(fixture, dict) else {}
+                if not isinstance(status, dict) or status.get("short") != "NS":
+                    continue
+                kickoff = parse_utc(fixture.get("date")) if isinstance(fixture, dict) else None
+                if kickoff is None or kickoff <= self.now:
+                    continue
+                count += 1
+            return min(count, max(self.config.max_fixture_candidates, 0))
+        return max(self.config.max_fixture_candidates, 0)
+
+    def _projected_feature_enrichment_calls(self, fixture_estimate: int) -> int:
+        if not self.config.feature_enrichment_enabled:
+            return 0
+        endpoints = [
+            endpoint
+            for endpoint in self.config.feature_enrichment_endpoints
+            if endpoint in {"statistics", "lineups", "injuries"}
+            and self._endpoint_authorized(endpoint)
+        ]
+        if not endpoints:
+            return 0
+        return min(
+            max(self.config.feature_enrichment_request_budget, 0),
+            max(fixture_estimate, 0) * len(endpoints),
+        )
+
+    def _planned_provider_calls(self) -> int:
+        return self._projected_provider_calls()
+
+    def _endpoint_authorized(self, endpoint: str) -> bool:
+        return endpoint in provider_endpoint_allowlist()
+
+    def _append_unauthorized_endpoint_skip(self, endpoint: str, fixture_id: str | None) -> None:
+        self._audit.append(
+            {
+                "endpoint": endpoint,
+                "params": {"fixture": fixture_id} if fixture_id else {},
+                "attempt": 0,
+                "status_code": None,
+                "elapsed_ms": 0,
+                "captured_at_utc": iso(utc_now()),
+                "remaining_quota": self._latest_remaining,
+                "payload_sha256": None,
+                "error_code": f"ENDPOINT_NOT_AUTHORIZED:{endpoint}",
+            }
+        )
 
     def _actual_provider_calls_today(self) -> int:
         if self.config.actual_provider_calls_today is not None:
@@ -862,6 +977,9 @@ class FutureFixtureRefreshService:
             if not fixture_id:
                 continue
             for endpoint in endpoints:
+                if not self._endpoint_authorized(endpoint):
+                    self._append_unauthorized_endpoint_skip(endpoint, fixture_id)
+                    continue
                 if len(responses) >= budget:
                     return responses
                 if self._latest_remaining is not None:
@@ -1184,6 +1302,9 @@ def run_future_refresh_task(
     settings: Settings | None = None,
     redis_client: Any | None = None,
     persistence: str | None = None,
+    requested_interval_seconds: int | None = None,
+    effective_interval_seconds: int | None = None,
+    provider_refresh_min_interval_seconds: int | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -1225,6 +1346,11 @@ def run_future_refresh_task(
         )
         lock_acquired = lock.acquire(now=started_at)
     if not lock_acquired:
+        interval_metadata = {
+            "requested_interval_seconds": requested_interval_seconds,
+            "effective_interval_seconds": effective_interval_seconds,
+            "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
+        }
         audit = RefreshTaskAudit(
             task_id=task_id,
             key=key,
@@ -1233,7 +1359,11 @@ def run_future_refresh_task(
             started_at=iso(started_at),
             finished_at=iso(utc_now()),
             status="ALREADY_RUNNING",
-            result={"candidate": False, "formal_recommendation": False},
+            result={
+                "candidate": False,
+                "formal_recommendation": False,
+                **{k: v for k, v in interval_metadata.items() if v is not None},
+            },
         )
         write_task_audit(root, audit, persistence=persistence)
         return audit
@@ -1280,7 +1410,19 @@ def run_future_refresh_task(
         started_at=iso(started_at),
         finished_at=iso(utc_now()),
         status=status,
-        result={**summary, "lock_released": released},
+        result={
+            **summary,
+            "lock_released": released,
+            **{
+                key: value
+                for key, value in {
+                    "requested_interval_seconds": requested_interval_seconds,
+                    "effective_interval_seconds": effective_interval_seconds,
+                    "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
+                }.items()
+                if value is not None
+            },
+        },
     )
     write_task_audit(root, audit, persistence=persistence)
     return audit

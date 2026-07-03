@@ -9,6 +9,7 @@ from apps.scheduler.main import (
     future_fixture_refresh_tick,
     heartbeat,
     market_timeline_refresh_tick,
+    provider_refresh_effective_interval_seconds,
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
@@ -65,6 +66,7 @@ def test_scheduler_future_refresh_dispatches_worker_task_without_running_provide
     assert str(result["task_key"]).startswith("future-refresh:world_cup_2026:2026:")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
+    assert sent[0]["kwargs"]["effective_interval_seconds"] == result["effective_interval_seconds"]
 
 
 def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) -> None:
@@ -106,6 +108,78 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
     assert result["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
     assert result["provider_calls"] == 0
     assert sent == []
+
+
+def test_scheduler_future_refresh_clamps_provider_interval_and_task_key(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+    sent: list[dict[str, object]] = []
+    acquired: set[str] = set()
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    def fake_gate(**kwargs: object) -> object:
+        task_key = str(kwargs["task_key"])
+        if task_key in acquired:
+            return type(
+                "Gate",
+                (),
+                {
+                    "allowed": False,
+                    "status": "DUPLICATE_TASK_KEY_SUPPRESSED",
+                    "backend": "test",
+                },
+            )()
+        acquired.add(task_key)
+        return type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )()
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS", "900")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda: [
+            {
+                "fixture": {
+                    "date": (now + timedelta(minutes=5)).isoformat(),
+                    "status": {"short": "NS"},
+                }
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {
+                "now": staticmethod(lambda tz=None: now),
+                "fromisoformat": datetime.fromisoformat,
+            },
+        ),
+    )
+    monkeypatch.setattr(scheduler_main, "provider_task_key_gate", fake_gate)
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    first = future_fixture_refresh_tick()
+    second = future_fixture_refresh_tick()
+
+    assert fixture_refresh_gradient_interval_seconds(now=now) == 60
+    assert provider_refresh_effective_interval_seconds(60, policy_interval_seconds=900) == 900
+    assert first["requested_interval_seconds"] == 60
+    assert first["effective_interval_seconds"] == 900
+    assert first["provider_refresh_min_interval_seconds"] == 900
+    assert second["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
+    assert second["effective_interval_seconds"] == 900
+    assert len(sent) == 1
 
 
 def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(

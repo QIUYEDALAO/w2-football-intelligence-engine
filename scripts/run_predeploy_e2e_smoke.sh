@@ -45,13 +45,28 @@ services:
   api:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
   worker:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
   scheduler:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
     healthcheck:
       test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
       interval: 10s
@@ -184,19 +199,6 @@ class FakeLiveApiFootballPort:
                     }
                 ]
             }
-        if endpoint == "statistics":
-            return {
-                "response": [
-                    {
-                        "team": {"id": 10, "name": "Predeploy Home"},
-                        "statistics": [{"type": "expected_goals", "value": "1.3"}],
-                    },
-                    {
-                        "team": {"id": 20, "name": "Predeploy Away"},
-                        "statistics": [{"type": "expected_goals", "value": "0.8"}],
-                    },
-                ]
-            }
         if endpoint == "lineups":
             return {
                 "response": [
@@ -204,8 +206,6 @@ class FakeLiveApiFootballPort:
                     {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": []},
                 ]
             }
-        if endpoint == "injuries":
-            return {"response": []}
         raise AssertionError(endpoint)
 
 
@@ -230,17 +230,17 @@ audit = run_future_refresh_task(
 assert audit.status == "COMPLETED", audit
 assert audit.result["fixture_count"] == 1
 assert audit.result["market_snapshot_count"] == 1
-assert audit.result["feature_enrichment_payload_count"] == 3
+assert audit.result["feature_enrichment_payload_count"] == 1
 assert audit.result["candidate"] is False
 assert audit.result["formal_recommendation"] is False
 assert [endpoint for endpoint, _ in fake.calls] == [
     "status",
     "fixtures",
     "odds",
-    "statistics",
     "lineups",
-    "injuries",
 ]
+assert "statistics" not in [endpoint for endpoint, _ in fake.calls]
+assert "injuries" not in [endpoint for endpoint, _ in fake.calls]
 print("predeploy_e2e fake future refresh PASS")
 PY
 
@@ -338,6 +338,10 @@ RAW_ENDPOINT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(distinct endpoint) from raw_payload where endpoint in ('statistics', 'lineups', 'injuries');"
 )"
+BLOCKED_ENDPOINT_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(distinct endpoint) from raw_payload where endpoint in ('statistics', 'injuries');"
+)"
 RUN_AUDIT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'world_cup_2026' and candidate = false and formal_recommendation = false;"
@@ -346,8 +350,12 @@ if [ "${OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing DB market observations" >&2
   exit 1
 fi
-if [ "${RAW_ENDPOINT_COUNT}" -ne 3 ]; then
+if [ "${RAW_ENDPOINT_COUNT}" -ne 1 ]; then
   echo "predeploy_e2e FAIL missing feature enrichment raw payload endpoints" >&2
+  exit 1
+fi
+if [ "${BLOCKED_ENDPOINT_COUNT}" -ne 0 ]; then
+  echo "predeploy_e2e FAIL disabled feature enrichment endpoints were persisted" >&2
   exit 1
 fi
 if [ "${RUN_AUDIT_COUNT}" -lt 1 ]; then

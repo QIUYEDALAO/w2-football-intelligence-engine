@@ -37,12 +37,19 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
         assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
+        assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
+        assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "worker"):
             env = env_for(path, service)
             assert env["W2_PROVIDER_CALLS_DISABLED"] == "true"
             assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
             assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
+            assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
+            assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+            assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
+            assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
             assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in env_for(path, service)
 
