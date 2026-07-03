@@ -85,7 +85,7 @@ def render_report(
     return text
 
 
-HTML_RENDERER_VERSION = "w2.html_dashboard.v5"
+HTML_RENDERER_VERSION = "w2.html_dashboard.v6"
 
 _TERMINAL_CSS = """
 :root { color-scheme: dark; }
@@ -282,11 +282,14 @@ def _render_html_report(
         "<span>对阵</span>"
         "<span>状态</span>"
         "<span>原因</span>"
-        '<span class="h-market" style="text-align:right">盘</span>'
-        '<span style="text-align:right">差</span>'
-        '<span style="text-align:right">ISC</span>'
+        '<span class="h-market" style="text-align:right" '
+        'title="市场盘为主队视角，负数=主队让球，正数=主队受让">市场盘</span>'
+        '<span style="text-align:right" '
+        'title="差距=市场盘−模型公平盘；正值代表模型认为主队方向被低估">差距</span>'
+        '<span style="text-align:right" title="独立信号数量，仅表示数据源覆盖情况">信号</span>'
         '<span class="h-pt">走势·参照</span>'
-        '<span class="h-ao" style="text-align:right">as-of</span>'
+        '<span class="h-ao" style="text-align:right" '
+        'title="盘口行级数据时间；生成时间在页脚显示">数据时间</span>'
         "</div>"
     )
     cards_html = (
@@ -371,6 +374,8 @@ def _render_html_report(
         "<footer>"
         f"生成时间：{escape(generated)} · 只读报告 · 数据来自 dashboard payload · "
         f"renderer {HTML_RENDERER_VERSION}<br>"
+        "市场盘为主队视角，负数=主队让球；"
+        "差距=市场盘−模型公平盘，正值代表模型认为主队方向被低估。<br>"
         "盘口走势仅作参照、未验证，不构成方向；"
         "非 FORMAL 场次不显示推荐方向与比分参考；"
         "已结算区为观察中事实表。"
@@ -432,7 +437,7 @@ def _html_match_card(
     )
     as_of_cell = escape(_as_of(match, payload_as_of=payload_as_of)[-5:])
     reason = escape(_reason_cn(decision.reason))
-    flag = _data_quality_flag(match)
+    flag = _data_quality_flag(match, decision)
     row = (
         '<div class="g">'
         f'<span class="ko">{escape(_kickoff_label(match))}</span>'
@@ -499,16 +504,68 @@ def _edge_display_cell(match: dict[str, Any]) -> str:
     return _number_cell(shadow.get("edge_ah"), signed=True)
 
 
-def _data_quality_flag(match: dict[str, Any]) -> str:
-    refresh = _dict(match.get("data_refresh"))
-    statuses = (
-        refresh.get("odds_status"),
-        refresh.get("lineups_status"),
-        refresh.get("xg_status"),
-    )
-    if all(str(status or "") == "READY" for status in statuses):
+def _data_quality_flag(match: dict[str, Any], decision: MatchDecision) -> str:
+    if decision.state == MatchDecisionState.LOCKED:
         return ""
-    return '<span class="dq">数据未齐</span>'
+    missing = _data_gap_items(match)
+    if not missing:
+        return ""
+    compact = "、".join(missing[:3])
+    if len(missing) > 3:
+        compact += f"等{len(missing)}项"
+    detail = "缺失：" + "、".join(missing)
+    return (
+        f'<span class="dq" title="{escape(detail)}">'
+        f"数据未齐：{escape(compact)}</span>"
+    )
+
+
+def _data_gap_items(match: dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+
+    def add(label: str) -> None:
+        if label not in missing:
+            missing.append(label)
+
+    refresh = _dict(match.get("data_refresh"))
+    status_labels = (
+        ("odds_status", "赔率/盘口"),
+        ("lineups_status", "首发"),
+        ("xg_status", "xG"),
+    )
+    for key, label in status_labels:
+        if key in refresh and str(refresh.get(key) or "") != "READY":
+            add(label)
+
+    analysis = _dict(match.get("analysis_readiness"))
+    for blocker in _list(analysis.get("blockers")):
+        code = str(blocker or "")
+        if code == "MISSING_LINEUPS":
+            add("首发")
+        elif code in {"MISSING_H2H", "H2H_MISSING"}:
+            add("H2H")
+        elif code in {"MISSING_ODDS", "MISSING_MARKET_AH", "MISSING_AH_MARKET"}:
+            add("赔率/盘口")
+        elif code in {"DATA_INSUFFICIENT", "INSUFFICIENT_INDEPENDENT_FACTORS"}:
+            add("独立信号")
+
+    shadow = _dict(match.get("pricing_shadow"))
+    for source in _list(shadow.get("missing_independent_sources")):
+        item = str(source or "").lower()
+        if item == "h2h":
+            add("H2H")
+        elif item:
+            add(item.upper())
+    for blocker in _list(shadow.get("formal_blockers")):
+        code = str(blocker or "")
+        if code in {"MISSING_ODDS", "MISSING_MARKET_AH", "MISSING_AH_MARKET"}:
+            add("赔率/盘口")
+        elif code in {"MISSING_LINEUPS"}:
+            add("首发")
+        elif code in {"DATA_INSUFFICIENT", "INSUFFICIENT_INDEPENDENT_FACTORS"}:
+            add("独立信号")
+
+    return missing
 
 
 def _state_counts(decisions: list[MatchDecision]) -> dict[MatchDecisionState, int]:
@@ -1019,6 +1076,7 @@ def _blocker_explanation_cn(code: str) -> str:
         "EDGE_BELOW_FORMAL_THRESHOLD": "盘口差距未达正式推荐阈值",
         "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐信息缺失，当前不输出方向",
         "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整，当前不输出方向",
+        "FIXTURE_NOT_PREMATCH": "比赛已开始或进入复盘",
     }.get(code, f"未映射原因：{code}")
 
 
@@ -1387,6 +1445,14 @@ def _reason_cn(reason: str) -> str:
         "INVALID_FORMAL_RECOMMENDATION_PAYLOAD": "正式推荐信息缺失",
         "INVALID_FORMAL_EV_PAYLOAD": "正式推荐EV字段不完整",
         "NO_FORMAL_RECOMMENDATION_PAYLOAD": "未形成正式推荐",
+        "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
+        "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
+        "MISSING_LINEUPS": "首发未返回",
+        "MISSING_H2H": "H2H 独立信号缺失",
+        "W2_FORMAL_RECOMMENDATION_ENABLED=false": "正式推荐开关未开启",
+        "DATA_INSUFFICIENT": "独立信号不足",
+        "MARKET_NOT_READY": "盘口未就绪",
+        "FIXTURE_NOT_PREMATCH": "比赛已开始或进入复盘",
         "FORMAL_REPORTABLE": "达到报告正式推荐条件",
     }.get(reason, f"未映射原因：{reason}")
 

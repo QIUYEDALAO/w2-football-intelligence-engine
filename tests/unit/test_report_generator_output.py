@@ -578,6 +578,57 @@ def test_render_html_no_formal_day_does_not_fake_recommendations_or_scorelines()
     assert "方向未识别" not in report
 
 
+def test_render_html_uses_explanatory_dashboard_headers_and_legend() -> None:
+    report = render_report(_payload(_non_formal_match()), output_format="html")
+
+    assert ">市场盘</span>" in report
+    assert ">差距</span>" in report
+    assert ">信号</span>" in report
+    assert ">数据时间</span>" in report
+    assert ">盘</span>" not in report
+    assert ">差</span>" not in report
+    assert ">ISC</span>" not in report
+    assert ">as-of</span>" not in report
+    assert "市场盘为主队视角，负数=主队让球" in report
+    assert "差距=市场盘−模型公平盘" in report
+
+
+def test_render_html_data_gap_badge_names_missing_inputs() -> None:
+    match = _non_formal_with_blockers(
+        fixture_id="missing",
+        analysis_blockers=["MISSING_LINEUPS"],
+        missing_sources=["h2h"],
+    )
+    data_refresh = dict(match["data_refresh"])  # type: ignore[arg-type]
+    data_refresh["odds_status"] = "PROVIDER_EMPTY"
+    data_refresh["xg_status"] = "INSUFFICIENT_HISTORY"
+    match["data_refresh"] = data_refresh
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "数据未齐：赔率/盘口、首发、xG等4项" in report
+    assert "缺失：赔率/盘口、首发、xG、H2H" in report
+    assert "MISSING_LINEUPS" in report
+    assert "H2H 独立信号缺失" in report
+
+
+def test_render_html_locked_match_suppresses_stale_data_gap_badge() -> None:
+    match = _non_formal_with_blockers(
+        fixture_id="started",
+        analysis_blockers=["MISSING_LINEUPS"],
+        missing_sources=["h2h"],
+    )
+    match["status"] = "LIVE"
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "赛前判断已锁定" in report
+    assert "数据未齐：" not in report
+    assert '<span class="dq">数据未齐' not in report
+    assert "MISSING_LINEUPS" in report
+    assert "H2H 独立信号缺失" in report
+
+
 def test_render_html_non_formal_decision_table_explains_blockers() -> None:
     no_formal_payload = _non_formal_with_blockers(fixture_id="no-formal")
     shadow = dict(no_formal_payload["pricing_shadow"])  # type: ignore[arg-type]
