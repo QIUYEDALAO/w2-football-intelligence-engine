@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import time
@@ -9,7 +10,7 @@ from uuid import uuid4
 
 from w2.providers.control import (
     PROVIDER_SCHEDULER_DISABLED,
-    provider_refresh_min_interval_seconds,
+    provider_refresh_tick_hard_cap,
     provider_scheduler_enabled,
     provider_task_key_gate,
 )
@@ -17,15 +18,9 @@ from w2.providers.control import (
 logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
+DEFAULT_CHECKPOINT_POLL_SECONDS = 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
-FUTURE_REFRESH_INTERVAL_BANDS: tuple[tuple[int, int], ...] = (
-    (10 * 60, 60),
-    (60 * 60, 120),
-    (3 * 60 * 60, 300),
-    (12 * 60 * 60, 900),
-    (48 * 60 * 60, 1800),
-)
 
 
 def heartbeat() -> str:
@@ -78,45 +73,102 @@ def future_refresh_fixture_payloads() -> list[dict[str, Any]]:
     return FutureRefreshDbRepository().fixture_payloads()
 
 
-def fixture_refresh_gradient_interval_seconds(
-    *,
-    now: datetime,
-    default_interval_seconds: int = DEFAULT_REFRESH_INTERVAL_SECONDS,
-) -> int:
+def checkpoint_poll_seconds() -> int:
     try:
-        fixtures = future_refresh_fixture_payloads()
-    except Exception:
-        return default_interval_seconds
-
-    seconds_until_kickoff: list[int] = []
-    for item in fixtures:
-        fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
-        status = fixture.get("status", {}) if isinstance(fixture, dict) else {}
-        if not isinstance(status, dict) or status.get("short") != "NS":
-            continue
-        kickoff = parse_fixture_kickoff(fixture.get("date") if isinstance(fixture, dict) else None)
-        if kickoff is None or kickoff <= now:
-            continue
-        seconds_until_kickoff.append(int((kickoff - now).total_seconds()))
-    if not seconds_until_kickoff:
-        return max(default_interval_seconds, 3600)
-    nearest = min(seconds_until_kickoff)
-    for upper_bound_seconds, interval_seconds in FUTURE_REFRESH_INTERVAL_BANDS:
-        if nearest <= upper_bound_seconds:
-            return interval_seconds
-    return 3600
+        return max(int(os.environ.get("W2_CHECKPOINT_REFRESH_POLL_SECONDS", "60")), 10)
+    except ValueError:
+        return DEFAULT_CHECKPOINT_POLL_SECONDS
 
 
-def provider_refresh_effective_interval_seconds(
-    requested_interval_seconds: int,
+def checkpoint_task_key(
     *,
-    policy_interval_seconds: int = DEFAULT_REFRESH_INTERVAL_SECONDS,
-) -> int:
-    return max(
-        int(requested_interval_seconds),
-        int(policy_interval_seconds),
-        provider_refresh_min_interval_seconds(),
+    competition_id: str,
+    season: str,
+    checkpoints: list[dict[str, Any]],
+) -> str:
+    identity = "|".join(
+        f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints
     )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
+
+
+def due_checkpoint_refresh_batch(now: datetime) -> dict[str, Any]:
+    from w2.ingestion.checkpoint_refresh import (
+        checkpoint_plans_from_fixture_payloads,
+        projected_calls_for_checkpoint_batch,
+        select_checkpoint_batch,
+    )
+    from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+
+    repository = FutureRefreshDbRepository()
+    fixtures = future_refresh_fixture_payloads()
+    plans = checkpoint_plans_from_fixture_payloads(fixtures, now=now)
+    repository.upsert_checkpoint_plans(
+        [
+            {
+                "id": plan.plan_id,
+                "fixture_id": plan.fixture_id,
+                "checkpoint": plan.checkpoint,
+                "kickoff_utc": plan.kickoff_utc,
+                "due_at": plan.due_at_utc,
+                "endpoints": list(plan.endpoints),
+                "source": plan.source,
+                "status": plan.status,
+            }
+            for plan in plans
+        ]
+    )
+    due_rows = repository.due_checkpoint_plans(
+        now=now,
+        limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
+    )
+    due_plans = [
+        type(
+            "DuePlan",
+            (),
+            {
+                "fixture_id": row["fixture_id"],
+                "checkpoint": row["checkpoint"],
+                "kickoff_utc": parse_fixture_kickoff(row["kickoff_utc"]),
+                "due_at_utc": parse_fixture_kickoff(row["due_at"]),
+                "endpoints": tuple(row["endpoints"]),
+                "source": row["source"],
+                "needs_odds": "odds" in row["endpoints"],
+                "needs_lineups": "lineups" in row["endpoints"],
+            },
+        )()
+        for row in due_rows
+    ]
+    selected, projected_calls = select_checkpoint_batch(
+        due_plans,
+        hard_cap=provider_refresh_tick_hard_cap(),
+    )
+    selected_rows = [
+        {
+            "fixture_id": plan.fixture_id,
+            "checkpoint": plan.checkpoint,
+            "kickoff_utc": plan.kickoff_utc.isoformat().replace("+00:00", "Z")
+            if plan.kickoff_utc is not None
+            else None,
+            "due_at": plan.due_at_utc.isoformat().replace("+00:00", "Z")
+            if plan.due_at_utc is not None
+            else None,
+            "endpoints": list(plan.endpoints),
+            "source": plan.source,
+        }
+        for plan in selected
+    ]
+    return {
+        "status": "READY" if selected_rows else "NO_CHECKPOINT_DUE",
+        "generated_plan_count": len(plans),
+        "due_checkpoint_count": len(due_rows),
+        "selected_checkpoint_count": len(selected_rows),
+        "projected_calls": projected_calls,
+        "all_due_projected_calls": projected_calls_for_checkpoint_batch(due_plans),
+        "tick_hard_cap": provider_refresh_tick_hard_cap(),
+        "checkpoints": selected_rows,
+    }
 
 
 def future_fixture_refresh_tick() -> dict[str, object]:
@@ -135,7 +187,7 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "provider_calls": 0,
         }
     from apps.worker.celery_app import celery_app
-    from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
+    from w2.ingestion.future_refresh import config_from_policy
 
     competition_id = os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
     now = datetime.now(UTC)
@@ -147,20 +199,23 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
-    requested_interval_seconds = fixture_refresh_gradient_interval_seconds(
-        now=now,
-        default_interval_seconds=config.scheduler_interval_seconds,
-    )
-    effective_interval_seconds = provider_refresh_effective_interval_seconds(
-        requested_interval_seconds,
-        policy_interval_seconds=config.scheduler_interval_seconds,
-    )
-    min_interval_seconds = provider_refresh_min_interval_seconds()
-    task_key = deterministic_task_key(
+    batch = due_checkpoint_refresh_batch(now)
+    if batch["status"] == "NO_CHECKPOINT_DUE":
+        return {
+            **batch,
+            "competition_id": config.competition_id,
+            "season": config.season,
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+            "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
+        }
+    task_key = checkpoint_task_key(
         competition_id=config.competition_id,
         season=config.season,
-        now=now,
-        interval_seconds=effective_interval_seconds,
+        checkpoints=list(batch["checkpoints"]),
     )
     gate = provider_task_key_gate(task_key=task_key)
     if not gate.allowed:
@@ -175,9 +230,8 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "provider_calls": 0,
             "blockers": [gate.status],
             "dedup_backend": gate.backend,
-            "requested_interval_seconds": requested_interval_seconds,
-            "effective_interval_seconds": effective_interval_seconds,
-            "provider_refresh_min_interval_seconds": min_interval_seconds,
+            "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+            "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
         }
     task_id = f"{task_key}:{uuid4()}"
     celery_app.send_task(
@@ -186,13 +240,15 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "competition_id": config.competition_id,
             "task_key": task_key,
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "requested_interval_seconds": requested_interval_seconds,
-            "effective_interval_seconds": effective_interval_seconds,
-            "provider_refresh_min_interval_seconds": min_interval_seconds,
+            "checkpoint_fixture_ids": [
+                str(item["fixture_id"]) for item in batch["checkpoints"]
+            ],
+            "refresh_checkpoints": batch["checkpoints"],
         },
         task_id=task_id,
     )
     return {
+        **batch,
         "status": "QUEUED",
         "task_id": task_id,
         "task_key": task_key,
@@ -201,9 +257,8 @@ def future_fixture_refresh_tick() -> dict[str, object]:
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
-        "requested_interval_seconds": requested_interval_seconds,
-        "effective_interval_seconds": effective_interval_seconds,
-        "provider_refresh_min_interval_seconds": min_interval_seconds,
+        "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+        "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
     }
 
 
@@ -294,29 +349,10 @@ def run_forever() -> None:
             try:
                 result = future_fixture_refresh_tick()
                 logger.info("w2 future fixture refresh %s", result)
-                from w2.ingestion.future_refresh import config_from_policy
-
-                config = config_from_policy()
-                requested_refresh_interval_seconds = fixture_refresh_gradient_interval_seconds(
-                    now=datetime.now(UTC),
-                    default_interval_seconds=config.scheduler_interval_seconds,
-                )
-                refresh_interval_seconds = provider_refresh_effective_interval_seconds(
-                    requested_refresh_interval_seconds,
-                    policy_interval_seconds=config.scheduler_interval_seconds,
-                )
+                refresh_interval_seconds = checkpoint_poll_seconds()
             except Exception:
                 logger.exception("w2 future fixture refresh failed")
-                requested_refresh_interval_seconds = int(
-                    os.environ.get(
-                        "W2_FUTURE_FIXTURE_REFRESH_INTERVAL_SECONDS",
-                        str(DEFAULT_REFRESH_INTERVAL_SECONDS),
-                    )
-                )
-                refresh_interval_seconds = provider_refresh_effective_interval_seconds(
-                    requested_refresh_interval_seconds,
-                    policy_interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS,
-                )
+                refresh_interval_seconds = checkpoint_poll_seconds()
             next_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_refresh_at = next_refresh_at.fromtimestamp(
                 next_refresh_at.timestamp() + refresh_interval_seconds,

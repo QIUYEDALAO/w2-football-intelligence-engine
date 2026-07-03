@@ -129,6 +129,28 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
+        "apps.scheduler.main.due_checkpoint_refresh_batch",
+        lambda now: {
+            "status": "READY",
+            "generated_plan_count": 8,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "1489404",
+                    "checkpoint": "T24",
+                    "kickoff_utc": "2026-06-24T17:00:00Z",
+                    "due_at": "2026-06-23T17:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
         "apps.scheduler.main.provider_task_key_gate",
         lambda **kwargs: type(
             "Gate",

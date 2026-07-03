@@ -23,6 +23,8 @@ from w2.infrastructure.persistence.forward_ops_models import (
 )
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
+    FutureRefreshCheckpointAuditModel,
+    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -166,6 +168,8 @@ __all__ = [
     "DependencyRiskModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
+    "FutureRefreshCheckpointAuditModel",
+    "FutureRefreshCheckpointPlanModel",
     "FutureMarketObservationModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",

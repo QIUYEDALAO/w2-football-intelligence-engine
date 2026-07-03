@@ -75,6 +75,42 @@ class FutureRefreshRunAuditModel(Base):
     formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
+class FutureRefreshCheckpointPlanModel(Base):
+    __tablename__ = "future_refresh_checkpoint_plan"
+    __table_args__ = (
+        UniqueConstraint("fixture_id", "checkpoint", name="uq_future_refresh_checkpoint"),
+        Index("ix_future_refresh_checkpoint_due", "due_at", "status"),
+        Index("ix_future_refresh_checkpoint_fixture", "fixture_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    checkpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    endpoints: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_audit_id: Mapped[int | None] = mapped_column(Integer)
+
+
+class FutureRefreshCheckpointAuditModel(Base):
+    __tablename__ = "future_refresh_checkpoint_audit"
+    __table_args__ = (
+        Index("ix_future_refresh_checkpoint_audit_fixture", "fixture_id"),
+        Index("ix_future_refresh_checkpoint_audit_asof", "as_of"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    checkpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    calls_used: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
 class RawPayloadModel(Base):
     __tablename__ = "raw_payload"
     __table_args__ = (

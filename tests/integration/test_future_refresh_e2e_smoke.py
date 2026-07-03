@@ -162,6 +162,29 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
     monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now: {
+            "status": "READY",
+            "generated_plan_count": 8,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 100,
+            "checkpoints": [
+                {
+                    "fixture_id": "1489404",
+                    "checkpoint": "T24",
+                    "kickoff_utc": "2026-06-24T17:00:00Z",
+                    "due_at": "2026-06-23T17:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ],
+        },
+    )
     monkeypatch.setattr(scheduler_main, "provider_task_key_gate", fake_task_key_gate)
     monkeypatch.setattr(worker_module, "run_future_refresh_task", fake_runtime_run_task)
     monkeypatch.setattr(worker_module.celery_app, "send_task", eager_send_task)
@@ -196,10 +219,9 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     assert (runtime_root / "read_model/market_coverage.json").is_file()
     assert (runtime_root / "read_model/provider_status.json").is_file()
     assert read_json(runtime_root / "future_refresh_audit.json")["candidate"] is False
-    assert len(fake_client.calls) == 4
+    assert len(fake_client.calls) == 3
     assert [endpoint for endpoint, _params in fake_client.calls] == [
         "status",
         "fixtures",
         "odds",
-        "lineups",
     ]
