@@ -96,6 +96,7 @@ from w2.strategy.analysis_recommendation import (
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.formal_recommendation import (
+    AH_MAINLINE_STALE_MATERIALIZATION,
     ah_display_contract,
     build_formal_recommendation,
     canonical_ah_market,
@@ -3609,15 +3610,32 @@ class ReadModelService:
                 ah[key] = latest_ah.get(key)
         shadow = card.get("pricing_shadow")
         if isinstance(shadow, dict):
-            shadow["market_ah"] = signed_line
-            fair = shadow.get("fair_ah")
-            try:
-                if fair is None:
-                    raise TypeError
-                shadow["edge_ah"] = round(float(signed_line) - float(fair), 6)
-            except (TypeError, ValueError):
-                shadow["edge_ah"] = None
+            self._reconcile_pricing_shadow_ah_mainline(shadow, signed_line)
         self._attach_ah_display_contract(card)
+
+    def _reconcile_pricing_shadow_ah_mainline(
+        self,
+        pricing_shadow: dict[str, Any],
+        selector_line: float,
+    ) -> None:
+        materialized_line = self._snapshot_float(pricing_shadow, "market_ah")
+        if materialized_line is not None and abs(materialized_line - selector_line) > 0.001:
+            pricing_shadow["materialized_market_ah"] = materialized_line
+            pricing_shadow["selector_market_ah"] = selector_line
+            pricing_shadow["mainline_materialization_status"] = "STALE"
+            pricing_shadow["mainline_materialization_blocker"] = (
+                AH_MAINLINE_STALE_MATERIALIZATION
+            )
+        elif materialized_line is not None:
+            pricing_shadow["mainline_materialization_status"] = "READY"
+        pricing_shadow["market_ah"] = selector_line
+        fair = pricing_shadow.get("fair_ah")
+        try:
+            if fair is None:
+                raise TypeError
+            pricing_shadow["edge_ah"] = round(float(selector_line) - float(fair), 6)
+        except (TypeError, ValueError):
+            pricing_shadow["edge_ah"] = None
 
     def _attach_ah_display_contract(self, card: dict[str, Any]) -> None:
         odds = card.get("current_odds")
