@@ -3579,7 +3579,7 @@ class ReadModelService:
         card: dict[str, Any],
         timeline: dict[str, Any],
     ) -> None:
-        latest_ah = self._latest_ah_snapshot(timeline)
+        latest_ah = self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline))
         signed_line = self._snapshot_float(latest_ah, "line")
         if signed_line is None:
             return
@@ -3668,7 +3668,10 @@ class ReadModelService:
         return market is not None and market.validation_status == "READY"
 
     def _latest_signed_ah_line(self, timeline: dict[str, Any]) -> float | None:
-        return self._snapshot_float(self._latest_ah_snapshot(timeline), "line")
+        return self._snapshot_float(
+            self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline)),
+            "line",
+        )
 
     def _latest_ah_snapshot(self, timeline: dict[str, Any]) -> dict[str, Any] | None:
         snapshots = timeline.get("snapshots") if isinstance(timeline, dict) else None
@@ -3687,6 +3690,60 @@ class ReadModelService:
             ah_rows,
             key=lambda row: str(row.get("as_of") or row.get("generated_at") or ""),
         )
+
+    def _consensus_first_ah_snapshot(
+        self,
+        snapshot: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not isinstance(snapshot, dict):
+            return snapshot
+        candidate_lines = snapshot.get("candidate_lines")
+        if not isinstance(candidate_lines, list):
+            return snapshot
+        candidates = [item for item in candidate_lines if isinstance(item, dict)]
+        if not candidates:
+            return snapshot
+        max_count = max(int(item.get("bookmaker_count") or 0) for item in candidates)
+        if max_count <= 0:
+            return snapshot
+        eligible = [
+            item for item in candidates if int(item.get("bookmaker_count") or 0) == max_count
+        ]
+        selected = min(
+            eligible,
+            key=lambda item: (
+                self._snapshot_float(item, "balance_distance") or 999.0,
+                self._snapshot_float(item, "price_gap") or 999.0,
+                self._snapshot_float(item, "mid_distance") or 999.0,
+                abs(self._snapshot_float(item, "line") or 999.0),
+            ),
+        )
+        selected_line = self._snapshot_float(selected, "line")
+        if selected_line is None:
+            return snapshot
+        current_line = self._snapshot_float(snapshot, "line")
+        if current_line is not None and abs(current_line - selected_line) <= 0.001:
+            return snapshot
+        corrected = dict(snapshot)
+        corrected["line"] = selected_line
+        corrected["bookmaker_count"] = int(selected.get("bookmaker_count") or max_count)
+        corrected["selection_policy"] = "consensus_first_bookmaker_count_then_balance"
+        corrected["selection_warning"] = "READTIME_CONSENSUS_MAINLINE_CORRECTED"
+        for key in ("home_price", "away_price"):
+            value = selected.get(key)
+            if value is not None:
+                corrected[key] = value
+        corrected["candidate_lines"] = [
+            {
+                **item,
+                "selection_rank": 1
+                if self._snapshot_float(item, "line") == selected_line
+                else int(item.get("selection_rank") or 999),
+                "consensus_eligible": int(item.get("bookmaker_count") or 0) == max_count,
+            }
+            for item in candidates
+        ]
+        return corrected
 
     def _snapshot_float(self, snapshot: dict[str, Any] | None, key: str) -> float | None:
         if not isinstance(snapshot, dict):
