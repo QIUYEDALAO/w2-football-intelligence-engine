@@ -20,7 +20,12 @@ def test_dashboard_reads_decision_tier_before_legacy_fields() -> None:
 
 
 def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
-    card = {"decision_tier": "RECOMMEND", "generated_at": "2026-07-05T00:00:00Z"}
+    card = {
+        "decision_tier": "RECOMMEND",
+        "generated_at": "2026-07-05T00:00:00Z",
+        "outcome_tracked": True,
+        "lock_eligible": True,
+    }
     market = {
         "market": "ASIAN_HANDICAP",
         "tendency": "HOME",
@@ -33,6 +38,9 @@ def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
 
     assert recommendation is not None
     assert recommendation["tier"] == "FORMAL"
+    assert recommendation["decision_tier"] == "RECOMMEND"
+    assert recommendation["outcome_tracked"] is True
+    assert recommendation["lock_eligible"] is True
     assert recommendation["selection"] == "HOME"
 
 
@@ -76,3 +84,25 @@ def test_new_card_does_not_infer_from_formal_candidate_or_analysis_decision() ->
 
     assert derive_recommendation_tier(card, market) is RecommendationTier.NO_RECOMMENDATION
     assert build_recommendation(card, market) is None
+
+
+def test_analysis_pick_recommendation_shell_is_not_production_actionable() -> None:
+    recommendation = build_recommendation(
+        {"decision_tier": "ANALYSIS_PICK"},
+        {
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+            "reasons": ["analysis only"],
+        },
+    )
+
+    assert recommendation is not None
+    assert recommendation["tier"] == "ANALYSIS_PICK"
+    assert recommendation["decision_tier"] == "ANALYSIS_PICK"
+    assert recommendation["outcome_tracked"] is True
+    assert "selection" not in recommendation
+    assert "line" not in recommendation
+    assert "odds" not in recommendation
