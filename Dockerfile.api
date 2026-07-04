@@ -17,6 +17,7 @@ COPY migrations ./migrations
 COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/check_w2_market_timeline.py \
      scripts/run_w2_handicap_walkforward.py \
+     scripts/clean_w2_legacy_ah_pool.py \
      scripts/run_w2_formal_tracking.py \
      scripts/check_w2_formal_tracking.py \
      scripts/run_w2_independent_signal_backfill.py \
@@ -32,6 +33,7 @@ RUN test -x /app/.venv/bin/w2-gate5-preflight
 RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_market_timeline.py \
  && test -f /app/scripts/run_w2_handicap_walkforward.py \
+ && test -f /app/scripts/clean_w2_legacy_ah_pool.py \
  && test -f /app/scripts/run_w2_formal_tracking.py \
  && test -f /app/scripts/check_w2_formal_tracking.py \
  && test -f /app/scripts/run_w2_independent_signal_backfill.py \

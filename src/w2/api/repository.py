@@ -62,6 +62,10 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
+from w2.markets.asian_handicap_mainline import (
+    CANONICAL_AH_MAINLINE_POLICY,
+    select_canonical_ah_mainline,
+)
 from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
@@ -1820,6 +1824,70 @@ class ReadModelService:
         market: str,
         min_bookmakers: int = 1,
     ) -> dict[str, Any]:
+        if market == "ASIAN_HANDICAP":
+            fixture_id = str(
+                next((row.get("fixture_id") for row in observations if row.get("fixture_id")), "")
+            )
+            captured_values: list[datetime] = []
+            for row in observations:
+                parsed_capture = parse_provider_time(
+                    row.get("captured_at") or row.get("captured_at_utc"),
+                )
+                if parsed_capture is not None:
+                    captured_values.append(parsed_capture)
+            if not fixture_id or not captured_values:
+                return {
+                    "market": market,
+                    "status": "UNAVAILABLE",
+                    "line": None,
+                    "observations": [],
+                    "bookmaker_count": 0,
+                }
+            selected_ah = select_canonical_ah_mainline(
+                observations=observations,
+                fixture_id=fixture_id,
+                target=max(captured_values),
+                kickoff=datetime.max.replace(tzinfo=UTC),
+            )
+            if selected_ah.status != "READY" or selected_ah.line is None:
+                return {
+                    "market": market,
+                    "status": selected_ah.status
+                    if selected_ah.status != "UNAVAILABLE"
+                    else "UNAVAILABLE",
+                    "line": None,
+                    "observations": [],
+                    "bookmaker_count": 0,
+                    "quarantined_observation_count": selected_ah.quarantined_count,
+                    "quarantine_reasons": selected_ah.quarantine_reasons or {},
+                }
+            canonical_line = Decimal(str(selected_ah.line))
+            selected_books = set(selected_ah.selected_bookmakers or [])
+            home_price = float(selected_ah.home_price or 0)
+            away_price = float(selected_ah.away_price or 0)
+            return {
+                "market": market,
+                "status": "READY",
+                "line": self._format_decimal_line(canonical_line),
+                "observations": [
+                    row
+                    for row in observations
+                    if str(row.get("bookmaker_id") or row.get("bookmaker_name") or "")
+                    in selected_books
+                ],
+                "bookmaker_count": selected_ah.bookmaker_count,
+                "selection_policy": CANONICAL_AH_MAINLINE_POLICY,
+                "candidate_lines": selected_ah.candidate_lines,
+                "rejected_lines": selected_ah.rejected_lines,
+                "side_prices": selected_ah.side_prices or {},
+                "side_lines": selected_ah.side_lines or {},
+                "balance_distance": 0,
+                "balance_gap": round(abs(home_price - away_price), 4),
+                "mid_price": round((home_price + away_price) / 2, 4),
+                "min_price": min(home_price, away_price),
+                "quarantined_observation_count": selected_ah.quarantined_count,
+                "quarantine_reasons": selected_ah.quarantine_reasons or {},
+            }
         grouped: dict[Decimal, list[dict[str, Any]]] = {}
         for row in observations:
             if (

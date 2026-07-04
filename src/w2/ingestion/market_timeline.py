@@ -7,6 +7,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from w2.markets.asian_handicap_mainline import (
+    CANONICAL_AH_MAINLINE_POLICY,
+    select_canonical_ah_mainline,
+)
 from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
 
 MARKET_TIMELINE_SCHEMA_VERSION = "w2.market_timeline.v1"
@@ -112,6 +116,62 @@ def select_mainline_snapshot_result(
         return SnapshotSelectionResult(snapshot=None, reason="NO_OBSERVATION")
     kickoff_utc = kickoff.astimezone(UTC)
     target = _checkpoint_target(checkpoint=checkpoint, kickoff=kickoff_utc)
+    if market == "ASIAN_HANDICAP":
+        selected_ah = select_canonical_ah_mainline(
+            observations=observations,
+            fixture_id=fixture_id,
+            target=target,
+            kickoff=kickoff_utc,
+            opening=checkpoint == "opening",
+        )
+        if selected_ah.status != "READY" or selected_ah.line is None:
+            return SnapshotSelectionResult(
+                snapshot=None,
+                reason=selected_ah.status if selected_ah.status != "UNAVAILABLE" else (
+                    _missing_snapshot_reason(
+                        observations=observations,
+                        fixture_id=fixture_id,
+                        market=market,
+                        target=target,
+                        kickoff=kickoff_utc,
+                    )
+                ),
+            )
+        if checkpoint == "lock":
+            fresh_after = kickoff_utc - timedelta(minutes=max(lock_max_age_minutes, 0))
+            if selected_ah.captured_at is None or selected_ah.captured_at < fresh_after:
+                return SnapshotSelectionResult(snapshot=None, reason="NO_FRESH_LOCK_OBSERVATION")
+        captured_at = selected_ah.captured_at or target
+        source = {
+            "bookmaker_count": selected_ah.bookmaker_count,
+            "bookmakers": selected_ah.selected_bookmakers or [],
+            "source_payload_ids": selected_ah.source_payload_ids or [],
+            "quarantined_count": selected_ah.quarantined_count,
+            "quarantine_reasons": selected_ah.quarantine_reasons or {},
+        }
+        ah_snapshot = {
+            "schema_version": MARKET_TIMELINE_SCHEMA_VERSION,
+            "fixture_id": fixture_id,
+            "checkpoint": checkpoint,
+            "market": market,
+            "as_of": iso_z(captured_at),
+            "kickoff_utc": iso_z(kickoff_utc),
+            "line": _json_number(float(selected_ah.line)),
+            "bookmaker_count": selected_ah.bookmaker_count,
+            "source_payload_id": ",".join(selected_ah.source_payload_ids or []) or None,
+            "provider": selected_ah.provider or "read_model",
+            "immutable": True,
+            "generated_at": iso_z(generated_at or datetime.now(UTC)),
+            "selection_policy": CANONICAL_AH_MAINLINE_POLICY,
+            "candidate_lines": selected_ah.candidate_lines or [],
+            "rejected_lines": selected_ah.rejected_lines or [],
+            "home_price": _json_number(float(selected_ah.home_price or 0.0)),
+            "away_price": _json_number(float(selected_ah.away_price or 0.0)),
+            "quarantined_observation_count": selected_ah.quarantined_count,
+            "quarantine_reasons": selected_ah.quarantine_reasons or {},
+        }
+        ah_snapshot["source_hash"] = _source_hash({**ah_snapshot, "source": source})
+        return SnapshotSelectionResult(snapshot=ah_snapshot)
     groups = _market_groups(
         observations=observations,
         fixture_id=fixture_id,
