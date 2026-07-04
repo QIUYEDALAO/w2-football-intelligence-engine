@@ -59,6 +59,7 @@ The read-model current AH snapshot still selected the pick'em family because the
 - A-150 must add cross-market consistency checking: if a 1X2-derived approximate handicap line and the selected AH mainline differ by more than `0.75`, emit `AH_MAINLINE_CROSS_MARKET_CONFLICT` and downgrade the market state to not ready.
 - If the page mainline differs from manual market review by at least `0.75` goals, operational default is that our read-model is suspect until the audit proves otherwise.
 - Dashboard/report surfaces must distinguish page/report generation as-of from row-level AH `captured_at` and provider row `provider_last_update`.
+- Every displayed or guarded number must carry its own source and basis. Page as-of, market-line type, and provider quota are separate measurements; cross-checks must compare same-basis values only, not mix inferred limits with provider headers.
 
 ## A-146 Contract
 

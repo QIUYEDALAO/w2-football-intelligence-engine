@@ -15,7 +15,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
-from w2.providers.quota import API_FOOTBALL_DAILY_BUDGET, parse_api_football_quota
+from w2.providers.quota import parse_api_football_quota
 
 
 class ProviderRequestLedger(Protocol):
@@ -105,7 +105,7 @@ class DbProviderRequestLedger:
             payload=payload,
             observed_at=completed_at,
         )
-        if quota.daily_remaining is not None:
+        if quota.daily_remaining is not None and quota.daily_limit is not None:
             window_start = completed_at.astimezone(UTC).replace(
                 hour=0,
                 minute=0,
@@ -113,7 +113,7 @@ class DbProviderRequestLedger:
                 microsecond=0,
             )
             window_end = window_start + timedelta(days=1)
-            used = max(API_FOOTBALL_DAILY_BUDGET - quota.daily_remaining, 0)
+            used = max(quota.daily_limit - quota.daily_remaining, 0)
             with Session(engine) as session:
                 existing = session.scalar(
                     select(QuotaUsageModel).where(
@@ -128,14 +128,14 @@ class DbProviderRequestLedger:
                             provider=provider,
                             endpoint=endpoint,
                             used=used,
-                            limit=API_FOOTBALL_DAILY_BUDGET,
+                            limit=quota.daily_limit,
                             window_start=window_start,
                             window_end=window_end,
                         )
                     )
                 else:
                     existing.used = max(existing.used, used)
-                    existing.limit = API_FOOTBALL_DAILY_BUDGET
+                    existing.limit = quota.daily_limit
                     existing.window_end = window_end
                 try:
                     session.commit()

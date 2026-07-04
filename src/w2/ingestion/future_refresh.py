@@ -844,9 +844,11 @@ class FutureFixtureRefreshService:
                     "captured_at_utc": iso(response.captured_at),
                     "remaining_quota": remaining,
                     "daily_remaining": quota.daily_remaining,
+                    "daily_limit": quota.daily_limit,
                     "burst_remaining": quota.burst_remaining,
                     "quota_observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
+                    "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
                     "response_count": response_size,
                     "payload_sha256": payload_sha,
@@ -863,6 +865,9 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             if remaining is None:
                 raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
+            min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
+            if remaining < min_remaining:
+                raise FutureRefreshError("PROVIDER_HEADER_REMAINING_BELOW_MINIMUM")
             guard = quota_guard_decision(
                 remaining_quota=remaining,
                 reserve_bucket=self.config.quota_reserve,

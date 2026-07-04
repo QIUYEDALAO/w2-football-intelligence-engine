@@ -146,8 +146,10 @@ Actual result:
 - Future refresh checkpoint audit delta: 25
 - Task status: BLOCKED
 - Blocker: DAILY_QUOTA_UNKNOWN
-- Quota usage observed after status request: status used=7400, limit=7500,
-  window=2026-07-04T00:00:00Z..2026-07-05T00:00:00Z
+- Quota usage observed after status request was later classified as a
+  header-basis accounting artifact: the old ledger inferred `used=7400` from a
+  7500-call assumed limit when the provider only exposed the 100-call remaining
+  header.
 - Materialization: not run after blocker
 - Public page data-time roll: not attempted after blocker
 
@@ -160,16 +162,18 @@ Memory observation:
 
 Decision:
 
-The rehearsal correctly failed closed before odds/lineups refresh because the
-provider quota ledger/header state no longer satisfied the quota precondition.
+The rehearsal correctly failed closed before odds/lineups refresh, but the
+reason was a mixed-basis quota instrument rather than confirmed quota leakage.
 Manual mode remains active. Scheduler remains stopped with restart policy `no`.
-Do not retry until quota usage is reconciled and remaining quota is again above
-the 50% rehearsal threshold.
+The next attempt must use the corrected header-basis preflight: provider header
+remaining must be at least 50, and quota usage must not be inferred unless the
+provider also returns the matching limit.
 
 ## 2026-07-05 Rehearsal Budget Contract
 
-The next rehearsal uses the 100-call W2 operating budget rather than the prior
-large-account quota assumption.
+The next rehearsal uses the 100-call W2 operating budget and the provider
+header-basis remaining check rather than the prior large-account quota
+assumption.
 
 World Cup checkpoint mode:
 

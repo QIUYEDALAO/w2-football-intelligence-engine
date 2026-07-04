@@ -536,6 +536,27 @@ def test_future_refresh_burst_only_is_daily_unknown(tmp_path: Path) -> None:
     assert result.blockers == ["DAILY_QUOTA_UNKNOWN"]
 
 
+def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(
+    tmp_path: Path,
+) -> None:
+    client = FakeApiFootballClient(remaining=49)
+    config = FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=20, persistence="file")
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.blockers == ["PROVIDER_HEADER_REMAINING_BELOW_MINIMUM"]
+    assert client.calls == [("status", {})]
+    assert audit["request_count"] == 1
+    assert audit["requests"][0]["daily_remaining"] == 49
+    assert audit["requests"][0]["daily_limit"] is None
+
+
 def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(runtime_root=tmp_path, request_budget=1, persistence="file")
