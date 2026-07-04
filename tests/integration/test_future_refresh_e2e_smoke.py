@@ -11,6 +11,7 @@ from apps.worker import celery_app as worker_module
 from w2.config import Settings
 from w2.ingestion import future_refresh as future_refresh_core
 from w2.providers.api_football import LiveApiFootballResponse
+from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
@@ -108,6 +109,21 @@ class FakeLiveApiFootballPort:
 
 def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_matchday_refresh_blocked_tick_has_zero_provider_calls_contract() -> None:
+    fixtures = [
+        {"fixture_id": f"fixture-{index}", "kickoff_utc": "2026-07-05T03:00:00Z"}
+        for index in range(15)
+    ]
+    tick = build_matchday_refresh_plan(
+        fixtures,
+        as_of=datetime(2026, 7, 4, 0, 0, tzinfo=UTC),
+        policy=MatchdayRefreshPolicy(),
+    )[0]
+
+    assert tick.status == "BLOCKED"
+    assert tick.as_dict()["provider_calls"] == 0
 
 
 def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
