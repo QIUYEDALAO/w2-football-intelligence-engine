@@ -556,8 +556,6 @@ def _data_gap_items(match: dict[str, Any]) -> list[str]:
         code = str(blocker or "")
         if code == "MISSING_LINEUPS":
             add("首发")
-        elif code in {"MISSING_H2H", "H2H_MISSING"}:
-            add("H2H")
         elif code in {"MISSING_ODDS", "MISSING_MARKET_AH", "MISSING_AH_MARKET"}:
             add("赔率/盘口")
         elif code in {"DATA_INSUFFICIENT", "INSUFFICIENT_INDEPENDENT_FACTORS"}:
@@ -566,9 +564,7 @@ def _data_gap_items(match: dict[str, Any]) -> list[str]:
     shadow = _dict(match.get("pricing_shadow"))
     for source in _list(shadow.get("missing_independent_sources")):
         item = str(source or "").lower()
-        if item == "h2h":
-            add("H2H")
-        elif item:
+        if item and item != "h2h":
             add(item.upper())
     for blocker in _list(shadow.get("formal_blockers")):
         code = str(blocker or "")
@@ -1069,7 +1065,7 @@ def _blocker_explanation_cn(code: str) -> str:
         "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
         "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
         "MISSING_LINEUPS": "首发未返回",
-        "MISSING_H2H": "H2H 独立信号缺失",
+        "MISSING_H2H": "H2H 无历史，国家队比赛常见，不阻塞",
         "W2_FORMAL_RECOMMENDATION_ENABLED=false": "正式推荐开关未开启",
         "MARKET_NOT_READY": "盘口未就绪",
         "DATA_INSUFFICIENT": "独立信号不足",
@@ -1462,7 +1458,7 @@ def _reason_cn(reason: str) -> str:
         "EV_WITHIN_UNCERTAINTY_BAND": "EV 未超过不确定性缓冲带",
         "EV_UNCERTAINTY_MISSING": "EV 不确定度缺失，保守观察",
         "MISSING_LINEUPS": "首发未返回",
-        "MISSING_H2H": "H2H 独立信号缺失",
+        "MISSING_H2H": "H2H 无历史，国家队比赛常见，不阻塞",
         "W2_FORMAL_RECOMMENDATION_ENABLED=false": "正式推荐开关未开启",
         "DATA_INSUFFICIENT": "独立信号不足",
         "MARKET_NOT_READY": "盘口未就绪",

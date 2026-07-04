@@ -606,10 +606,31 @@ def test_render_html_data_gap_badge_names_missing_inputs() -> None:
 
     report = render_report(_payload(match), output_format="html")
 
-    assert "数据未齐：赔率/盘口、首发、xG等4项" in report
-    assert "缺失：赔率/盘口、首发、xG、H2H" in report
+    assert "数据未齐：赔率/盘口、首发、xG" in report
+    assert "缺失：赔率/盘口、首发、xG" in report
+    assert "缺失：赔率/盘口、首发、xG、H2H" not in report
     assert "MISSING_LINEUPS" in report
-    assert "H2H 独立信号缺失" in report
+    assert "H2H 无历史，国家队比赛常见，不阻塞" in report
+
+
+def test_render_html_h2h_missing_alone_is_not_data_gap_for_national_teams() -> None:
+    match = _non_formal_with_blockers(
+        fixture_id="h2h-only",
+        missing_sources=["h2h"],
+    )
+    match["data_refresh"] = {
+        "odds_status": "READY",
+        "lineups_status": "READY",
+        "xg_status": "READY",
+    }
+    match["analysis_readiness"] = {"blockers": []}
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "数据未齐：" not in report
+    assert "缺失：H2H" not in report
+    assert "MISSING_H2H" in report
+    assert "H2H 无历史，国家队比赛常见，不阻塞" in report
 
 
 def test_render_html_locked_match_suppresses_stale_data_gap_badge() -> None:
@@ -626,7 +647,7 @@ def test_render_html_locked_match_suppresses_stale_data_gap_badge() -> None:
     assert "数据未齐：" not in report
     assert '<span class="dq">数据未齐' not in report
     assert "MISSING_LINEUPS" in report
-    assert "H2H 独立信号缺失" in report
+    assert "H2H 无历史，国家队比赛常见，不阻塞" in report
 
 
 def test_render_html_locked_match_labels_data_time_as_closing_snapshot() -> None:
@@ -692,7 +713,7 @@ def test_render_html_non_formal_decision_table_explains_blockers() -> None:
     assert "MISSING_LINEUPS" in report
     assert "首发未返回" in report
     assert "h2h" in report
-    assert "H2H 独立信号缺失" in report
+    assert "H2H 无历史，国家队比赛常见，不阻塞" in report
     assert "W2_FORMAL_RECOMMENDATION_ENABLED=false" in report
     assert "正式推荐开关未开启" in report
     assert "NO_FORMAL_RECOMMENDATION_PAYLOAD" in report
