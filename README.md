@@ -1,5 +1,17 @@
 # W2 Football Intelligence Engine
 
+Current status: W2 is entering the Decision Contract V2 migration phase. The
+system is freezing new stage expansion: no Stage 16 will be added, and the
+existing stage checker scripts are regression safety nets rather than the
+product operating surface.
+
+The product runtime entrypoint will converge on `w2-matchday`. Recommendation
+governance follows staging A / production B: staging may display and track
+`ANALYSIS_PICK` cards to exercise dashboard, lock, settlement, and replay
+plumbing after completeness gates pass; production actionability is stricter.
+`ANALYSIS_PICK` is an analysis recommendation only, not a production actionable
+recommendation. Production lockable recommendations come only from `RECOMMEND`.
+
 Current stage: Stage 3 Unified Football Data Model, built on the protected Stage 1 Product Contract and Stage 2 Engineering Foundation.
 
 This repository now contains the W2 engineering base plus the Stage 3 unified

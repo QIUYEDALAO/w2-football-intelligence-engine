@@ -17,6 +17,41 @@ class MarketType(StrEnum):
     BTTS = "BTTS"
 
 
+class DecisionTier(StrEnum):
+    NOT_READY = "NOT_READY"
+    SKIP = "SKIP"
+    WATCH = "WATCH"
+    ANALYSIS_PICK = "ANALYSIS_PICK"
+    RECOMMEND = "RECOMMEND"
+
+
+class DataStatus(StrEnum):
+    READY = "READY"
+    PARTIAL = "PARTIAL"
+    STALE = "STALE"
+    BLOCKED = "BLOCKED"
+
+
+class LifecycleStatus(StrEnum):
+    DRAFT = "DRAFT"
+    LOCKED = "LOCKED"
+    SUPERSEDED = "SUPERSEDED"
+    VOID = "VOID"
+    SETTLED = "SETTLED"
+
+
+class DecisionReasonCode(StrEnum):
+    DATA_MISSING_XG = "DATA_MISSING_XG"
+    DATA_STALE_ODDS = "DATA_STALE_ODDS"
+    LINEUPS_PENDING = "LINEUPS_PENDING"
+    MARKET_UNAVAILABLE = "MARKET_UNAVAILABLE"
+    EDGE_INSUFFICIENT = "EDGE_INSUFFICIENT"
+    PROVIDER_BUDGET_EXHAUSTED = "PROVIDER_BUDGET_EXHAUSTED"
+    CONTRADICTION_UNEXPLAINED = "CONTRADICTION_UNEXPLAINED"
+    COVERAGE_NONE = "COVERAGE_NONE"
+    FIXTURE_LIVE_OR_FINISHED = "FIXTURE_LIVE_OR_FINISHED"
+
+
 class SettlementOutcome(StrEnum):
     WIN = "WIN"
     HALF_WIN = "HALF_WIN"
@@ -41,4 +76,3 @@ class FixtureStatus(StrEnum):
 class Side(StrEnum):
     HOME = "HOME"
     AWAY = "AWAY"
-
