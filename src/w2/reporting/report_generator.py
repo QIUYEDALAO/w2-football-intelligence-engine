@@ -435,7 +435,7 @@ def _html_match_card(
         if timeline
         else "—"
     )
-    as_of_cell = escape(_as_of(match, payload_as_of=payload_as_of)[-5:])
+    data_time_cell = _data_time_cell(match, decision, payload_as_of=payload_as_of)
     reason = escape(_reason_cn(decision.reason))
     flag = _data_quality_flag(match, decision)
     row = (
@@ -449,7 +449,7 @@ def _html_match_card(
         f'<span class="n">{edge_cell}</span>'
         f'<span class="n">{isc_cell}</span>'
         f'<span class="pt">{pattern_cell}</span>'
-        f'<span class="ao">{as_of_cell}</span>'
+        f'<span class="ao">{data_time_cell}</span>'
         "</div>"
     )
     parts = [row]
@@ -502,6 +502,20 @@ def _market_display_cell(match: dict[str, Any]) -> str:
 def _edge_display_cell(match: dict[str, Any]) -> str:
     shadow = _dict(match.get("pricing_shadow"))
     return _number_cell(shadow.get("edge_ah"), signed=True)
+
+
+def _data_time_cell(
+    match: dict[str, Any],
+    decision: MatchDecision,
+    *,
+    payload_as_of: str,
+) -> str:
+    if decision.state == MatchDecisionState.LOCKED:
+        timeline = _dict(match.get("market_timeline"))
+        label = _time_label(timeline.get("as_of") or payload_as_of)[-5:]
+        return f'<span title="赛前收盘前最后一次可用快照">收盘快照 {escape(label)}</span>'
+    label = _as_of(match, payload_as_of=payload_as_of)[-5:]
+    return escape(label)
 
 
 def _data_quality_flag(match: dict[str, Any], decision: MatchDecision) -> str:
