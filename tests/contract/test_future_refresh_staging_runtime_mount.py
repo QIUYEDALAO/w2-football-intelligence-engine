@@ -65,6 +65,26 @@ def test_api_worker_scheduler_share_one_runtime_mount_per_compose() -> None:
         assert len(sources) == 1
 
 
+def test_web_mounts_static_report_public_root_read_only() -> None:
+    expected_sources = {
+        STANDALONE: "../../runtime/reports/public",
+        LITE: "./runtime/reports/public",
+    }
+    for path, expected_source in expected_sources.items():
+        compose = load_compose(path)
+        assert (
+            volume_source(compose, "web", "/usr/share/nginx/html/static-report")
+            == expected_source
+        )
+        assert volume_mode(compose, "web", "/usr/share/nginx/html/static-report") == "ro"
+
+
+def test_nginx_prefers_static_report_index_before_react_shell() -> None:
+    nginx = (ROOT / "apps/web/nginx.conf").read_text(encoding="utf-8")
+    assert "try_files /static-report/index.html /index.html =404;" in nginx
+    assert "try_files $uri $uri/ /static-report/index.html /index.html;" in nginx
+
+
 def test_worker_runtime_healthcheck_does_not_require_writable_runtime() -> None:
     for path in (STANDALONE, LITE):
         compose = load_compose(path)

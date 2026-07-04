@@ -318,6 +318,8 @@ services:
       - "0.0.0.0:80:8080"
     environment:
       W2_ENVIRONMENT: staging
+    volumes:
+      - ../../runtime/reports/public:/usr/share/nginx/html/static-report:ro
     depends_on:
       api:
         condition: service_healthy
