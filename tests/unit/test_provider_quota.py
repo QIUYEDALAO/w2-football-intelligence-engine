@@ -11,6 +11,7 @@ from w2.providers.quota import (
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
+from w2.refresh.matchday_schedule import estimate_refresh_tick_calls
 
 NOW = datetime(2026, 6, 23, 12, 0, tzinfo=UTC)
 
@@ -238,6 +239,24 @@ def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
         reserve_bucket=0,
     )
 
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+
+
+def test_matchday_refresh_projected_calls_feed_hard_stop_contract() -> None:
+    calls = estimate_refresh_tick_calls(
+        [f"fixture-{index}" for index in range(15)],
+        ("status", "fixtures", "odds", "lineups", "statistics"),
+    )
+    planned_calls = sum(calls.values())
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=70,
+        planned_calls=planned_calls,
+        daily_cap=100,
+        reserve_bucket=0,
+    )
+
+    assert planned_calls == 32
     assert decision["allowed"] is False
     assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
 

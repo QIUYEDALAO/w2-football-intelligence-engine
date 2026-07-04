@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,8 @@ from apps.scheduler.main import (
     future_fixture_refresh_tick,
 )
 from apps.worker.celery_app import celery_app
+
+from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_PATHS = [
@@ -117,6 +120,20 @@ def test_future_refresh_policy_matches_staging_competition() -> None:
 def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
+
+
+def test_matchday_refresh_plan_excludes_xg_backfill_by_default() -> None:
+    plan = build_matchday_refresh_plan(
+        [{"fixture_id": "fixture-1", "kickoff_utc": "2026-07-05T03:00:00Z"}],
+        as_of=datetime(2026, 7, 4, 0, 0, tzinfo=UTC),
+        policy=MatchdayRefreshPolicy(),
+    )
+
+    assert plan
+    for tick in plan:
+        assert tick.allowed_endpoints == ("status", "fixtures", "odds", "lineups")
+        assert "xg" not in tick.allowed_endpoints
+        assert "xg_history_backfill" not in tick.task_key
 
 
 def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
