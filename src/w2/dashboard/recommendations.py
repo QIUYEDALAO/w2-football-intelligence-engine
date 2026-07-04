@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DecisionTier
 from w2.domain.legacy_decision_shim import legacy_decision_view
 
@@ -57,6 +58,7 @@ def build_recommendation(
     market: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     tier = derive_recommendation_tier(card, market)
+    decision_tier = _decision_tier_for_output(card, market, tier)
     if market is None or tier in {
         RecommendationTier.WATCH,
         RecommendationTier.NO_RECOMMENDATION,
@@ -74,6 +76,9 @@ def build_recommendation(
 
     recommendation = {
         "tier": tier.value,
+        "decision_tier": decision_tier.value,
+        "outcome_tracked": card.get("outcome_tracked", compute_outcome_tracked(decision_tier)),
+        "lock_eligible": card.get("lock_eligible"),
         "market": market_code,
         "market_label_cn": market.get("label_cn")
         or MARKET_LABELS_CN.get(market_code)
@@ -176,3 +181,20 @@ def _recommendation_tier_from_decision_tier(decision_tier: DecisionTier) -> Reco
     if decision_tier is DecisionTier.WATCH:
         return RecommendationTier.WATCH
     return RecommendationTier.NO_RECOMMENDATION
+
+
+def _decision_tier_for_output(
+    card: dict[str, Any],
+    market: dict[str, Any] | None,
+    tier: RecommendationTier,
+) -> DecisionTier:
+    decision_tier = _decision_tier_from_payload(card, market)
+    if decision_tier is not None:
+        return decision_tier
+    if tier is RecommendationTier.FORMAL:
+        return legacy_decision_view(card, market).decision_tier
+    if tier is RecommendationTier.ANALYSIS_PICK:
+        return DecisionTier.ANALYSIS_PICK
+    if tier is RecommendationTier.WATCH:
+        return DecisionTier.WATCH
+    return DecisionTier.SKIP

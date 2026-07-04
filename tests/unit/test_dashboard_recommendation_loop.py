@@ -152,7 +152,18 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["status"] == "FINISHED"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["data_status"] == "BLOCKED"
+    assert card["lifecycle_status"] == "DRAFT"
+    assert card["outcome_tracked"] is False
+    assert card["lock_eligible"] is False
+    assert card["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["pick"] is None
+    assert card["non_pick"]["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["decision_contract"]["decision_tier"] == "NOT_READY"
+    assert card["decision_contract"]["environment"] == "staging"
     assert card["recommendation"]["tier"] == "ANALYSIS_PICK"
+    assert card["recommendation"]["decision_tier"] == "ANALYSIS_PICK"
     assert card["recommendation"]["candidate"] is False
     assert card["recommendation"]["formal_recommendation"] is False
     assert "selection" not in card["recommendation"]

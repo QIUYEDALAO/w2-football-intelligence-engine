@@ -30,6 +30,13 @@ def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     assert export.manifest["exported_at"] == "2026-07-01T01:00:00Z"
     assert export.tables["prematch_recommendations"][0]["fixture_id"] == "fixture-1"
     assert export.tables["prematch_recommendations"][0]["report_state"] == "LOCKED"
+    assert export.tables["prematch_recommendations"][0]["decision_tier"] == "ANALYSIS_PICK"
+    assert export.tables["prematch_recommendations"][0]["data_status"] == "READY"
+    assert export.tables["prematch_recommendations"][0]["lock_eligible"] is True
+    assert (
+        export.tables["prematch_recommendations"][0]["decision_contract_reason_code"]
+        == "EDGE_INSUFFICIENT"
+    )
     assert "status" not in export.tables["prematch_recommendations"][0]
     assert export.tables["prematch_recommendations"][0]["market_ah_display"] == "主队 -0.5"
     assert [row["checkpoint"] for row in export.tables["market_timeline_snapshots"]] == [
@@ -253,6 +260,14 @@ def _dashboard_payload() -> dict[str, object]:
                 "competition_name": "World Cup",
                 "status": "UPCOMING",
                 "formal_recommendation": True,
+                "decision_tier": "ANALYSIS_PICK",
+                "data_status": "READY",
+                "lifecycle_status": "DRAFT",
+                "outcome_tracked": True,
+                "lock_eligible": True,
+                "reason_code": "EDGE_INSUFFICIENT",
+                "action": "盯价格变动",
+                "next_eval_at": "2026-07-01T03:30:00Z",
                 "recommendation": {
                     "tier": "FORMAL",
                     "market": "ASIAN_HANDICAP",

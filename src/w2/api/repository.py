@@ -48,6 +48,7 @@ from w2.dashboard.status_labels import (
 )
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
+from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -1175,6 +1176,15 @@ class ReadModelService:
             ),
             "formal_suppressed": row.get("formal_suppressed"),
             "formal_suppressed_reason": row.get("formal_suppressed_reason"),
+            "decision_tier": row.get("decision_tier"),
+            "data_status": row.get("data_status"),
+            "lifecycle_status": row.get("lifecycle_status"),
+            "outcome_tracked": row.get("outcome_tracked"),
+            "lock_eligible": row.get("lock_eligible"),
+            "recommendation_id": row.get("recommendation_id"),
+            "reason_code": row.get("reason_code"),
+            "action": row.get("action"),
+            "next_eval_at": row.get("next_eval_at"),
         }
 
     def _compact_all_window_card(self, card: dict[str, Any]) -> dict[str, Any]:
@@ -4659,6 +4669,27 @@ class ReadModelService:
             readiness=analysis_readiness,
             row=row,
         )
+        kickoff_for_contract = _parse_utc_text(row.get("kickoff_utc") or card.get("kickoff_utc"))
+        as_of_for_contract = (
+            _parse_utc_text(row.get("last_captured"))
+            or _parse_utc_text(card.get("generated_at"))
+            or datetime.now(UTC)
+        )
+        decision_contract = (
+            build_decision_contract_fields(
+                card=card,
+                market=picked,
+                recommendation=recommendation,
+                readiness=analysis_readiness,
+                environment=str(os.getenv("W2_DECISION_ENVIRONMENT", "staging")),
+                as_of=as_of_for_contract,
+                kickoff_utc=kickoff_for_contract,
+                competition_id=str(row.get("competition_id") or ""),
+                fixture_id=fixture_id,
+            )
+            if kickoff_for_contract is not None
+            else {}
+        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
@@ -4699,6 +4730,7 @@ class ReadModelService:
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
             if recommendation
             else False,
+            **decision_contract,
         }
 
     def _dashboard_scoreline_readiness(self, card: dict[str, Any]) -> dict[str, Any] | None:
