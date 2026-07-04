@@ -12,10 +12,14 @@ def is_full_time_asian_handicap_label(value: Any) -> bool:
     return label in {"asian handicap", "handicap", "ah"}
 
 
-def is_full_time_asian_handicap_observation(row: dict[str, Any]) -> bool:
+def is_full_time_asian_handicap_observation(
+    row: dict[str, Any],
+    *,
+    allow_unlabeled: bool = True,
+) -> bool:
     raw_label = row.get("raw_market_label")
     if raw_label is None or str(raw_label).strip() == "":
-        return True
+        return allow_unlabeled
     return is_full_time_asian_handicap_label(raw_label)
 
 

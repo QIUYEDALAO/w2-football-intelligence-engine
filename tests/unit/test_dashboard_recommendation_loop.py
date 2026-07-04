@@ -220,6 +220,7 @@ def test_egypt_api_football_away_plus_quarter_is_canonical_away_favorite() -> No
                 {
                     "fixture_id": "1567306",
                     "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
                     "selection": "Home +0.25",
                     "line": "0.25",
                     "decimal_odds": home_price,
@@ -233,6 +234,7 @@ def test_egypt_api_football_away_plus_quarter_is_canonical_away_favorite() -> No
                 {
                     "fixture_id": "1567306",
                     "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
                     "selection": "Away +0.25",
                     "line": "0.25",
                     "decimal_odds": away_price,
@@ -251,7 +253,7 @@ def test_egypt_api_football_away_plus_quarter_is_canonical_away_favorite() -> No
 
     assert selected["status"] == "READY"
     assert selected["line"] == "0.25"
-    assert selected["side_lines"] == {"home": "0.25", "away": "0.25"}
+    assert selected["side_lines"] == {"home": "0.25", "away": "-0.25"}
     assert selected["side_prices"]["away"] > selected["side_prices"]["home"]
     assert display["display_line_cn"] == "客队 -0.25"
     assert display["home_display_line_cn"] == "主队 +0.25"
@@ -865,6 +867,7 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
                     {
                         "fixture_id": "future-partial",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Home",
                         "line": line,
                         "decimal_odds": home_price,
@@ -878,6 +881,7 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
                     {
                         "fixture_id": "future-partial",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Away",
                         "line": str(-float(line)),
                         "decimal_odds": away_price,
@@ -900,7 +904,7 @@ def test_read_model_mainline_prefers_ladder_balance_center() -> None:
     assert selected["side_prices"]["home"] == 1.93
     assert selected["side_prices"]["away"] == 1.95
     assert selected["candidate_lines"][0]["home_line"] == "-0.25"
-    assert selected["rejected_lines"]
+    assert selected["rejected_lines"] == []
 
 
 def test_read_model_mainline_excludes_non_full_time_ah_market_labels() -> None:
@@ -998,6 +1002,7 @@ def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
                     {
                         "fixture_id": "future-partial",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Home",
                         "line": line,
                         "decimal_odds": home_price,
@@ -1011,6 +1016,7 @@ def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
                     {
                         "fixture_id": "future-partial",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Away",
                         "line": str(-float(line)),
                         "decimal_odds": away_price,
@@ -1196,14 +1202,8 @@ def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
     assert shadow["selector_market_ah"] == -1.25
     assert shadow["edge_ah"] is None
     assert shadow["mainline_materialization_status"] == "STALE"
-    assert (
-        shadow["mainline_materialization_blocker"]
-        == "AH_MAINLINE_STALE_MATERIALIZATION"
-    )
-    assert (
-        shadow["canonical_ah_market_blocker"]
-        == "AH_MAINLINE_STALE_MATERIALIZATION"
-    )
+    assert shadow["mainline_materialization_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
+    assert shadow["canonical_ah_market_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
     assert shadow["canonical_ah_market_validation_status"] == "BLOCKED"
     assert "AH_MAINLINE_STALE_MATERIALIZATION" in shadow["formal_blockers"]
     assert card["formal_recommendation"] is False
@@ -1262,10 +1262,7 @@ def test_pricing_shadow_mainline_reconciliation_recomputes_edge() -> None:
     assert shadow["materialized_market_ah"] == -2.5
     assert shadow["selector_market_ah"] == -1.25
     assert shadow["mainline_materialization_status"] == "STALE"
-    assert (
-        shadow["mainline_materialization_blocker"]
-        == "AH_MAINLINE_STALE_MATERIALIZATION"
-    )
+    assert shadow["mainline_materialization_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
 
 
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
@@ -1274,6 +1271,7 @@ def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
         {
             "fixture_id": "future-partial",
             "canonical_market": "ASIAN_HANDICAP",
+            "raw_market_label": "Asian Handicap",
             "selection": "Home",
             "line": "-1",
             "decimal_odds": "1.91",
@@ -1287,6 +1285,7 @@ def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
         {
             "fixture_id": "future-partial",
             "canonical_market": "ASIAN_HANDICAP",
+            "raw_market_label": "Asian Handicap",
             "selection": "Away",
             "line": "1",
             "decimal_odds": "1.97",
@@ -1302,7 +1301,7 @@ def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:
 
     selected = service._select_mainline_observations(observations, market="ASIAN_HANDICAP")
 
-    assert selected["status"] == "UNAVAILABLE"
+    assert selected["status"] == "NO_BALANCED_MAINLINE"
     assert selected["bookmaker_count"] == 0
 
 

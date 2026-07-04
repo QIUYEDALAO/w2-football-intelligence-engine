@@ -27,6 +27,7 @@ def _obs(
         "fixture_id": fixture_id,
         "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
         "canonical_market": market,
+        "raw_market_label": "Asian Handicap" if market == "ASIAN_HANDICAP" else market,
         "selection": selection,
         "line": line,
         "decimal_odds": odds,
@@ -275,7 +276,7 @@ def test_ah_mainline_consensus_prefers_bookmaker_count_over_balanced_alternate()
     assert snapshot["home_price"] in {2.05, 2.06, 2.07, 2.08}
     assert snapshot["away_price"] in {1.82, 1.83, 1.84, 1.85}
     assert snapshot["bookmaker_count"] == 5
-    assert snapshot["selection_policy"] == "latest_bucket_ladder_balance_same_bookmaker_pair"
+    assert snapshot["selection_policy"] == "canonical_bookmaker_mainline_majority_v1"
     assert snapshot["candidate_lines"][0]["line"] == -0.75
     assert snapshot["candidate_lines"][0]["bookmaker_count"] == 5
     assert snapshot["rejected_lines"][0]["line"] == -0.25
@@ -323,9 +324,7 @@ def test_ah_mainline_ladder_selector_prefers_balanced_germany_minus_1_5() -> Non
     assert snapshot is not None
     assert snapshot["line"] == -1.5
     assert snapshot["candidate_lines"][0]["line"] == -1.5
-    assert snapshot["candidate_lines"][0]["balance_distance"] < snapshot["candidate_lines"][1][
-        "balance_distance"
-    ]
+    assert snapshot["candidate_lines"][0]["balance_distance"] < 0.02
 
 
 def test_ah_mainline_ladder_selector_prefers_balanced_netherlands_minus_0_25() -> None:
@@ -412,10 +411,10 @@ def test_ah_mainline_ladder_selector_rejects_low_consensus_balanced_override() -
     assert snapshot["line"] == 0
     assert "selection_warning" not in snapshot
     assert snapshot["candidate_lines"][0]["line"] == 0
-    assert snapshot["candidate_lines"][0]["bookmaker_count"] == 5
+    assert snapshot["candidate_lines"][0]["bookmaker_count"] == 4
     assert snapshot["candidate_lines"][0]["balanced_override_eligible"] is False
     assert snapshot["candidate_lines"][0]["consensus_eligible"] is True
-    assert {item["line"] for item in snapshot["rejected_lines"]} == {-0.25, -0.5}
+    assert {item["line"] for item in snapshot["rejected_lines"]} == {-0.25}
 
 
 def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_line() -> None:
@@ -460,7 +459,7 @@ def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_li
                     selection="HOME",
                     line=-2.5,
                     odds=home_price,
-                    bookmaker=bookmaker,
+                    bookmaker=f"deep-{bookmaker}",
                 ),
                 _obs(
                     captured_at=as_of,
@@ -468,7 +467,7 @@ def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_li
                     selection="AWAY",
                     line=2.5,
                     odds=away_price,
-                    bookmaker=bookmaker,
+                    bookmaker=f"deep-{bookmaker}",
                 ),
             ]
         )
@@ -488,7 +487,90 @@ def test_ah_mainline_consensus_prefers_four_books_over_balanced_two_book_deep_li
     assert snapshot["candidate_lines"][0]["bookmaker_count"] == 4
     assert snapshot["rejected_lines"][0] == {
         "line": -2.5,
-        "reason": "LOWER_BOOKMAKER_CONSENSUS",
+        "reason": "LOWER_BOOKMAKER_MAINLINE_MAJORITY",
+    }
+
+
+def test_colombia_mainline_uses_each_bookmaker_balanced_ladder_before_majority() -> None:
+    kickoff = datetime(2026, 7, 4, 1, 30, tzinfo=UTC)
+    as_of = kickoff - timedelta(minutes=30)
+    observations: list[dict[str, object]] = []
+    for bookmaker in ("bm1", "bm2", "bm3", "bm4"):
+        observations.extend(
+            [
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="HOME",
+                    line=-1.25,
+                    odds=1.92,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="AWAY",
+                    line=1.25,
+                    odds=1.96,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="HOME",
+                    line=-1.5,
+                    odds=1.60,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="AWAY",
+                    line=1.5,
+                    odds=2.47,
+                    bookmaker=bookmaker,
+                ),
+            ]
+        )
+    for bookmaker in ("alt1", "alt2"):
+        observations.extend(
+            [
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="HOME",
+                    line=-1.5,
+                    odds=1.91,
+                    bookmaker=bookmaker,
+                ),
+                _obs(
+                    captured_at=as_of,
+                    fixture_id="1567310",
+                    selection="AWAY",
+                    line=1.5,
+                    odds=1.95,
+                    bookmaker=bookmaker,
+                ),
+            ]
+        )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="1567310",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="ASIAN_HANDICAP",
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == -1.25
+    assert snapshot["selection_policy"] == "canonical_bookmaker_mainline_majority_v1"
+    assert snapshot["bookmaker_count"] == 4
+    assert snapshot["candidate_lines"][0]["line"] == -1.25
+    assert snapshot["candidate_lines"][1]["line"] == -1.5
+    assert snapshot["rejected_lines"][0] == {
+        "line": -1.5,
+        "reason": "LOWER_BOOKMAKER_MAINLINE_MAJORITY",
     }
 
 

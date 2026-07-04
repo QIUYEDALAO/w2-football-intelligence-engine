@@ -44,6 +44,7 @@ class FakeReadRepository:
                     {
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Home -0.5",
                         "line": "-0.5",
                         "decimal_odds": home_price if index == 0 else "1.80",
@@ -59,6 +60,7 @@ class FakeReadRepository:
                     {
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Away +0.5",
                         "line": "+0.5",
                         "decimal_odds": away_price if index == 0 else "2.02",
@@ -268,6 +270,7 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
                     {
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": selection,
                         "line": line,
                         "decimal_odds": price,
@@ -322,7 +325,7 @@ def test_analysis_card_prefers_market_balanced_lines_over_fixed_lines(monkeypatc
     assert card["current_odds"]["ou"]["under_price"] == 1.93
     ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
     totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
-    assert ah_market["balanced_line"] == "1.5"
+    assert ah_market["balanced_line"] == "-1.5"
     assert ah_market["line"] in {"-1.5", "1.5"}
     assert totals_market["line"] == "3.5"
     assert ah_market["line_status"] == "READY"
@@ -338,6 +341,7 @@ class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):
                     {
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Home 0",
                         "line": "0",
                         "decimal_odds": "1.11",
@@ -353,6 +357,7 @@ class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):
                     {
                         "fixture_id": "1489410",
                         "canonical_market": "ASIAN_HANDICAP",
+                        "raw_market_label": "Asian Handicap",
                         "selection": "Away 0",
                         "line": "0",
                         "decimal_odds": "6.50",
