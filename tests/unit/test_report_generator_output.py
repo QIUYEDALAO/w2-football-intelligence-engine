@@ -629,6 +629,25 @@ def test_render_html_locked_match_suppresses_stale_data_gap_badge() -> None:
     assert "H2H 独立信号缺失" in report
 
 
+def test_render_html_locked_match_labels_data_time_as_closing_snapshot() -> None:
+    match = _non_formal_with_blockers(
+        fixture_id="started",
+        analysis_blockers=["MISSING_LINEUPS"],
+    )
+    match["status"] = "LIVE"
+    match["market_timeline"] = {
+        "status": "READY",
+        "pattern": "STABLE",
+        "as_of": "2026-06-30T17:12:00Z",
+    }
+
+    report = render_report(_payload(match), output_format="html")
+
+    assert "收盘快照 01:12" in report
+    assert "赛前收盘前最后一次可用快照" in report
+    assert "数据未齐：" not in report
+
+
 def test_render_html_non_formal_decision_table_explains_blockers() -> None:
     no_formal_payload = _non_formal_with_blockers(fixture_id="no-formal")
     shadow = dict(no_formal_payload["pricing_shadow"])  # type: ignore[arg-type]
