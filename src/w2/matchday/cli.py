@@ -7,7 +7,7 @@ import sys
 from datetime import UTC, date, datetime
 from typing import Any
 
-from w2.matchday.orchestrator import build_matchday_dry_run
+from w2.matchday.orchestrator import build_matchday_controlled_run_plan, build_matchday_dry_run
 from w2.providers.control import (
     provider_endpoint_allowlist,
     provider_refresh_min_interval_seconds,
@@ -21,7 +21,12 @@ def main() -> int:
     )
     parser.add_argument("--date", default="today")
     parser.add_argument("--env", default="staging", dest="environment")
+    parser.add_argument("--mode", choices=("dry-run", "controlled-run"), default="dry-run")
     parser.add_argument("--dry-run", action="store_true", default=False)
+    parser.add_argument("--approve-provider-calls", action="store_true", default=False)
+    parser.add_argument("--approve-db-writes", action="store_true", default=False)
+    parser.add_argument("--approve-lock-write", action="store_true", default=False)
+    parser.add_argument("--approve-settlement-write", action="store_true", default=False)
     parser.add_argument("--json", action="store_true", default=False, dest="json_output")
     parser.add_argument("--as-of")
     parser.add_argument("--fixture-id", action="append", default=[])
@@ -33,9 +38,7 @@ def main() -> int:
     parser.add_argument("--odds", action="append", default=[])
     args = parser.parse_args()
 
-    if not args.dry_run:
-        raise SystemExit("Only --dry-run is supported in this PR")
-
+    mode = "dry-run" if args.dry_run else str(args.mode)
     fixture_count = _fixture_count(args.fixture_id, args.kickoff_utc)
     fixtures = _fixture_rows(
         fixture_ids=args.fixture_id,
@@ -48,16 +51,38 @@ def main() -> int:
         fixture_count=fixture_count,
     )
     as_of = _parse_utc(args.as_of) if args.as_of else datetime.now(UTC)
-    payload = build_matchday_dry_run(
-        football_day=_football_day(args.date, as_of),
-        environment=str(args.environment),
-        as_of=as_of,
-        fixtures=fixtures,
-        provider_allowed_endpoints=tuple(provider_endpoint_allowlist()),
-        refresh_hard_cap=provider_refresh_tick_hard_cap(),
-        refresh_min_interval_seconds=provider_refresh_min_interval_seconds(),
-        refresh_dedupe_ttl_seconds=_env_int("W2_PROVIDER_TASK_KEY_DEDUP_TTL_SECONDS", 1800),
-    )
+    football_day = _football_day(args.date, as_of)
+    environment = str(args.environment)
+    provider_allowed_endpoints = tuple(provider_endpoint_allowlist())
+    refresh_hard_cap = provider_refresh_tick_hard_cap()
+    refresh_min_interval_seconds = provider_refresh_min_interval_seconds()
+    refresh_dedupe_ttl_seconds = _env_int("W2_PROVIDER_TASK_KEY_DEDUP_TTL_SECONDS", 1800)
+    if mode == "controlled-run":
+        payload = build_matchday_controlled_run_plan(
+            football_day=football_day,
+            environment=environment,
+            as_of=as_of,
+            fixtures=fixtures,
+            approve_provider_calls=bool(args.approve_provider_calls),
+            approve_db_writes=bool(args.approve_db_writes),
+            approve_lock_write=bool(args.approve_lock_write),
+            approve_settlement_write=bool(args.approve_settlement_write),
+            provider_allowed_endpoints=provider_allowed_endpoints,
+            refresh_hard_cap=refresh_hard_cap,
+            refresh_min_interval_seconds=refresh_min_interval_seconds,
+            refresh_dedupe_ttl_seconds=refresh_dedupe_ttl_seconds,
+        )
+    else:
+        payload = build_matchday_dry_run(
+            football_day=football_day,
+            environment=environment,
+            as_of=as_of,
+            fixtures=fixtures,
+            provider_allowed_endpoints=provider_allowed_endpoints,
+            refresh_hard_cap=refresh_hard_cap,
+            refresh_min_interval_seconds=refresh_min_interval_seconds,
+            refresh_dedupe_ttl_seconds=refresh_dedupe_ttl_seconds,
+        )
     if args.json_output:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     else:

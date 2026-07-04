@@ -19,6 +19,9 @@ SETTLEMENT_DRY_RUN_PLACEHOLDER = {
     "reason": "not implemented in dry-run skeleton",
     "db_writes": 0,
 }
+PROVIDER_CALLS_APPROVAL = "PROVIDER_CALLS"
+DB_WRITE_APPROVAL = "DB_WRITE"
+LOCK_WRITE_APPROVAL = "STAGING_FORMAL_LOCK_CAPTURE_WRITE"
 
 
 def build_matchday_dry_run(
@@ -118,6 +121,84 @@ def build_matchday_dry_run(
         "would_enqueue": False,
         "would_write_lock": False,
         "would_write_settlement": False,
+    }
+
+
+def build_matchday_controlled_run_plan(
+    *,
+    football_day: date,
+    environment: str,
+    as_of: datetime,
+    fixtures: Sequence[Mapping[str, Any]],
+    approve_provider_calls: bool = False,
+    approve_db_writes: bool = False,
+    approve_lock_write: bool = False,
+    approve_settlement_write: bool = False,
+    provider_allowed_endpoints: Sequence[str] | None = None,
+    refresh_hard_cap: int = 30,
+    refresh_min_interval_seconds: int = 900,
+    refresh_dedupe_ttl_seconds: int = 1800,
+) -> dict[str, Any]:
+    dry_run = build_matchday_dry_run(
+        football_day=football_day,
+        environment=environment,
+        as_of=as_of,
+        fixtures=fixtures,
+        provider_allowed_endpoints=provider_allowed_endpoints,
+        refresh_hard_cap=refresh_hard_cap,
+        refresh_min_interval_seconds=refresh_min_interval_seconds,
+        refresh_dedupe_ttl_seconds=refresh_dedupe_ttl_seconds,
+    )
+    refresh_plan = _as_mapping(dry_run.get("refresh_plan_summary"))
+    projected_provider_calls = int(refresh_plan.get("projected_calls_total") or 0)
+    lock_candidates = _mapping_list(dry_run.get("lock_candidates"))
+    required_approvals = _required_approvals(
+        projected_provider_calls=projected_provider_calls,
+        lock_candidate_count=len(lock_candidates),
+        approve_provider_calls=approve_provider_calls,
+        approve_db_writes=approve_db_writes,
+        approve_lock_write=approve_lock_write,
+    )
+    approvals = {
+        "provider_calls": approve_provider_calls,
+        "db_writes": approve_db_writes,
+        "lock_write": approve_lock_write,
+        "settlement_write": approve_settlement_write,
+    }
+    execution_deferred = not required_approvals
+    return {
+        "football_day": dry_run["football_day"],
+        "environment": environment,
+        "mode": "controlled_run",
+        "status": "APPROVAL_REQUIRED" if required_approvals else "EXECUTION_DEFERRED",
+        "as_of": dry_run["as_of"],
+        "fixture_count": dry_run["fixture_count"],
+        "approvals": approvals,
+        "fixtures": dry_run["fixtures"],
+        "refresh_plan": refresh_plan,
+        "refresh_plan_summary": refresh_plan,
+        "projected_provider_calls": projected_provider_calls,
+        "provider_call_approval_required": projected_provider_calls > 0,
+        "db_write_approval_required": projected_provider_calls > 0,
+        "lock_write_approval_required": bool(lock_candidates),
+        "settlement_write_approval_required": False,
+        "lock_candidates": lock_candidates,
+        "settlement_dry_run": dry_run["settlement_dry_run"],
+        "provider_usage_plan": dry_run["provider_usage_plan"],
+        "required_approvals": required_approvals,
+        "blockers": [f"APPROVAL_REQUIRED:{approval}" for approval in required_approvals],
+        "execution_plan": {
+            "would_execute": False,
+            "execution_deferred": execution_deferred,
+            "reason": "controlled-run execution is not implemented in this PR",
+        },
+        "would_call_provider": False,
+        "would_write_db": False,
+        "would_enqueue": False,
+        "would_write_lock": False,
+        "would_write_settlement": False,
+        "provider_calls": 0,
+        "db_writes": 0,
     }
 
 
@@ -276,6 +357,24 @@ def _lock_candidates(
     return candidates
 
 
+def _required_approvals(
+    *,
+    projected_provider_calls: int,
+    lock_candidate_count: int,
+    approve_provider_calls: bool,
+    approve_db_writes: bool,
+    approve_lock_write: bool,
+) -> list[str]:
+    required: list[str] = []
+    if projected_provider_calls > 0 and not approve_provider_calls:
+        required.append(PROVIDER_CALLS_APPROVAL)
+    if projected_provider_calls > 0 and not approve_db_writes:
+        required.append(DB_WRITE_APPROVAL)
+    if lock_candidate_count > 0 and not approve_lock_write:
+        required.append(LOCK_WRITE_APPROVAL)
+    return required
+
+
 def _readiness_summary(fixtures: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     counts = {status.value: 0 for status in DataStatus}
     reason_codes: dict[str, int] = {}
@@ -404,3 +503,13 @@ def _optional_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _mapping_list(value: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
