@@ -287,6 +287,8 @@ services:
     environment:
       W2_ENVIRONMENT: staging
       VITE_API_BASE_URL: http://127.0.0.1:18000
+    volumes:
+      - ./runtime/reports/public:/usr/share/nginx/html/static-report:ro
     depends_on:
       api:
         condition: service_healthy

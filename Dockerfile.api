@@ -21,6 +21,7 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/check_w2_formal_tracking.py \
      scripts/run_w2_independent_signal_backfill.py \
      scripts/run_w2_report_runner.py \
+     scripts/publish_w2_static_report.py \
      scripts/run_w2_settlement_history.py \
      scripts/check_w2_production_readiness.py \
      scripts/export_w2_audit_tables.py \
@@ -36,6 +37,7 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_formal_tracking.py \
  && test -f /app/scripts/run_w2_independent_signal_backfill.py \
  && test -f /app/scripts/run_w2_report_runner.py \
+ && test -f /app/scripts/publish_w2_static_report.py \
  && test -f /app/scripts/run_w2_settlement_history.py \
  && test -f /app/scripts/check_w2_production_readiness.py \
  && test -f /app/scripts/export_w2_audit_tables.py \

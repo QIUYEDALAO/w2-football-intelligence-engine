@@ -28,6 +28,7 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
             assert "scripts/check_w2_formal_tracking.py" in text
             assert "scripts/run_w2_independent_signal_backfill.py" in text
             assert "scripts/run_w2_report_runner.py" in text
+            assert "scripts/publish_w2_static_report.py" in text
             assert "scripts/run_w2_settlement_history.py" in text
             assert "scripts/check_w2_production_readiness.py" in text
             assert "scripts/export_w2_audit_tables.py" in text
@@ -37,6 +38,7 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
             assert "test -f /app/scripts/run_w2_formal_tracking.py" in text
             assert "test -f /app/scripts/run_w2_independent_signal_backfill.py" in text
             assert "test -f /app/scripts/run_w2_report_runner.py" in text
+            assert "test -f /app/scripts/publish_w2_static_report.py" in text
             assert "test -f /app/scripts/run_w2_settlement_history.py" in text
             assert "test -f /app/scripts/check_w2_production_readiness.py" in text
             assert "test -f /app/scripts/export_w2_audit_tables.py" in text
