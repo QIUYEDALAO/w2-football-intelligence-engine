@@ -16,6 +16,7 @@ from w2.api.schemas import (
     AnalysisCardResponse,
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
+    DashboardDayViewResponse,
     DashboardResponse,
     DashboardSummaryResponse,
     DataHealthResponse,
@@ -47,6 +48,7 @@ from w2.api.schemas import (
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
+from w2.dashboard.day_view import build_dashboard_day_view
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -119,6 +121,27 @@ def dashboard(
             window=normalized_window,
             timezone=timezone,
             include_debug=include_debug,
+        ),
+    }
+
+
+@public_router.get("/dashboard/day-view", response_model=DashboardDayViewResponse)
+def dashboard_day_view(
+    request: Request,
+    date: str | None = None,
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    payload = service.dashboard(
+        target_date=date,
+        window="today",
+        timezone=timezone,
+        include_debug=False,
+    )
+    return {
+        "request_id": request_id(request),
+        **build_dashboard_day_view(
+            payload,
+            environment=get_settings().environment.value,
         ),
     }
 
