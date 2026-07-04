@@ -17,7 +17,7 @@
 A-148 演练按三段硬验收重跑（采集+物化+页面数据时间同步滚动）→ 24h 观察 → restart=always。转正后剩余世界杯场次全自动：每日报告+四表+页面+结算+CLV 记账。
 
 **0.4 配额卫生（立即，一次性）**
-ledger vs API 后台对账定性此前 7300 次异常；key 若在任何别处被使用立即轮换；运维日检加一行：ledger 与 header 差值 >10 报警。100 次/天时代，漏一滴都是大出血。
+ledger vs API 后台对账定性此前 7300 次异常；key 若在任何别处被使用立即轮换；运维日检只做同基数比较：provider 返回 limit/remaining 时按该 limit 计算 header-derived used；没有 limit 时只记录 remaining，不从假设上限反推 used。ledger/header 同基数差值 >10 才报警。100 次/天时代，漏一滴都是大出血。
 
 ---
 

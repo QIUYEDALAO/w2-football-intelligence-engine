@@ -104,6 +104,36 @@ def test_status_payload_can_supply_daily_quota() -> None:
     assert quota.burst_remaining == 299
 
 
+def test_header_limit_is_parsed_on_the_same_basis_as_remaining() -> None:
+    quota = parse_api_football_quota(
+        headers={
+            "x-ratelimit-requests-remaining": "90",
+            "x-ratelimit-requests-limit": "100",
+        },
+        payload={},
+        observed_at=NOW,
+    )
+
+    assert quota.daily_remaining == 90
+    assert quota.daily_limit == 100
+    assert quota.daily_source == "x-ratelimit-requests-remaining"
+    assert quota.daily_limit_source == "x-ratelimit-requests-limit"
+
+
+def test_status_payload_can_supply_daily_limit() -> None:
+    quota = parse_api_football_quota(
+        headers={"x-ratelimit-remaining": "299"},
+        payload={"response": {"requests": {"remaining": "90", "limit": "100"}}},
+        observed_at=NOW,
+    )
+
+    assert quota.daily_remaining == 90
+    assert quota.daily_limit == 100
+    assert quota.daily_source == "response.requests.remaining"
+    assert quota.daily_limit_source == "response.requests.limit"
+    assert quota.burst_remaining == 299
+
+
 def test_api_football_quota_policy_freezes_w2_default_budget() -> None:
     policy = api_football_quota_policy(6774)
 

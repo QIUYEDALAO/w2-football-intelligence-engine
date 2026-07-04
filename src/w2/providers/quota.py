@@ -8,15 +8,21 @@ from typing import Any
 @dataclass(frozen=True)
 class ProviderQuota:
     daily_remaining: int | None
+    daily_limit: int | None
     burst_remaining: int | None
     observed_at: datetime
     daily_source: str | None
+    daily_limit_source: str | None
     burst_source: str | None
 
 
 DAILY_HEADER_SOURCES = {
     "x-ratelimit-requests-remaining",
     "x-apisports-requests-remaining",
+}
+DAILY_LIMIT_HEADER_SOURCES = {
+    "x-ratelimit-requests-limit",
+    "x-apisports-requests-limit",
 }
 BURST_HEADER_SOURCES = {
     "x-ratelimit-remaining",
@@ -52,14 +58,19 @@ def parse_api_football_quota(
     observed_at: datetime,
 ) -> ProviderQuota:
     daily_remaining: int | None = None
+    daily_limit: int | None = None
     burst_remaining: int | None = None
     daily_source: str | None = None
+    daily_limit_source: str | None = None
     burst_source: str | None = None
     for raw_key, raw_value in headers.items():
         key = raw_key.lower()
         if daily_remaining is None and key in DAILY_HEADER_SOURCES:
             daily_remaining = parse_int(raw_value)
             daily_source = raw_key if daily_remaining is not None else None
+        if daily_limit is None and key in DAILY_LIMIT_HEADER_SOURCES:
+            daily_limit = parse_int(raw_value)
+            daily_limit_source = raw_key if daily_limit is not None else None
         if burst_remaining is None and key in BURST_HEADER_SOURCES:
             burst_remaining = parse_int(raw_value)
             burst_source = raw_key if burst_remaining is not None else None
@@ -73,11 +84,19 @@ def parse_api_football_quota(
             daily_remaining = parse_int(requests.get("remaining"))
             if daily_remaining is not None:
                 daily_source = "response.requests.remaining"
+            if daily_limit is None:
+                for key in ("limit", "limit_day", "daily_limit", "requests_limit"):
+                    daily_limit = parse_int(requests.get(key))
+                    if daily_limit is not None:
+                        daily_limit_source = f"response.requests.{key}"
+                        break
     return ProviderQuota(
         daily_remaining=daily_remaining,
+        daily_limit=daily_limit,
         burst_remaining=burst_remaining,
         observed_at=observed_at.astimezone(UTC),
         daily_source=daily_source,
+        daily_limit_source=daily_limit_source,
         burst_source=burst_source,
     )
 
