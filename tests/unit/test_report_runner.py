@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
+from scripts.publish_w2_static_report import (
+    publish_static_report,
+    validate_static_report_html,
+)
 
 from w2.reporting.report_runner import HealthCheckError, run_report_job
 
@@ -300,3 +304,36 @@ def test_report_runner_cli_health_failure_exits_nonzero_without_file(
     assert "HEALTH_CHECK_FAILED: ready=UNKNOWN" in result.stderr
     assert result.stdout == ""
     assert not (tmp_path / "reports").exists()
+
+
+def test_static_report_publisher_writes_public_index_and_day_alias(tmp_path: Path) -> None:
+    server, thread, base_url = _serve()
+    try:
+        summary = publish_static_report(
+            base_url=base_url,
+            runtime_root=tmp_path,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    report_path = tmp_path / "reports" / "w2_day_2026-06-30.html"
+    index_path = tmp_path / "reports" / "public" / "index.html"
+    public_day_path = tmp_path / "reports" / "public" / "w2_day_2026-06-30.html"
+    assert report_path.exists()
+    assert index_path.exists()
+    assert public_day_path.exists()
+    assert index_path.read_text(encoding="utf-8") == public_day_path.read_text(
+        encoding="utf-8"
+    )
+    assert "W2 足球日报告 · 2026-06-30" in index_path.read_text(encoding="utf-8")
+    assert summary["status"] == "PASS"
+    assert summary["static_report_published"] is True
+    assert summary["selected_football_day"] == "2026-06-30"
+    assert summary["provider_calls"] == 0
+    assert summary["db_writes"] == 0
+
+
+def test_static_report_publisher_rejects_react_shell_without_watermark() -> None:
+    with pytest.raises(RuntimeError, match="STATIC_REPORT_WATERMARK_MISSING"):
+        validate_static_report_html("<!doctype html><div id='root'></div>")

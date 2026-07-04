@@ -99,12 +99,17 @@ with mode `600`. It must not print or rewrite sensitive values.
 
 ## Static Daily Report Guard
 
-Until A-151 makes the static daily report a first-class web root artifact, any
-web container recreate or rebuild can fall back to the bundled React shell. After
-every deploy that touches `web`, run these checks before accepting the release:
+A-151 makes the static daily report a first-class web root artifact. The web
+container mounts `runtime/reports/public` at `/usr/share/nginx/html/static-report`
+and nginx serves `static-report/index.html` before the bundled React shell. After
+every deploy that touches `web`, publish the current football-day report and run
+these checks before accepting the release:
 
 ```bash
-curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v5'
+uv run --python 3.12 python scripts/publish_w2_static_report.py \
+  --base-url http://43.155.208.138 \
+  --runtime-root runtime
+curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v6'
 curl -fsS http://43.155.208.138/ | grep -c '命中率\|胜率\|ROI\|必中\|必胜\|稳赢\|稳赚\|可买\|庄家开错\|跟庄\|照这个买\|方向未识别\|正式推荐字段不完整'
 curl -fsS http://43.155.208.138/v1/version
 ```
@@ -115,9 +120,11 @@ Acceptance:
 - forbidden-term count is `0`
 - API SHA matches the deployed main SHA
 
-If the watermark check fails, the public dashboard has likely reverted to the
+If the watermark check fails, the public dashboard has likely fallen back to the
 React shell. Regenerate the static report from the authoritative dashboard
-payload and do not accept the deploy until the checks pass.
+payload and do not accept the deploy until the checks pass. Do not repair this
+with a manual `docker cp` into the running web container; the accepted surface is
+`runtime/reports/public/index.html`.
 
 ## Compose Preflight
 
