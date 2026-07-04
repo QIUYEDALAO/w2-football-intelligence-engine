@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from w2.ingestion.checkpoint_refresh import (
     checkpoint_plan_for_fixture,
@@ -14,6 +16,7 @@ from w2.ingestion.checkpoint_refresh import (
 )
 
 NOW = datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> None:
@@ -133,6 +136,7 @@ def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> No
 
     assert projection["within_daily_budget"] is True
     assert projection["projected_calls"] <= 100
+    assert projection["trickle_backfill_budget"] == 0
 
 
 def test_saturday_30_fixture_budget_no_longer_fits_world_cup_100_call_mode() -> None:
@@ -152,6 +156,34 @@ def test_trickle_backfill_plan_never_steals_matchday_reserve() -> None:
         requested_backfill_calls=12,
     )
 
-    assert quiet_day["allowed_calls"] == 5
-    assert busy_day["allowed_calls"] == 2
-    assert busy_day["allowed"] is True
+    assert quiet_day["allowed_calls"] == 0
+    assert quiet_day["allowed"] is False
+    assert quiet_day["blocker"] == "TRICKLE_BACKFILL_BUDGET_EXHAUSTED"
+    assert busy_day["allowed_calls"] == 0
+    assert busy_day["allowed"] is False
+
+
+def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() -> None:
+    payload = json.loads(
+        (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
+    )
+    policy = next(
+        item
+        for item in payload["competitions"]
+        if item["competition_id"] == "world_cup_2026"
+    )
+
+    assert policy["daily_hard_cap"] == 100
+    assert policy["daily_reserve"] == 20
+    assert policy["request_budget"] == 30
+    assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
+    assert policy["trickle_backfill_daily_budget"] == 0
+
+
+def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:
+    text = (ROOT / "docs/W2_HIBERNATE_WAKEUP_A160_WORKORDER.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "trickle_backfill_daily_budget=60" in text
+    assert "daily_reserve=40" in text
