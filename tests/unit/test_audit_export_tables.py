@@ -32,6 +32,9 @@ def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     assert export.tables["prematch_recommendations"][0]["report_state"] == "LOCKED"
     assert export.tables["prematch_recommendations"][0]["decision_tier"] == "ANALYSIS_PICK"
     assert export.tables["prematch_recommendations"][0]["data_status"] == "READY"
+    assert export.tables["prematch_recommendations"][0]["missing_fields"] == []
+    assert export.tables["prematch_recommendations"][0]["stale_fields"] == ["odds"]
+    assert export.tables["prematch_recommendations"][0]["provider_budget_status"] == "AVAILABLE"
     assert export.tables["prematch_recommendations"][0]["lock_eligible"] is True
     assert (
         export.tables["prematch_recommendations"][0]["decision_contract_reason_code"]
@@ -262,12 +265,15 @@ def _dashboard_payload() -> dict[str, object]:
                 "formal_recommendation": True,
                 "decision_tier": "ANALYSIS_PICK",
                 "data_status": "READY",
+                "missing_fields": [],
+                "stale_fields": ["odds"],
                 "lifecycle_status": "DRAFT",
                 "outcome_tracked": True,
                 "lock_eligible": True,
                 "reason_code": "EDGE_INSUFFICIENT",
                 "action": "盯价格变动",
                 "next_eval_at": "2026-07-01T03:30:00Z",
+                "provider_budget_status": "AVAILABLE",
                 "recommendation": {
                     "tier": "FORMAL",
                     "market": "ASIAN_HANDICAP",

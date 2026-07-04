@@ -30,7 +30,7 @@ def _fields(
     )
 
 
-def test_missing_lineups_maps_to_non_pick_reason() -> None:
+def test_missing_lineups_soft_gate_keeps_staging_analysis_pick() -> None:
     fields = _fields(
         market={
             "market": "ASIAN_HANDICAP",
@@ -42,18 +42,28 @@ def test_missing_lineups_maps_to_non_pick_reason() -> None:
         readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
     )
 
-    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
-    assert fields["outcome_tracked"] is False
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["data_status"] == DataStatus.PARTIAL.value
+    assert fields["outcome_tracked"] is True
     assert fields["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
     assert fields["action"] == "等官方首发"
-    assert fields["non_pick"]["reason_human"] == "首发未出"  # type: ignore[index]
-    assert fields["pick"] is None
+    assert fields["missing_fields"] == ["lineups", "xg", "ratings", "team_value"]
+    assert fields["pick"] is not None
+    assert fields["non_pick"] is None
 
 
 def test_edge_and_market_and_data_blockers_map_to_reason_codes() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "WATCH",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
     assert (
         _fields(
             card={"pricing_shadow": {"formal_blockers": ["AH_EV_BELOW_FORMAL_THRESHOLD"]}},
+            market=market,
+            readiness={"status": "READY", "blockers": []},
         )["reason_code"]
         == DecisionReasonCode.EDGE_INSUFFICIENT.value
     )
@@ -64,23 +74,38 @@ def test_edge_and_market_and_data_blockers_map_to_reason_codes() -> None:
         == DecisionReasonCode.MARKET_UNAVAILABLE.value
     )
     assert (
-        _fields(readiness={"status": "BLOCKED", "blockers": ["DATA_INSUFFICIENT"]})[
-            "reason_code"
-        ]
+        _fields(
+            market=market,
+            readiness={
+                "status": "PARTIAL",
+                "blockers": ["DATA_INSUFFICIENT"],
+                "available_inputs": {"lineups": True},
+            },
+        )["reason_code"]
         == DecisionReasonCode.DATA_MISSING_XG.value
     )
 
 
 def test_readiness_status_mapping_is_not_optimistic() -> None:
-    assert _fields(readiness={"status": "READY", "blockers": []})["data_status"] == (
+    ready_market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "WATCH",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+    assert _fields(market=ready_market, readiness={"status": "READY", "blockers": []})[
+        "data_status"
+    ] == (
         DataStatus.READY.value
     )
-    assert _fields(readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]})[
-        "data_status"
-    ] == DataStatus.PARTIAL.value
-    assert _fields(readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]})[
-        "data_status"
-    ] == DataStatus.STALE.value
+    assert _fields(
+        market=ready_market,
+        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+    )["data_status"] == DataStatus.PARTIAL.value
+    assert _fields(
+        market=ready_market,
+        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+    )["data_status"] == DataStatus.STALE.value
 
 
 def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
@@ -93,17 +118,43 @@ def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
 
     analysis = _fields(
         market={**market, "decision_tier": "ANALYSIS_PICK"},
-        readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
+        readiness={
+            "data_readiness": {
+                "source": "w2.readiness.data_gate.v1",
+                "data_status": "BLOCKED",
+                "missing_fields": ["market"],
+                "stale_fields": [],
+                "reason_code": "MARKET_UNAVAILABLE",
+                "reason_human": "盘口未就绪",
+                "action": "等盘口开出或刷新",
+                "next_eval_at": "2026-07-05T00:30:00Z",
+                "provider_budget_status": "AVAILABLE",
+                "field_statuses": [],
+            }
+        },
     )
     recommend = _fields(
         market={**market, "decision_tier": "RECOMMEND"},
-        readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
+        readiness={
+            "data_readiness": {
+                "source": "w2.readiness.data_gate.v1",
+                "data_status": "BLOCKED",
+                "missing_fields": ["market"],
+                "stale_fields": [],
+                "reason_code": "MARKET_UNAVAILABLE",
+                "reason_human": "盘口未就绪",
+                "action": "等盘口开出或刷新",
+                "next_eval_at": "2026-07-05T00:30:00Z",
+                "provider_budget_status": "AVAILABLE",
+                "field_statuses": [],
+            }
+        },
     )
 
     assert analysis["decision_tier"] == DecisionTier.NOT_READY.value
     assert recommend["decision_tier"] == DecisionTier.NOT_READY.value
-    assert analysis["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
-    assert recommend["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
+    assert analysis["reason_code"] == DecisionReasonCode.MARKET_UNAVAILABLE.value
+    assert recommend["reason_code"] == DecisionReasonCode.MARKET_UNAVAILABLE.value
     assert analysis["pick"] is None
     assert recommend["pick"] is None
 
@@ -213,7 +264,9 @@ def test_production_recommend_requires_explicit_tier_and_ev_evidence() -> None:
 def test_legacy_formal_is_analysis_pick_with_compatibility_marker() -> None:
     fields = _fields(
         card={"formal_recommendation": True, "recommendation_id": "rec-legacy"},
+        market={"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
         recommendation={"tier": "FORMAL", "formal_recommendation": True},
+        readiness={"status": "READY", "blockers": []},
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -233,7 +286,7 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
         readiness={"status": "PARTIAL", "blockers": []},
     )
     watch = _fields(
-        market={"market": "ASIAN_HANDICAP", "decision": "WATCH"},
+        market={"market": "ASIAN_HANDICAP", "decision": "WATCH", "line": "-0.25", "odds": "1.95"},
         readiness={"status": "PARTIAL", "blockers": ["AH_EV_BELOW_FORMAL_THRESHOLD"]},
     )
     blocked = _fields(
@@ -244,7 +297,7 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
+        readiness={"status": "BLOCKED", "blockers": ["FIXTURE_NOT_UPCOMING"]},
     )
 
     assert analysis["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -258,3 +311,47 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
     assert blocked["decision_tier"] == DecisionTier.NOT_READY.value
     assert blocked["pick"] is None
     assert blocked["non_pick"] is not None
+
+
+def test_provider_budget_exhausted_is_stale_readiness() -> None:
+    fields = _fields(
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+    )
+
+    assert fields["data_status"] == DataStatus.STALE.value
+    assert fields["reason_code"] == DecisionReasonCode.PROVIDER_BUDGET_EXHAUSTED.value
+    assert fields["provider_budget_status"] == "EXHAUSTED"
+
+
+def test_data_gate_fields_pass_through_decision_contract() -> None:
+    fields = _fields(
+        market={"market": "ASIAN_HANDICAP", "decision": "WATCH"},
+        readiness={
+            "data_readiness": {
+                "source": "w2.readiness.data_gate.v1",
+                "data_status": "STALE",
+                "missing_fields": ["xg"],
+                "stale_fields": ["odds"],
+                "reason_code": "DATA_STALE_ODDS",
+                "reason_human": "盘口数据陈旧",
+                "action": "触发盘口刷新或等下一 tick",
+                "next_eval_at": "2026-07-05T00:30:00Z",
+                "provider_budget_status": "AVAILABLE",
+                "field_statuses": [],
+            }
+        },
+    )
+
+    assert fields["data_status"] == DataStatus.STALE.value
+    assert fields["missing_fields"] == ["xg"]
+    assert fields["stale_fields"] == ["odds"]
+    assert fields["decision_contract"]["data_readiness"]["source"] == (  # type: ignore[index]
+        "w2.readiness.data_gate.v1"
+    )

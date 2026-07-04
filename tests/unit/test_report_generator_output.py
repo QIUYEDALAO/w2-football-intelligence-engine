@@ -675,12 +675,15 @@ def test_render_html_non_formal_decision_table_explains_blockers() -> None:
         {
             "decision_tier": "WATCH",
             "data_status": "PARTIAL",
+            "missing_fields": ["xg"],
+            "stale_fields": ["odds"],
             "lifecycle_status": "DRAFT",
             "outcome_tracked": False,
             "lock_eligible": False,
             "reason_code": "EDGE_INSUFFICIENT",
             "action": "盯价格变动",
             "next_eval_at": "2026-07-01T03:30:00Z",
+            "provider_budget_status": "AVAILABLE",
         }
     )
     shadow = dict(no_formal_payload["pricing_shadow"])  # type: ignore[arg-type]
@@ -720,8 +723,12 @@ def test_render_html_non_formal_decision_table_explains_blockers() -> None:
 
     assert "非 FORMAL 判定表" in report
     assert "decision_tier" in report
+    assert "missing_fields" in report
+    assert "stale_fields" in report
+    assert "provider_budget_status" in report
     assert "EDGE_INSUFFICIENT" in report
     assert "盯价格变动" in report
+    assert "AVAILABLE" in report
     assert "blocker_codes" in report
     assert "AH_EV_BELOW_FORMAL_THRESHOLD" in report
     assert "让球结算期望未达正式推荐阈值" in report

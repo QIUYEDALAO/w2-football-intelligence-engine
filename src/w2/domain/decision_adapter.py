@@ -12,6 +12,12 @@ from w2.domain.decision_policy import (
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
 from w2.domain.legacy_decision_shim import legacy_decision_view
+from w2.readiness.data_gate import (
+    DataFreshnessPolicy,
+    DataReadinessResult,
+    build_data_readiness_from_legacy_payload,
+    result_from_mapping,
+)
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 
@@ -28,7 +34,15 @@ def build_decision_contract_fields(
     competition_id: str | None = None,
     fixture_id: str | None = None,
 ) -> dict[str, Any]:
-    data_status = _data_status(readiness, card)
+    data_readiness = _data_readiness_result(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+        readiness=readiness,
+        as_of=as_of,
+        kickoff_utc=kickoff_utc,
+    )
+    data_status = data_readiness.data_status
     tier = _decision_tier(
         card=card,
         market=market,
@@ -56,6 +70,7 @@ def build_decision_contract_fields(
             market=market,
             recommendation=recommendation,
             readiness=readiness,
+            data_readiness=data_readiness,
             kickoff_utc=kickoff_utc,
             as_of=as_of,
         )
@@ -98,6 +113,11 @@ def build_decision_contract_fields(
     )
     summary = {
         **_serialize_core(core),
+        "missing_fields": list(data_readiness.missing_fields),
+        "stale_fields": list(data_readiness.stale_fields),
+        "data_readiness": data_readiness.as_dict(),
+        "provider_budget_status": data_readiness.provider_budget_status,
+        "readiness_source": data_readiness.source,
         "environment": environment,
         "lock_eligible": lock_eligible,
         "legacy_formal": legacy_formal,
@@ -110,9 +130,9 @@ def build_decision_contract_fields(
     )
     return {
         **summary,
-        "reason_code": _get(non_pick_payload, "reason_code"),
-        "action": _get(non_pick_payload, "action"),
-        "next_eval_at": _get(non_pick_payload, "next_eval_at"),
+        "reason_code": _reason_value(non_pick_payload, data_readiness),
+        "action": _action_value(non_pick_payload, data_readiness),
+        "next_eval_at": _next_eval_value(non_pick_payload, data_readiness),
         "decision_contract": summary,
     }
 
@@ -172,6 +192,39 @@ def _data_status(
     return DataStatus.PARTIAL
 
 
+def _data_readiness_result(
+    *,
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+    readiness: Mapping[str, Any] | None,
+    as_of: datetime,
+    kickoff_utc: datetime,
+) -> DataReadinessResult:
+    for payload in (
+        readiness,
+        _as_mapping(_get(readiness, "data_readiness")),
+        _as_mapping(_get(card, "data_readiness")),
+    ):
+        if payload:
+            parsed = result_from_mapping(payload)
+            if parsed is not None:
+                return parsed
+    provider_status = _as_mapping(_get(readiness, "provider_status")) or _as_mapping(
+        _get(card, "provider_status"),
+    )
+    return build_data_readiness_from_legacy_payload(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+        analysis_readiness=readiness,
+        provider_status=provider_status,
+        as_of=as_of,
+        kickoff_utc=kickoff_utc,
+        policy=DataFreshnessPolicy(),
+    )
+
+
 def _lifecycle_status(card: Mapping[str, Any]) -> LifecycleStatus:
     raw = _first_upper(_get(card, "lifecycle_status"), _get(card, "lifecycle_state"))
     if raw in {item.value for item in LifecycleStatus}:
@@ -219,21 +272,29 @@ def _non_pick_payload(
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
     readiness: Mapping[str, Any] | None,
+    data_readiness: DataReadinessResult,
     kickoff_utc: datetime,
     as_of: datetime,
 ) -> dict[str, Any]:
-    reason_code = _reason_code(
+    reason_code = data_readiness.reason_code or _reason_code(
         card=card,
         market=market,
         recommendation=recommendation,
         readiness=readiness,
     )
-    reason_human, action = _reason_text(reason_code)
+    reason_human, action = (
+        (data_readiness.reason_human, data_readiness.action)
+        if data_readiness.reason_code is not None
+        else _reason_text(reason_code)
+    )
     return {
         "reason_code": reason_code.value,
         "reason_human": reason_human,
         "action": action,
-        "next_eval_at": _next_eval_at(reason_code, kickoff_utc=kickoff_utc, as_of=as_of),
+        "next_eval_at": _format_utc(
+            data_readiness.next_eval_at,
+        )
+        or _next_eval_at(reason_code, kickoff_utc=kickoff_utc, as_of=as_of),
     }
 
 
@@ -298,6 +359,44 @@ def _next_eval_at(
     if target <= as_of:
         target = as_of + timedelta(minutes=30)
     return target.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _reason_value(
+    non_pick: Mapping[str, Any] | None,
+    data_readiness: DataReadinessResult,
+) -> str | None:
+    value = _get(non_pick, "reason_code")
+    if value is not None:
+        return str(value)
+    if data_readiness.reason_code is None:
+        return None
+    return data_readiness.reason_code.value
+
+
+def _action_value(
+    non_pick: Mapping[str, Any] | None,
+    data_readiness: DataReadinessResult,
+) -> str | None:
+    value = _get(non_pick, "action")
+    if value is not None:
+        return str(value)
+    return data_readiness.action or None
+
+
+def _next_eval_value(
+    non_pick: Mapping[str, Any] | None,
+    data_readiness: DataReadinessResult,
+) -> str | None:
+    value = _get(non_pick, "next_eval_at")
+    if value is not None:
+        return str(value)
+    return _format_utc(data_readiness.next_eval_at)
+
+
+def _format_utc(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _blockers(

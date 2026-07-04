@@ -1185,6 +1185,7 @@ class ReadModelService:
             "reason_code": row.get("reason_code"),
             "action": row.get("action"),
             "next_eval_at": row.get("next_eval_at"),
+            "provider_budget_status": row.get("provider_budget_status"),
         }
 
     def _compact_all_window_card(self, card: dict[str, Any]) -> dict[str, Any]:
