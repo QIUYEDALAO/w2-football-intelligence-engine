@@ -25,6 +25,7 @@ w2-shadow-cycle = "w2.strategy.shadow_cycle_cli:main"
 w2-gate5-preflight = "w2.gates.gate5_preflight_cli:main"
 w2-shadow-comparison-import = "w2.shadow.comparison_import_cli:main"
 w2-stage7i-observer = "w2.observability.stage7i_observer_cli:main"
+w2-matchday = "w2.matchday.cli:main"
 
 [dependency-groups]
 dev = [
