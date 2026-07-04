@@ -3,8 +3,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from w2.domain.enums import DecisionTier
+from w2.domain.legacy_decision_shim import legacy_decision_view
+
 
 class RecommendationTier(StrEnum):
+    """Deprecated dashboard compatibility view; DecisionTier is the source of truth."""
+
     FORMAL = "FORMAL"
     CANDIDATE = "CANDIDATE"
     ANALYSIS_PICK = "ANALYSIS_PICK"
@@ -34,25 +39,17 @@ def derive_recommendation_tier(
     card: dict[str, Any],
     market: dict[str, Any] | None,
 ) -> RecommendationTier:
-    if truthy(card.get("formal_recommendation")) or (
-        market is not None and truthy(market.get("formal_recommendation"))
-    ):
+    decision_tier = _decision_tier_from_payload(card, market)
+    if decision_tier is not None:
+        return _recommendation_tier_from_decision_tier(decision_tier)
+
+    # Historical compatibility only. New DecisionCard output must provide
+    # decision_tier instead of asking dashboard to infer product semantics from
+    # formal_recommendation/candidate/decision/analysis_decision.
+    legacy = legacy_decision_view(card, market)
+    if legacy.legacy_formal and legacy.lock_eligible:
         return RecommendationTier.FORMAL
-    if truthy(card.get("candidate")) or (
-        market is not None and truthy(market.get("candidate"))
-    ):
-        return RecommendationTier.CANDIDATE
-    if market is not None:
-        decision = str(market.get("decision") or "").upper()
-        analysis_decision = str(market.get("analysis_decision") or "").upper()
-        if decision == "PICK" or analysis_decision == "ANALYSIS_PICK":
-            return RecommendationTier.ANALYSIS_PICK
-        if decision == "WATCH" or analysis_decision == "WATCH":
-            return RecommendationTier.WATCH
-    card_decision = str(card.get("decision") or "").upper()
-    if card_decision == "WATCH":
-        return RecommendationTier.WATCH
-    return RecommendationTier.NO_RECOMMENDATION
+    return _recommendation_tier_from_decision_tier(legacy.decision_tier)
 
 
 def build_recommendation(
@@ -155,3 +152,27 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str) and value.strip():
         return [value]
     return []
+
+
+def _decision_tier_from_payload(
+    card: dict[str, Any],
+    market: dict[str, Any] | None,
+) -> DecisionTier | None:
+    for value in (card.get("decision_tier"), market.get("decision_tier") if market else None):
+        if value is None:
+            continue
+        try:
+            return value if isinstance(value, DecisionTier) else DecisionTier(str(value))
+        except ValueError:
+            return None
+    return None
+
+
+def _recommendation_tier_from_decision_tier(decision_tier: DecisionTier) -> RecommendationTier:
+    if decision_tier is DecisionTier.RECOMMEND:
+        return RecommendationTier.FORMAL
+    if decision_tier is DecisionTier.ANALYSIS_PICK:
+        return RecommendationTier.ANALYSIS_PICK
+    if decision_tier is DecisionTier.WATCH:
+        return RecommendationTier.WATCH
+    return RecommendationTier.NO_RECOMMENDATION
