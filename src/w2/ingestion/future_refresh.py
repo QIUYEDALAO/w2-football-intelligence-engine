@@ -93,7 +93,7 @@ class FutureRefreshConfig:
     daily_reserve: int = 1500
     daily_usage_scope: str = "w2_ledger"
     checkpoint_mode: str = "world_cup_three_checkpoint"
-    trickle_backfill_daily_budget: int = 5
+    trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
     checkpoint_fixture_ids: tuple[str, ...] = ()

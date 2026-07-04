@@ -814,6 +814,16 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
         raise AssertionError("unregistered policy unexpectedly loaded")
 
 
+def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
+    config = config_from_policy(competition_id="world_cup_2026")
+
+    assert config.daily_hard_cap == 100
+    assert config.daily_reserve == 20
+    assert config.request_budget == 30
+    assert config.checkpoint_mode == "world_cup_three_checkpoint"
+    assert config.trickle_backfill_daily_budget == 0
+
+
 def test_future_refresh_file_lock_prevents_duplicate_owner(tmp_path: Path) -> None:
     first = RefreshSingletonLock(
         key="future-refresh:world_cup_2026:2026:bucket",
