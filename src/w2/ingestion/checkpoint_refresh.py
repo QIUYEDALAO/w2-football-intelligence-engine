@@ -7,16 +7,15 @@ from typing import Any
 from w2.ingestion.future_refresh import parse_utc
 
 CHECKPOINT_REFRESH_CONTRACT = "w2.checkpoint_refresh.v1"
+WORLD_CUP_DAILY_PROVIDER_BUDGET = 100
+WORLD_CUP_MATCHDAY_PROVIDER_BUDGET = 80
+WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET = 5
+WORLD_CUP_BUDGET_RESERVE = 20
 
 CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
     ("OPEN", timedelta(hours=-48), ("odds",)),
-    ("T24", timedelta(hours=-24), ("odds",)),
-    ("T12", timedelta(hours=-12), ("odds",)),
-    ("T6", timedelta(hours=-6), ("odds",)),
-    ("T3", timedelta(hours=-3), ("odds",)),
     ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
     ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
-    ("RESULT_POLL", timedelta(hours=2), ("fixtures",)),
 )
 
 LINEUPS_RETRY_CHECKPOINTS: tuple[tuple[str, timedelta], ...] = (
@@ -192,24 +191,72 @@ def select_checkpoint_batch(
     return selected, projected_calls_for_checkpoint_batch(selected)
 
 
+def world_cup_matchday_budget_projection(
+    *,
+    fixture_count: int = 5,
+    include_retries: bool = True,
+    include_status_fixture_overhead: bool = True,
+    daily_budget: int = WORLD_CUP_DAILY_PROVIDER_BUDGET,
+    matchday_budget: int = WORLD_CUP_MATCHDAY_PROVIDER_BUDGET,
+    trickle_backfill_budget: int = WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET,
+) -> dict[str, int | bool]:
+    base_per_fixture = 3  # OPEN, T1 odds, T15 close.
+    lineups_per_fixture = 1
+    retry_per_fixture = 2 if include_retries else 0
+    fixture_calls = fixture_count * (
+        base_per_fixture + lineups_per_fixture + retry_per_fixture
+    )
+    status_fixture_overhead = 2 if include_status_fixture_overhead and fixture_count > 0 else 0
+    projected = fixture_calls + status_fixture_overhead
+    return {
+        "fixture_count": fixture_count,
+        "projected_calls": projected,
+        "daily_budget": daily_budget,
+        "matchday_budget": matchday_budget,
+        "trickle_backfill_budget": trickle_backfill_budget,
+        "reserve": WORLD_CUP_BUDGET_RESERVE,
+        "within_matchday_budget": projected <= matchday_budget,
+        "within_daily_budget": projected + trickle_backfill_budget <= daily_budget,
+    }
+
+
+def trickle_backfill_plan(
+    *,
+    daily_budget: int = WORLD_CUP_DAILY_PROVIDER_BUDGET,
+    matchday_projected_calls: int,
+    requested_backfill_calls: int,
+    reserve: int = WORLD_CUP_BUDGET_RESERVE,
+    trickle_cap: int = WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET,
+) -> dict[str, int | bool | str | None]:
+    remaining_after_matchday = daily_budget - matchday_projected_calls - reserve
+    allowed_calls = max(min(requested_backfill_calls, trickle_cap, remaining_after_matchday), 0)
+    blocker = None if allowed_calls > 0 else "TRICKLE_BACKFILL_BUDGET_EXHAUSTED"
+    return {
+        "daily_budget": daily_budget,
+        "matchday_projected_calls": matchday_projected_calls,
+        "requested_backfill_calls": requested_backfill_calls,
+        "reserve": reserve,
+        "trickle_cap": trickle_cap,
+        "allowed_calls": allowed_calls,
+        "allowed": allowed_calls > 0,
+        "blocker": blocker,
+    }
+
+
 def saturday_budget_projection(
     *,
     fixture_count: int = 30,
     include_retries: bool = True,
-    http_retry_multiplier: int = 2,
+    http_retry_multiplier: int = 1,
 ) -> dict[str, int | bool]:
-    base_per_fixture = 7  # OPEN, T24, T12, T6, T3, T1 odds, T15 close.
-    lineups_per_fixture = 1
-    result_per_fixture = 1
-    retry_per_fixture = 2 if include_retries else 0
-    fixture_calls = fixture_count * (
-        base_per_fixture + lineups_per_fixture + result_per_fixture + retry_per_fixture
+    projection = world_cup_matchday_budget_projection(
+        fixture_count=fixture_count,
+        include_retries=include_retries,
     )
-    status_fixture_overhead = 16  # Conservative day-level polling overhead.
-    projected = (fixture_calls + status_fixture_overhead) * max(http_retry_multiplier, 1)
+    projected = int(projection["projected_calls"]) * max(http_retry_multiplier, 1)
     return {
         "fixture_count": fixture_count,
         "projected_calls": projected,
-        "budget_cap": 800,
-        "within_budget": projected <= 800,
+        "budget_cap": WORLD_CUP_DAILY_PROVIDER_BUDGET,
+        "within_budget": projected <= WORLD_CUP_DAILY_PROVIDER_BUDGET,
     }

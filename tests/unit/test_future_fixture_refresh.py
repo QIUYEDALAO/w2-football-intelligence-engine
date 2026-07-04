@@ -743,6 +743,34 @@ def test_future_refresh_daily_hard_cap_blocks_before_provider_call(
     assert audit["requests"][0]["error_code"] == "PROVIDER_RESERVE_PROTECTED"
 
 
+def test_future_refresh_w2_budget_scope_ignores_provider_header_usage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        daily_hard_cap=100,
+        daily_reserve=20,
+        daily_usage_scope="w2_ledger",
+        actual_provider_calls_today=70,
+        max_odds_requests=5,
+        feature_enrichment_enabled=True,
+        feature_enrichment_request_budget=3,
+    )
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.status != "BLOCKED"
+    assert "PROVIDER_RESERVE_PROTECTED" not in result.blockers
+
+
 def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Path) -> None:
     policy_path = tmp_path / "policy.json"
     policy_path.write_text(

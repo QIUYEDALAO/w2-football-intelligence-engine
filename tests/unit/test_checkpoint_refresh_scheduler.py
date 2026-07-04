@@ -9,6 +9,8 @@ from w2.ingestion.checkpoint_refresh import (
     projected_calls_for_checkpoint_batch,
     saturday_budget_projection,
     select_checkpoint_batch,
+    trickle_backfill_plan,
+    world_cup_matchday_budget_projection,
 )
 
 NOW = datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
@@ -25,18 +27,13 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
 
     assert [plan.checkpoint for plan in plans] == [
         "OPEN",
-        "T24",
-        "T12",
-        "T6",
-        "T3",
         "T1_LINEUPS",
         "T15M_CLOSE",
-        "RESULT_POLL",
     ]
     assert plans[0].due_at_utc == NOW
-    assert plans[1].due_at_utc == kickoff - timedelta(hours=24)
-    assert plans[5].endpoints == ("odds", "lineups")
-    assert [plan.plan_id for plan in plans].count("fixture-1:T24") == 1
+    assert plans[1].due_at_utc == kickoff - timedelta(hours=1)
+    assert plans[1].endpoints == ("odds", "lineups")
+    assert [plan.plan_id for plan in plans].count("fixture-1:T1_LINEUPS") == 1
 
 
 def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
@@ -49,9 +46,9 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
     )
 
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
-    assert plans[1].due_at_utc == datetime(2026, 7, 4, 0, 0, tzinfo=UTC)
-    assert plans[6].checkpoint == "T15M_CLOSE"
-    assert plans[6].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
+    assert plans[1].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
+    assert plans[2].checkpoint == "T15M_CLOSE"
+    assert plans[2].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
 
 
 def test_line_jump_confirmation_triggers_after_half_ball_move() -> None:
@@ -126,13 +123,35 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
 
     selected, projected = select_checkpoint_batch(plans, hard_cap=4)
 
-    assert len(selected) == 3
+    assert len(selected) == 2
     assert projected == projected_calls_for_checkpoint_batch(selected)
     assert projected <= 4
 
 
-def test_saturday_30_fixture_budget_stays_under_800_including_retries() -> None:
+def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> None:
+    projection = world_cup_matchday_budget_projection(fixture_count=5, include_retries=True)
+
+    assert projection["within_daily_budget"] is True
+    assert projection["projected_calls"] <= 100
+
+
+def test_saturday_30_fixture_budget_no_longer_fits_world_cup_100_call_mode() -> None:
     projection = saturday_budget_projection(fixture_count=30, include_retries=True)
 
-    assert projection["within_budget"] is True
-    assert projection["projected_calls"] <= 800
+    assert projection["within_budget"] is False
+    assert projection["projected_calls"] > 100
+
+
+def test_trickle_backfill_plan_never_steals_matchday_reserve() -> None:
+    quiet_day = trickle_backfill_plan(
+        matchday_projected_calls=40,
+        requested_backfill_calls=12,
+    )
+    busy_day = trickle_backfill_plan(
+        matchday_projected_calls=78,
+        requested_backfill_calls=12,
+    )
+
+    assert quiet_day["allowed_calls"] == 5
+    assert busy_day["allowed_calls"] == 2
+    assert busy_day["allowed"] is True

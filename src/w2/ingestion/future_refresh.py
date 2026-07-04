@@ -63,6 +63,11 @@ class CompetitionRefreshPolicy:
     max_odds_requests: int
     market_freshness_seconds: int
     enabled: bool
+    daily_hard_cap: int
+    daily_reserve: int
+    daily_usage_scope: str
+    checkpoint_mode: str
+    trickle_backfill_daily_budget: int
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,9 @@ class FutureRefreshConfig:
     persistence: str = "db"
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
+    daily_usage_scope: str = "w2_ledger"
+    checkpoint_mode: str = "world_cup_three_checkpoint"
+    trickle_backfill_daily_budget: int = 5
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
     checkpoint_fixture_ids: tuple[str, ...] = ()
@@ -233,13 +241,14 @@ def load_refresh_policy(
             raise FutureRefreshError(
                 "FUTURE_REFRESH_POLICY_FIELD_INVALID:feature_enrichment_endpoints"
             )
+        quota_reserve = int(item["quota_reserve"])
         return CompetitionRefreshPolicy(
             competition_id=competition_id,
             provider_league_id=item["provider_league_id"],
             season=item["season"],
             horizon_days=item["horizon_days"],
             scheduler_interval_seconds=item["scheduler_interval_seconds"],
-            quota_reserve=item["quota_reserve"],
+            quota_reserve=quota_reserve,
             request_budget=item["request_budget"],
             feature_enrichment_enabled=bool(item.get("feature_enrichment_enabled") is True),
             feature_enrichment_endpoints=tuple(enrichment_endpoints),
@@ -248,6 +257,11 @@ def load_refresh_policy(
             max_odds_requests=item["max_odds_requests"],
             market_freshness_seconds=item["market_freshness_seconds"],
             enabled=item["enabled"],
+            daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
+            daily_reserve=int(item.get("daily_reserve", quota_reserve)),
+            daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
+            checkpoint_mode=str(item.get("checkpoint_mode", "legacy_full_checkpoint")),
+            trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
         )
     raise FutureRefreshError("FUTURE_REFRESH_COMPETITION_NOT_REGISTERED")
 
@@ -276,7 +290,11 @@ def config_from_policy(
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
-        daily_reserve=policy.quota_reserve,
+        daily_hard_cap=policy.daily_hard_cap,
+        daily_reserve=policy.daily_reserve,
+        daily_usage_scope=policy.daily_usage_scope,
+        checkpoint_mode=policy.checkpoint_mode,
+        trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
     )
 
 
@@ -1041,7 +1059,10 @@ class FutureFixtureRefreshService:
             return 0
         day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         try:
-            return self._db_repository().request_count_since(day_start)
+            return self._db_repository().request_count_since(
+                day_start,
+                include_quota_usage=self.config.daily_usage_scope != "w2_ledger",
+            )
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc
 

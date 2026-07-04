@@ -15,7 +15,16 @@ Validating provider calls alone is insufficient.
 
 ## Preconditions
 
-- Remaining daily provider quota is at least 50%.
+- W2 daily provider budget is 100 calls/day.
+- Matchday checkpoint refresh should consume at most 80 calls/day.
+- Trickle backfill is capped at 5 calls/day and may only use leftover budget
+  after matchday projection plus reserve.
+- Daily reserve is 20 calls.
+- Provider account quota headers are recorded separately from the W2 daily
+  operating budget. The rehearsal hard cap uses W2 provider-request ledger
+  usage; provider account exhaustion still fails closed when observed.
+- Remaining daily provider quota is sufficient for the W2 100-call rehearsal
+  budget.
 - No live prematch window is being displaced by the rehearsal.
 - Scheduler starts in the foreground with `restart=no`.
 - Production deploy, lock capture write, and settlement write are not part of
@@ -40,6 +49,8 @@ For one complete checkpoint cycle, record:
 - checkpoint audit row count and completeness
 - hard-stop or reserve blocker count
 - duplicate task suppression count
+- W2 daily budget used before/after
+- provider account quota header observed before/after, if available
 
 ## Materialization Gate
 
@@ -87,3 +98,104 @@ If any acceptance criterion fails:
 
 Do not retry by widening provider endpoints, disabling hard caps, or enabling
 legacy frequency-based refresh.
+
+## 2026-07-04 Rehearsal Attempt
+
+Status: FAILED_CLOSED
+
+The supervised rehearsal was started as a one-off foreground checkpoint task on
+the single production/staging host. The persistent scheduler container was not
+started and its restart policy stayed `no`.
+
+Runtime identity:
+
+- Host: 43.155.208.138
+- Web/API SHA: f15f28c3c4af138339881864b03c1085fc9d60a0
+- Local branch at launch: feat/w2-canonical-ah-materialization
+- Launch time: 2026-07-04T11:05:41Z
+
+Preflight:
+
+- Scheduler state: exited
+- Scheduler restart policy: no
+- Celery queue length: 0
+- Endpoint allowlist: status, fixtures, odds, lineups
+- XG/history/H2H/statistics/injuries: not enabled
+- Selected checkpoint count: 25
+- Projected provider calls: 26
+- Tick hard cap: 30
+
+Checkpoint projection:
+
+- OPEN: 6
+- RESULT_POLL: 2
+- T12: 4
+- T15M_CLOSE: 2
+- T1_LINEUPS: 2
+- T24: 4
+- T3: 2
+- T6: 3
+
+Actual result:
+
+- Provider calls actual: 2
+- Request count by endpoint: fixtures=1, status=1
+- Provider request log delta: 2
+- Raw payload delta: 2
+- Future refresh run audit delta: 1
+- Future refresh checkpoint audit delta: 25
+- Task status: BLOCKED
+- Blocker: DAILY_QUOTA_UNKNOWN
+- Quota usage observed after status request: status used=7400, limit=7500,
+  window=2026-07-04T00:00:00Z..2026-07-05T00:00:00Z
+- Materialization: not run after blocker
+- Public page data-time roll: not attempted after blocker
+
+Memory observation:
+
+- API: 168.8MiB before, 172.5MiB after, limit 1GiB
+- Worker: 150.0MiB before, 150.1MiB after, limit 2GiB
+- Web: 4.734MiB before and after, limit 256MiB
+- Scheduler: 0B, container remained exited
+
+Decision:
+
+The rehearsal correctly failed closed before odds/lineups refresh because the
+provider quota ledger/header state no longer satisfied the quota precondition.
+Manual mode remains active. Scheduler remains stopped with restart policy `no`.
+Do not retry until quota usage is reconciled and remaining quota is again above
+the 50% rehearsal threshold.
+
+## 2026-07-05 Rehearsal Budget Contract
+
+The next rehearsal uses the 100-call W2 operating budget rather than the prior
+large-account quota assumption.
+
+World Cup checkpoint mode:
+
+- OPEN: odds only
+- T1_LINEUPS: odds plus lineups
+- T15M_CLOSE: odds only
+
+Event-driven exceptions remain allowed but budgeted:
+
+- T45/T30 lineups retry only after `PROVIDER_EMPTY` / `MISSING_LINEUPS`
+- LINE_JUMP_CONFIRMATION only after a line move of at least 0.5 goals
+
+Backfill plan:
+
+- Backfill is trickle-only during matchday operations.
+- Daily trickle cap: 5 calls.
+- Backfill is skipped when matchday projected calls plus reserve leave no room.
+- Statistics, injuries, H2H, history, and XG remain outside the supervised
+  matchday scheduler.
+
+Pass criteria for the 100-call rehearsal:
+
+- selected checkpoint projection is at or below 30 calls for the tick
+- daily W2 projected calls stay at or below 100
+- actual calls are within plus or minus 20% of projection
+- raw/audit rows are written for executed requests
+- materialization runs after collection
+- public page data time rolls after materialization
+- scheduler remains `restart=no` during observation

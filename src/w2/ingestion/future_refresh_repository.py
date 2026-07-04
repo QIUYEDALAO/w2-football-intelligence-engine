@@ -600,7 +600,7 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RUN_AUDIT_WRITE_FAILED") from exc
 
-    def request_count_since(self, since: datetime) -> int:
+    def request_count_since(self, since: datetime, *, include_quota_usage: bool = True) -> int:
         since_utc = parse_db_datetime(since)
         day_start = since_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -618,12 +618,16 @@ class FutureRefreshDbRepository:
                         ProviderRequestLogModel.requested_at >= since_utc,
                     )
                 )
-                quota_usage = session.scalar(
-                    select(func.coalesce(func.max(QuotaUsageModel.used), 0)).where(
-                        QuotaUsageModel.provider == "api_football",
-                        QuotaUsageModel.window_start >= day_start,
-                        QuotaUsageModel.window_start < day_end,
+                quota_usage = (
+                    session.scalar(
+                        select(func.coalesce(func.max(QuotaUsageModel.used), 0)).where(
+                            QuotaUsageModel.provider == "api_football",
+                            QuotaUsageModel.window_start >= day_start,
+                            QuotaUsageModel.window_start < day_end,
+                        )
                     )
+                    if include_quota_usage
+                    else 0
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
