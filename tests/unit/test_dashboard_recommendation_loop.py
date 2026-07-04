@@ -162,6 +162,10 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["non_pick"]["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
     assert card["decision_contract"]["decision_tier"] == "NOT_READY"
     assert card["decision_contract"]["environment"] == "staging"
+    assert card["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
+    assert card["data_readiness"]["data_status"] == "BLOCKED"
+    assert card["data_readiness"]["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["decision_contract"]["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
     assert card["recommendation"]["tier"] == "ANALYSIS_PICK"
     assert card["recommendation"]["decision_tier"] == "ANALYSIS_PICK"
     assert card["recommendation"]["candidate"] is False
@@ -193,6 +197,16 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert performance["analysis_pick_count"] == 1
     assert card["analysis_readiness"]["status"] in {"PARTIAL", "BLOCKED"}
     assert "FIXTURE_NOT_UPCOMING" in card["analysis_readiness"]["blockers"]
+
+
+def test_all_window_compact_omits_full_data_readiness_objects() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    payload = service.dashboard(target_date="2026-06-26", window="all")
+    card = payload["all"][0]
+
+    assert "data_readiness" not in card
+    assert "decision_contract" not in card
 
 
 def test_non_formal_ah_market_lean_does_not_hand_build_direction_text() -> None:
