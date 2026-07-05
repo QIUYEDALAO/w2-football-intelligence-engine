@@ -84,6 +84,9 @@ def test_dashboard_day_view_endpoint_reads_today_dashboard_only(
     assert payload["request_id"]
     assert payload["football_day"] == "2026-07-05"
     assert payload["window"] == "today"
+    assert payload["navigation"]["current_date"] == "2026-07-05"
+    assert payload["navigation"]["fallback_mode"] == "read_model"
+    assert payload["degradation"]["state"] == "BLOCKED_DAY"
     assert payload["counts"]["total"] == 1
     assert payload["counts"]["not_ready"] == 1
     assert payload["counts"]["by_decision_tier"]["RECOMMEND"] == 0
