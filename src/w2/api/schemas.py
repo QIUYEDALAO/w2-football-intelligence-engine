@@ -173,6 +173,8 @@ class DashboardDayViewResponse(BaseModel):
     db_writes: int
     counts: dict[str, Any]
     freshness: dict[str, Any]
+    navigation: dict[str, Any]
+    degradation: dict[str, Any]
     cards: list[dict[str, Any]]
 
 

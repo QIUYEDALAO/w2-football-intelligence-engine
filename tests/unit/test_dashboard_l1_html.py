@@ -235,6 +235,49 @@ def test_l1_html_renders_stale_and_refreshing_degradation_copy() -> None:
     assert "当前页面可能短暂滞后" in refreshing_html
 
 
+def test_l1_html_renders_date_navigation() -> None:
+    html = render_boss_dashboard_l1_html(
+        _day_view(
+            navigation={
+                "current_date": "2026-07-05",
+                "previous_date": "2026-07-04",
+                "next_date": "2026-07-06",
+                "today_date": "2026-07-05",
+                "has_checkpoint": False,
+                "warning": "未发现 day_view checkpoint，使用只读 read-model fallback",
+            }
+        )
+    )
+
+    assert "上一天" in html
+    assert "今天" in html
+    assert "下一天" in html
+    assert "?date=2026-07-04" in html
+    assert "?date=2026-07-05" in html
+    assert "?date=2026-07-06" in html
+    assert "当前比赛日：2026-07-05" in html
+    assert "checkpoint：使用只读 read-model fallback" in html
+    assert "未发现 day_view checkpoint，使用只读 read-model fallback" in html
+
+
+def test_l1_html_renders_future_day_navigation_warning() -> None:
+    html = render_boss_dashboard_l1_html(
+        _day_view(
+            navigation={
+                "current_date": "2026-07-06",
+                "previous_date": "2026-07-05",
+                "next_date": "2026-07-07",
+                "today_date": "2026-07-05",
+                "has_checkpoint": False,
+                "warning": "未来日期可能没有完整数据",
+            }
+        )
+    )
+
+    assert "当前比赛日：2026-07-06" in html
+    assert "未来日期可能没有完整数据" in html
+
+
 def test_l1_html_keeps_diagnostics_out_of_first_screen() -> None:
     html = render_boss_dashboard_l1_html(
         _day_view(
@@ -389,6 +432,7 @@ def _day_view(
     freshness: dict[str, object] | None = None,
     cards: list[dict[str, object]] | None = None,
     degradation: dict[str, object] | None = None,
+    navigation: dict[str, object] | None = None,
 ) -> dict[str, object]:
     actual_cards = [] if cards == [] else cards or [_card("watch")]
     return {
@@ -402,6 +446,7 @@ def _day_view(
             **(freshness or {}),
         },
         "degradation": degradation or {},
+        "navigation": navigation or {},
         "counts": counts
         or {
             "total": len(actual_cards),

@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
@@ -25,8 +26,9 @@ def build_dashboard_day_view(
     )
     cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
     counts = _counts(cards)
+    generated_at = _format_time(dashboard_payload.get("generated_at"))
     view = {
-        "generated_at": _format_time(dashboard_payload.get("generated_at")),
+        "generated_at": generated_at,
         "date": _text(dashboard_payload.get("date"), football_day),
         "football_day": football_day,
         "selected_football_day": football_day,
@@ -43,6 +45,12 @@ def build_dashboard_day_view(
         "freshness": _freshness(dashboard_payload, cards, counts),
         "cards": cards,
     }
+    view["navigation"] = build_date_navigation(
+        football_day,
+        as_of=generated_at,
+        has_checkpoint=False,
+        checkpoint_key=str(view["checkpoint_key"]),
+    )
     view["degradation"] = build_dashboard_degradation(view)
     return view
 

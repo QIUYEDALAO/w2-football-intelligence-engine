@@ -53,6 +53,7 @@ def build_boss_dashboard_l1(day_view: Mapping[str, Any]) -> dict[str, Any]:
         "as_of": _text(day_view.get("generated_at")),
         "generated_at": _text(day_view.get("generated_at")),
         "freshness": _mapping_copy(day_view.get("freshness")),
+        "navigation": _mapping_copy(day_view.get("navigation")),
         "degradation": _mapping_copy(day_view.get("degradation")),
         "headline": _headline(
             counts=counts,

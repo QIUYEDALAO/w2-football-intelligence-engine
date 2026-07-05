@@ -28,6 +28,7 @@ def render_boss_dashboard_l1_html(day_view: Mapping[str, Any]) -> str:
             "<body>",
             "<main>",
             _header(model, counts, freshness),
+            _date_navigation(model),
             _notice(model, counts, freshness),
             _section(
                 "可锁审批 / 正式可锁",
@@ -97,6 +98,34 @@ def _notice(
     return '<section class="notice">' + "".join(
         f"<p>{message}</p>" for message in dict.fromkeys(messages) if message
     ) + "</section>"
+
+
+def _date_navigation(model: Mapping[str, Any]) -> str:
+    navigation = _mapping(model.get("navigation"))
+    if not navigation:
+        return ""
+    warning = _optional_text(navigation.get("warning"))
+    status = (
+        "checkpoint 可用"
+        if navigation.get("has_checkpoint") is True
+        else "使用只读 read-model fallback"
+    )
+    parts = [
+        '<nav class="date-nav">',
+        '<div class="date-nav-links">',
+        f'<a href="?date={_e(navigation.get("previous_date"))}">上一天</a>',
+        f'<a href="?date={_e(navigation.get("today_date"))}">今天</a>',
+        f'<a href="?date={_e(navigation.get("next_date"))}">下一天</a>',
+        "</div>",
+        '<div class="date-nav-meta">',
+        f"<span>当前比赛日：{_e(navigation.get('current_date'))}</span>",
+        f"<span>checkpoint：{_e(status)}</span>",
+        "</div>",
+    ]
+    if warning:
+        parts.append(f'<p class="date-nav-warning">{_e(warning)}</p>')
+    parts.append("</nav>")
+    return "\n".join(parts)
 
 
 def _degradation_messages(degradation: Mapping[str, Any]) -> list[str]:
@@ -318,6 +347,12 @@ h1 { margin: 0 0 8px; font-size: 24px; }
 .metric strong { display: block; margin-top: 4px; font-size: 22px; }
 .notice, .panel { margin-top: 12px; background: #ffffff; border: 1px solid #d9dde5;
   border-radius: 6px; padding: 14px; }
+.date-nav { margin-top: 12px; background: #ffffff; border: 1px solid #d9dde5;
+  border-radius: 6px; padding: 12px 14px; }
+.date-nav-links, .date-nav-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.date-nav a { color: #1f5f99; font-weight: 600; text-decoration: none; }
+.date-nav-meta { margin-top: 8px; color: #607086; font-size: 13px; }
+.date-nav-warning { margin: 8px 0 0; color: #7a4f00; font-weight: 600; }
 .notice p { margin: 0 0 6px; font-weight: 600; }
 .panel h2 { margin: 0 0 10px; font-size: 17px; }
 .cards { display: grid; gap: 10px; }

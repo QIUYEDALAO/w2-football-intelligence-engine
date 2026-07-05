@@ -73,6 +73,17 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["counts"]["legacy_fallback"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
     assert view["freshness"]["data_status_summary"] == view["counts"]["by_data_status"]
+    assert view["navigation"]["current_date"] == "2026-07-05"
+    assert view["navigation"]["previous_date"] == "2026-07-04"
+    assert view["navigation"]["next_date"] == "2026-07-06"
+    assert view["navigation"]["today_date"] == "2026-07-05"
+    assert view["navigation"]["is_today"] is True
+    assert view["navigation"]["has_checkpoint"] is False
+    assert view["navigation"]["checkpoint_key"] == "dashboard:day_view:2026-07-05"
+    assert view["navigation"]["fallback_mode"] == "read_model"
+    assert view["navigation"]["warning"] == (
+        "未发现 day_view checkpoint，使用只读 read-model fallback"
+    )
     assert view["degradation"]["state"] == "OK"
     assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
 
