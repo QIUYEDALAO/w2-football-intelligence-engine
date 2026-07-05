@@ -262,6 +262,45 @@ def test_l1_does_not_recalculate_day_view_contract_source() -> None:
     assert model["sections"]["watchlist"][0]["fixture_id"] == "contract-watch"
 
 
+def test_l1_card_contains_l2_diagnostics_from_day_view_card() -> None:
+    model = build_boss_dashboard_l1(
+        _day_view(
+            cards=[
+                {
+                    **_card(
+                        "diagnostic",
+                        decision_tier="WATCH",
+                        data_status="PARTIAL",
+                        reason_code="LINEUPS_PENDING",
+                        action="WAIT_FOR_LINEUPS",
+                    ),
+                    "lifecycle_status": "PRE_MATCH",
+                    "outcome_tracked": False,
+                    "provider_budget_status": "OK",
+                    "missing_fields": ["lineups"],
+                    "stale_fields": ["odds"],
+                    "card_hash": "hash-1",
+                    "data_readiness": {
+                        "data_status": "PARTIAL",
+                        "reason_code": "LINEUPS_PENDING",
+                        "action": "WAIT_FOR_LINEUPS",
+                        "missing_fields": ["lineups"],
+                        "stale_fields": ["odds"],
+                    },
+                }
+            ]
+        )
+    )
+
+    diagnostics = model["cards"][0]["diagnostics"]
+    assert diagnostics["fixture_id"] == "diagnostic"
+    assert diagnostics["lifecycle_status"] == "PRE_MATCH"
+    assert diagnostics["missing_fields"] == ["lineups"]
+    assert diagnostics["stale_fields"] == ["odds"]
+    assert diagnostics["data_readiness_summary"]["reason_code"] == "LINEUPS_PENDING"
+    assert diagnostics["card_hash"] == "hash-1"
+
+
 def test_l1_view_module_does_not_call_strategy_decider() -> None:
     assert "decide_match" not in l1_view.__dict__
 
