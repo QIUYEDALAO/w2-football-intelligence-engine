@@ -193,6 +193,48 @@ def test_l1_html_keeps_diagnostics_out_of_first_screen() -> None:
     assert "blocker_codes" not in html
 
 
+def test_l1_html_renders_collapsed_l2_diagnostics() -> None:
+    html = render_boss_dashboard_l1_html(
+        _day_view(
+            cards=[
+                {
+                    **_card(
+                        "watch",
+                        decision_tier="WATCH",
+                        data_status="PARTIAL",
+                        reason_code="LINEUPS_PENDING",
+                        action="WAIT_FOR_LINEUPS",
+                    ),
+                    "lifecycle_status": "PRE_MATCH",
+                    "outcome_tracked": False,
+                    "provider_budget_status": "OK",
+                    "missing_fields": ["lineups"],
+                    "stale_fields": ["odds"],
+                    "card_hash": "hash-1",
+                    "pick": {
+                        "market": "ASIAN_HANDICAP",
+                        "selection": "HOME",
+                        "line": "-0.25",
+                        "odds": "1.91",
+                    },
+                }
+            ]
+        )
+    )
+
+    assert "<details><summary>技术诊断</summary>" in html
+    assert "lifecycle_status" in html
+    assert "PRE_MATCH" in html
+    assert "missing_fields" in html
+    assert "lineups" in html
+    assert "stale_fields" in html
+    assert "odds" in html
+    assert "provider_budget_status" in html
+    assert "card_hash" in html
+    assert "hash-1" in html
+    assert "market_snapshot" in html
+
+
 def test_l1_html_forbidden_words_guard() -> None:
     safe_html = render_boss_dashboard_l1_html(
         _day_view(cards=[_card("analysis", decision_tier="ANALYSIS_PICK")])

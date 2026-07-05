@@ -141,17 +141,53 @@ def _card(card: Mapping[str, Any]) -> str:
             f"<p>{_e(card.get('one_liner') or fallback)}</p>",
             f'<p class="market">{_e(market_line)}</p>' if market_line else "",
             f'<p class="disclaimer">{_e(disclaimer)}</p>' if disclaimer else "",
-            '<details><summary>技术细节</summary>',
-            "<dl>",
-            f"<dt>fixture_id</dt><dd>{_e(card.get('fixture_id'))}</dd>",
-            f"<dt>reason_code</dt><dd>{_e(card.get('reason_code'))}</dd>",
-            f"<dt>action</dt><dd>{_e(card.get('action'))}</dd>",
-            f"<dt>next_eval_at</dt><dd>{_e(card.get('next_eval_at'))}</dd>",
-            "</dl>",
-            "</details>",
+            _diagnostics_details(_mapping(card.get("diagnostics"))),
             "</article>",
         ]
     )
+
+
+def _diagnostics_details(diagnostics: Mapping[str, Any]) -> str:
+    if not diagnostics:
+        return ""
+    rows = [
+        ("fixture_id", diagnostics.get("fixture_id")),
+        ("source", diagnostics.get("source")),
+        ("decision_tier", diagnostics.get("decision_tier")),
+        ("data_status", diagnostics.get("data_status")),
+        ("lifecycle_status", diagnostics.get("lifecycle_status")),
+        ("outcome_tracked", diagnostics.get("outcome_tracked")),
+        ("lock_eligible", diagnostics.get("lock_eligible")),
+        ("recommendation_id", diagnostics.get("recommendation_id")),
+        ("reason_code", diagnostics.get("reason_code")),
+        ("action", diagnostics.get("action")),
+        ("next_eval_at", diagnostics.get("next_eval_at")),
+        ("provider_budget_status", diagnostics.get("provider_budget_status")),
+        ("missing_fields", diagnostics.get("missing_fields")),
+        ("stale_fields", diagnostics.get("stale_fields")),
+        ("market_snapshot", diagnostics.get("market_snapshot")),
+        ("card_hash", diagnostics.get("card_hash")),
+    ]
+    rendered = "".join(
+        f"<dt>{_e(label)}</dt><dd>{_e(_diagnostic_value(value))}</dd>"
+        for label, value in rows
+        if value not in (None, "", [], {})
+    )
+    if not rendered:
+        return ""
+    return f"<details><summary>技术诊断</summary><dl>{rendered}</dl></details>"
+
+
+def _diagnostic_value(value: Any) -> str:
+    if isinstance(value, Mapping):
+        return " / ".join(
+            f"{key}={item}" for key, item in value.items() if item not in (None, "", [], {})
+        )
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return " / ".join(str(item) for item in value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _reason_summary(value: Any) -> str:

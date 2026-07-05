@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from w2.dashboard.l2_diagnostics import build_l2_diagnostics
 from w2.domain.enums import DataStatus, DecisionTier
 
 ANALYSIS_PICK_DISCLAIMER = "分析参考·非稳赢；production 动作需 RECOMMEND"
@@ -109,6 +110,7 @@ def _l1_card(card: Mapping[str, Any], *, environment: str) -> dict[str, Any]:
         "odds": _optional_text(pick.get("odds")),
         "disclaimer": disclaimer,
         "source": _optional_text(card.get("source")),
+        "diagnostics": build_l2_diagnostics(card),
     }
 
 
