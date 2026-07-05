@@ -75,6 +75,7 @@ def test_l1_html_staging_lock_eligible_analysis_pick_is_staging_only_approval() 
     assert "可锁审批" in header
     assert "正式可锁</span>" not in header
     assert "今日有 1 场可锁审批候选" in html
+    assert "staging-only / 可锁审批 / 分析参考·非稳赢" in html
     assert "Home analysis vs Away analysis" in lock_section
     assert "staging-only" in lock_section
     assert "需要审批" in lock_section
@@ -114,6 +115,7 @@ def test_l1_html_production_analysis_pick_not_in_lock_section() -> None:
     lock_section = html.split("可锁审批 / 正式可锁", 1)[1].split("分析推荐", 1)[0]
     header = html.split("可锁审批 / 正式可锁", 1)[0]
     assert "正式可锁" in header
+    assert "production B / RECOMMEND-only / 正式可锁" in html
     assert "Home analysis vs Away analysis" not in lock_section
     assert "Home analysis vs Away analysis" in html.split("分析推荐", 1)[1]
 

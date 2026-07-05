@@ -116,3 +116,31 @@ def test_l2_diagnostics_filters_forbidden_and_large_debug_fields() -> None:
     assert "authorization" not in serialized
     assert "lambda" not in serialized
     assert "blocker_codes" not in serialized
+
+
+def test_l2_diagnostics_includes_small_environment_policy_summary() -> None:
+    diagnostics = build_l2_diagnostics(
+        {
+            "fixture_id": "fixture-1",
+            "decision_tier": "WATCH",
+            "data_status": "PARTIAL",
+            "environment_policy": {
+                "environment": "production",
+                "policy_version": "w2.environment_policy.v1",
+                "lock_policy": {"name": "production_B"},
+                "source": "w2.domain.environment_policy",
+                "raw_env": {"W2_ENVIRONMENT": "production"},
+            },
+        }
+    )
+
+    assert diagnostics["environment_policy"] == {
+        "environment": "production",
+        "policy_version": "w2.environment_policy.v1",
+        "lock_policy_name": "production_B",
+        "source": "w2.domain.environment_policy",
+    }
+    assert diagnostics["safe_debug"] == {
+        "environment_policy_source": "w2.domain.environment_policy",
+        "lock_policy_name": "production_B",
+    }

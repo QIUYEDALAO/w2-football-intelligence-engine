@@ -6,6 +6,7 @@ from typing import Any
 
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.enums import DataStatus
+from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.readiness.data_gate import DataFreshnessPolicy, DataReadinessInput, evaluate_data_readiness
 from w2.refresh.matchday_schedule import (
     AUTHORIZED_MATCHDAY_ENDPOINTS,
@@ -36,6 +37,7 @@ def build_matchday_dry_run(
     refresh_dedupe_ttl_seconds: int = 1800,
 ) -> dict[str, Any]:
     current = _normalize_utc(as_of)
+    environment_policy = build_environment_policy_stamp(environment)
     normalized = [_normalize_fixture(item) for item in fixtures]
     configured_endpoints = list(
         provider_allowed_endpoints or ("status", "fixtures", "odds", "lineups"),
@@ -46,6 +48,7 @@ def build_matchday_dry_run(
             **_base_payload(
                 football_day=football_day,
                 environment=environment,
+                environment_policy=environment_policy,
                 as_of=current,
                 fixture_count=0,
             ),
@@ -98,6 +101,7 @@ def build_matchday_dry_run(
         **_base_payload(
             football_day=football_day,
             environment=environment,
+            environment_policy=environment_policy,
             as_of=current,
             fixture_count=len(normalized),
         ),
@@ -169,6 +173,7 @@ def build_matchday_controlled_run_plan(
     return {
         "football_day": dry_run["football_day"],
         "environment": environment,
+        "environment_policy": dry_run["environment_policy"],
         "mode": "controlled_run",
         "status": "APPROVAL_REQUIRED" if required_approvals else "EXECUTION_DEFERRED",
         "as_of": dry_run["as_of"],
@@ -438,12 +443,14 @@ def _base_payload(
     *,
     football_day: date,
     environment: str,
+    environment_policy: Mapping[str, Any],
     as_of: datetime,
     fixture_count: int,
 ) -> dict[str, Any]:
     return {
         "football_day": football_day.isoformat(),
         "environment": environment,
+        "environment_policy": dict(environment_policy),
         "mode": "dry_run",
         "as_of": _iso(as_of),
         "fixture_count": fixture_count,

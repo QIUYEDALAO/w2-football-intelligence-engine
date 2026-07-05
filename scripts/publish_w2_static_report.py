@@ -123,7 +123,8 @@ def validate_static_report_html(
             "STATIC_REPORT_WATERMARK_MISSING: "
             f"{HTML_RENDERER_VERSION} count={watermark_count}"
         )
-    forbidden = [term for term in FORBIDDEN_TERMS if term in html]
+    normalized = html.replace("非稳赢", "")
+    forbidden = [term for term in FORBIDDEN_TERMS if term in normalized]
     if forbidden:
         raise RuntimeError(
             "STATIC_REPORT_FORBIDDEN_TERMS: " + ",".join(sorted(forbidden))

@@ -19,6 +19,8 @@ _READINESS_KEYS = (
 _SAFE_DEBUG_KEYS = (
     "action_label",
     "environment",
+    "environment_policy_source",
+    "lock_policy_name",
     "legacy_fallback",
     "legacy_formal",
     "readiness_source",
@@ -55,6 +57,7 @@ def build_l2_diagnostics(card: Mapping[str, Any]) -> dict[str, Any]:
                 }
             ),
             "card_hash": _optional_text(card.get("card_hash")),
+            "environment_policy": _environment_policy_summary(card.get("environment_policy")),
             "safe_debug": _safe_debug(card),
         }
     )
@@ -74,10 +77,28 @@ def _readiness_summary(value: Any) -> dict[str, Any]:
 
 def _safe_debug(card: Mapping[str, Any]) -> dict[str, Any]:
     debug = _mapping(card.get("safe_debug")) or _mapping(card.get("diagnostics"))
+    environment_policy = _environment_policy_summary(card.get("environment_policy"))
     return _drop_empty(
         {
             key: _safe_value(debug.get(key), fallback=card.get(key))
             for key in _SAFE_DEBUG_KEYS
+        }
+        | {
+            "environment_policy_source": environment_policy.get("source"),
+            "lock_policy_name": environment_policy.get("lock_policy_name"),
+        }
+    )
+
+
+def _environment_policy_summary(value: Any) -> dict[str, Any]:
+    policy = _mapping(value)
+    lock_policy = _mapping(policy.get("lock_policy"))
+    return _drop_empty(
+        {
+            "environment": _optional_text(policy.get("environment")),
+            "policy_version": _optional_text(policy.get("policy_version")),
+            "lock_policy_name": _optional_text(lock_policy.get("name")),
+            "source": _optional_text(policy.get("source")),
         }
     )
 

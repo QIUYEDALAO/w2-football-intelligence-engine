@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
 from w2.reporting.match_decision import MatchDecisionState, decide_match
@@ -27,6 +28,9 @@ AUDIT_TABLE_NAMES = (
 AUDIT_TABLE_COLUMNS = {
     "prematch_recommendations": (
         "source",
+        "environment",
+        "policy_version",
+        "lock_policy_name",
         "fixture_id",
         "kickoff_utc",
         "teams",
@@ -181,11 +185,16 @@ def build_audit_export(
     exported_at = (
         _iso(generated_at) if generated_at is not None else _payload_as_of(dashboard_payload)
     )
+    environment_policy = _audit_environment_policy(dashboard_payload)
     matches = [item for item in _list(dashboard_payload.get("all")) if isinstance(item, dict)]
     locked_rows = _locked_recommendation_snapshots(matches)
     settlement_rows = _settlement_history(matches)
     tables = {
-        "prematch_recommendations": _prematch_recommendations(dashboard_payload, matches),
+        "prematch_recommendations": _prematch_recommendations(
+            dashboard_payload,
+            matches,
+            environment_policy=environment_policy,
+        ),
         "market_timeline_snapshots": _market_timeline_snapshots(matches),
         "locked_recommendation_snapshots": locked_rows,
         "settlement_history": settlement_rows,
@@ -204,6 +213,10 @@ def build_audit_export(
     manifest = {
         "status": "PASS",
         "schema_version": "w2.audit_export.v1",
+        "environment": environment_policy["environment"],
+        "policy_version": environment_policy["policy_version"],
+        "lock_policy_name": _dict(environment_policy.get("lock_policy")).get("name"),
+        "environment_policy": environment_policy,
         "exported_at": exported_at,
         "source": (
             "dashboard_payload+existing_models" if session is not None else "dashboard_payload"
@@ -250,8 +263,11 @@ def write_audit_export(
 def _prematch_recommendations(
     payload: dict[str, Any],
     matches: list[dict[str, Any]],
+    *,
+    environment_policy: dict[str, Any],
 ) -> list[dict[str, Any]]:
     payload_as_of = _payload_as_of(payload)
+    lock_policy = _dict(environment_policy.get("lock_policy"))
     rows = []
     for match in matches:
         decision = decide_match(match)
@@ -264,6 +280,9 @@ def _prematch_recommendations(
         rows.append(
             {
                 "source": "dashboard_payload",
+                "environment": environment_policy.get("environment"),
+                "policy_version": environment_policy.get("policy_version"),
+                "lock_policy_name": lock_policy.get("name"),
                 "fixture_id": match.get("fixture_id"),
                 "kickoff_utc": match.get("kickoff_utc"),
                 "teams": _teams(match),
@@ -307,6 +326,14 @@ def _prematch_recommendations(
             }
         )
     return rows
+
+
+def _audit_environment_policy(payload: dict[str, Any]) -> dict[str, Any]:
+    policy = _dict(payload.get("environment_policy"))
+    if policy:
+        return policy
+    environment = str(payload.get("environment") or payload.get("env") or "staging")
+    return build_environment_policy_stamp(environment)
 
 
 def _market_timeline_snapshots(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:

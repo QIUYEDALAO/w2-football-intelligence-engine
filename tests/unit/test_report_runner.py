@@ -334,6 +334,19 @@ def test_static_report_publisher_writes_public_index_and_day_alias(tmp_path: Pat
     assert summary["db_writes"] == 0
 
 
+def test_static_report_validator_allows_non_sure_win_disclaimer() -> None:
+    html = (
+        "<!doctype html>"
+        "w2.html_dashboard.v6"
+        "w2.html_dashboard.v6"
+        "分析参考·非稳赢"
+    )
+
+    result = validate_static_report_html(html)
+
+    assert result["forbidden_term_count"] == 0
+
+
 def test_static_report_publisher_rejects_react_shell_without_watermark() -> None:
     with pytest.raises(RuntimeError, match="STATIC_REPORT_WATERMARK_MISSING"):
         validate_static_report_html("<!doctype html><div id='root'></div>")

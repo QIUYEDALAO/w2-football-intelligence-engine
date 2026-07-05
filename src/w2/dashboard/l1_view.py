@@ -7,6 +7,7 @@ from typing import Any
 
 from w2.dashboard.l2_diagnostics import build_l2_diagnostics
 from w2.domain.enums import DataStatus, DecisionTier
+from w2.domain.environment_policy import build_environment_policy_stamp
 
 ANALYSIS_PICK_DISCLAIMER = "分析参考·非稳赢；production 动作需 RECOMMEND"
 
@@ -22,7 +23,11 @@ _TIER_RANK = {
 def build_boss_dashboard_l1(day_view: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping_copy(day_view.get("counts"))
     environment = _text(day_view.get("environment"), "unknown")
-    cards = [_l1_card(card, environment=environment) for card in _cards(day_view)]
+    environment_policy = _environment_policy(day_view, environment=environment)
+    cards = [
+        _l1_card(card, environment=environment, environment_policy=environment_policy)
+        for card in _cards(day_view)
+    ]
     ordered_cards = sorted(cards, key=_sort_key)
     sections = {
         "lock_eligible_recommendations": _lock_section_cards(
@@ -50,6 +55,7 @@ def build_boss_dashboard_l1(day_view: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "football_day": _text(day_view.get("football_day"), day_view.get("date")),
         "environment": environment,
+        "environment_policy": environment_policy,
         "as_of": _text(day_view.get("generated_at")),
         "generated_at": _text(day_view.get("generated_at")),
         "freshness": _mapping_copy(day_view.get("freshness")),
@@ -67,7 +73,12 @@ def build_boss_dashboard_l1(day_view: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _l1_card(card: Mapping[str, Any], *, environment: str) -> dict[str, Any]:
+def _l1_card(
+    card: Mapping[str, Any],
+    *,
+    environment: str,
+    environment_policy: Mapping[str, Any],
+) -> dict[str, Any]:
     pick = _mapping(card.get("pick"))
     non_pick = _mapping(card.get("non_pick"))
     decision_tier = _text(card.get("decision_tier"), DecisionTier.SKIP.value)
@@ -112,7 +123,8 @@ def _l1_card(card: Mapping[str, Any], *, environment: str) -> dict[str, Any]:
         "odds": _optional_text(pick.get("odds")),
         "disclaimer": disclaimer,
         "source": _optional_text(card.get("source")),
-        "diagnostics": build_l2_diagnostics(card),
+        "environment_policy": dict(environment_policy),
+        "diagnostics": build_l2_diagnostics({**card, "environment_policy": environment_policy}),
     }
 
 
@@ -189,6 +201,11 @@ def _cards(day_view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
         return []
     return [item for item in value if isinstance(item, Mapping)]
+
+
+def _environment_policy(day_view: Mapping[str, Any], *, environment: str) -> dict[str, Any]:
+    policy = _mapping_copy(day_view.get("environment_policy"))
+    return policy or build_environment_policy_stamp(environment)
 
 
 def _match_label(card: Mapping[str, Any]) -> str:

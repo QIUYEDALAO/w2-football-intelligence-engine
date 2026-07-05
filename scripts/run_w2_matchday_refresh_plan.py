@@ -7,6 +7,7 @@ import sys
 from datetime import UTC, date, datetime
 from typing import Any
 
+from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.providers.control import (
     provider_endpoint_allowlist,
     provider_refresh_tick_hard_cap,
@@ -60,6 +61,7 @@ def main() -> int:
     payload: dict[str, Any] = {
         "football_day": _football_day(args.date, as_of).isoformat(),
         "environment": args.environment,
+        "environment_policy": build_environment_policy_stamp(args.environment),
         "as_of": _iso(as_of),
         "fixture_count": len(fixtures),
         "ticks": [tick.as_dict() for tick in ticks],

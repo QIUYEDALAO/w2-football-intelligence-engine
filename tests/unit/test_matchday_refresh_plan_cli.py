@@ -38,6 +38,8 @@ def test_matchday_refresh_plan_cli_dry_run_json_is_side_effect_free(monkeypatch)
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_enqueue"] is False
+    assert payload["environment_policy"]["lock_policy"]["name"] == "staging_A"
+    assert "staging-only" in payload["environment_policy"]["disclaimer"]
     assert set(payload["configured_endpoint_allowlist"]) == {
         "status",
         "fixtures",

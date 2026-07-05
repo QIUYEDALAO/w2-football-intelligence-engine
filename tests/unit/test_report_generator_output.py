@@ -9,6 +9,7 @@ def _payload(*matches: dict[str, object]) -> dict[str, object]:
     return {
         "selected_football_day": "2026-06-30",
         "generated_at": "2026-06-30T23:40:00Z",
+        "environment": "staging",
         "all": list(matches),
     }
 
@@ -137,6 +138,30 @@ def _non_formal_match() -> dict[str, object]:
             "last_success": "2026-06-30T12:05:00Z",
         },
     }
+
+
+def test_render_markdown_includes_environment_policy_summary() -> None:
+    report = render_report(_payload(_non_formal_match()), output_format="markdown")
+
+    assert "环境策略：" in report
+    assert "environment：staging" in report
+    assert "policy：staging_A" in report
+    assert "ANALYSIS_PICK=display_track_replay_only" in report
+    assert "staging-only" in report
+    assert "分析参考" in report
+    assert "非稳赢" in report
+    assert "稳赢" not in report.replace("非稳赢", "")
+
+
+def test_render_html_includes_production_environment_policy_summary() -> None:
+    payload = _payload(_non_formal_match())
+    payload["environment"] = "production"
+
+    report = render_report(payload, output_format="html")
+
+    assert "policy production_B" in report
+    assert "ANALYSIS_PICK 非正式可动作" in report
+    assert "production 仅 RECOMMEND 可锁" in report
 
 
 def _non_formal_with_blockers(

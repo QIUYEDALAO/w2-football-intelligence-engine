@@ -8,6 +8,7 @@ from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
+from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.domain.legacy_decision_shim import legacy_decision_view
 
 CARD_SOURCE_CONTRACT = "decision_contract"
@@ -33,6 +34,7 @@ def build_dashboard_day_view(
         "football_day": football_day,
         "selected_football_day": football_day,
         "environment": environment,
+        "environment_policy": build_environment_policy_stamp(environment),
         "timezone": _text(dashboard_payload.get("timezone"), "Asia/Shanghai"),
         "window": _text(dashboard_payload.get("window"), "today"),
         "source": "dashboard_read_model",
