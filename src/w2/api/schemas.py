@@ -156,6 +156,26 @@ class DashboardResponse(BaseModel):
     all: list[dict[str, Any]]
 
 
+class DashboardDayViewResponse(BaseModel):
+    request_id: str
+    generated_at: datetime | str | None = None
+    date: str
+    football_day: str
+    selected_football_day: str
+    environment: str
+    timezone: str
+    window: str
+    source: str
+    version: dict[str, Any]
+    checkpoint_key: str
+    would_write_checkpoint: bool
+    provider_calls: int
+    db_writes: int
+    counts: dict[str, Any]
+    freshness: dict[str, Any]
+    cards: list[dict[str, Any]]
+
+
 class DashboardSummaryResponse(BaseModel):
     request_id: str
     generated_at: datetime
