@@ -25,6 +25,7 @@ def test_l1_counts_are_copied_from_day_view_counts() -> None:
     model = build_boss_dashboard_l1(day_view)
 
     assert model["counts"] == day_view["counts"]
+    assert model["environment_policy"]["lock_policy"]["name"] == "staging_A"
 
 
 def test_l1_passes_degradation_through_from_day_view() -> None:
@@ -185,6 +186,8 @@ def test_l1_production_lock_section_is_recommend_only() -> None:
     ]
     assert model["headline"] == "今日有 1 场正式可锁推荐"
     assert model["sections"]["lock_eligible_recommendations"][0]["action_label"] == "正式可锁"
+    assert model["environment_policy"]["lock_policy"]["name"] == "production_B"
+    assert model["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
 def test_l1_empty_lock_headline_uses_environment_copy() -> None:

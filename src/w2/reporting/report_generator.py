@@ -7,6 +7,7 @@ from html import escape
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
+from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.reporting.match_decision import MatchDecision, MatchDecisionState, decide_match
 
 ReportFormat = Literal["markdown", "text", "html"]
@@ -48,6 +49,7 @@ def render_report(
     formal_count = sum(1 for decision in decisions if decision.state == MatchDecisionState.FORMAL)
     state_counts = _state_counts(decisions)
     payload_as_of = _payload_as_of(payload)
+    environment_policy = _report_environment_policy(payload)
     if output_format == "html":
         return _render_html_report(
             payload,
@@ -57,6 +59,7 @@ def render_report(
             state_counts=state_counts,
             options=options,
             payload_as_of=payload_as_of,
+            environment_policy=environment_policy,
         )
     lines = [
         _report_title(payload, options),
@@ -66,6 +69,8 @@ def render_report(
             options=options,
             payload_as_of=payload_as_of,
         ),
+        "",
+        *_environment_policy_lines(environment_policy),
         "",
         *_formal_decision_summary_lines(matches, decisions, payload_as_of=payload_as_of),
         "",
@@ -256,6 +261,7 @@ def _render_html_report(
     state_counts: dict[MatchDecisionState, int],
     options: ReportOptions,
     payload_as_of: str,
+    environment_policy: dict[str, Any],
 ) -> str:
     def _order_key(item: tuple[int, tuple[dict[str, Any], MatchDecision]]) -> tuple[Any, ...]:
         index, (match, decision) = item
@@ -311,6 +317,7 @@ def _render_html_report(
         payload_as_of=payload_as_of,
     )
     state_summary = _html_state_summary(state_counts)
+    policy_summary = _environment_policy_summary_text(environment_policy)
     state_chips = "".join(
         f'<button class="chip" data-state="{state.value}">'
         f'{label}<span class="n">{state_counts[state]}</span></button>'
@@ -350,6 +357,7 @@ def _render_html_report(
         f"<h1>{escape(title)}</h1>"
         f'<span class="asof">{escape(subtitle)}</span>'
         f'<span class="statusline">{escape(state_summary)}{profile_suffix}</span>'
+        f'<span class="statusline">{escape(policy_summary)}</span>'
         "</div>"
         '<div class="tools">'
         '<button class="chip on" data-state="ALL">全部</button>'
@@ -379,6 +387,7 @@ def _render_html_report(
         "盘口走势仅作参照、未验证，不构成方向；"
         "非 FORMAL 场次不显示推荐方向与比分参考；"
         "已结算区为观察中事实表。"
+        f"<br>{escape(policy_summary)}"
         "</footer>\n"
         "</main>\n"
         f"<script>{_TERMINAL_JS}</script>\n"
@@ -620,6 +629,36 @@ def _formal_decision_summary_lines(
         f"- lock eligible 数量：{lock_eligible}",
         f"- 主要 blocker 统计：{blocker_text}",
     ]
+
+
+def _report_environment_policy(payload: dict[str, Any]) -> dict[str, Any]:
+    policy = _dict(payload.get("environment_policy"))
+    if policy:
+        return policy
+    environment = str(payload.get("environment") or payload.get("env") or "staging")
+    return build_environment_policy_stamp(environment)
+
+
+def _environment_policy_lines(policy: dict[str, Any]) -> list[str]:
+    actionability = _dict(policy.get("actionability"))
+    analysis_action = _text(actionability.get("ANALYSIS_PICK"))
+    recommend_action = _text(actionability.get("RECOMMEND"))
+    return [
+        "环境策略：",
+        f"- environment：{_text(policy.get('environment'))}",
+        f"- policy：{_text(_dict(policy.get('lock_policy')).get('name'))}",
+        f"- actionability：ANALYSIS_PICK={analysis_action}；RECOMMEND={recommend_action}",
+        f"- 说明：{_text(policy.get('disclaimer'))}",
+    ]
+
+
+def _environment_policy_summary_text(policy: dict[str, Any]) -> str:
+    lock_policy = _dict(policy.get("lock_policy"))
+    return (
+        f"environment {policy.get('environment')} · "
+        f"policy {lock_policy.get('name')} · "
+        f"{policy.get('disclaimer')}"
+    )
 
 
 def _html_formal_recommendation_table(
@@ -1490,8 +1529,9 @@ def _reason_cn(reason: str) -> str:
 
 
 def _assert_safe_report_text(text: str) -> None:
+    normalized = text.replace("非稳赢", "")
     for term in _FORBIDDEN_TERMS:
-        if term in text:
+        if term in normalized:
             raise ValueError(f"report contains forbidden term: {term}")
 
 

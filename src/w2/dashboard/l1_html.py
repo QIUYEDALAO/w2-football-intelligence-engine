@@ -28,6 +28,7 @@ def render_boss_dashboard_l1_html(day_view: Mapping[str, Any]) -> str:
             "<body>",
             "<main>",
             _header(model, counts, freshness),
+            _environment_policy_notice(model),
             _date_navigation(model),
             _notice(model, counts, freshness),
             _section(
@@ -125,6 +126,28 @@ def _date_navigation(model: Mapping[str, Any]) -> str:
     if warning:
         parts.append(f'<p class="date-nav-warning">{_e(warning)}</p>')
     parts.append("</nav>")
+    return "\n".join(parts)
+
+
+def _environment_policy_notice(model: Mapping[str, Any]) -> str:
+    policy = _mapping(model.get("environment_policy"))
+    if not policy:
+        return ""
+    lock_policy = _mapping(policy.get("lock_policy"))
+    name = _optional_text(lock_policy.get("name")) or "unknown"
+    disclaimer = _optional_text(policy.get("disclaimer"))
+    if model.get("environment") == "production":
+        summary = "production B / RECOMMEND-only / 正式可锁"
+    else:
+        summary = "staging-only / 可锁审批 / 分析参考·非稳赢"
+    parts = [
+        '<section class="policy-stamp">',
+        f"<p>{_e(summary)}</p>",
+        f"<p>policy：{_e(name)} · {_e(policy.get('policy_version'))}</p>",
+    ]
+    if disclaimer:
+        parts.append(f"<p>{_e(disclaimer)}</p>")
+    parts.append("</section>")
     return "\n".join(parts)
 
 
@@ -345,8 +368,9 @@ h1 { margin: 0 0 8px; font-size: 24px; }
 .metric { background: #eef2f7; border-radius: 6px; padding: 10px; }
 .metric span { display: block; color: #607086; font-size: 12px; }
 .metric strong { display: block; margin-top: 4px; font-size: 22px; }
-.notice, .panel { margin-top: 12px; background: #ffffff; border: 1px solid #d9dde5;
+.notice, .panel, .policy-stamp { margin-top: 12px; background: #ffffff; border: 1px solid #d9dde5;
   border-radius: 6px; padding: 14px; }
+.policy-stamp p { margin: 0 0 6px; color: #3b566f; font-weight: 600; }
 .date-nav { margin-top: 12px; background: #ffffff; border: 1px solid #d9dde5;
   border-radius: 6px; padding: 12px 14px; }
 .date-nav-links, .date-nav-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; }

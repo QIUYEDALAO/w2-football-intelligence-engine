@@ -53,6 +53,7 @@ def test_controlled_run_without_approvals_fails_closed() -> None:
     assert plan["would_write_db"] is False
     assert plan["would_write_lock"] is False
     assert plan["would_write_settlement"] is False
+    assert plan["environment_policy"]["lock_policy"]["name"] == "staging_A"  # type: ignore[index]
 
 
 def test_projected_provider_calls_require_provider_and_db_approval() -> None:
@@ -115,6 +116,7 @@ def test_production_analysis_pick_remains_not_lock_eligible() -> None:
     assert fixture["decision_tier"] == "ANALYSIS_PICK"
     assert fixture["lock_eligible"] is False
     assert plan["lock_candidates"] == []
+    assert plan["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]
 
 
 def test_empty_controlled_run_has_no_required_approvals_or_side_effects() -> None:

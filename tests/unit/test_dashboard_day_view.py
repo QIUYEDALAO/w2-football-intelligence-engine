@@ -56,6 +56,10 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["would_write_checkpoint"] is False
     assert view["provider_calls"] == 0
     assert view["db_writes"] == 0
+    assert view["environment_policy"]["environment"] == "staging"
+    assert view["environment_policy"]["policy_version"] == "w2.environment_policy.v1"
+    assert view["environment_policy"]["lock_policy"]["name"] == "staging_A"
+    assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
     assert view["counts"]["total"] == 2
     assert view["counts"]["analysis_pick"] == 1
     assert view["counts"]["recommend"] == 0
@@ -150,6 +154,21 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
     assert view["freshness"]["staleness"]["blocked_cards"] == 0
     assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
     assert view["degradation"]["severity"] == "info"
+
+
+def test_day_view_production_includes_production_environment_policy() -> None:
+    view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-07-05T00:00:00Z",
+            "date": "2026-07-05",
+            "selected_football_day": "2026-07-05",
+            "all": [],
+        },
+        environment="production",
+    )
+
+    assert view["environment_policy"]["lock_policy"]["name"] == "production_B"
+    assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
 def test_day_view_degradation_reflects_refreshing_payload() -> None:

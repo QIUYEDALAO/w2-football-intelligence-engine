@@ -31,6 +31,7 @@ def test_empty_day_returns_no_fixtures_without_side_effects() -> None:
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_enqueue"] is False
+    assert payload["environment_policy"]["lock_policy"]["name"] == "staging_A"  # type: ignore[index]
     assert payload["dashboard_would_generate"] == {"would_generate": False, "card_count": 0}
 
 
@@ -71,6 +72,7 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     assert refresh["endpoint_allowlist"] == ["status", "fixtures", "odds", "lineups"]  # type: ignore[index]
     assert refresh["skipped_endpoints"] == ["statistics"]  # type: ignore[index]
     assert payload["next_refresh_tick"] is not None
+    assert payload["environment_policy"]["disclaimer"]  # type: ignore[index]
 
 
 def test_production_analysis_pick_is_not_lock_eligible() -> None:
@@ -94,6 +96,7 @@ def test_production_analysis_pick_is_not_lock_eligible() -> None:
 
     assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fixture["lock_eligible"] is False
+    assert payload["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]
 
 
 def test_staging_lock_candidate_is_approval_only_when_eligible_and_future() -> None:
