@@ -73,6 +73,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["counts"]["legacy_fallback"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
     assert view["freshness"]["data_status_summary"] == view["counts"]["by_data_status"]
+    assert view["degradation"]["state"] == "OK"
+    assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
 
     contract_card = view["cards"][0]
     assert contract_card["source"] == "decision_contract"
@@ -135,6 +137,32 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
     assert view["counts"]["by_decision_tier"]["WATCH"] == 1
     assert view["counts"]["by_data_status"]["BLOCKED"] == 0
     assert view["freshness"]["staleness"]["blocked_cards"] == 0
+    assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
+    assert view["degradation"]["severity"] == "info"
+
+
+def test_day_view_degradation_reflects_refreshing_payload() -> None:
+    view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-07-05T00:00:00Z",
+            "date": "2026-07-05",
+            "selected_football_day": "2026-07-05",
+            "refreshing": True,
+            "all": [
+                {
+                    "fixture_id": "fixture-1",
+                    "decision_tier": "ANALYSIS_PICK",
+                    "data_status": "READY",
+                    "lifecycle_status": "DRAFT",
+                    "lock_eligible": True,
+                }
+            ],
+        },
+        environment="staging",
+    )
+
+    assert view["freshness"]["refreshing"] is True
+    assert view["degradation"]["state"] == "REFRESHING"
 
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:

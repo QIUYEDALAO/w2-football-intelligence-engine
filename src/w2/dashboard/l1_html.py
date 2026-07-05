@@ -85,7 +85,8 @@ def _notice(
     freshness: Mapping[str, Any],
 ) -> str:
     provider_budget_status = str(freshness.get("provider_budget_status") or "").upper()
-    messages = [_e(model.get("headline"))]
+    degradation = _mapping(model.get("degradation"))
+    messages = _degradation_messages(degradation) or [_e(model.get("headline"))]
     empty_lock_text = _empty_lock_text(model)
     if provider_budget_status == "EXHAUSTED":
         messages.append("provider 预算耗尽，等待下一 tick 或预算恢复")
@@ -96,6 +97,18 @@ def _notice(
     return '<section class="notice">' + "".join(
         f"<p>{message}</p>" for message in dict.fromkeys(messages) if message
     ) + "</section>"
+
+
+def _degradation_messages(degradation: Mapping[str, Any]) -> list[str]:
+    state = _optional_text(degradation.get("state"))
+    if not state or state == "OK":
+        return []
+    messages = [
+        _e(degradation.get("title")),
+        _e(degradation.get("message")),
+        _e(degradation.get("action")),
+    ]
+    return [message for message in messages if message]
 
 
 def _section(title: str, cards: list[Mapping[str, Any]], *, empty_text: str = "") -> str:
@@ -208,6 +221,7 @@ def _reason_summary(value: Any) -> str:
 
 def _details(model: Mapping[str, Any]) -> str:
     freshness = _mapping(model.get("freshness"))
+    degradation = _mapping(model.get("degradation"))
     return "\n".join(
         [
             '<details class="debug">',
@@ -216,6 +230,8 @@ def _details(model: Mapping[str, Any]) -> str:
             f"<dt>provider_budget_status</dt><dd>{_e(freshness.get('provider_budget_status'))}</dd>",
             f"<dt>last_refresh</dt><dd>{_e(freshness.get('last_refresh'))}</dd>",
             f"<dt>next_refresh_tick</dt><dd>{_e(freshness.get('next_refresh_tick'))}</dd>",
+            f"<dt>degradation_source</dt><dd>{_e(degradation.get('source'))}</dd>",
+            f"<dt>degradation_reason_code</dt><dd>{_e(degradation.get('reason_code'))}</dd>",
             "</dl>",
             "</details>",
         ]
