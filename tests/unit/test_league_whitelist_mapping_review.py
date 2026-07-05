@@ -54,6 +54,9 @@ def test_combined_diagnosis_from_two_dirs(tmp_path: Path) -> None:
             "observed_fixture_response_count",
             "observed_bookmaker_count",
             "observed_ah_ou_market_names",
+            "observed_has_ah",
+            "observed_has_ou",
+            "observed_has_line",
         ],
     }
     assert "Do not rerun provider today; daily cap already reached." in payload[
@@ -75,6 +78,10 @@ def test_sufficient_observed_fields_clear_diagnostic_evidence_gap(tmp_path: Path
 
     assert payload["diagnosis"]["insufficient_diagnostic_evidence"] is False
     assert payload["diagnosis"]["missing_observed_fields"] == []
+    assert any(
+        "update profile mapping from observed values only after reviewer approval" in action
+        for action in payload["recommended_next_actions"]
+    )
 
 
 def test_missing_audit_dir_fails(tmp_path: Path) -> None:
@@ -171,4 +178,7 @@ def _observed_fields() -> dict[str, object]:
         "observed_fixture_response_count": 3,
         "observed_bookmaker_count": 2,
         "observed_ah_ou_market_names": ["Asian Handicap", "Goals Over/Under"],
+        "observed_has_ah": True,
+        "observed_has_ou": True,
+        "observed_has_line": True,
     }

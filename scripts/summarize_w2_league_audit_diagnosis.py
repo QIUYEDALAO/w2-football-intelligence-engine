@@ -27,11 +27,17 @@ NEXT_ACTIONS = (
     "Review odds bookmaker market mapping for AH/OU.",
     "Do not enable any league until 7-item audit PASS.",
     "Do not rerun provider today; daily cap already reached.",
+)
+MISSING_EVIDENCE_ACTIONS = (
     "Next provider audit should record sanitized observed provider mapping fields: "
     "league_id, name, country, season, team_count.",
     "Next provider audit should record sanitized fixture query params and response_count.",
     "Next provider audit should record sanitized bookmaker market names and bookmaker_count.",
     "Do not guess profile changes from category-level blockers only.",
+)
+SUFFICIENT_EVIDENCE_ACTIONS = (
+    "Observed evidence is present; update profile mapping from observed values only after "
+    "reviewer approval.",
 )
 MAPPING_OBSERVED_FIELDS = (
     "observed_provider_league_id",
@@ -47,6 +53,9 @@ FIXTURE_OBSERVED_FIELDS = (
 BOOKMAKER_OBSERVED_FIELDS = (
     "observed_bookmaker_count",
     "observed_ah_ou_market_names",
+    "observed_has_ah",
+    "observed_has_ou",
+    "observed_has_line",
 )
 OBSERVED_FIELDS = (
     *MAPPING_OBSERVED_FIELDS,
@@ -122,7 +131,7 @@ def build_diagnosis(
         },
         "provider_calls_total": _provider_calls_total(audit_dirs),
         "diagnosis": diagnosis,
-        "recommended_next_actions": list(NEXT_ACTIONS),
+        "recommended_next_actions": _recommended_next_actions(diagnosis),
         "provider_calls": 0,
         "db_reads": 0,
         "db_writes": 0,
@@ -224,10 +233,26 @@ def _missing_observed_fields(
 
 
 def _has_observed_field(report: dict[str, Any], field: str) -> bool:
-    value = report.get(field)
-    if value in (None, "", [], {}):
+    values = _observed_values(report, field)
+    if not values:
         return False
-    return True
+    for value in values:
+        if value not in (None, "", [], {}):
+            return True
+    return False
+
+
+def _observed_values(report: dict[str, Any], field: str) -> list[Any]:
+    values = [report.get(field)] if field in report else []
+    items = report.get("items") or report.get("audit_items") or []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            observed = item.get("observed_evidence")
+            if isinstance(observed, dict) and field in observed:
+                values.append(observed.get(field))
+    return values
 
 
 def _provider_calls_total(audit_dirs: list[Path]) -> int:
@@ -237,6 +262,15 @@ def _provider_calls_total(audit_dirs: list[Path]) -> int:
         if isinstance(summary, dict):
             total += _int(summary.get("actual_provider_calls_total"))
     return total
+
+
+def _recommended_next_actions(diagnosis: dict[str, Any]) -> list[str]:
+    actions = list(NEXT_ACTIONS)
+    if diagnosis["insufficient_diagnostic_evidence"]:
+        actions.extend(MISSING_EVIDENCE_ACTIONS)
+    else:
+        actions.extend(SUFFICIENT_EVIDENCE_ACTIONS)
+    return actions
 
 
 def _item_statuses(report: dict[str, Any]) -> dict[str, str]:

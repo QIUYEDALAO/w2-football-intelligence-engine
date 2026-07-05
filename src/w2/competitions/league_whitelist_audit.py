@@ -37,6 +37,7 @@ PLANNED_PROVIDER_CALLS_BY_ENDPOINT = {
     "odds": 1,
     "squad_value": 0,
 }
+MIN_BOOKMAKER_DEPTH = 3
 
 
 class AuditItemStatus(StrEnum):
@@ -80,14 +81,18 @@ class AuditItem:
     status: AuditItemStatus
     message: str
     evidence_fixture_ids: tuple[str, ...] = ()
+    observed_evidence: Mapping[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "name": self.name,
             "status": self.status.value,
             "message": self.message,
             "evidence_fixture_ids": list(self.evidence_fixture_ids),
         }
+        if self.observed_evidence:
+            payload["observed_evidence"] = dict(self.observed_evidence)
+        return payload
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -331,9 +336,13 @@ def evaluate_league_whitelist_audit(
 ) -> LeagueWhitelistAuditResult:
     league_id = entry.provider_mapping.get("api_football_league_id", "")
     season = entry.provider_mapping.get("api_football_season") or entry.season
+    future_query = {"league": league_id, "season": season, "status": "future"}
     items = (
         _provider_mapping_item(entry, provider.get_league(league_id, season), season=season),
-        _fixtures_item(provider.get_fixtures(league_id, season, "future")),
+        _fixtures_item(
+            provider.get_fixtures(league_id, season, "future"),
+            query_params=future_query,
+        ),
         _results_item(provider.get_results(league_id, season)),
     )
     evidence_fixture_ids = _fixture_ids(items[1], items[2])
@@ -390,28 +399,40 @@ def _provider_mapping_item(
             name="provider_mapping",
             status=AuditItemStatus.PASS,
             message="league/country/season/team_count match",
+            observed_evidence=_provider_mapping_evidence(league),
         )
     failed = ",".join(key for key, ok in checks.items() if not ok)
     return AuditItem(
         name="provider_mapping",
         status=AuditItemStatus.FAIL,
         message=f"provider mapping mismatch:{failed}",
+        observed_evidence=_provider_mapping_evidence(league),
     )
 
 
-def _fixtures_item(fixtures: Sequence[Mapping[str, Any]]) -> AuditItem:
+def _fixtures_item(
+    fixtures: Sequence[Mapping[str, Any]],
+    *,
+    query_params: Mapping[str, Any] | None = None,
+) -> AuditItem:
     ids = tuple(_fixture_id(item) for item in fixtures if _fixture_id(item))
+    observed_evidence = {
+        "observed_fixture_query_params": dict(query_params or {}),
+        "observed_fixture_response_count": len(fixtures),
+    }
     if ids:
         return AuditItem(
             name="fixtures",
             status=AuditItemStatus.PASS,
             message="future fixtures available",
             evidence_fixture_ids=ids[:3],
+            observed_evidence=observed_evidence,
         )
     return AuditItem(
         name="fixtures",
         status=AuditItemStatus.FAIL,
         message="future fixtures missing",
+        observed_evidence=observed_evidence,
     )
 
 
@@ -460,23 +481,51 @@ def _lineups_injuries_item(
 
 
 def _bookmaker_depth_item(odds: Sequence[Mapping[str, Any]], *, fixture_id: str) -> AuditItem:
-    bookmakers = {_text(item.get("bookmaker") or item.get("bookmaker_id")) for item in odds}
-    markets = {_text(item.get("market")) for item in odds}
-    has_ah = bool({"AH", "ASIAN_HANDICAP", "Asian Handicap"} & markets)
-    has_ou = bool({"OU", "TOTALS", "OVER_UNDER", "Over/Under"} & markets)
-    has_line = any(_text(item.get("line")) for item in odds)
-    if len({item for item in bookmakers if item}) >= 3 and has_ah and has_ou and has_line:
+    observed_evidence = _bookmaker_observed_evidence(odds)
+    has_ah = bool(observed_evidence["observed_has_ah"])
+    has_ou = bool(observed_evidence["observed_has_ou"])
+    has_line = bool(observed_evidence["observed_has_line"])
+    bookmaker_count = int(observed_evidence["observed_bookmaker_count"])
+    if bookmaker_count >= MIN_BOOKMAKER_DEPTH and has_ah and has_ou and has_line:
         return AuditItem(
             name="bookmaker_depth",
             status=AuditItemStatus.PASS,
             message="AH/OU lines and bookmaker depth available",
             evidence_fixture_ids=(fixture_id,) if fixture_id else (),
+            observed_evidence=observed_evidence,
         )
     return AuditItem(
         name="bookmaker_depth",
         status=AuditItemStatus.FAIL,
         message="bookmaker depth or AH/OU lines missing",
+        observed_evidence=observed_evidence,
     )
+
+
+def _provider_mapping_evidence(league: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "observed_provider_league_id": _text(league.get("league_id") or league.get("id")),
+        "observed_provider_league_name": _text(league.get("name")),
+        "observed_provider_country": _text(league.get("country")),
+        "observed_provider_season": _text(league.get("season")),
+        "observed_provider_team_count": _int(league.get("team_count")),
+    }
+
+
+def _bookmaker_observed_evidence(odds: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    bookmakers = {_text(item.get("bookmaker") or item.get("bookmaker_id")) for item in odds}
+    markets = {_text(item.get("market")) for item in odds if _text(item.get("market"))}
+    normalized_markets = {_norm(item) for item in markets}
+    has_ah = bool({"ah", "asian_handicap", "asian handicap"} & normalized_markets)
+    has_ou = bool({"ou", "totals", "over_under", "over/under"} & normalized_markets)
+    has_line = any(_text(item.get("line")) for item in odds)
+    return {
+        "observed_bookmaker_count": len({item for item in bookmakers if item}),
+        "observed_ah_ou_market_names": sorted(markets),
+        "observed_has_ah": has_ah,
+        "observed_has_ou": has_ou,
+        "observed_has_line": has_line,
+    }
 
 
 def _squad_value_item(mapping: Mapping[str, Any] | None) -> AuditItem:
