@@ -1,0 +1,43 @@
+{
+  "competition_id": "argentina_primera",
+  "name": "Liga Profesional de Futbol",
+  "country": "Argentina",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "provider_mapping": {
+    "api_football_league_id": "128",
+    "api_football_season": "2026",
+    "provider_mapping_status": "STAGE14_VERIFICATION_REQUIRED"
+  },
+  "season_naming_policy": "single_calendar_year",
+  "expected_team_count": 28,
+  "promotion_relegation_policy": "promotion_relegation_manual_review_required",
+  "market_scope": [
+    "ONE_X_TWO",
+    "ASIAN_HANDICAP",
+    "TOTALS",
+    "BTTS"
+  ],
+  "data_sources": [
+    "stage5b_api_football_local_raw"
+  ],
+  "model_scope": "LEAGUE",
+  "calibration_scope": "LEAGUE_SEASON",
+  "readiness_requirements": [
+    "fixtures",
+    "results",
+    "teams",
+    "provider_mapping",
+    "market_coverage"
+  ],
+  "season": "2026",
+  "enabled": false,
+  "activation_plan": "AUDIT_THEN_STAGING_ENABLE_NOW_IN_SEASON",
+  "coverage_profile": {
+    "xg": "NOT_AUDITED_STAGE14_REQUIRED",
+    "lineups_injuries": "NOT_AUDITED_STAGE14_REQUIRED",
+    "squad_value": "TRANSFERMARKT_DATASET_MAPPING_REQUIRED",
+    "bookmaker_depth": "NOT_AUDITED_STAGE14_REQUIRED",
+    "h2h": "NOT_AUDITED_STAGE14_REQUIRED",
+    "settled_ah": "NOT_AUDITED_STAGE14_REQUIRED"
+  }
+}
