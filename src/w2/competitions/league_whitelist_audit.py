@@ -293,6 +293,35 @@ def build_hard_cap_blocked_result(
     )
 
 
+def build_league_whitelist_audit_result(
+    entry: CompetitionRegistryEntry,
+    *,
+    environment: str,
+    provider_calls: int,
+    hard_cap: int,
+    items: tuple[AuditItem, ...],
+    blockers: tuple[str, ...],
+    warnings: tuple[str, ...],
+    planned_provider_calls: int,
+    actual_provider_calls: int,
+    provider_call_approval_required: bool,
+    overall_status: str | None = None,
+) -> LeagueWhitelistAuditResult:
+    return _result(
+        entry,
+        environment=environment,
+        provider_calls=provider_calls,
+        hard_cap=hard_cap,
+        items=items,
+        blockers=blockers,
+        warnings=warnings,
+        planned_provider_calls=planned_provider_calls,
+        actual_provider_calls=actual_provider_calls,
+        provider_call_approval_required=provider_call_approval_required,
+        overall_status=overall_status,
+    )
+
+
 def evaluate_league_whitelist_audit(
     entry: CompetitionRegistryEntry,
     *,

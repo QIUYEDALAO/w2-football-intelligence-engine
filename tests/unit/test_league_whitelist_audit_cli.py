@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.run_w2_league_whitelist_audit import build_cli_payload
+from scripts.run_w2_league_whitelist_audit import build_cli_payload, summarize_output_dir
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/run_w2_league_whitelist_audit.py"
@@ -93,6 +93,19 @@ def test_hard_cap_exceeded_returns_zero_provider_calls() -> None:
     assert payload["provider_calls"] == 0
 
 
+def test_dry_run_does_not_sleep() -> None:
+    def fail_sleep(_seconds: float) -> None:
+        raise AssertionError("dry-run must not throttle")
+
+    payload = build_cli_payload(
+        group="national_leagues_in_season",
+        sleeper=fail_sleep,
+    )
+
+    assert payload["status"] == "DRY_RUN_READY"
+    assert payload["provider_calls"] == 0
+
+
 def test_approved_provider_execution_with_key_fails_closed(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
 
@@ -134,6 +147,53 @@ def test_out_dir_writes_json_to_tmp_path(tmp_path: Path) -> None:
     assert "evidence_fixture_ids" in report
 
 
+def test_summarize_output_dir_is_read_only_and_marks_season_review(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.delenv("W2_API_FOOTBALL_API_KEY", raising=False)
+    (tmp_path / "audit_ledger.json").write_text(
+        json.dumps([{"endpoint": "leagues"}, {"endpoint": "fixtures"}]),
+        encoding="utf-8",
+    )
+    (tmp_path / "summary.json").write_text(
+        json.dumps(
+            {
+                "actual_provider_calls_total": 25,
+                "stopped_reason": "PROVIDER_HTTP_429",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_summary_report(
+        tmp_path,
+        "brasileirao_serie_a",
+        "FAIL",
+        warnings=["AUDIT_SEASON_FALLBACK: configured=2026 audited=2024"],
+    )
+    _write_summary_report(
+        tmp_path,
+        "argentina_primera",
+        "PROVIDER_HTTP_429",
+        blockers=["PROVIDER_HTTP_429"],
+    )
+
+    payload = summarize_output_dir(tmp_path)
+
+    assert payload["provider_calls"] == 0
+    assert payload["db_reads"] == 0
+    assert payload["db_writes"] == 0
+    assert payload["actual_provider_calls_total"] == 25
+    assert payload["completed_leagues"] == ["brasileirao_serie_a"]
+    assert payload["partial_leagues"] == ["argentina_primera"]
+    assert "mls" in payload["unstarted_leagues"]
+    assert payload["provider_mapping_or_season_review_required"] is True
+    assert payload["recommended_next_action"] == "WAIT_FOR_PROVIDER_COOLDOWN_THEN_RESUME"
+    assert payload["per_league"]["brasileirao_serie_a"][
+        "provider_mapping_or_season_review_required"
+    ] is True
+
+
 def test_stage14a_is_not_national_league_evidence() -> None:
     text = Path("config/competitions/README.md").read_text(encoding="utf-8")
 
@@ -172,3 +232,28 @@ def _tracked_count(pattern: str) -> int:
         check=True,
     )
     return len([line for line in result.stdout.splitlines() if line.strip()])
+
+
+def _write_summary_report(
+    tmp_path: Path,
+    competition_id: str,
+    status: str,
+    *,
+    blockers: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> None:
+    (tmp_path / f"W2_WHITELIST_AUDIT_{competition_id}.json").write_text(
+        json.dumps(
+            {
+                "competition_id": competition_id,
+                "overall_status": status,
+                "status": status,
+                "can_enable": False,
+                "actual_provider_calls": 13,
+                "items": [{"name": "provider_mapping", "status": "FAIL"}],
+                "blockers": blockers or [],
+                "warnings": warnings or [],
+            }
+        ),
+        encoding="utf-8",
+    )
