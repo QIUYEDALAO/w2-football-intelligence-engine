@@ -1,0 +1,173 @@
+{
+  "football_day": "2026-07-05",
+  "date": "2026-07-05",
+  "environment": "staging",
+  "source": "tests.fixtures.w2_acceptance.acceptance_day_view",
+  "generated_at": "2026-07-05T00:00:00Z",
+  "environment_policy": {
+    "environment": "staging",
+    "policy_version": "w2.environment_policy.v1",
+    "lock_policy": {
+      "name": "staging_A",
+      "lock_eligible_policy": "completeness_gate",
+      "production_action_allowed": false,
+      "production_action_allowed_tiers": [],
+      "analysis_pick_label": "分析参考·非稳赢",
+      "staging_only": true
+    },
+    "actionability": {
+      "ANALYSIS_PICK": "display_track_replay_only",
+      "RECOMMEND": "production_action_candidate"
+    },
+    "disclaimer": "staging-only；分析参考·非稳赢；非 production 可动作推荐",
+    "source": "w2.domain.environment_policy"
+  },
+  "counts": {
+    "total": 4,
+    "lock_eligible": 1,
+    "outcome_tracked": 1,
+    "legacy_fallback": 0,
+    "analysis_pick": 1,
+    "recommend": 0,
+    "watch": 1,
+    "not_ready": 1,
+    "skip": 1,
+    "ready": 1,
+    "partial": 1,
+    "stale": 0,
+    "blocked": 2,
+    "by_decision_tier": {
+      "ANALYSIS_PICK": 1,
+      "WATCH": 1,
+      "NOT_READY": 1,
+      "SKIP": 1
+    },
+    "by_data_status": {
+      "READY": 1,
+      "PARTIAL": 1,
+      "BLOCKED": 2
+    },
+    "by_lifecycle_status": {
+      "DRAFT": 4
+    }
+  },
+  "freshness": {
+    "last_refresh": "2026-07-05T00:00:00Z",
+    "next_refresh_tick": "2026-07-05T01:30:00Z",
+    "provider_budget_status": "AVAILABLE",
+    "staleness": "fresh"
+  },
+  "navigation": {
+    "previous_date": "2026-07-04",
+    "today_date": "2026-07-05",
+    "next_date": "2026-07-06",
+    "current_date": "2026-07-05",
+    "has_checkpoint": false,
+    "warning": "只读 acceptance fixture"
+  },
+  "degradation": {
+    "state": "OK",
+    "title": "",
+    "message": "",
+    "action": "",
+    "reason_code": "",
+    "source": "tests.fixtures"
+  },
+  "cards": [
+    {
+      "fixture_id": "fixture-analysis",
+      "kickoff_utc": "2026-07-06T01:00:00Z",
+      "home_team_name": "Home Analysis",
+      "away_team_name": "Away Analysis",
+      "decision_tier": "ANALYSIS_PICK",
+      "data_status": "READY",
+      "lifecycle_status": "DRAFT",
+      "outcome_tracked": true,
+      "lock_eligible": true,
+      "recommendation_id": "rec-analysis-1",
+      "reason_code": null,
+      "action": "需要审批",
+      "next_eval_at": "2026-07-05T01:30:00Z",
+      "one_liner": "盘口完整，进入 staging 可锁审批候选。",
+      "card_hash": "hash-analysis-1",
+      "expected_card_hash": "hash-analysis-1",
+      "source": "tests.fixture",
+      "pick": {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+        "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND"
+      }
+    },
+    {
+      "fixture_id": "fixture-watch",
+      "kickoff_utc": "2026-07-05T03:00:00Z",
+      "home_team_name": "Home Watch",
+      "away_team_name": "Away Watch",
+      "decision_tier": "WATCH",
+      "data_status": "PARTIAL",
+      "lifecycle_status": "DRAFT",
+      "outcome_tracked": false,
+      "lock_eligible": false,
+      "recommendation_id": null,
+      "reason_code": "LINEUPS_PENDING",
+      "action": "等待首发",
+      "next_eval_at": "2026-07-05T01:30:00Z",
+      "one_liner": "首发未出，先观察。",
+      "card_hash": "hash-watch-1",
+      "source": "tests.fixture",
+      "non_pick": {
+        "reason_code": "LINEUPS_PENDING",
+        "action": "等待首发",
+        "next_eval_at": "2026-07-05T01:30:00Z"
+      }
+    },
+    {
+      "fixture_id": "fixture-not-ready",
+      "kickoff_utc": "2026-07-05T04:00:00Z",
+      "home_team_name": "Home Missing",
+      "away_team_name": "Away Missing",
+      "decision_tier": "NOT_READY",
+      "data_status": "BLOCKED",
+      "lifecycle_status": "DRAFT",
+      "outcome_tracked": false,
+      "lock_eligible": false,
+      "recommendation_id": null,
+      "reason_code": "MARKET_UNAVAILABLE",
+      "action": "等待盘口",
+      "next_eval_at": "2026-07-05T01:30:00Z",
+      "one_liner": "盘口缺失，不能产出分析推荐。",
+      "card_hash": "hash-not-ready-1",
+      "source": "tests.fixture",
+      "non_pick": {
+        "reason_code": "MARKET_UNAVAILABLE",
+        "action": "等待盘口",
+        "next_eval_at": "2026-07-05T01:30:00Z"
+      }
+    },
+    {
+      "fixture_id": "fixture-skip",
+      "kickoff_utc": "2026-07-05T05:00:00Z",
+      "home_team_name": "Home Skip",
+      "away_team_name": "Away Skip",
+      "decision_tier": "SKIP",
+      "data_status": "BLOCKED",
+      "lifecycle_status": "DRAFT",
+      "outcome_tracked": false,
+      "lock_eligible": false,
+      "recommendation_id": null,
+      "reason_code": "MARKET_UNAVAILABLE",
+      "action": "跳过本场",
+      "next_eval_at": "2026-07-05T01:30:00Z",
+      "one_liner": "覆盖不足，跳过。",
+      "card_hash": "hash-skip-1",
+      "source": "tests.fixture",
+      "non_pick": {
+        "reason_code": "MARKET_UNAVAILABLE",
+        "action": "跳过本场",
+        "next_eval_at": "2026-07-05T01:30:00Z"
+      }
+    }
+  ]
+}
