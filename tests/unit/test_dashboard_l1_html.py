@@ -164,13 +164,75 @@ def test_l1_html_empty_lock_notice_uses_environment_copy() -> None:
 
 
 def test_l1_html_no_fixtures_and_provider_budget_exhausted_degrade() -> None:
-    empty_html = render_boss_dashboard_l1_html(_day_view(cards=[]))
+    empty_html = render_boss_dashboard_l1_html(
+        _day_view(
+            cards=[],
+            degradation={
+                "state": "EMPTY_DAY",
+                "title": "今日暂无比赛",
+                "message": "当前比赛日没有可展示 fixture。",
+                "action": "等待下一次刷新或切换比赛日。",
+            },
+        )
+    )
     exhausted_html = render_boss_dashboard_l1_html(
-        _day_view(freshness={"provider_budget_status": "EXHAUSTED"})
+        _day_view(
+            freshness={"provider_budget_status": "EXHAUSTED"},
+            degradation={
+                "state": "PROVIDER_BUDGET_EXHAUSTED",
+                "title": "provider 预算耗尽",
+                "message": "当前 provider 预算已耗尽，页面保留现有只读结果。",
+                "action": "等待下一 tick 或预算恢复。",
+            },
+        )
     )
 
     assert "今日暂无比赛" in empty_html
+    assert "当前比赛日没有可展示 fixture。" in empty_html
     assert "provider 预算耗尽，等待下一 tick 或预算恢复" in exhausted_html
+    assert "当前 provider 预算已耗尽" in exhausted_html
+
+
+def test_l1_html_renders_stale_and_refreshing_degradation_copy() -> None:
+    stale_html = render_boss_dashboard_l1_html(
+        _day_view(
+            counts={
+                "total": 1,
+                "lock_eligible": 1,
+                "analysis_pick": 1,
+                "recommend": 0,
+                "watch": 0,
+                "not_ready": 0,
+                "skip": 0,
+                "ready": 0,
+                "partial": 0,
+                "stale": 1,
+                "blocked": 0,
+            },
+            cards=[_card("stale", decision_tier="ANALYSIS_PICK", data_status="STALE")],
+            degradation={
+                "state": "STALE_DATA",
+                "title": "存在陈旧数据",
+                "message": "当前有 1 场比赛数据陈旧，建议等待刷新后再审批。",
+                "action": "等待下一次刷新完成。",
+            },
+        )
+    )
+    refreshing_html = render_boss_dashboard_l1_html(
+        _day_view(
+            degradation={
+                "state": "REFRESHING",
+                "title": "刷新中",
+                "message": "比赛日数据正在刷新，当前页面可能短暂滞后。",
+                "action": "刷新完成后自动查看最新结果。",
+            }
+        )
+    )
+
+    assert "存在陈旧数据" in stale_html
+    assert "建议等待刷新后再审批" in stale_html
+    assert "刷新中" in refreshing_html
+    assert "当前页面可能短暂滞后" in refreshing_html
 
 
 def test_l1_html_keeps_diagnostics_out_of_first_screen() -> None:
@@ -235,6 +297,56 @@ def test_l1_html_renders_collapsed_l2_diagnostics() -> None:
     assert "market_snapshot" in html
 
 
+def test_l1_html_renders_degradation_diagnostics_source_and_reason() -> None:
+    html = render_boss_dashboard_l1_html(
+        _day_view(
+            degradation={
+                "state": "NO_LOCK_ELIGIBLE",
+                "title": "当前无可锁审批候选",
+                "message": "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。",
+                "action": "继续观察分析推荐和未就绪原因。",
+                "reason_code": "NO_LOCK_ELIGIBLE",
+                "source": "w2.dashboard.degradation.v1",
+            }
+        )
+    )
+
+    assert "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。" in html
+    assert "degradation_source" in html
+    assert "w2.dashboard.degradation.v1" in html
+    assert "degradation_reason_code" in html
+    assert "NO_LOCK_ELIGIBLE" in html
+
+
+def test_l1_html_no_lock_degradation_copy_respects_environment() -> None:
+    production_html = render_boss_dashboard_l1_html(
+        _day_view(
+            environment="production",
+            degradation={
+                "state": "NO_LOCK_ELIGIBLE",
+                "title": "当前无正式可锁推荐",
+                "message": "今天暂时没有 production 正式可锁推荐，这不是系统故障。",
+                "action": "继续观察分析推荐、观察名单和未就绪原因。",
+            },
+        )
+    )
+    staging_html = render_boss_dashboard_l1_html(
+        _day_view(
+            environment="staging",
+            degradation={
+                "state": "NO_LOCK_ELIGIBLE",
+                "title": "当前无可锁审批候选",
+                "message": "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。",
+                "action": "继续观察分析推荐和未就绪原因。",
+            },
+        )
+    )
+
+    assert "当前无正式可锁推荐" in production_html
+    assert "当前无可锁审批候选" not in production_html
+    assert "当前无可锁审批候选" in staging_html
+
+
 def test_l1_html_forbidden_words_guard() -> None:
     safe_html = render_boss_dashboard_l1_html(
         _day_view(cards=[_card("analysis", decision_tier="ANALYSIS_PICK")])
@@ -276,6 +388,7 @@ def _day_view(
     counts: dict[str, object] | None = None,
     freshness: dict[str, object] | None = None,
     cards: list[dict[str, object]] | None = None,
+    degradation: dict[str, object] | None = None,
 ) -> dict[str, object]:
     actual_cards = [] if cards == [] else cards or [_card("watch")]
     return {
@@ -288,6 +401,7 @@ def _day_view(
             "provider_budget_status": "OK",
             **(freshness or {}),
         },
+        "degradation": degradation or {},
         "counts": counts
         or {
             "total": len(actual_cards),

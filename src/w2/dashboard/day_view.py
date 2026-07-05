@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.legacy_decision_shim import legacy_decision_view
@@ -24,7 +25,7 @@ def build_dashboard_day_view(
     )
     cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
     counts = _counts(cards)
-    return {
+    view = {
         "generated_at": _format_time(dashboard_payload.get("generated_at")),
         "date": _text(dashboard_payload.get("date"), football_day),
         "football_day": football_day,
@@ -42,6 +43,8 @@ def build_dashboard_day_view(
         "freshness": _freshness(dashboard_payload, cards, counts),
         "cards": cards,
     }
+    view["degradation"] = build_dashboard_degradation(view)
+    return view
 
 
 def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -205,6 +208,14 @@ def _freshness(
             )
         ),
         "provider_budget_status": _provider_budget_status(payload, cards),
+        "refreshing": _bool_or_default(
+            _first(
+                payload.get("refreshing"),
+                _mapping(payload.get("debug")).get("refreshing"),
+                _mapping(payload.get("performance")).get("refreshing"),
+            ),
+            False,
+        ),
         "staleness": {
             "stale_cards": stale,
             "blocked_cards": blocked,

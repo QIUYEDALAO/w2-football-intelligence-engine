@@ -27,6 +27,25 @@ def test_l1_counts_are_copied_from_day_view_counts() -> None:
     assert model["counts"] == day_view["counts"]
 
 
+def test_l1_passes_degradation_through_from_day_view() -> None:
+    day_view = _day_view(
+        degradation={
+            "state": "STALE_DATA",
+            "severity": "warning",
+            "title": "存在陈旧数据",
+            "message": "当前有 1 场比赛数据陈旧，建议等待刷新后再审批。",
+            "action": "等待下一次刷新完成。",
+            "reason_code": "DATA_STALE",
+            "source": "w2.dashboard.degradation.v1",
+        }
+    )
+
+    model = build_boss_dashboard_l1(day_view)
+
+    assert model["degradation"]["state"] == "STALE_DATA"
+    assert model["degradation"]["severity"] == "warning"
+
+
 def test_l1_sorting_uses_lock_then_tier_then_kickoff() -> None:
     model = build_boss_dashboard_l1(
         _day_view(
@@ -311,6 +330,7 @@ def _day_view(
     counts: dict[str, object] | None = None,
     freshness: dict[str, object] | None = None,
     cards: list[dict[str, object]] | None = None,
+    degradation: dict[str, object] | None = None,
 ) -> dict[str, object]:
     actual_cards = [_card("fixture-1")] if cards is None else cards
     return {
@@ -318,6 +338,7 @@ def _day_view(
         "environment": environment,
         "generated_at": "2026-07-05T00:00:00Z",
         "freshness": freshness or {"provider_budget_status": "OK"},
+        "degradation": degradation or {},
         "counts": counts
         or {
             "total": len(actual_cards),
