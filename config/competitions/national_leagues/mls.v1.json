@@ -5,6 +5,8 @@
   "timezone": "America/New_York",
   "provider_mapping": {
     "api_football_league_id": "253",
+    "api_football_league_name": "Major League Soccer",
+    "api_football_country": "USA",
     "api_football_season": "2026",
     "provider_mapping_status": "STAGE14_VERIFICATION_REQUIRED"
   },

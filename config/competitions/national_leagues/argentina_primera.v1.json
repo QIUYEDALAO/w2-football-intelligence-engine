@@ -5,6 +5,8 @@
   "timezone": "America/Argentina/Buenos_Aires",
   "provider_mapping": {
     "api_football_league_id": "128",
+    "api_football_league_name": "Liga Profesional Argentina",
+    "api_football_country": "Argentina",
     "api_football_season": "2026",
     "provider_mapping_status": "STAGE14_VERIFICATION_REQUIRED"
   },

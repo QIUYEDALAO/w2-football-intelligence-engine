@@ -5,6 +5,8 @@
   "timezone": "America/Sao_Paulo",
   "provider_mapping": {
     "api_football_league_id": "71",
+    "api_football_league_name": "Serie A",
+    "api_football_country": "Brazil",
     "api_football_season": "2026",
     "provider_mapping_status": "STAGE14_VERIFICATION_REQUIRED"
   },

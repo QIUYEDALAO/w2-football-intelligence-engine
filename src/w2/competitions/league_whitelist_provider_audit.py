@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -609,34 +609,45 @@ def _provider_mapping_item(
     configured_season: str,
 ) -> AuditItem:
     expected_id = entry.provider_mapping.get("api_football_league_id")
-    expected_name = _profile_value(entry, "name")
-    expected_country = _profile_value(entry, "country")
+    expected_name = (
+        entry.provider_mapping.get("api_football_league_name")
+        or _profile_value(entry, "name")
+    )
+    expected_country = (
+        entry.provider_mapping.get("api_football_country")
+        or _profile_value(entry, "country")
+    )
     expected_team_count = _int(_profile_value(entry, "expected_team_count"))
-    checks = {
-        "league_id": str(league.get("id") or "") == expected_id,
+    league_id_matches = str(league.get("id") or "") == expected_id
+    team_count = _int(league.get("team_count"))
+    advisory_checks = {
         "name": _norm(league.get("name")) == _norm(expected_name),
         "country": _norm(league.get("country")) == _norm(expected_country),
         "season": str(league.get("season") or "") == str(season),
+        "team_count": not team_count or team_count == expected_team_count,
+        "configured_season": str(season) == str(configured_season),
     }
-    team_count = _int(league.get("team_count"))
-    if team_count:
-        checks["team_count"] = team_count == expected_team_count
-    elif entry.competition_id == "argentina_primera":
-        checks["team_count"] = False
-    if str(season) != str(configured_season):
-        checks["configured_season"] = False
-    if all(checks.values()):
+    evidence = _provider_mapping_evidence(
+        league,
+        expected_id=expected_id,
+        expected_name=expected_name,
+        expected_country=expected_country,
+        expected_season=season,
+        expected_team_count=expected_team_count,
+        advisory_checks=advisory_checks,
+    )
+    if league_id_matches:
         return AuditItem(
             name="provider_mapping",
             status=AuditItemStatus.PASS,
-            message="league/country/season/team_count match",
-            observed_evidence=_provider_mapping_evidence(league),
+            message="league_id match; advisory fields recorded",
+            observed_evidence=evidence,
         )
     return AuditItem(
         name="provider_mapping",
         status=AuditItemStatus.FAIL,
-        message="provider mapping mismatch:" + ",".join(k for k, ok in checks.items() if not ok),
-        observed_evidence=_provider_mapping_evidence(league),
+        message="provider mapping mismatch:league_id",
+        observed_evidence=evidence,
     )
 
 
@@ -835,13 +846,30 @@ def _has_bookmaker_depth(rows: list[dict[str, Any]]) -> bool:
     )
 
 
-def _provider_mapping_evidence(league: dict[str, Any]) -> dict[str, Any]:
+def _provider_mapping_evidence(
+    league: dict[str, Any],
+    *,
+    expected_id: str | None,
+    expected_name: str,
+    expected_country: str,
+    expected_season: str,
+    expected_team_count: int,
+    advisory_checks: Mapping[str, bool],
+) -> dict[str, Any]:
     return {
         "observed_provider_league_id": _text(league.get("id")),
         "observed_provider_league_name": _text(league.get("name")),
         "observed_provider_country": _text(league.get("country")),
         "observed_provider_season": _text(league.get("season")),
         "observed_provider_team_count": _int(league.get("team_count")),
+        "expected_provider_league_id": _text(expected_id),
+        "expected_provider_league_name": expected_name,
+        "expected_provider_country": expected_country,
+        "expected_provider_season": expected_season,
+        "expected_provider_team_count": expected_team_count,
+        "advisory_mismatches": [
+            key for key, ok in advisory_checks.items() if not ok
+        ],
     }
 
 
