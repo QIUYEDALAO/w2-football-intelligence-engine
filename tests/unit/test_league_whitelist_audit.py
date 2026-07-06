@@ -70,6 +70,77 @@ def test_squad_value_unavailable_blocks_enablement() -> None:
     assert "squad_value:CANNOT_VERIFY" in result.blockers
 
 
+def test_bookmaker_depth_requires_minimum_bookmakers_with_lines() -> None:
+    provider = MockAuditProvider(
+        odds=[
+            {"bookmaker": "b1", "market": "ASIAN_HANDICAP", "line": "-0.25"},
+            {"bookmaker": "b1", "market": "TOTALS", "line": "2.5"},
+        ]
+    )
+
+    result = evaluate_league_whitelist_audit(
+        _entry("brasileirao_serie_a"),
+        environment="staging",
+        provider=provider,
+    )
+
+    items = {item.name: item for item in result.items}
+    assert items["bookmaker_depth"].status == AuditItemStatus.FAIL
+    assert items["bookmaker_depth"].observed_evidence == {
+        "observed_ah_ou_market_names": ["ASIAN_HANDICAP", "TOTALS"],
+        "observed_bookmaker_count": 1,
+        "observed_has_ah": True,
+        "observed_has_line": True,
+        "observed_has_ou": True,
+    }
+    assert result.can_enable is False
+
+
+def test_bookmaker_depth_requires_line_presence() -> None:
+    provider = MockAuditProvider(
+        odds=[
+            {"bookmaker": "b1", "market": "ASIAN_HANDICAP"},
+            {"bookmaker": "b2", "market": "TOTALS"},
+            {"bookmaker": "b3", "market": "TOTALS"},
+        ]
+    )
+
+    result = evaluate_league_whitelist_audit(
+        _entry("brasileirao_serie_a"),
+        environment="staging",
+        provider=provider,
+    )
+
+    items = {item.name: item for item in result.items}
+    assert items["bookmaker_depth"].status == AuditItemStatus.FAIL
+    assert items["bookmaker_depth"].observed_evidence == {
+        "observed_ah_ou_market_names": ["ASIAN_HANDICAP", "TOTALS"],
+        "observed_bookmaker_count": 3,
+        "observed_has_ah": True,
+        "observed_has_line": False,
+        "observed_has_ou": True,
+    }
+    assert result.can_enable is False
+
+
+def test_bookmaker_depth_passes_with_minimum_bookmakers_ah_ou_and_lines() -> None:
+    result = evaluate_league_whitelist_audit(
+        _entry("brasileirao_serie_a"),
+        environment="staging",
+        provider=MockAuditProvider(),
+    )
+
+    items = {item.name: item for item in result.items}
+    assert items["bookmaker_depth"].status == AuditItemStatus.PASS
+    assert items["bookmaker_depth"].observed_evidence == {
+        "observed_ah_ou_market_names": ["ASIAN_HANDICAP", "TOTALS"],
+        "observed_bookmaker_count": 3,
+        "observed_has_ah": True,
+        "observed_has_line": True,
+        "observed_has_ou": True,
+    }
+
+
 def test_argentina_mock_requires_28_teams_country_and_season() -> None:
     entry = _entry("argentina_primera")
     passing = evaluate_league_whitelist_audit(
@@ -141,6 +212,7 @@ class MockAuditProvider:
         *,
         league: Mapping[str, Any] | None = None,
         statistics: Mapping[str, Any] | None = None,
+        odds: Sequence[Mapping[str, Any]] | None = None,
         squad_value: Mapping[str, Any] | None = {"teams": {"home": 100, "away": 90}},
     ) -> None:
         self.league = league
@@ -149,6 +221,7 @@ class MockAuditProvider:
             if statistics is None
             else statistics
         )
+        self.odds = odds
         self.squad_value = squad_value
 
     def get_league(self, league_id: str, season: str) -> Mapping[str, Any]:
@@ -187,6 +260,8 @@ class MockAuditProvider:
         return []
 
     def get_odds(self, fixture_id: str) -> Sequence[Mapping[str, Any]]:
+        if self.odds is not None:
+            return self.odds
         return [
             {"bookmaker": "b1", "market": "ASIAN_HANDICAP", "line": "-0.25"},
             {"bookmaker": "b2", "market": "ASIAN_HANDICAP", "line": "-0.25"},

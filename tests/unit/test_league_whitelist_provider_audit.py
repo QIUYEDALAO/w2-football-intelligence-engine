@@ -243,6 +243,98 @@ def test_empty_configured_season_falls_back_for_coverage_probe(monkeypatch) -> N
     assert result["actual_provider_calls"] <= 13
 
 
+def test_provider_bookmaker_depth_requires_minimum_bookmakers(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+    requester = FakeRequester(
+        odds_payload=[
+            {
+                "bookmakers": [
+                    {
+                        "name": "BookA",
+                        "bets": [
+                            {"name": "Asian Handicap", "values": [{"value": "Home -0.25"}]},
+                            {"name": "Goals Over/Under", "values": [{"value": "Over 2.5"}]},
+                        ],
+                    }
+                ]
+            }
+        ]
+    )
+
+    payload = build_cli_payload(
+        competition_id="brasileirao_serie_a",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        max_provider_calls=13,
+        requester_factory=lambda _competition_id: requester,
+    )
+
+    item = _item(payload, "bookmaker_depth")
+    assert item["status"] == "FAIL"
+    assert item["observed_evidence"] == {
+        "observed_ah_ou_market_names": ["asian handicap", "goals over/under"],
+        "observed_bookmaker_count": 1,
+        "observed_has_ah": True,
+        "observed_has_line": True,
+        "observed_has_ou": True,
+    }
+    assert payload["results"][0]["can_enable"] is False
+
+
+def test_provider_bookmaker_depth_requires_line_presence(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+    requester = FakeRequester(
+        odds_payload=[
+            {"bookmakers": [{"name": "BookA", "bets": [{"name": "Asian Handicap"}]}]},
+            {"bookmakers": [{"name": "BookB", "bets": [{"name": "Goals Over/Under"}]}]},
+            {"bookmakers": [{"name": "BookC", "bets": [{"name": "Goals Over/Under"}]}]},
+        ]
+    )
+
+    payload = build_cli_payload(
+        competition_id="brasileirao_serie_a",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        max_provider_calls=13,
+        requester_factory=lambda _competition_id: requester,
+    )
+
+    item = _item(payload, "bookmaker_depth")
+    assert item["status"] == "FAIL"
+    assert item["observed_evidence"] == {
+        "observed_ah_ou_market_names": ["asian handicap", "goals over/under"],
+        "observed_bookmaker_count": 3,
+        "observed_has_ah": True,
+        "observed_has_line": False,
+        "observed_has_ou": True,
+    }
+    assert payload["results"][0]["can_enable"] is False
+
+
+def test_provider_bookmaker_depth_passes_with_minimum_bookmakers_and_lines(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+
+    payload = build_cli_payload(
+        competition_id="brasileirao_serie_a",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        max_provider_calls=13,
+        requester_factory=lambda _competition_id: FakeRequester(),
+    )
+
+    item = _item(payload, "bookmaker_depth")
+    assert item["status"] == "PASS"
+    assert item["observed_evidence"] == {
+        "observed_ah_ou_market_names": ["asian handicap", "goals over/under"],
+        "observed_bookmaker_count": 3,
+        "observed_has_ah": True,
+        "observed_has_line": True,
+        "observed_has_ou": True,
+    }
+
+
 def test_plan_restricted_seasons_are_recorded_and_fall_back_to_accessible_probe(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
@@ -392,6 +484,10 @@ def _provider(
     )
 
 
+def _item(payload: dict[str, Any], name: str) -> dict[str, Any]:
+    return next(item for item in payload["results"][0]["items"] if item["name"] == name)
+
+
 class FakeRequester:
     def __init__(
         self,
@@ -402,6 +498,7 @@ class FakeRequester:
         error_by_endpoint: dict[str, dict[str, str]] | None = None,
         status_by_endpoint: dict[str, int] | None = None,
         team_count: int | None = None,
+        odds_payload: list[dict[str, Any]] | None = None,
     ) -> None:
         self.calls: list[tuple[str, dict[str, str]]] = []
         self.empty_statistics_first = empty_statistics_first
@@ -410,6 +507,7 @@ class FakeRequester:
         self.error_by_endpoint = error_by_endpoint or {}
         self.status_by_endpoint = status_by_endpoint or {}
         self.team_count = team_count
+        self.odds_payload = odds_payload
 
     def __call__(
         self,
@@ -466,6 +564,8 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
     if endpoint == "injuries":
         return {"response": []}
     if endpoint == "odds":
+        if requester.odds_payload is not None:
+            return {"response": requester.odds_payload}
         return {
             "response": [
                 {
@@ -474,6 +574,17 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
                             "name": "BookA",
                             "bets": [
                                 {"name": "Asian Handicap", "values": [{"value": "Home -0.25"}]},
+                            ],
+                        },
+                        {
+                            "name": "BookB",
+                            "bets": [
+                                {"name": "Asian Handicap", "values": [{"value": "Away +0.25"}]},
+                            ],
+                        },
+                        {
+                            "name": "BookC",
+                            "bets": [
                                 {"name": "Goals Over/Under", "values": [{"value": "Over 2.5"}]},
                             ],
                         }

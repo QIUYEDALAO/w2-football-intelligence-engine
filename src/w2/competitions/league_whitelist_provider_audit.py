@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from w2.competitions.league_whitelist_audit import (
     AUDIT_ENDPOINT_ALLOWLIST,
+    MIN_BOOKMAKER_DEPTH,
     AuditItem,
     AuditItemStatus,
     build_league_whitelist_audit_result,
@@ -317,17 +318,14 @@ def evaluate_controlled_provider_league_audit(
                 season=audit_season,
                 configured_season=configured_season,
             ),
-            _fixtures_item(future),
+            _fixtures_item(
+                future,
+                query_params={"league": league_id, "season": audit_season, "next": "5"},
+            ),
             _results_item(results),
             _sample_item("xg", samples, provider.get_fixture_statistics, _has_xg, "xG statistics"),
             _lineups_injuries_item(league_id, samples, provider),
-            _sample_item(
-                "bookmaker_depth",
-                samples,
-                provider.get_odds,
-                _has_bookmaker_depth,
-                "bookmaker depth",
-            ),
+            _bookmaker_depth_item(samples, provider),
             AuditItem(
                 name="squad_value",
                 status=AuditItemStatus.CANNOT_VERIFY,
@@ -485,11 +483,13 @@ def _provider_mapping_item(
             name="provider_mapping",
             status=AuditItemStatus.PASS,
             message="league/country/season/team_count match",
+            observed_evidence=_provider_mapping_evidence(league),
         )
     return AuditItem(
         name="provider_mapping",
         status=AuditItemStatus.FAIL,
         message="provider mapping mismatch:" + ",".join(k for k, ok in checks.items() if not ok),
+        observed_evidence=_provider_mapping_evidence(league),
     )
 
 
@@ -547,19 +547,29 @@ def _league_has_mapping(league: dict[str, Any]) -> bool:
     return bool(_text(league.get("id")) and _text(league.get("name")))
 
 
-def _fixtures_item(rows: list[dict[str, Any]]) -> AuditItem:
+def _fixtures_item(
+    rows: list[dict[str, Any]],
+    *,
+    query_params: dict[str, str] | None = None,
+) -> AuditItem:
     ids = _fixture_ids_from_rows(*rows)
+    observed_evidence = {
+        "observed_fixture_query_params": dict(query_params or {}),
+        "observed_fixture_response_count": len(rows),
+    }
     if ids:
         return AuditItem(
             name="fixtures",
             status=AuditItemStatus.PASS,
             message="future fixtures available",
             evidence_fixture_ids=tuple(ids[:3]),
+            observed_evidence=observed_evidence,
         )
     return AuditItem(
         name="fixtures",
         status=AuditItemStatus.FAIL,
         message="future fixtures missing",
+        observed_evidence=observed_evidence,
     )
 
 
@@ -601,6 +611,33 @@ def _sample_item(
     )
 
 
+def _bookmaker_depth_item(
+    fixture_ids: tuple[str, ...],
+    provider: ApiFootballLeagueAuditProvider,
+) -> AuditItem:
+    tried: list[str] = []
+    latest_evidence = _bookmaker_observed_evidence([])
+    for fixture_id in fixture_ids[:2]:
+        tried.append(fixture_id)
+        odds = provider.get_odds(fixture_id)
+        latest_evidence = _bookmaker_observed_evidence(odds)
+        if _has_bookmaker_depth(odds):
+            return AuditItem(
+                name="bookmaker_depth",
+                status=AuditItemStatus.PASS,
+                message="bookmaker depth available",
+                evidence_fixture_ids=(fixture_id,),
+                observed_evidence=latest_evidence,
+            )
+    return AuditItem(
+        name="bookmaker_depth",
+        status=AuditItemStatus.FAIL,
+        message="bookmaker depth missing",
+        evidence_fixture_ids=tuple(tried),
+        observed_evidence=latest_evidence,
+    )
+
+
 def _lineups_injuries_item(
     league_id: str,
     fixture_ids: tuple[str, ...],
@@ -632,6 +669,26 @@ def _has_xg(payload: dict[str, Any]) -> bool:
 
 
 def _has_bookmaker_depth(rows: list[dict[str, Any]]) -> bool:
+    evidence = _bookmaker_observed_evidence(rows)
+    return (
+        int(evidence["observed_bookmaker_count"]) >= MIN_BOOKMAKER_DEPTH
+        and bool(evidence["observed_has_ah"])
+        and bool(evidence["observed_has_ou"])
+        and bool(evidence["observed_has_line"])
+    )
+
+
+def _provider_mapping_evidence(league: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "observed_provider_league_id": _text(league.get("id")),
+        "observed_provider_league_name": _text(league.get("name")),
+        "observed_provider_country": _text(league.get("country")),
+        "observed_provider_season": _text(league.get("season")),
+        "observed_provider_team_count": _int(league.get("team_count")),
+    }
+
+
+def _bookmaker_observed_evidence(rows: list[dict[str, Any]]) -> dict[str, Any]:
     text = json.dumps(rows, ensure_ascii=False).lower()
     bookmakers = set()
     markets = set()
@@ -654,7 +711,20 @@ def _has_bookmaker_depth(rows: list[dict[str, Any]]) -> bool:
             markets.add(_text(row.get("market")).lower())
     has_ah = "asian" in text or "handicap" in text or "ah" in markets
     has_ou = "over/under" in text or "goals over/under" in text or "totals" in markets
-    return len({item for item in bookmakers if item}) >= 1 and has_ah and has_ou
+    has_line = any(
+        "line" in _text(item).lower()
+        or bool(row.get("line"))
+        or "value" in _text(item).lower()
+        for row in rows
+        for item in ([row] if isinstance(row, dict) else [])
+    )
+    return {
+        "observed_bookmaker_count": len({item for item in bookmakers if item}),
+        "observed_ah_ou_market_names": sorted({item for item in markets if item}),
+        "observed_has_ah": has_ah,
+        "observed_has_ou": has_ou,
+        "observed_has_line": has_line,
+    }
 
 
 def _league_warnings(competition_id: str) -> tuple[str, ...]:
