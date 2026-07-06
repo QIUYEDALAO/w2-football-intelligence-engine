@@ -130,6 +130,44 @@ def test_evidence_only_dry_run_uses_evidence_endpoint_plan() -> None:
     assert payload["provider_calls"] == 0
 
 
+def test_free_tier_controls_group_is_three_league_probe_scope() -> None:
+    payload = _run(
+        "--group",
+        "free_tier_controls",
+        "--audit-mode",
+        "evidence-only",
+        "--audit-season-override",
+        "2024",
+        "--dry-run",
+        "--json",
+    )
+
+    assert payload["status"] == "DRY_RUN_READY"
+    assert payload["audit_mode"] == "EVIDENCE_ONLY"
+    assert payload["audit_season_override"] == "2024"
+    assert payload["competition_count"] == 3
+    assert [result["competition_id"] for result in payload["results"]] == [
+        "premier_league",
+        "brasileirao_serie_a",
+        "argentina_primera",
+    ]
+    assert payload["planned_provider_calls"] == 12
+    assert payload["provider_calls"] == 0
+
+
+def test_audit_season_override_can_come_from_environment(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_AUDIT_SEASON_OVERRIDE", "2024")
+
+    payload = build_cli_payload(
+        group="free_tier_controls",
+        audit_mode="evidence-only",
+    )
+
+    assert payload["audit_season_override"] == "2024"
+    assert payload["planned_provider_calls"] == 12
+    assert payload["provider_calls"] == 0
+
+
 def test_approved_provider_execution_with_key_fails_closed(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
 

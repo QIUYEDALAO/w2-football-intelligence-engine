@@ -58,6 +58,7 @@ API_FOOTBALL_HTTP_PATHS = {
 STOP_STATUSES = {
     "GLOBAL_PROVIDER_HARD_CAP_REACHED",
     "LEAGUE_PROVIDER_HARD_CAP_REACHED",
+    "PLAN_DOES_NOT_COVER_SEASON",
     "PROVIDER_HTTP_429",
     "DAILY_QUOTA_EXHAUSTED",
     "QUOTA_WARNING",
@@ -151,6 +152,7 @@ class ApiFootballLeagueAuditProvider:
     request_interval_seconds: float = 10.0
     sleeper: Callable[[float], None] = time.sleep
     allowed_endpoints: frozenset[str] = AUDIT_PROVIDER_ENDPOINT_ALLOWLIST
+    fail_fast_on_plan_restricted: bool = False
     league_calls: int = 0
 
     def get_league(self, league_id: str, season: str) -> dict[str, Any]:
@@ -268,6 +270,8 @@ class ApiFootballLeagueAuditProvider:
             raise ProviderAuditStopped("DAILY_QUOTA_EXHAUSTED")
         if quota.daily_remaining is not None and quota.daily_remaining <= 10:
             raise ProviderAuditStopped("QUOTA_WARNING")
+        if payload_error == "PROVIDER_PLAN_RESTRICTED" and self.fail_fast_on_plan_restricted:
+            raise ProviderAuditStopped("PLAN_DOES_NOT_COVER_SEASON")
         if payload_error and payload_error != "PROVIDER_PLAN_RESTRICTED":
             raise ProviderAuditStopped(payload_error)
         if not isinstance(payload.get("response"), (list, dict)):
@@ -295,15 +299,17 @@ def evaluate_controlled_provider_league_audit(
     environment: str,
     provider: ApiFootballLeagueAuditProvider,
     audit_mode: str = "enablement",
+    audit_season_override: str | None = None,
 ) -> Any:
     if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
         return evaluate_evidence_only_provider_league_audit(
             entry,
             environment=environment,
             provider=provider,
+            audit_season_override=audit_season_override,
         )
     league_id = entry.provider_mapping.get("api_football_league_id", "")
-    configured_season = entry.provider_mapping.get("api_football_season") or entry.season
+    configured_season = _audit_season(entry, audit_season_override)
     warnings = list(_league_warnings(entry.competition_id))
     try:
         season_data = _resolve_audit_season_data(
@@ -393,18 +399,45 @@ def evaluate_evidence_only_provider_league_audit(
     *,
     environment: str,
     provider: ApiFootballLeagueAuditProvider,
+    audit_season_override: str | None = None,
 ) -> Any:
     league_id = entry.provider_mapping.get("api_football_league_id", "")
-    configured_season = entry.provider_mapping.get("api_football_season") or entry.season
+    configured_season = _audit_season(entry, audit_season_override)
     warnings = [
         *_league_warnings(entry.competition_id),
         f"{EVIDENCE_ONLY_AUDIT_MODE_OUTPUT}_NOT_ENABLEMENT",
     ]
     try:
+        historical_override = bool(_text(audit_season_override))
         league = provider.get_league(league_id, configured_season)
-        future = provider.get_fixtures(league_id, configured_season, "future")
-        results = provider.get_results(league_id, configured_season)
-        fixture_ids = _fixture_ids_from_rows(*future, *results)
+        if historical_override:
+            future: list[dict[str, Any]] = []
+            results = provider.get_results(league_id, configured_season)
+            fixture_rows = results
+            fixture_query_params: dict[str, Any] = {
+                "results": {
+                    "league": league_id,
+                    "season": configured_season,
+                    "status": "FT",
+                },
+            }
+        else:
+            future = provider.get_fixtures(league_id, configured_season, "future")
+            results = provider.get_results(league_id, configured_season)
+            fixture_rows = future
+            fixture_query_params = {
+                "future": {
+                    "league": league_id,
+                    "season": configured_season,
+                    "next": "5",
+                },
+                "results": {
+                    "league": league_id,
+                    "season": configured_season,
+                    "status": "FT",
+                },
+            }
+        fixture_ids = _fixture_ids_from_rows(*fixture_rows, *results)
         sample = fixture_ids[:1]
         items = (
             _provider_mapping_item(
@@ -414,19 +447,8 @@ def evaluate_evidence_only_provider_league_audit(
                 configured_season=configured_season,
             ),
             _fixtures_item(
-                future,
-                query_params={
-                    "future": {
-                        "league": league_id,
-                        "season": configured_season,
-                        "next": "5",
-                    },
-                    "results": {
-                        "league": league_id,
-                        "season": configured_season,
-                        "status": "FT",
-                    },
-                },
+                fixture_rows,
+                query_params=fixture_query_params,
                 competition_id=entry.competition_id,
                 configured_season=configured_season,
                 audit_mode=EVIDENCE_ONLY_AUDIT_MODE,
@@ -484,6 +506,16 @@ def evaluate_evidence_only_provider_league_audit(
             enablement_evaluated=False,
             evidence_only=True,
         )
+
+
+def _audit_season(
+    entry: CompetitionRegistryEntry,
+    audit_season_override: str | None = None,
+) -> str:
+    override = _text(audit_season_override)
+    if override:
+        return override
+    return entry.provider_mapping.get("api_football_season") or entry.season
 
 
 def write_provider_audit_outputs(
