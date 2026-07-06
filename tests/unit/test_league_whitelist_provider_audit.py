@@ -335,6 +335,48 @@ def test_provider_bookmaker_depth_passes_with_minimum_bookmakers_and_lines(
     }
 
 
+def test_offseason_empty_future_fixtures_are_deferred_not_enablement_ready(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+
+    payload = build_cli_payload(
+        competition_id="eredivisie",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        max_provider_calls=13,
+        audit_mode="coverage-inventory",
+        requester_factory=lambda _competition_id: FakeRequester(empty_future=True),
+    )
+
+    item = _item(payload, "fixtures")
+    assert item["status"] == "FAIL"
+    assert item["message"] == "FIXTURES_EMPTY_OFF_SEASON"
+    assert item["observed_evidence"]["observed_fixture_response_count"] == 0
+    assert payload["results"][0]["can_enable"] is False
+    assert payload["provider_calls"] > 0
+
+
+def test_coverage_inventory_empty_future_with_results_requires_query_review(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+
+    payload = build_cli_payload(
+        competition_id="brasileirao_serie_a",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        max_provider_calls=13,
+        audit_mode="coverage-inventory",
+        requester_factory=lambda _competition_id: FakeRequester(empty_future=True),
+    )
+
+    item = _item(payload, "fixtures")
+    assert item["status"] == "FAIL"
+    assert item["message"] == "FIXTURES_QUERY_REVIEW_REQUIRED"
+    assert payload["results"][0]["can_enable"] is False
+
+
 def test_plan_restricted_seasons_are_recorded_and_fall_back_to_accessible_probe(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
@@ -499,6 +541,7 @@ class FakeRequester:
         status_by_endpoint: dict[str, int] | None = None,
         team_count: int | None = None,
         odds_payload: list[dict[str, Any]] | None = None,
+        empty_future: bool = False,
     ) -> None:
         self.calls: list[tuple[str, dict[str, str]]] = []
         self.empty_statistics_first = empty_statistics_first
@@ -508,6 +551,7 @@ class FakeRequester:
         self.status_by_endpoint = status_by_endpoint or {}
         self.team_count = team_count
         self.odds_payload = odds_payload
+        self.empty_future = empty_future
 
     def __call__(
         self,
@@ -549,6 +593,8 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
             ]
         }
     if endpoint == "fixtures":
+        if requester.empty_future:
+            return {"response": []}
         return {
             "response": [
                 {"fixture": {"id": "fixture-future-1"}},
