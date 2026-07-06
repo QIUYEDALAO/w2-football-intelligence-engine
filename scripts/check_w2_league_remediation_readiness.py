@@ -23,7 +23,14 @@ def main() -> int:
     return 0 if payload["status"] == "PASS" else 1
 
 
-def build_readiness_payload() -> dict[str, Any]:
+def build_readiness_payload(
+    *,
+    provider_key_header_safe: bool = True,
+    provider_quota_available: bool = True,
+    provider_hard_cap_valid: bool = True,
+    enabled_national_leagues_override: list[str] | None = None,
+    squad_value_source_status: str = "SQUAD_VALUE_SOURCE_MISSING",
+) -> dict[str, Any]:
     registry = CompetitionRegistry()
     entries = registry.entries()
     profile_results = [
@@ -35,11 +42,15 @@ def build_readiness_payload() -> dict[str, Any]:
         for result in profile_results
         if result["status"] == "NEEDS_PROVIDER_EVIDENCE"
     ]
-    national_enabled = [
-        competition_id
-        for competition_id, entry in entries.items()
-        if "national_leagues" in entry.config_path.parts and entry.enabled
-    ]
+    national_enabled = (
+        list(enabled_national_leagues_override)
+        if enabled_national_leagues_override is not None
+        else [
+            competition_id
+            for competition_id, entry in entries.items()
+            if "national_leagues" in entry.config_path.parts and entry.enabled
+        ]
+    )
     odds_aliases_ok = all(
         normalize_market_name(name) == expected
         for name, expected in {
@@ -52,12 +63,39 @@ def build_readiness_payload() -> dict[str, Any]:
             "Match Goals": "OU",
         }.items()
     )
-    squad_value_status = "SQUAD_VALUE_SOURCE_MISSING"
-    ready = not missing_evidence and odds_aliases_ok and not national_enabled
-    reason = "READY" if ready else "NEEDS_PROVIDER_EVIDENCE"
-    if squad_value_status == "SQUAD_VALUE_SOURCE_MISSING":
-        ready = False
-        reason = "SQUAD_VALUE_SOURCE_MISSING"
+    evidence_reaudit_blockers: list[str] = []
+    if not provider_key_header_safe:
+        evidence_reaudit_blockers.append("PROVIDER_KEY_MISSING_OR_INVALID")
+    if not provider_quota_available:
+        evidence_reaudit_blockers.append("PROVIDER_QUOTA_MISSING")
+    if not provider_hard_cap_valid:
+        evidence_reaudit_blockers.append("PROVIDER_HARD_CAP_INVALID")
+    if national_enabled:
+        evidence_reaudit_blockers.append("ENABLED_TRUE_NOT_ALLOWED")
+    if not odds_aliases_ok:
+        evidence_reaudit_blockers.append("ODDS_MARKET_MAPPING_INVALID")
+
+    enablement_blockers: list[str] = []
+    if missing_evidence:
+        enablement_blockers.append("NEEDS_PROVIDER_EVIDENCE")
+    if squad_value_source_status == "SQUAD_VALUE_SOURCE_MISSING":
+        enablement_blockers.append("SQUAD_VALUE_SOURCE_MISSING")
+    if missing_evidence or squad_value_source_status == "SQUAD_VALUE_SOURCE_MISSING":
+        enablement_blockers.append("SEVEN_ITEM_AUDIT_NOT_PASSING")
+    if national_enabled:
+        enablement_blockers.append("ENABLED_TRUE_NOT_ALLOWED")
+    if not odds_aliases_ok:
+        enablement_blockers.append("ODDS_MARKET_MAPPING_INVALID")
+
+    ready_for_evidence_reaudit = not evidence_reaudit_blockers
+    ready_for_enablement_audit = not enablement_blockers
+    next_provider_audit_mode = (
+        "EVIDENCE_ONLY"
+        if ready_for_evidence_reaudit and not ready_for_enablement_audit
+        else "ENABLEMENT"
+        if ready_for_enablement_audit
+        else "NOT_READY"
+    )
     return {
         "status": "PASS",
         "profile_validation_status": (
@@ -65,9 +103,15 @@ def build_readiness_payload() -> dict[str, Any]:
         ),
         "fixture_query_status": "FIXTURES_QUERY_REVIEW_REQUIRED",
         "odds_market_mapping_status": "PASS" if odds_aliases_ok else "FAIL",
-        "squad_value_source_status": squad_value_status,
-        "ready_for_provider_reaudit": ready,
-        "reason": reason,
+        "squad_value_source_status": squad_value_source_status,
+        "ready_for_evidence_reaudit": ready_for_evidence_reaudit,
+        "ready_for_enablement_audit": ready_for_enablement_audit,
+        "ready_for_provider_reaudit": ready_for_evidence_reaudit,
+        "next_provider_audit_mode": next_provider_audit_mode,
+        "evidence_reaudit_blockers": evidence_reaudit_blockers,
+        "enablement_blockers": _dedupe(enablement_blockers),
+        "reason": next_provider_audit_mode,
+        "evidence_only_audit_can_enable": False,
         "competitions_missing_observed_evidence": missing_evidence,
         "enabled_true": bool(national_enabled),
         "enabled_national_leagues": national_enabled,
@@ -75,6 +119,10 @@ def build_readiness_payload() -> dict[str, Any]:
         "db_reads": 0,
         "db_writes": 0,
     }
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
 
 
 if __name__ == "__main__":
