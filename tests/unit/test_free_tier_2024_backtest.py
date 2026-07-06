@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,8 @@ from w2.backtest.free_tier_2024 import (
     UNDERSTAT_XG_SOURCE,
     build_free_tier_2024_backtest_report,
     build_true_xg_delta_report,
+    build_understat_model_iteration_report,
+    build_understat_model_robustness_report,
     collect_provider_dataset,
     collect_understat_xg_dataset,
     load_fixture_statistics,
@@ -291,6 +294,99 @@ def test_understat_collection_writes_cache_and_reuses_existing_file(tmp_path: Pa
     assert requests == [("EPL", "2024")]
 
 
+def test_understat_model_iteration_report_is_offline_and_has_validation(tmp_path: Path) -> None:
+    start = datetime(2024, 1, 1, 12, tzinfo=UTC)
+    fixture_rows = []
+    understat_rows = []
+    for index in range(260):
+        kickoff = start + timedelta(days=index)
+        home = "A" if index % 2 == 0 else "B"
+        away = "B" if index % 2 == 0 else "A"
+        home_goals = 2 if index % 3 == 0 else 1
+        away_goals = 1 if index % 5 == 0 else 0
+        fixture_rows.append(
+            _fixture(
+                f"fixture-{index}",
+                kickoff.isoformat(),
+                home,
+                away,
+                home_goals,
+                away_goals,
+            )
+        )
+        understat_rows.append(
+            _understat_match(
+                f"understat-{index}",
+                kickoff.strftime("%Y-%m-%d %H:%M:%S"),
+                home,
+                away,
+                1.4 if home_goals > away_goals else 0.8,
+                0.8 if home_goals > away_goals else 1.2,
+            )
+        )
+    _write_fixture_raw(
+        tmp_path / "fixtures_premier_league_39_2024.json",
+        league_id="39",
+        season="2024",
+        rows=fixture_rows,
+    )
+    _write_understat_cache(tmp_path / "understat_epl_2024.json", understat_rows)
+
+    report = build_understat_model_iteration_report(
+        raw_dirs=(tmp_path,),
+        competitions=("premier_league",),
+        min_history=5,
+    )
+
+    assert report["eligible_sample_count"] >= 200
+    assert report["model"]["online_lambda_fit_enabled"] is False
+    assert report["safety"]["api_football_provider_calls"] == 0
+    assert report["validation"]["baseline_prior"]["metrics"] is not None
+    assert report["validation"]["fitted_calibrated"]["metrics"] is not None
+
+
+def test_understat_model_robustness_report_has_gap_cross_season_and_folds(
+    tmp_path: Path,
+) -> None:
+    for season, year in (("2023", 2023), ("2024", 2024)):
+        rows = []
+        start = datetime(year, 1, 1, 12, tzinfo=UTC)
+        for index in range(240):
+            kickoff = start + timedelta(days=index)
+            home = "A" if index % 2 == 0 else "B"
+            away = "B" if index % 2 == 0 else "A"
+            rows.append(
+                _understat_match(
+                    f"{season}-{index}",
+                    kickoff.strftime("%Y-%m-%d %H:%M:%S"),
+                    home,
+                    away,
+                    1.5 if index % 3 == 0 else 0.9,
+                    0.8 if index % 3 == 0 else 1.2,
+                    home_goals=2 if index % 3 == 0 else 1,
+                    away_goals=0 if index % 3 == 0 else 1,
+                )
+            )
+        _write_understat_cache(tmp_path / f"understat_epl_{season}.json", rows, season=season)
+
+    report = build_understat_model_robustness_report(
+        raw_dirs=(tmp_path,),
+        seasons=("2023", "2024"),
+        competitions=("premier_league",),
+        min_history=5,
+    )
+
+    assert report["safety"]["api_football_provider_calls"] == 0
+    assert report["train_validation_gap"]["train"]["fitted_calibrated"]["metrics"] is not None
+    assert len(report["cross_season"]) == 2
+    assert report["rolling_origin"]["summary"]["fold_count"] >= 1
+    assert report["interpretation"]["status"] in {
+        "ROBUST_IMPROVEMENT",
+        "PROMISING_BUT_CROSS_SEASON_MIXED",
+        "NOT_ROBUST_ENOUGH",
+    }
+
+
 def test_provider_collection_skips_existing_statistics_cache(tmp_path: Path) -> None:
     _write_fixture_raw(
         tmp_path / "raw" / "fixtures_premier_league_39_2024.json",
@@ -409,7 +505,12 @@ def _write_statistics_raw(
     )
 
 
-def _write_understat_cache(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_understat_cache(
+    path: Path,
+    rows: list[dict[str, Any]],
+    *,
+    season: str = "2024",
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -417,7 +518,7 @@ def _write_understat_cache(path: Path, rows: list[dict[str, Any]]) -> None:
                 "source": UNDERSTAT_XG_SOURCE,
                 "endpoint": "understat_league_data",
                 "league_code": "EPL",
-                "season": "2024",
+                "season": season,
                 "payload": {"dates": rows},
             }
         ),
@@ -432,6 +533,8 @@ def _understat_match(
     away: str,
     home_xg: float,
     away_xg: float,
+    home_goals: int = 1,
+    away_goals: int = 0,
 ) -> dict[str, Any]:
     return {
         "id": match_id,
@@ -439,5 +542,6 @@ def _understat_match(
         "datetime": kickoff,
         "h": {"title": home},
         "a": {"title": away},
+        "goals": {"h": str(home_goals), "a": str(away_goals)},
         "xG": {"h": str(home_xg), "a": str(away_xg)},
     }
