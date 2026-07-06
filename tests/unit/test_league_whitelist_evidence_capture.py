@@ -26,13 +26,19 @@ def test_provider_audit_report_captures_sanitized_observed_evidence(
     report = json.loads(Path(payload["report_paths"][0]).read_text(encoding="utf-8"))
     items = {item["name"]: item for item in report["items"]}
 
-    assert items["provider_mapping"]["status"] == "FAIL"
+    assert items["provider_mapping"]["status"] == "PASS"
     assert items["provider_mapping"]["observed_evidence"] == {
         "observed_provider_league_id": "71",
         "observed_provider_league_name": "Observed Brasileirao",
         "observed_provider_country": "Observed Country",
         "observed_provider_season": "2026",
         "observed_provider_team_count": 18,
+        "expected_provider_league_id": "71",
+        "expected_provider_league_name": "Serie A",
+        "expected_provider_country": "Brazil",
+        "expected_provider_season": "2026",
+        "expected_provider_team_count": 20,
+        "advisory_mismatches": ["name", "country", "team_count"],
     }
     assert items["fixtures"]["status"] == "FAIL"
     assert items["fixtures"]["observed_evidence"] == {

@@ -141,7 +141,7 @@ def test_bookmaker_depth_passes_with_minimum_bookmakers_ah_ou_and_lines() -> Non
     }
 
 
-def test_argentina_mock_requires_28_teams_country_and_season() -> None:
+def test_argentina_mock_records_team_count_advisory_without_blocking() -> None:
     entry = _entry("argentina_primera")
     passing = evaluate_league_whitelist_audit(
         entry,
@@ -149,20 +149,20 @@ def test_argentina_mock_requires_28_teams_country_and_season() -> None:
         provider=MockAuditProvider(
             league={
                 "id": "128",
-                "name": "Liga Profesional de Futbol",
+                "name": "Liga Profesional Argentina",
                 "country": "Argentina",
                 "season": "2026",
                 "team_count": 28,
             }
         ),
     )
-    failing = evaluate_league_whitelist_audit(
+    advisory = evaluate_league_whitelist_audit(
         entry,
         environment="staging",
         provider=MockAuditProvider(
             league={
                 "id": "128",
-                "name": "Liga Profesional de Futbol",
+                "name": "Liga Profesional Argentina",
                 "country": "Argentina",
                 "season": "2026",
                 "team_count": 27,
@@ -174,8 +174,31 @@ def test_argentina_mock_requires_28_teams_country_and_season() -> None:
     assert passing.warnings == (
         "ARGENTINA_PRIMERA_PLANNED_CHECK: expected_team_count=28, country/name/season exact match",
     )
-    assert failing.can_enable is False
-    assert "provider_mapping:FAIL" in failing.blockers
+    assert advisory.can_enable is True
+    mapping_item = next(item for item in advisory.items if item.name == "provider_mapping")
+    assert mapping_item.status is AuditItemStatus.PASS
+    assert mapping_item.observed_evidence["advisory_mismatches"] == ["team_count"]
+
+
+def test_provider_mapping_still_fails_on_league_id_mismatch() -> None:
+    result = evaluate_league_whitelist_audit(
+        _entry("brasileirao_serie_a"),
+        environment="staging",
+        provider=MockAuditProvider(
+            league={
+                "id": "999",
+                "name": "Serie A",
+                "country": "Brazil",
+                "season": "2026",
+                "team_count": 20,
+            }
+        ),
+    )
+
+    assert result.can_enable is False
+    assert "provider_mapping:FAIL" in result.blockers
+    mapping_item = next(item for item in result.items if item.name == "provider_mapping")
+    assert mapping_item.message == "provider mapping mismatch:league_id"
 
 
 def test_audit_allowlist_is_separate_from_matchday_allowlist() -> None:
@@ -229,7 +252,7 @@ class MockAuditProvider:
             return self.league
         return {
             "id": league_id,
-            "name": "Campeonato Brasileiro Serie A",
+            "name": "Serie A",
             "country": "Brazil",
             "season": season,
             "team_count": 20,

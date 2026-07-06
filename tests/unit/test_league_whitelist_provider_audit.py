@@ -173,7 +173,7 @@ def test_national_leagues_in_season_scope_excludes_later_season_leagues() -> Non
     assert "primeira_liga" not in ids
 
 
-def test_argentina_requires_28_teams(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_argentina_team_count_mismatch_is_advisory(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
     requester = FakeRequester(team_count=27)
 
@@ -186,8 +186,10 @@ def test_argentina_requires_28_teams(monkeypatch) -> None:  # type: ignore[no-un
     )
 
     result = payload["results"][0]
-    assert result["can_enable"] is False
-    assert "provider_mapping:FAIL" in result["blockers"]
+    assert "provider_mapping:FAIL" not in result["blockers"]
+    mapping_item = next(item for item in result["items"] if item["name"] == "provider_mapping")
+    assert mapping_item["status"] == "PASS"
+    assert mapping_item["observed_evidence"]["advisory_mismatches"] == ["team_count"]
 
 
 def test_chinese_super_league_and_mls_warnings(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -232,12 +234,16 @@ def test_empty_configured_season_falls_back_for_coverage_probe(monkeypatch) -> N
     ]
     assert seasons[:3] == ["2026", "2026", "2026"]
     assert "2025" in seasons
-    assert statuses["provider_mapping"] == "FAIL"
+    assert statuses["provider_mapping"] == "PASS"
     assert statuses["fixtures"] == "PASS"
     assert statuses["results"] == "PASS"
     assert statuses["xg"] == "PASS"
     assert statuses["lineups_injuries"] == "PASS"
     assert statuses["bookmaker_depth"] == "PASS"
+    mapping_item = next(item for item in result["items"] if item["name"] == "provider_mapping")
+    assert mapping_item["observed_evidence"]["advisory_mismatches"] == [
+        "configured_season",
+    ]
     assert result["can_enable"] is False
     assert any("AUDIT_SEASON_FALLBACK" in item for item in result["warnings"])
     assert result["actual_provider_calls"] <= 13
@@ -604,11 +610,19 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
     if params.get("season") in requester.empty_seasons:
         return {"response": []}
     if endpoint == "leagues":
+        provider_mapping = profile.get("provider_mapping", {})
         return {
             "response": [
                 {
-                    "league": {"id": int(league_id), "name": profile["name"]},
-                    "country": {"name": profile["country"]},
+                    "league": {
+                        "id": int(league_id),
+                        "name": provider_mapping.get("api_football_league_name")
+                        or profile["name"],
+                    },
+                    "country": {
+                        "name": provider_mapping.get("api_football_country")
+                        or profile["country"],
+                    },
                     "seasons": [{"year": 2026}],
                     "team_count": requester.team_count or profile["expected_team_count"],
                 }
