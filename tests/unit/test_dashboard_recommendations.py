@@ -42,6 +42,8 @@ def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
     assert recommendation["outcome_tracked"] is True
     assert recommendation["lock_eligible"] is True
     assert recommendation["selection"] == "HOME"
+    assert "candidate" not in recommendation
+    assert "formal_recommendation" not in recommendation
 
 
 def test_dashboard_uses_legacy_shim_only_when_decision_tier_is_missing() -> None:
@@ -106,3 +108,5 @@ def test_analysis_pick_recommendation_shell_is_not_production_actionable() -> No
     assert "selection" not in recommendation
     assert "line" not in recommendation
     assert "odds" not in recommendation
+    assert "candidate" not in recommendation
+    assert "formal_recommendation" not in recommendation

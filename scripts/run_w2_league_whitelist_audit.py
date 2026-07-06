@@ -53,6 +53,11 @@ NATIONAL_LEAGUES_DIR = ROOT / "config/competitions/national_leagues"
 TOP_FIVE_DIR = ROOT / "config/competitions/top_five"
 SOURCE = "scripts.run_w2_league_whitelist_audit.v1"
 AUDIT_MODES = ("enablement", "coverage-inventory", EVIDENCE_ONLY_AUDIT_MODE)
+FREE_TIER_CONTROL_COMPETITIONS = (
+    "premier_league",
+    "brasileirao_serie_a",
+    "argentina_primera",
+)
 
 
 def main() -> int:
@@ -74,6 +79,7 @@ def main() -> int:
     parser.add_argument("--league-hard-cap", type=int)
     parser.add_argument("--request-interval-seconds", type=float, default=10.0)
     parser.add_argument("--audit-mode", choices=AUDIT_MODES, default="enablement")
+    parser.add_argument("--audit-season-override", default="")
     parser.add_argument("--out-dir")
     parser.add_argument("--audit-ledger-json")
     parser.add_argument("--resume-from-out-dir")
@@ -97,6 +103,7 @@ def main() -> int:
             league_hard_cap=args.league_hard_cap,
             request_interval_seconds=args.request_interval_seconds,
             audit_mode=args.audit_mode,
+            audit_season_override=args.audit_season_override,
             out_dir=Path(args.out_dir) if args.out_dir else None,
             audit_ledger_json=Path(args.audit_ledger_json) if args.audit_ledger_json else None,
             resume_from_out_dir=(
@@ -124,6 +131,7 @@ def build_cli_payload(
     league_hard_cap: int | None = None,
     request_interval_seconds: float = 10.0,
     audit_mode: str = "enablement",
+    audit_season_override: str | None = None,
     out_dir: Path | None = None,
     audit_ledger_json: Path | None = None,
     resume_from_out_dir: Path | None = None,
@@ -135,6 +143,9 @@ def build_cli_payload(
     entries = _selected_entries(registry, group=group, competition_id=competition_id)
     if audit_mode not in AUDIT_MODES:
         raise SystemExit(f"UNSUPPORTED_AUDIT_MODE:{audit_mode}")
+    resolved_audit_season_override = _text(
+        audit_season_override or os.environ.get("W2_AUDIT_SEASON_OVERRIDE")
+    )
     single_league_planned_calls = _planned_calls_by_endpoint_for_mode(audit_mode)
     planned_calls = _planned_calls_for_mode(audit_mode) * len(entries)
     planned_calls_by_endpoint = {
@@ -154,6 +165,7 @@ def build_cli_payload(
             league_hard_cap=league_hard_cap,
             request_interval_seconds=request_interval_seconds,
             audit_mode=audit_mode,
+            audit_season_override=resolved_audit_season_override,
             out_dir=out_dir,
             audit_ledger_json=audit_ledger_json,
             resume_from_out_dir=resume_from_out_dir,
@@ -241,6 +253,7 @@ def build_cli_payload(
         "environment": environment,
         "source": SOURCE,
         "audit_mode": _audit_mode_output(audit_mode),
+        "audit_season_override": resolved_audit_season_override or None,
         "endpoint_allowlist": list(endpoint_allowlist),
         "competition_count": len(entries),
         "results": result_payloads,
@@ -281,6 +294,8 @@ def _selected_entries(
         return [entries[item] for item in REMAINING_UNAUDITED_WHITELIST]
     if group == "all_whitelist_competitions":
         return [entries[item] for item in ALL_WHITELIST_COMPETITIONS]
+    if group == "free_tier_controls":
+        return [entries[item] for item in FREE_TIER_CONTROL_COMPETITIONS]
     if group == "top_five":
         return [entries[item] for item in TOP_FIVE_COMPETITIONS]
     if group == "world_cup":
@@ -316,6 +331,7 @@ def _build_real_provider_payload(
     league_hard_cap: int | None,
     request_interval_seconds: float,
     audit_mode: str,
+    audit_season_override: str,
     out_dir: Path | None,
     audit_ledger_json: Path | None,
     resume_from_out_dir: Path | None,
@@ -342,6 +358,7 @@ def _build_real_provider_payload(
             environment=environment,
             results=results,
             audit_mode=audit_mode,
+            audit_season_override=audit_season_override,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             endpoint_allowlist=endpoint_allowlist,
@@ -363,6 +380,7 @@ def _build_real_provider_payload(
             environment=environment,
             results=results,
             audit_mode=audit_mode,
+            audit_season_override=audit_season_override,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             endpoint_allowlist=endpoint_allowlist,
@@ -385,6 +403,7 @@ def _build_real_provider_payload(
             environment=environment,
             results=results,
             audit_mode=audit_mode,
+            audit_season_override=audit_season_override,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             endpoint_allowlist=endpoint_allowlist,
@@ -422,12 +441,14 @@ def _build_real_provider_payload(
             request_interval_seconds=request_interval_seconds,
             sleeper=resolved_sleeper,
             allowed_endpoints=frozenset(endpoint_allowlist),
+            fail_fast_on_plan_restricted=True,
         )
         result = evaluate_controlled_provider_league_audit(
             entry,
             environment=environment,
             provider=provider,
             audit_mode=audit_mode,
+            audit_season_override=audit_season_override,
         )
         if audit_mode == "coverage-inventory":
             result = _coverage_inventory_result(result)
@@ -462,6 +483,7 @@ def _build_real_provider_payload(
         environment=environment,
         results=results,
         audit_mode=audit_mode,
+        audit_season_override=audit_season_override,
         target_competition_ids=target_competition_ids,
         planned_calls=planned_calls,
         planned_calls_by_endpoint=planned_calls_by_endpoint,
@@ -488,6 +510,7 @@ def _payload(
     environment: str,
     results: list[Any],
     audit_mode: str = "enablement",
+    audit_season_override: str | None = None,
     target_competition_ids: list[str] | None = None,
     planned_calls: int,
     planned_calls_by_endpoint: dict[str, int],
@@ -533,6 +556,7 @@ def _payload(
         "environment": environment,
         "source": SOURCE,
         "audit_mode": _audit_mode_output(audit_mode),
+        "audit_season_override": audit_season_override or None,
         "endpoint_allowlist": list(endpoint_allowlist),
         "competition_count": len(target_ids),
         "completed_leagues": completed_leagues,

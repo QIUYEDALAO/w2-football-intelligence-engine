@@ -377,7 +377,7 @@ def test_coverage_inventory_empty_future_with_results_requires_query_review(
     assert payload["results"][0]["can_enable"] is False
 
 
-def test_plan_restricted_seasons_are_recorded_and_fall_back_to_accessible_probe(
+def test_plan_restricted_seasons_fail_fast_before_fallback_probe(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
@@ -392,18 +392,46 @@ def test_plan_restricted_seasons_are_recorded_and_fall_back_to_accessible_probe(
     )
 
     result = payload["results"][0]
-    statuses = {item["name"]: item["status"] for item in result["items"]}
     seasons = [
         params["season"]
         for endpoint, params in requester.calls
         if endpoint in {"leagues", "fixtures"}
     ]
-    assert seasons[:6] == ["2026", "2026", "2026", "2025", "2025", "2025"]
-    assert "2024" in seasons
-    assert statuses["provider_mapping"] == "FAIL"
-    assert statuses["fixtures"] == "PASS"
+    assert payload["status"] == "PROVIDER_AUDIT_STOPPED_EARLY"
+    assert payload["stopped_reason"] == "PLAN_DOES_NOT_COVER_SEASON"
+    assert seasons == ["2026"]
+    assert result["overall_status"] == "PLAN_DOES_NOT_COVER_SEASON"
     assert result["can_enable"] is False
-    assert result["actual_provider_calls"] <= 13
+    assert result["actual_provider_calls"] == 1
+
+
+def test_audit_season_override_uses_history_season_without_profile_mutation(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
+    requester = FakeRequester()
+    entry = _entry("brasileirao_serie_a")
+
+    payload = build_cli_payload(
+        competition_id="brasileirao_serie_a",
+        real_provider_audit=True,
+        approved_provider_calls=True,
+        audit_mode="evidence-only",
+        audit_season_override="2024",
+        max_provider_calls=13,
+        requester_factory=lambda _competition_id: requester,
+    )
+
+    seasons = [
+        params["season"]
+        for endpoint, params in requester.calls
+        if endpoint in {"leagues", "fixtures"}
+    ]
+    assert payload["audit_season_override"] == "2024"
+    assert seasons == ["2024", "2024"]
+    assert ("fixtures", {"league": "71", "season": "2024", "next": "5"}) not in requester.calls
+    assert entry.provider_mapping["api_football_season"] == "2026"
+    assert payload["provider_calls"] == 3
 
 
 def test_report_json_excludes_raw_provider_payload(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]

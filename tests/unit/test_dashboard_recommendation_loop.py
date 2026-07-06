@@ -168,8 +168,8 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["decision_contract"]["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
     assert card["recommendation"]["tier"] == "ANALYSIS_PICK"
     assert card["recommendation"]["decision_tier"] == "ANALYSIS_PICK"
-    assert card["recommendation"]["candidate"] is False
-    assert card["recommendation"]["formal_recommendation"] is False
+    assert "candidate" not in card["recommendation"]
+    assert "formal_recommendation" not in card["recommendation"]
     assert "selection" not in card["recommendation"]
     assert "selection_label_cn" not in card["recommendation"]
     assert "line" not in card["recommendation"]

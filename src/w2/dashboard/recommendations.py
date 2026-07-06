@@ -26,16 +26,6 @@ MARKET_LABELS_CN = {
 }
 
 
-def truthy(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int | float):
-        return bool(value)
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y"}
-    return False
-
-
 def derive_recommendation_tier(
     card: dict[str, Any],
     market: dict[str, Any] | None,
@@ -97,16 +87,13 @@ def build_recommendation(
         "generated_at": card.get("generated_at"),
         "locked_before_kickoff": market.get("locked_before_kickoff"),
         "is_live_line": market.get("is_live_line"),
-        "candidate": truthy(card.get("candidate")) or truthy(market.get("candidate")),
-        "formal_recommendation": truthy(card.get("formal_recommendation"))
-        or truthy(market.get("formal_recommendation")),
     }
     if tier is not RecommendationTier.FORMAL:
-        return _non_formal_recommendation_shell(recommendation)
+        return _display_only_recommendation_view(recommendation)
     return recommendation
 
 
-def _non_formal_recommendation_shell(recommendation: dict[str, Any]) -> dict[str, Any]:
+def _display_only_recommendation_view(recommendation: dict[str, Any]) -> dict[str, Any]:
     """Keep analysis metadata, but never expose actionable direction fields."""
     stripped = dict(recommendation)
     for key in (
@@ -128,8 +115,6 @@ def _non_formal_recommendation_shell(recommendation: dict[str, Any]) -> dict[str
         "explanation_cn",
     ):
         stripped.pop(key, None)
-    stripped["candidate"] = False
-    stripped["formal_recommendation"] = False
     return stripped
 
 
