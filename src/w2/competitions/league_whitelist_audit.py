@@ -20,6 +20,13 @@ AUDIT_ENDPOINT_ALLOWLIST = (
     "injuries",
     "statistics",
 )
+EVIDENCE_ONLY_AUDIT_MODE = "evidence-only"
+EVIDENCE_ONLY_AUDIT_MODE_OUTPUT = "EVIDENCE_ONLY"
+EVIDENCE_ONLY_ENDPOINT_ALLOWLIST = (
+    "leagues",
+    "fixtures",
+    "odds",
+)
 AUDIT_ITEM_NAMES = (
     "provider_mapping",
     "fixtures",
@@ -38,6 +45,12 @@ PLANNED_PROVIDER_CALLS_BY_ENDPOINT = {
     "injuries": 1,
     "odds": 1,
     "squad_value": 0,
+}
+EVIDENCE_ONLY_PROVIDER_CALLS_BY_ENDPOINT = {
+    "leagues": 1,
+    "fixtures_future": 1,
+    "fixtures_results": 1,
+    "odds": 1,
 }
 MIN_BOOKMAKER_DEPTH = 3
 
@@ -119,6 +132,9 @@ class LeagueWhitelistAuditResult:
     planned_provider_calls_by_endpoint: Mapping[str, int]
     actual_provider_calls: int
     provider_call_approval_required: bool
+    audit_mode: str = "enablement"
+    enablement_evaluated: bool = True
+    evidence_only: bool = False
     source: str = AUDIT_SOURCE
 
     def as_dict(self) -> dict[str, Any]:
@@ -147,6 +163,9 @@ class LeagueWhitelistAuditResult:
             ),
             "actual_provider_calls": self.actual_provider_calls,
             "provider_call_approval_required": self.provider_call_approval_required,
+            "audit_mode": self.audit_mode,
+            "enablement_evaluated": self.enablement_evaluated,
+            "evidence_only": self.evidence_only,
             "source": self.source,
         }
 
@@ -157,6 +176,14 @@ def planned_provider_calls_by_endpoint() -> dict[str, int]:
 
 def planned_provider_calls_for_audit() -> int:
     return sum(PLANNED_PROVIDER_CALLS_BY_ENDPOINT.values())
+
+
+def evidence_only_provider_calls_by_endpoint() -> dict[str, int]:
+    return dict(EVIDENCE_ONLY_PROVIDER_CALLS_BY_ENDPOINT)
+
+
+def evidence_only_provider_calls_for_audit() -> int:
+    return sum(EVIDENCE_ONLY_PROVIDER_CALLS_BY_ENDPOINT.values())
 
 
 def build_not_audited_result(

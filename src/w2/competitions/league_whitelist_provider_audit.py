@@ -13,17 +13,21 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 from w2.competitions.league_whitelist_audit import (
     AUDIT_ENDPOINT_ALLOWLIST,
+    EVIDENCE_ONLY_AUDIT_MODE,
+    EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+    EVIDENCE_ONLY_ENDPOINT_ALLOWLIST,
     MIN_BOOKMAKER_DEPTH,
     AuditItem,
     AuditItemStatus,
     build_league_whitelist_audit_result,
+    evidence_only_provider_calls_for_audit,
     planned_provider_calls_for_audit,
 )
 from w2.competitions.league_whitelist_scope import (
@@ -37,6 +41,7 @@ from w2.competitions.registry import CompetitionRegistryEntry
 from w2.providers.quota import parse_api_football_quota
 
 AUDIT_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(AUDIT_ENDPOINT_ALLOWLIST)
+EVIDENCE_ONLY_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(EVIDENCE_ONLY_ENDPOINT_ALLOWLIST)
 IN_SEASON_NATIONAL_LEAGUES = _IN_SEASON_NATIONAL_LEAGUES
 LEAGUE_PROVIDER_HARD_CAPS = {
     "brasileirao_serie_a": 13,
@@ -145,6 +150,7 @@ class ApiFootballLeagueAuditProvider:
     api_key_env_name: str = "W2_API_FOOTBALL_API_KEY"
     request_interval_seconds: float = 10.0
     sleeper: Callable[[float], None] = time.sleep
+    allowed_endpoints: frozenset[str] = AUDIT_PROVIDER_ENDPOINT_ALLOWLIST
     league_calls: int = 0
 
     def get_league(self, league_id: str, season: str) -> dict[str, Any]:
@@ -224,7 +230,7 @@ class ApiFootballLeagueAuditProvider:
         league_id: str = "",
         fixture_id: str = "",
     ) -> dict[str, Any]:
-        if endpoint not in AUDIT_PROVIDER_ENDPOINT_ALLOWLIST:
+        if endpoint not in self.allowed_endpoints:
             raise ProviderAuditStopped("ENDPOINT_NOT_AUTHORIZED")
         if self.requester is None:
             _ensure_provider_key_http_safe(self.api_key_env_name)
@@ -290,6 +296,12 @@ def evaluate_controlled_provider_league_audit(
     provider: ApiFootballLeagueAuditProvider,
     audit_mode: str = "enablement",
 ) -> Any:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return evaluate_evidence_only_provider_league_audit(
+            entry,
+            environment=environment,
+            provider=provider,
+        )
     league_id = entry.provider_mapping.get("api_football_league_id", "")
     configured_season = entry.provider_mapping.get("api_football_season") or entry.season
     warnings = list(_league_warnings(entry.competition_id))
@@ -373,6 +385,104 @@ def evaluate_controlled_provider_league_audit(
             actual_provider_calls=provider.league_calls,
             provider_call_approval_required=False,
             overall_status=exc.status,
+        )
+
+
+def evaluate_evidence_only_provider_league_audit(
+    entry: CompetitionRegistryEntry,
+    *,
+    environment: str,
+    provider: ApiFootballLeagueAuditProvider,
+) -> Any:
+    league_id = entry.provider_mapping.get("api_football_league_id", "")
+    configured_season = entry.provider_mapping.get("api_football_season") or entry.season
+    warnings = [
+        *_league_warnings(entry.competition_id),
+        f"{EVIDENCE_ONLY_AUDIT_MODE_OUTPUT}_NOT_ENABLEMENT",
+    ]
+    try:
+        league = provider.get_league(league_id, configured_season)
+        future = provider.get_fixtures(league_id, configured_season, "future")
+        results = provider.get_results(league_id, configured_season)
+        fixture_ids = _fixture_ids_from_rows(*future, *results)
+        sample = fixture_ids[:1]
+        items = (
+            _provider_mapping_item(
+                entry,
+                league,
+                season=configured_season,
+                configured_season=configured_season,
+            ),
+            _fixtures_item(
+                future,
+                query_params={
+                    "future": {
+                        "league": league_id,
+                        "season": configured_season,
+                        "next": "5",
+                    },
+                    "results": {
+                        "league": league_id,
+                        "season": configured_season,
+                        "status": "FT",
+                    },
+                },
+                competition_id=entry.competition_id,
+                configured_season=configured_season,
+                audit_mode=EVIDENCE_ONLY_AUDIT_MODE,
+                has_recent_results=bool(results),
+            ),
+            _bookmaker_depth_item(sample, provider),
+        )
+        result = build_league_whitelist_audit_result(
+            entry,
+            environment=environment,
+            provider_calls=provider.league_calls,
+            hard_cap=provider.league_hard_cap,
+            items=items,
+            blockers=(),
+            warnings=tuple(warnings),
+            planned_provider_calls=evidence_only_provider_calls_for_audit(),
+            actual_provider_calls=provider.league_calls,
+            provider_call_approval_required=False,
+            overall_status=EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+        )
+        return replace(
+            result,
+            endpoint_allowlist=EVIDENCE_ONLY_ENDPOINT_ALLOWLIST,
+            audit_mode=EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+            can_enable=False,
+            enablement_evaluated=False,
+            evidence_only=True,
+        )
+    except ProviderAuditStopped as exc:
+        result = build_league_whitelist_audit_result(
+            entry,
+            environment=environment,
+            provider_calls=provider.league_calls,
+            hard_cap=provider.league_hard_cap,
+            items=tuple(
+                AuditItem(name=name, status=AuditItemStatus.NOT_AUDITED, message=exc.status)
+                for name in (
+                    "provider_mapping",
+                    "fixtures",
+                    "bookmaker_depth",
+                )
+            ),
+            blockers=(exc.status,),
+            warnings=tuple(warnings),
+            planned_provider_calls=evidence_only_provider_calls_for_audit(),
+            actual_provider_calls=provider.league_calls,
+            provider_call_approval_required=False,
+            overall_status=exc.status,
+        )
+        return replace(
+            result,
+            endpoint_allowlist=EVIDENCE_ONLY_ENDPOINT_ALLOWLIST,
+            audit_mode=EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+            can_enable=False,
+            enablement_evaluated=False,
+            evidence_only=True,
         )
 
 
@@ -555,7 +665,7 @@ def _league_has_mapping(league: dict[str, Any]) -> bool:
 def _fixtures_item(
     rows: list[dict[str, Any]],
     *,
-    query_params: dict[str, str] | None = None,
+    query_params: dict[str, Any] | None = None,
     competition_id: str = "",
     configured_season: str = "",
     audit_mode: str = "enablement",

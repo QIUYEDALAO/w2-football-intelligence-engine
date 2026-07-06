@@ -14,11 +14,16 @@ from typing import Any
 
 from w2.competitions.league_whitelist_audit import (
     AUDIT_ENDPOINT_ALLOWLIST,
+    EVIDENCE_ONLY_AUDIT_MODE,
+    EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+    EVIDENCE_ONLY_ENDPOINT_ALLOWLIST,
     build_hard_cap_blocked_result,
     build_not_audited_result,
     build_provider_execution_not_implemented_result,
     build_provider_key_missing_result,
     build_skipped_provider_not_approved_result,
+    evidence_only_provider_calls_by_endpoint,
+    evidence_only_provider_calls_for_audit,
     planned_provider_calls_by_endpoint,
     planned_provider_calls_for_audit,
     write_audit_report,
@@ -47,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NATIONAL_LEAGUES_DIR = ROOT / "config/competitions/national_leagues"
 TOP_FIVE_DIR = ROOT / "config/competitions/top_five"
 SOURCE = "scripts.run_w2_league_whitelist_audit.v1"
-AUDIT_MODES = ("enablement", "coverage-inventory")
+AUDIT_MODES = ("enablement", "coverage-inventory", EVIDENCE_ONLY_AUDIT_MODE)
 
 
 def main() -> int:
@@ -130,12 +135,13 @@ def build_cli_payload(
     entries = _selected_entries(registry, group=group, competition_id=competition_id)
     if audit_mode not in AUDIT_MODES:
         raise SystemExit(f"UNSUPPORTED_AUDIT_MODE:{audit_mode}")
-    single_league_planned_calls = planned_provider_calls_by_endpoint()
-    planned_calls = planned_provider_calls_for_audit() * len(entries)
+    single_league_planned_calls = _planned_calls_by_endpoint_for_mode(audit_mode)
+    planned_calls = _planned_calls_for_mode(audit_mode) * len(entries)
     planned_calls_by_endpoint = {
         endpoint: calls * len(entries)
         for endpoint, calls in single_league_planned_calls.items()
     }
+    endpoint_allowlist = _endpoint_allowlist_for_mode(audit_mode)
     if real_provider_audit:
         return _build_real_provider_payload(
             entries=entries,
@@ -154,6 +160,7 @@ def build_cli_payload(
             stop_on_first_quota_warning=stop_on_first_quota_warning,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
+            endpoint_allowlist=endpoint_allowlist,
             requester_factory=requester_factory,
             sleeper=sleeper,
         )
@@ -208,9 +215,19 @@ def build_cli_payload(
             for entry in entries
         ]
         status = "DRY_RUN_READY"
+    results = [
+        _mode_scoped_result(
+            result,
+            audit_mode=audit_mode,
+            endpoint_allowlist=endpoint_allowlist,
+            planned_calls=_planned_calls_for_mode(audit_mode),
+            planned_calls_by_endpoint=single_league_planned_calls,
+        )
+        for result in results
+    ]
     result_payloads = [result.as_dict() for result in results]
     for result_payload in result_payloads:
-        result_payload["audit_mode"] = audit_mode
+        result_payload["audit_mode"] = _audit_mode_output(audit_mode)
     report_paths: list[str] = []
     if out_dir is not None:
         for result in results:
@@ -223,8 +240,8 @@ def build_cli_payload(
         "competition_id": competition_id or None,
         "environment": environment,
         "source": SOURCE,
-        "audit_mode": audit_mode,
-        "endpoint_allowlist": list(AUDIT_ENDPOINT_ALLOWLIST),
+        "audit_mode": _audit_mode_output(audit_mode),
+        "endpoint_allowlist": list(endpoint_allowlist),
         "competition_count": len(entries),
         "results": result_payloads,
         "planned_provider_calls": planned_calls,
@@ -305,6 +322,7 @@ def _build_real_provider_payload(
     stop_on_first_quota_warning: bool,
     planned_calls: int,
     planned_calls_by_endpoint: dict[str, int],
+    endpoint_allowlist: tuple[str, ...],
     requester_factory: Callable[[str], ApiFootballRequester] | None,
     sleeper: Callable[[float], None] | None,
 ) -> dict[str, Any]:
@@ -326,6 +344,7 @@ def _build_real_provider_payload(
             audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
+            endpoint_allowlist=endpoint_allowlist,
             message="NEED_USER_APPROVAL: LEAGUE_WHITELIST_PROVIDER_AUDIT",
         )
     if "W2_API_FOOTBALL_API_KEY" not in os.environ:
@@ -346,6 +365,7 @@ def _build_real_provider_payload(
             audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
+            endpoint_allowlist=endpoint_allowlist,
             message="PROVIDER_KEY_MISSING",
         )
     if planned_calls > daily_hard_cap and audit_mode == "enablement":
@@ -367,6 +387,7 @@ def _build_real_provider_payload(
             audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
+            endpoint_allowlist=endpoint_allowlist,
             message="BLOCKED_BY_HARD_CAP",
         )
     resolved_out_dir = out_dir or _default_out_dir()
@@ -400,6 +421,7 @@ def _build_real_provider_payload(
             requester=requester_factory(entry.competition_id) if requester_factory else None,
             request_interval_seconds=request_interval_seconds,
             sleeper=resolved_sleeper,
+            allowed_endpoints=frozenset(endpoint_allowlist),
         )
         result = evaluate_controlled_provider_league_audit(
             entry,
@@ -443,6 +465,7 @@ def _build_real_provider_payload(
         target_competition_ids=target_competition_ids,
         planned_calls=planned_calls,
         planned_calls_by_endpoint=planned_calls_by_endpoint,
+        endpoint_allowlist=endpoint_allowlist,
         message=summary["status"],
         actual_provider_calls=budget.actual_provider_calls,
         report_paths=summary["reports"],
@@ -468,6 +491,7 @@ def _payload(
     target_competition_ids: list[str] | None = None,
     planned_calls: int,
     planned_calls_by_endpoint: dict[str, int],
+    endpoint_allowlist: tuple[str, ...] = AUDIT_ENDPOINT_ALLOWLIST,
     message: str,
     actual_provider_calls: int = 0,
     report_paths: list[str] | None = None,
@@ -482,17 +506,19 @@ def _payload(
 ) -> dict[str, Any]:
     result_payloads = [result.as_dict() for result in results]
     for result_payload in result_payloads:
-        result_payload["audit_mode"] = audit_mode
+        result_payload["audit_mode"] = _audit_mode_output(audit_mode)
     target_ids = target_competition_ids or [item["competition_id"] for item in result_payloads]
     completed_leagues = [
         item["competition_id"]
         for item in result_payloads
-        if item.get("overall_status") in {"PASS", "FAIL", "CANNOT_VERIFY"}
+        if item.get("overall_status")
+        in {"PASS", "FAIL", "CANNOT_VERIFY", EVIDENCE_ONLY_AUDIT_MODE_OUTPUT}
     ]
     partial_leagues = [
         item["competition_id"]
         for item in result_payloads
-        if item.get("overall_status") not in {"PASS", "FAIL", "CANNOT_VERIFY"}
+        if item.get("overall_status")
+        not in {"PASS", "FAIL", "CANNOT_VERIFY", EVIDENCE_ONLY_AUDIT_MODE_OUTPUT}
     ]
     reported_ids = {item["competition_id"] for item in result_payloads}
     unstarted_leagues = [
@@ -506,8 +532,8 @@ def _payload(
         "competition_id": competition_id or None,
         "environment": environment,
         "source": SOURCE,
-        "audit_mode": audit_mode,
-        "endpoint_allowlist": list(AUDIT_ENDPOINT_ALLOWLIST),
+        "audit_mode": _audit_mode_output(audit_mode),
+        "endpoint_allowlist": list(endpoint_allowlist),
         "competition_count": len(target_ids),
         "completed_leagues": completed_leagues,
         "partial_leagues": partial_leagues,
@@ -557,7 +583,53 @@ def _coverage_inventory_result(result: Any) -> Any:
             "COVERAGE_INVENTORY_AUDIT_NOT_ENABLEMENT",
         ]
     )
-    return replace(result, can_enable=False, warnings=warnings)
+    return replace(result, can_enable=False, warnings=warnings, audit_mode="coverage-inventory")
+
+
+def _mode_scoped_result(
+    result: Any,
+    *,
+    audit_mode: str,
+    endpoint_allowlist: tuple[str, ...],
+    planned_calls: int,
+    planned_calls_by_endpoint: dict[str, int],
+) -> Any:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return replace(
+            result,
+            endpoint_allowlist=endpoint_allowlist,
+            audit_mode=EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+            can_enable=False,
+            enablement_evaluated=False,
+            evidence_only=True,
+            planned_provider_calls=planned_calls,
+            planned_provider_calls_by_endpoint=planned_calls_by_endpoint,
+        )
+    return replace(result, audit_mode=_audit_mode_output(audit_mode))
+
+
+def _planned_calls_by_endpoint_for_mode(audit_mode: str) -> dict[str, int]:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return evidence_only_provider_calls_by_endpoint()
+    return planned_provider_calls_by_endpoint()
+
+
+def _planned_calls_for_mode(audit_mode: str) -> int:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return evidence_only_provider_calls_for_audit()
+    return planned_provider_calls_for_audit()
+
+
+def _endpoint_allowlist_for_mode(audit_mode: str) -> tuple[str, ...]:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return EVIDENCE_ONLY_ENDPOINT_ALLOWLIST
+    return AUDIT_ENDPOINT_ALLOWLIST
+
+
+def _audit_mode_output(audit_mode: str) -> str:
+    if audit_mode == EVIDENCE_ONLY_AUDIT_MODE:
+        return EVIDENCE_ONLY_AUDIT_MODE_OUTPUT
+    return audit_mode
 
 
 def summarize_output_dir(out_dir: Path) -> dict[str, Any]:
@@ -662,7 +734,12 @@ def _resume_reports(out_dir: Path | None) -> dict[str, dict[str, Any]]:
 
 
 def _is_completed_report(report: dict[str, Any]) -> bool:
-    return _report_status(report) in {"PASS", "FAIL", "CANNOT_VERIFY"}
+    return _report_status(report) in {
+        "PASS",
+        "FAIL",
+        "CANNOT_VERIFY",
+        EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+    }
 
 
 def _report_status(report: dict[str, Any]) -> str:

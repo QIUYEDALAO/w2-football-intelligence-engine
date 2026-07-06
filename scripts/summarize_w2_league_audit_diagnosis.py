@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from w2.competitions.league_whitelist_audit import EVIDENCE_ONLY_AUDIT_MODE_OUTPUT
 from w2.competitions.league_whitelist_scope import (
     ALL_WHITELIST_COMPETITIONS,
     IN_SEASON_NATIONAL_LEAGUES,
@@ -15,7 +16,7 @@ from w2.competitions.league_whitelist_scope import (
 REPORT_PREFIX = "W2_WHITELIST_AUDIT_"
 REPORT_SUFFIX = ".json"
 SOURCE = "scripts.summarize_w2_league_audit_diagnosis.v1"
-TERMINAL_STATUSES = {"PASS", "FAIL", "CANNOT_VERIFY"}
+TERMINAL_STATUSES = {"PASS", "FAIL", "CANNOT_VERIFY", EVIDENCE_ONLY_AUDIT_MODE_OUTPUT}
 RAW_PAYLOAD_KEYS = {
     "raw_payload",
     "payload",
