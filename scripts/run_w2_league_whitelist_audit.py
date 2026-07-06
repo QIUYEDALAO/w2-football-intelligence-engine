@@ -405,6 +405,7 @@ def _build_real_provider_payload(
             entry,
             environment=environment,
             provider=provider,
+            audit_mode=audit_mode,
         )
         if audit_mode == "coverage-inventory":
             result = _coverage_inventory_result(result)

@@ -7,6 +7,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 
+from w2.competitions.league_whitelist_scope import NATIONAL_LEAGUES_OFFSEASON
+from w2.competitions.odds_market_mapping import bookmaker_observed_evidence
 from w2.competitions.registry import CompetitionRegistryEntry
 
 AUDIT_SOURCE = "w2.competitions.league_whitelist_audit.v1"
@@ -342,6 +344,8 @@ def evaluate_league_whitelist_audit(
         _fixtures_item(
             provider.get_fixtures(league_id, season, "future"),
             query_params=future_query,
+            competition_id=entry.competition_id,
+            configured_season=season,
         ),
         _results_item(provider.get_results(league_id, season)),
     )
@@ -414,6 +418,8 @@ def _fixtures_item(
     fixtures: Sequence[Mapping[str, Any]],
     *,
     query_params: Mapping[str, Any] | None = None,
+    competition_id: str = "",
+    configured_season: str = "",
 ) -> AuditItem:
     ids = tuple(_fixture_id(item) for item in fixtures if _fixture_id(item))
     observed_evidence = {
@@ -428,10 +434,14 @@ def _fixtures_item(
             evidence_fixture_ids=ids[:3],
             observed_evidence=observed_evidence,
         )
+    message = _empty_fixtures_message(
+        competition_id=competition_id,
+        configured_season=configured_season,
+    )
     return AuditItem(
         name="fixtures",
         status=AuditItemStatus.FAIL,
-        message="future fixtures missing",
+        message=message,
         observed_evidence=observed_evidence,
     )
 
@@ -513,19 +523,15 @@ def _provider_mapping_evidence(league: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _bookmaker_observed_evidence(odds: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    bookmakers = {_text(item.get("bookmaker") or item.get("bookmaker_id")) for item in odds}
-    markets = {_text(item.get("market")) for item in odds if _text(item.get("market"))}
-    normalized_markets = {_norm(item) for item in markets}
-    has_ah = bool({"ah", "asian_handicap", "asian handicap"} & normalized_markets)
-    has_ou = bool({"ou", "totals", "over_under", "over/under"} & normalized_markets)
-    has_line = any(_text(item.get("line")) for item in odds)
-    return {
-        "observed_bookmaker_count": len({item for item in bookmakers if item}),
-        "observed_ah_ou_market_names": sorted(markets),
-        "observed_has_ah": has_ah,
-        "observed_has_ou": has_ou,
-        "observed_has_line": has_line,
-    }
+    return bookmaker_observed_evidence(odds)
+
+
+def _empty_fixtures_message(*, competition_id: str, configured_season: str) -> str:
+    if competition_id in NATIONAL_LEAGUES_OFFSEASON:
+        return "FIXTURES_EMPTY_OFF_SEASON"
+    if configured_season:
+        return "FIXTURES_EMPTY_CONFIGURED_SEASON"
+    return "FIXTURES_QUERY_REVIEW_REQUIRED"
 
 
 def _squad_value_item(mapping: Mapping[str, Any] | None) -> AuditItem:

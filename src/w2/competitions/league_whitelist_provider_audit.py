@@ -27,12 +27,17 @@ from w2.competitions.league_whitelist_audit import (
     planned_provider_calls_for_audit,
 )
 from w2.competitions.league_whitelist_scope import (
-    IN_SEASON_NATIONAL_LEAGUES as IN_SEASON_NATIONAL_LEAGUES,
+    IN_SEASON_NATIONAL_LEAGUES as _IN_SEASON_NATIONAL_LEAGUES,
 )
+from w2.competitions.league_whitelist_scope import (
+    NATIONAL_LEAGUES_OFFSEASON,
+)
+from w2.competitions.odds_market_mapping import bookmaker_observed_evidence
 from w2.competitions.registry import CompetitionRegistryEntry
 from w2.providers.quota import parse_api_football_quota
 
 AUDIT_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(AUDIT_ENDPOINT_ALLOWLIST)
+IN_SEASON_NATIONAL_LEAGUES = _IN_SEASON_NATIONAL_LEAGUES
 LEAGUE_PROVIDER_HARD_CAPS = {
     "brasileirao_serie_a": 13,
     "argentina_primera": 15,
@@ -283,6 +288,7 @@ def evaluate_controlled_provider_league_audit(
     *,
     environment: str,
     provider: ApiFootballLeagueAuditProvider,
+    audit_mode: str = "enablement",
 ) -> Any:
     league_id = entry.provider_mapping.get("api_football_league_id", "")
     configured_season = entry.provider_mapping.get("api_football_season") or entry.season
@@ -316,6 +322,10 @@ def evaluate_controlled_provider_league_audit(
             _fixtures_item(
                 future,
                 query_params={"league": league_id, "season": audit_season, "next": "5"},
+                competition_id=entry.competition_id,
+                configured_season=configured_season,
+                audit_mode=audit_mode,
+                has_recent_results=bool(results),
             ),
             _results_item(results),
             _sample_item("xg", samples, provider.get_fixture_statistics, _has_xg, "xG statistics"),
@@ -546,6 +556,10 @@ def _fixtures_item(
     rows: list[dict[str, Any]],
     *,
     query_params: dict[str, str] | None = None,
+    competition_id: str = "",
+    configured_season: str = "",
+    audit_mode: str = "enablement",
+    has_recent_results: bool = False,
 ) -> AuditItem:
     ids = _fixture_ids_from_rows(*rows)
     observed_evidence = {
@@ -560,10 +574,16 @@ def _fixtures_item(
             evidence_fixture_ids=tuple(ids[:3]),
             observed_evidence=observed_evidence,
         )
+    message = _empty_fixtures_message(
+        competition_id=competition_id,
+        configured_season=configured_season,
+        audit_mode=audit_mode,
+        has_recent_results=has_recent_results,
+    )
     return AuditItem(
         name="fixtures",
         status=AuditItemStatus.FAIL,
-        message="future fixtures missing",
+        message=message,
         observed_evidence=observed_evidence,
     )
 
@@ -684,42 +704,23 @@ def _provider_mapping_evidence(league: dict[str, Any]) -> dict[str, Any]:
 
 
 def _bookmaker_observed_evidence(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    text = json.dumps(rows, ensure_ascii=False).lower()
-    bookmakers = set()
-    markets = set()
-    for row in rows:
-        if isinstance(row, dict):
-            row_bookmakers = (
-                row.get("bookmakers", [])
-                if isinstance(row.get("bookmakers"), list)
-                else []
-            )
-            for bookmaker in row_bookmakers:
-                if isinstance(bookmaker, dict):
-                    bookmakers.add(_text(bookmaker.get("name") or bookmaker.get("id")))
-                    bets = bookmaker.get("bets")
-                    if isinstance(bets, list):
-                        for bet in bets:
-                            if isinstance(bet, dict):
-                                markets.add(_text(bet.get("name")).lower())
-            bookmakers.add(_text(row.get("bookmaker") or row.get("bookmaker_id")))
-            markets.add(_text(row.get("market")).lower())
-    has_ah = "asian" in text or "handicap" in text or "ah" in markets
-    has_ou = "over/under" in text or "goals over/under" in text or "totals" in markets
-    has_line = any(
-        "line" in _text(item).lower()
-        or bool(row.get("line"))
-        or "value" in _text(item).lower()
-        for row in rows
-        for item in ([row] if isinstance(row, dict) else [])
-    )
-    return {
-        "observed_bookmaker_count": len({item for item in bookmakers if item}),
-        "observed_ah_ou_market_names": sorted({item for item in markets if item}),
-        "observed_has_ah": has_ah,
-        "observed_has_ou": has_ou,
-        "observed_has_line": has_line,
-    }
+    return bookmaker_observed_evidence(rows, lowercase_market_names=True)
+
+
+def _empty_fixtures_message(
+    *,
+    competition_id: str,
+    configured_season: str,
+    audit_mode: str,
+    has_recent_results: bool,
+) -> str:
+    if competition_id in NATIONAL_LEAGUES_OFFSEASON:
+        return "FIXTURES_EMPTY_OFF_SEASON"
+    if audit_mode == "coverage-inventory" and has_recent_results:
+        return "FIXTURES_QUERY_REVIEW_REQUIRED"
+    if configured_season:
+        return "FIXTURES_EMPTY_CONFIGURED_SEASON"
+    return "FIXTURES_QUERY_REVIEW_REQUIRED"
 
 
 def _league_warnings(competition_id: str) -> tuple[str, ...]:
