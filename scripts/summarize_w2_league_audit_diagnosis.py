@@ -7,7 +7,10 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from w2.competitions.league_whitelist_provider_audit import IN_SEASON_NATIONAL_LEAGUES
+from w2.competitions.league_whitelist_scope import (
+    ALL_WHITELIST_COMPETITIONS,
+    IN_SEASON_NATIONAL_LEAGUES,
+)
 
 REPORT_PREFIX = "W2_WHITELIST_AUDIT_"
 REPORT_SUFFIX = ".json"
@@ -101,14 +104,13 @@ def build_diagnosis(
         raise SystemExit("BLOCKER: OUT_FILE_MUST_BE_UNDER_TMP")
 
     reports = _combined_reports(audit_dirs)
+    expected_leagues = _expected_leagues(reports)
     completed_leagues = [
         league_id
-        for league_id in IN_SEASON_NATIONAL_LEAGUES
+        for league_id in expected_leagues
         if league_id in reports and _status(reports[league_id]) in TERMINAL_STATUSES
     ]
-    missing_leagues = [
-        league_id for league_id in IN_SEASON_NATIONAL_LEAGUES if league_id not in reports
-    ]
+    missing_leagues = [league_id for league_id in expected_leagues if league_id not in reports]
     diagnosis = _diagnosis(reports)
     payload = {
         "status": "PASS" if not missing_leagues else "INCOMPLETE",
@@ -152,12 +154,20 @@ def _combined_reports(audit_dirs: list[Path]) -> dict[str, dict[str, Any]]:
         for path in sorted(audit_dir.glob(f"{REPORT_PREFIX}*{REPORT_SUFFIX}")):
             report = _read_report(path)
             league_id = _text(report.get("competition_id")) or _league_id_from_path(path)
-            if league_id not in IN_SEASON_NATIONAL_LEAGUES:
+            if league_id not in ALL_WHITELIST_COMPETITIONS:
                 continue
             existing = reports.get(league_id)
             if existing is None or _prefer_report(report, existing):
                 reports[league_id] = report
     return reports
+
+
+def _expected_leagues(reports: dict[str, dict[str, Any]]) -> tuple[str, ...]:
+    if any(league_id not in IN_SEASON_NATIONAL_LEAGUES for league_id in reports):
+        return tuple(
+            league_id for league_id in ALL_WHITELIST_COMPETITIONS if league_id in reports
+        )
+    return IN_SEASON_NATIONAL_LEAGUES
 
 
 def _read_report(path: Path) -> dict[str, Any]:

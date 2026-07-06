@@ -26,18 +26,13 @@ from w2.competitions.league_whitelist_audit import (
     build_league_whitelist_audit_result,
     planned_provider_calls_for_audit,
 )
+from w2.competitions.league_whitelist_scope import (
+    IN_SEASON_NATIONAL_LEAGUES as IN_SEASON_NATIONAL_LEAGUES,
+)
 from w2.competitions.registry import CompetitionRegistryEntry
 from w2.providers.quota import parse_api_football_quota
 
 AUDIT_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(AUDIT_ENDPOINT_ALLOWLIST)
-IN_SEASON_NATIONAL_LEAGUES = (
-    "brasileirao_serie_a",
-    "argentina_primera",
-    "mls",
-    "chinese_super_league",
-    "allsvenskan",
-    "eliteserien",
-)
 LEAGUE_PROVIDER_HARD_CAPS = {
     "brasileirao_serie_a": 13,
     "argentina_primera": 15,
