@@ -106,6 +106,30 @@ def test_dry_run_does_not_sleep() -> None:
     assert payload["provider_calls"] == 0
 
 
+def test_evidence_only_dry_run_uses_evidence_endpoint_plan() -> None:
+    payload = _run(
+        "--group",
+        "all_whitelist_competitions",
+        "--audit-mode",
+        "evidence-only",
+        "--dry-run",
+        "--json",
+    )
+
+    assert payload["status"] == "DRY_RUN_READY"
+    assert payload["audit_mode"] == "EVIDENCE_ONLY"
+    assert payload["competition_count"] == 14
+    assert payload["endpoint_allowlist"] == ["leagues", "fixtures", "odds"]
+    assert payload["planned_provider_calls"] == 56
+    assert payload["planned_provider_calls_by_endpoint"] == {
+        "leagues": 14,
+        "fixtures_future": 14,
+        "fixtures_results": 14,
+        "odds": 14,
+    }
+    assert payload["provider_calls"] == 0
+
+
 def test_approved_provider_execution_with_key_fails_closed(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "dummy")
 
