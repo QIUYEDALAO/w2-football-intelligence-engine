@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import sys
@@ -8,7 +9,7 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -16,8 +17,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from w2.backtest.free_tier_2024 import (  # noqa: E402
     ANNUAL_COMPETITIONS,
     DEFAULT_RAW_DIRS,
+    UNDERSTAT_XG_SOURCE,
     build_free_tier_2024_backtest_report,
     collect_provider_dataset,
+    collect_understat_xg_dataset,
     report_sha256,
 )
 
@@ -42,10 +45,22 @@ def main() -> int:
                 requester=_api_football_request,
             )
             raw_dirs = (args.out_dir / "raw", *raw_dirs)
+        understat_result = None
+        true_xg_source = "api_football_statistics"
+        if args.xg_source == "understat":
+            understat_result = collect_understat_xg_dataset(
+                out_dir=args.out_dir,
+                league_code=args.understat_league_code,
+                season=args.season,
+                requester=_understat_request,
+            )
+            raw_dirs = (args.out_dir / "understat", *raw_dirs)
+            true_xg_source = UNDERSTAT_XG_SOURCE
         report = build_free_tier_2024_backtest_report(
             raw_dirs=raw_dirs,
             season=args.season,
             competitions=competitions,
+            true_xg_source=true_xg_source,
             generated_at=datetime.now(UTC),
         )
         if provider_result is not None:
@@ -57,6 +72,19 @@ def main() -> int:
                 "ledger_records": len(provider_result.ledger),
             }
             report["provider_calls"] = provider_result.provider_calls
+        if understat_result is not None:
+            report["understat_collection"] = {
+                "source": UNDERSTAT_XG_SOURCE,
+                "provider_calls": understat_result.provider_calls,
+                "understat_requests": understat_result.understat_requests,
+                "cache_path": understat_result.cache_path,
+                "skipped_existing": understat_result.skipped_existing,
+                "fixture_count": understat_result.fixture_count,
+                "tos_note": (
+                    "Uses public Understat league data cache for research; no API-Football "
+                    "request or key is used."
+                ),
+            }
         report["report_sha256"] = report_sha256(report)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +114,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--daily-hard-cap", type=int, default=80)
     parser.add_argument("--max-statistics-calls", type=int, default=0)
     parser.add_argument("--request-interval-seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--xg-source",
+        choices=("api_football", "understat"),
+        default="api_football",
+        help="Source for the true rolling xG delta path.",
+    )
+    parser.add_argument("--understat-league-code", default="EPL")
     parser.add_argument("--json", action="store_true", default=False)
     return parser.parse_args()
 
@@ -107,6 +142,23 @@ def _api_football_request(
         payload = json.loads(response.read().decode("utf-8"))
         headers = {key.lower(): value for key, value in response.headers.items()}
         return int(response.status), headers, payload
+
+
+def _understat_request(league_code: str, season: str) -> dict[str, Any]:
+    url = f"https://understat.com/getLeagueData/{urllib.parse.quote(league_code)}/{season}/"
+    request = urllib.request.Request(  # noqa: S310 - fixed HTTPS Understat public host.
+        url,
+        headers={
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Referer": f"https://understat.com/league/{league_code}/{season}",
+            "User-Agent": "w2-research/1.0 (public Understat page cache)",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+        raw = response.read()
+    text = gzip.decompress(raw).decode("utf-8") if raw[:2] == b"\x1f\x8b" else raw.decode("utf-8")
+    return cast(dict[str, Any], json.loads(text))
 
 
 def _ensure_provider_key_http_safe() -> None:

@@ -36,6 +36,12 @@ ANNUAL_COMPETITIONS = (
 DEFAULT_RAW_DIRS = (Path("runtime/w2_free_tier_2024/raw"), Path("runtime/stage5b/raw"))
 MIN_READY_SAMPLE = 200
 MIN_OBSERVING_SAMPLE = 30
+DEFAULT_UNDERSTAT_CACHE_DIR = Path("runtime/w2_understat_xg")
+UNDERSTAT_XG_SOURCE = "understat_xg_local"
+UNDERSTAT_TEAM_ALIASES = {
+    "Newcastle United": "Newcastle",
+    "Wolverhampton Wanderers": "Wolves",
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -73,7 +79,32 @@ class ProviderFetchResult:
     ledger: tuple[dict[str, Any], ...]
 
 
+@dataclass(frozen=True, kw_only=True)
+class UnderstatFetchResult:
+    provider_calls: int
+    understat_requests: int
+    cache_path: str
+    skipped_existing: bool
+    fixture_count: int
+
+
+@dataclass
+class RollingXgState:
+    xg_for_total: float = 0.0
+    xg_against_total: float = 0.0
+    matches: int = 0
+
+    @property
+    def xg_for(self) -> float:
+        return self.xg_for_total / self.matches if self.matches else 0.0
+
+    @property
+    def xg_against(self) -> float:
+        return self.xg_against_total / self.matches if self.matches else 0.0
+
+
 ApiFootballRequester = Callable[[str, dict[str, str]], tuple[int, dict[str, str], dict[str, Any]]]
+UnderstatRequester = Callable[[str, str], dict[str, Any]]
 
 
 def build_free_tier_2024_backtest_report(
@@ -81,6 +112,7 @@ def build_free_tier_2024_backtest_report(
     raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     season: str = "2024",
     competitions: Sequence[str] = ANNUAL_COMPETITIONS,
+    true_xg_source: str = "api_football_statistics",
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     generated = (generated_at or datetime.now(UTC)).astimezone(UTC)
@@ -122,6 +154,22 @@ def build_free_tier_2024_backtest_report(
         season=season,
         competitions=competitions,
     )
+    true_xg_statistics = (
+        load_understat_xg_statistics(
+            raw_dirs=raw_dirs,
+            fixtures=fixtures,
+            league_code="EPL",
+            season=season,
+        )
+        if true_xg_source == UNDERSTAT_XG_SOURCE
+        else load_fixture_statistics(raw_dirs)
+    )
+    true_xg_comparison = build_true_xg_delta_report(
+        fixtures=fixtures,
+        statistics_by_fixture=true_xg_statistics,
+        competition_id="premier_league",
+        xg_source=true_xg_source,
+    )
     overall = _slice_report(rows, predictions=predictions)
     calibration_status = _calibration_status(
         rows=rows,
@@ -156,6 +204,7 @@ def build_free_tier_2024_backtest_report(
         "input_coverage": input_coverage,
         "overall": overall,
         "by_competition": by_competition,
+        "true_xg_comparison": true_xg_comparison,
         "calibration_status": calibration_status,
         "s2_calibration_validation": _s2_summary(rows),
         "outcome_tracked_samples": _outcome_tracked_samples(predictions),
@@ -259,6 +308,173 @@ def build_walk_forward_predictions(fixtures: Sequence[HistoricalFixture]) -> lis
     return predictions
 
 
+def build_true_xg_delta_report(
+    *,
+    fixtures: Sequence[HistoricalFixture],
+    statistics_by_fixture: dict[str, dict[str, float]],
+    competition_id: str = "premier_league",
+    xg_source: str = "api_football_statistics",
+    min_history: int = 5,
+) -> dict[str, Any]:
+    scoped = [
+        fixture
+        for fixture in sorted(fixtures, key=lambda item: (item.kickoff_utc, item.fixture_id))
+        if fixture.competition_id == competition_id
+    ]
+    proxy_builder = AsOfFeatureBuilder()
+    xg_states: dict[str, RollingXgState] = {}
+    proxy_predictions: list[dict[str, Any]] = []
+    true_predictions: list[dict[str, Any]] = []
+    for fixture in scoped:
+        match = MatchRecord(
+            fixture_id=fixture.fixture_id,
+            competition=fixture.competition_id,
+            season=fixture.season,
+            kickoff_utc=fixture.kickoff_utc,
+            home_team=fixture.home_team,
+            away_team=fixture.away_team,
+            home_goals=fixture.home_goals,
+            away_goals=fixture.away_goals,
+            neutral_site=fixture.neutral_site,
+        )
+        proxy_features = proxy_builder.features(match)
+        home_xg_state = xg_states.get(fixture.home_team, RollingXgState())
+        away_xg_state = xg_states.get(fixture.away_team, RollingXgState())
+        current_xg = statistics_by_fixture.get(fixture.fixture_id)
+        eligible = (
+            current_xg is not None
+            and home_xg_state.matches >= min_history
+            and away_xg_state.matches >= min_history
+        )
+        if eligible:
+            true_features = dict(proxy_features)
+            true_features.update(
+                {
+                    "home_attack_strength": home_xg_state.xg_for,
+                    "away_attack_strength": away_xg_state.xg_for,
+                    "home_defence_strength": home_xg_state.xg_against,
+                    "away_defence_strength": away_xg_state.xg_against,
+                    "rolling_home_xg": home_xg_state.xg_for,
+                    "rolling_away_xg": away_xg_state.xg_for,
+                }
+            )
+            proxy_prediction = predict_from_features(
+                fixture.fixture_id,
+                ModelFamily.INDEPENDENT_POISSON,
+                proxy_features,
+                fixture.kickoff_utc,
+            )
+            true_prediction = predict_from_features(
+                fixture.fixture_id,
+                ModelFamily.INDEPENDENT_POISSON,
+                true_features,
+                fixture.kickoff_utc,
+            )
+            common = {
+                "fixture_id": fixture.fixture_id,
+                "competition_id": fixture.competition_id,
+                "season": fixture.season,
+                "actual": fixture.actual,
+                "neutral_site": fixture.neutral_site,
+                "prior_home_xg_for": round(home_xg_state.xg_for, 6),
+                "prior_away_xg_for": round(away_xg_state.xg_for, 6),
+                "home_xg_history_matches": home_xg_state.matches,
+                "away_xg_history_matches": away_xg_state.matches,
+                "target_fixture_xg_excluded_from_features": True,
+            }
+            proxy_predictions.append(
+                {
+                    **common,
+                    "probabilities": {
+                        key: round(value, 6)
+                        for key, value in proxy_prediction.one_x_two.items()
+                    },
+                }
+            )
+            true_predictions.append(
+                {
+                    **common,
+                    "probabilities": {
+                        key: round(value, 6)
+                        for key, value in true_prediction.one_x_two.items()
+                    },
+                }
+            )
+        proxy_builder.update(match)
+        if current_xg is not None:
+            _update_xg_state(
+                xg_states,
+                home_team=fixture.home_team,
+                away_team=fixture.away_team,
+                home_xg=current_xg.get(fixture.home_team),
+                away_xg=current_xg.get(fixture.away_team),
+            )
+    proxy_rows = _evaluation_rows(proxy_predictions)
+    true_rows = _evaluation_rows(true_predictions)
+    proxy_metrics = metrics(proxy_rows) if proxy_rows else None
+    true_metrics = metrics(true_rows) if true_rows else None
+    delta = _metric_delta(true_metrics, proxy_metrics)
+    return {
+        "competition_id": competition_id,
+        "xg_source": xg_source,
+        "min_history_matches": min_history,
+        "statistics_fixtures_available": len(statistics_by_fixture),
+        "sample_count": len(true_rows),
+        "proxy_metrics": proxy_metrics,
+        "true_xg_metrics": true_metrics,
+        "delta_real_xg_minus_proxy": delta,
+        "interpretation": _true_xg_interpretation(len(true_rows), delta),
+        "leakage_guard": (
+            "target fixture statistics are loaded only after prediction and are "
+            "used only to update future rolling xG state"
+        ),
+        "sample_rows": true_predictions[:10],
+    }
+
+
+def collect_understat_xg_dataset(
+    *,
+    out_dir: Path,
+    league_code: str = "EPL",
+    season: str = "2024",
+    requester: UnderstatRequester,
+    generated_at: datetime | None = None,
+) -> UnderstatFetchResult:
+    cache_dir = out_dir / "understat"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = _understat_cache_path(cache_dir, league_code=league_code, season=season)
+    if cache_path.exists():
+        payload = _load_json(cache_path)
+        return UnderstatFetchResult(
+            provider_calls=0,
+            understat_requests=0,
+            cache_path=cache_path.as_posix(),
+            skipped_existing=True,
+            fixture_count=len(_understat_dates(payload)),
+        )
+    generated = (generated_at or datetime.now(UTC)).astimezone(UTC)
+    data = requester(league_code, season)
+    cache_payload = {
+        "source": UNDERSTAT_XG_SOURCE,
+        "endpoint": "understat_league_data",
+        "league_code": league_code,
+        "season": season,
+        "captured_at": generated.isoformat().replace("+00:00", "Z"),
+        "payload": data,
+    }
+    cache_path.write_text(
+        json.dumps(cache_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return UnderstatFetchResult(
+        provider_calls=0,
+        understat_requests=1,
+        cache_path=cache_path.as_posix(),
+        skipped_existing=False,
+        fixture_count=len(_understat_dates(cache_payload)),
+    )
+
+
 def collect_provider_dataset(
     *,
     out_dir: Path,
@@ -356,8 +572,12 @@ def collect_provider_dataset(
             if statistics_calls >= max_statistics_calls:
                 break
             stats_path = raw_dir / f"statistics_{fixture.competition_id}_{fixture.fixture_id}.json"
-            if stats_path.exists():
-                skipped.append(stats_path.as_posix())
+            existing_stats = _existing_statistics_cache(
+                raw_dirs=(raw_dir, *reuse_raw_dirs),
+                fixture_id=fixture.fixture_id,
+            )
+            if existing_stats is not None:
+                skipped.append(existing_stats.as_posix())
                 continue
             status_code, headers, payload = _perform_provider_request(
                 "statistics",
@@ -539,6 +759,60 @@ def _input_coverage(
     }
 
 
+def load_fixture_statistics(raw_dirs: Sequence[Path]) -> dict[str, dict[str, float]]:
+    statistics: dict[str, dict[str, float]] = {}
+    for path in _raw_files(raw_dirs, endpoint="statistics"):
+        payload = _load_json(path)
+        fixture_id = str(_params(payload).get("fixture") or "")
+        if not fixture_id:
+            continue
+        values = _fixture_xg_values(payload)
+        if values:
+            statistics[fixture_id] = values
+    return statistics
+
+
+def load_understat_xg_statistics(
+    *,
+    raw_dirs: Sequence[Path],
+    fixtures: Sequence[HistoricalFixture],
+    league_code: str = "EPL",
+    season: str = "2024",
+) -> dict[str, dict[str, float]]:
+    understat_rows: dict[tuple[str, str, str], dict[str, float]] = {}
+    understat_rows_by_date: dict[tuple[str, str, str], list[dict[str, float]]] = {}
+    for payload in _understat_payloads(raw_dirs, league_code=league_code, season=season):
+        for row in _understat_dates(payload):
+            parsed = _understat_match_xg(row)
+            if parsed is None:
+                continue
+            key, home_team, away_team, home_xg, away_xg = parsed
+            values = {home_team: home_xg, away_team: away_xg}
+            understat_rows[key] = values
+            date_key = (key[0][:10], home_team, away_team)
+            understat_rows_by_date.setdefault(date_key, []).append(values)
+
+    output: dict[str, dict[str, float]] = {}
+    for fixture in fixtures:
+        key = (
+            fixture.kickoff_utc.strftime("%Y-%m-%dT%H:%M"),
+            fixture.home_team,
+            fixture.away_team,
+        )
+        matched_values = understat_rows.get(key)
+        if matched_values is None:
+            date_key = (
+                fixture.kickoff_utc.strftime("%Y-%m-%d"),
+                fixture.home_team,
+                fixture.away_team,
+            )
+            date_matches = understat_rows_by_date.get(date_key, [])
+            matched_values = date_matches[0] if len(date_matches) == 1 else None
+        if matched_values is not None:
+            output[fixture.fixture_id] = matched_values
+    return output
+
+
 def _statistics_fixture_ids(raw_dirs: Sequence[Path]) -> set[str]:
     fixture_ids: set[str] = set()
     for path in _raw_files(raw_dirs, endpoint="statistics"):
@@ -548,6 +822,150 @@ def _statistics_fixture_ids(raw_dirs: Sequence[Path]) -> set[str]:
         if fixture_id:
             fixture_ids.add(fixture_id)
     return fixture_ids
+
+
+def _understat_payloads(
+    raw_dirs: Sequence[Path],
+    *,
+    league_code: str,
+    season: str,
+) -> Iterable[dict[str, Any]]:
+    for raw_dir in raw_dirs:
+        if not raw_dir.exists():
+            continue
+        for path in sorted(raw_dir.glob(f"understat_{league_code.lower()}_{season}.json")):
+            payload = _load_json(path)
+            if (
+                str(payload.get("source") or "") == UNDERSTAT_XG_SOURCE
+                and str(payload.get("league_code") or "") == league_code
+                and str(payload.get("season") or "") == season
+            ):
+                yield payload
+
+
+def _understat_cache_path(cache_dir: Path, *, league_code: str, season: str) -> Path:
+    return cache_dir / f"understat_{league_code.lower()}_{season}.json"
+
+
+def _understat_dates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    data = _dict(payload.get("payload"))
+    rows = data.get("dates")
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def _understat_match_xg(
+    row: dict[str, Any],
+) -> tuple[tuple[str, str, str], str, str, float, float] | None:
+    if row.get("isResult") is not True:
+        return None
+    kickoff = _parse_datetime(str(row.get("datetime") or "").replace(" ", "T") + "+00:00")
+    if kickoff is None:
+        return None
+    home = _understat_team_name(_dict(row.get("h")).get("title"))
+    away = _understat_team_name(_dict(row.get("a")).get("title"))
+    xg = _dict(row.get("xG"))
+    home_xg = _float(xg.get("h"))
+    away_xg = _float(xg.get("a"))
+    if not home or not away or home_xg is None or away_xg is None:
+        return None
+    key = (kickoff.strftime("%Y-%m-%dT%H:%M"), home, away)
+    return key, home, away, home_xg, away_xg
+
+
+def _understat_team_name(value: Any) -> str:
+    name = str(value or "")
+    return UNDERSTAT_TEAM_ALIASES.get(name, name)
+
+
+def _fixture_xg_values(payload: dict[str, Any]) -> dict[str, float]:
+    output: dict[str, float] = {}
+    for row in _response_rows(payload):
+        team = _dict(row.get("team"))
+        team_name = str(team.get("name") or "")
+        if not team_name:
+            continue
+        for item in row.get("statistics") or []:
+            if not isinstance(item, dict):
+                continue
+            stat_type = str(item.get("type") or "").lower().replace(" ", "_")
+            if stat_type not in {"expected_goals", "xg"}:
+                continue
+            value = _float(item.get("value"))
+            if value is not None:
+                output[team_name] = value
+    return output
+
+
+def _update_xg_state(
+    states: dict[str, RollingXgState],
+    *,
+    home_team: str,
+    away_team: str,
+    home_xg: float | None,
+    away_xg: float | None,
+) -> None:
+    if home_xg is None or away_xg is None:
+        return
+    home = states.setdefault(home_team, RollingXgState())
+    away = states.setdefault(away_team, RollingXgState())
+    home.xg_for_total += home_xg
+    home.xg_against_total += away_xg
+    home.matches += 1
+    away.xg_for_total += away_xg
+    away.xg_against_total += home_xg
+    away.matches += 1
+
+
+def _evaluation_rows(predictions: Sequence[dict[str, Any]]) -> list[EvaluationRow]:
+    return [
+        EvaluationRow(
+            fixture_id=str(item["fixture_id"]),
+            actual=str(item["actual"]),
+            probabilities=dict(item["probabilities"]),
+            competition=str(item["competition_id"]),
+            season=str(item["season"]),
+            neutral_site=bool(item["neutral_site"]),
+        )
+        for item in predictions
+    ]
+
+
+def _metric_delta(
+    true_metrics: dict[str, float] | None,
+    proxy_metrics: dict[str, float] | None,
+) -> dict[str, float] | None:
+    if true_metrics is None or proxy_metrics is None:
+        return None
+    return {
+        key: round(true_metrics[key] - proxy_metrics[key], 6)
+        for key in ("brier", "log_loss", "rps", "ece")
+    }
+
+
+def _true_xg_interpretation(
+    sample_count: int,
+    delta: dict[str, float] | None,
+) -> dict[str, Any]:
+    if sample_count < MIN_OBSERVING_SAMPLE or delta is None:
+        return {
+            "status": "INSUFFICIENT_TRUE_XG_SAMPLE",
+            "conclusion": "Need more target-competition statistics before judging architecture.",
+        }
+    log_loss_delta = delta["log_loss"]
+    if log_loss_delta <= -0.03:
+        return {
+            "status": "ARCHITECTURE_PROMISING",
+            "conclusion": "True rolling xG materially improves log-loss versus proxy features.",
+        }
+    if abs(log_loss_delta) <= 0.005:
+        return {
+            "status": "MODEL_WEAK_REWORK_BEFORE_PAID_SCALE",
+            "conclusion": "True rolling xG barely moves log-loss; improve model before paid scale.",
+        }
+    return {
+        "status": "MIXED_OR_SMALL_TRUE_XG_GAIN",
+        "conclusion": "True rolling xG moves metrics but not enough for an architecture decision.",
+    }
 
 
 def _round_robin_by_competition(
@@ -622,6 +1040,18 @@ def _existing_fixture_cache(
             str(params.get("league") or "") == league_id
             and str(params.get("season") or "") == season
         ):
+            return path
+    return None
+
+
+def _existing_statistics_cache(
+    *,
+    raw_dirs: Sequence[Path],
+    fixture_id: str,
+) -> Path | None:
+    for path in _raw_files(raw_dirs, endpoint="statistics"):
+        payload = _load_json(path)
+        if str(_params(payload).get("fixture") or "") == fixture_id:
             return path
     return None
 
@@ -777,6 +1207,15 @@ def _int(value: Any) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _float(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 
