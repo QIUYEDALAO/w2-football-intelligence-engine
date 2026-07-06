@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,6 @@ from w2.competitions.league_whitelist_audit import (
     write_audit_report,
 )
 from w2.competitions.league_whitelist_provider_audit import (
-    IN_SEASON_NATIONAL_LEAGUES,
     LEAGUE_PROVIDER_HARD_CAPS,
     STOP_STATUSES,
     ApiFootballLeagueAuditProvider,
@@ -33,11 +33,21 @@ from w2.competitions.league_whitelist_provider_audit import (
     evaluate_controlled_provider_league_audit,
     write_provider_audit_outputs,
 )
+from w2.competitions.league_whitelist_scope import (
+    ALL_WHITELIST_COMPETITIONS,
+    IN_SEASON_NATIONAL_LEAGUES,
+    NATIONAL_LEAGUES_OFFSEASON,
+    REMAINING_UNAUDITED_WHITELIST,
+    TOP_FIVE_COMPETITIONS,
+    WORLD_CUP_COMPETITIONS,
+)
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
 
 ROOT = Path(__file__).resolve().parents[1]
 NATIONAL_LEAGUES_DIR = ROOT / "config/competitions/national_leagues"
+TOP_FIVE_DIR = ROOT / "config/competitions/top_five"
 SOURCE = "scripts.run_w2_league_whitelist_audit.v1"
+AUDIT_MODES = ("enablement", "coverage-inventory")
 
 
 def main() -> int:
@@ -58,6 +68,7 @@ def main() -> int:
     parser.add_argument("--daily-hard-cap", type=int, default=90)
     parser.add_argument("--league-hard-cap", type=int)
     parser.add_argument("--request-interval-seconds", type=float, default=10.0)
+    parser.add_argument("--audit-mode", choices=AUDIT_MODES, default="enablement")
     parser.add_argument("--out-dir")
     parser.add_argument("--audit-ledger-json")
     parser.add_argument("--resume-from-out-dir")
@@ -80,6 +91,7 @@ def main() -> int:
             daily_hard_cap=args.daily_hard_cap,
             league_hard_cap=args.league_hard_cap,
             request_interval_seconds=args.request_interval_seconds,
+            audit_mode=args.audit_mode,
             out_dir=Path(args.out_dir) if args.out_dir else None,
             audit_ledger_json=Path(args.audit_ledger_json) if args.audit_ledger_json else None,
             resume_from_out_dir=(
@@ -106,6 +118,7 @@ def build_cli_payload(
     daily_hard_cap: int = 90,
     league_hard_cap: int | None = None,
     request_interval_seconds: float = 10.0,
+    audit_mode: str = "enablement",
     out_dir: Path | None = None,
     audit_ledger_json: Path | None = None,
     resume_from_out_dir: Path | None = None,
@@ -115,6 +128,8 @@ def build_cli_payload(
 ) -> dict[str, Any]:
     registry = CompetitionRegistry()
     entries = _selected_entries(registry, group=group, competition_id=competition_id)
+    if audit_mode not in AUDIT_MODES:
+        raise SystemExit(f"UNSUPPORTED_AUDIT_MODE:{audit_mode}")
     single_league_planned_calls = planned_provider_calls_by_endpoint()
     planned_calls = planned_provider_calls_for_audit() * len(entries)
     planned_calls_by_endpoint = {
@@ -132,6 +147,7 @@ def build_cli_payload(
             daily_hard_cap=daily_hard_cap,
             league_hard_cap=league_hard_cap,
             request_interval_seconds=request_interval_seconds,
+            audit_mode=audit_mode,
             out_dir=out_dir,
             audit_ledger_json=audit_ledger_json,
             resume_from_out_dir=resume_from_out_dir,
@@ -193,6 +209,8 @@ def build_cli_payload(
         ]
         status = "DRY_RUN_READY"
     result_payloads = [result.as_dict() for result in results]
+    for result_payload in result_payloads:
+        result_payload["audit_mode"] = audit_mode
     report_paths: list[str] = []
     if out_dir is not None:
         for result in results:
@@ -205,6 +223,7 @@ def build_cli_payload(
         "competition_id": competition_id or None,
         "environment": environment,
         "source": SOURCE,
+        "audit_mode": audit_mode,
         "endpoint_allowlist": list(AUDIT_ENDPOINT_ALLOWLIST),
         "competition_count": len(entries),
         "results": result_payloads,
@@ -241,6 +260,16 @@ def _selected_entries(
         return [entry]
     if group == "national_leagues_in_season":
         return [entries[item] for item in IN_SEASON_NATIONAL_LEAGUES]
+    if group == "remaining_unaudited_whitelist":
+        return [entries[item] for item in REMAINING_UNAUDITED_WHITELIST]
+    if group == "all_whitelist_competitions":
+        return [entries[item] for item in ALL_WHITELIST_COMPETITIONS]
+    if group == "top_five":
+        return [entries[item] for item in TOP_FIVE_COMPETITIONS]
+    if group == "world_cup":
+        return [entries[item] for item in WORLD_CUP_COMPETITIONS]
+    if group == "national_leagues_offseason":
+        return [entries[item] for item in NATIONAL_LEAGUES_OFFSEASON]
     if group and group != "national_leagues":
         raise SystemExit(f"UNSUPPORTED_GROUP:{group}")
     return [
@@ -269,6 +298,7 @@ def _build_real_provider_payload(
     daily_hard_cap: int,
     league_hard_cap: int | None,
     request_interval_seconds: float,
+    audit_mode: str,
     out_dir: Path | None,
     audit_ledger_json: Path | None,
     resume_from_out_dir: Path | None,
@@ -293,6 +323,7 @@ def _build_real_provider_payload(
             competition_id=competition_id,
             environment=environment,
             results=results,
+            audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             message="NEED_USER_APPROVAL: LEAGUE_WHITELIST_PROVIDER_AUDIT",
@@ -312,11 +343,12 @@ def _build_real_provider_payload(
             competition_id=competition_id,
             environment=environment,
             results=results,
+            audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             message="PROVIDER_KEY_MISSING",
         )
-    if planned_calls > daily_hard_cap:
+    if planned_calls > daily_hard_cap and audit_mode == "enablement":
         results = [
             build_hard_cap_blocked_result(
                 entry,
@@ -332,6 +364,7 @@ def _build_real_provider_payload(
             competition_id=competition_id,
             environment=environment,
             results=results,
+            audit_mode=audit_mode,
             planned_calls=planned_calls,
             planned_calls_by_endpoint=planned_calls_by_endpoint,
             message="BLOCKED_BY_HARD_CAP",
@@ -350,6 +383,7 @@ def _build_real_provider_payload(
     ledger = LocalProviderAuditLedger()
     budget = ProviderAuditBudget(daily_hard_cap=daily_hard_cap)
     results = []
+    target_competition_ids = [entry.competition_id for entry in entries]
     stopped_early = False
     stopped_reason: str | None = None
     for entry in entries:
@@ -372,6 +406,8 @@ def _build_real_provider_payload(
             environment=environment,
             provider=provider,
         )
+        if audit_mode == "coverage-inventory":
+            result = _coverage_inventory_result(result)
         results.append(result)
         if result.overall_status in STOP_STATUSES:
             stopped_early = True
@@ -402,6 +438,8 @@ def _build_real_provider_payload(
         competition_id=competition_id,
         environment=environment,
         results=results,
+        audit_mode=audit_mode,
+        target_competition_ids=target_competition_ids,
         planned_calls=planned_calls,
         planned_calls_by_endpoint=planned_calls_by_endpoint,
         message=summary["status"],
@@ -425,6 +463,8 @@ def _payload(
     competition_id: str,
     environment: str,
     results: list[Any],
+    audit_mode: str = "enablement",
+    target_competition_ids: list[str] | None = None,
     planned_calls: int,
     planned_calls_by_endpoint: dict[str, int],
     message: str,
@@ -440,14 +480,37 @@ def _payload(
     skipped_existing_reports: list[str] | None = None,
 ) -> dict[str, Any]:
     result_payloads = [result.as_dict() for result in results]
+    for result_payload in result_payloads:
+        result_payload["audit_mode"] = audit_mode
+    target_ids = target_competition_ids or [item["competition_id"] for item in result_payloads]
+    completed_leagues = [
+        item["competition_id"]
+        for item in result_payloads
+        if item.get("overall_status") in {"PASS", "FAIL", "CANNOT_VERIFY"}
+    ]
+    partial_leagues = [
+        item["competition_id"]
+        for item in result_payloads
+        if item.get("overall_status") not in {"PASS", "FAIL", "CANNOT_VERIFY"}
+    ]
+    reported_ids = {item["competition_id"] for item in result_payloads}
+    unstarted_leagues = [
+        competition_id
+        for competition_id in target_ids
+        if competition_id not in reported_ids
+    ]
     return {
         "status": status,
         "group": group or None,
         "competition_id": competition_id or None,
         "environment": environment,
         "source": SOURCE,
+        "audit_mode": audit_mode,
         "endpoint_allowlist": list(AUDIT_ENDPOINT_ALLOWLIST),
-        "competition_count": len(results),
+        "competition_count": len(target_ids),
+        "completed_leagues": completed_leagues,
+        "partial_leagues": partial_leagues,
+        "unstarted_leagues": unstarted_leagues,
         "results": result_payloads,
         "planned_provider_calls": planned_calls,
         "planned_provider_calls_by_endpoint": planned_calls_by_endpoint,
@@ -484,6 +547,16 @@ def _league_cap(
     if len(IN_SEASON_NATIONAL_LEAGUES) == 1:
         return max_provider_calls
     return LEAGUE_PROVIDER_HARD_CAPS.get(entry.competition_id, max_provider_calls)
+
+
+def _coverage_inventory_result(result: Any) -> Any:
+    warnings = tuple(
+        [
+            *result.warnings,
+            "COVERAGE_INVENTORY_AUDIT_NOT_ENABLEMENT",
+        ]
+    )
+    return replace(result, can_enable=False, warnings=warnings)
 
 
 def summarize_output_dir(out_dir: Path) -> dict[str, Any]:

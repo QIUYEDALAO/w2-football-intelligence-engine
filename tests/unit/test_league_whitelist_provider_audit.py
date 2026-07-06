@@ -596,7 +596,7 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
 
 
 def _profile_by_league_id(league_id: str) -> dict[str, Any]:
-    for path in Path("config/competitions/national_leagues").glob("*.json"):
+    for path in Path("config/competitions").rglob("*.json"):
         payload = json.loads(path.read_text(encoding="utf-8"))
         if str(payload["provider_mapping"]["api_football_league_id"]) == str(league_id):
             return payload
