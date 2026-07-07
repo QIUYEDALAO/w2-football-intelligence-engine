@@ -2,6 +2,12 @@ export type MarketCode = "ASIAN_HANDICAP" | "TOTALS" | "FIRST_HALF_GOALS" | "SCO
 
 export type Decision = "PICK" | "SKIP" | "WATCH" | "ANALYSIS_PICK" | string;
 
+export type DecisionTier = "NOT_READY" | "SKIP" | "WATCH" | "ANALYSIS_PICK" | "RECOMMEND";
+
+export type DataStatus = "READY" | "PARTIAL" | "STALE" | "BLOCKED";
+
+export type LifecycleStatus = "DRAFT" | "LOCKED" | "SUPERSEDED" | "VOID" | "SETTLED";
+
 export type FilterMode = "ALL" | "PICK" | "SKIP" | "WATCH";
 
 export type LoadState = "loading" | "ok" | "error" | "empty";
@@ -564,6 +570,96 @@ export interface ReleaseSyncState {
   mismatch: boolean;
 }
 
+export interface DashboardDayViewCounts {
+  total: number;
+  lock_eligible: number;
+  outcome_tracked: number;
+  legacy_fallback: number;
+  analysis_pick: number;
+  recommend: number;
+  watch: number;
+  not_ready: number;
+  skip: number;
+  ready: number;
+  partial: number;
+  stale: number;
+  blocked: number;
+  by_decision_tier?: Record<string, number>;
+  by_data_status?: Record<string, number>;
+  by_lifecycle_status?: Record<string, number>;
+}
+
+export interface DashboardDayViewFreshness {
+  last_refresh?: string | null;
+  next_refresh_tick?: string | null;
+  provider_budget_status?: string | null;
+  refreshing?: boolean;
+  staleness?: {
+    stale_cards?: number;
+    blocked_cards?: number;
+    stale_or_blocked_cards?: number;
+  };
+  data_status_summary?: Record<string, number>;
+}
+
+export interface DashboardDayViewCard {
+  fixture_id: string;
+  kickoff_utc?: string | null;
+  kickoff_beijing?: string | null;
+  competition_id?: string | null;
+  competition_name?: string | null;
+  home_team_name?: string | null;
+  away_team_name?: string | null;
+  status?: string | null;
+  source?: string | null;
+  decision_tier: DecisionTier;
+  data_status: DataStatus;
+  lifecycle_status: LifecycleStatus;
+  outcome_tracked: boolean;
+  lock_eligible: boolean;
+  recommendation_id?: string | null;
+  reason_code?: string | null;
+  action?: string | null;
+  next_eval_at?: string | null;
+  provider_budget_status?: string | null;
+  missing_fields: string[];
+  stale_fields: string[];
+  data_readiness?: Record<string, unknown>;
+  pick?: {
+    market?: string | null;
+    selection?: string | null;
+    line?: string | number | null;
+    odds?: string | number | null;
+    disclaimer?: string | null;
+  } | null;
+  non_pick?: Record<string, unknown> | null;
+  one_liner?: string | null;
+  card_hash?: string | null;
+  diagnostics?: Record<string, unknown>;
+}
+
+export interface DashboardDayView {
+  request_id?: string;
+  generated_at: string;
+  date: string;
+  football_day: string;
+  selected_football_day: string;
+  environment: string;
+  environment_policy?: Record<string, unknown>;
+  timezone: string;
+  window: string;
+  source: string;
+  checkpoint_key?: string;
+  would_write_checkpoint: boolean;
+  provider_calls: number;
+  db_writes: number;
+  counts: DashboardDayViewCounts;
+  freshness: DashboardDayViewFreshness;
+  navigation?: Record<string, unknown>;
+  degradation?: Record<string, unknown>;
+  cards: DashboardDayViewCard[];
+}
+
 export interface DashboardView {
   date: string;
   selected_date?: string;
@@ -581,6 +677,7 @@ export interface DashboardView {
   debug: DashboardDebug;
   performance: DashboardPerformance;
   formal_tracking?: FormalTrackingSummary | null;
+  day_view?: DashboardDayView | null;
   recommendations: DashboardMatchCard[];
   upcoming: DashboardMatchCard[];
   finished: DashboardMatchCard[];

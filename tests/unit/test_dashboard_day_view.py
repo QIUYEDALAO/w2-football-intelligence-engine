@@ -156,6 +156,44 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
     assert view["degradation"]["severity"] == "info"
 
 
+def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
+    payload = {
+        "generated_at": "2026-07-05T08:00:00Z",
+        "date": "2026-07-05",
+        "selected_football_day": "2026-07-05",
+        "all": [
+            {
+                "fixture_id": "finished",
+                "kickoff_utc": "2026-07-05T06:00:00Z",
+                "status": "FT",
+                "decision_tier": "ANALYSIS_PICK",
+                "data_status": "READY",
+                "lifecycle_status": "DRAFT",
+            },
+            {
+                "fixture_id": "future",
+                "kickoff_utc": "2026-07-05T10:00:00Z",
+                "status": "NS",
+                "decision_tier": "WATCH",
+                "data_status": "PARTIAL",
+                "lifecycle_status": "DRAFT",
+                "non_pick": {
+                    "reason_code": "LINEUPS_PENDING",
+                    "reason_human": "首发未出",
+                    "action": "等官方首发",
+                },
+            },
+        ],
+    }
+
+    view = build_dashboard_day_view(payload, environment="staging")
+
+    assert [card["fixture_id"] for card in view["cards"]] == ["future"]
+    assert view["counts"]["total"] == 1
+    assert view["counts"]["analysis_pick"] == 0
+    assert view["counts"]["watch"] == 1
+
+
 def test_day_view_production_includes_production_environment_policy() -> None:
     view = build_dashboard_day_view(
         {

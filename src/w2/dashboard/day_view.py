@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
@@ -25,9 +25,14 @@ def build_dashboard_day_view(
         dashboard_payload.get("selected_football_day"),
         dashboard_payload.get("date"),
     )
-    cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
-    counts = _counts(cards)
     generated_at = _format_time(dashboard_payload.get("generated_at"))
+    as_of = _parse_time(generated_at) or datetime.now(UTC)
+    cards = [
+        _day_view_card(card)
+        for card in _dashboard_cards(dashboard_payload)
+        if _is_prematch_card(card, as_of=as_of)
+    ]
+    counts = _counts(cards)
     view = {
         "generated_at": generated_at,
         "date": _text(dashboard_payload.get("date"), football_day),
@@ -62,6 +67,30 @@ def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
         return []
     return [row for row in rows if isinstance(row, Mapping)]
+
+
+def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
+    status = str(card.get("status") or "").upper()
+    if status in {
+        "FT",
+        "AET",
+        "PEN",
+        "FINISHED",
+        "LIVE",
+        "1H",
+        "HT",
+        "2H",
+        "ET",
+        "BT",
+        "P",
+        "INT",
+        "SUSP",
+    }:
+        return False
+    kickoff = _parse_time(card.get("kickoff_utc"))
+    if kickoff is not None and kickoff <= as_of.astimezone(UTC):
+        return False
+    return True
 
 
 def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
@@ -316,6 +345,19 @@ def _format_time(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat().replace("+00:00", "Z")
     return str(value)
+
+
+def _parse_time(value: Any) -> datetime | None:
+    raw = _format_time(value)
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _string_list(value: Any) -> list[str]:

@@ -66,17 +66,23 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
     assert "locked_pre_match_recommendation" in types
 
 
-def test_dashboard_defaults_to_formal_first_upcoming_view() -> None:
+def test_dashboard_defaults_to_boss_decision_view() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
-    assert 'useState<DashboardMode>("next36")' in page
+    assert 'const mode: DashboardMode = "today"' in page
+    assert "BossDecisionView" in page
     assert "footballDayShanghai()" in page
     assert "next_available_date" in page
     assert "selected_date_has_data" in page
     assert "rawHour === 24 ? 0 : rawHour" in formatters
-    assert "sortFormalFirst(view.upcoming)" in page
-    assert "其他比赛分析参考" in page
+    assert "sortFormalFirst" not in page
+    assert "DecisionCounts" in boss_view
+    assert "ReasonCodePanel" in boss_view
+    assert "DecisionRow" in boss_view
+    assert "世界杯输出按 staging 保守展示" in boss_view
+    assert "L2 技术诊断" in boss_view
 
 
 def test_ah_display_helpers_use_home_team_view_contract() -> None:

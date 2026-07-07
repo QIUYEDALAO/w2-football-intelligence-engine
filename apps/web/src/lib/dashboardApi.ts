@@ -3,6 +3,9 @@ import { asArray, asRecord, numberValue, textValue } from "./normalize";
 import type {
   ApiVersion,
   DataRefreshStatus,
+  DashboardDayView,
+  DashboardDayViewCard,
+  DashboardDayViewCounts,
   DashboardDebug,
   DashboardMatchCard,
   DashboardMode,
@@ -602,17 +605,133 @@ async function fetchDashboardPayload(date: string, mode: DashboardMode, includeD
   return getJSON(`${API_BASE}/dashboard?${params.toString()}`);
 }
 
+async function fetchDashboardDayViewPayload(date: string): Promise<unknown> {
+  const params = new URLSearchParams({
+    date,
+    timezone: "Asia/Shanghai",
+  });
+  return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
+}
+
+function normalizeCounts(payload: unknown): DashboardDayViewCounts {
+  const record = asRecord(payload);
+  const byDecision = asRecord(record.by_decision_tier);
+  const byData = asRecord(record.by_data_status);
+  const byLifecycle = asRecord(record.by_lifecycle_status);
+  return {
+    total: numberValue(record.total),
+    lock_eligible: numberValue(record.lock_eligible),
+    outcome_tracked: numberValue(record.outcome_tracked),
+    legacy_fallback: numberValue(record.legacy_fallback),
+    analysis_pick: numberValue(record.analysis_pick),
+    recommend: numberValue(record.recommend),
+    watch: numberValue(record.watch),
+    not_ready: numberValue(record.not_ready),
+    skip: numberValue(record.skip),
+    ready: numberValue(record.ready),
+    partial: numberValue(record.partial),
+    stale: numberValue(record.stale),
+    blocked: numberValue(record.blocked),
+    by_decision_tier: Object.fromEntries(Object.entries(byDecision).map(([key, value]) => [key, numberValue(value)])),
+    by_data_status: Object.fromEntries(Object.entries(byData).map(([key, value]) => [key, numberValue(value)])),
+    by_lifecycle_status: Object.fromEntries(Object.entries(byLifecycle).map(([key, value]) => [key, numberValue(value)])),
+  };
+}
+
+function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
+  const record = asRecord(payload);
+  const pick = asRecord(record.pick);
+  return {
+    fixture_id: textValue(record.fixture_id, "unknown-fixture"),
+    kickoff_utc: textValue(record.kickoff_utc) || null,
+    kickoff_beijing: textValue(record.kickoff_beijing) || null,
+    competition_id: textValue(record.competition_id) || null,
+    competition_name: textValue(record.competition_name) || null,
+    home_team_name: textValue(record.home_team_name) || null,
+    away_team_name: textValue(record.away_team_name) || null,
+    status: textValue(record.status) || null,
+    source: textValue(record.source) || null,
+    decision_tier: textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"],
+    data_status: textValue(record.data_status, "PARTIAL") as DashboardDayViewCard["data_status"],
+    lifecycle_status: textValue(record.lifecycle_status, "DRAFT") as DashboardDayViewCard["lifecycle_status"],
+    outcome_tracked: Boolean(record.outcome_tracked),
+    lock_eligible: Boolean(record.lock_eligible),
+    recommendation_id: textValue(record.recommendation_id) || null,
+    reason_code: textValue(record.reason_code) || null,
+    action: textValue(record.action) || null,
+    next_eval_at: textValue(record.next_eval_at) || null,
+    provider_budget_status: textValue(record.provider_budget_status) || null,
+    missing_fields: asArray(record.missing_fields).map((item) => textValue(item)).filter(Boolean),
+    stale_fields: asArray(record.stale_fields).map((item) => textValue(item)).filter(Boolean),
+    data_readiness: asRecord(record.data_readiness),
+    pick: Object.keys(pick).length
+      ? {
+          market: textValue(pick.market) || null,
+          selection: textValue(pick.selection) || null,
+          line: textValue(pick.line) || null,
+          odds: textValue(pick.odds) || null,
+          disclaimer: textValue(pick.disclaimer) || null,
+        }
+      : null,
+    non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
+    one_liner: textValue(record.one_liner) || null,
+    card_hash: textValue(record.card_hash) || null,
+    diagnostics: asRecord(record.diagnostics),
+  };
+}
+
+function normalizeDashboardDayView(payload: unknown): DashboardDayView {
+  const record = asRecord(payload);
+  const freshness = asRecord(record.freshness);
+  const staleness = asRecord(freshness.staleness);
+  return {
+    request_id: textValue(record.request_id) || undefined,
+    generated_at: textValue(record.generated_at, new Date().toISOString()),
+    date: textValue(record.date),
+    football_day: textValue(record.football_day, textValue(record.selected_football_day)),
+    selected_football_day: textValue(record.selected_football_day, textValue(record.football_day)),
+    environment: textValue(record.environment, "unknown"),
+    environment_policy: asRecord(record.environment_policy),
+    timezone: textValue(record.timezone, "Asia/Shanghai"),
+    window: textValue(record.window, "today"),
+    source: textValue(record.source, "dashboard_read_model"),
+    checkpoint_key: textValue(record.checkpoint_key) || undefined,
+    would_write_checkpoint: Boolean(record.would_write_checkpoint),
+    provider_calls: numberValue(record.provider_calls),
+    db_writes: numberValue(record.db_writes),
+    counts: normalizeCounts(record.counts),
+    freshness: {
+      last_refresh: textValue(freshness.last_refresh) || null,
+      next_refresh_tick: textValue(freshness.next_refresh_tick) || null,
+      provider_budget_status: textValue(freshness.provider_budget_status) || null,
+      refreshing: Boolean(freshness.refreshing),
+      staleness: {
+        stale_cards: numberValue(staleness.stale_cards),
+        blocked_cards: numberValue(staleness.blocked_cards),
+        stale_or_blocked_cards: numberValue(staleness.stale_or_blocked_cards),
+      },
+      data_status_summary: Object.fromEntries(
+        Object.entries(asRecord(freshness.data_status_summary)).map(([key, value]) => [key, numberValue(value)]),
+      ),
+    },
+    navigation: asRecord(record.navigation),
+    degradation: asRecord(record.degradation),
+    cards: asArray(record.cards).map(normalizeDayViewCard),
+  };
+}
+
 export async function fetchDashboardView({ date, mode, includeDebug = false }: FetchDashboardArgs): Promise<DashboardView> {
   const metaPromise = getJSON("/meta.json");
   if (explicitDemoMode()) {
     const meta = normalizeMeta(await metaPromise);
     return demoDashboard(date, meta);
   }
-  let [metaPayload, versionPayload, dashboardPayload, formalTrackingPayload] = await Promise.all([
+  let [metaPayload, versionPayload, dashboardPayload, formalTrackingPayload, dayViewPayload] = await Promise.all([
     metaPromise,
     getJSON(`${API_BASE}/version`),
     fetchDashboardPayload(date, mode, includeDebug),
     getJSON(`${API_BASE}/formal/tracking/summary`).catch(() => null),
+    fetchDashboardDayViewPayload(date).catch(() => null),
   ]);
   let dashboard = asRecord(dashboardPayload);
   if (!includeDebug && asArray(dashboard.all).length === 0) {
@@ -640,6 +759,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     debug: normalizeDebug(dashboard.debug),
     performance: normalizePerformance(dashboard.performance),
     formal_tracking: normalizeFormalTracking(formalTrackingPayload),
+    day_view: dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null,
     recommendations: asArray(dashboard.recommendations).map(normalizeCard),
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
