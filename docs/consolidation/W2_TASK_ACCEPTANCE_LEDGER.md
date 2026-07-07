@@ -23,19 +23,17 @@
 
 **✅ 已解决(S14 + S15)**:dashboard 已交付并**部署 live**——**http://43.155.208.138/ 可直接打开**(新 boss-view L1 首屏,旧组件折 L2,只列未开赛世界杯)。系统不再是"八月待命":staging 可见产品已上线。production 对外仍待模型国际赛验证 / 八月五大。
 
-## 🔴 战略裁决(2026-07 · 市场基准 eval · Fable 5 并行复盘)
+## 🔴 战略裁决 + V3 进展(2026-07 · 市场基准 eval)
 
-独立复盘 + 市场基准 eval(脚本 `scripts/run_w2_market_baseline_eval.py`;文档 `W2_ARCHITECTURE_REVIEW_2026_07.md` / `W2_MARKET_BASELINE_EVAL_2026_07.md` / `W2_MARKET_ANCHOR_PROPOSAL_2026_07.md`)**推翻此前多个战略结论**,已在代码独立核实成立:
+**⚠ 本块曾因两写冲突从 main 丢失(reviewer file-tool 编辑 vs Codex git 提交),现重加;台账后续由 Codex 单写提交。**
 
-- **出货 ≠ 验证**:线上 `ANALYSIS_PICK` 来自 `bookmaker_intent` 手设启发式(数据齐就出 PICK),**不是**那个被验证的拟合模型;拟合模型只活在 `backtest/free_tier_2024.py`,**从未接线上**(线上仍 `calibrate_lambdas` 手设先验)。
-- **市场基准裁决(gap = 模型 − 市场,同批 fixtures)**:9 联赛**全部落后** Pinnacle 收盘,+0.013(法甲)~ +0.055(瑞典超);blend 9/9 纯市场最优 → **模型对收盘价零增量信息**。
-- **被推翻**:① "在赛 ~1.05 弱"当初跑错了模型(手设先验,非 #193 协议),同协议 pooled 1.028、挪超第二好、德甲最差档 → **"五大好/在赛弱"二分法不成立**;② **"0.99 够用"不成立**(五大系统性落后市场 0.013–0.047);③ **"锚八月/在赛只趟坑"解除**。
-- **新方向(提案 3 个待批决策)**:
-  1. **概率层市场锚定**:展示概率 = 去 vig 市场概率;模型 = **分歧雷达 + 解释**;无盘口 → 不出纯模型概率(转 watch)。⚠ 产品身份转变,设为默认前需老板明批。
-  2. **前向 outcome ledger + odds 时间线**(≤120 calls/日,**今天可开**):战绩/CLV 只能用日历时间换;scheduler 未跑 = 没在攒,每闲一周永久损失。
-  3. **EV/RECOMMEND 腿重开门槛**改为**前向 CLV 为正**(非离线 LL);当前保持默认关。
+独立复盘 + 市场基准 eval(脚本 `run_w2_market_baseline_eval.py`;文档 `W2_ARCHITECTURE_REVIEW_2026_07.md` / `W2_MARKET_BASELINE_EVAL_2026_07.md` / `W2_MARKET_ANCHOR_PROPOSAL_2026_07.md` / `W2_REVISED_ROADMAP_2026_07.md`,均已进 main #205)**推翻多个此前结论**,已代码核实:
 
-**新任务优先级**:①(今天)S18 前向 ledger + odds 归档 → ②S17 重定向为"市场概率 + 分歧雷达 + 选择性"(不是给无差别 PICK 排版)→ ③ 概率锚定设默认前老板拍板。S16(修 odds 载入)已合。"等八月"取消。
+- 线上 `ANALYSIS_PICK` 来自 `bookmaker_intent` 手设启发式,**不是**被验证的拟合模型;拟合模型只在 `backtest/free_tier_2024.py`、**未接线上**。
+- 市场基准(gap = 模型 − 市场,同批):**11 联赛全部落后 Pinnacle 收盘** +0.013(法甲)~+0.055(瑞典超);blend 全纯市场最优 → **模型零增量**。**"五大好/在赛弱""0.99 够用""锚八月"均推翻**(挪超第二好、德甲最差档;MLS 达标 .027;阿甲观察档)。
+- **方向转市场锚定**:展示概率 = 去 vig 市场,模型 = 分歧雷达(gap ≤ 0.04 达标),EV 腿门槛改前向 CLV,联赛按 §4 准入矩阵(非月份)。**完整路线图见 `W2_REVISED_ROADMAP_2026_07.md`(V3),已取代旧 F1–F4。**
+
+**V3 执行进展(2026-07-07)**:#205 战略产物进 main(`f28df3b`);#204(Draft `a47321f`,staging 已部署 http://43.155.208.138/)完成 **R1.0**(前向 ledger + odds 时间线 staging 自动调度已接)+ **R2.1**(DayView 输出 `MARKET_DEVIG` 市场概率,假"未就绪"已被真实概率取代)。**下一步**:R2.3(staging 启用 4 个 odds-PASS 在赛联赛,单独审批)+ R2.2(dashboard 三态验收 / 设计定案)。
 
 ## 当前状态速览(读者先看这里)
 
@@ -45,7 +43,7 @@
 | 决策契约 | FORMAL/CANDIDATE/ANALYSIS_PICK/RECOMMEND 四套词并存,dashboard 读取时现场调和 | 唯一 `DecisionTier` 落 domain;dashboard 读 `decision_tier`,旧字段仅兼容 shim |
 | 白名单 | 仅 `world_cup_2026` enabled | 14 联赛 profile;`league_id` 硬门;**mapping+fixtures 14/14 PASS**;odds 真矩阵:**世界杯+巴西+中超+瑞典超+挪超 PASS**,阿甲/MLS 薄(二级源),五大待八月;全部 `enabled=false` |
 | 数据 | 免费 100/天、当前赛季被 plan 挡住 | 已开 Pro(7,500/天、解锁当前赛季 + odds);历史验证已用免费 Understat 完成 |
-| 模型 | 手设先验;线上跑的正是它,拟合模型只在 backtest 文件、未接线上 | **市场基准裁决(见🔴战略裁决)**:拟合模型 9 联赛全部落后 Pinnacle 收盘 +0.013~+0.055,blend 全纯市场最优(零增量);"五大好/在赛弱""0.99 够用""锚八月"均被推翻。方向转**市场锚定 + 分歧雷达** |
+| 模型 | 手设先验;线上跑的正是它,拟合模型只在 backtest 文件、未接线上 | **市场基准裁决(见🔴)**:拟合模型 11 联赛全部落后 Pinnacle 收盘 +0.013~+0.055,blend 全纯市场最优(零增量);"五大好/在赛弱""0.99 够用""锚八月"均被推翻。方向 = **市场锚定 + 分歧雷达**;线上概率层已出 `MARKET_DEVIG` |
 | 数据 · Pro | 免费 100/天、当前赛季被 plan 挡 | 已开 Pro;在赛 5 联赛 2026+历史数据落地(挪超待补、瑞典超 2025 差 14 场) |
 | 纪律 | "绿得发慌" | 全程受控、不造假绿灯、诚实标 BLOCKED、好结果也自查降级 |
 | 部署/启用 | — | **零 enable、零 staging/production 部署**(始终是单独批准步,未触发) |
