@@ -24,7 +24,14 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v6-boss-future-window";
+const DASHBOARD_CACHE_VERSION = "dashboard-v12-future-default-dayview-required";
+const DASHBOARD_CACHE_TTL_MS = 60_000;
+
+interface DashboardCacheEntry {
+  version: string;
+  stored_at: string;
+  view: DashboardView;
+}
 
 interface FetchDashboardArgs {
   date: string;
@@ -605,28 +612,51 @@ export function getCachedDashboardView(date: string, mode: DashboardMode): Dashb
   try {
     const raw = window.localStorage.getItem(cacheKey(date, mode));
     if (!raw) return null;
-    return JSON.parse(raw) as DashboardView;
+    const entry = JSON.parse(raw) as Partial<DashboardCacheEntry>;
+    if (entry.version !== DASHBOARD_CACHE_VERSION || !entry.stored_at || !entry.view) return null;
+    if (Date.now() - Date.parse(entry.stored_at) > DASHBOARD_CACHE_TTL_MS) return null;
+    if (!entry.view.day_view) return null;
+    return entry.view;
   } catch {
     return null;
   }
 }
 
+export function clearCachedDashboardView(date: string, mode: DashboardMode): void {
+  try {
+    window.localStorage.removeItem(cacheKey(date, mode));
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith("dashboard-v")) {
+        window.localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Cache is best-effort; clearing it must not block a manual refresh.
+  }
+}
+
 function storeCachedDashboardView(date: string, mode: DashboardMode, view: DashboardView): void {
   try {
-    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(view));
+    const entry: DashboardCacheEntry = {
+      version: DASHBOARD_CACHE_VERSION,
+      stored_at: new Date().toISOString(),
+      view,
+    };
+    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(entry));
   } catch {
     // Cache is best-effort; private browsing or quota limits should not break the dashboard.
   }
 }
 
-async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean): Promise<unknown> {
+async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
   const params = new URLSearchParams({
     date,
     window: mode,
     timezone: "Asia/Shanghai",
     include_debug: includeDebug ? "true" : "false",
   });
-  return getJSON(`${API_BASE}/dashboard?${params.toString()}`);
+  return getJSON(`${API_BASE}/dashboard?${params.toString()}`, timeoutMs);
 }
 
 async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): Promise<unknown> {
@@ -636,6 +666,14 @@ async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): 
     timezone: "Asia/Shanghai",
   });
   return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
+}
+
+async function fetchDashboardDayViewPayloadRequired(date: string, mode: DashboardMode): Promise<unknown> {
+  try {
+    return await fetchDashboardDayViewPayload(date, mode);
+  } catch {
+    return fetchDashboardDayViewPayload(date, mode);
+  }
 }
 
 function normalizeCounts(payload: unknown): DashboardDayViewCounts {
@@ -692,6 +730,7 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
     current_odds: asRecord(record.current_odds),
+    market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
@@ -759,28 +798,43 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     const meta = normalizeMeta(await metaPromise);
     return demoDashboard(date, meta);
   }
-  let [metaPayload, versionPayload, dashboardPayload, formalTrackingPayload, dayViewPayload] = await Promise.all([
+  const [metaPayload, versionPayload, formalTrackingPayload, dayViewPayload] = await Promise.all([
     metaPromise,
     getJSON(`${API_BASE}/version`),
-    fetchDashboardPayload(date, mode, includeDebug),
     getJSON(`${API_BASE}/formal/tracking/summary`).catch(() => null),
-    fetchDashboardDayViewPayload(date, mode).catch(() => null),
+    fetchDashboardDayViewPayloadRequired(date, mode),
   ]);
+  const dayView = dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null;
+  let dashboardPayload: unknown | null = null;
+  let dashboardError: unknown = null;
+  if (!dayView) {
+    dashboardPayload = await fetchDashboardPayload(date, mode, includeDebug, REQUEST_TIMEOUT_MS);
+  }
   let dashboard = asRecord(dashboardPayload);
-  if (!includeDebug && asArray(dashboard.all).length === 0) {
-    dashboardPayload = await fetchDashboardPayload(date, mode, true);
-    dashboard = asRecord(dashboardPayload);
+  if (!includeDebug && !dayView && asArray(dashboard.all).length === 0) {
+    try {
+      dashboardPayload = await fetchDashboardPayload(date, mode, true, REQUEST_TIMEOUT_MS);
+      dashboard = asRecord(dashboardPayload);
+    } catch (error) {
+      dashboardError = dashboardError ?? error;
+      throw error;
+    }
   }
   const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
   const all = asArray(dashboard.all).map(normalizeCard);
   const view = {
-    date: textValue(dashboard.date, date),
-    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date, date),
-    selected_football_day: textValue(dashboard.selected_football_day) || textValue(dashboard.selected_date) || textValue(dashboard.date, date),
-    selected_date_has_data: Boolean(dashboard.selected_date_has_data),
-    next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date,
+    date: textValue(dashboard.date, dayView?.date || date),
+    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date) || dayView?.selected_football_day || date,
+    selected_football_day:
+      textValue(dashboard.selected_football_day) ||
+      textValue(dashboard.selected_date) ||
+      textValue(dashboard.date) ||
+      dayView?.selected_football_day ||
+      date,
+    selected_date_has_data: dashboardPayload ? Boolean(dashboard.selected_date_has_data) : Boolean(dayView?.cards.length),
+    next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date || dayView?.selected_football_day || null,
     football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
     football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
     football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
@@ -792,12 +846,12 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     debug: normalizeDebug(dashboard.debug),
     performance: normalizePerformance(dashboard.performance),
     formal_tracking: normalizeFormalTracking(formalTrackingPayload),
-    day_view: dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null,
+    day_view: dayView,
     recommendations: asArray(dashboard.recommendations).map(normalizeCard),
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
     all,
-    errors: [],
+    errors: dashboardError ? ["legacy dashboard payload timed out; Boss View rendered from DayView"] : [],
   };
   storeCachedDashboardView(date, mode, view);
   return view;

@@ -276,6 +276,21 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler future refresh enable flag missing")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != "world_cup_2026":
         fail(f"{path}: scheduler future refresh competition mismatch")
+    expected_competitions = (
+        "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
+        "allsvenskan,eliteserien"
+    )
+    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS") != expected_competitions:
+        fail(f"{path}: scheduler future refresh competition list mismatch")
+    expected_staging_competitions = (
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+    )
+    if scheduler_env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
+        fail(f"{path}: scheduler staging competition override mismatch")
+    if scheduler_env.get("W2_PROVIDER_CALLS_DISABLED") != "false":
+        fail(f"{path}: scheduler provider calls must be explicitly enabled for staging R2.3")
+    if scheduler_env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "true":
+        fail(f"{path}: scheduler provider scheduler must be explicitly enabled for staging R2.3")
     if scheduler_env.get("W2_MARKET_TIMELINE_REFRESH_ENABLED") != "true":
         fail(f"{path}: scheduler market timeline refresh enable flag missing")
     if scheduler_env.get("W2_MARKET_TIMELINE_MAX_FIXTURES") != "10":
@@ -294,6 +309,23 @@ def assert_compose(path: Path) -> None:
         env = service_env(compose, service)
         if "W2_FUTURE_FIXTURE_REFRESH_ENABLED" in env:
             fail(f"{path}: {service} must not enable scheduler future refresh")
+        if service == "api":
+            if env.get("W2_PROVIDER_CALLS_DISABLED") != "true":
+                fail(f"{path}: api provider calls must stay disabled")
+            if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
+                fail(f"{path}: api provider scheduler must stay disabled")
+            if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
+                fail(f"{path}: api staging competition override mismatch")
+        if service == "worker":
+            if env.get("W2_PROVIDER_CALLS_DISABLED") != "false":
+                fail(f"{path}: worker provider calls must be explicitly enabled for staging R2.3")
+            if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "true":
+                fail(
+                    f"{path}: worker provider scheduler must be explicitly enabled "
+                    "for staging R2.3"
+                )
+            if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
+                fail(f"{path}: worker staging competition override mismatch")
         if service in {"api", "worker"} and env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != (
             MARKET_TIMELINE_MOUNT_TARGET
         ):
@@ -332,6 +364,39 @@ def assert_policy() -> None:
         fail("world_cup_2026 policy must be enabled")
     if match.get("season") != "2026":
         fail("world_cup_2026 policy season mismatch")
+    expected_staging = {
+        "brasileirao_serie_a": ("71", "2026"),
+        "chinese_super_league": ("169", "2026"),
+        "allsvenskan": ("113", "2026"),
+        "eliteserien": ("103", "2026"),
+    }
+    for competition_id, (league_id, season) in expected_staging.items():
+        item = next(
+            (row for row in competitions if row.get("competition_id") == competition_id),
+            None,
+        )
+        if not isinstance(item, dict):
+            fail(f"{competition_id} policy missing")
+        if item.get("provider_league_id") != league_id:
+            fail(f"{competition_id} provider league mismatch")
+        if item.get("season") != season:
+            fail(f"{competition_id} season mismatch")
+        if item.get("enabled") is not True:
+            fail(f"{competition_id} policy must be enabled behind staging registry override")
+        if item.get("request_budget") != 10:
+            fail(f"{competition_id} request_budget must stay at 10 for lite staging seed")
+        if item.get("daily_hard_cap") != 120:
+            fail(f"{competition_id} daily_hard_cap must stay at 120 for R2.3")
+        if item.get("daily_reserve") != 0:
+            fail(f"{competition_id} daily_reserve must stay at 0 for R2.3 lite seed")
+        if item.get("feature_enrichment_enabled") is not False:
+            fail(f"{competition_id} feature enrichment must stay disabled for lite seed")
+        if item.get("feature_enrichment_endpoints") != []:
+            fail(f"{competition_id} feature enrichment endpoints must stay empty")
+        if item.get("feature_enrichment_request_budget") != 0:
+            fail(f"{competition_id} feature enrichment budget must stay at 0")
+        if item.get("max_odds_requests") != 8:
+            fail(f"{competition_id} max_odds_requests must stay at 8 for R2.3")
 
 
 def assert_scheduler_default_fail_closed() -> None:

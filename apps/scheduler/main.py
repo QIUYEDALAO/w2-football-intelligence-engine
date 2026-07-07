@@ -21,6 +21,7 @@ DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_CHECKPOINT_POLL_SECONDS = 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
+DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
 
 
 def heartbeat() -> str:
@@ -45,17 +46,32 @@ def market_timeline_refresh_enabled() -> bool:
     return os.environ.get("W2_MARKET_TIMELINE_REFRESH_ENABLED", "false").lower() == "true"
 
 
+def forward_outcome_ledger_enabled() -> bool:
+    return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
+
+
+def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
+    raw = os.environ.get(
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026"),
+    )
+    ids = tuple(item.strip() for item in raw.split(",") if item.strip())
+    return ids or ("world_cup_2026",)
+
+
 def future_fixture_refresh_contract_ready() -> bool:
     if not future_fixture_refresh_enabled():
         return False
     from w2.ingestion.future_refresh import FutureRefreshError, config_from_policy
 
-    competition_id = os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
-    try:
-        config = config_from_policy(competition_id=competition_id)
-    except (FutureRefreshError, OSError, ValueError):
-        return False
-    return config.enabled and config.competition_id == competition_id
+    for competition_id in future_fixture_refresh_competition_ids():
+        try:
+            config = config_from_policy(competition_id=competition_id)
+        except (FutureRefreshError, OSError, ValueError):
+            return False
+        if not (config.enabled and config.competition_id == competition_id):
+            return False
+    return True
 
 
 def parse_fixture_kickoff(value: Any) -> datetime | None:
@@ -67,10 +83,13 @@ def parse_fixture_kickoff(value: Any) -> datetime | None:
         return None
 
 
-def future_refresh_fixture_payloads() -> list[dict[str, Any]]:
+def future_refresh_fixture_payloads(
+    *,
+    provider_league_id: str | None = None,
+) -> list[dict[str, Any]]:
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
-    return FutureRefreshDbRepository().fixture_payloads()
+    return FutureRefreshDbRepository().fixture_payloads(provider_league_id=provider_league_id)
 
 
 def checkpoint_poll_seconds() -> int:
@@ -93,7 +112,11 @@ def checkpoint_task_key(
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
 
 
-def due_checkpoint_refresh_batch(now: datetime) -> dict[str, Any]:
+def due_checkpoint_refresh_batch(
+    now: datetime,
+    *,
+    provider_league_id: str | None = None,
+) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
         checkpoint_plans_from_fixture_payloads,
         projected_calls_for_checkpoint_batch,
@@ -102,8 +125,10 @@ def due_checkpoint_refresh_batch(now: datetime) -> dict[str, Any]:
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
     repository = FutureRefreshDbRepository()
-    fixtures = future_refresh_fixture_payloads()
+    fixtures = future_refresh_fixture_payloads(provider_league_id=provider_league_id)
+    fixture_payload_count = len(fixtures)
     plans = checkpoint_plans_from_fixture_payloads(fixtures, now=now)
+    generated_plan_ids = {plan.plan_id for plan in plans}
     repository.upsert_checkpoint_plans(
         [
             {
@@ -119,10 +144,16 @@ def due_checkpoint_refresh_batch(now: datetime) -> dict[str, Any]:
             for plan in plans
         ]
     )
-    due_rows = repository.due_checkpoint_plans(
-        now=now,
-        limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
-    )
+    due_rows = []
+    if generated_plan_ids:
+        due_rows = [
+            row
+            for row in repository.due_checkpoint_plans(
+                now=now,
+                limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
+            )
+            if row.get("id") in generated_plan_ids
+        ]
     due_plans = [
         type(
             "DuePlan",
@@ -161,6 +192,7 @@ def due_checkpoint_refresh_batch(now: datetime) -> dict[str, Any]:
     ]
     return {
         "status": "READY" if selected_rows else "NO_CHECKPOINT_DUE",
+        "fixture_payload_count": fixture_payload_count,
         "generated_plan_count": len(plans),
         "due_checkpoint_count": len(due_rows),
         "selected_checkpoint_count": len(selected_rows),
@@ -186,10 +218,27 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "formal_recommendation": False,
             "provider_calls": 0,
         }
-    from apps.worker.celery_app import celery_app
-    from w2.ingestion.future_refresh import config_from_policy
+    results = [
+        _future_fixture_refresh_tick_for_competition(competition_id)
+        for competition_id in future_fixture_refresh_competition_ids()
+    ]
+    if len(results) == 1:
+        return results[0]
+    queued = [item for item in results if item.get("status") == "QUEUED"]
+    return {
+        "status": "QUEUED" if queued else "MULTI_COMPETITION_TICK",
+        "competition_ids": list(future_fixture_refresh_competition_ids()),
+        "results": results,
+        "queued_count": len(queued),
+        "candidate": False,
+        "formal_recommendation": False,
+    }
 
-    competition_id = os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+
+def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[str, object]:
+    from apps.worker.celery_app import celery_app
+    from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
+
     now = datetime.now(UTC)
     config = config_from_policy(competition_id=competition_id)
     if not config.enabled:
@@ -199,8 +248,59 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
-    batch = due_checkpoint_refresh_batch(now)
+    batch = due_checkpoint_refresh_batch(now, provider_league_id=config.league_id)
     if batch["status"] == "NO_CHECKPOINT_DUE":
+        if int(batch.get("fixture_payload_count") or 0) == 0:
+            task_key = deterministic_task_key(
+                competition_id=config.competition_id,
+                season=config.season,
+                now=now,
+                interval_seconds=config.scheduler_interval_seconds,
+            )
+            gate = provider_task_key_gate(task_key=task_key)
+            if not gate.allowed:
+                return {
+                    **batch,
+                    "status": gate.status,
+                    "task_key": task_key,
+                    "competition_id": config.competition_id,
+                    "season": config.season,
+                    "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                    "candidate": False,
+                    "formal_recommendation": False,
+                    "provider_calls": 0,
+                    "blockers": [gate.status],
+                    "dedup_backend": gate.backend,
+                    "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+                    "provider_refresh_min_interval_policy": (
+                        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+                    ),
+                }
+            task_id = f"{task_key}:{uuid4()}"
+            celery_app.send_task(
+                "w2.future_fixture_refresh",
+                kwargs={
+                    "competition_id": config.competition_id,
+                    "task_key": task_key,
+                    "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                },
+                task_id=task_id,
+            )
+            return {
+                **batch,
+                "status": "QUEUED",
+                "task_id": task_id,
+                "task_key": task_key,
+                "competition_id": config.competition_id,
+                "season": config.season,
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "candidate": False,
+                "formal_recommendation": False,
+                "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+                "provider_refresh_min_interval_policy": (
+                    "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+                ),
+            }
         return {
             **batch,
             "competition_id": config.competition_id,
@@ -303,19 +403,14 @@ def market_timeline_refresh_tick() -> dict[str, object]:
             "formal_recommendation": False,
             "beats_market": False,
         }
-    if not provider_scheduler_enabled():
-        return {
-            "status": PROVIDER_SCHEDULER_DISABLED,
-            "blockers": [PROVIDER_SCHEDULER_DISABLED],
-            "candidate": False,
-            "formal_recommendation": False,
-            "beats_market": False,
-            "provider_calls": 0,
-        }
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
     max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
+    capture_forward_ledger = (
+        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower()
+        == "true"
+    )
     task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
     celery_app.send_task(
         "w2.market_timeline_refresh",
@@ -324,6 +419,7 @@ def market_timeline_refresh_tick() -> dict[str, object]:
             "window": os.environ.get("W2_MARKET_TIMELINE_WINDOW", "next36"),
             "checkpoint": "auto",
             "max_fixtures": max_fixtures,
+            "capture_forward_ledger": capture_forward_ledger,
         },
         task_id=task_id,
     )
@@ -332,9 +428,46 @@ def market_timeline_refresh_tick() -> dict[str, object]:
         "task_id": task_id,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "max_fixtures": max_fixtures,
+        "capture_forward_ledger": capture_forward_ledger,
         "candidate": False,
         "formal_recommendation": False,
         "beats_market": False,
+    }
+
+
+def forward_outcome_ledger_tick() -> dict[str, object]:
+    if not forward_outcome_ledger_enabled():
+        return {
+            "status": "DISABLED",
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "lock_capture_write": False,
+            "settlement_write": False,
+        }
+    from apps.worker.celery_app import celery_app
+
+    now = datetime.now(UTC)
+    task_id = f"forward-outcome-ledger:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+    celery_app.send_task(
+        "w2.forward_outcome_ledger",
+        kwargs={
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next36"),
+        },
+        task_id=task_id,
+    )
+    return {
+        "status": "QUEUED",
+        "task_id": task_id,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "candidate": False,
+        "formal_recommendation": False,
+        "provider_calls": 0,
+        "db_writes": 0,
+        "lock_capture_write": False,
+        "settlement_write": False,
     }
 
 
@@ -343,6 +476,7 @@ def run_forever() -> None:
     next_refresh_at = datetime.now(UTC)
     next_xg_backfill_at = datetime.now(UTC)
     next_market_timeline_refresh_at = datetime.now(UTC)
+    next_forward_outcome_ledger_at = datetime.now(UTC)
     while True:
         heartbeat()
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -405,6 +539,33 @@ def run_forever() -> None:
             next_market_timeline_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_market_timeline_refresh_at = next_market_timeline_refresh_at.fromtimestamp(
                 next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
+                tz=UTC,
+            )
+        if (
+            forward_outcome_ledger_enabled()
+            and datetime.now(UTC) >= next_forward_outcome_ledger_at
+        ):
+            try:
+                result = forward_outcome_ledger_tick()
+                logger.info("w2 forward outcome ledger %s", result)
+                forward_outcome_ledger_interval_seconds = int(
+                    os.environ.get(
+                        "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
+                        str(DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS),
+                    )
+                )
+            except Exception:
+                logger.exception("w2 forward outcome ledger failed")
+                forward_outcome_ledger_interval_seconds = int(
+                    os.environ.get(
+                        "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
+                        str(DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS),
+                    )
+                )
+            next_forward_outcome_ledger_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_forward_outcome_ledger_at = next_forward_outcome_ledger_at.fromtimestamp(
+                next_forward_outcome_ledger_at.timestamp()
+                + forward_outcome_ledger_interval_seconds,
                 tz=UTC,
             )
         time.sleep(interval_seconds)

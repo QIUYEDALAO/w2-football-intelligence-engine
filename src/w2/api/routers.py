@@ -49,6 +49,7 @@ from w2.api.schemas import (
 )
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.monitoring.health import HealthPayload, build_health_payload
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -73,6 +74,16 @@ def cached_response(
         response.status_code = 304
         return Response(status_code=304, headers={"ETag": cached.etag})
     return payload
+
+
+@public_router.get("/health", response_model=HealthPayload)
+def public_health() -> HealthPayload:
+    return build_health_payload()
+
+
+@public_router.get("/ready", response_model=HealthPayload)
+def public_ready() -> HealthPayload:
+    return build_health_payload()
 
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:

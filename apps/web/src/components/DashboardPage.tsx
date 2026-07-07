@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
+import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionView } from "./BossDecisionView";
@@ -44,6 +44,12 @@ export function DashboardPage() {
   const [date, setDate] = useState(todayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  function refreshDashboard(): void {
+    clearCachedDashboardView(date, mode);
+    setState("loading");
+    setRefreshKey((value) => value + 1);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -90,18 +96,20 @@ export function DashboardPage() {
 
   return (
     <main className="app-shell dashboard-v2">
-      {view ? <ReleaseSyncBadge release={view.release} /> : null}
-      <div className="dashboard-controls">
-        <div className="date-refresh">
-          <label>
-            日期
-            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-          </label>
-          <button className="toolbar-button refresh-button" onClick={() => setRefreshKey((value) => value + 1)} type="button">
-            刷新
-          </button>
+      {view?.day_view ? null : view ? <ReleaseSyncBadge release={view.release} /> : null}
+      {view?.day_view ? null : (
+        <div className="dashboard-controls">
+          <div className="date-refresh">
+            <label>
+              日期
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </label>
+            <button className="toolbar-button refresh-button" onClick={refreshDashboard} type="button">
+              刷新
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {state === "loading" ? (
         <section className="match-card-grid" aria-label="比赛加载中">
@@ -113,7 +121,9 @@ export function DashboardPage() {
       {state === "error" ? <EmptySection title="加载失败" detail="请确认公网 /v1 API 可访问；不会用假数据顶替真实数据。" /> : null}
 
       {state === "empty" && view ? (
-        showDiagnostics ? (
+        view.day_view ? (
+          <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+        ) : showDiagnostics ? (
           <DataDiagnosticsPanel debug={view.debug} release={view.release} />
         ) : (
           <EmptySection title={empty.title} detail={empty.detail} />
@@ -123,7 +133,7 @@ export function DashboardPage() {
       {state === "ok" && view ? (
         <>
           {view.day_view ? (
-            <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} updatedAt={updatedAt} />
+            <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}

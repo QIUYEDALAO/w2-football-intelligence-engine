@@ -61,13 +61,17 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyLockModel,
     ShadowStrategyRunModel,
 )
+from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
 )
-from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
+from w2.markets.asian_handicap_scope import (
+    is_full_time_asian_handicap_observation,
+    is_full_time_totals_observation,
+)
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -1941,6 +1945,8 @@ class ReadModelService:
                 continue
             if market == "ASIAN_HANDICAP" and not is_full_time_asian_handicap_observation(row):
                 continue
+            if market == "TOTALS" and not is_full_time_totals_observation(row):
+                continue
             line = self._decimal_line(row)
             if line is None:
                 continue
@@ -2007,6 +2013,13 @@ class ReadModelService:
             eligible = [
                 item for item in candidates if int(item["bookmaker_count"]) == max_bookmaker_count
             ] or candidates
+        elif market == "TOTALS":
+            max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidates)
+            consensus_floor = max_bookmaker_count
+            override = None
+            eligible = [
+                item for item in candidates if int(item["bookmaker_count"]) == max_bookmaker_count
+            ] or candidates
         else:
             eligible = candidates
             consensus_floor = 1
@@ -2046,10 +2059,10 @@ class ReadModelService:
             "observations": rows,
             "bookmaker_count": int(selected["bookmaker_count"]),
             "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair"
-            if market == "ASIAN_HANDICAP"
+            if market in {"ASIAN_HANDICAP", "TOTALS"}
             else None,
-            "candidate_lines": candidate_lines if market == "ASIAN_HANDICAP" else None,
-            "rejected_lines": rejected_lines if market == "ASIAN_HANDICAP" else None,
+            "candidate_lines": candidate_lines if market in {"ASIAN_HANDICAP", "TOTALS"} else None,
+            "rejected_lines": rejected_lines if market in {"ASIAN_HANDICAP", "TOTALS"} else None,
             **({"selection_warning": selection_warning} if selection_warning else {}),
             **side_state,
         }
@@ -2274,12 +2287,20 @@ class ReadModelService:
                         candidate["home_price"] = side_prices.get("home")
                     if side_prices.get("away") is not None:
                         candidate["away_price"] = side_prices.get("away")
+                    if side_prices.get("over") is not None:
+                        candidate["over_price"] = side_prices.get("over")
+                    if side_prices.get("under") is not None:
+                        candidate["under_price"] = side_prices.get("under")
                 side_lines = side_state.get("side_lines")
                 if isinstance(side_lines, dict):
                     if side_lines.get("home") is not None:
                         candidate["home_line"] = side_lines.get("home")
                     if side_lines.get("away") is not None:
                         candidate["away_line"] = side_lines.get("away")
+                    if side_lines.get("over") is not None:
+                        candidate["over_line"] = side_lines.get("over")
+                    if side_lines.get("under") is not None:
+                        candidate["under_line"] = side_lines.get("under")
             if selection_warning and line == selected_line:
                 candidate["selection_warning"] = selection_warning
             rows.append(candidate)
@@ -3168,6 +3189,8 @@ class ReadModelService:
             selection = str(row.get("selection") or "")
             if not market or not selection or row.get("decimal_odds") is None:
                 continue
+            if market == "TOTALS" and not is_full_time_totals_observation(row):
+                continue
             line = self._line_value(row) or "NO_LINE"
             key = (market, line, selection)
             current = latest_by_selection.get(key)
@@ -3305,7 +3328,7 @@ class ReadModelService:
         return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:
-        line = row.get("line")
+        line = parse_line(row.get("selection")) or row.get("line")
         if line is None:
             return None
         try:
@@ -3317,7 +3340,7 @@ class ReadModelService:
         return f"{line_number:g}"
 
     def _decimal_line(self, row: dict[str, Any]) -> Decimal | None:
-        line = row.get("line")
+        line = parse_line(row.get("selection")) or row.get("line")
         if line is None:
             return None
         try:

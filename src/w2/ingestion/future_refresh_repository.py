@@ -209,7 +209,7 @@ class FutureRefreshDbRepository:
             ),
         )
 
-    def fixture_payloads(self) -> list[dict[str, Any]]:
+    def fixture_payloads(self, *, provider_league_id: str | None = None) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         with Session(self.engine) as session:
             rows = list(
@@ -226,6 +226,10 @@ class FutureRefreshDbRepository:
             for item in response:
                 if not isinstance(item, dict):
                     continue
+                if provider_league_id is not None:
+                    league_id = str(item.get("league", {}).get("id") or "")
+                    if league_id != provider_league_id:
+                        continue
                 fixture_id = str(item.get("fixture", {}).get("id"))
                 if fixture_id and fixture_id != "None":
                     fixtures[fixture_id] = item

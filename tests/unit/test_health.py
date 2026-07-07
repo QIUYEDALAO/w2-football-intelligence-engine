@@ -19,3 +19,12 @@ def test_ready_returns_public_status_without_secrets() -> None:
     payload = response.json()
     assert {"service", "version", "environment", "database", "redis"} <= set(payload)
 
+
+def test_v1_health_and_ready_aliases_return_status_without_secrets() -> None:
+    client = TestClient(app)
+    for path in ("/v1/health", "/v1/ready"):
+        response = client.get(path)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["service"] == "w2-football-intelligence-engine"
+        assert "password" not in str(payload).lower()

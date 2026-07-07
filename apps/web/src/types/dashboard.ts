@@ -628,6 +628,7 @@ export interface DashboardDayViewCard {
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
+  market_probabilities?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;

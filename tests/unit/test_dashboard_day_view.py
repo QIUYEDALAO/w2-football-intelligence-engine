@@ -122,6 +122,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
     assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
+    assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
+    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502604
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"

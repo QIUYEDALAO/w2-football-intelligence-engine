@@ -1,11 +1,18 @@
+import { useMemo, useState, type CSSProperties } from "react";
 import { fmtTime, formatLine, formatOdds, translateCompetition } from "../lib/formatters";
 import { asRecord, textValue } from "../lib/normalize";
-import type { DashboardDayView, DashboardDayViewCard, DashboardMatchCard } from "../types/dashboard";
+import type {
+  DashboardDayView,
+  DashboardDayViewCard,
+  DashboardMatchCard,
+  DashboardPerformance,
+  ReleaseSyncState,
+} from "../types/dashboard";
 import { RecommendationCard } from "./RecommendationCard";
 
 const TIER_LABELS: Record<string, string> = {
   RECOMMEND: "正式可锁",
-  ANALYSIS_PICK: "分析推荐",
+  ANALYSIS_PICK: "分析参考",
   WATCH: "观察",
   NOT_READY: "未就绪",
   SKIP: "跳过",
@@ -27,6 +34,7 @@ const REASON_LABELS: Record<string, string> = {
   MARKET_INCOMPLETE: "盘口不完整",
   XG_PENDING: "xG 待刷新",
   CONTRACT_BLOCKED_BY_DATA_STATUS: "数据状态阻塞",
+  EDGE_INSUFFICIENT: "优势不足",
   NO_SUPPORTED_MARKET: "无可支持市场",
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
 };
@@ -39,6 +47,23 @@ const ACTION_LABELS: Record<string, string> = {
   REVIEW_DATA_PIPELINE: "检查数据链路",
   KEEP_WATCHING: "继续观察",
 };
+
+const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
+const MARKET_ANCHOR_MIN_DIVERGENCE = Number(import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.05);
+
+type BossTab = "prematch" | "verification" | "league-performance";
+type ScheduleFilter = "all" | "recommended" | "hide-not-ready";
+
+interface LeaguePerformanceRow {
+  key: string;
+  label: string;
+  sampleSize: number;
+  hitCount: number;
+  missCount: number;
+  pushCount: number;
+  voidCount: number;
+  roiUnits: number;
+}
 
 function tierLabel(value: string): string {
   return TIER_LABELS[value] ?? "未判定";
@@ -94,12 +119,109 @@ function oddsSummary(card: DashboardDayViewCard): string | null {
   return rows.length ? rows.join(" · ") : null;
 }
 
+function marketProbabilitySummary(card: DashboardDayViewCard): string | null {
+  const preferredMarkets = probabilityMarketOrder(card);
+  const markets = asRecord(card.market_probabilities);
+  for (const market of preferredMarkets) {
+    const summary = probabilitySummaryForMarket(card, markets, market);
+    if (summary) return summary;
+  }
+  return null;
+}
+
+function probabilityMarketOrder(card: DashboardDayViewCard): string[] {
+  const pickMarket = card.pick?.market;
+  if (pickMarket === "TOTALS") return ["ou", "ah", "one_x_two"];
+  if (pickMarket === "ASIAN_HANDICAP") return ["ah", "ou", "one_x_two"];
+  if (pickMarket === "ONE_X_TWO") return ["one_x_two", "ah", "ou"];
+  return ["ah", "ou", "one_x_two"];
+}
+
+function probabilitySummaryForMarket(card: DashboardDayViewCard, markets: Record<string, unknown>, market: string): string | null {
+  if (market === "ah") {
+    return ahProbabilitySummary(card, markets);
+  }
+  if (market === "ou") {
+    return ouProbabilitySummary(markets);
+  }
+  if (market === "one_x_two") {
+    return oneXTwoProbabilitySummary(markets);
+  }
+  return null;
+}
+
+function ahProbabilitySummary(card: DashboardDayViewCard, markets: Record<string, unknown>): string | null {
+  const ah = asRecord(markets.ah);
+  const ahProbabilities = asRecord(ah.probabilities);
+  if (Object.keys(ahProbabilities).length) {
+    const home = probabilityPercent(ahProbabilities.HOME_AH);
+    const away = probabilityPercent(ahProbabilities.AWAY_AH);
+    const odds = asRecord(card.current_odds);
+    const ahOdds = asRecord(odds.ah);
+    const homeLine = displayLineForTeam(card.home_team_name || "主队", ahOdds.home_line, textValue(ahOdds.home_display_line_cn));
+    const awayLine = displayLineForTeam(card.away_team_name || "客队", ahOdds.away_line, textValue(ahOdds.away_display_line_cn));
+    return `市场概率 ${homeLine} ${home} / ${awayLine} ${away}`;
+  }
+  return null;
+}
+
+function ouProbabilitySummary(markets: Record<string, unknown>): string | null {
+  const ou = asRecord(markets.ou);
+  const ouProbabilities = asRecord(ou.probabilities);
+  if (Object.keys(ouProbabilities).length) {
+    const over = probabilityPercent(ouProbabilities.OVER);
+    const under = probabilityPercent(ouProbabilities.UNDER);
+    return `市场概率 大小 大 ${over} / 小 ${under}`;
+  }
+  return null;
+}
+
+function oneXTwoProbabilitySummary(markets: Record<string, unknown>): string | null {
+  const oneXTwo = asRecord(markets.one_x_two);
+  const oneXTwoProbabilities = asRecord(oneXTwo.probabilities);
+  if (Object.keys(oneXTwoProbabilities).length) {
+    const home = probabilityPercent(oneXTwoProbabilities.HOME);
+    const draw = probabilityPercent(oneXTwoProbabilities.DRAW);
+    const away = probabilityPercent(oneXTwoProbabilities.AWAY);
+    return `市场概率 胜 ${home} / 平 ${draw} / 负 ${away}`;
+  }
+  return null;
+}
+
+function probabilityPercent(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${Math.round(value * 100)}%`
+    : "--";
+}
+
 function trustSignalSummary(card: DashboardDayViewCard): string {
   const refresh = card.data_refresh ?? {};
   const odds = textValue(refresh.odds_status, Object.keys(asRecord(card.current_odds)).length ? "READY" : "WAITING");
   const lineups = textValue(refresh.lineups_status, textValue(asRecord(card.data_readiness).lineups_status, "UNKNOWN"));
   const xg = textValue(refresh.xg_status, textValue(asRecord(card.data_readiness).xg_status, "UNKNOWN"));
   return `盘口 ${statusCn(odds)} · 首发 ${statusCn(lineups)} · xG ${statusCn(xg)}`;
+}
+
+function applicabilityLabel(card: DashboardDayViewCard): string {
+  const diagnostics = asRecord(card.diagnostics);
+  const explicit = textValue(diagnostics.model_applicability) || textValue(asRecord(card.model_market_divergence).calibration_status);
+  if (explicit) return explicit.replace(/_/g, " ");
+  if ((card.competition_id ?? "").includes("world_cup")) return "国际赛未独立验证";
+  return "按联赛校准状态";
+}
+
+function probabilitySourceLabel(card: DashboardDayViewCard): string {
+  if (card.probability_source === "MARKET_DEVIG") return "市场锚定";
+  if (card.probability_source === "MODEL_FALLBACK") return "模型回退";
+  return "概率来源待确认";
+}
+
+function divergenceLabel(card: DashboardDayViewCard): string {
+  const divergence = asRecord(card.model_market_divergence);
+  const magnitude = typeof divergence.magnitude === "number" ? divergence.magnitude : null;
+  const status = textValue(divergence.status, "UNKNOWN");
+  if (magnitude != null) return `${status.replace(/_/g, " ")} · Δ ${magnitude.toFixed(2)}`;
+  return status.replace(/_/g, " ");
 }
 
 function signedLine(prefix: string, value: unknown): string {
@@ -121,7 +243,7 @@ function statusCn(value: string): string {
 function marketPickLabel(card: DashboardDayViewCard): string {
   if (!card.pick) return "等待盘口";
   const market = card.pick.market ? marketLabel(card.pick.market) : "市场";
-  const selection = card.pick.selection ? selectionLabel(card.pick.selection) : "方向待确认";
+  const selection = card.pick.selection ? pickSelectionLabel(card, card.pick.selection) : "方向待确认";
   const line = displayableLine(card.pick.line) ? ` ${formatLine(card.pick.line)}` : "";
   const odds = card.pick.odds != null ? ` @ ${formatOdds(card.pick.odds)}` : "";
   return `${market} ${selection}${line}${odds}`.trim();
@@ -143,10 +265,26 @@ function marketLabel(value: string): string {
 function selectionLabel(value: string): string {
   if (value === "HOME") return "主队";
   if (value === "AWAY") return "客队";
+  if (value === "HOME_AH") return "主队";
+  if (value === "AWAY_AH") return "客队";
   if (value === "OVER") return "大";
   if (value === "UNDER") return "小";
   if (value === "DRAW") return "平";
   return "方向";
+}
+
+function pickSelectionLabel(card: DashboardDayViewCard, value: string): string {
+  if (value === "HOME_AH") return card.home_team_name || "主队";
+  if (value === "AWAY_AH") return card.away_team_name || "客队";
+  return selectionLabel(value);
+}
+
+function displayLineForTeam(team: string, line: unknown, fallback?: string | null): string {
+  if (fallback) {
+    return fallback.replace("主队", team).replace("客队", team);
+  }
+  const formatted = formatLine(line);
+  return formatted === "-" ? team : `${team} ${formatted}`;
 }
 
 function teamLabel(card: DashboardDayViewCard): string {
@@ -163,23 +301,152 @@ function byFixtureId(matches: DashboardMatchCard[]): Map<string, DashboardMatchC
   return new Map(matches.map((match) => [String(match.fixture_id), match]));
 }
 
-function orderedCards(cards: DashboardDayViewCard[]): DashboardDayViewCard[] {
-  const tierRank: Record<string, number> = {
-    RECOMMEND: 0,
-    ANALYSIS_PICK: 1,
-    WATCH: 2,
-    NOT_READY: 3,
-    SKIP: 4,
-  };
+function referenceTime(dayView: DashboardDayView): Date {
+  const raw = dayView.generated_at || dayView.freshness.last_refresh;
+  const parsed = raw ? new Date(raw) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function isSameShanghaiDate(left?: string | null, right?: string | null): boolean {
+  if (!left || !right) return false;
+  const format = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return format.format(new Date(left)) === format.format(new Date(right));
+}
+
+function minutesUntil(card: DashboardDayViewCard, now: Date): number | null {
+  if (!card.kickoff_utc) return null;
+  const kickoff = new Date(card.kickoff_utc);
+  if (Number.isNaN(kickoff.getTime())) return null;
+  return Math.round((kickoff.getTime() - now.getTime()) / 60000);
+}
+
+function isPreMatch(card: DashboardDayViewCard): boolean {
+  const status = (card.status ?? "").toUpperCase();
+  return !["FT", "AET", "PEN", "FINISHED", "CANCELLED", "POSTPONED"].includes(status);
+}
+
+function isReadyRecommendation(card: DashboardDayViewCard): boolean {
+  const pickTier = ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);
+  if (!pickTier || card.data_status !== "READY") return false;
+  if (!MARKET_ANCHOR_DISPLAY_ENABLED || card.decision_tier === "RECOMMEND") return true;
+  return hasActionableMarketDivergence(card);
+}
+
+function hasActionableMarketDivergence(card: DashboardDayViewCard): boolean {
+  if (card.probability_source !== "MARKET_DEVIG") return false;
+  const divergence = asRecord(card.model_market_divergence);
+  const status = textValue(divergence.status, "UNKNOWN").toUpperCase();
+  const directionAllowed = divergence.direction_allowed === true || textValue(divergence.direction_allowed).toLowerCase() === "true";
+  const magnitude = typeof divergence.magnitude === "number" ? Math.abs(divergence.magnitude) : null;
+  return ["READY", "SIGNIFICANT", "ACTIONABLE"].includes(status)
+    && directionAllowed
+    && magnitude != null
+    && magnitude >= MARKET_ANCHOR_MIN_DIVERGENCE;
+}
+
+function orderedByKickoff(cards: DashboardDayViewCard[]): DashboardDayViewCard[] {
   return [...cards].sort((left, right) => {
-    const leftLock = left.lock_eligible ? 0 : 1;
-    const rightLock = right.lock_eligible ? 0 : 1;
-    if (leftLock !== rightLock) return leftLock - rightLock;
-    const leftTier = tierRank[left.decision_tier] ?? 99;
-    const rightTier = tierRank[right.decision_tier] ?? 99;
-    if (leftTier !== rightTier) return leftTier - rightTier;
     return (left.kickoff_utc ?? "").localeCompare(right.kickoff_utc ?? "");
   });
+}
+
+function filterScheduleCards(cards: DashboardDayViewCard[], filter: ScheduleFilter): DashboardDayViewCard[] {
+  if (filter === "recommended") return cards.filter(isReadyRecommendation);
+  if (filter === "hide-not-ready") return cards.filter((card) => !["NOT_READY", "SKIP"].includes(card.decision_tier));
+  return cards;
+}
+
+function settledMatches(matches: DashboardMatchCard[]): DashboardMatchCard[] {
+  return matches
+    .filter((match) => {
+      const settlement = match.validation?.settlement ?? match.locked_pre_match_recommendation?.settlement?.status;
+      return settlement && !["PENDING", "WAITING_RESULT", "NO_BET", "UNKNOWN"].includes(String(settlement));
+    })
+    .sort((left, right) => (right.kickoff_utc ?? "").localeCompare(left.kickoff_utc ?? ""));
+}
+
+function settlementLabel(value?: string | null): string {
+  if (value === "HIT" || value === "SETTLED") return "命中";
+  if (value === "MISS") return "未中";
+  if (value === "PUSH") return "走水";
+  if (value === "VOID") return "作废";
+  return "待追踪";
+}
+
+function buildLeaguePerformanceRows(matches: DashboardMatchCard[]): LeaguePerformanceRow[] {
+  const rows = new Map<string, LeaguePerformanceRow>();
+  for (const match of matches) {
+    const validation = match.validation;
+    if (!validation || !["HIT", "MISS", "PUSH", "VOID"].includes(validation.settlement)) continue;
+    const key = match.competition_id || match.competition_name || "unknown";
+    const row = rows.get(key) ?? {
+      key,
+      label: translateCompetition(match.competition_name || match.competition_id || "联赛"),
+      sampleSize: 0,
+      hitCount: 0,
+      missCount: 0,
+      pushCount: 0,
+      voidCount: 0,
+      roiUnits: 0,
+    };
+    row.sampleSize += 1;
+    if (validation.settlement === "HIT") row.hitCount += 1;
+    if (validation.settlement === "MISS") row.missCount += 1;
+    if (validation.settlement === "PUSH") row.pushCount += 1;
+    if (validation.settlement === "VOID") row.voidCount += 1;
+    row.roiUnits += typeof validation.profit_units === "number" ? validation.profit_units : 0;
+    rows.set(key, row);
+  }
+  return [...rows.values()].sort((left, right) => right.sampleSize - left.sampleSize || left.label.localeCompare(right.label));
+}
+
+function percent(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "样本不足";
+  return `${Math.round(value * 100)}%`;
+}
+
+function shortSha(value?: string | null): string {
+  return value && value !== "UNKNOWN" ? value.slice(0, 7) : "UNKNOWN";
+}
+
+function units(value: number): string {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}u`;
+}
+
+function performanceStatus(sampleSize: number): string {
+  if (sampleSize >= 50) return "已验证";
+  if (sampleSize >= 10) return "观察中";
+  return "样本不足";
+}
+
+function dataStrength(card: DashboardDayViewCard): number {
+  if (card.data_status === "READY") return 82;
+  if (card.data_status === "PARTIAL") return 64;
+  if (card.data_status === "STALE") return 42;
+  return 18;
+}
+
+function nextEvalLabel(card: DashboardDayViewCard): string {
+  if (!card.next_eval_at) return "待定";
+  const kickoff = card.kickoff_utc ? new Date(card.kickoff_utc) : null;
+  const next = new Date(card.next_eval_at);
+  const delta = kickoff && !Number.isNaN(kickoff.getTime()) && !Number.isNaN(next.getTime())
+    ? Math.round((next.getTime() - kickoff.getTime()) / 60000)
+    : null;
+  return `${fmtTime(card.next_eval_at)}${delta != null ? ` (${delta >= 0 ? "+" : ""}${delta})` : ""}`;
+}
+
+function rowMarketSummary(card: DashboardDayViewCard): string {
+  if (card.pick) return marketPickLabel(card);
+  const odds = oddsSummary(card);
+  if (odds) return odds.split(" · ")[0] ?? odds;
+  return reasonLabel(card.reason_code);
 }
 
 function reasonSummary(cards: DashboardDayViewCard[]): Array<{ label: string; count: number }> {
@@ -205,6 +472,9 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
     ["reason", reasonLabel(card.reason_code)],
     ["action", actionLabel(card.action)],
     ["next_eval_at", textValue(card.next_eval_at, "-")],
+    ["probability_source", probabilitySourceLabel(card)],
+    ["model_market_divergence", divergenceLabel(card)],
+    ["model_applicability", applicabilityLabel(card)],
     ["card_hash", textValue(card.card_hash, "-").slice(0, 16)],
     ["missing", missingFields.join(", ") || "-"],
     ["stale", staleFields.join(", ") || "-"],
@@ -212,30 +482,51 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
   ];
 }
 
-export function MatchdayHeader({ dayView, updatedAt }: { dayView: DashboardDayView; updatedAt: string }) {
-  const worldCup = isWorldCup(dayView);
+function nextVisibleKickoff(cards: DashboardDayViewCard[]): string | null {
+  return cards
+    .filter((card) => card.kickoff_utc && isPreMatch(card))
+    .sort((left, right) => (left.kickoff_utc ?? "").localeCompare(right.kickoff_utc ?? ""))[0]?.kickoff_utc ?? null;
+}
+
+export function MatchdayHeader({
+  dayView,
+  release,
+}: {
+  dayView: DashboardDayView;
+  release?: ReleaseSyncState;
+}) {
+  const upcoming = dayView.cards.filter(isPreMatch).length;
+  const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
   return (
-    <header className="boss-header">
-      <div>
-        <p className="boss-eyebrow">W2 Matchday · {dayView.environment}</p>
-        <h1>{dayView.football_day} 老板视角</h1>
-        <span>
-          上次刷新 {dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"} · 下次刷新{" "}
-          {dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"} · 页面更新 {updatedAt}
-        </span>
+    <header className="boss-commandbar">
+      <div className="boss-brand">
+        <strong>FOOTBALL</strong>
+        <span>INTELLIGENCE</span>
       </div>
-      <strong>{worldCup ? "世界杯 live 证据" : "DecisionCard 首屏"}</strong>
+      <button className="boss-view-select" type="button">Boss View</button>
+      <div className="boss-command-meta">
+        <span>日期 <strong>{dayView.football_day}</strong></span>
+        <span>环境 <strong>{dayView.environment}</strong></span>
+        <span>最后刷新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"}</strong></span>
+        <span>下次刷新 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
+        <span>即将比赛 <strong>{upcoming}</strong></span>
+        <span>已出推荐 <strong>{readyRecommendations}</strong></span>
+      </div>
+      <div className="boss-command-release">
+        Web {shortSha(release?.web_git_sha)} · API {shortSha(release?.api_git_sha)}
+      </div>
     </header>
   );
 }
 
-export function DecisionCounts({ dayView }: { dayView: DashboardDayView }) {
+export function DecisionCounts({ dayView, performance }: { dayView: DashboardDayView; performance?: DashboardPerformance }) {
   const lockLabel = dayView.environment === "production" ? "正式可锁" : "可锁审批";
+  const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
-    ["分析推荐", dayView.counts.analysis_pick + dayView.counts.recommend, "分析参考·非稳赢"],
-    ["观察", dayView.counts.watch, "数据够看但不出方向"],
-    ["未就绪·不判", dayView.counts.not_ready + dayView.counts.skip, "给原因，不硬推"],
+    ["已出推荐", readyRecommendations, "数据齐全后才置顶"],
+    ["赛后样本", performance?.sample_size ?? 0, `命中率 ${percent(performance?.hit_rate)}`],
+    ["今日待评估", dayView.counts.not_ready + dayView.counts.watch + dayView.counts.skip, "按开球时间继续观察"],
   ] as const;
   return (
     <section className="decision-counts" aria-label="今日决策计数">
@@ -250,63 +541,103 @@ export function DecisionCounts({ dayView }: { dayView: DashboardDayView }) {
   );
 }
 
-export function ReasonCodePanel({ cards }: { cards: DashboardDayViewCard[] }) {
+export function EvidencePanel({
+  cards,
+  selectedCard,
+  settledCount,
+}: {
+  cards: DashboardDayViewCard[];
+  selectedCard?: DashboardDayViewCard;
+  settledCount: number;
+}) {
   const reasons = reasonSummary(cards);
-  if (!reasons.length) {
-    const partialCount = cards.filter((card) => card.data_status === "PARTIAL").length;
-    if (partialCount) {
-      return (
-        <section className="reason-panel">
-          <span>主要原因</span>
-          <strong>部分数据仍在刷新 × {partialCount}</strong>
-        </section>
-      );
-    }
+  if (selectedCard) {
     return (
-      <section className="reason-panel">
-        <span>主要原因</span>
-        <strong>暂无阻塞原因</strong>
-      </section>
+      <aside className="evidence-panel" aria-label="选中比赛证据预览">
+        <span>选中比赛证据</span>
+        <h2>{teamLabel(selectedCard)}</h2>
+        <p>{l1OneLiner(selectedCard)}</p>
+        <div className="trust-grid">
+          <strong>{probabilitySourceLabel(selectedCard)}</strong>
+          <strong>{divergenceLabel(selectedCard)}</strong>
+          <strong>{trustSignalSummary(selectedCard)}</strong>
+          <strong>{applicabilityLabel(selectedCard)}</strong>
+        </div>
+        <div className="tracking-note">
+          <span>赛后追踪</span>
+          <strong>{selectedCard.outcome_tracked ? "已纳入 outcome tracking" : "等待完场后追踪"}</strong>
+          <small>结算后会进入赛后验证，和联赛表现一起计入样本。</small>
+        </div>
+      </aside>
     );
   }
   return (
-    <section className="reason-panel" aria-label="未出原因统计">
-      <span>主要原因</span>
-      <div>
-        {reasons.slice(0, 6).map((reason) => (
-          <strong key={reason.label}>{reason.label} × {reason.count}</strong>
-        ))}
+    <aside className="evidence-panel" aria-label="今日聚合证据">
+      <span>今日聚合</span>
+      <h2>{cards.length ? `${cards.length} 场待赛` : "当前无待赛比赛"}</h2>
+      <p>
+        {reasons.length
+          ? reasons.slice(0, 3).map((reason) => `${reason.label} × ${reason.count}`).join(" · ")
+          : "没有阻塞原因时，继续按时间轴观察下一次刷新。"}
+      </p>
+      <div className="tracking-note">
+        <span>赛后验证</span>
+        <strong>{settledCount ? `已有 ${settledCount} 条结算样本` : "暂无可展示结算样本"}</strong>
+        <small>命中率必须和 ROI、样本量一起看。</small>
       </div>
-    </section>
+    </aside>
   );
 }
 
 export function DecisionRow({
   card,
+  selected,
   legacyMatch,
+  now,
+  onSelect,
 }: {
   card: DashboardDayViewCard;
+  selected: boolean;
   legacyMatch?: DashboardMatchCard;
+  now: Date;
+  onSelect: () => void;
 }) {
   const tierClass = `tier-${card.decision_tier.toLowerCase().replace("_", "-")}`;
+  const muted = card.decision_tier === "NOT_READY" || card.decision_tier === "SKIP" || card.data_status === "BLOCKED";
+  const strength = dataStrength(card);
   return (
-    <article className={`decision-row ${tierClass}`}>
-      <div className="decision-row-main">
-        <div className="decision-fixture">
-          <span>{fmtTime(card.kickoff_utc)} · {competitionLabel(card)}</span>
+    <article className={`decision-row ${tierClass}${selected ? " is-selected" : ""}${muted ? " is-muted" : ""}`}>
+      <button className="decision-row-button" type="button" onClick={onSelect} aria-pressed={selected}>
+        <div className="decision-cell decision-time">
+          <strong>{fmtTime(card.kickoff_utc)}</strong>
+          <span>T{minutesUntil(card, now) != null ? `${minutesUntil(card, now)}min` : "--"}</span>
+        </div>
+        <div className="decision-cell decision-league">
+          <span>{competitionLabel(card)}</span>
+        </div>
+        <div className="decision-cell decision-teams">
           <strong>{teamLabel(card)}</strong>
+          <span>{l1OneLiner(card)}</span>
         </div>
-        <div className="decision-copy">
-          <p>{l1OneLiner(card)}</p>
-          {oddsSummary(card) ? <span>{oddsSummary(card)}</span> : null}
+        <div className="decision-cell decision-market">
+          <span>{rowMarketSummary(card)}</span>
+          {marketProbabilitySummary(card) ? <small>{marketProbabilitySummary(card)}</small> : null}
         </div>
-      </div>
-      <div className="decision-row-side">
-        <span className={`tier-badge ${tierClass}`}>{tierLabel(card.decision_tier)}</span>
-        <small>{dataStatusLabel(card.data_status)}</small>
-        <small>{trustSignalSummary(card)}</small>
-        {card.lock_eligible ? <em>{card.decision_tier === "RECOMMEND" ? "正式可锁" : "staging-only · 需要审批"}</em> : null}
-      </div>
+        <div className="decision-cell decision-strength">
+          <strong>{strength}%</strong>
+          <span style={{ "--strength": `${strength}%` } as CSSProperties} />
+        </div>
+        <div className="decision-cell decision-data">
+          <span>{dataStatusLabel(card.data_status)}</span>
+          <i aria-hidden="true" />
+        </div>
+        <div className="decision-cell decision-tier">
+          <span className={`tier-badge ${tierClass}`}>{tierLabel(card.decision_tier)}</span>
+        </div>
+        <div className="decision-cell decision-next">
+          <span>{nextEvalLabel(card)}</span>
+        </div>
+      </button>
       <details className="l2-diagnostics-drawer">
         <summary>L2 技术诊断</summary>
         <div className="l2-diagnostics-body">
@@ -325,36 +656,304 @@ export function DecisionRow({
   );
 }
 
+function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
+  const blocked = dayView.counts.blocked + dayView.counts.stale;
+  return (
+    <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
+      <strong>{blocked ? "部分数据需等待" : "白名单正常"}</strong>
+      <span>14 联赛可用 · {dayView.environment} · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
+      {blocked ? <small>未就绪比赛已保留在赛程中，按 next_eval_at 再评估。</small> : <small>覆盖诊断只在异常时展开。</small>}
+    </section>
+  );
+}
+
+function BossTabs({ activeTab, onChange }: { activeTab: BossTab; onChange: (tab: BossTab) => void }) {
+  const tabs: Array<[BossTab, string, string]> = [
+    ["prematch", "赛前决策", "推荐置顶 + 开球时间"],
+    ["verification", "赛后验证", "命中/走水/作废"],
+    ["league-performance", "联赛表现", "样本/ROI/概率"],
+  ];
+  return (
+    <nav className="boss-tabs" aria-label="老板视角主导航">
+      {tabs.map(([id, label, hint]) => (
+        <button key={id} type="button" className={activeTab === id ? "is-active" : ""} onClick={() => onChange(id)} aria-pressed={activeTab === id}>
+          <strong>{label}</strong>
+          <span>{hint}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function FilterControls({ filter, onFilterChange }: { filter: ScheduleFilter; onFilterChange: (filter: ScheduleFilter) => void }) {
+  const filters: Array<[ScheduleFilter, string]> = [
+    ["all", "全部赛程"],
+    ["recommended", "只看推荐"],
+    ["hide-not-ready", "隐藏未就绪"],
+  ];
+  return (
+    <div className="schedule-controls" aria-label="赛程筛选">
+      {filters.map(([id, label]) => (
+        <button key={id} type="button" className={filter === id ? "is-active" : ""} onClick={() => onFilterChange(id)} aria-pressed={filter === id}>
+          {label}
+        </button>
+      ))}
+      <span>默认按开球时间</span>
+    </div>
+  );
+}
+
+function ScheduleSection({
+  title,
+  hint,
+  cards,
+  empty,
+  selectedFixtureId,
+  legacyById,
+  now,
+  onSelect,
+  collapsed,
+}: {
+  title: string;
+  hint: string;
+  cards: DashboardDayViewCard[];
+  empty: string;
+  selectedFixtureId?: string | null;
+  legacyById: Map<string, DashboardMatchCard>;
+  now: Date;
+  onSelect: (fixtureId: string) => void;
+  collapsed?: boolean;
+}) {
+  return (
+    <section className={`schedule-section${collapsed ? " is-collapsed" : ""}`} aria-label={title}>
+      <header className="schedule-section-heading">
+        <div>
+          <span>{title}</span>
+          <p>{hint}</p>
+        </div>
+        <strong>{cards.length}</strong>
+      </header>
+      {cards.length ? (
+        <div className="schedule-row-list">
+          <div className="schedule-table-head" aria-hidden="true">
+            <span>开球时间</span>
+            <span>联赛</span>
+            <span>对阵</span>
+            <span>市场参考</span>
+            <span>置信度</span>
+            <span>数据就绪</span>
+            <span>决策</span>
+            <span>下一次评估</span>
+          </div>
+          {cards.map((card) => (
+            <DecisionRow
+              key={card.fixture_id}
+              card={card}
+              selected={card.fixture_id === selectedFixtureId}
+              legacyMatch={legacyById.get(card.fixture_id)}
+              now={now}
+              onSelect={() => onSelect(card.fixture_id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="inline-empty">{empty}</div>
+      )}
+    </section>
+  );
+}
+
+function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerformance; leagueRows: LeaguePerformanceRow[] }) {
+  const bestLeagues = leagueRows
+    .filter((row) => row.sampleSize >= 10)
+    .slice(0, 2)
+    .map((row) => row.label)
+    .join(" / ");
+  return (
+    <section className="trust-strip" aria-label="赛后信任摘要">
+      <strong>近 30 天</strong>
+      <span>推荐样本 {performance?.sample_size ?? 0}</span>
+      <span>命中率 {percent(performance?.hit_rate)}</span>
+      <span>ROI {performance?.sample_size ? "待统一 stake" : "样本不足"}</span>
+      <span>联赛表现 {bestLeagues || "样本不足"}</span>
+    </section>
+  );
+}
+
+function VerificationPreview({ matches }: { matches: DashboardMatchCard[] }) {
+  const settled = settledMatches(matches).slice(0, 5);
+  return (
+    <section className="verification-preview" aria-label="赛后验证预览">
+      <header>
+        <span>赛后验证</span>
+        <strong>{settled.length ? `最近 ${settled.length} 条` : "暂无结算样本"}</strong>
+      </header>
+      {settled.length ? (
+        <div className="verification-list">
+          {settled.map((match) => (
+            <div key={match.fixture_id}>
+              <span>{fmtTime(match.kickoff_utc)} · {translateCompetition(match.competition_name)}</span>
+              <strong>{match.home_team_name} vs {match.away_team_name}</strong>
+              <small>{settlementLabel(match.validation?.settlement)} · {match.result?.final_score ?? "比分待同步"} · {match.validation?.closing_line_value ?? "CLV 待接入"}</small>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p>完场并结算后，推荐会在这里显示命中、走水、作废和原因码。</p>
+      )}
+    </section>
+  );
+}
+
+function LeaguePerformancePreview({ rows }: { rows: LeaguePerformanceRow[] }) {
+  const visibleRows = rows.slice(0, 6);
+  return (
+    <section className="league-performance-preview" aria-label="联赛表现预览">
+      <header>
+        <span>联赛表现</span>
+        <strong>{visibleRows.length ? "按样本量排序" : "样本不足"}</strong>
+      </header>
+      {visibleRows.length ? (
+        <div className="league-performance-table">
+          <div className="league-performance-head">
+            <span>联赛</span>
+            <span>样本</span>
+            <span>命中率</span>
+            <span>ROI</span>
+            <span>状态</span>
+          </div>
+          {visibleRows.map((row) => (
+            <div key={row.key}>
+              <span>{row.label}</span>
+              <span>{row.sampleSize}</span>
+              <span>{percent(row.sampleSize ? row.hitCount / row.sampleSize : null)}</span>
+              <span>{units(row.roiUnits)}</span>
+              <span>{performanceStatus(row.sampleSize)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p>联赛命中率必须等有足够结算样本后展示；当前只保留占位，不制造胜率。</p>
+      )}
+    </section>
+  );
+}
+
 export function BossDecisionView({
   dayView,
   legacyMatches,
-  updatedAt,
+  performance,
+  release,
 }: {
   dayView: DashboardDayView;
   legacyMatches: DashboardMatchCard[];
-  updatedAt: string;
+  performance?: DashboardPerformance;
+  release?: ReleaseSyncState;
 }) {
   const legacyById = byFixtureId(legacyMatches);
-  const cards = orderedCards(dayView.cards);
+  const now = useMemo(() => referenceTime(dayView), [dayView]);
+  const [activeTab, setActiveTab] = useState<BossTab>("prematch");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
+  const preMatchCards = useMemo(() => orderedByKickoff(dayView.cards.filter(isPreMatch)), [dayView.cards]);
+  const readyRecommendations = useMemo(() => preMatchCards.filter(isReadyRecommendation), [preMatchCards]);
+  const todaySchedule = useMemo(
+    () => orderedByKickoff(preMatchCards.filter((card) => isSameShanghaiDate(card.kickoff_utc, dayView.generated_at))),
+    [dayView.generated_at, preMatchCards],
+  );
+  const futureSchedule = useMemo(
+    () => orderedByKickoff(preMatchCards.filter((card) => !isSameShanghaiDate(card.kickoff_utc, dayView.generated_at))),
+    [dayView.generated_at, preMatchCards],
+  );
+  const filteredTodaySchedule = useMemo(() => filterScheduleCards(todaySchedule, scheduleFilter), [scheduleFilter, todaySchedule]);
+  const visibleCards = useMemo(
+    () => [...readyRecommendations, ...filteredTodaySchedule, ...futureSchedule],
+    [filteredTodaySchedule, futureSchedule, readyRecommendations],
+  );
+  const firstCard = readyRecommendations[0] ?? filteredTodaySchedule[0] ?? futureSchedule[0];
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(firstCard?.fixture_id ?? null);
+  const selectedCard = visibleCards.find((card) => card.fixture_id === selectedFixtureId) ?? firstCard;
+  const leagueRows = useMemo(() => buildLeaguePerformanceRows(legacyMatches), [legacyMatches]);
+  const settledCount = useMemo(() => settledMatches(legacyMatches).length, [legacyMatches]);
+
   return (
     <section className="boss-dashboard" aria-label="老板视角决策页">
-      <MatchdayHeader dayView={dayView} updatedAt={updatedAt} />
+      <MatchdayHeader dayView={dayView} release={release} />
+      <div className="boss-tab-row">
+        <BossTabs activeTab={activeTab} onChange={setActiveTab} />
+        <TrustStrip performance={performance} leagueRows={leagueRows} />
+      </div>
+      <HealthStrip dayView={dayView} />
       {isWorldCup(dayView) ? (
         <aside className="model-caveat">
           世界杯输出按 staging 保守展示：当前拟合模型在五大俱乐部离线验证，尚未对国际赛完成独立验证。
         </aside>
       ) : null}
-      <DecisionCounts dayView={dayView} />
-      <ReasonCodePanel cards={cards} />
-      <section className="decision-list" aria-label="今日比赛判断">
-        {cards.length ? (
-          cards.map((card) => (
-            <DecisionRow key={card.fixture_id} card={card} legacyMatch={legacyById.get(card.fixture_id)} />
-          ))
-        ) : (
-          <div className="decision-empty">今日暂无比赛；数据不足时保持空白，不强出推荐。</div>
-        )}
-      </section>
+
+      {activeTab === "prematch" ? (
+        <div className="boss-workspace">
+          <section className="schedule-board" aria-label="赛前决策与赛程">
+            <FilterControls filter={scheduleFilter} onFilterChange={setScheduleFilter} />
+            {visibleCards.length ? (
+              <>
+                <ScheduleSection
+                  title="已出推荐"
+                  hint="数据齐全后置顶；内部仍按开球时间排序"
+                  cards={readyRecommendations}
+                  empty="暂无已出推荐 · 等待下一次数据齐全评估"
+                  selectedFixtureId={selectedCard?.fixture_id}
+                  legacyById={legacyById}
+                  now={now}
+                  onSelect={setSelectedFixtureId}
+                />
+                <ScheduleSection
+                  title="今日赛程"
+                  hint="默认严格按开球时间；未就绪比赛保留在原时间位置"
+                  cards={filteredTodaySchedule}
+                  empty="今日没有符合筛选条件的待赛比赛"
+                  selectedFixtureId={selectedCard?.fixture_id}
+                  legacyById={legacyById}
+                  now={now}
+                  onSelect={setSelectedFixtureId}
+                />
+                <ScheduleSection
+                  title="未来赛程"
+                  hint="明天及以后先折叠看摘要，临近窗口再进入今日赛程"
+                  cards={futureSchedule.slice(0, 8)}
+                  empty="未来窗口暂无待赛比赛"
+                  selectedFixtureId={selectedCard?.fixture_id}
+                  legacyById={legacyById}
+                  now={now}
+                  onSelect={setSelectedFixtureId}
+                  collapsed
+                />
+              </>
+            ) : (
+              <div className="decision-empty">
+                <strong>当前无待赛比赛</strong>
+                <span>没有比赛时不制造推荐；下一场进入窗口后自动出现。</span>
+              </div>
+            )}
+          </section>
+          <aside className="boss-side-rail" aria-label="证据与信任层">
+            <EvidencePanel cards={visibleCards} selectedCard={selectedCard} settledCount={settledCount} />
+            <VerificationPreview matches={legacyMatches} />
+            <LeaguePerformancePreview rows={leagueRows} />
+          </aside>
+        </div>
+      ) : null}
+
+      {activeTab === "verification" ? (
+        <section className="boss-tab-panel" aria-label="赛后验证">
+          <VerificationPreview matches={legacyMatches} />
+        </section>
+      ) : null}
+
+      {activeTab === "league-performance" ? (
+        <section className="boss-tab-panel" aria-label="联赛表现">
+          <LeaguePerformancePreview rows={leagueRows} />
+        </section>
+      ) : null}
+
       <footer className="boss-disclaimer">分析参考·非稳赢·不构成投注建议</footer>
     </section>
   );

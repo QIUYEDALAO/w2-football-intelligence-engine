@@ -60,16 +60,14 @@ def test_top_five_and_world_cup_registry_behavior_remains() -> None:
     assert all(entries[item].enabled is False for item in ("premier_league", "serie_a"))
 
 
-def test_registry_does_not_read_env_or_call_provider(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    import os
+def test_registry_defaults_do_not_enable_national_leagues(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.delenv("W2_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("W2_STAGING_ENABLED_COMPETITIONS", raising=False)
 
-    def fail_getenv(name: str, default: str | None = None) -> str | None:
-        raise AssertionError(f"registry unexpectedly read env {name}")
+    registry = CompetitionRegistry()
 
-    monkeypatch.setattr(os, "getenv", fail_getenv)
-    monkeypatch.setattr(os.environ, "get", fail_getenv)
-
-    assert "argentina_primera" in CompetitionRegistry().entries()
+    assert "argentina_primera" in registry.entries()
+    assert registry.enabled_ids() == {"world_cup_2026"}
 
 
 def test_national_league_profile_files_exist() -> None:
@@ -77,4 +75,3 @@ def test_national_league_profile_files_exist() -> None:
 
     assert (root / "README.md").is_file()
     assert len(list(root.glob("*.json"))) == 8
-

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
@@ -10,6 +11,7 @@ from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.domain.legacy_decision_shim import legacy_decision_view
+from w2.markets.devig import DevigMethod, devig
 
 CARD_SOURCE_CONTRACT = "decision_contract"
 CARD_SOURCE_LEGACY = "legacy_fallback"
@@ -193,12 +195,70 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
+        "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
         "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
     }
+
+
+def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
+    explicit = _mapping(card.get("market_probabilities"))
+    if explicit:
+        return dict(explicit)
+    current_odds = _mapping(card.get("current_odds"))
+    markets: dict[str, Any] = {}
+    for key, labels in (
+        ("ah", ("HOME_AH", "AWAY_AH")),
+        ("ou", ("OVER", "UNDER")),
+        ("one_x_two", ("HOME", "DRAW", "AWAY")),
+    ):
+        market = _mapping(current_odds.get(key))
+        prices = _market_prices(market, labels)
+        if len(prices) < 2:
+            continue
+        result = devig(prices, DevigMethod.PROPORTIONAL)
+        markets[key] = {
+            "method": result.method.value,
+            "probabilities": {
+                selection: round(probability, 6)
+                for selection, probability in result.probabilities.items()
+            },
+            "overround": round(result.overround, 6),
+        }
+    return markets
+
+
+def _market_prices(market: Mapping[str, Any], labels: Sequence[str]) -> dict[str, Decimal]:
+    candidates: tuple[tuple[str, str], ...]
+    if labels == ("HOME_AH", "AWAY_AH"):
+        candidates = (("HOME_AH", "home_price"), ("AWAY_AH", "away_price"))
+    elif labels == ("OVER", "UNDER"):
+        candidates = (("OVER", "over_price"), ("UNDER", "under_price"))
+    else:
+        candidates = (
+            ("HOME", "home_price"),
+            ("DRAW", "draw_price"),
+            ("AWAY", "away_price"),
+        )
+    prices: dict[str, Decimal] = {}
+    for label, field in candidates:
+        price = _decimal_price(market.get(field))
+        if price is not None:
+            prices[label] = price
+    return prices
+
+
+def _decimal_price(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        price = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return price if price > Decimal("1.0") else None
 
 
 def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

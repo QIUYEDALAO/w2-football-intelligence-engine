@@ -181,7 +181,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
-        lambda now: {
+        lambda now, **kwargs: {
             "status": "READY",
             "generated_plan_count": 8,
             "due_checkpoint_count": 1,

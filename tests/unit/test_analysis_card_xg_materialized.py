@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, cast
 
 from w2.api import repository as api_repository
@@ -196,6 +197,14 @@ class FakeDbRepository:
         return rows
 
 
+def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() -> None:
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+    row = {"selection": "Over 2/2.5", "line": "2.5"}
+
+    assert service._line_value(row) == "2.25"  # noqa: SLF001
+    assert service._decimal_line(row) == Decimal("2.25")  # noqa: SLF001
+
+
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
     monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
     service = ReadModelService(repository=cast(Any, FakeReadRepository()))
@@ -243,7 +252,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["current_odds"]["ah"]["selection_policy"]
     assert card["current_odds"]["ah"]["candidate_lines"]
     assert card["current_odds"]["ah"]["rejected_lines"] == []
-    assert card["current_odds"]["ou"] == {
+    assert {
+        key: card["current_odds"]["ou"].get(key)
+        for key in ("line", "over_price", "under_price", "over_line", "under_line", "price")
+    } == {
         "line": "2.5",
         "over_price": 1.72,
         "under_price": 2.1,
@@ -251,6 +263,8 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "under_line": "2.5",
         "price": 1.91,
     }
+    assert card["current_odds"]["ou"]["selection_policy"]
+    assert card["current_odds"]["ou"]["candidate_lines"]
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}

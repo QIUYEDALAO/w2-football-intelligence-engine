@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -453,6 +454,9 @@ def canonical_market(raw_label: str) -> str:
 def parse_line(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
+    split = _split_line_value(value)
+    if split is not None:
+        return f"{split:g}"
     parts = value.replace("+", " +").replace("-", " -").split()
     for part in reversed(parts):
         try:
@@ -461,6 +465,30 @@ def parse_line(value: Any) -> str | None:
             continue
         return part
     return None
+
+
+def _split_line_value(value: str) -> float | None:
+    # API-Football can emit Asian split lines like "Over 2/2.5" or "Home -0/0.5".
+    # Treat these as quarter lines instead of silently binding the price to the
+    # second half of the split.
+    match = re.search(
+        r"(?P<left>[+-]?\d+(?:\.\d+)?)\s*(?:/|(?:\s+-\s+))\s*(?P<right>[+-]?\d+(?:\.\d+)?)\s*$",
+        value.strip(),
+    )
+    if match is None:
+        return None
+    left_raw = match.group("left")
+    right_raw = match.group("right")
+    try:
+        left = float(left_raw)
+        right = float(right_raw)
+    except ValueError:
+        return None
+    if right_raw[0] not in "+-" and left_raw.startswith("-"):
+        right = -abs(right)
+    elif right_raw[0] not in "+-" and left_raw.startswith("+"):
+        right = abs(right)
+    return (left + right) / 2
 
 
 def parse_decimal(value: Any) -> str | None:
