@@ -73,6 +73,51 @@ function l1OneLiner(card: DashboardDayViewCard): string {
   return `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
 }
 
+function oddsSummary(card: DashboardDayViewCard): string | null {
+  const odds = asRecord(card.current_odds);
+  const ah = asRecord(odds.ah);
+  const ou = asRecord(odds.ou);
+  const rows: string[] = [];
+  if (Object.keys(ah).length) {
+    const homeLine = textValue(ah.home_display_line_cn) || signedLine("主", ah.home_line);
+    const awayLine = textValue(ah.away_display_line_cn) || signedLine("客", ah.away_line);
+    const homePrice = formatOdds(ah.home_price);
+    const awayPrice = formatOdds(ah.away_price);
+    rows.push(`让球 ${homeLine} @${homePrice} / ${awayLine} @${awayPrice}`);
+  }
+  if (Object.keys(ou).length) {
+    const line = textValue(ou.line) || textValue(ou.over_line) || textValue(ou.under_line);
+    const overPrice = formatOdds(ou.over_price);
+    const underPrice = formatOdds(ou.under_price);
+    rows.push(`大小 ${formatLine(line)} 大@${overPrice} / 小@${underPrice}`);
+  }
+  return rows.length ? rows.join(" · ") : null;
+}
+
+function trustSignalSummary(card: DashboardDayViewCard): string {
+  const refresh = card.data_refresh ?? {};
+  const odds = textValue(refresh.odds_status, Object.keys(asRecord(card.current_odds)).length ? "READY" : "WAITING");
+  const lineups = textValue(refresh.lineups_status, textValue(asRecord(card.data_readiness).lineups_status, "UNKNOWN"));
+  const xg = textValue(refresh.xg_status, textValue(asRecord(card.data_readiness).xg_status, "UNKNOWN"));
+  return `盘口 ${statusCn(odds)} · 首发 ${statusCn(lineups)} · xG ${statusCn(xg)}`;
+}
+
+function signedLine(prefix: string, value: unknown): string {
+  const line = formatLine(value);
+  return line === "-" ? `${prefix} --` : `${prefix} ${line}`;
+}
+
+function statusCn(value: string): string {
+  const status = value.toUpperCase();
+  if (status === "READY") return "已就绪";
+  if (status === "WAITING") return "等待";
+  if (status === "PROVIDER_EMPTY") return "provider 空返";
+  if (status === "INSUFFICIENT_HISTORY") return "样本不足";
+  if (status === "NOT_REQUESTED") return "未请求";
+  if (status === "UNKNOWN") return "未知";
+  return value;
+}
+
 function marketPickLabel(card: DashboardDayViewCard): string {
   if (!card.pick) return "等待盘口";
   const market = card.pick.market ? marketLabel(card.pick.market) : "市场";
@@ -152,6 +197,8 @@ function reasonSummary(cards: DashboardDayViewCard[]): Array<{ label: string; co
 function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
   const diagnostics = asRecord(card.diagnostics);
   const readiness = asRecord(diagnostics.data_readiness_summary);
+  const missingFields = card.missing_fields ?? [];
+  const staleFields = card.stale_fields ?? [];
   return [
     ["decision", tierLabel(card.decision_tier)],
     ["data", dataStatusLabel(card.data_status)],
@@ -159,8 +206,8 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
     ["action", actionLabel(card.action)],
     ["next_eval_at", textValue(card.next_eval_at, "-")],
     ["card_hash", textValue(card.card_hash, "-").slice(0, 16)],
-    ["missing", card.missing_fields.join(", ") || "-"],
-    ["stale", card.stale_fields.join(", ") || "-"],
+    ["missing", missingFields.join(", ") || "-"],
+    ["stale", staleFields.join(", ") || "-"],
     ["readiness", textValue(readiness.data_status, "-")],
   ];
 }
@@ -249,11 +296,15 @@ export function DecisionRow({
           <span>{fmtTime(card.kickoff_utc)} · {competitionLabel(card)}</span>
           <strong>{teamLabel(card)}</strong>
         </div>
-        <p>{l1OneLiner(card)}</p>
+        <div className="decision-copy">
+          <p>{l1OneLiner(card)}</p>
+          {oddsSummary(card) ? <span>{oddsSummary(card)}</span> : null}
+        </div>
       </div>
       <div className="decision-row-side">
         <span className={`tier-badge ${tierClass}`}>{tierLabel(card.decision_tier)}</span>
         <small>{dataStatusLabel(card.data_status)}</small>
+        <small>{trustSignalSummary(card)}</small>
         {card.lock_eligible ? <em>{card.decision_tier === "RECOMMEND" ? "正式可锁" : "staging-only · 需要审批"}</em> : null}
       </div>
       <details className="l2-diagnostics-drawer">

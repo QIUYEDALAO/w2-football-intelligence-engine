@@ -71,7 +71,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
-    assert 'const mode: DashboardMode = "today"' in page
+    assert 'const mode: DashboardMode = "future"' in page
+    assert "未来 14 天暂无可展示比赛" in page
     assert "BossDecisionView" in page
     assert "todayShanghai()" in page
     assert "footballDayShanghai" in formatters

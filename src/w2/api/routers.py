@@ -53,6 +53,7 @@ from w2.dashboard.day_view import build_dashboard_day_view
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
+DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
 def request_id(request: Request) -> str:
@@ -113,7 +114,7 @@ def dashboard(
     timezone: str = "Asia/Shanghai",
     include_debug: bool = False,
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.dashboard(
@@ -129,11 +130,13 @@ def dashboard(
 def dashboard_day_view(
     request: Request,
     date: str | None = None,
+    window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     payload = service.dashboard(
         target_date=date,
-        window="today",
+        window=normalized_window,
         timezone=timezone,
         include_debug=False,
     )
@@ -153,7 +156,7 @@ def dashboard_summary(
     window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.dashboard_summary(
@@ -171,7 +174,7 @@ def validation_summary(
     window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.validation_summary(

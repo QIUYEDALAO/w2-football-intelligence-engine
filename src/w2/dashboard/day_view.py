@@ -130,6 +130,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
+        **_market_context_fields(card),
         "pick": _mapping_copy(_field(card, contract, "pick"))
         if isinstance(_field(card, contract, "pick"), Mapping)
         else None,
@@ -160,6 +161,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "missing_fields": _string_list(card.get("missing_fields")),
         "stale_fields": _string_list(card.get("stale_fields")),
         "data_readiness": _mapping_copy(card.get("data_readiness")),
+        **_market_context_fields(card),
         "pick": None,
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
@@ -179,6 +181,17 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "home_team_name": _optional_text(card.get("home_team_name")),
         "away_team_name": _optional_text(card.get("away_team_name")),
         "status": _optional_text(card.get("status")),
+    }
+
+
+def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "current_odds": _mapping_copy(card.get("current_odds")),
+        "odds_movement": _mapping_copy(card.get("odds_movement")),
+        "market_strip": _mapping_list(card.get("market_strip")),
+        "data_refresh": _mapping_copy(card.get("data_refresh")),
+        "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
+        "missing_inputs": _string_list(card.get("missing_inputs")),
     }
 
 
@@ -314,6 +327,12 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _mapping_copy(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _mapping_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [dict(item) for item in value if isinstance(item, Mapping)]
 
 
 def _first(*values: Any) -> Any:
