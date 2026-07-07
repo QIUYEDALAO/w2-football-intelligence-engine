@@ -293,3 +293,9 @@
 - R4.1 完成:DC rho(`tau_correction`)+时间衰减+联赛主场系数+窗口化/对手调整 xG,按联赛选择性采纳。
 - 中超 gap `.052 -> .035` 过线,瑞典超 `.055 -> .019` 过线,德甲 `.047 -> .043` 未过,巴甲 `.054 -> .055` 变差不采纳。
 - §4 矩阵已更新。下一步 R4.1b:把采纳的 per-league 模型接进分歧雷达计算。
+
+### V3 进展续7 · R4.1b 分歧雷达冠军模型接线(2026-07-08)
+
+- R4.1b 完成:新增 per-league divergence champion 选择器,分歧雷达模型侧按采纳表读取 champion 概率;市场概率展示仍保持 `MARKET_DEVIG`,EV/RECOMMEND 腿仍默认关闭。
+- 当前采纳表:德甲/中超/瑞典超使用 `R4_1_CALIBRATED`;巴甲及其他未单独采纳联赛保持 `FITTED_CALIBRATED`。
+- `run_w2_market_baseline_eval.py --phase all` 已输出 champion gap:德甲 `+0.0430`,中超 `+0.0354`,瑞典超 `+0.0188`,巴甲保持原模型 `+0.0538`;provider_calls=0。

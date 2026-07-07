@@ -63,6 +63,10 @@ from w2.competitions.league_whitelist_scope import (  # noqa: E402
     TOP_FIVE_COMPETITIONS,
 )
 from w2.competitions.registry import CompetitionRegistry  # noqa: E402
+from w2.models.divergence_champion import (  # noqa: E402
+    DivergenceModelFamily,
+    select_divergence_champion_probabilities,
+)
 from w2.models.dixon_coles import one_x_two_from_matrix, tau_correction  # noqa: E402
 from w2.models.independent import AsOfFeatureBuilder, MatchRecord  # noqa: E402
 
@@ -532,7 +536,22 @@ def eval_protocol(
                     base[row["fixture_id"]]["probabilities_r4_1_calibrated"] = row[
                         "probabilities"
                     ]
+        _attach_divergence_champion_rows(list(base.values()))
         manifest_rows.extend(base.values())
+    validation_manifest_rows = [
+        row for row in manifest_rows if row.get("split") == "validation"
+    ]
+    validation_champion = (
+        metric_block(
+            [
+                {**row, "probabilities": row["probabilities_divergence_champion"]}
+                for row in validation_manifest_rows
+            ]
+        )
+        if validation_manifest_rows
+        and all("probabilities_divergence_champion" in row for row in validation_manifest_rows)
+        else None
+    )
     report = {
         "protocol": protocol,
         "competition": competition,
@@ -547,6 +566,8 @@ def eval_protocol(
             for variant in ("fitted_calibrated", "baseline_prior", "elo_only", "uniform")
         },
     }
+    if validation_champion is not None:
+        report["validation"]["divergence_champion"] = validation_champion
     if r4_1_result is not None:
         report["r4_1"] = {
             "temperature": r4_1_result["temperature"],
@@ -571,6 +592,23 @@ def eval_protocol(
             ),
         }
     return {"report": report, "manifest_rows": manifest_rows}
+
+
+def _attach_divergence_champion_rows(rows: list[dict]) -> None:
+    for row in rows:
+        fitted = row.get("probabilities")
+        if not isinstance(fitted, dict):
+            continue
+        r4_1 = row.get("probabilities_r4_1_calibrated")
+        selection = select_divergence_champion_probabilities(
+            competition_id=str(row.get("competition_id") or ""),
+            fitted_calibrated=fitted,
+            r4_1_calibrated=r4_1 if isinstance(r4_1, dict) else None,
+        )
+        row["probabilities_divergence_champion"] = dict(selection.probabilities)
+        row["divergence_model_family"] = selection.family.value
+        if selection.fallback_reason:
+            row["divergence_model_fallback_reason"] = selection.fallback_reason
 
 
 def r4_1_offline_model_samples(
@@ -734,6 +772,13 @@ def run_model_phase() -> dict:
                         "status": "OK_SLICE",
                         "validation": {
                             "fitted_calibrated": metric_block(rows),
+                            "divergence_champion": metric_block(
+                                [
+                                    {**r, "probabilities": r["probabilities_divergence_champion"]}
+                                    for r in rows
+                                    if "probabilities_divergence_champion" in r
+                                ]
+                            ),
                             "baseline_prior": metric_block(
                                 [
                                     {**r, "probabilities": r["probabilities_baseline_prior"]}
@@ -830,6 +875,13 @@ def run_model_phase() -> dict:
                         "status": "OK_SLICE",
                         "validation": {
                             "fitted_calibrated": metric_block(rows),
+                            "divergence_champion": metric_block(
+                                [
+                                    {**r, "probabilities": r["probabilities_divergence_champion"]}
+                                    for r in rows
+                                    if "probabilities_divergence_champion" in r
+                                ]
+                            ),
                             "baseline_prior": metric_block(
                                 [
                                     {**r, "probabilities": r["probabilities_baseline_prior"]}
@@ -1078,6 +1130,11 @@ def eval_market_league(joined: list[dict]) -> dict:
         if all("probabilities_r4_1_calibrated" in r for r in val)
         else None
     )
+    val_champion = (
+        metric_block(rows_with(val, "probabilities_divergence_champion"))
+        if all("probabilities_divergence_champion" in r for r in val)
+        else val_model
+    )
     val_market = metric_block(rows_with(val, "market_probabilities"))
     val_prior = metric_block(rows_with(val, "probabilities_baseline_prior"))
     fitted_gap = (
@@ -1090,6 +1147,20 @@ def eval_market_league(joined: list[dict]) -> dict:
         if val_r4_1 and val_r4_1["log_loss"] is not None and val_market["log_loss"] is not None
         else None
     )
+    champion_gap = (
+        round(val_champion["log_loss"] - val_market["log_loss"], 6)
+        if val_champion["log_loss"] is not None and val_market["log_loss"] is not None
+        else None
+    )
+    champion_families = {
+        str(r.get("divergence_model_family") or DivergenceModelFamily.FITTED_CALIBRATED.value)
+        for r in val
+    }
+    champion_family = (
+        next(iter(champion_families))
+        if len(champion_families) == 1
+        else "MIXED"
+    )
     out = {
         "status": "OK",
         "train_n": len(train),
@@ -1099,12 +1170,20 @@ def eval_market_league(joined: list[dict]) -> dict:
         "validation": {
             "fitted_calibrated": val_model,
             "r4_1_calibrated": val_r4_1,
+            "divergence_champion": val_champion,
             "market_devig": val_market,
             "baseline_prior": val_prior,
             "uniform": metric_block(rows_with(val, "probabilities_uniform")),
         },
         "gap_model_minus_market_log_loss": fitted_gap,
         "gap_r4_1_minus_market_log_loss": r4_1_gap,
+        "gap_divergence_champion_minus_market_log_loss": champion_gap,
+        "divergence_champion_model_family": champion_family,
+        "divergence_champion_gap_delta_vs_fitted": (
+            round(champion_gap - fitted_gap, 6)
+            if champion_gap is not None and fitted_gap is not None
+            else None
+        ),
         "r4_1_gap_delta_vs_fitted": (
             round(r4_1_gap - fitted_gap, 6)
             if r4_1_gap is not None and fitted_gap is not None
@@ -1217,13 +1296,17 @@ def _write_summary_md(report: dict) -> None:
         "",
         f"生成时间:{report['generated_at']}  ·  devig:proportional  ·  只读/零 provider calls",
         "",
-        "| 联赛 | n(val joined) | 原模型 LL | R4.1 LL | 市场 LL | 原 gap "
-        "| R4.1 gap | Δgap | R4.1 gate | blend LL (w_mkt) | 先验 LL | join 率 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| 联赛 | n(val joined) | champion | champion LL | champion gap "
+        "| 原模型 LL | R4.1 LL | 市场 LL | 原 gap | R4.1 gap | Δgap "
+        "| R4.1 gate | blend LL (w_mkt) | 先验 LL | join 率 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for comp, res in report["results"].items():
         if res.get("status") != "OK":
-            lines.append(f"| {comp} | — | — | — | — | — | — | {res.get('status')} |")
+            lines.append(
+                f"| {comp} | — | — | — | — | — | — | — | — | — | — "
+                f"| {res.get('status')} | — | — | — |"
+            )
             continue
         v = res["validation"]
         blend = res.get("blend", {})
@@ -1234,6 +1317,9 @@ def _write_summary_md(report: dict) -> None:
         )
         lines.append(
             f"| {comp} | {v['fitted_calibrated']['n']} "
+            f"| {res.get('divergence_champion_model_family', '—')} "
+            f"| {_metric_text(v.get('divergence_champion'), 'log_loss')} "
+            f"| {_signed_metric_text(res.get('gap_divergence_champion_minus_market_log_loss'))} "
             f"| {v['fitted_calibrated']['log_loss']} "
             f"| {_metric_text(v.get('r4_1_calibrated'), 'log_loss')} "
             f"| {v['market_devig']['log_loss']} "
@@ -1285,6 +1371,7 @@ def _model_digest(report: dict) -> list[dict]:
             "protocol": item["protocol"],
             "competition": item["competition"],
             "val_fitted": item["validation"]["fitted_calibrated"],
+            "val_divergence_champion": item["validation"].get("divergence_champion"),
             "val_prior": item["validation"].get("baseline_prior"),
         }
         digest.append(entry)
