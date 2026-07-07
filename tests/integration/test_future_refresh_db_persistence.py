@@ -184,6 +184,57 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert observation.formal_recommendation is False
 
 
+def test_db_persistence_allows_retry_after_blocked_task_key(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            FutureRefreshTaskAuditModel(
+                task_id="blocked-task",
+                key=key,
+                owner="owner-a",
+                queued_at=NOW,
+                started_at=NOW,
+                finished_at=NOW,
+                status="BLOCKED",
+                result={
+                    "blockers": ["PROVIDER_RESERVE_PROTECTED"],
+                    "candidate": False,
+                    "formal_recommendation": False,
+                },
+            )
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    audit = run_future_refresh_task(
+        task_id="retry-task",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+    )
+
+    assert audit.status == "COMPLETED"
+    assert [endpoint for endpoint, _ in client.calls] == [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+    ]
+
+
 def test_api_repository_reads_future_refresh_projection_from_db(
     tmp_path: Path,
     monkeypatch: Any,

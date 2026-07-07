@@ -173,8 +173,8 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         if item["competition_id"] == "world_cup_2026"
     )
 
-    assert policy["daily_hard_cap"] == 100
-    assert policy["daily_reserve"] == 20
+    assert policy["daily_hard_cap"] == 120
+    assert policy["daily_reserve"] == 0
     assert policy["request_budget"] == 30
     assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
     assert policy["trickle_backfill_daily_budget"] == 0

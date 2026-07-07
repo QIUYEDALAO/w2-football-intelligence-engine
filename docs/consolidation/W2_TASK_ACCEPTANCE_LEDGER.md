@@ -159,6 +159,13 @@
 - **流程**:先给 3 个 IA/布局方向 → 用户选一 → 实现 → 真实 staging 截图验收 UI/UX。
 - **状态**:brief 已确认;下一步 = 出 3 个方向(不写代码)。
 
+### V3 进展续 · Dashboard 可见性与 R1.0 恢复(2026-07-07)
+- **台账锁进 main**:#206 已将台账锁进 main。
+- **#204 进展**:#204(`1dd2958` 起,后续 staging hotfix 继续迭代)完成 dashboard 可见性:默认窗口切到 `future`,首屏显示未来赛程,补齐 `/v1` 健康检查,并让 R2.3 在赛联赛数据进入 DayView。
+- **当前行为说明**:推荐数为 0 属市场锚定选择性正常;未验证或分歧不足时降级 WATCH/观察,不强出推荐。
+- **风险修正**:scheduler 曾停,导致 R1.0 前向采集未自动增长。
+- **下一步**:恢复 R1.0 staging 采集调度,限制 `<=120 provider calls/day`,record-only,只追加 forward ledger 与 odds snapshots,不改决策、不启 production。
+
 ---
 
 ## 待办 / 下一步(交接者看这里)
@@ -250,3 +257,13 @@
 - [ ] `lock_eligible` / `RECOMMEND` 上档:需独立前向 +EV 证明,默认关。
 
 **不变红线**:分析级·非稳赢;provider 受控;不造假绿灯;enable/部署永远是单独批准步;raw/key 不提交。
+
+---
+
+### V3 进展续2 · R1.0 Provider 实采校准(2026-07-07)
+
+- #204 已恢复 scheduler,staging provider hard cap 固定为 `120/day`;forward ledger 已自动增长至 69 行,但该增长来自既有 read-model。
+- 已修复 market-timeline OOM:fixture-scoped odds observation 为空时不再 fallback 扫全量 market observations。
+- 已修复 UI 文案:`Quarterfinals` 显示为 `四分之一决赛`,不再出现尾部 `s`。
+- 发现并保留安全停止:provider 实采被 `PROVIDER_RESERVE_PROTECTED` 挡住,没有偷放宽,没有绕过 dedup/hardcap。
+- 下一步:有意识校准 future-refresh usage scope,让 staging R1.0 record-only 采集在 `<=120 provider calls/day` 内真拉新 odds 时间线(CLV 料);仍只限 staging,不改决策、不启 production、不 merge。

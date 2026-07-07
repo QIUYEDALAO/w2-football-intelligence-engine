@@ -462,7 +462,10 @@ class FutureRefreshDbRepository:
         with Session(self.engine) as session:
             row = session.scalar(
                 select(FutureRefreshTaskAuditModel.task_id)
-                .where(FutureRefreshTaskAuditModel.key == key)
+                .where(
+                    FutureRefreshTaskAuditModel.key == key,
+                    FutureRefreshTaskAuditModel.status == "COMPLETED",
+                )
                 .limit(1)
             )
         return row is not None

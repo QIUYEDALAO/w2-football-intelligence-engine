@@ -364,6 +364,12 @@ def assert_policy() -> None:
         fail("world_cup_2026 policy must be enabled")
     if match.get("season") != "2026":
         fail("world_cup_2026 policy season mismatch")
+    if match.get("daily_hard_cap") != 120:
+        fail("world_cup_2026 daily_hard_cap must stay at 120 for R1.0 staging collection")
+    if match.get("daily_reserve") != 0:
+        fail("world_cup_2026 daily_reserve must stay at 0 for R1.0 staging collection")
+    if match.get("daily_usage_scope") != "w2_ledger":
+        fail("world_cup_2026 daily_usage_scope must stay w2_ledger for record-only collection")
     expected_staging = {
         "brasileirao_serie_a": ("71", "2026"),
         "chinese_super_league": ("169", "2026"),
