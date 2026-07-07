@@ -79,10 +79,11 @@ def test_web_mounts_static_report_public_root_read_only() -> None:
         assert volume_mode(compose, "web", "/usr/share/nginx/html/static-report") == "ro"
 
 
-def test_nginx_prefers_static_report_index_before_react_shell() -> None:
+def test_nginx_serves_react_shell_as_dashboard_root() -> None:
     nginx = (ROOT / "apps/web/nginx.conf").read_text(encoding="utf-8")
-    assert "try_files /static-report/index.html /index.html =404;" in nginx
-    assert "try_files $uri $uri/ /static-report/index.html /index.html;" in nginx
+    assert "try_files /index.html =404;" in nginx
+    assert "try_files $uri $uri/ /index.html;" in nginx
+    assert "try_files /static-report/index.html /index.html =404;" not in nginx
 
 
 def test_worker_runtime_healthcheck_does_not_require_writable_runtime() -> None:

@@ -97,34 +97,33 @@ bash scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
 The deployment script assumes `/opt/w2/shared/.env` has already been provisioned
 with mode `600`. It must not print or rewrite sensitive values.
 
-## Static Daily Report Guard
+## Dashboard Web Root
 
-A-151 makes the static daily report a first-class web root artifact. The web
-container mounts `runtime/reports/public` at `/usr/share/nginx/html/static-report`
-and nginx serves `static-report/index.html` before the bundled React shell. After
-every deploy that touches `web`, publish the current football-day report and run
-these checks before accepting the release:
+S14 makes the React boss-view dashboard the public web root. The web container
+still mounts `runtime/reports/public` at `/usr/share/nginx/html/static-report`
+for archived static daily reports, but nginx serves the bundled React shell at
+`/` and `/index.html`.
+
+After every deploy that touches `web`, run these checks before accepting the
+release:
 
 ```bash
-uv run --python 3.12 python scripts/publish_w2_static_report.py \
-  --base-url http://43.155.208.138 \
-  --runtime-root runtime
+curl -fsS http://43.155.208.138/ | grep -c '<div id="root">'
 curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v6'
-curl -fsS http://43.155.208.138/ | grep -c '命中率\|胜率\|ROI\|必中\|必胜\|稳赢\|稳赚\|可买\|庄家开错\|跟庄\|照这个买\|方向未识别\|正式推荐字段不完整'
 curl -fsS http://43.155.208.138/v1/version
+curl -fsS http://43.155.208.138/meta.json
 ```
 
 Acceptance:
 
-- renderer watermark count is at least `2`
-- forbidden-term count is `0`
-- API SHA matches the deployed main SHA
+- React root count is at least `1`
+- static renderer watermark count on `/` is `0`
+- API SHA and Web SHA match the deployed main SHA
 
-If the watermark check fails, the public dashboard has likely fallen back to the
-React shell. Regenerate the static report from the authoritative dashboard
-payload and do not accept the deploy until the checks pass. Do not repair this
-with a manual `docker cp` into the running web container; the accepted surface is
-`runtime/reports/public/index.html`.
+The archived static report remains available under `/static-report/` when
+`runtime/reports/public/index.html` exists. Do not repair web-root behavior with
+a manual `docker cp` into the running web container; the accepted surface is the
+built React app plus the `/static-report/` archive mount.
 
 ## Compose Preflight
 
