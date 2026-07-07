@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
@@ -53,6 +54,8 @@ EVIDENCE_ONLY_PROVIDER_CALLS_BY_ENDPOINT = {
     "odds": 1,
 }
 MIN_BOOKMAKER_DEPTH = 3
+ODDS_PROBE_WINDOW_START = timedelta(days=0)
+ODDS_PROBE_WINDOW_END = timedelta(days=14)
 
 
 class AuditItemStatus(StrEnum):
@@ -369,7 +372,7 @@ def evaluate_league_whitelist_audit(
     items = (
         _provider_mapping_item(entry, provider.get_league(league_id, season), season=season),
         _fixtures_item(
-            provider.get_fixtures(league_id, season, "future"),
+            future_fixtures := provider.get_fixtures(league_id, season, "future"),
             query_params=future_query,
             competition_id=entry.competition_id,
             configured_season=season,
@@ -378,6 +381,7 @@ def evaluate_league_whitelist_audit(
     )
     evidence_fixture_ids = _fixture_ids(items[1], items[2])
     first_fixture_id = evidence_fixture_ids[0] if evidence_fixture_ids else ""
+    odds_fixture_id = _select_odds_probe_fixture_id(future_fixtures) or first_fixture_id
     remaining = (
         _xg_item(provider.get_fixture_statistics(first_fixture_id), fixture_id=first_fixture_id),
         _lineups_injuries_item(
@@ -385,7 +389,7 @@ def evaluate_league_whitelist_audit(
             provider.get_injuries(league_id, first_fixture_id or None),
             fixture_id=first_fixture_id,
         ),
-        _bookmaker_depth_item(provider.get_odds(first_fixture_id), fixture_id=first_fixture_id),
+        _bookmaker_depth_item(provider.get_odds(odds_fixture_id), fixture_id=odds_fixture_id),
         _squad_value_item(provider.get_squad_value_mapping(entry.competition_id)),
     )
     return _result(
@@ -682,11 +686,55 @@ def _fixture_ids(*items: AuditItem) -> tuple[str, ...]:
     )
 
 
+def _select_odds_probe_fixture_id(fixtures: Sequence[Mapping[str, Any]]) -> str:
+    now = datetime.now(UTC)
+    window_start = now + ODDS_PROBE_WINDOW_START
+    window_end = now + ODDS_PROBE_WINDOW_END
+    dated_fixtures: list[tuple[datetime, str]] = []
+    for item in fixtures:
+        fixture_id = _fixture_id(item)
+        kickoff_at = _fixture_kickoff_at(item)
+        if fixture_id and kickoff_at:
+            dated_fixtures.append((kickoff_at, fixture_id))
+    window_candidates = [
+        (kickoff_at, fixture_id)
+        for kickoff_at, fixture_id in dated_fixtures
+        if window_start <= kickoff_at <= window_end
+    ]
+    if window_candidates:
+        return min(window_candidates, key=lambda item: item[0])[1]
+    if dated_fixtures:
+        future_candidates = [
+            (kickoff_at, fixture_id)
+            for kickoff_at, fixture_id in dated_fixtures
+            if kickoff_at >= now
+        ]
+        if future_candidates:
+            return min(future_candidates, key=lambda item: item[0])[1]
+    ids = [_fixture_id(item) for item in fixtures if _fixture_id(item)]
+    return ids[0] if ids else ""
+
+
 def _fixture_id(item: Mapping[str, Any]) -> str:
     fixture = item.get("fixture")
     if isinstance(fixture, Mapping):
         return _text(fixture.get("id") or fixture.get("fixture_id"))
     return _text(item.get("fixture_id") or item.get("id"))
+
+
+def _fixture_kickoff_at(item: Mapping[str, Any]) -> datetime | None:
+    fixture = item.get("fixture")
+    value = ""
+    if isinstance(fixture, Mapping):
+        value = _text(fixture.get("date") or fixture.get("kickoff_utc"))
+    if not value:
+        value = _text(item.get("date") or item.get("kickoff_utc"))
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+    except ValueError:
+        return None
 
 
 def _has_score(item: Mapping[str, Any]) -> bool:

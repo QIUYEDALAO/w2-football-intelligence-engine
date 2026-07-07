@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from w2.competitions.league_whitelist_audit import (
@@ -141,6 +142,43 @@ def test_bookmaker_depth_passes_with_minimum_bookmakers_ah_ou_and_lines() -> Non
     }
 
 
+def test_bookmaker_depth_uses_nearest_odds_window_fixture_not_first_future_fixture() -> None:
+    now = datetime.now(UTC)
+    provider = MockAuditProvider(
+        fixtures=[
+            {
+                "fixture": {
+                    "id": "fixture-too-far",
+                    "date": (now + timedelta(days=45)).isoformat().replace("+00:00", "Z"),
+                }
+            },
+            {
+                "fixture": {
+                    "id": "fixture-window",
+                    "date": (now + timedelta(days=3)).isoformat().replace("+00:00", "Z"),
+                }
+            },
+            {
+                "fixture": {
+                    "id": "fixture-later-window",
+                    "date": (now + timedelta(days=5)).isoformat().replace("+00:00", "Z"),
+                }
+            },
+        ]
+    )
+
+    result = evaluate_league_whitelist_audit(
+        _entry("brasileirao_serie_a"),
+        environment="staging",
+        provider=provider,
+    )
+
+    bookmaker_depth = next(item for item in result.items if item.name == "bookmaker_depth")
+    assert provider.odds_fixture_ids == ["fixture-window"]
+    assert bookmaker_depth.status == AuditItemStatus.PASS
+    assert bookmaker_depth.evidence_fixture_ids == ("fixture-window",)
+
+
 def test_argentina_mock_records_team_count_advisory_without_blocking() -> None:
     entry = _entry("argentina_primera")
     passing = evaluate_league_whitelist_audit(
@@ -234,11 +272,13 @@ class MockAuditProvider:
         self,
         *,
         league: Mapping[str, Any] | None = None,
+        fixtures: Sequence[Mapping[str, Any]] | None = None,
         statistics: Mapping[str, Any] | None = None,
         odds: Sequence[Mapping[str, Any]] | None = None,
         squad_value: Mapping[str, Any] | None = {"teams": {"home": 100, "away": 90}},
     ) -> None:
         self.league = league
+        self.fixtures = fixtures
         self.statistics = (
             {"home": {"xg": 1.4}, "away": {"xg": 0.9}}
             if statistics is None
@@ -246,6 +286,7 @@ class MockAuditProvider:
         )
         self.odds = odds
         self.squad_value = squad_value
+        self.odds_fixture_ids: list[str] = []
 
     def get_league(self, league_id: str, season: str) -> Mapping[str, Any]:
         if self.league is not None:
@@ -264,6 +305,8 @@ class MockAuditProvider:
         season: str,
         status: str,
     ) -> Sequence[Mapping[str, Any]]:
+        if self.fixtures is not None:
+            return self.fixtures
         return [{"fixture_id": "fixture-future-1"}]
 
     def get_results(self, league_id: str, season: str) -> Sequence[Mapping[str, Any]]:
@@ -283,6 +326,7 @@ class MockAuditProvider:
         return []
 
     def get_odds(self, fixture_id: str) -> Sequence[Mapping[str, Any]]:
+        self.odds_fixture_ids.append(fixture_id)
         if self.odds is not None:
             return self.odds
         return [
