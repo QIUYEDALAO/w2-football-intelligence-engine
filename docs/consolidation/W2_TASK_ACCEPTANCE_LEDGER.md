@@ -267,3 +267,11 @@
 - 已修复 UI 文案:`Quarterfinals` 显示为 `四分之一决赛`,不再出现尾部 `s`。
 - 发现并保留安全停止:provider 实采被 `PROVIDER_RESERVE_PROTECTED` 挡住,没有偷放宽,没有绕过 dedup/hardcap。
 - 下一步:有意识校准 future-refresh usage scope,让 staging R1.0 record-only 采集在 `<=120 provider calls/day` 内真拉新 odds 时间线(CLV 料);仍只限 staging,不改决策、不启 production、不 merge。
+
+### V3 进展续3 · R1.0 真闭环与 R3.0 门槛预注册(2026-07-07)
+
+- #204 校准 future-refresh:world_cup hard cap 调整为 `120`,reserve 调整为 `0`,usage scope 固定为 `w2_ledger`。
+- 已修复 DB task-key retry:历史 `BLOCKED` / `ALREADY_RUNNING` 不再永久挡住后续 checkpoint retry,但 `COMPLETED` 仍保持幂等抑制。
+- R1.0 真闭环达成:worker 真请求 provider,staging W2 provider count `114 -> 117`;fixture `1578539` 完成 `COMPLETED`,`market_snapshot_count=1`,`remaining_quota=6353`,无 blocker。
+- forward ledger 增至 `225` 行;dedup/hardcap 未绕过,未手动删除 Redis dedup key。
+- 阶段转入 accrual:用日历时间积累 CLV/战绩,并行有限建设 R3.0 EV 门槛预注册、R1.2 CLV 报告、R2.2 dashboard 定案。
