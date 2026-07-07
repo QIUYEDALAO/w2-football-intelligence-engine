@@ -73,7 +73,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
 
     assert 'const mode: DashboardMode = "today"' in page
     assert "BossDecisionView" in page
-    assert "footballDayShanghai()" in page
+    assert "todayShanghai()" in page
+    assert "footballDayShanghai" in formatters
     assert "next_available_date" in page
     assert "selected_date_has_data" in page
     assert "rawHour === 24 ? 0 : rawHour" in formatters
