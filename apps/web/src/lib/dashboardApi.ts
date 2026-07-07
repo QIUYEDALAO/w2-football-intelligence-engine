@@ -24,7 +24,7 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v4-football-day-fallback";
+const DASHBOARD_CACHE_VERSION = "dashboard-v5-boss-current-day";
 
 interface FetchDashboardArgs {
   date: string;

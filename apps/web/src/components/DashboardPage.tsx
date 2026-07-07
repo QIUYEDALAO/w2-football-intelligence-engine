@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
-import { footballDayShanghai } from "../lib/formatters";
+import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionView } from "./BossDecisionView";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
@@ -38,7 +38,7 @@ export function DashboardPage() {
   const [view, setView] = useState<DashboardView | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const mode: DashboardMode = "today";
-  const [date, setDate] = useState(footballDayShanghai());
+  const [date, setDate] = useState(todayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
 
