@@ -875,6 +875,29 @@ button {
   display: none;
 }
 
+.schedule-section.is-empty {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(260px, 1fr) auto;
+  align-items: center;
+  min-height: 48px;
+}
+
+.schedule-section.is-empty .schedule-section-heading {
+  min-height: 0;
+  border-bottom: 0;
+  padding: 8px 12px;
+}
+
+.schedule-section.is-empty .schedule-section-heading p {
+  display: none;
+}
+
+.schedule-section.is-empty .inline-empty {
+  min-height: 0;
+  padding: 8px 12px;
+  border-left: 1px solid var(--border);
+}
+
 .inline-empty {
   min-height: 44px;
   padding: 12px;
@@ -1460,6 +1483,15 @@ button {
 
   .schedule-table-head {
     display: none;
+  }
+
+  .schedule-section.is-empty {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-section.is-empty .inline-empty {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 
   .decision-row-button {

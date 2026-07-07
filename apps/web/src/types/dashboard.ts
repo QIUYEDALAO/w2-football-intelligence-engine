@@ -502,6 +502,47 @@ export interface DashboardPerformance {
     hit_count: number;
     hit_rate?: number | null;
   };
+  forward_ledger?: ForwardLedgerPerformance;
+}
+
+export interface ForwardLedgerLeaguePerformance {
+  league: string;
+  record_count: number;
+  fixture_count: number;
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  clv_sample_count: number;
+  clv_median_decimal?: number | null;
+}
+
+export interface ForwardLedgerPerformance {
+  schema_version?: string;
+  source?: string;
+  sample_target: number;
+  record_count: number;
+  fixture_count: number;
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  accumulation_label: string;
+  clv: {
+    sample_count: number;
+    median_decimal?: number | null;
+    positive_count: number;
+    negative_count: number;
+    push_count: number;
+    line_changed_count: number;
+    method?: string;
+  };
+  by_league: ForwardLedgerLeaguePerformance[];
+  mock_data?: boolean;
 }
 
 export interface FormalTrackingSummary {

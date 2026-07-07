@@ -115,6 +115,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const scoreExact = asRecord(record.score_exact);
   const official = asRecord(record.official);
   const analysisShadow = asRecord(record.analysis_shadow);
+  const forwardLedger = asRecord(record.forward_ledger);
+  const forwardClv = asRecord(forwardLedger.clv);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
     hit_count: numberValue(row.hit_count),
@@ -164,6 +166,46 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       hit_count: numberValue(scoreExact.hit_count),
       hit_rate: typeof scoreExact.hit_rate === "number" ? scoreExact.hit_rate : null,
     },
+    forward_ledger: Object.keys(forwardLedger).length ? {
+      schema_version: textValue(forwardLedger.schema_version) || undefined,
+      source: textValue(forwardLedger.source) || undefined,
+      sample_target: numberValue(forwardLedger.sample_target),
+      record_count: numberValue(forwardLedger.record_count),
+      fixture_count: numberValue(forwardLedger.fixture_count),
+      settled_sample_count: numberValue(forwardLedger.settled_sample_count),
+      hit_count: numberValue(forwardLedger.hit_count),
+      miss_count: numberValue(forwardLedger.miss_count),
+      push_count: numberValue(forwardLedger.push_count),
+      void_count: numberValue(forwardLedger.void_count),
+      hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
+      accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
+      clv: {
+        sample_count: numberValue(forwardClv.sample_count),
+        median_decimal: typeof forwardClv.median_decimal === "number" ? forwardClv.median_decimal : null,
+        positive_count: numberValue(forwardClv.positive_count),
+        negative_count: numberValue(forwardClv.negative_count),
+        push_count: numberValue(forwardClv.push_count),
+        line_changed_count: numberValue(forwardClv.line_changed_count),
+        method: textValue(forwardClv.method) || undefined,
+      },
+      by_league: asArray(forwardLedger.by_league).map((item) => {
+        const row = asRecord(item);
+        return {
+          league: textValue(row.league, "UNKNOWN"),
+          record_count: numberValue(row.record_count),
+          fixture_count: numberValue(row.fixture_count),
+          settled_sample_count: numberValue(row.settled_sample_count),
+          hit_count: numberValue(row.hit_count),
+          miss_count: numberValue(row.miss_count),
+          push_count: numberValue(row.push_count),
+          void_count: numberValue(row.void_count),
+          hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+          clv_sample_count: numberValue(row.clv_sample_count),
+          clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
+        };
+      }),
+      mock_data: Boolean(forwardLedger.mock_data),
+    } : undefined,
   };
 }
 
@@ -823,6 +865,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
   const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
+  const dayViewRecord = asRecord(dayViewPayload);
   const all = asArray(dashboard.all).map(normalizeCard);
   const view = {
     date: textValue(dashboard.date, dayView?.date || date),
@@ -844,7 +887,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     data_source: release.data_source,
     release,
     debug: normalizeDebug(dashboard.debug),
-    performance: normalizePerformance(dashboard.performance),
+    performance: normalizePerformance(dayView ? dayViewRecord.performance : dashboard.performance),
     formal_tracking: normalizeFormalTracking(formalTrackingPayload),
     day_view: dayView,
     recommendations: asArray(dashboard.recommendations).map(normalizeCard),

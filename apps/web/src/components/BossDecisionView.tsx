@@ -204,6 +204,8 @@ function trustSignalSummary(card: DashboardDayViewCard): string {
 function applicabilityLabel(card: DashboardDayViewCard): string {
   const diagnostics = asRecord(card.diagnostics);
   const explicit = textValue(diagnostics.model_applicability) || textValue(asRecord(card.model_market_divergence).calibration_status);
+  if (explicit === "UNVALIDATED") return "模型未验证";
+  if (explicit === "INSUFFICIENT") return "样本不足";
   if (explicit) return explicit.replace(/_/g, " ");
   if ((card.competition_id ?? "").includes("world_cup")) return "国际赛未独立验证";
   return "按联赛校准状态";
@@ -230,7 +232,7 @@ function divergenceLabel(card: DashboardDayViewCard): string {
   const status = textValue(divergence.status, "UNKNOWN");
   if (magnitude != null) return `模型与市场差 ${magnitude.toFixed(2)}`;
   if (status === "INSUFFICIENT") return "模型分歧不足";
-  if (status === "UNVALIDATED") return "分歧未验证";
+  if (status === "UNVALIDATED") return "模型未验证";
   if (status === "READY") return "分歧可读";
   return "分歧待确认";
 }
@@ -451,6 +453,11 @@ function shortSha(value?: string | null): string {
 function units(value: number): string {
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(1)}u`;
+}
+
+function clvUnits(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "CLV 积累中";
+  return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
 }
 
 function performanceStatus(sampleSize: number): string {
@@ -738,7 +745,7 @@ function ScheduleSection({
   collapsed?: boolean;
 }) {
   return (
-    <section className={`schedule-section${collapsed ? " is-collapsed" : ""}`} aria-label={title}>
+    <section className={`schedule-section${collapsed ? " is-collapsed" : ""}${cards.length ? "" : " is-empty"}`} aria-label={title}>
       <header className="schedule-section-heading">
         <div>
           <span>{title}</span>
@@ -776,23 +783,56 @@ function ScheduleSection({
 }
 
 function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerformance; leagueRows: LeaguePerformanceRow[] }) {
+  const forwardLedger = performance?.forward_ledger;
   const bestLeagues = leagueRows
     .filter((row) => row.sampleSize >= 10)
     .slice(0, 2)
     .map((row) => row.label)
     .join(" / ");
+  const bestForwardLeagues = forwardLedger?.by_league
+    ?.filter((row) => row.record_count > 0)
+    .slice(0, 2)
+    .map((row) => translateCompetition(row.league))
+    .join(" / ");
+  const settled = forwardLedger?.settled_sample_count ?? 0;
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>近 30 天</strong>
-      <span>推荐样本 {performance?.sample_size ?? 0}</span>
-      <span>命中率 {percent(performance?.hit_rate)}</span>
-      <span>ROI {performance?.sample_size ? "待统一 stake" : "样本不足"}</span>
-      <span>联赛表现 {bestLeagues || "样本不足"}</span>
+      <span>前向卡 {forwardLedger?.accumulation_label ?? "积累中 0/200"}</span>
+      <span>结算 {settled ? `${settled} 条` : "积累中"}</span>
+      <span>命中率 {settled ? percent(forwardLedger?.hit_rate) : "积累中"}</span>
+      <span>CLV {forwardLedger?.clv.sample_count ? clvUnits(forwardLedger.clv.median_decimal) : "积累中"}</span>
+      <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
   );
 }
 
-function VerificationPreview({ matches }: { matches: DashboardMatchCard[] }) {
+function VerificationPreview({ matches, performance }: { matches: DashboardMatchCard[]; performance?: DashboardPerformance }) {
+  const forwardLedger = performance?.forward_ledger;
+  if (forwardLedger) {
+    const settled = forwardLedger.settled_sample_count;
+    return (
+      <section className="verification-preview" aria-label="赛后验证预览">
+        <header>
+          <span>赛后验证</span>
+          <strong>{settled ? `真实结算 ${settled} 条` : forwardLedger.accumulation_label}</strong>
+        </header>
+        {settled ? (
+          <div className="verification-list">
+            <div>
+              <span>真实 forward_ledger + outcome</span>
+              <strong>
+                命中 {forwardLedger.hit_count} · 未中 {forwardLedger.miss_count} · 走水 {forwardLedger.push_count} · 作废 {forwardLedger.void_count}
+              </strong>
+              <small>命中率 {percent(forwardLedger.hit_rate)} · 未结算卡不计入</small>
+            </div>
+          </div>
+        ) : (
+          <p>真实前向卡已进入 ledger,但 outcome 仍在积累中；暂不显示命中率,不制造战绩。</p>
+        )}
+      </section>
+    );
+  }
   const settled = settledMatches(matches).slice(0, 5);
   return (
     <section className="verification-preview" aria-label="赛后验证预览">
@@ -817,7 +857,41 @@ function VerificationPreview({ matches }: { matches: DashboardMatchCard[] }) {
   );
 }
 
-function LeaguePerformancePreview({ rows }: { rows: LeaguePerformanceRow[] }) {
+function LeaguePerformancePreview({ rows, performance }: { rows: LeaguePerformanceRow[]; performance?: DashboardPerformance }) {
+  const forwardLedger = performance?.forward_ledger;
+  if (forwardLedger) {
+    const visibleForwardRows = forwardLedger.by_league.slice(0, 6);
+    return (
+      <section className="league-performance-preview" aria-label="联赛表现预览">
+        <header>
+          <span>联赛表现</span>
+          <strong>{visibleForwardRows.length ? "真实 ledger" : forwardLedger.accumulation_label}</strong>
+        </header>
+        {visibleForwardRows.length ? (
+          <div className="league-performance-table">
+            <div className="league-performance-head">
+              <span>联赛</span>
+              <span>前向卡</span>
+              <span>结算</span>
+              <span>CLV</span>
+              <span>状态</span>
+            </div>
+            {visibleForwardRows.map((row) => (
+              <div key={row.league}>
+                <span>{translateCompetition(row.league)}</span>
+                <span>{row.record_count}</span>
+                <span>{row.settled_sample_count || "积累中"}</span>
+                <span>{row.clv_sample_count ? clvUnits(row.clv_median_decimal) : "积累中"}</span>
+                <span>{row.settled_sample_count ? percent(row.hit_rate) : "未结算"}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>真实 ledger 还没有足够联赛样本；当前只显示积累状态,不制造胜率。</p>
+        )}
+      </section>
+    );
+  }
   const visibleRows = rows.slice(0, 6);
   return (
     <section className="league-performance-preview" aria-label="联赛表现预览">
@@ -1000,8 +1074,8 @@ export function BossDecisionView({
         </section>
         <aside className="boss-side-rail" aria-label="证据与信任层">
           <EvidencePanel cards={visibleCards} selectedCard={selectedCard} settledCount={settledCount} />
-          <VerificationPreview matches={legacyMatches} />
-          <LeaguePerformancePreview rows={leagueRows} />
+          <VerificationPreview matches={legacyMatches} performance={performance} />
+          <LeaguePerformancePreview rows={leagueRows} performance={performance} />
         </aside>
       </div>
 

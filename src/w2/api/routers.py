@@ -151,12 +151,14 @@ def dashboard_day_view(
         timezone=timezone,
         include_debug=False,
     )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    day_view["performance"] = payload.get("performance")
     return {
         "request_id": request_id(request),
-        **build_dashboard_day_view(
-            payload,
-            environment=get_settings().environment.value,
-        ),
+        **day_view,
     }
 
 

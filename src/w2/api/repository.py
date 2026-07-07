@@ -124,6 +124,7 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
+from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -1098,6 +1099,7 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
+        performance["forward_ledger"] = forward_ledger_performance(RUNTIME)
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         payload = {

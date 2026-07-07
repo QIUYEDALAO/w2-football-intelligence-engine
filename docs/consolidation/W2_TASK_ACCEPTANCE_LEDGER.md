@@ -305,3 +305,17 @@
 - R2.2 启动:dashboard 首屏转向决策优先 triage 台,先展示值得看 `0-3` 场与诚实空态,再展示今日紧凑赛程,未来/覆盖降为折叠解释层。
 - 数据正确性 7 条中 `1-6` 已修;盘口主线源待定,默认建议 Pinnacle,与市场基准一致。
 - 约束:继续使用 DayView/DecisionCard 作为唯一数据源,market-anchor 门保持开启,不启 production,不新增 enable,不改 EV 腿。
+
+### V3 进展续9 · R2.2 staging 部署与真实眼验(2026-07-08)
+
+- #204 head `524435e` 已部署 staging,Web/API SHA 对齐,`/health`、`/ready`、`/v1/version`、`/meta.json` 验证 PASS。
+- R2.2 决策台真实眼验:首屏已转为"值得看 0-3 + 诚实空态 -> 赛中/刚开赛 -> 今日赛程 -> 未来赛程/覆盖折叠"结构;当前真实 future 窗口有 40 张卡,`MARKET_DEVIG` 盘口概率正常进入页面。
+- 五态截图:满负荷/未来赛程、盘口不齐、值得看空态已用真实 staging 截图确认;赛中/赛后当前 read-model 无 live/result 样本,只能显示诚实空态,不伪造样本。
+- 约束保持:staging only,不 production,不新增 enable,不改 EV 腿,不提交 raw/key/header。
+
+### V3 进展续10 · R2.2 眼验收尾与 R1.2 启动(2026-07-08)
+
+- R2.2 用户眼验通过:决策台成型(Pinnacle 主线标注、去置信度%、值得看诚实空态、赛中分区、证据人话);盘口源定 Pinnacle。
+- 剩余 2 处小修:空区(值得看/赛中/今日 为 0 时)收成单行摘要,不占整块;右侧证据面板 `UNVALIDATED` 改为"模型未验证",清掉最后的枚举漏。
+- R1.2 启动:CLV/战绩报告机器改读真实 `forward_ledger` + outcome;有样本显示命中/走水/作废 + 按联赛 CLV,无样本诚实标"积累中 N/200",mock 清零。
+- 约束:staging only、DayView/DecisionCard 唯一源、market-anchor 门开、不 production、不 enable、不改 EV 腿;数据不足如实标"积累中",绝不造数。
