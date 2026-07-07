@@ -219,7 +219,7 @@ export type RecommendationTier = "FORMAL" | "CANDIDATE" | "ANALYSIS_PICK" | "WAT
 
 export type SettlementStatus = "PENDING" | "HIT" | "MISS" | "PUSH" | "VOID" | "NO_BET" | "UNKNOWN";
 
-export type DashboardMode = "today" | "next36" | "results" | "all";
+export type DashboardMode = "today" | "next36" | "future" | "results" | "all";
 
 export interface ScorelinePick {
   scoreline: string;
@@ -625,6 +625,12 @@ export interface DashboardDayViewCard {
   missing_fields: string[];
   stale_fields: string[];
   data_readiness?: Record<string, unknown>;
+  data_refresh?: DataRefreshStatus | null;
+  analysis_readiness?: Record<string, unknown>;
+  current_odds?: Record<string, unknown>;
+  odds_movement?: Record<string, unknown>;
+  market_strip?: Array<Record<string, unknown>>;
+  missing_inputs?: string[];
   pick?: {
     market?: string | null;
     selection?: string | null;

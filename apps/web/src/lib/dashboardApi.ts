@@ -24,7 +24,7 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v5-boss-current-day";
+const DASHBOARD_CACHE_VERSION = "dashboard-v6-boss-future-window";
 
 interface FetchDashboardArgs {
   date: string;
@@ -440,6 +440,30 @@ function normalizeBookmakerHypothesis(payload: unknown) {
   };
 }
 
+function normalizeRecommendationPick(payload: unknown): RecommendationPick | null {
+  const record = asRecord(payload);
+  if (!Object.keys(record).length) return null;
+  return {
+    ...(record as unknown as RecommendationPick),
+    tier: textValue(record.tier, "WATCH") as RecommendationPick["tier"],
+    market: textValue(record.market, "UNKNOWN"),
+    market_label_cn: textValue(record.market_label_cn, "市场"),
+    selection: textValue(record.selection, "WATCH"),
+    selection_label_cn: textValue(record.selection_label_cn),
+    line: textValue(record.line),
+    odds: textValue(record.odds),
+    hong_kong_odds: textValue(record.hong_kong_odds),
+    model_probability: numberValue(record.model_probability) ?? undefined,
+    confidence: numberValue(record.confidence) ?? undefined,
+    confidence_label: textValue(record.confidence_label),
+    reasons: asArray(record.reasons).map((item) => textValue(item)).filter(Boolean),
+    risks: asArray(record.risks).map((item) => textValue(item)).filter(Boolean),
+    value_explanation: textValue(record.value_explanation),
+    candidate: record.candidate === true,
+    formal_recommendation: record.formal_recommendation === true,
+  };
+}
+
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
   return {
@@ -459,7 +483,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
-    recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
+    recommendation: normalizeRecommendationPick(record.recommendation),
     candidate: record.candidate === true,
     formal_recommendation: record.formal_recommendation === true,
     formal_suppressed: record.formal_suppressed === true,
@@ -605,9 +629,10 @@ async function fetchDashboardPayload(date: string, mode: DashboardMode, includeD
   return getJSON(`${API_BASE}/dashboard?${params.toString()}`);
 }
 
-async function fetchDashboardDayViewPayload(date: string): Promise<unknown> {
+async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): Promise<unknown> {
   const params = new URLSearchParams({
     date,
+    window: mode,
     timezone: "Asia/Shanghai",
   });
   return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
@@ -664,6 +689,12 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     missing_fields: asArray(record.missing_fields).map((item) => textValue(item)).filter(Boolean),
     stale_fields: asArray(record.stale_fields).map((item) => textValue(item)).filter(Boolean),
     data_readiness: asRecord(record.data_readiness),
+    data_refresh: normalizeDataRefresh(record.data_refresh),
+    analysis_readiness: asRecord(record.analysis_readiness),
+    current_odds: asRecord(record.current_odds),
+    odds_movement: asRecord(record.odds_movement),
+    market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
+    missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
     pick: Object.keys(pick).length
       ? {
           market: textValue(pick.market) || null,
@@ -731,7 +762,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     getJSON(`${API_BASE}/version`),
     fetchDashboardPayload(date, mode, includeDebug),
     getJSON(`${API_BASE}/formal/tracking/summary`).catch(() => null),
-    fetchDashboardDayViewPayload(date).catch(() => null),
+    fetchDashboardDayViewPayload(date, mode).catch(() => null),
   ]);
   let dashboard = asRecord(dashboardPayload);
   if (!includeDebug && asArray(dashboard.all).length === 0) {

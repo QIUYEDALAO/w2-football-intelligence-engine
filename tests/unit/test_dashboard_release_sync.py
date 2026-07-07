@@ -35,6 +35,9 @@ class EmptyReleaseRepository:
     def result_events(self) -> list[dict[str, Any]]:
         return []
 
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        return []
+
 
 class FutureFixtureRepository(EmptyReleaseRepository):
     def release_counts(self) -> dict[str, int]:
@@ -209,6 +212,40 @@ def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     assert today["debug"]["future_fixture_max_kickoff_utc"] == "2026-06-28T10:00:00Z"
     assert today["debug"]["next_available_date"] == "2026-06-26"
     assert len(all_payload["all"]) == 2
+
+
+def test_dashboard_future_window_uses_full_cards_not_index_rows(monkeypatch) -> None:
+    service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
+
+    def full_card(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "fixture_id": str(row["fixture_id"]),
+            "kickoff_utc": row.get("kickoff_utc"),
+            "status": row.get("status"),
+            "decision_tier": "WATCH",
+            "data_status": "PARTIAL",
+            "lifecycle_status": "DRAFT",
+            "current_odds": {"ah": {"home_line": "-0.25"}},
+            "decision_contract": {
+                "decision_tier": "WATCH",
+                "data_status": "PARTIAL",
+                "lifecycle_status": "DRAFT",
+            },
+        }
+
+    monkeypatch.setattr(service, "_dashboard_card_from_matchday", full_card)
+    monkeypatch.setattr(
+        service,
+        "_dashboard_index_card_from_matchday",
+        lambda row: {"fixture_id": row["fixture_id"], "index_only": True},
+    )
+
+    payload = service.dashboard(target_date="2026-06-26", window="future", include_debug=True)
+
+    assert payload["window"] == "future"
+    assert [card["fixture_id"] for card in payload["all"]] == ["9001", "9002"]
+    assert payload["all"][0]["current_odds"]["ah"]["home_line"] == "-0.25"
+    assert "index_only" not in payload["all"][0]
 
 
 def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:

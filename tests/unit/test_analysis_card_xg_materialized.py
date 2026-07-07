@@ -105,6 +105,24 @@ class FakeReadRepository:
         return rows
 
 
+class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
+    def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id != "1489410":
+            return None
+        return {
+            "fixture_id": "1489410",
+            "competition_id": "world_cup_2026",
+            "competition_name": "World Cup",
+            "kickoff_utc": KICKOFF.isoformat().replace("+00:00", "Z"),
+            "status": "NS",
+            "home_team_id": "10",
+            "away_team_id": "20",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "market_coverage": {},
+        }
+
+
 class FakeDbRepository:
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         if endpoint != "lineups":
@@ -253,6 +271,30 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
     assert score_market["scores"]
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
+
+
+def test_analysis_card_prefers_future_refresh_observations_over_stale_dashboard(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(
+        repository=cast(Any, FakeReadRepositoryWithStaleDashboardFixture()),
+    )
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["data_readiness"]["market_observations"] == 16
+    assert card["current_odds"]["ah"]["home_line"] == "-0.5"
+    assert card["current_odds"]["ou"]["line"] == "2.5"
+    reasons = {
+        market["market"]: market["reasons"]
+        for market in card["markets"]
+        if isinstance(market, dict)
+    }
+    assert reasons["ASIAN_HANDICAP"] != ["AH_MARKET_UNAVAILABLE"]
+    assert reasons["TOTALS"] != ["OU_MARKET_UNAVAILABLE"]
 
 
 class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
