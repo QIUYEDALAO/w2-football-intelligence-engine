@@ -275,3 +275,9 @@
 - R1.0 真闭环达成:worker 真请求 provider,staging W2 provider count `114 -> 117`;fixture `1578539` 完成 `COMPLETED`,`market_snapshot_count=1`,`remaining_quota=6353`,无 blocker。
 - forward ledger 增至 `225` 行;dedup/hardcap 未绕过,未手动删除 Redis dedup key。
 - 阶段转入 accrual:用日历时间积累 CLV/战绩,并行有限建设 R3.0 EV 门槛预注册、R1.2 CLV 报告、R2.2 dashboard 定案。
+
+### V3 进展续4 · 台账分叉对齐与 R3.0 收口(2026-07-07)
+
+- #204 已 rebase 到最新 main,并解决台账分叉:以 main/#206 的"🔴 战略裁决 + V3 进展"为基,叠加 #204 的"V3 进展续/续2/续3",当前 #204 台账为两者超集。
+- R3.0 完成:EV/RECOMMEND 重开门槛已写进 Decision Contract V2(commit `91e3e63`):单联赛前向 `>=200` 卡、CLV 中位数 `>0`、滚动 blend `w*<1` 且稳定优于纯市场;离线 LL / 离线 +EV 不再作为开关依据。
+- 下一步进入 R4.1 模型增强:eval-only 缩市场 gap,不打 provider、不部署、不 enable。
