@@ -299,3 +299,9 @@
 - R4.1b 完成:新增 per-league divergence champion 选择器,分歧雷达模型侧按采纳表读取 champion 概率;市场概率展示仍保持 `MARKET_DEVIG`,EV/RECOMMEND 腿仍默认关闭。
 - 当前采纳表:德甲/中超/瑞典超使用 `R4_1_CALIBRATED`;巴甲及其他未单独采纳联赛保持 `FITTED_CALIBRATED`。
 - `run_w2_market_baseline_eval.py --phase all` 已输出 champion gap:德甲 `+0.0430`,中超 `+0.0354`,瑞典超 `+0.0188`,巴甲保持原模型 `+0.0538`;provider_calls=0。
+
+### V3 进展续8 · R2.2 决策优先 triage 台启动(2026-07-08)
+
+- R2.2 启动:dashboard 首屏转向决策优先 triage 台,先展示值得看 `0-3` 场与诚实空态,再展示今日紧凑赛程,未来/覆盖降为折叠解释层。
+- 数据正确性 7 条中 `1-6` 已修;盘口主线源待定,默认建议 Pinnacle,与市场基准一致。
+- 约束:继续使用 DayView/DecisionCard 作为唯一数据源,market-anchor 门保持开启,不启 production,不新增 enable,不改 EV 腿。
