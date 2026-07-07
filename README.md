@@ -1,27 +1,34 @@
 # W2 Football Intelligence Engine
 
-Current status: W2 is entering the Decision Contract V2 migration phase. The
-system is freezing new stage expansion: no Stage 16 will be added, and the
-existing stage checker scripts are regression safety nets rather than the
-product operating surface.
+Current status: W2 F1 hardening is complete. `main` is the verified current
+state: unified DecisionCard contract, `w2-matchday` mainline, controlled refresh
+planning, DayView/L1/L2 dashboard skeletons, replay, offline acceptance, Pro
+provider data sprint evidence, league-whitelist audit inventory, and model
+validation evidence are all merged.
 
-The product runtime entrypoint will converge on `w2-matchday`. Recommendation
-governance follows staging A / production B: staging may display and track
-`ANALYSIS_PICK` cards to exercise dashboard, lock, settlement, and replay
-plumbing after completeness gates pass; production actionability is stricter.
-`ANALYSIS_PICK` is an analysis recommendation only, not a production actionable
-recommendation. Production lockable recommendations come only from `RECOMMEND`.
+The old stage scripts remain regression safety nets. The product operating
+surface is `w2-matchday`, which produces one DecisionCard-shaped decision
+surface per fixture in dry-run or controlled-run modes. Dashboard, replay,
+reporting, and audit code read the Decision Contract surface instead of
+reconstructing decision meaning from legacy fields.
 
-Current stage: Stage 3 Unified Football Data Model, built on the protected Stage 1 Product Contract and Stage 2 Engineering Foundation.
+Recommendation governance follows staging A / production B. `ANALYSIS_PICK` is
+analysis-only and must carry `分析参考·非稳赢`; production actionability remains
+stricter, and production lockable recommendations come only from `RECOMMEND`.
+The online champion is still `BASELINE_PRIOR`; the fitted Understat model is
+merged as offline evidence and is not the live champion yet.
 
-This repository now contains the W2 engineering base plus the Stage 3 unified
-football data model: domain entities, Pydantic schemas, SQLAlchemy persistence
-models, Alembic migrations, odds canonicalization, and settlement primitives.
+League whitelist status is evidence-driven but not enabled. The full whitelist
+scope is 14 competitions. Provider mapping and fixtures are 14/14 PASS under the
+league-id anchor. The current odds truth matrix shows PASS for World Cup 2026,
+Brasileirao Serie A, Chinese Super League, Allsvenskan, and Eliteserien; Argentina
+Primera and MLS remain thin/secondary-odds candidates; the five major European
+leagues, Eredivisie, and Primeira Liga require August near-kickoff confirmation.
 
-It still does not have real recommendation capability, does not call DeepSeek,
-does not call Football-API, does not connect to odds providers for production
-data, does not implement a model, and does not replace W1. Gate 0 remains
-PROVISIONAL and cannot generate a real `RECOMMEND`.
+No league is enabled, no staging or production deployment has been performed,
+and scheduler/live production loops remain off. The next material phase is the
+August F2 readiness path described in
+`docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md`.
 
 ## Quick Start
 
@@ -41,7 +48,7 @@ make test
 make smoke
 ```
 
-Run Stage 3 data-model checks:
+Run the historical data-model checks:
 
 ```bash
 uv run python scripts/check_w2_stage3_data_model.py
@@ -64,13 +71,20 @@ python3 scripts/render_ai_card_text.py examples/skip/card.json
 
 ## Stage Boundaries
 
-- Stage 1 contracts remain protected and covered by
+- Stage 1 Product Contract boundaries remain protected and covered by
   `scripts/check_w2_stage1_contracts.py`.
+- Contract boundary phrase: W2 does not have real recommendation capability in
+  production until a separate approved enablement/deployment step connects the
+  validated model, live data path, and runtime controls.
 - Stage 2 establishes runtime and delivery foundations.
-- Stage 3 establishes football data identity, time, odds, persistence, and
-  provenance foundations only.
-- Later stages may add ingestion, feature pipelines, models, and strategy work
-  after a separate approval gate.
+- Stage 3 established football data identity, time, odds, persistence, and
+  provenance foundations. It is now a foundation layer, not the current product
+  status.
+- F1 consolidation added Decision Contract V2, the matchday mainline,
+  controlled refresh, dashboard DayView/L1/L2, replay, acceptance, league
+  whitelist audit, Pro data evidence, and offline model validation.
+- F2/F3 work may enable staging or production only through a separate approved
+  PR with provider, DB, scheduler, deployment, and rollback evidence.
 - API keys must come from environment variables or a future secret manager.
 - Example values in `.env.example` are placeholders and must not be used as real
   credentials.
