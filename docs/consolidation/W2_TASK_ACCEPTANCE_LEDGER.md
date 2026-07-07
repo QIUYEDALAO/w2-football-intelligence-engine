@@ -10,13 +10,22 @@
 
 ## 状态标记
 
-**F1 固化完成(2026-07-07):`main`=真实已验证状态,验证工作、README/stage 叙事、台账均已同步;零 enable / 零部署,线上仍 `BASELINE_PRIOR`。系统进入「八月待命」;下一实质动作是 F2(八月开季)。** 接手者从"前瞻路线图 F1–F4"接续即可。
+**F1 固化完成(2026-07-07):`main`=真实已验证状态,验证工作、README/stage 叙事、台账均已同步;无新增 league enable / 零部署,线上仍 `BASELINE_PRIOR`。但 F1 完成不等于可见产品完成;复查后下一实质动作修正为 S14(真正 L1 老板视角 dashboard + World Cup live 全流程证明),不是被动等八月。** 接手者先读下方 Reviewer 校正,再接续路线图。
+
+## ⚠ Reviewer 校正(2026-07-07 复查发现)
+
+上面的"F1 固化完成 / 八月待命"**不等于整个系统改造完成**。复查发现两处必须纠正:
+
+1. **老板视角 dashboard 并未真正交付**(用户最初的头号痛点)。现状:`apps/web/src/components` 仍是 **32 个旧调试组件**(MatchCard / DataDiagnosticsPanel / ConfidenceDots / WatchStars…);我当初《Dashboard 全链路任务清单》定义的 L1 决策页新组件(`MatchdayHeader`/`DecisionCounts`/`DecisionRow`/`ReasonCodePanel`)**根本不存在**;git 里只有 `W2-DASH-L1/L2/DAYVIEW skeleton` 提交。**此前"dashboard 已在真数据跑通"是过度表述,实为未交付。**
+2. **"等八月"过于被动**:`world_cup_2026` **现在就是 enabled + live + odds 可用**;巴西/中超/瑞典超/挪超也在赛且有 odds。有现成 live 赛事,不必干等。
+
+**修正后的下一步(不是等 F2 八月,而是现在)= S14**:建真正的 L1 老板视角 dashboard + 用**世界杯**跑一次 live 全流程,把可见产品立起来。
 
 ## 当前状态速览(读者先看这里)
 
 | 维度 | 起点 | 现在 |
 |---|---|---|
-| 主干 | 无 always-on 日线,靠 stage 脚本临时拼 | `w2-matchday` 入口 + 统一 DecisionCard + 受控刷新 + 审计 + 复盘 + 老板视角 dashboard(均已合并,部分为 skeleton 已在真数据上初步跑通) |
+| 主干 | 无 always-on 日线,靠 stage 脚本临时拼 | `w2-matchday` 入口 + 统一 DecisionCard + 受控刷新 + 审计 + 复盘(后端 skeleton 已在真数据初步跑通)。**⚠ 老板视角 dashboard 未真正交付**:仅 skeleton 提交,32 个旧调试组件仍在,L1 决策页新组件不存在(见 Reviewer 校正) |
 | 决策契约 | FORMAL/CANDIDATE/ANALYSIS_PICK/RECOMMEND 四套词并存,dashboard 读取时现场调和 | 唯一 `DecisionTier` 落 domain;dashboard 读 `decision_tier`,旧字段仅兼容 shim |
 | 白名单 | 仅 `world_cup_2026` enabled | 14 联赛 profile;`league_id` 硬门;**mapping+fixtures 14/14 PASS**;odds 真矩阵:**世界杯+巴西+中超+瑞典超+挪超 PASS**,阿甲/MLS 薄(二级源),五大待八月;全部 `enabled=false` |
 | 数据 | 免费 100/天、当前赛季被 plan 挡住 | 已开 Pro(7,500/天、解锁当前赛季 + odds);历史验证已用免费 Understat 完成 |
@@ -116,7 +125,7 @@
 
 ## 待办 / 下一步(交接者看这里)
 
-**决策已定:固化现状、等八月。** 前瞻工作见下方「前瞻路线图 F1–F4」。
+**决策已修正:先固化现状,再做 S14 可见产品证明。** 前瞻工作见下方「前瞻路线图 F1–F4」,但应先处理 Reviewer 校正里的 S14。
 
 **已固化(不再是待办)**:S0–S13 全部完成;#192 / #196(=#193) / #197(=#194) / #188 / #195 已合并进 `main`(HEAD `0aac8d3`),CI 全绿,`enabled_true=0`、零部署。
 

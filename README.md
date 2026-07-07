@@ -1,10 +1,12 @@
 # W2 Football Intelligence Engine
 
-Current status: W2 F1 hardening is complete. `main` is the verified current
-state: unified DecisionCard contract, `w2-matchday` mainline, controlled refresh
-planning, DayView/L1/L2 dashboard skeletons, replay, offline acceptance, Pro
-provider data sprint evidence, league-whitelist audit inventory, and model
-validation evidence are all merged.
+Current status: W2 F1 hardening is merged and documented, but the visible
+boss-view product is not finished. `main` contains the verified spine: unified
+DecisionCard contract, `w2-matchday` mainline, controlled refresh planning,
+DayView/L1/L2 dashboard skeletons, replay, offline acceptance, Pro provider data
+sprint evidence, league-whitelist audit inventory, and model validation
+evidence. The next material work is S14: build the real L1 boss-view dashboard
+and run a World Cup live-flow proof under explicit safety gates.
 
 The old stage scripts remain regression safety nets. The product operating
 surface is `w2-matchday`, which produces one DecisionCard-shaped decision
@@ -18,17 +20,17 @@ stricter, and production lockable recommendations come only from `RECOMMEND`.
 The online champion is still `BASELINE_PRIOR`; the fitted Understat model is
 merged as offline evidence and is not the live champion yet.
 
-League whitelist status is evidence-driven but not enabled. The full whitelist
-scope is 14 competitions. Provider mapping and fixtures are 14/14 PASS under the
-league-id anchor. The current odds truth matrix shows PASS for World Cup 2026,
-Brasileirao Serie A, Chinese Super League, Allsvenskan, and Eliteserien; Argentina
-Primera and MLS remain thin/secondary-odds candidates; the five major European
-leagues, Eredivisie, and Primeira Liga require August near-kickoff confirmation.
+League whitelist status is evidence-driven. The full whitelist scope is 14
+competitions. Provider mapping and fixtures are 14/14 PASS under the league-id
+anchor. The current odds truth matrix shows PASS for World Cup 2026, Brasileirao
+Serie A, Chinese Super League, Allsvenskan, and Eliteserien; Argentina Primera
+and MLS remain thin/secondary-odds candidates; the five major European leagues,
+Eredivisie, and Primeira Liga require August near-kickoff confirmation.
 
-No league is enabled, no staging or production deployment has been performed,
-and scheduler/live production loops remain off. The next material phase is the
-August F2 readiness path described in
-`docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md`.
+No new league has been enabled during F1, no staging or production deployment
+has been performed, and scheduler/live production loops remain off. Existing
+`world_cup_2026` is the live-enabled exception recorded in the ledger. Use
+`docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md` as the current handoff source.
 
 ## Quick Start
 
@@ -83,8 +85,8 @@ python3 scripts/render_ai_card_text.py examples/skip/card.json
 - F1 consolidation added Decision Contract V2, the matchday mainline,
   controlled refresh, dashboard DayView/L1/L2, replay, acceptance, league
   whitelist audit, Pro data evidence, and offline model validation.
-- F2/F3 work may enable staging or production only through a separate approved
-  PR with provider, DB, scheduler, deployment, and rollback evidence.
+- S14/F2/F3 work may enable staging or production only through a separate
+  approved PR with provider, DB, scheduler, deployment, and rollback evidence.
 - API keys must come from environment variables or a future secret manager.
 - Example values in `.env.example` are placeholders and must not be used as real
   credentials.
