@@ -4,7 +4,7 @@ import json
 import math
 import os
 from contextlib import suppress
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from time import monotonic
@@ -1011,6 +1011,10 @@ class ReadModelService:
             requested_date=requested_date,
         )
         future_next36_rows = self._filter_rows_for_next36(future_rows)
+        future_horizon_rows = self._filter_rows_for_future_horizon(
+            future_rows,
+            requested_date=requested_date,
+        )
         today_rows = self._dedupe_dashboard_rows(
             [*cast(list[dict[str, Any]], today_rows), *future_today_rows]
         )
@@ -1020,6 +1024,8 @@ class ReadModelService:
         selected_rows: list[dict[str, Any]]
         if window == "next36":
             selected_rows = next36_rows
+        elif window == "future":
+            selected_rows = future_horizon_rows
         elif window == "results":
             selected_rows = result_rows
         elif window == "all":
@@ -1121,8 +1127,8 @@ class ReadModelService:
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
-            return 300.0 if window in {"today", "next36"} else 600.0
-        return 900.0 if window in {"today", "next36"} else 1800.0
+            return 300.0 if window in {"today", "next36", "future"} else 600.0
+        return 900.0 if window in {"today", "next36", "future"} else 1800.0
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:
@@ -1468,9 +1474,15 @@ class ReadModelService:
                     if refreshed is not None:
                         return refreshed
                 return normalized
+            refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+            if refreshed is not None:
+                return refreshed
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
-                market_coverage=dict(fixture.get("market_coverage", {})),
+                market_coverage=self._market_coverage_from_fixture_observations(
+                    fixture_id=fixture_id,
+                    existing=dict(fixture.get("market_coverage", {})),
+                ),
                 source="matchday_card_without_analysis_payload",
                 fixture_context=context,
             )
@@ -1490,9 +1502,15 @@ class ReadModelService:
                     if refreshed is not None:
                         return refreshed
                 return normalized
+            refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+            if refreshed is not None:
+                return refreshed
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
-                market_coverage=dict(dashboard.get("market_coverage", {})),
+                market_coverage=self._market_coverage_from_fixture_observations(
+                    fixture_id=fixture_id,
+                    existing=dict(dashboard.get("market_coverage", {})),
+                ),
                 source="dashboard_without_analysis_payload",
                 fixture_context=context,
             )
@@ -1532,6 +1550,20 @@ class ReadModelService:
             source="future_refresh_without_analysis_payload",
             fixture_context=self._analysis_context_from_provider_fixture(item),
         )
+
+    def _market_coverage_from_fixture_observations(
+        self,
+        *,
+        fixture_id: str,
+        existing: dict[str, Any],
+    ) -> dict[str, Any]:
+        coverage = dict(existing)
+        observations = self._observations_for_fixture(fixture_id)
+        if any(row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations):
+            coverage["ASIAN_HANDICAP"] = True
+        if any(row.get("canonical_market") == "TOTALS" for row in observations):
+            coverage["TOTALS"] = True
+        return coverage
 
     def _db_analysis_card_from_fixture(
         self,
@@ -4459,6 +4491,29 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         return filtered
+
+    def _filter_rows_for_future_horizon(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+        horizon_days: int = 14,
+        limit: int = 40,
+    ) -> list[dict[str, Any]]:
+        start, _ = football_day_window(requested_date)
+        end = start + timedelta(days=horizon_days)
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            if self._is_finished_row(row):
+                continue
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is not None and start <= kickoff < end:
+                filtered.append(row)
+        filtered.sort(
+            key=lambda row: self._row_kickoff_utc(row)
+            or datetime.max.replace(tzinfo=UTC)
+        )
+        return filtered[:limit]
 
     def _row_kickoff_utc(self, row: dict[str, Any]) -> datetime | None:
         value = row.get("kickoff_utc")

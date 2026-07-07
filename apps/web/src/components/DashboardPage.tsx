@@ -21,6 +21,9 @@ function emptyCopy(mode: DashboardMode): { title: string; detail: string } {
   if (mode === "next36") {
     return { title: "未来 36 小时暂无比赛", detail: "白名单赛程进入 read-model 后会自动显示。" };
   }
+  if (mode === "future") {
+    return { title: "未来 14 天暂无可展示比赛", detail: "白名单联赛未进入赛程窗口、未启用或数据未齐时，这里会保持空态并在诊断里说明原因。" };
+  }
   if (mode === "results") {
     return { title: "本足球日暂无完场比赛", detail: "北京时间中午 12:00 到次日 11:59 的比赛完场并同步赛果后，会显示复盘。" };
   }
@@ -37,7 +40,7 @@ function shouldShowDiagnostics(): boolean {
 export function DashboardPage() {
   const [view, setView] = useState<DashboardView | null>(null);
   const [state, setState] = useState<LoadState>("loading");
-  const mode: DashboardMode = "today";
+  const mode: DashboardMode = "future";
   const [date, setDate] = useState(todayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
