@@ -86,7 +86,11 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "readyRecommendations" in boss_view
     assert "todaySchedule" in boss_view
     assert "futureSchedule" in boss_view
-    assert "BossTabs" in boss_view
+    assert "ScheduleSection" in boss_view
+    assert "CoverageFoldout" in boss_view
+    assert "值得看" in boss_view
+    assert "赛中 / 刚开赛" in boss_view
+    assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
     assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view
