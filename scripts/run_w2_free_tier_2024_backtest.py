@@ -17,8 +17,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from w2.backtest.free_tier_2024 import (  # noqa: E402
     ANNUAL_COMPETITIONS,
     DEFAULT_RAW_DIRS,
+    UNDERSTAT_LEAGUE_CODES,
     UNDERSTAT_XG_SOURCE,
     build_free_tier_2024_backtest_report,
+    build_understat_model_iteration_report,
+    build_understat_model_robustness_report,
     collect_provider_dataset,
     collect_understat_xg_dataset,
     report_sha256,
@@ -48,12 +51,23 @@ def main() -> int:
         understat_result = None
         true_xg_source = "api_football_statistics"
         if args.xg_source == "understat":
-            understat_result = collect_understat_xg_dataset(
-                out_dir=args.out_dir,
-                league_code=args.understat_league_code,
-                season=args.season,
-                requester=_understat_request,
-            )
+            seasons_to_collect = [args.season]
+            if args.fit_understat_robustness:
+                seasons_to_collect.extend(args.robustness_season or ["2023", "2024"])
+            seasons_to_collect = sorted(set(seasons_to_collect))
+            understat_result = [
+                collect_understat_xg_dataset(
+                    out_dir=args.out_dir,
+                    league_code=UNDERSTAT_LEAGUE_CODES.get(
+                        competition_id,
+                        args.understat_league_code,
+                    ),
+                    season=season,
+                    requester=_understat_request,
+                )
+                for competition_id in competitions
+                for season in seasons_to_collect
+            ]
             raw_dirs = (args.out_dir / "understat", *raw_dirs)
             true_xg_source = UNDERSTAT_XG_SOURCE
         report = build_free_tier_2024_backtest_report(
@@ -73,18 +87,34 @@ def main() -> int:
             }
             report["provider_calls"] = provider_result.provider_calls
         if understat_result is not None:
+            understat_requests = sum(item.understat_requests for item in understat_result)
             report["understat_collection"] = {
                 "source": UNDERSTAT_XG_SOURCE,
-                "provider_calls": understat_result.provider_calls,
-                "understat_requests": understat_result.understat_requests,
-                "cache_path": understat_result.cache_path,
-                "skipped_existing": understat_result.skipped_existing,
-                "fixture_count": understat_result.fixture_count,
+                "provider_calls": sum(item.provider_calls for item in understat_result),
+                "understat_requests": understat_requests,
+                "cache_paths": [item.cache_path for item in understat_result],
+                "skipped_existing": all(item.skipped_existing for item in understat_result),
+                "fixture_count": sum(item.fixture_count for item in understat_result),
                 "tos_note": (
                     "Uses public Understat league data cache for research; no API-Football "
                     "request or key is used."
                 ),
             }
+            report["understat_requests"] = understat_requests
+        if args.fit_understat_model:
+            report["understat_model_iteration_1"] = build_understat_model_iteration_report(
+                raw_dirs=raw_dirs,
+                season=args.season,
+                competitions=competitions,
+            )
+        if args.fit_understat_robustness:
+            report["understat_model_iteration_1_robustness"] = (
+                build_understat_model_robustness_report(
+                    raw_dirs=raw_dirs,
+                    seasons=tuple(args.robustness_season or ["2023", "2024"]),
+                    competitions=competitions,
+                )
+            )
         report["report_sha256"] = report_sha256(report)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +151,9 @@ def _parse_args() -> argparse.Namespace:
         help="Source for the true rolling xG delta path.",
     )
     parser.add_argument("--understat-league-code", default="EPL")
+    parser.add_argument("--fit-understat-model", action="store_true", default=False)
+    parser.add_argument("--fit-understat-robustness", action="store_true", default=False)
+    parser.add_argument("--robustness-season", action="append", default=[])
     parser.add_argument("--json", action="store_true", default=False)
     return parser.parse_args()
 
