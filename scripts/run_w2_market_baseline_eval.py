@@ -45,10 +45,14 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from w2.backtest.free_tier_2024 import (  # noqa: E402
     MIN_LAMBDA_FIT_SAMPLE,
+    OfflineLambdaModel,
+    OfflineModelSample,
+    _clamp,
     _fit_offline_lambda_model,
     _fit_temperature,
     _model_iteration_predictions,
     _offline_model_samples,
+    _prediction_row,
     _temperature_scaled_predictions,
     load_fixture_statistics,
     load_historical_fixtures,
@@ -59,6 +63,8 @@ from w2.competitions.league_whitelist_scope import (  # noqa: E402
     TOP_FIVE_COMPETITIONS,
 )
 from w2.competitions.registry import CompetitionRegistry  # noqa: E402
+from w2.models.dixon_coles import one_x_two_from_matrix, tau_correction  # noqa: E402
+from w2.models.independent import AsOfFeatureBuilder, MatchRecord  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "runtime" / "market_baseline_eval"
 MANIFEST_DIR = OUT_DIR / "manifests"
@@ -73,6 +79,14 @@ BIG5_SEASONS = ("2023", "2024")
 IN_SEASON_SEASONS = ("2024", "2025")
 MIN_HISTORY = 5
 COLD_START_MATCHES = 6
+R4_1_WINDOW_MATCHES = 8
+R4_1_TIME_DECAY_HALF_LIFE_DAYS = 365.0
+R4_1_TARGET_LEAGUES = {
+    "bundesliga",
+    "brasileirao_serie_a",
+    "chinese_super_league",
+    "allsvenskan",
+}
 
 # football-data.co.uk files the MARKET phase expects (user drops them in
 # FOOTBALL_DATA_DIR; filenames must match exactly).
@@ -233,6 +247,227 @@ def fit_and_predict(train_samples, val_samples) -> dict:
     }
 
 
+def fit_and_predict_r4_1(train_samples, val_samples) -> dict:
+    """R4.1 eval-only variant: time decay, league home terms, DC rho."""
+    model = _fit_r4_1_lambda_model(train_samples)
+    train_raw = _r4_1_predictions(train_samples, model)
+    val_raw = _r4_1_predictions(val_samples, model)
+    temperature = _fit_temperature(train_raw)
+    train_calibrated = _temperature_scaled_predictions(train_raw, temperature=temperature)
+    val_calibrated = _temperature_scaled_predictions(val_raw, temperature=temperature)
+    return {
+        "model": model,
+        "temperature": temperature,
+        "train_raw": train_raw,
+        "validation_raw": val_raw,
+        "train_calibrated": train_calibrated,
+        "validation_calibrated": val_calibrated,
+    }
+
+
+def _fit_r4_1_lambda_model(samples: list[OfflineModelSample]) -> OfflineLambdaModel:
+    if len(samples) < MIN_LAMBDA_FIT_SAMPLE:
+        return OfflineLambdaModel(
+            coefficients=(math.log(1.25), 0.0, 0.0, 0.0, 0.0),
+            feature_names=(
+                "intercept",
+                "home_field",
+                "attack_xg_for",
+                "opponent_xg_against",
+                "elo_gap",
+            ),
+            l2=0.004,
+            iterations=0,
+            learning_rate=0.0,
+        )
+    ordered = sorted(samples, key=lambda s: (s.fixture.kickoff_utc, s.fixture.fixture_id))
+    competitions = tuple(sorted({sample.fixture.competition_id for sample in ordered}))
+    feature_names = (
+        "intercept",
+        "home_field",
+        "attack_xg_for",
+        "opponent_xg_against",
+        "elo_gap",
+        *(f"home_field__{competition}" for competition in competitions),
+    )
+    beta = [math.log(1.25), 0.06, 0.08, 0.08, 0.04, *([0.0] * len(competitions))]
+    learning_rate = 0.020
+    l2 = 0.004
+    cutoff = max(sample.fixture.kickoff_utc for sample in ordered)
+    rows: list[tuple[list[float], float, float]] = []
+    for sample in ordered:
+        rows.extend(_r4_1_goal_fit_rows(sample, competitions=competitions, cutoff=cutoff))
+    total_weight = sum(weight for _, _, weight in rows) or 1.0
+    for _ in range(1400):
+        gradient = [0.0 for _ in beta]
+        for features, goals, weight in rows:
+            log_mu = _clamp(
+                sum(coef * value for coef, value in zip(beta, features, strict=True)),
+                -3.0,
+                2.0,
+            )
+            mu = math.exp(log_mu)
+            error = (mu - goals) * weight
+            for index, value in enumerate(features):
+                gradient[index] += error * value
+        for index in range(len(beta)):
+            penalty = 0.0 if index == 0 else l2 * beta[index]
+            beta[index] -= learning_rate * (gradient[index] / total_weight + penalty)
+    rho = _fit_r4_1_rho(ordered, beta, competitions)
+    return OfflineLambdaModel(
+        coefficients=tuple(beta),
+        feature_names=(*feature_names, f"dixon_coles_rho={rho:.2f}"),
+        l2=l2,
+        iterations=1400,
+        learning_rate=learning_rate,
+    )
+
+
+def _r4_1_goal_fit_rows(
+    sample: OfflineModelSample,
+    *,
+    competitions: tuple[str, ...],
+    cutoff: datetime,
+) -> list[tuple[list[float], float, float]]:
+    home_features, away_features = _r4_1_feature_rows(sample, competitions)
+    age_days = max((cutoff - sample.fixture.kickoff_utc).total_seconds() / 86400.0, 0.0)
+    weight = 0.5 ** (age_days / R4_1_TIME_DECAY_HALF_LIFE_DAYS)
+    return [
+        (home_features, float(sample.fixture.home_goals), weight),
+        (away_features, float(sample.fixture.away_goals), weight),
+    ]
+
+
+def _r4_1_feature_rows(
+    sample: OfflineModelSample,
+    competitions: tuple[str, ...],
+) -> tuple[list[float], list[float]]:
+    fixture = sample.fixture
+    features = sample.true_features
+    elo_gap = float(features["elo_diff"]) / 400.0
+    league_home = [
+        1.0 if fixture.competition_id == competition else 0.0
+        for competition in competitions
+    ]
+    home_row = [
+        1.0,
+        float(features["home_field"]),
+        float(features["home_attack_strength"]),
+        float(features["away_defence_strength"]),
+        elo_gap,
+        *league_home,
+    ]
+    away_row = [
+        1.0,
+        0.0,
+        float(features["away_attack_strength"]),
+        float(features["home_defence_strength"]),
+        -elo_gap,
+        *([0.0] * len(competitions)),
+    ]
+    return home_row, away_row
+
+
+def _fit_r4_1_rho(
+    samples: list[OfflineModelSample],
+    beta: list[float],
+    competitions: tuple[str, ...],
+) -> float:
+    best_rho = 0.0
+    best_loss = float("inf")
+    candidates = tuple(round(-0.20 + step * 0.01, 2) for step in range(41))
+    for rho in candidates:
+        loss = 0.0
+        for sample in samples:
+            home_mu, away_mu = _r4_1_lambdas(sample, beta, competitions)
+            probability = _dc_score_probability(
+                sample.fixture.home_goals,
+                sample.fixture.away_goals,
+                home_mu,
+                away_mu,
+                rho,
+            )
+            loss += -math.log(max(probability, 1e-12))
+        if loss < best_loss:
+            best_loss = loss
+            best_rho = rho
+    return best_rho
+
+
+def _r4_1_lambdas(
+    sample: OfflineModelSample,
+    coefficients: list[float] | tuple[float, ...],
+    competitions: tuple[str, ...],
+) -> tuple[float, float]:
+    home_row, away_row = _r4_1_feature_rows(sample, competitions)
+    lambdas = []
+    for row in (home_row, away_row):
+        log_mu = _clamp(
+            sum(coef * value for coef, value in zip(coefficients, row, strict=True)),
+            -3.0,
+            2.0,
+        )
+        lambdas.append(_clamp(math.exp(log_mu), 0.05, 4.25))
+    return lambdas[0], lambdas[1]
+
+
+def _r4_1_predictions(
+    samples: list[OfflineModelSample],
+    model: OfflineLambdaModel,
+) -> list[dict]:
+    rho = _rho_from_model(model)
+    competitions = tuple(
+        name.removeprefix("home_field__")
+        for name in model.feature_names
+        if name.startswith("home_field__")
+    )
+    rows = []
+    for sample in samples:
+        coefficients = model.coefficients[: 5 + len(competitions)]
+        home_mu, away_mu = _r4_1_lambdas(sample, coefficients, competitions)
+        probabilities = _dc_one_x_two(home_mu, away_mu, rho)
+        rows.append(_prediction_row(fixture=sample.fixture, probabilities=probabilities))
+    return rows
+
+
+def _rho_from_model(model: OfflineLambdaModel) -> float:
+    for name in model.feature_names:
+        if name.startswith("dixon_coles_rho="):
+            return float(name.split("=", 1)[1])
+    return 0.0
+
+
+def _dc_score_probability(
+    home_goals: int,
+    away_goals: int,
+    home_mu: float,
+    away_mu: float,
+    rho: float,
+) -> float:
+    base = math.exp(-home_mu) * (home_mu**home_goals) / math.factorial(home_goals)
+    base *= math.exp(-away_mu) * (away_mu**away_goals) / math.factorial(away_goals)
+    return max(base * tau_correction(home_goals, away_goals, home_mu, away_mu, rho), 0.0)
+
+
+def _dc_one_x_two(
+    home_mu: float,
+    away_mu: float,
+    rho: float,
+    *,
+    max_goals: int = 10,
+) -> dict[str, float]:
+    matrix = {
+        (home, away): _dc_score_probability(home, away, home_mu, away_mu, rho)
+        for home in range(max_goals + 1)
+        for away in range(max_goals + 1)
+    }
+    total = sum(matrix.values())
+    if total <= 0:
+        return {"HOME": 1 / 3, "DRAW": 1 / 3, "AWAY": 1 / 3}
+    normalized = {score: probability / total for score, probability in matrix.items()}
+    return one_x_two_from_matrix(normalized)
+
+
 def enrich_rows(pred_rows: list[dict], samples, split: str) -> list[dict]:
     """Attach kickoff/team names (needed for the market join) to prediction rows."""
     by_id = {sample.fixture.fixture_id: sample.fixture for sample in samples}
@@ -248,7 +483,14 @@ def enrich_rows(pred_rows: list[dict], samples, split: str) -> list[dict]:
     return out
 
 
-def eval_protocol(samples, train_filter, val_filter, protocol: str, competition: str) -> dict:
+def eval_protocol(
+    samples,
+    train_filter,
+    val_filter,
+    protocol: str,
+    competition: str,
+    r4_1_samples: list[OfflineModelSample] | None = None,
+) -> dict:
     train_samples = [s for s in samples if train_filter(s)]
     val_samples = [s for s in samples if val_filter(s)]
     if len(train_samples) < MIN_LAMBDA_FIT_SAMPLE or len(val_samples) < 30:
@@ -260,6 +502,14 @@ def eval_protocol(samples, train_filter, val_filter, protocol: str, competition:
             "validation_n": len(val_samples),
         }
     result = fit_and_predict(train_samples, val_samples)
+    r4_1_result = None
+    if r4_1_samples is not None:
+        train_ids = {sample.fixture.fixture_id for sample in train_samples}
+        val_ids = {sample.fixture.fixture_id for sample in val_samples}
+        r4_1_train = [s for s in r4_1_samples if s.fixture.fixture_id in train_ids]
+        r4_1_val = [s for s in r4_1_samples if s.fixture.fixture_id in val_ids]
+        if len(r4_1_train) >= MIN_LAMBDA_FIT_SAMPLE and len(r4_1_val) >= 30:
+            r4_1_result = fit_and_predict_r4_1(r4_1_train, r4_1_val)
     manifest_rows: list[dict] = []
     for split, samp in (("train", train_samples), ("validation", val_samples)):
         variants = result[split if split == "train" else "validation"]
@@ -271,6 +521,17 @@ def eval_protocol(samples, train_filter, val_filter, protocol: str, competition:
         for variant in ("baseline_prior", "elo_only", "uniform"):
             for row in variants[variant]:
                 base[row["fixture_id"]][f"probabilities_{variant}"] = row["probabilities"]
+        if r4_1_result is not None:
+            r4_1_rows = (
+                r4_1_result["train_calibrated"]
+                if split == "train"
+                else r4_1_result["validation_calibrated"]
+            )
+            for row in r4_1_rows:
+                if row["fixture_id"] in base:
+                    base[row["fixture_id"]]["probabilities_r4_1_calibrated"] = row[
+                        "probabilities"
+                    ]
         manifest_rows.extend(base.values())
     report = {
         "protocol": protocol,
@@ -286,7 +547,131 @@ def eval_protocol(samples, train_filter, val_filter, protocol: str, competition:
             for variant in ("fitted_calibrated", "baseline_prior", "elo_only", "uniform")
         },
     }
+    if r4_1_result is not None:
+        report["r4_1"] = {
+            "temperature": r4_1_result["temperature"],
+            "coefficients": [round(c, 6) for c in r4_1_result["model"].coefficients],
+            "feature_names": list(r4_1_result["model"].feature_names),
+            "policy": {
+                "dixon_coles_rho": _rho_from_model(r4_1_result["model"]),
+                "time_decay_half_life_days": R4_1_TIME_DECAY_HALF_LIFE_DAYS,
+                "window_matches": R4_1_WINDOW_MATCHES,
+                "league_specific_home_terms": True,
+                "opponent_strength_adjusted_xg": True,
+            },
+            "validation": metric_block(r4_1_result["validation_calibrated"]),
+            "delta_log_loss_vs_fitted": (
+                round(
+                    metric_block(r4_1_result["validation_calibrated"])["log_loss"]
+                    - report["validation"]["fitted_calibrated"]["log_loss"],
+                    6,
+                )
+                if report["validation"]["fitted_calibrated"]["log_loss"] is not None
+                else None
+            ),
+        }
     return {"report": report, "manifest_rows": manifest_rows}
+
+
+def r4_1_offline_model_samples(
+    *,
+    fixtures,
+    statistics_by_fixture: dict[str, dict[str, float]],
+    min_history: int,
+) -> list[OfflineModelSample]:
+    builders: dict[str, AsOfFeatureBuilder] = {}
+    histories: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    samples: list[OfflineModelSample] = []
+    for fixture in sorted(
+        fixtures,
+        key=lambda item: (item.kickoff_utc, item.competition_id, item.fixture_id),
+    ):
+        builder = builders.setdefault(fixture.competition_id, AsOfFeatureBuilder())
+        match = MatchRecord(
+            fixture_id=fixture.fixture_id,
+            competition=fixture.competition_id,
+            season=fixture.season,
+            kickoff_utc=fixture.kickoff_utc,
+            home_team=fixture.home_team,
+            away_team=fixture.away_team,
+            home_goals=fixture.home_goals,
+            away_goals=fixture.away_goals,
+            neutral_site=fixture.neutral_site,
+        )
+        proxy_features = builder.features(match)
+        home_key = (fixture.competition_id, fixture.home_team)
+        away_key = (fixture.competition_id, fixture.away_team)
+        home_history = histories.get(home_key, [])
+        away_history = histories.get(away_key, [])
+        current_xg = statistics_by_fixture.get(fixture.fixture_id)
+        if current_xg and len(home_history) >= min_history and len(away_history) >= min_history:
+            true_features = dict(proxy_features)
+            true_features.update(
+                _r4_1_strength_features(
+                    competition_id=fixture.competition_id,
+                    histories=histories,
+                    home_key=home_key,
+                    away_key=away_key,
+                )
+            )
+            samples.append(
+                OfflineModelSample(
+                    fixture=fixture,
+                    proxy_features=dict(proxy_features),
+                    true_features=true_features,
+                )
+            )
+        builder.update(match)
+        if current_xg is not None:
+            home_xg = current_xg.get(fixture.home_team)
+            away_xg = current_xg.get(fixture.away_team)
+            if home_xg is not None and away_xg is not None:
+                histories.setdefault(home_key, []).append((home_xg, away_xg))
+                histories.setdefault(away_key, []).append((away_xg, home_xg))
+    return samples
+
+
+def _r4_1_strength_features(
+    *,
+    competition_id: str,
+    histories: dict[tuple[str, str], list[tuple[float, float]]],
+    home_key: tuple[str, str],
+    away_key: tuple[str, str],
+) -> dict[str, float]:
+    home_recent = histories[home_key][-R4_1_WINDOW_MATCHES:]
+    away_recent = histories[away_key][-R4_1_WINDOW_MATCHES:]
+    league_recent = [
+        item
+        for (league, _team), history in histories.items()
+        if league == competition_id
+        for item in history[-R4_1_WINDOW_MATCHES:]
+    ]
+    league_for = _mean([item[0] for item in league_recent], default=1.25)
+    league_against = _mean([item[1] for item in league_recent], default=1.25)
+    home_for = _mean([item[0] for item in home_recent], default=league_for)
+    home_against = _mean([item[1] for item in home_recent], default=league_against)
+    away_for = _mean([item[0] for item in away_recent], default=league_for)
+    away_against = _mean([item[1] for item in away_recent], default=league_against)
+    home_attack = home_for * _safe_ratio(away_against, league_against)
+    away_attack = away_for * _safe_ratio(home_against, league_against)
+    home_defence = home_against * _safe_ratio(away_for, league_for)
+    away_defence = away_against * _safe_ratio(home_for, league_for)
+    return {
+        "home_attack_strength": _clamp(home_attack, 0.25, 3.5),
+        "away_attack_strength": _clamp(away_attack, 0.25, 3.5),
+        "home_defence_strength": _clamp(home_defence, 0.25, 3.5),
+        "away_defence_strength": _clamp(away_defence, 0.25, 3.5),
+        "rolling_home_xg": round(home_for, 6),
+        "rolling_away_xg": round(away_for, 6),
+    }
+
+
+def _mean(values: list[float], *, default: float) -> float:
+    return sum(values) / len(values) if values else default
+
+
+def _safe_ratio(value: float, denominator: float) -> float:
+    return value / denominator if denominator > 0 else 1.0
 
 
 def run_model_phase() -> dict:
@@ -304,6 +689,9 @@ def run_model_phase() -> dict:
     big5_samples = _offline_model_samples(
         fixtures=big5_fixtures, statistics_by_fixture=big5_stats, min_history=MIN_HISTORY
     )
+    big5_r4_1_samples = r4_1_offline_model_samples(
+        fixtures=big5_fixtures, statistics_by_fixture=big5_stats, min_history=MIN_HISTORY
+    )
     # P0 replicate: pooled big-5, chronological 70/30 (single split).
     split_at = max(MIN_LAMBDA_FIT_SAMPLE, int(len(big5_samples) * 0.7))
     indexed = {id(s): i for i, s in enumerate(big5_samples)}
@@ -313,6 +701,7 @@ def run_model_phase() -> dict:
         lambda s: indexed[id(s)] >= split_at,
         "big5_pooled_70_30",
         "big5_pooled",
+        r4_1_samples=big5_r4_1_samples,
     )
     outputs.append(res["report"] if "report" in res else res)
     if "manifest_rows" in res:
@@ -326,6 +715,7 @@ def run_model_phase() -> dict:
         lambda s: s.fixture.season == "2024",
         "big5_cross_season_2023_to_2024",
         "big5_pooled",
+        r4_1_samples=big5_r4_1_samples,
     )
     outputs.append(res["report"] if "report" in res else res)
     if "manifest_rows" in res:
@@ -373,6 +763,11 @@ def run_model_phase() -> dict:
         samples = _offline_model_samples(
             fixtures=fixtures, statistics_by_fixture=stats, min_history=MIN_HISTORY
         )
+        r4_1_samples = r4_1_offline_model_samples(
+            fixtures=fixtures,
+            statistics_by_fixture=stats,
+            min_history=MIN_HISTORY,
+        )
         by_season = defaultdict(int)
         for s in samples:
             by_season[s.fixture.season] += 1
@@ -383,6 +778,7 @@ def run_model_phase() -> dict:
             lambda s: s.fixture.season == "2025",
             "inseason_cross_season_2024_to_2025",
             competition,
+            r4_1_samples=r4_1_samples,
         )
         report = res["report"] if "report" in res else res
         report["samples_by_season"] = dict(by_season)
@@ -404,12 +800,16 @@ def run_model_phase() -> dict:
     pooled_samples = _offline_model_samples(
         fixtures=all_fixtures, statistics_by_fixture=stats, min_history=MIN_HISTORY
     )
+    pooled_r4_1_samples = r4_1_offline_model_samples(
+        fixtures=all_fixtures, statistics_by_fixture=stats, min_history=MIN_HISTORY
+    )
     res = eval_protocol(
         pooled_samples,
         lambda s: s.fixture.season == "2024",
         lambda s: s.fixture.season == "2025",
         "inseason_pooled_cross_season",
         "inseason_pooled",
+        r4_1_samples=pooled_r4_1_samples,
     )
     outputs.append(res["report"] if "report" in res else res)
     if "manifest_rows" in res:
@@ -461,6 +861,8 @@ def run_model_phase() -> dict:
             "big5 source: Understat cache (runtime/w2_understat_model_iter1).",
             "in-season source: API-Football Pro day1 cache (fixtures + statistics xG).",
             "fitted model protocol identical to #193: train-only lambda fit + temperature.",
+            "R4.1 variant is eval-only: Dixon-Coles rho, time-decay weights,"
+            " league-specific home coefficients, and windowed opponent-adjusted xG.",
             "Ledger's in-season ~1.05 came from the unfitted hand-prior walk-forward model;"
             " the fitted numbers here are the first like-for-like comparison.",
         ],
@@ -671,8 +1073,23 @@ def eval_market_league(joined: list[dict]) -> dict:
         best_w = None
 
     val_model = metric_block(val)
+    val_r4_1 = (
+        metric_block(rows_with(val, "probabilities_r4_1_calibrated"))
+        if all("probabilities_r4_1_calibrated" in r for r in val)
+        else None
+    )
     val_market = metric_block(rows_with(val, "market_probabilities"))
     val_prior = metric_block(rows_with(val, "probabilities_baseline_prior"))
+    fitted_gap = (
+        round(val_model["log_loss"] - val_market["log_loss"], 6)
+        if val_model["log_loss"] is not None and val_market["log_loss"] is not None
+        else None
+    )
+    r4_1_gap = (
+        round(val_r4_1["log_loss"] - val_market["log_loss"], 6)
+        if val_r4_1 and val_r4_1["log_loss"] is not None and val_market["log_loss"] is not None
+        else None
+    )
     out = {
         "status": "OK",
         "train_n": len(train),
@@ -681,14 +1098,24 @@ def eval_market_league(joined: list[dict]) -> dict:
         "mean_overround": round(sum(r["overround"] for r in val) / len(val), 4),
         "validation": {
             "fitted_calibrated": val_model,
+            "r4_1_calibrated": val_r4_1,
             "market_devig": val_market,
             "baseline_prior": val_prior,
             "uniform": metric_block(rows_with(val, "probabilities_uniform")),
         },
-        "gap_model_minus_market_log_loss": (
-            round(val_model["log_loss"] - val_market["log_loss"], 6)
-            if val_model["log_loss"] is not None and val_market["log_loss"] is not None
+        "gap_model_minus_market_log_loss": fitted_gap,
+        "gap_r4_1_minus_market_log_loss": r4_1_gap,
+        "r4_1_gap_delta_vs_fitted": (
+            round(r4_1_gap - fitted_gap, 6)
+            if r4_1_gap is not None and fitted_gap is not None
             else None
+        ),
+        "r4_1_league_gate": (
+            "PASS_GAP_DECREASED"
+            if r4_1_gap is not None and fitted_gap is not None and r4_1_gap < fitted_gap
+            else "FAIL_GAP_NOT_DECREASED"
+            if r4_1_gap is not None and fitted_gap is not None
+            else "NOT_EVALUATED"
         ),
     }
     if best_w is not None:
@@ -790,9 +1217,9 @@ def _write_summary_md(report: dict) -> None:
         "",
         f"生成时间:{report['generated_at']}  ·  devig:proportional  ·  只读/零 provider calls",
         "",
-        "| 联赛 | n(val joined) | 模型 LL | 市场 LL | 差距 "
-        "| blend LL (w_mkt) | 先验 LL | join 率 |",
-        "|---|---|---|---|---|---|---|---|",
+        "| 联赛 | n(val joined) | 原模型 LL | R4.1 LL | 市场 LL | 原 gap "
+        "| R4.1 gap | Δgap | R4.1 gate | blend LL (w_mkt) | 先验 LL | join 率 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for comp, res in report["results"].items():
         if res.get("status") != "OK":
@@ -808,13 +1235,28 @@ def _write_summary_md(report: dict) -> None:
         lines.append(
             f"| {comp} | {v['fitted_calibrated']['n']} "
             f"| {v['fitted_calibrated']['log_loss']} "
+            f"| {_metric_text(v.get('r4_1_calibrated'), 'log_loss')} "
             f"| {v['market_devig']['log_loss']} "
             f"| {res['gap_model_minus_market_log_loss']:+.4f} "
+            f"| {_signed_metric_text(res.get('gap_r4_1_minus_market_log_loss'))} "
+            f"| {_signed_metric_text(res.get('r4_1_gap_delta_vs_fitted'))} "
+            f"| {res.get('r4_1_league_gate', '—')} "
             f"| {blend_text} "
             f"| {v['baseline_prior']['log_loss']} "
             f"| {res['join']['join_rate']} |"
         )
     (OUT_DIR / "W2_MARKET_BASELINE_SUMMARY.md").write_text("\n".join(lines) + "\n")
+
+
+def _metric_text(block: dict | None, key: str) -> str:
+    if not block:
+        return "—"
+    value = block.get(key)
+    return "—" if value is None else str(value)
+
+
+def _signed_metric_text(value: float | None) -> str:
+    return "—" if value is None else f"{value:+.4f}"
 
 
 def main() -> int:
