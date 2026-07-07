@@ -693,6 +693,8 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     analysis_readiness: asRecord(record.analysis_readiness),
     current_odds: asRecord(record.current_odds),
     odds_movement: asRecord(record.odds_movement),
+    probability_source: textValue(record.probability_source) || null,
+    model_market_divergence: asRecord(record.model_market_divergence),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
     pick: Object.keys(pick).length

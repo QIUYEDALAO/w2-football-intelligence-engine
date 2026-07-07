@@ -203,6 +203,77 @@ def test_partial_readiness_keeps_analysis_pick_for_staging_analysis() -> None:
     assert fields["data_status"] == DataStatus.PARTIAL.value
 
 
+def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
+    fields = _fields(
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "NO_EDGE",
+            "line": "-0.25",
+            "odds": "1.95",
+            "confidence": 0.2,
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
+    assert fields["pick"] is None
+    assert fields["non_pick"] is not None
+    assert fields["outcome_tracked"] is False
+
+
+def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
+    fields = _fields(
+        market={
+            "market": "TOTALS",
+            "decision": "PICK",
+            "tendency": "OVER",
+            "line": "2.5",
+            "odds": "1.90",
+            "confidence": 0.49,
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
+    assert fields["pick"] is None
+    assert fields["non_pick"] is not None
+
+
+def test_decision_contract_exposes_probability_source_and_divergence() -> None:
+    fields = _fields(
+        card={
+            "current_odds": {"ah": {"home_line": "-0.25"}},
+            "market_divergence": {
+                "status": "READY",
+                "magnitude": 0.18,
+                "lock_divergence": -0.18,
+                "calibration_status": "UNVALIDATED",
+                "direction_allowed": False,
+            },
+            "pricing_shadow": {"fair_ah": -0.5, "market_ah": -0.25},
+        },
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+            "confidence": 0.72,
+        },
+        readiness={"status": "PARTIAL", "blockers": []},
+    )
+
+    assert fields["probability_source"] == "MARKET_DEVIG"
+    assert fields["decision_contract"]["probability_source"] == "MARKET_DEVIG"  # type: ignore[index]
+    divergence = fields["model_market_divergence"]
+    assert divergence["status"] == "READY"  # type: ignore[index]
+    assert divergence["magnitude"] == 0.18  # type: ignore[index]
+    assert divergence["model_fair_line"] == "-0.5"  # type: ignore[index]
+    assert fields["decision_contract"]["model_market_divergence"] == divergence  # type: ignore[index]
+
+
 def test_staging_lock_requires_market_line_and_odds() -> None:
     ready = {"status": "READY", "blockers": []}
     base_market = {

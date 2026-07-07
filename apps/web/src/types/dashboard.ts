@@ -629,6 +629,8 @@ export interface DashboardDayViewCard {
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
+  probability_source?: string | null;
+  model_market_divergence?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   missing_inputs?: string[];
   pick?: {

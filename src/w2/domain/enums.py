@@ -25,6 +25,12 @@ class DecisionTier(StrEnum):
     RECOMMEND = "RECOMMEND"
 
 
+class ProbabilitySource(StrEnum):
+    MARKET_DEVIG = "MARKET_DEVIG"
+    MODEL_FALLBACK = "MODEL_FALLBACK"
+    UNKNOWN = "UNKNOWN"
+
+
 class DataStatus(StrEnum):
     READY = "READY"
     PARTIAL = "PARTIAL"

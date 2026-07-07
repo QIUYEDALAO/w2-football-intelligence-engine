@@ -28,6 +28,11 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                 "lock_eligible": True,
                 "recommendation_id": "rec-1",
                 "provider_budget_status": "OK",
+                "probability_source": "MARKET_DEVIG",
+                "model_market_divergence": {
+                    "status": "READY",
+                    "magnitude": 0.12,
+                },
                 "current_odds": {
                     "ah": {
                         "home_line": "-0.25",
@@ -119,6 +124,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
+    assert contract_card["probability_source"] == "MARKET_DEVIG"
+    assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"]["disclaimer"] == (
         "分析参考·非稳赢；production 动作需 RECOMMEND"
     )

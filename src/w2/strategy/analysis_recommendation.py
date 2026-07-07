@@ -12,10 +12,14 @@ from w2.strategy.score_scenarios import Direction, ScoreMatrix
 
 DISCLAIMER = "分析参考·非稳赢"
 BANNED_OUTPUT_TERMS = ("稳赢", "必中", "保证")
+MIN_INTENT_CONFIDENCE_FOR_PICK = 0.55
+MIN_HALF_GOAL_PROBABILITY_EDGE = 0.08
+MIN_SCORE_SCENARIO_PROBABILITY = 0.18
 
 
 class AnalysisDecision(StrEnum):
     SKIP = "SKIP"
+    NO_EDGE = "NO_EDGE"
     WATCH = "WATCH"
     ANALYSIS_PICK = "ANALYSIS_PICK"
 
@@ -46,8 +50,11 @@ class MarketAnalysis:
         _assert_compliant_text(*(self.reasons + self.risks + self.invalidation_conditions))
         if self.candidate or self.formal_recommendation:
             raise ValueError("analysis recommendations cannot set candidate/formal flags")
-        if self.decision == AnalysisDecision.SKIP and self.tendency is not None:
-            raise ValueError("SKIP market analysis must not carry a tendency")
+        if (
+            self.decision in {AnalysisDecision.SKIP, AnalysisDecision.NO_EDGE}
+            and self.tendency is not None
+        ):
+            raise ValueError("non-pick market analysis must not carry a tendency")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -100,6 +107,8 @@ def build_multi_market_analysis(
     card_decision = (
         AnalysisDecision.ANALYSIS_PICK
         if any(item.decision == AnalysisDecision.ANALYSIS_PICK for item in markets)
+        else AnalysisDecision.NO_EDGE
+        if any(item.decision == AnalysisDecision.NO_EDGE for item in markets)
         else AnalysisDecision.WATCH
         if any(item.decision == AnalysisDecision.WATCH for item in markets)
         else AnalysisDecision.SKIP
@@ -121,6 +130,12 @@ def _ah_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         IntentSignal.CONFLICTED,
     }:
         return _skip(AnalysisMarket.ASIAN_HANDICAP, inputs.ah_intent.intent.value)
+    if inputs.ah_intent.confidence < MIN_INTENT_CONFIDENCE_FOR_PICK:
+        return _no_edge(
+            AnalysisMarket.ASIAN_HANDICAP,
+            "AH_EDGE_INSUFFICIENT",
+            confidence=inputs.ah_intent.confidence,
+        )
     tendency = _side_tendency(inputs.ah_intent.implied_side)
     return MarketAnalysis(
         market=AnalysisMarket.ASIAN_HANDICAP,
@@ -139,6 +154,12 @@ def _ou_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         return _skip(AnalysisMarket.TOTALS, "OU_DATA_UNAVAILABLE")
     if inputs.ou_intent.intent in {IntentSignal.LEAKAGE_BLOCKED, IntentSignal.INSUFFICIENT_DATA}:
         return _skip(AnalysisMarket.TOTALS, inputs.ou_intent.intent.value)
+    if inputs.ou_intent.confidence < MIN_INTENT_CONFIDENCE_FOR_PICK:
+        return _no_edge(
+            AnalysisMarket.TOTALS,
+            "OU_EDGE_INSUFFICIENT",
+            confidence=inputs.ou_intent.confidence,
+        )
     tendency = "OVER" if inputs.ou_intent.intent == IntentSignal.OVER_LEAN else "UNDER"
     return MarketAnalysis(
         market=AnalysisMarket.TOTALS,
@@ -159,6 +180,13 @@ def _half_goal_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         inputs.half_goals.expected_home_goals + inputs.half_goals.expected_away_goals
     ) * inputs.half_goals.first_half_share
     over_probability = 1.0 - math.exp(-expected)
+    probability_edge = abs(over_probability - 0.5)
+    if probability_edge < MIN_HALF_GOAL_PROBABILITY_EDGE:
+        return _no_edge(
+            AnalysisMarket.FIRST_HALF_GOALS,
+            "HALF_GOAL_EDGE_INSUFFICIENT",
+            confidence=round(probability_edge * 2, 4),
+        )
     tendency = "1H_OVER" if over_probability >= 0.5 else "1H_UNDER"
     return MarketAnalysis(
         market=AnalysisMarket.FIRST_HALF_GOALS,
@@ -181,20 +209,24 @@ def _score_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         decision="MAIN",
         primary_direction=inputs.score_direction,
     )
+    top_probability = max(
+        (
+            scenario.probability or 0.0
+            for scenario in card.scenarios
+        ),
+        default=0.0,
+    )
+    if top_probability < MIN_SCORE_SCENARIO_PROBABILITY:
+        return _no_edge(
+            AnalysisMarket.SCORE,
+            "SCORE_EDGE_INSUFFICIENT",
+            confidence=round(top_probability, 4),
+        )
     return MarketAnalysis(
         market=AnalysisMarket.SCORE,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=inputs.score_direction,
-        confidence=round(
-            max(
-                (
-                    scenario.conditional_probability or 0.0
-                    for scenario in card.scenarios
-                ),
-                default=0.0,
-            ),
-            4,
-        ),
+        confidence=round(top_probability, 4),
         reasons=("比分使用方向一致条件概率，不输出假精确。",),
         risks=inputs.base_risks + ("比分是分布解释，不是确定结果。",),
         invalidation_conditions=("方向桶变化", "完整 score_matrix 缺失"),
@@ -211,6 +243,23 @@ def _skip(market: AnalysisMarket, reason: str) -> MarketAnalysis:
         reasons=(reason,),
         risks=("数据不足时保持 SKIP。",),
         invalidation_conditions=("补齐 as-of 数据后重新评估",),
+    )
+
+
+def _no_edge(
+    market: AnalysisMarket,
+    reason: str,
+    *,
+    confidence: float,
+) -> MarketAnalysis:
+    return MarketAnalysis(
+        market=market,
+        decision=AnalysisDecision.NO_EDGE,
+        tendency=None,
+        confidence=round(max(min(confidence, 0.49), 0.0), 4),
+        reasons=(reason,),
+        risks=("信号强度不足时保持观察，不输出方向。",),
+        invalidation_conditions=("盘口或模型分歧增强后重新评估",),
     )
 
 

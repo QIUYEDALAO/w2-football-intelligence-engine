@@ -257,7 +257,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert decisions["ASIAN_HANDICAP"] == "WATCH"
     assert decisions["TOTALS"] == "PICK"
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
-    assert decisions["SCORE"] == "PICK"
+    assert decisions["SCORE"] == "NO_EDGE"
     assert any(
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for market in card["markets"]
@@ -269,7 +269,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["lean"] is None
     assert "跟随市场 · 无独立优势 · 仅参考" in ah_market["reason"]
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
-    assert score_market["scores"]
+    assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
 
 

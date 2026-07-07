@@ -127,6 +127,10 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "provider_budget_status": _optional_text(
             _field(card, contract, "provider_budget_status")
         ),
+        "probability_source": _optional_text(_field(card, contract, "probability_source")),
+        "model_market_divergence": _mapping_copy(
+            _field(card, contract, "model_market_divergence")
+        ),
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
@@ -158,6 +162,8 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "action": _optional_text(card.get("action")),
         "next_eval_at": _format_time(card.get("next_eval_at")),
         "provider_budget_status": _optional_text(card.get("provider_budget_status")),
+        "probability_source": _optional_text(card.get("probability_source")),
+        "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
         "missing_fields": _string_list(card.get("missing_fields")),
         "stale_fields": _string_list(card.get("stale_fields")),
         "data_readiness": _mapping_copy(card.get("data_readiness")),

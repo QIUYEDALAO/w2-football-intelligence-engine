@@ -2117,6 +2117,8 @@ class ReadModelService:
         }
         if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
             payload["decision"] = "ANALYSIS_PICK"
+        elif "NO_EDGE" in decisions:
+            payload["decision"] = "NO_EDGE"
         elif "WATCH" in decisions:
             payload["decision"] = "WATCH"
         else:
@@ -3931,6 +3933,8 @@ class ReadModelService:
         market["analysis_decision"] = original_decision
         if original_decision == "SKIP":
             market["decision"] = "SKIP"
+        elif original_decision == "NO_EDGE":
+            market["decision"] = "NO_EDGE"
         elif original_decision == "WATCH":
             market["decision"] = "WATCH"
         else:

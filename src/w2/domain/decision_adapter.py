@@ -10,7 +10,13 @@ from w2.domain.decision_policy import (
     compute_lock_eligible,
     compute_outcome_tracked,
 )
-from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
+from w2.domain.enums import (
+    DataStatus,
+    DecisionReasonCode,
+    DecisionTier,
+    LifecycleStatus,
+    ProbabilitySource,
+)
 from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
@@ -20,6 +26,7 @@ from w2.readiness.data_gate import (
 )
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
+MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
 
 
 def build_decision_contract_fields(
@@ -91,6 +98,8 @@ def build_decision_contract_fields(
             or _get(_as_mapping(_get(card, "pricing_shadow")), "model_version")
             or "w2.decision_contract.v2.adapter"
         ),
+        "probability_source": _probability_source(card, market, recommendation).value,
+        "model_market_divergence": _model_market_divergence(card, market, recommendation),
         "provenance": {
             "source": str(_get(card, "source") or "legacy_payload"),
             "adapter": "w2.decision_contract.v2.adapter",
@@ -151,7 +160,13 @@ def _decision_tier(
     for payload in (card, market, recommendation):
         explicit = _get(payload, "decision_tier")
         if explicit is not None:
-            return DecisionTier(str(explicit))
+            tier = DecisionTier(str(explicit))
+            if tier in {
+                DecisionTier.ANALYSIS_PICK,
+                DecisionTier.RECOMMEND,
+            } and _pick_strength_insufficient(payload):
+                return DecisionTier.WATCH
+            return tier
 
     legacy = legacy_decision_view(card, market)
     if legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation")):
@@ -164,7 +179,11 @@ def _decision_tier(
         _get(card, "decision"),
         _get(recommendation, "tier"),
     )
+    if decision == "NO_EDGE":
+        return DecisionTier.WATCH
     if decision in {"ANALYSIS_PICK", "PICK", "FORMAL"}:
+        if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
+            return DecisionTier.WATCH
         return DecisionTier.ANALYSIS_PICK
     if _truthy(_get(card, "candidate")) or _truthy(_get(market, "candidate")):
         return DecisionTier.WATCH
@@ -173,6 +192,13 @@ def _decision_tier(
     if _readiness_blocked(readiness):
         return DecisionTier.NOT_READY
     return DecisionTier.SKIP
+
+
+def _pick_strength_insufficient(payload: Mapping[str, Any] | None) -> bool:
+    confidence = _number(_get(payload, "confidence"))
+    if confidence is None:
+        return False
+    return confidence < MIN_ANALYSIS_PICK_CONFIDENCE
 
 
 def _data_status(
@@ -305,6 +331,19 @@ def _reason_code(
     recommendation: Mapping[str, Any] | None,
     readiness: Mapping[str, Any] | None,
 ) -> DecisionReasonCode:
+    decision = _first_upper(
+        _get(market, "analysis_decision"),
+        _get(market, "decision"),
+        _get(card, "analysis_decision"),
+        _get(card, "decision"),
+        _get(recommendation, "tier"),
+    )
+    if decision == "NO_EDGE":
+        return DecisionReasonCode.EDGE_INSUFFICIENT
+    if decision in {"ANALYSIS_PICK", "PICK", "FORMAL"} and (
+        _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation)
+    ):
+        return DecisionReasonCode.EDGE_INSUFFICIENT
     codes = _blockers(readiness, card=card, market=market, recommendation=recommendation)
     text = " ".join(codes).upper()
     if "FIXTURE_NOT_UPCOMING" in text or "LIVE" in text or "FINISHED" in text:
@@ -317,7 +356,12 @@ def _reason_code(
         return DecisionReasonCode.MARKET_UNAVAILABLE
     if "DATA_INSUFFICIENT" in text or "MISSING_XG" in text:
         return DecisionReasonCode.DATA_MISSING_XG
-    if "AH_EV_BELOW_FORMAL_THRESHOLD" in text or "EV_WITHIN_UNCERTAINTY_BAND" in text:
+    if (
+        "NO_EDGE" in text
+        or "EDGE_INSUFFICIENT" in text
+        or "AH_EV_BELOW_FORMAL_THRESHOLD" in text
+        or "EV_WITHIN_UNCERTAINTY_BAND" in text
+    ):
         return DecisionReasonCode.EDGE_INSUFFICIENT
     if "EDGE_BELOW_FORMAL_THRESHOLD" in text:
         return DecisionReasonCode.EDGE_INSUFFICIENT
@@ -473,6 +517,8 @@ def _validated_card_hash(
         lock_eligible=lock_eligible,
         recommendation_id=_optional_text(core.get("recommendation_id")),
         model_version=str(core["model_version"]),
+        probability_source=ProbabilitySource(str(core["probability_source"])),
+        model_market_divergence=_as_mapping(core.get("model_market_divergence")),
         provenance=_as_mapping(core.get("provenance")),
         environment=environment,
         pick=_decision_pick(_as_mapping(core.get("pick"))),
@@ -480,6 +526,50 @@ def _validated_card_hash(
         one_liner=str(core["one_liner"]),
     )
     return decision_card.card_hash
+
+
+def _probability_source(
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+) -> ProbabilitySource:
+    explicit = _first_upper(
+        _get(card, "probability_source"),
+        _get(market, "probability_source"),
+        _get(recommendation, "probability_source"),
+        _get(_as_mapping(_get(card, "provenance")), "probability_source"),
+    )
+    if explicit in {item.value for item in ProbabilitySource}:
+        return ProbabilitySource(explicit)
+    if _as_mapping(_get(card, "current_odds")) or _non_empty(_get(market, "odds")):
+        return ProbabilitySource.MARKET_DEVIG
+    return ProbabilitySource.MODEL_FALLBACK
+
+
+def _model_market_divergence(
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+) -> Mapping[str, Any]:
+    explicit = _as_mapping(_get(card, "model_market_divergence"))
+    if explicit:
+        return explicit
+    divergence = _as_mapping(_get(card, "market_divergence"))
+    pricing = _as_mapping(_get(card, "pricing_shadow"))
+    return {
+        "source": "market_divergence" if divergence else "adapter_fallback",
+        "status": str(_get(divergence, "status") or "UNKNOWN"),
+        "magnitude": _number(_get(divergence, "magnitude")),
+        "lock_divergence": _number(_get(divergence, "lock_divergence")),
+        "model_fair_line": _optional_text(_get(pricing, "fair_ah")),
+        "market_line": _first_text(
+            _get(pricing, "market_ah"),
+            _get(recommendation, "line"),
+            _get(market, "line"),
+        ),
+        "calibration_status": _optional_text(_get(divergence, "calibration_status")),
+        "direction_allowed": _truthy(_get(divergence, "direction_allowed")),
+    }
 
 
 def _decision_pick(payload: Mapping[str, Any]) -> DecisionPick | None:
