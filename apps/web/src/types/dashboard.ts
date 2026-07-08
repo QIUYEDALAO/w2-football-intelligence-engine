@@ -219,7 +219,7 @@ export type RecommendationTier = "FORMAL" | "CANDIDATE" | "ANALYSIS_PICK" | "WAT
 
 export type SettlementStatus = "PENDING" | "HIT" | "MISS" | "PUSH" | "VOID" | "NO_BET" | "UNKNOWN";
 
-export type DashboardMode = "today" | "next36" | "results" | "all";
+export type DashboardMode = "today" | "next36" | "future" | "results" | "all";
 
 export interface ScorelinePick {
   scoreline: string;
@@ -502,6 +502,47 @@ export interface DashboardPerformance {
     hit_count: number;
     hit_rate?: number | null;
   };
+  forward_ledger?: ForwardLedgerPerformance;
+}
+
+export interface ForwardLedgerLeaguePerformance {
+  league: string;
+  record_count: number;
+  fixture_count: number;
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  clv_sample_count: number;
+  clv_median_decimal?: number | null;
+}
+
+export interface ForwardLedgerPerformance {
+  schema_version?: string;
+  source?: string;
+  sample_target: number;
+  record_count: number;
+  fixture_count: number;
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  accumulation_label: string;
+  clv: {
+    sample_count: number;
+    median_decimal?: number | null;
+    positive_count: number;
+    negative_count: number;
+    push_count: number;
+    line_changed_count: number;
+    method?: string;
+  };
+  by_league: ForwardLedgerLeaguePerformance[];
+  mock_data?: boolean;
 }
 
 export interface FormalTrackingSummary {
@@ -625,6 +666,15 @@ export interface DashboardDayViewCard {
   missing_fields: string[];
   stale_fields: string[];
   data_readiness?: Record<string, unknown>;
+  data_refresh?: DataRefreshStatus | null;
+  analysis_readiness?: Record<string, unknown>;
+  current_odds?: Record<string, unknown>;
+  market_probabilities?: Record<string, unknown>;
+  odds_movement?: Record<string, unknown>;
+  probability_source?: string | null;
+  model_market_divergence?: Record<string, unknown>;
+  market_strip?: Array<Record<string, unknown>>;
+  missing_inputs?: string[];
   pick?: {
     market?: string | null;
     selection?: string | null;

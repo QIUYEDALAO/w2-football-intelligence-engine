@@ -49,10 +49,12 @@ from w2.api.schemas import (
 )
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.monitoring.health import HealthPayload, build_health_payload
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
+DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
 def request_id(request: Request) -> str:
@@ -72,6 +74,16 @@ def cached_response(
         response.status_code = 304
         return Response(status_code=304, headers={"ETag": cached.etag})
     return payload
+
+
+@public_router.get("/health", response_model=HealthPayload)
+def public_health() -> HealthPayload:
+    return build_health_payload()
+
+
+@public_router.get("/ready", response_model=HealthPayload)
+def public_ready() -> HealthPayload:
+    return build_health_payload()
 
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -113,7 +125,7 @@ def dashboard(
     timezone: str = "Asia/Shanghai",
     include_debug: bool = False,
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.dashboard(
@@ -129,20 +141,24 @@ def dashboard(
 def dashboard_day_view(
     request: Request,
     date: str | None = None,
+    window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     payload = service.dashboard(
         target_date=date,
-        window="today",
+        window=normalized_window,
         timezone=timezone,
         include_debug=False,
     )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    day_view["performance"] = payload.get("performance")
     return {
         "request_id": request_id(request),
-        **build_dashboard_day_view(
-            payload,
-            environment=get_settings().environment.value,
-        ),
+        **day_view,
     }
 
 
@@ -153,7 +169,7 @@ def dashboard_summary(
     window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.dashboard_summary(
@@ -171,7 +187,7 @@ def validation_summary(
     window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
-    normalized_window = window if window in {"today", "next36", "results", "all"} else "today"
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
         **service.validation_summary(

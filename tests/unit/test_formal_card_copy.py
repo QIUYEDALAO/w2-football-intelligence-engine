@@ -71,7 +71,9 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
-    assert 'const mode: DashboardMode = "today"' in page
+    assert 'const mode: DashboardMode = "future"' in page
+    assert "未来 36 小时暂无比赛" in page
+    assert "未来 14 天暂无可展示比赛" in page
     assert "BossDecisionView" in page
     assert "todayShanghai()" in page
     assert "footballDayShanghai" in formatters
@@ -80,8 +82,22 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "rawHour === 24 ? 0 : rawHour" in formatters
     assert "sortFormalFirst" not in page
     assert "DecisionCounts" in boss_view
-    assert "ReasonCodePanel" in boss_view
+    assert "EvidencePanel" in boss_view
+    assert "readyRecommendations" in boss_view
+    assert "todaySchedule" in boss_view
+    assert "futureSchedule" in boss_view
+    assert "ScheduleSection" in boss_view
+    assert "CoverageFoldout" in boss_view
+    assert "值得看" in boss_view
+    assert "赛中 / 刚开赛" in boss_view
+    assert "marketSourceLabel" in boss_view
+    assert "VerificationPreview" in boss_view
+    assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view
+    assert "pickSelectionLabel" in boss_view
+    assert 'value === "HOME_AH"' in boss_view
+    assert 'value === "AWAY_AH"' in boss_view
+    assert "displayLineForTeam" in boss_view
     assert "世界杯输出按 staging 保守展示" in boss_view
     assert "L2 技术诊断" in boss_view
 

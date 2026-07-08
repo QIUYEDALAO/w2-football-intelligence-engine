@@ -94,3 +94,33 @@ def test_future_refresh_world_cup_policy_remains_enabled() -> None:
 def test_registry_uses_static_config_not_runtime_time() -> None:
     assert datetime(2026, 6, 25, tzinfo=UTC).tzinfo is UTC
     assert CompetitionRegistry().is_enabled("world_cup_2026") is True
+
+
+def test_staging_enabled_competitions_are_environment_scoped(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv(
+        "W2_STAGING_ENABLED_COMPETITIONS",
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+    )
+
+    registry = CompetitionRegistry()
+
+    assert {
+        "world_cup_2026",
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    } <= registry.enabled_ids()
+
+
+def test_staging_enabled_competitions_do_not_apply_to_production(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "W2_STAGING_ENABLED_COMPETITIONS",
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+    )
+
+    registry = CompetitionRegistry()
+
+    assert registry.enabled_ids() == {"world_cup_2026"}

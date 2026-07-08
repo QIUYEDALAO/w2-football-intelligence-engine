@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,7 @@ class CompetitionRegistry:
         if not self.root.exists():
             raise CompetitionRegistryError(f"COMPETITION_CONFIG_ROOT_MISSING:{self.root}")
         entries: dict[str, CompetitionRegistryEntry] = {}
+        staging_enabled_ids = _staging_enabled_competition_ids()
         for path in sorted(self.root.rglob("*.json")):
             payload = json.loads(path.read_text(encoding="utf-8"))
             competition_id = str(payload.get("competition_id") or "")
@@ -94,10 +96,13 @@ class CompetitionRegistry:
             coverage = payload.get("coverage_profile")
             if not isinstance(coverage, dict):
                 raise CompetitionRegistryError(f"COVERAGE_PROFILE_MISSING:{competition_id}")
+            enabled = bool(payload.get("enabled") is True)
+            if competition_id in staging_enabled_ids:
+                enabled = True
             entries[competition_id] = CompetitionRegistryEntry(
                 competition_id=competition_id,
                 season=str(payload.get("season") or ""),
-                enabled=bool(payload.get("enabled") is True),
+                enabled=enabled,
                 coverage_profile=CoverageProfile.from_payload(coverage),
                 config_path=path,
                 provider_mapping={
@@ -107,4 +112,19 @@ class CompetitionRegistry:
                 if isinstance(payload.get("provider_mapping"), dict)
                 else {},
             )
+        missing_staging = sorted(staging_enabled_ids - set(entries))
+        if missing_staging:
+            raise CompetitionRegistryError(
+                f"STAGING_ENABLED_COMPETITION_NOT_REGISTERED:{','.join(missing_staging)}"
+            )
         return entries
+
+
+def _staging_enabled_competition_ids() -> set[str]:
+    raw = os.environ.get("W2_STAGING_ENABLED_COMPETITIONS", "")
+    if not raw.strip():
+        return set()
+    environment = os.environ.get("W2_ENVIRONMENT", "").strip().lower()
+    if environment != "staging":
+        return set()
+    return {item.strip() for item in raw.split(",") if item.strip()}

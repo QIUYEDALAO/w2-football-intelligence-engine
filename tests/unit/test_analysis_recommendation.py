@@ -136,3 +136,31 @@ def test_leakage_blocked_intent_forces_market_skip() -> None:
 
     assert ah.decision == AnalysisDecision.SKIP
     assert ah.reasons == ("LEAKAGE_BLOCKED",)
+
+
+def test_low_strength_markets_emit_no_edge_not_analysis_pick() -> None:
+    inputs = AnalysisBuildInputs(
+        **{
+            **complete_inputs().__dict__,
+            "ah_intent": intent(IntentSignal.HOME_LEAN, confidence=0.4),
+            "ou_intent": intent(IntentSignal.OVER_LEAN, confidence=0.4),
+            "half_goals": HalfGoalModelInput(
+                expected_home_goals=0.78,
+                expected_away_goals=0.78,
+            ),
+            "score_matrix": {
+                (0, 0): 0.40,
+                (0, 1): 0.30,
+                (1, 1): 0.18,
+                (1, 0): 0.02,
+            },
+            "score_direction": "HOME",
+        }
+    )
+
+    card = build_multi_market_analysis(fixture_id="1489404", inputs=inputs)
+
+    assert card.decision == AnalysisDecision.NO_EDGE
+    assert all(market.decision == AnalysisDecision.NO_EDGE for market in card.markets)
+    assert {market.tendency for market in card.markets} == {None}
+    assert all(market.confidence < 0.55 for market in card.markets)

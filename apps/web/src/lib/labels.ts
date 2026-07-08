@@ -40,7 +40,7 @@ export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
   [/Group Stage\s*-\s*(\d+)/i, "小组赛第$1轮"],
   [/Group Stage/i, "小组赛"],
   [/Round of 16/i, "16 强"],
-  [/Quarter[- ]final/i, "四分之一决赛"],
+  [/Quarter[- ]finals?/i, "四分之一决赛"],
   [/Semi[- ]final/i, "半决赛"],
   [/Final/i, "决赛"],
 ];

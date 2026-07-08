@@ -15,6 +15,7 @@ from w2.ingestion.future_refresh import (
     deterministic_task_key,
     load_refresh_policy,
     observations_from_odds_payload,
+    parse_line,
     run_future_refresh_task,
 )
 from w2.providers.api_football import LiveApiFootballResponse
@@ -156,6 +157,14 @@ def test_canonical_market_keeps_only_full_time_asian_handicap_in_ah_pool() -> No
     assert canonical_market("Yellow Asian Handicap") == "YELLOW_ASIAN_HANDICAP"
 
 
+def test_parse_line_preserves_asian_split_quarter_lines() -> None:
+    assert parse_line("Over 2/2.5") == "2.25"
+    assert parse_line("Under 2 - 2.5") == "2.25"
+    assert parse_line("Home -0/0.5") == "-0.25"
+    assert parse_line("Away +0.5/1") == "0.75"
+    assert parse_line("Over 2.5") == "2.5"
+
+
 def test_odds_payload_does_not_put_half_or_card_handicap_into_full_time_ah_pool() -> None:
     payload = {
         "response": [
@@ -222,6 +231,53 @@ def test_odds_payload_does_not_put_half_or_card_handicap_into_full_time_ah_pool(
         for row in rows
         if row["raw_market_label"] != "Asian Handicap"
     } == {"ASIAN_HANDICAP_FIRST_HALF", "CARDS_ASIAN_HANDICAP"}
+
+
+def test_odds_payload_records_split_totals_line_as_quarter_line() -> None:
+    payload = {
+        "response": [
+            {
+                "fixture": {"id": 1489404},
+                "bookmakers": [
+                    {
+                        "id": 1,
+                        "name": "Book A",
+                        "bets": [
+                            {
+                                "id": 5,
+                                "name": "Goals Over/Under",
+                                "values": [
+                                    {"value": "Over 2/2.5", "odd": "2.03"},
+                                    {"value": "Under 2/2.5", "odd": "1.85"},
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=NOW,
+    )
+
+    rows = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=response,
+        source_revision="test",
+        raw_payload_sha256="payload",
+    )
+
+    totals_rows = [row for row in rows if row["canonical_market"] == "TOTALS"]
+    assert {row["line"] for row in totals_rows} == {"2.25"}
+    assert {row["decimal_odds"] for row in totals_rows} == {"2.03", "1.85"}
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):
@@ -838,8 +894,8 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 
-    assert config.daily_hard_cap == 100
-    assert config.daily_reserve == 20
+    assert config.daily_hard_cap == 120
+    assert config.daily_reserve == 0
     assert config.request_budget == 30
     assert config.checkpoint_mode == "world_cup_three_checkpoint"
     assert config.trickle_backfill_daily_budget == 0

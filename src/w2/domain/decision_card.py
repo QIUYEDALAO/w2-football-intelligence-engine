@@ -7,7 +7,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, cast
 
-from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
+from w2.domain.enums import (
+    DataStatus,
+    DecisionReasonCode,
+    DecisionTier,
+    LifecycleStatus,
+    ProbabilitySource,
+)
 from w2.domain.time import require_utc
 
 PICK_TIERS = {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
@@ -62,6 +68,8 @@ class DecisionCard:
     model_version: str
     provenance: Mapping[str, Any]
     environment: str
+    probability_source: ProbabilitySource = ProbabilitySource.UNKNOWN
+    model_market_divergence: Mapping[str, Any] = field(default_factory=dict)
     pick: DecisionPick | None = None
     non_pick: DecisionNonPick | None = None
     one_liner: str = ""
@@ -79,6 +87,7 @@ class DecisionCard:
         payload["decision_tier"] = self.decision_tier.value
         payload["data_status"] = self.data_status.value
         payload["lifecycle_status"] = self.lifecycle_status.value
+        payload["probability_source"] = self.probability_source.value
         if self.non_pick is not None:
             payload["non_pick"]["reason_code"] = self.non_pick.reason_code.value
         return payload
@@ -103,6 +112,8 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "outcome_tracked": card.outcome_tracked,
             "recommendation_id": card.recommendation_id,
             "model_version": card.model_version,
+            "probability_source": card.probability_source,
+            "model_market_divergence": card.model_market_divergence,
             "provenance": card.provenance,
             "pick": card.pick,
             "non_pick": card.non_pick,
@@ -151,7 +162,10 @@ def _validate_disclaimer(decision_tier: DecisionTier, disclaimer: str) -> None:
 def _normalize(value: Any) -> Any:
     if isinstance(value, DecisionPick | DecisionNonPick):
         return _normalize(asdict(value))
-    if isinstance(value, DecisionTier | DataStatus | LifecycleStatus | DecisionReasonCode):
+    if isinstance(
+        value,
+        DecisionTier | DataStatus | LifecycleStatus | DecisionReasonCode | ProbabilitySource,
+    ):
         return value.value
     if isinstance(value, datetime):
         return value.isoformat()

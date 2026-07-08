@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, cast
 
 from w2.api import repository as api_repository
@@ -105,6 +106,24 @@ class FakeReadRepository:
         return rows
 
 
+class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
+    def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id != "1489410":
+            return None
+        return {
+            "fixture_id": "1489410",
+            "competition_id": "world_cup_2026",
+            "competition_name": "World Cup",
+            "kickoff_utc": KICKOFF.isoformat().replace("+00:00", "Z"),
+            "status": "NS",
+            "home_team_id": "10",
+            "away_team_id": "20",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "market_coverage": {},
+        }
+
+
 class FakeDbRepository:
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         if endpoint != "lineups":
@@ -178,6 +197,14 @@ class FakeDbRepository:
         return rows
 
 
+def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() -> None:
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+    row = {"selection": "Over 2/2.5", "line": "2.5"}
+
+    assert service._line_value(row) == "2.25"  # noqa: SLF001
+    assert service._decimal_line(row) == Decimal("2.25")  # noqa: SLF001
+
+
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
     monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
     service = ReadModelService(repository=cast(Any, FakeReadRepository()))
@@ -225,7 +252,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["current_odds"]["ah"]["selection_policy"]
     assert card["current_odds"]["ah"]["candidate_lines"]
     assert card["current_odds"]["ah"]["rejected_lines"] == []
-    assert card["current_odds"]["ou"] == {
+    assert {
+        key: card["current_odds"]["ou"].get(key)
+        for key in ("line", "over_price", "under_price", "over_line", "under_line", "price")
+    } == {
         "line": "2.5",
         "over_price": 1.72,
         "under_price": 2.1,
@@ -233,13 +263,15 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "under_line": "2.5",
         "price": 1.91,
     }
+    assert card["current_odds"]["ou"]["selection_policy"]
+    assert card["current_odds"]["ou"]["candidate_lines"]
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     assert decisions["ASIAN_HANDICAP"] == "WATCH"
     assert decisions["TOTALS"] == "PICK"
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
-    assert decisions["SCORE"] == "PICK"
+    assert decisions["SCORE"] == "NO_EDGE"
     assert any(
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for market in card["markets"]
@@ -251,8 +283,32 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["lean"] is None
     assert "跟随市场 · 无独立优势 · 仅参考" in ah_market["reason"]
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
-    assert score_market["scores"]
+    assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
+
+
+def test_analysis_card_prefers_future_refresh_observations_over_stale_dashboard(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(
+        repository=cast(Any, FakeReadRepositoryWithStaleDashboardFixture()),
+    )
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["data_readiness"]["market_observations"] == 16
+    assert card["current_odds"]["ah"]["home_line"] == "-0.5"
+    assert card["current_odds"]["ou"]["line"] == "2.5"
+    reasons = {
+        market["market"]: market["reasons"]
+        for market in card["markets"]
+        if isinstance(market, dict)
+    }
+    assert reasons["ASIAN_HANDICAP"] != ["AH_MARKET_UNAVAILABLE"]
+    assert reasons["TOTALS"] != ["OU_MARKET_UNAVAILABLE"]
 
 
 class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):

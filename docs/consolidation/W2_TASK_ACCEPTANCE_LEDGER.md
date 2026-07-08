@@ -159,6 +159,13 @@
 - **流程**:先给 3 个 IA/布局方向 → 用户选一 → 实现 → 真实 staging 截图验收 UI/UX。
 - **状态**:brief 已确认;下一步 = 出 3 个方向(不写代码)。
 
+### V3 进展续 · Dashboard 可见性与 R1.0 恢复(2026-07-07)
+- **台账锁进 main**:#206 已将台账锁进 main。
+- **#204 进展**:#204(`1dd2958` 起,后续 staging hotfix 继续迭代)完成 dashboard 可见性:默认窗口切到 `future`,首屏显示未来赛程,补齐 `/v1` 健康检查,并让 R2.3 在赛联赛数据进入 DayView。
+- **当前行为说明**:推荐数为 0 属市场锚定选择性正常;未验证或分歧不足时降级 WATCH/观察,不强出推荐。
+- **风险修正**:scheduler 曾停,导致 R1.0 前向采集未自动增长。
+- **下一步**:恢复 R1.0 staging 采集调度,限制 `<=120 provider calls/day`,record-only,只追加 forward ledger 与 odds snapshots,不改决策、不启 production。
+
 ---
 
 ## 待办 / 下一步(交接者看这里)
@@ -250,3 +257,72 @@
 - [ ] `lock_eligible` / `RECOMMEND` 上档:需独立前向 +EV 证明,默认关。
 
 **不变红线**:分析级·非稳赢;provider 受控;不造假绿灯;enable/部署永远是单独批准步;raw/key 不提交。
+
+---
+
+### V3 进展续2 · R1.0 Provider 实采校准(2026-07-07)
+
+- #204 已恢复 scheduler,staging provider hard cap 固定为 `120/day`;forward ledger 已自动增长至 69 行,但该增长来自既有 read-model。
+- 已修复 market-timeline OOM:fixture-scoped odds observation 为空时不再 fallback 扫全量 market observations。
+- 已修复 UI 文案:`Quarterfinals` 显示为 `四分之一决赛`,不再出现尾部 `s`。
+- 发现并保留安全停止:provider 实采被 `PROVIDER_RESERVE_PROTECTED` 挡住,没有偷放宽,没有绕过 dedup/hardcap。
+- 下一步:有意识校准 future-refresh usage scope,让 staging R1.0 record-only 采集在 `<=120 provider calls/day` 内真拉新 odds 时间线(CLV 料);仍只限 staging,不改决策、不启 production、不 merge。
+
+### V3 进展续3 · R1.0 真闭环与 R3.0 门槛预注册(2026-07-07)
+
+- #204 校准 future-refresh:world_cup hard cap 调整为 `120`,reserve 调整为 `0`,usage scope 固定为 `w2_ledger`。
+- 已修复 DB task-key retry:历史 `BLOCKED` / `ALREADY_RUNNING` 不再永久挡住后续 checkpoint retry,但 `COMPLETED` 仍保持幂等抑制。
+- R1.0 真闭环达成:worker 真请求 provider,staging W2 provider count `114 -> 117`;fixture `1578539` 完成 `COMPLETED`,`market_snapshot_count=1`,`remaining_quota=6353`,无 blocker。
+- forward ledger 增至 `225` 行;dedup/hardcap 未绕过,未手动删除 Redis dedup key。
+- 阶段转入 accrual:用日历时间积累 CLV/战绩,并行有限建设 R3.0 EV 门槛预注册、R1.2 CLV 报告、R2.2 dashboard 定案。
+
+### V3 进展续4 · 台账分叉对齐与 R3.0 收口(2026-07-07)
+
+- #204 已 rebase 到最新 main,并解决台账分叉:以 main/#206 的"🔴 战略裁决 + V3 进展"为基,叠加 #204 的"V3 进展续/续2/续3",当前 #204 台账为两者超集。
+- R3.0 完成:EV/RECOMMEND 重开门槛已写进 Decision Contract V2(commit `91e3e63`):单联赛前向 `>=200` 卡、CLV 中位数 `>0`、滚动 blend `w*<1` 且稳定优于纯市场;离线 LL / 离线 +EV 不再作为开关依据。
+- 下一步进入 R4.1 模型增强:eval-only 缩市场 gap,不打 provider、不部署、不 enable。
+
+### V3 进展续5 · R4.1 模型 gap 缩减 eval-only(2026-07-08)
+
+- R4.1 已按 eval-only 完成:接入 Dixon-Coles rho、时间衰减样本权重、联赛专属主场系数、窗口化+对手强度调整 xG;不打 provider、不部署、不 enable、不改线上决策。
+- 目标四联赛结果:德甲 gap `0.0470 -> 0.0430`(下降但仍未过 `<=0.04`);中超 `0.0524 -> 0.0354`(过线);巴甲 `0.0538 -> 0.0550`(变差,不采纳);瑞典超 `0.0551 -> 0.0188`(过线)。
+- §4 分歧雷达准入矩阵已更新为 best validated gap 口径:R4.1 仅在该联赛 gap 下降时采纳;EV/RECOMMEND 腿仍默认关闭。
+
+### V3 进展续6 · R4.1 收口与 R4.1b 接线目标(2026-07-08)
+
+- R4.1 完成:DC rho(`tau_correction`)+时间衰减+联赛主场系数+窗口化/对手调整 xG,按联赛选择性采纳。
+- 中超 gap `.052 -> .035` 过线,瑞典超 `.055 -> .019` 过线,德甲 `.047 -> .043` 未过,巴甲 `.054 -> .055` 变差不采纳。
+- §4 矩阵已更新。下一步 R4.1b:把采纳的 per-league 模型接进分歧雷达计算。
+
+### V3 进展续7 · R4.1b 分歧雷达冠军模型接线(2026-07-08)
+
+- R4.1b 完成:新增 per-league divergence champion 选择器,分歧雷达模型侧按采纳表读取 champion 概率;市场概率展示仍保持 `MARKET_DEVIG`,EV/RECOMMEND 腿仍默认关闭。
+- 当前采纳表:德甲/中超/瑞典超使用 `R4_1_CALIBRATED`;巴甲及其他未单独采纳联赛保持 `FITTED_CALIBRATED`。
+- `run_w2_market_baseline_eval.py --phase all` 已输出 champion gap:德甲 `+0.0430`,中超 `+0.0354`,瑞典超 `+0.0188`,巴甲保持原模型 `+0.0538`;provider_calls=0。
+
+### V3 进展续8 · R2.2 决策优先 triage 台启动(2026-07-08)
+
+- R2.2 启动:dashboard 首屏转向决策优先 triage 台,先展示值得看 `0-3` 场与诚实空态,再展示今日紧凑赛程,未来/覆盖降为折叠解释层。
+- 数据正确性 7 条中 `1-6` 已修;盘口主线源待定,默认建议 Pinnacle,与市场基准一致。
+- 约束:继续使用 DayView/DecisionCard 作为唯一数据源,market-anchor 门保持开启,不启 production,不新增 enable,不改 EV 腿。
+
+### V3 进展续9 · R2.2 staging 部署与真实眼验(2026-07-08)
+
+- #204 head `524435e` 已部署 staging,Web/API SHA 对齐,`/health`、`/ready`、`/v1/version`、`/meta.json` 验证 PASS。
+- R2.2 决策台真实眼验:首屏已转为"值得看 0-3 + 诚实空态 -> 赛中/刚开赛 -> 今日赛程 -> 未来赛程/覆盖折叠"结构;当前真实 future 窗口有 40 张卡,`MARKET_DEVIG` 盘口概率正常进入页面。
+- 五态截图:满负荷/未来赛程、盘口不齐、值得看空态已用真实 staging 截图确认;赛中/赛后当前 read-model 无 live/result 样本,只能显示诚实空态,不伪造样本。
+- 约束保持:staging only,不 production,不新增 enable,不改 EV 腿,不提交 raw/key/header。
+
+### V3 进展续10 · R2.2 眼验收尾与 R1.2 启动(2026-07-08)
+
+- R2.2 用户眼验通过:决策台成型(Pinnacle 主线标注、去置信度%、值得看诚实空态、赛中分区、证据人话);盘口源定 Pinnacle。
+- 剩余 2 处小修:空区(值得看/赛中/今日 为 0 时)收成单行摘要,不占整块;右侧证据面板 `UNVALIDATED` 改为"模型未验证",清掉最后的枚举漏。
+- R1.2 启动:CLV/战绩报告机器改读真实 `forward_ledger` + outcome;有样本显示命中/走水/作废 + 按联赛 CLV,无样本诚实标"积累中 N/200",mock 清零。
+- 约束:staging only、DayView/DecisionCard 唯一源、market-anchor 门开、不 production、不 enable、不改 EV 腿;数据不足如实标"积累中",绝不造数。
+
+### V3 进展续11 · R1.2 + R2.2 收尾部署(2026-07-08)
+
+- R1.2 + R2.2 收尾已部署 staging,head `c355807`:战绩三处读真实 `forward_ledger`,当前样本 `616/200`,per-league 使用真实计数。
+- 当前无结算样本时诚实标"积累中",不显示假命中率、不制造 CLV。
+- R2.2 小修完成:空区收成单行摘要,`UNVALIDATED` 改为"模型未验证"。
+- 可见产品 + 前向引擎已建完;剩余为日历时间累积 + R2.3 收口 + 后续。

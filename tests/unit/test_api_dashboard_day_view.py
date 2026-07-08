@@ -62,28 +62,30 @@ class RecordingDashboardService:
         }
 
 
-def test_dashboard_day_view_endpoint_reads_today_dashboard_only(
+def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,
 ) -> None:
     service = RecordingDashboardService()
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app)
 
-    response = client.get("/v1/dashboard/day-view?date=2026-07-05&timezone=UTC")
+    response = client.get(
+        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
+    )
 
     assert response.status_code == 200
     payload = response.json()
     assert service.calls == [
         {
             "target_date": "2026-07-05",
-            "window": "today",
+            "window": "future",
             "timezone": "UTC",
             "include_debug": False,
         }
     ]
     assert payload["request_id"]
     assert payload["football_day"] == "2026-07-05"
-    assert payload["window"] == "today"
+    assert payload["window"] == "future"
     assert payload["navigation"]["current_date"] == "2026-07-05"
     assert payload["navigation"]["fallback_mode"] == "read_model"
     assert payload["degradation"]["state"] == "BLOCKED_DAY"

@@ -23,11 +23,12 @@ def _obs(
     odds: float,
     bookmaker: str = "book-a",
 ) -> dict[str, object]:
+    raw_market_label = "Asian Handicap" if market == "ASIAN_HANDICAP" else "Goals Over/Under"
     return {
         "fixture_id": fixture_id,
         "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
         "canonical_market": market,
-        "raw_market_label": "Asian Handicap" if market == "ASIAN_HANDICAP" else market,
+        "raw_market_label": raw_market_label,
         "selection": selection,
         "line": line,
         "decimal_odds": odds,
@@ -64,6 +65,142 @@ def test_selects_latest_complete_ah_mainline_before_lock() -> None:
     assert snapshot["away_price"] == 1.97
     assert snapshot["as_of"] == "2026-06-28T11:40:00Z"
     assert snapshot["immutable"] is True
+
+
+def test_totals_mainline_uses_latest_bucket_bookmaker_consensus_pair() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    lock = kickoff - timedelta(minutes=20)
+    observations = [
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="OVER",
+            line=2.25,
+            odds=2.03,
+            bookmaker="book-a",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="UNDER",
+            line=2.25,
+            odds=1.85,
+            bookmaker="book-a",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="OVER",
+            line=2.25,
+            odds=2.01,
+            bookmaker="book-b",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="UNDER",
+            line=2.25,
+            odds=1.87,
+            bookmaker="book-b",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="OVER",
+            line=2.5,
+            odds=2.03,
+            bookmaker="book-c",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="UNDER",
+            line=2.5,
+            odds=1.85,
+            bookmaker="book-c",
+        ),
+    ]
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="TOTALS",
+        generated_at=lock,
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == 2.25
+    assert snapshot["selection_policy"] == "latest_bucket_ladder_balance_same_bookmaker_pair"
+    assert snapshot["candidate_lines"][0]["line"] == 2.25
+    assert round(float(snapshot["candidate_lines"][0]["over_price"]), 2) == 2.02
+    assert round(float(snapshot["candidate_lines"][0]["under_price"]), 2) == 1.86
+    assert snapshot["rejected_lines"][0]["line"] == 2.5
+
+
+def test_totals_mainline_ignores_non_full_time_totals_pools() -> None:
+    kickoff = datetime(2026, 6, 28, 12, tzinfo=UTC)
+    lock = kickoff - timedelta(minutes=20)
+    observations = [
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="OVER",
+            line=2.25,
+            odds=2.03,
+            bookmaker="book-a",
+        ),
+        _obs(
+            captured_at=lock,
+            market="TOTALS",
+            selection="UNDER",
+            line=2.25,
+            odds=1.85,
+            bookmaker="book-a",
+        ),
+    ]
+    for index in range(8):
+        observations.extend(
+            [
+                {
+                    **_obs(
+                        captured_at=lock,
+                        market="TOTALS",
+                        selection="OVER",
+                        line=2.5,
+                        odds=1.7,
+                        bookmaker=f"cards-{index}",
+                    ),
+                    "raw_market_label": "Cards Over/Under",
+                },
+                {
+                    **_obs(
+                        captured_at=lock,
+                        market="TOTALS",
+                        selection="UNDER",
+                        line=2.5,
+                        odds=2.1,
+                        bookmaker=f"cards-{index}",
+                    ),
+                    "raw_market_label": "Cards Over/Under",
+                },
+            ]
+        )
+
+    snapshot = select_mainline_snapshot(
+        observations=observations,
+        fixture_id="fx1",
+        kickoff=kickoff,
+        checkpoint="lock",
+        market="TOTALS",
+        generated_at=lock,
+    )
+
+    assert snapshot is not None
+    assert snapshot["line"] == 2.25
+    assert snapshot["bookmaker_count"] == 1
+    assert all(item["line"] != 2.5 for item in snapshot["candidate_lines"])
 
 
 def test_opening_ah_mainline_consensus_uses_earliest_bucket_not_latest() -> None:

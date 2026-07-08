@@ -24,7 +24,14 @@ import type {
 } from "../types/dashboard";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v5-boss-current-day";
+const DASHBOARD_CACHE_VERSION = "dashboard-v12-future-default-dayview-required";
+const DASHBOARD_CACHE_TTL_MS = 60_000;
+
+interface DashboardCacheEntry {
+  version: string;
+  stored_at: string;
+  view: DashboardView;
+}
 
 interface FetchDashboardArgs {
   date: string;
@@ -108,6 +115,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const scoreExact = asRecord(record.score_exact);
   const official = asRecord(record.official);
   const analysisShadow = asRecord(record.analysis_shadow);
+  const forwardLedger = asRecord(record.forward_ledger);
+  const forwardClv = asRecord(forwardLedger.clv);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
     hit_count: numberValue(row.hit_count),
@@ -157,6 +166,46 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       hit_count: numberValue(scoreExact.hit_count),
       hit_rate: typeof scoreExact.hit_rate === "number" ? scoreExact.hit_rate : null,
     },
+    forward_ledger: Object.keys(forwardLedger).length ? {
+      schema_version: textValue(forwardLedger.schema_version) || undefined,
+      source: textValue(forwardLedger.source) || undefined,
+      sample_target: numberValue(forwardLedger.sample_target),
+      record_count: numberValue(forwardLedger.record_count),
+      fixture_count: numberValue(forwardLedger.fixture_count),
+      settled_sample_count: numberValue(forwardLedger.settled_sample_count),
+      hit_count: numberValue(forwardLedger.hit_count),
+      miss_count: numberValue(forwardLedger.miss_count),
+      push_count: numberValue(forwardLedger.push_count),
+      void_count: numberValue(forwardLedger.void_count),
+      hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
+      accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
+      clv: {
+        sample_count: numberValue(forwardClv.sample_count),
+        median_decimal: typeof forwardClv.median_decimal === "number" ? forwardClv.median_decimal : null,
+        positive_count: numberValue(forwardClv.positive_count),
+        negative_count: numberValue(forwardClv.negative_count),
+        push_count: numberValue(forwardClv.push_count),
+        line_changed_count: numberValue(forwardClv.line_changed_count),
+        method: textValue(forwardClv.method) || undefined,
+      },
+      by_league: asArray(forwardLedger.by_league).map((item) => {
+        const row = asRecord(item);
+        return {
+          league: textValue(row.league, "UNKNOWN"),
+          record_count: numberValue(row.record_count),
+          fixture_count: numberValue(row.fixture_count),
+          settled_sample_count: numberValue(row.settled_sample_count),
+          hit_count: numberValue(row.hit_count),
+          miss_count: numberValue(row.miss_count),
+          push_count: numberValue(row.push_count),
+          void_count: numberValue(row.void_count),
+          hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+          clv_sample_count: numberValue(row.clv_sample_count),
+          clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
+        };
+      }),
+      mock_data: Boolean(forwardLedger.mock_data),
+    } : undefined,
   };
 }
 
@@ -440,6 +489,30 @@ function normalizeBookmakerHypothesis(payload: unknown) {
   };
 }
 
+function normalizeRecommendationPick(payload: unknown): RecommendationPick | null {
+  const record = asRecord(payload);
+  if (!Object.keys(record).length) return null;
+  return {
+    ...(record as unknown as RecommendationPick),
+    tier: textValue(record.tier, "WATCH") as RecommendationPick["tier"],
+    market: textValue(record.market, "UNKNOWN"),
+    market_label_cn: textValue(record.market_label_cn, "市场"),
+    selection: textValue(record.selection, "WATCH"),
+    selection_label_cn: textValue(record.selection_label_cn),
+    line: textValue(record.line),
+    odds: textValue(record.odds),
+    hong_kong_odds: textValue(record.hong_kong_odds),
+    model_probability: numberValue(record.model_probability) ?? undefined,
+    confidence: numberValue(record.confidence) ?? undefined,
+    confidence_label: textValue(record.confidence_label),
+    reasons: asArray(record.reasons).map((item) => textValue(item)).filter(Boolean),
+    risks: asArray(record.risks).map((item) => textValue(item)).filter(Boolean),
+    value_explanation: textValue(record.value_explanation),
+    candidate: record.candidate === true,
+    formal_recommendation: record.formal_recommendation === true,
+  };
+}
+
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
   return {
@@ -459,7 +532,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
-    recommendation: record.recommendation ? (asRecord(record.recommendation) as unknown as RecommendationPick) : null,
+    recommendation: normalizeRecommendationPick(record.recommendation),
     candidate: record.candidate === true,
     formal_recommendation: record.formal_recommendation === true,
     formal_suppressed: record.formal_suppressed === true,
@@ -581,36 +654,68 @@ export function getCachedDashboardView(date: string, mode: DashboardMode): Dashb
   try {
     const raw = window.localStorage.getItem(cacheKey(date, mode));
     if (!raw) return null;
-    return JSON.parse(raw) as DashboardView;
+    const entry = JSON.parse(raw) as Partial<DashboardCacheEntry>;
+    if (entry.version !== DASHBOARD_CACHE_VERSION || !entry.stored_at || !entry.view) return null;
+    if (Date.now() - Date.parse(entry.stored_at) > DASHBOARD_CACHE_TTL_MS) return null;
+    if (!entry.view.day_view) return null;
+    return entry.view;
   } catch {
     return null;
   }
 }
 
+export function clearCachedDashboardView(date: string, mode: DashboardMode): void {
+  try {
+    window.localStorage.removeItem(cacheKey(date, mode));
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith("dashboard-v")) {
+        window.localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Cache is best-effort; clearing it must not block a manual refresh.
+  }
+}
+
 function storeCachedDashboardView(date: string, mode: DashboardMode, view: DashboardView): void {
   try {
-    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(view));
+    const entry: DashboardCacheEntry = {
+      version: DASHBOARD_CACHE_VERSION,
+      stored_at: new Date().toISOString(),
+      view,
+    };
+    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(entry));
   } catch {
     // Cache is best-effort; private browsing or quota limits should not break the dashboard.
   }
 }
 
-async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean): Promise<unknown> {
+async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
   const params = new URLSearchParams({
     date,
     window: mode,
     timezone: "Asia/Shanghai",
     include_debug: includeDebug ? "true" : "false",
   });
-  return getJSON(`${API_BASE}/dashboard?${params.toString()}`);
+  return getJSON(`${API_BASE}/dashboard?${params.toString()}`, timeoutMs);
 }
 
-async function fetchDashboardDayViewPayload(date: string): Promise<unknown> {
+async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): Promise<unknown> {
   const params = new URLSearchParams({
     date,
+    window: mode,
     timezone: "Asia/Shanghai",
   });
   return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
+}
+
+async function fetchDashboardDayViewPayloadRequired(date: string, mode: DashboardMode): Promise<unknown> {
+  try {
+    return await fetchDashboardDayViewPayload(date, mode);
+  } catch {
+    return fetchDashboardDayViewPayload(date, mode);
+  }
 }
 
 function normalizeCounts(payload: unknown): DashboardDayViewCounts {
@@ -664,6 +769,15 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     missing_fields: asArray(record.missing_fields).map((item) => textValue(item)).filter(Boolean),
     stale_fields: asArray(record.stale_fields).map((item) => textValue(item)).filter(Boolean),
     data_readiness: asRecord(record.data_readiness),
+    data_refresh: normalizeDataRefresh(record.data_refresh),
+    analysis_readiness: asRecord(record.analysis_readiness),
+    current_odds: asRecord(record.current_odds),
+    market_probabilities: asRecord(record.market_probabilities),
+    odds_movement: asRecord(record.odds_movement),
+    probability_source: textValue(record.probability_source) || null,
+    model_market_divergence: asRecord(record.model_market_divergence),
+    market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
+    missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
     pick: Object.keys(pick).length
       ? {
           market: textValue(pick.market) || null,
@@ -726,28 +840,44 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     const meta = normalizeMeta(await metaPromise);
     return demoDashboard(date, meta);
   }
-  let [metaPayload, versionPayload, dashboardPayload, formalTrackingPayload, dayViewPayload] = await Promise.all([
+  const [metaPayload, versionPayload, formalTrackingPayload, dayViewPayload] = await Promise.all([
     metaPromise,
     getJSON(`${API_BASE}/version`),
-    fetchDashboardPayload(date, mode, includeDebug),
     getJSON(`${API_BASE}/formal/tracking/summary`).catch(() => null),
-    fetchDashboardDayViewPayload(date).catch(() => null),
+    fetchDashboardDayViewPayloadRequired(date, mode),
   ]);
+  const dayView = dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null;
+  let dashboardPayload: unknown | null = null;
+  let dashboardError: unknown = null;
+  if (!dayView) {
+    dashboardPayload = await fetchDashboardPayload(date, mode, includeDebug, REQUEST_TIMEOUT_MS);
+  }
   let dashboard = asRecord(dashboardPayload);
-  if (!includeDebug && asArray(dashboard.all).length === 0) {
-    dashboardPayload = await fetchDashboardPayload(date, mode, true);
-    dashboard = asRecord(dashboardPayload);
+  if (!includeDebug && !dayView && asArray(dashboard.all).length === 0) {
+    try {
+      dashboardPayload = await fetchDashboardPayload(date, mode, true, REQUEST_TIMEOUT_MS);
+      dashboard = asRecord(dashboardPayload);
+    } catch (error) {
+      dashboardError = dashboardError ?? error;
+      throw error;
+    }
   }
   const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
+  const dayViewRecord = asRecord(dayViewPayload);
   const all = asArray(dashboard.all).map(normalizeCard);
   const view = {
-    date: textValue(dashboard.date, date),
-    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date, date),
-    selected_football_day: textValue(dashboard.selected_football_day) || textValue(dashboard.selected_date) || textValue(dashboard.date, date),
-    selected_date_has_data: Boolean(dashboard.selected_date_has_data),
-    next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date,
+    date: textValue(dashboard.date, dayView?.date || date),
+    selected_date: textValue(dashboard.selected_date) || textValue(dashboard.date) || dayView?.selected_football_day || date,
+    selected_football_day:
+      textValue(dashboard.selected_football_day) ||
+      textValue(dashboard.selected_date) ||
+      textValue(dashboard.date) ||
+      dayView?.selected_football_day ||
+      date,
+    selected_date_has_data: dashboardPayload ? Boolean(dashboard.selected_date_has_data) : Boolean(dayView?.cards.length),
+    next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date || dayView?.selected_football_day || null,
     football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
     football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
     football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
@@ -757,14 +887,14 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     data_source: release.data_source,
     release,
     debug: normalizeDebug(dashboard.debug),
-    performance: normalizePerformance(dashboard.performance),
+    performance: normalizePerformance(dayView ? dayViewRecord.performance : dashboard.performance),
     formal_tracking: normalizeFormalTracking(formalTrackingPayload),
-    day_view: dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null,
+    day_view: dayView,
     recommendations: asArray(dashboard.recommendations).map(normalizeCard),
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
     all,
-    errors: [],
+    errors: dashboardError ? ["legacy dashboard payload timed out; Boss View rendered from DayView"] : [],
   };
   storeCachedDashboardView(date, mode, view);
   return view;

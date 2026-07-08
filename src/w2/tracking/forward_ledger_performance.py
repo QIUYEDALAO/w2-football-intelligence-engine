@@ -1,0 +1,312 @@
+from __future__ import annotations
+
+import json
+from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
+from statistics import median
+from typing import Any
+
+SAMPLE_TARGET = 200
+SETTLED_OUTCOMES = {
+    "HIT": "hit",
+    "WIN": "hit",
+    "HALF_WIN": "hit",
+    "MISS": "miss",
+    "LOSS": "miss",
+    "HALF_LOSS": "miss",
+    "PUSH": "push",
+    "VOID": "void",
+}
+
+
+def forward_ledger_performance(
+    runtime_root: Path,
+    *,
+    sample_target: int = SAMPLE_TARGET,
+) -> dict[str, Any]:
+    root = runtime_root / "forward_outcome_ledger"
+    records = list(load_forward_ledger_records(root))
+    outcome_counts = _outcome_counts(records)
+    clv_rows = _clv_rows(records)
+    clv_values = [
+        row["clv_decimal"]
+        for row in clv_rows
+        if isinstance(row.get("clv_decimal"), int | float)
+    ]
+    fixture_ids = {
+        _text(record.get("fixture_id"))
+        for record in records
+        if _text(record.get("fixture_id"))
+    }
+    return {
+        "schema_version": "w2.forward_ledger_performance.v1",
+        "source": "runtime/forward_outcome_ledger",
+        "sample_target": sample_target,
+        "record_count": len(records),
+        "fixture_count": len(fixture_ids),
+        "settled_sample_count": sum(outcome_counts.values()),
+        "hit_count": outcome_counts["hit"],
+        "miss_count": outcome_counts["miss"],
+        "push_count": outcome_counts["push"],
+        "void_count": outcome_counts["void"],
+        "hit_rate": _hit_rate(outcome_counts),
+        "accumulation_label": _accumulation_label(len(records), sample_target),
+        "clv": {
+            "sample_count": len(clv_values),
+            "median_decimal": median(clv_values) if clv_values else None,
+            "positive_count": len([value for value in clv_values if value > 0]),
+            "negative_count": len([value for value in clv_values if value < 0]),
+            "push_count": len([value for value in clv_values if value == 0]),
+            "line_changed_count": len([row for row in clv_rows if row.get("line_changed") is True]),
+            "method": "entry_minus_closing_decimal_odds_same_line",
+        },
+        "by_league": _league_rows(records, clv_rows, outcome_counts_by_league(records)),
+        "provider_calls": 0,
+        "db_reads": 0,
+        "db_writes": 0,
+        "mock_data": False,
+    }
+
+
+def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
+    if not root.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    for path in sorted(root.glob("*.jsonl")):
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict):
+                    records.append(payload)
+    return records
+
+
+def _outcome_counts(records: Sequence[Mapping[str, Any]]) -> defaultdict[str, int]:
+    counts: defaultdict[str, int] = defaultdict(int)
+    for record in records:
+        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        if bucket:
+            counts[bucket] += 1
+    return counts
+
+
+def outcome_counts_by_league(
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, defaultdict[str, int]]:
+    by_league: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for record in records:
+        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        if bucket:
+            by_league[_league_key(record)][bucket] += 1
+    return by_league
+
+
+def _clv_rows(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    for record in records:
+        key = _clv_key(record)
+        if key is not None:
+            grouped[key].append(record)
+
+    rows: list[dict[str, Any]] = []
+    for (fixture_id, market, selection), items in grouped.items():
+        ordered = sorted(
+            items,
+            key=lambda item: (
+                _parse_time(item.get("captured_at"))
+                or datetime.min.replace(tzinfo=UTC)
+            ),
+        )
+        if len(ordered) < 2:
+            continue
+        entry = _entry_record(ordered)
+        closing = _closing_record(ordered)
+        entry_quote = _quote(entry, market, selection)
+        closing_quote = _quote(closing, market, selection)
+        if entry_quote is None or closing_quote is None:
+            continue
+        entry_line, entry_price = entry_quote
+        closing_line, closing_price = closing_quote
+        line_changed = entry_line != closing_line
+        rows.append(
+            {
+                "fixture_id": fixture_id,
+                "league": _league_key(entry),
+                "market": market,
+                "selection": selection,
+                "entry_captured_at": _text(entry.get("captured_at")),
+                "closing_captured_at": _text(closing.get("captured_at")),
+                "line_changed": line_changed,
+                "clv_decimal": None if line_changed else round(entry_price - closing_price, 6),
+            }
+        )
+    return rows
+
+
+def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+    for record in records:
+        kickoff = _parse_time(record.get("kickoff_utc"))
+        captured = _parse_time(record.get("captured_at"))
+        if kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600:
+            return record
+    return records[0]
+
+
+def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+    before_kickoff = [
+        record
+        for record in records
+        if (kickoff := _parse_time(record.get("kickoff_utc")))
+        and (captured := _parse_time(record.get("captured_at")))
+        and captured <= kickoff
+    ]
+    return before_kickoff[-1] if before_kickoff else records[-1]
+
+
+def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    fixture_id = _text(record.get("fixture_id"))
+    pick = record.get("pick")
+    if not fixture_id or not isinstance(pick, Mapping):
+        return None
+    market = _text(pick.get("market"))
+    selection = _text(pick.get("selection"))
+    if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
+        return None
+    return (fixture_id, market, selection)
+
+
+def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
+    odds = record.get("current_odds")
+    if not isinstance(odds, Mapping):
+        return None
+    if market == "ASIAN_HANDICAP":
+        ah = odds.get("ah")
+        if not isinstance(ah, Mapping):
+            return None
+        if selection == "HOME_AH":
+            return _line_price(ah.get("home_line"), ah.get("home_price"))
+        if selection == "AWAY_AH":
+            return _line_price(ah.get("away_line"), ah.get("away_price"))
+    if market == "TOTALS":
+        ou = odds.get("ou")
+        if not isinstance(ou, Mapping):
+            return None
+        if selection == "OVER":
+            return _line_price(ou.get("line"), ou.get("over_price"))
+        if selection == "UNDER":
+            return _line_price(ou.get("line"), ou.get("under_price"))
+    return None
+
+
+def _line_price(line: Any, price: Any) -> tuple[str, float] | None:
+    value = _number(price)
+    if value is None:
+        return None
+    return (_text(line), value)
+
+
+def _league_rows(
+    records: Sequence[Mapping[str, Any]],
+    clv_rows: Sequence[Mapping[str, Any]],
+    league_outcomes: dict[str, defaultdict[str, int]],
+) -> list[dict[str, Any]]:
+    league_records: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for record in records:
+        league_records[_league_key(record)].append(record)
+    clv_by_league: dict[str, list[float]] = defaultdict(list)
+    for row in clv_rows:
+        value = row.get("clv_decimal")
+        if isinstance(value, int | float):
+            clv_by_league[_text(row.get("league"))].append(value)
+    rows: list[dict[str, Any]] = []
+    for league, items in league_records.items():
+        outcomes = league_outcomes.get(league, defaultdict(int))
+        values = clv_by_league.get(league, [])
+        fixture_ids = {
+            _text(item.get("fixture_id"))
+            for item in items
+            if _text(item.get("fixture_id"))
+        }
+        rows.append(
+            {
+                "league": league,
+                "record_count": len(items),
+                "fixture_count": len(fixture_ids),
+                "settled_sample_count": sum(outcomes.values()),
+                "hit_count": outcomes["hit"],
+                "miss_count": outcomes["miss"],
+                "push_count": outcomes["push"],
+                "void_count": outcomes["void"],
+                "hit_rate": _hit_rate(outcomes),
+                "clv_sample_count": len(values),
+                "clv_median_decimal": median(values) if values else None,
+            }
+        )
+    return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))
+
+
+def _league_key(record: Mapping[str, Any]) -> str:
+    return _text(record.get("competition_name")) or _text(record.get("competition_id")) or "UNKNOWN"
+
+
+def _outcome(record: Mapping[str, Any]) -> str:
+    for key in ("settlement_outcome", "outcome", "result_outcome"):
+        value = _text(record.get(key)).upper()
+        if value:
+            return value
+    validation = record.get("validation")
+    if isinstance(validation, Mapping):
+        return _text(validation.get("settlement")).upper()
+    settlement = record.get("settlement")
+    if isinstance(settlement, Mapping):
+        return _text(settlement.get("outcome") or settlement.get("settlement")).upper()
+    return ""
+
+
+def _hit_rate(counts: Mapping[str, int]) -> float | None:
+    denominator = int(counts.get("hit", 0)) + int(counts.get("miss", 0))
+    if not denominator:
+        return None
+    return int(counts.get("hit", 0)) / denominator
+
+
+def _accumulation_label(record_count: int, sample_target: int) -> str:
+    if record_count < sample_target:
+        return f"积累中 {record_count}/{sample_target}"
+    return f"已达样本底线 {record_count}/{sample_target}"
+
+
+def _parse_time(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()

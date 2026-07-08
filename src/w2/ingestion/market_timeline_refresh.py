@@ -80,9 +80,9 @@ def run_market_timeline_refresh(
     if max_fixtures is not None:
         fixtures = fixtures[: max(max_fixtures, 0)]
     fixture_ids = [str(item["fixture_id"]) for item in fixtures]
-    observations = repo.future_market_observations_for_fixtures(fixture_ids)
-    if not observations:
-        observations = repo.future_market_observations()
+    observations = (
+        repo.future_market_observations_for_fixtures(fixture_ids) if fixture_ids else []
+    )
     results: list[dict[str, Any]] = []
     written = 0
     already_locked = 0

@@ -23,6 +23,21 @@ def is_full_time_asian_handicap_observation(
     return is_full_time_asian_handicap_label(raw_label)
 
 
+def is_full_time_totals_label(value: Any) -> bool:
+    return normalize_market_label(value) in {"goals over/under", "total goals"}
+
+
+def is_full_time_totals_observation(
+    row: dict[str, Any],
+    *,
+    allow_unlabeled: bool = True,
+) -> bool:
+    raw_label = row.get("raw_market_label")
+    if raw_label is None or str(raw_label).strip() == "":
+        return allow_unlabeled
+    return is_full_time_totals_label(raw_label)
+
+
 def canonical_market_from_label(raw_label: Any) -> str:
     label = normalize_market_label(raw_label)
     if label in {"match winner", "1x2", "winner"}:

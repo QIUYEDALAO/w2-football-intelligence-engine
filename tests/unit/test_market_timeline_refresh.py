@@ -125,6 +125,41 @@ def test_market_timeline_refresh_service_respects_max_fixtures_and_does_not_back
     assert "T-6h" not in {item["checkpoint"] for item in payload["results"]}
 
 
+def test_market_timeline_refresh_does_not_fallback_to_all_observations_when_scoped_empty(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
+
+        def future_market_observations_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            assert fixture_ids == ["fx1"]
+            return []
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            raise AssertionError("scoped refresh must not scan all market observations")
+
+    payload = run_market_timeline_refresh(
+        checkpoint="auto",
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        remaining_quota_override="6774",
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 12, 30, tzinfo=UTC),
+    )
+
+    assert payload["status"] == "PASS"
+    assert payload["selected_fixtures"] == ["fx1"]
+    assert payload["observation_count"] == 0
+    assert payload["written"] == 0
+    assert payload["provider_calls"] == 0
+    assert {item["status"] for item in payload["results"]} == {"NO_MAINLINE_OBSERVATION"}
+
+
 def test_market_timeline_refresh_enforces_quota_guard_before_write(
     tmp_path: Path,
 ) -> None:

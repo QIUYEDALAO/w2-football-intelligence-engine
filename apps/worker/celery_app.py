@@ -143,25 +143,10 @@ def market_timeline_refresh(
     window: str = "next36",
     checkpoint: str = "auto",
     max_fixtures: int | None = 10,
+    capture_forward_ledger: bool = False,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
-    if not provider_scheduler_enabled():
-        return {
-            "task_id": task_id,
-            "queued_at_utc": queued_at_utc,
-            "status": PROVIDER_SCHEDULER_DISABLED,
-            "result": {
-                "blockers": [PROVIDER_SCHEDULER_DISABLED],
-                "provider_calls": 0,
-                "candidate": False,
-                "formal_recommendation": False,
-                "beats_market": False,
-            },
-            "candidate": False,
-            "formal_recommendation": False,
-            "beats_market": False,
-        }
     result = run_market_timeline_refresh(
         window=window,
         checkpoint=checkpoint,
@@ -169,6 +154,30 @@ def market_timeline_refresh(
         write_artifacts=True,
         max_fixtures=max_fixtures,
     )
+    forward_ledger_result: dict[str, object] | None = None
+    if capture_forward_ledger:
+        forward_ledger_result = _run_forward_outcome_ledger(window=window)
+    return {
+        "task_id": task_id,
+        "queued_at_utc": queued_at_utc,
+        "status": result["status"],
+        "result": result,
+        "forward_outcome_ledger": forward_ledger_result,
+        "candidate": False,
+        "formal_recommendation": False,
+        "beats_market": False,
+    }
+
+
+@celery_app.task(name="w2.forward_outcome_ledger", bind=True)
+def forward_outcome_ledger(
+    self: object,
+    queued_at_utc: str | None = None,
+    window: str = "next36",
+) -> dict[str, object]:
+    request = getattr(self, "request", None)
+    task_id = str(getattr(request, "id", None) or "forward-outcome-ledger")
+    result = _run_forward_outcome_ledger(window=window)
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
@@ -176,5 +185,26 @@ def market_timeline_refresh(
         "result": result,
         "candidate": False,
         "formal_recommendation": False,
-        "beats_market": False,
+        "provider_calls": 0,
+        "db_writes": 0,
+        "lock_capture_write": False,
+        "settlement_write": False,
     }
+
+
+def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
+    from w2.api.repository import ReadModelService
+    from w2.dashboard.day_view import build_dashboard_day_view
+    from w2.tracking.forward_outcome_ledger import run_forward_outcome_ledger
+
+    service = ReadModelService()
+    dashboard = service.dashboard(window=window, include_debug=False)
+    day_view = build_dashboard_day_view(
+        dashboard,
+        environment=get_settings().environment.value,
+    )
+    return run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+    )

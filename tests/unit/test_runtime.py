@@ -6,6 +6,7 @@ from typing import Any
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
+    forward_outcome_ledger_tick,
     future_fixture_refresh_tick,
     heartbeat,
     market_timeline_refresh_tick,
@@ -13,6 +14,7 @@ from apps.scheduler.main import (
 )
 from apps.worker.celery_app import (
     celery_app,
+    forward_outcome_ledger,
     future_fixture_refresh,
     market_timeline_refresh,
     ping,
@@ -36,6 +38,7 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
     assert xg_history_backfill_tick()["status"] == "DISABLED"
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
+    assert forward_outcome_ledger_tick()["status"] == "DISABLED"
 
 
 def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_running_provider(
@@ -52,7 +55,7 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
-        lambda now: {
+        lambda now, **kwargs: {
             "status": "READY",
             "generated_plan_count": 8,
             "due_checkpoint_count": 1,
@@ -127,7 +130,7 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
-        lambda now: {
+        lambda now, **kwargs: {
             "status": "READY",
             "generated_plan_count": 8,
             "due_checkpoint_count": 1,
@@ -203,7 +206,7 @@ def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
-        lambda now: {
+        lambda now, **kwargs: {
             "status": "READY",
             "generated_plan_count": 8,
             "due_checkpoint_count": 1,
@@ -244,6 +247,174 @@ def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
     assert second["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
     assert first["projected_calls"] == 3
     assert len(sent) == 1
+
+
+def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    sent: list[dict[str, object]] = []
+
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv(
+        "W2_STAGING_ENABLED_COMPETITIONS",
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+    )
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv(
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+        "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now, **kwargs: {
+            "status": "READY",
+            "generated_plan_count": 1,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 1,
+            "all_due_projected_calls": 1,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "fixture-1",
+                    "checkpoint": "OPEN",
+                    "kickoff_utc": "2026-07-08T12:00:00Z",
+                    "due_at": "2026-07-08T10:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )(),
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda name, **kwargs: sent.append({"name": name, **kwargs}),
+    )
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["queued_count"] == 5
+    assert len(sent) == 5
+    assert {
+        item["kwargs"]["competition_id"]
+        for item in sent
+    } == {
+        "world_cup_2026",
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    }
+
+
+def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS", "brasileirao_serie_a")
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now, **kwargs: {
+            "status": "NO_CHECKPOINT_DUE",
+            "fixture_payload_count": 0,
+            "generated_plan_count": 0,
+            "due_checkpoint_count": 0,
+            "selected_checkpoint_count": 0,
+            "projected_calls": 0,
+            "all_due_projected_calls": 0,
+            "tick_hard_cap": 30,
+            "checkpoints": [],
+        },
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "test"},
+        )(),
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda name, **kwargs: sent.append({"name": name, **kwargs}),
+    )
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["competition_id"] == "brasileirao_serie_a"
+    assert result["provider_refresh_min_interval_policy"] == (
+        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+    )
+    assert sent == [
+        {
+            "name": "w2.future_fixture_refresh",
+            "kwargs": {
+                "competition_id": "brasileirao_serie_a",
+                "task_key": result["task_key"],
+                "queued_at_utc": result["queued_at_utc"],
+            },
+            "task_id": result["task_id"],
+        }
+    ]
+
+
+def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS", "brasileirao_serie_a")
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now, **kwargs: {
+            "status": "NO_CHECKPOINT_DUE",
+            "fixture_payload_count": 6,
+            "generated_plan_count": 0,
+            "due_checkpoint_count": 0,
+            "selected_checkpoint_count": 0,
+            "projected_calls": 0,
+            "all_due_projected_calls": 0,
+            "tick_hard_cap": 30,
+            "checkpoints": [],
+        },
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda name, **kwargs: sent.append({"name": name, **kwargs}),
+    )
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["competition_id"] == "brasileirao_serie_a"
+    assert result["provider_calls"] == 0
+    assert sent == []
 
 
 def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
@@ -289,6 +460,67 @@ def test_scheduler_market_timeline_dispatches_worker_task_without_running_provid
     assert sent[0]["name"] == "w2.market_timeline_refresh"
     assert sent[0]["kwargs"]["checkpoint"] == "auto"
     assert sent[0]["kwargs"]["max_fixtures"] == 7
+    assert sent[0]["kwargs"]["capture_forward_ledger"] is False
+
+
+def test_scheduler_market_timeline_is_not_blocked_by_provider_master_switch(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "false")
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = market_timeline_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert sent[0]["name"] == "w2.market_timeline_refresh"
+
+
+def test_scheduler_market_timeline_can_chain_forward_ledger_without_running_provider(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "true")
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = market_timeline_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["capture_forward_ledger"] is True
+    assert sent[0]["name"] == "w2.market_timeline_refresh"
+    assert sent[0]["kwargs"]["capture_forward_ledger"] is True
+
+
+def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "true")
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = forward_outcome_ledger_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["provider_calls"] == 0
+    assert result["db_writes"] == 0
+    assert str(result["task_id"]).startswith("forward-outcome-ledger:")
+    assert sent[0]["name"] == "w2.forward_outcome_ledger"
+    assert sent[0]["kwargs"]["window"] == "next36"
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
@@ -316,7 +548,7 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
 
 
 def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "false")
     monkeypatch.setattr(
         "apps.worker.celery_app.run_market_timeline_refresh",
         lambda **kwargs: {
@@ -338,6 +570,67 @@ def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
     assert result["beats_market"] is False
+
+
+def test_worker_market_timeline_can_capture_forward_ledger(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_market_timeline_refresh",
+        lambda **kwargs: {
+            "status": "PASS",
+            "written": 1,
+            "candidate": False,
+            "formal_recommendation": False,
+            "beats_market": False,
+        },
+    )
+    monkeypatch.setattr(
+        "apps.worker.celery_app._run_forward_outcome_ledger",
+        lambda **kwargs: {
+            "status": "PASS",
+            "provider_calls": 0,
+            "db_writes": 0,
+            "record_count": 2,
+            "written": 2,
+        },
+    )
+
+    result = market_timeline_refresh.run(
+        queued_at_utc="2026-06-29T12:00:00Z",
+        max_fixtures=2,
+        capture_forward_ledger=True,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["forward_outcome_ledger"]["record_count"] == 2
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
+    assert result["beats_market"] is False
+
+
+def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "apps.worker.celery_app._run_forward_outcome_ledger",
+        lambda **kwargs: {
+            "status": "PASS",
+            "provider_calls": 0,
+            "db_writes": 0,
+            "lock_capture_write": False,
+            "settlement_write": False,
+            "record_count": 1,
+            "written": 1,
+        },
+    )
+
+    result = forward_outcome_ledger.run(queued_at_utc="2026-06-29T12:00:00Z")
+
+    assert result["status"] == "PASS"
+    assert result["provider_calls"] == 0
+    assert result["db_writes"] == 0
+    assert result["lock_capture_write"] is False
+    assert result["settlement_write"] is False
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
 
 
 def test_worker_market_timeline_task_reports_blocked_without_promotion(monkeypatch) -> None:
@@ -387,9 +680,9 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
             return len(plans)
 
         def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            return []
+            raise AssertionError("must not read global due rows without generated plans")
 
-    monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda: [])
+    monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda **kwargs: [])
     monkeypatch.setattr(
         "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
         FakeRepository,
@@ -401,9 +694,65 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
     assert result["projected_calls"] == 0
 
 
+def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+    kickoff = "2026-06-25T19:00:00Z"
+    fixtures = [
+        {
+            "fixture": {
+                "id": 2001,
+                "date": kickoff,
+                "status": {"short": "NS", "elapsed": None},
+            },
+            "league": {"id": 71, "season": 2026},
+            "teams": {
+                "home": {"id": 1, "name": "Home"},
+                "away": {"id": 2, "name": "Away"},
+            },
+        }
+    ]
+
+    class FakeRepository:
+        def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
+            return len(plans)
+
+        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            return [
+                {
+                    "id": "checkpoint:9999:open",
+                    "fixture_id": "9999",
+                    "checkpoint": "OPEN",
+                    "kickoff_utc": "2026-06-25T19:00:00Z",
+                    "due_at": "2026-06-25T12:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "scheduled",
+                }
+            ]
+
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda **kwargs: fixtures,
+    )
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        FakeRepository,
+    )
+
+    result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+
+    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["generated_plan_count"] > 0
+    assert result["due_checkpoint_count"] == 0
+    assert result["selected_checkpoint_count"] == 0
+
+
 def test_worker_future_refresh_task_is_registered() -> None:
     assert future_fixture_refresh.name == "w2.future_fixture_refresh"
     assert market_timeline_refresh.name == "w2.market_timeline_refresh"
+    assert forward_outcome_ledger.name == "w2.forward_outcome_ledger"
 
 
 def test_redis_status_handles_unavailable_connection() -> None:

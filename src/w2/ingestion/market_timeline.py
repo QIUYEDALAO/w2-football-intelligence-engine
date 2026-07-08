@@ -11,7 +11,10 @@ from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
 )
-from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
+from w2.markets.asian_handicap_scope import (
+    is_full_time_asian_handicap_observation,
+    is_full_time_totals_observation,
+)
 
 MARKET_TIMELINE_SCHEMA_VERSION = "w2.market_timeline.v1"
 DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
@@ -221,7 +224,7 @@ def select_mainline_snapshot_result(
         "immutable": True,
         "generated_at": iso_z(generated_at or datetime.now(UTC)),
     }
-    if market == "ASIAN_HANDICAP":
+    if market in {"ASIAN_HANDICAP", "TOTALS"}:
         snapshot["selection_policy"] = selected.get(
             "selection_policy",
             "latest_bucket_ladder_balance_same_bookmaker_pair",
@@ -409,6 +412,8 @@ def _market_groups(
             continue
         if market == "ASIAN_HANDICAP" and not is_full_time_asian_handicap_observation(row):
             continue
+        if market == "TOTALS" and not is_full_time_totals_observation(row):
+            continue
         captured_at = parse_utc(row.get("captured_at") or row.get("captured_at_utc"))
         if captured_at is None or captured_at > target or captured_at >= kickoff:
             continue
@@ -470,7 +475,7 @@ def _select_mainline_group(
     market: str,
     checkpoint: str,
 ) -> dict[str, Any]:
-    if market != "ASIAN_HANDICAP":
+    if market not in {"ASIAN_HANDICAP", "TOTALS"}:
         return (
             min(groups, key=_opening_sort_key)
             if checkpoint == "opening"
@@ -487,7 +492,7 @@ def _select_mainline_group(
         line = round(float(group["line"]), 4)
         by_line.setdefault(line, []).append(group)
     candidate_lines = [
-        _line_candidate_summary(line, line_groups)
+        _line_candidate_summary(line, line_groups, market=market)
         for line, line_groups in by_line.items()
     ]
     max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidate_lines)
@@ -556,9 +561,15 @@ def _select_mainline_group(
     return selected
 
 
-def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[str, Any]:
-    home_prices = [float(group["sides"]["HOME"]["decimal_odds"]) for group in groups]
-    away_prices = [float(group["sides"]["AWAY"]["decimal_odds"]) for group in groups]
+def _line_candidate_summary(
+    line: float,
+    groups: list[dict[str, Any]],
+    *,
+    market: str,
+) -> dict[str, Any]:
+    left_side, right_side = _market_side_names(market)
+    left_prices = [float(group["sides"][left_side]["decimal_odds"]) for group in groups]
+    right_prices = [float(group["sides"][right_side]["decimal_odds"]) for group in groups]
     price_gaps = [float(group.get("balance_gap") or 999.0) for group in groups]
     balance_distances = [float(group.get("balance_distance") or 999.0) for group in groups]
     mid_distances = [float(group.get("mid_distance") or 999.0) for group in groups]
@@ -570,12 +581,8 @@ def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[s
             for bookmaker in group.get("bookmakers", set())
         }
     )
-    return {
+    summary = {
         "line": _json_number(float(line)),
-        "home_price": _json_number(_median(home_prices)),
-        "away_price": _json_number(_median(away_prices)),
-        "median_home_price": _json_number(_median(home_prices)),
-        "median_away_price": _json_number(_median(away_prices)),
         "bookmaker_count": len(bookmakers) or len(groups),
         "bookmakers": bookmakers,
         "captured_at": iso_z(groups[0]["captured_at"]),
@@ -586,6 +593,33 @@ def _line_candidate_summary(line: float, groups: list[dict[str, Any]]) -> dict[s
         "mid_distance": round(_median(mid_distances), 6),
         "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair",
     }
+    left_price = _json_number(_median(left_prices))
+    right_price = _json_number(_median(right_prices))
+    if market == "TOTALS":
+        summary.update(
+            {
+                "over_price": left_price,
+                "under_price": right_price,
+                "median_over_price": left_price,
+                "median_under_price": right_price,
+            }
+        )
+    else:
+        summary.update(
+            {
+                "home_price": left_price,
+                "away_price": right_price,
+                "median_home_price": left_price,
+                "median_away_price": right_price,
+            }
+        )
+    return summary
+
+
+def _market_side_names(market: str) -> tuple[str, str]:
+    if market == "TOTALS":
+        return ("OVER", "UNDER")
+    return ("HOME", "AWAY")
 
 
 def _bookmaker_consensus_floor(max_bookmaker_count: int) -> int:

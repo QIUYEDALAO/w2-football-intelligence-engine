@@ -176,6 +176,7 @@ class DashboardDayViewResponse(BaseModel):
     freshness: dict[str, Any]
     navigation: dict[str, Any]
     degradation: dict[str, Any]
+    performance: dict[str, Any] | None = None
     cards: list[dict[str, Any]]
 
 

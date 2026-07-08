@@ -4,7 +4,7 @@ import json
 import math
 import os
 from contextlib import suppress
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from time import monotonic
@@ -61,13 +61,17 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyLockModel,
     ShadowStrategyRunModel,
 )
+from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
 )
-from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
+from w2.markets.asian_handicap_scope import (
+    is_full_time_asian_handicap_observation,
+    is_full_time_totals_observation,
+)
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -120,6 +124,7 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
+from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -1011,6 +1016,10 @@ class ReadModelService:
             requested_date=requested_date,
         )
         future_next36_rows = self._filter_rows_for_next36(future_rows)
+        future_horizon_rows = self._filter_rows_for_future_horizon(
+            future_rows,
+            requested_date=requested_date,
+        )
         today_rows = self._dedupe_dashboard_rows(
             [*cast(list[dict[str, Any]], today_rows), *future_today_rows]
         )
@@ -1020,6 +1029,8 @@ class ReadModelService:
         selected_rows: list[dict[str, Any]]
         if window == "next36":
             selected_rows = next36_rows
+        elif window == "future":
+            selected_rows = future_horizon_rows
         elif window == "results":
             selected_rows = result_rows
         elif window == "all":
@@ -1088,6 +1099,7 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
+        performance["forward_ledger"] = forward_ledger_performance(RUNTIME)
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         payload = {
@@ -1121,8 +1133,8 @@ class ReadModelService:
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
-            return 300.0 if window in {"today", "next36"} else 600.0
-        return 900.0 if window in {"today", "next36"} else 1800.0
+            return 300.0 if window in {"today", "next36", "future"} else 600.0
+        return 900.0 if window in {"today", "next36", "future"} else 1800.0
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:
@@ -1468,9 +1480,15 @@ class ReadModelService:
                     if refreshed is not None:
                         return refreshed
                 return normalized
+            refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+            if refreshed is not None:
+                return refreshed
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
-                market_coverage=dict(fixture.get("market_coverage", {})),
+                market_coverage=self._market_coverage_from_fixture_observations(
+                    fixture_id=fixture_id,
+                    existing=dict(fixture.get("market_coverage", {})),
+                ),
                 source="matchday_card_without_analysis_payload",
                 fixture_context=context,
             )
@@ -1490,9 +1508,15 @@ class ReadModelService:
                     if refreshed is not None:
                         return refreshed
                 return normalized
+            refreshed = self._analysis_card_from_cached_fixture_payload(fixture_id)
+            if refreshed is not None:
+                return refreshed
             return self._fallback_analysis_card(
                 fixture_id=fixture_id,
-                market_coverage=dict(dashboard.get("market_coverage", {})),
+                market_coverage=self._market_coverage_from_fixture_observations(
+                    fixture_id=fixture_id,
+                    existing=dict(dashboard.get("market_coverage", {})),
+                ),
                 source="dashboard_without_analysis_payload",
                 fixture_context=context,
             )
@@ -1532,6 +1556,20 @@ class ReadModelService:
             source="future_refresh_without_analysis_payload",
             fixture_context=self._analysis_context_from_provider_fixture(item),
         )
+
+    def _market_coverage_from_fixture_observations(
+        self,
+        *,
+        fixture_id: str,
+        existing: dict[str, Any],
+    ) -> dict[str, Any]:
+        coverage = dict(existing)
+        observations = self._observations_for_fixture(fixture_id)
+        if any(row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations):
+            coverage["ASIAN_HANDICAP"] = True
+        if any(row.get("canonical_market") == "TOTALS" for row in observations):
+            coverage["TOTALS"] = True
+        return coverage
 
     def _db_analysis_card_from_fixture(
         self,
@@ -1909,6 +1947,8 @@ class ReadModelService:
                 continue
             if market == "ASIAN_HANDICAP" and not is_full_time_asian_handicap_observation(row):
                 continue
+            if market == "TOTALS" and not is_full_time_totals_observation(row):
+                continue
             line = self._decimal_line(row)
             if line is None:
                 continue
@@ -1975,6 +2015,13 @@ class ReadModelService:
             eligible = [
                 item for item in candidates if int(item["bookmaker_count"]) == max_bookmaker_count
             ] or candidates
+        elif market == "TOTALS":
+            max_bookmaker_count = max(int(item["bookmaker_count"]) for item in candidates)
+            consensus_floor = max_bookmaker_count
+            override = None
+            eligible = [
+                item for item in candidates if int(item["bookmaker_count"]) == max_bookmaker_count
+            ] or candidates
         else:
             eligible = candidates
             consensus_floor = 1
@@ -2014,10 +2061,10 @@ class ReadModelService:
             "observations": rows,
             "bookmaker_count": int(selected["bookmaker_count"]),
             "selection_policy": "latest_bucket_ladder_balance_same_bookmaker_pair"
-            if market == "ASIAN_HANDICAP"
+            if market in {"ASIAN_HANDICAP", "TOTALS"}
             else None,
-            "candidate_lines": candidate_lines if market == "ASIAN_HANDICAP" else None,
-            "rejected_lines": rejected_lines if market == "ASIAN_HANDICAP" else None,
+            "candidate_lines": candidate_lines if market in {"ASIAN_HANDICAP", "TOTALS"} else None,
+            "rejected_lines": rejected_lines if market in {"ASIAN_HANDICAP", "TOTALS"} else None,
             **({"selection_warning": selection_warning} if selection_warning else {}),
             **side_state,
         }
@@ -2085,6 +2132,8 @@ class ReadModelService:
         }
         if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
             payload["decision"] = "ANALYSIS_PICK"
+        elif "NO_EDGE" in decisions:
+            payload["decision"] = "NO_EDGE"
         elif "WATCH" in decisions:
             payload["decision"] = "WATCH"
         else:
@@ -2240,12 +2289,20 @@ class ReadModelService:
                         candidate["home_price"] = side_prices.get("home")
                     if side_prices.get("away") is not None:
                         candidate["away_price"] = side_prices.get("away")
+                    if side_prices.get("over") is not None:
+                        candidate["over_price"] = side_prices.get("over")
+                    if side_prices.get("under") is not None:
+                        candidate["under_price"] = side_prices.get("under")
                 side_lines = side_state.get("side_lines")
                 if isinstance(side_lines, dict):
                     if side_lines.get("home") is not None:
                         candidate["home_line"] = side_lines.get("home")
                     if side_lines.get("away") is not None:
                         candidate["away_line"] = side_lines.get("away")
+                    if side_lines.get("over") is not None:
+                        candidate["over_line"] = side_lines.get("over")
+                    if side_lines.get("under") is not None:
+                        candidate["under_line"] = side_lines.get("under")
             if selection_warning and line == selected_line:
                 candidate["selection_warning"] = selection_warning
             rows.append(candidate)
@@ -3134,6 +3191,8 @@ class ReadModelService:
             selection = str(row.get("selection") or "")
             if not market or not selection or row.get("decimal_odds") is None:
                 continue
+            if market == "TOTALS" and not is_full_time_totals_observation(row):
+                continue
             line = self._line_value(row) or "NO_LINE"
             key = (market, line, selection)
             current = latest_by_selection.get(key)
@@ -3271,7 +3330,7 @@ class ReadModelService:
         return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:
-        line = row.get("line")
+        line = parse_line(row.get("selection")) or row.get("line")
         if line is None:
             return None
         try:
@@ -3283,7 +3342,7 @@ class ReadModelService:
         return f"{line_number:g}"
 
     def _decimal_line(self, row: dict[str, Any]) -> Decimal | None:
-        line = row.get("line")
+        line = parse_line(row.get("selection")) or row.get("line")
         if line is None:
             return None
         try:
@@ -3899,6 +3958,8 @@ class ReadModelService:
         market["analysis_decision"] = original_decision
         if original_decision == "SKIP":
             market["decision"] = "SKIP"
+        elif original_decision == "NO_EDGE":
+            market["decision"] = "NO_EDGE"
         elif original_decision == "WATCH":
             market["decision"] = "WATCH"
         else:
@@ -4459,6 +4520,29 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         return filtered
+
+    def _filter_rows_for_future_horizon(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        requested_date: date,
+        horizon_days: int = 14,
+        limit: int = 40,
+    ) -> list[dict[str, Any]]:
+        start, _ = football_day_window(requested_date)
+        end = start + timedelta(days=horizon_days)
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            if self._is_finished_row(row):
+                continue
+            kickoff = self._row_kickoff_utc(row)
+            if kickoff is not None and start <= kickoff < end:
+                filtered.append(row)
+        filtered.sort(
+            key=lambda row: self._row_kickoff_utc(row)
+            or datetime.max.replace(tzinfo=UTC)
+        )
+        return filtered[:limit]
 
     def _row_kickoff_utc(self, row: dict[str, Any]) -> datetime | None:
         value = row.get("kickoff_utc")

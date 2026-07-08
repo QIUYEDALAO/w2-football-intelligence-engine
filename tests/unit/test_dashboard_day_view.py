@@ -28,6 +28,32 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                 "lock_eligible": True,
                 "recommendation_id": "rec-1",
                 "provider_budget_status": "OK",
+                "probability_source": "MARKET_DEVIG",
+                "model_market_divergence": {
+                    "status": "READY",
+                    "magnitude": 0.12,
+                },
+                "current_odds": {
+                    "ah": {
+                        "home_line": "-0.25",
+                        "home_price": 1.95,
+                        "away_line": "0.25",
+                        "away_price": 1.95,
+                    },
+                    "ou": {"line": "2.5", "over_price": 1.91, "under_price": 1.93},
+                },
+                "market_strip": [
+                    {
+                        "market": "ASIAN_HANDICAP",
+                        "decision": "WATCH",
+                        "reason": "跟随市场 · 仅参考",
+                    }
+                ],
+                "data_refresh": {
+                    "odds_status": "READY",
+                    "lineups_status": "PROVIDER_EMPTY",
+                    "xg_status": "INSUFFICIENT_HISTORY",
+                },
                 "pick": {
                     "market": "ASIAN_HANDICAP",
                     "selection": "HOME_AH",
@@ -95,6 +121,13 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["source"] == "decision_contract"
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
+    assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
+    assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
+    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502604
+    assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
+    assert contract_card["data_refresh"]["odds_status"] == "READY"
+    assert contract_card["probability_source"] == "MARKET_DEVIG"
+    assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"]["disclaimer"] == (
         "分析参考·非稳赢；production 动作需 RECOMMEND"
     )

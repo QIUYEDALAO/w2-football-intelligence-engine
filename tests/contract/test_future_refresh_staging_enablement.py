@@ -37,21 +37,51 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
-        assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
-        assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == (
+            "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
+            "allsvenskan,eliteserien"
+        )
+        assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "false"
+        assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "true"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
+        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert scheduler["W2_STAGING_ENABLED_COMPETITIONS"] == (
+            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+        )
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
-        for service in ("api", "worker"):
+        assert scheduler["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
+        assert scheduler["W2_MARKET_TIMELINE_WINDOW"] == "future"
+        assert scheduler["W2_FORWARD_OUTCOME_LEDGER_ENABLED"] == (
+            "${W2_FORWARD_OUTCOME_LEDGER_ENABLED:-true}"
+        )
+        assert scheduler["W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE"] == (
+            "${W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE:-true}"
+        )
+        assert scheduler["W2_FORWARD_OUTCOME_LEDGER_WINDOW"] == (
+            "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-future}"
+        )
+        api = env_for(path, "api")
+        assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
+        assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert api["W2_STAGING_ENABLED_COMPETITIONS"] == (
+            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+        )
+        for service in ("worker",):
             env = env_for(path, service)
-            assert env["W2_PROVIDER_CALLS_DISABLED"] == "true"
-            assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+            assert env["W2_PROVIDER_CALLS_DISABLED"] == "false"
+            assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "true"
             assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
             assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
+            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+            assert env["W2_STAGING_ENABLED_COMPETITIONS"] == (
+                "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+            )
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
             assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in env_for(path, service)
@@ -147,7 +177,7 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.scheduler.main.due_checkpoint_refresh_batch",
-        lambda now: {
+        lambda now, **kwargs: {
             "status": "READY",
             "generated_plan_count": 8,
             "due_checkpoint_count": 1,
