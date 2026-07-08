@@ -96,23 +96,19 @@ def _boss_5s_test(day_view: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping(model.get("counts"))
     freshness = _mapping(model.get("freshness"))
     first_screen = _visible_first_screen(html)
-    is_production = _text(model.get("environment")) == "production"
-    policy_text = "production B" if is_production else "staging-only"
     required = [
-        "正式可锁" if is_production else "可锁审批",
+        "正式可锁",
         "分析推荐",
         "未就绪",
         "LINEUPS_PENDING",
         "MARKET_UNAVAILABLE",
         "下一次刷新",
         str(freshness.get("next_refresh_tick") or ""),
-        policy_text,
+        "RECOMMEND-only",
     ]
     blockers = _missing_texts(first_screen, required)
     if "主要未出原因" not in first_screen and "reason summary" not in first_screen:
         blockers.append("MISSING_REASON_SUMMARY")
-    if _int(counts.get("lock_eligible")) < 1:
-        blockers.append("LOCK_ELIGIBLE_COUNT_MISSING")
     if _int(counts.get("analysis_pick")) < 1:
         blockers.append("ANALYSIS_PICK_COUNT_MISSING")
     blockers.extend(_raw_leaks(first_screen))
@@ -209,12 +205,12 @@ def _dashboard_visual_acceptance(day_view: Mapping[str, Any]) -> dict[str, Any]:
     blockers = _missing_texts(
         html,
         [
-            "可锁审批",
+            "正式可锁",
             "分析推荐",
             "重点观察",
             "未就绪",
             "技术诊断",
-            "staging-only / 可锁审批 / 分析参考·非稳赢",
+            "RECOMMEND-only / 正式可锁；ANALYSIS_PICK 仅分析参考",
             "上一天",
             "下一天",
         ],
@@ -241,8 +237,6 @@ def _matchday_dry_run_acceptance() -> dict[str, Any]:
     if not _mapping(payload.get("environment_policy")):
         blockers.append("MISSING_ENVIRONMENT_POLICY")
     lock_candidates = _mapping_list(payload.get("lock_candidates"))
-    if not lock_candidates:
-        blockers.append("MISSING_LOCK_APPROVAL_CANDIDATE")
     for candidate in lock_candidates:
         if candidate.get("needs_approval") is not True:
             blockers.append("LOCK_CANDIDATE_NOT_APPROVAL_ONLY")

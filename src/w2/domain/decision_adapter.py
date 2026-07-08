@@ -74,6 +74,19 @@ def build_decision_contract_fields(
         _get(card, "recommendation_id"),
         _get(market, "recommendation_id"),
     )
+    forward_ev_evidence_satisfied = _truthy(_get(card, "forward_ev_evidence_satisfied")) or _truthy(
+        _get(recommendation, "forward_ev_evidence_satisfied")
+    )
+    market_complete = _market_complete(market, recommendation)
+    if tier is DecisionTier.RECOMMEND and not _recommend_prerequisites_satisfied(
+        data_status=data_status,
+        kickoff_utc=kickoff_utc,
+        as_of=as_of,
+        market_complete=market_complete,
+        recommendation_id=recommendation_id,
+        forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
+    ):
+        tier = DecisionTier.ANALYSIS_PICK if market_complete else DecisionTier.WATCH
     legacy = legacy_decision_view(card, market)
     legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
     pick_payload = (
@@ -125,9 +138,8 @@ def build_decision_contract_fields(
         DecisionPolicyConfig(
             now_utc=as_of,
             data_integrity_passed=data_status is DataStatus.READY,
-            market_complete=_market_complete(market, recommendation),
-            forward_ev_evidence_satisfied=_truthy(_get(card, "forward_ev_evidence_satisfied"))
-            or _truthy(_get(recommendation, "forward_ev_evidence_satisfied")),
+            market_complete=market_complete,
+            forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
         ),
     )
     summary = {
@@ -209,6 +221,24 @@ def _pick_strength_insufficient(payload: Mapping[str, Any] | None) -> bool:
     if confidence is None:
         return False
     return confidence < MIN_ANALYSIS_PICK_CONFIDENCE
+
+
+def _recommend_prerequisites_satisfied(
+    *,
+    data_status: DataStatus,
+    kickoff_utc: datetime,
+    as_of: datetime,
+    market_complete: bool,
+    recommendation_id: str | None,
+    forward_ev_evidence_satisfied: bool,
+) -> bool:
+    return (
+        data_status is DataStatus.READY
+        and kickoff_utc.astimezone(UTC) > as_of.astimezone(UTC)
+        and market_complete
+        and recommendation_id is not None
+        and forward_ev_evidence_satisfied
+    )
 
 
 def _market_anchor_display_tier(

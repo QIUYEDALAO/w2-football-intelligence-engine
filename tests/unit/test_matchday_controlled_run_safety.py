@@ -53,7 +53,7 @@ def test_controlled_run_without_approvals_fails_closed() -> None:
     assert plan["would_write_db"] is False
     assert plan["would_write_lock"] is False
     assert plan["would_write_settlement"] is False
-    assert plan["environment_policy"]["lock_policy"]["name"] == "staging_A"  # type: ignore[index]
+    assert plan["environment_policy"]["lock_policy"]["name"] == "staging_B"  # type: ignore[index]
 
 
 def test_projected_provider_calls_require_provider_and_db_approval() -> None:
@@ -77,7 +77,7 @@ def test_provider_approval_does_not_execute_provider_in_this_pr() -> None:
     assert plan["provider_calls"] == 0
 
 
-def test_lock_candidate_requires_lock_approval_without_writing_lock() -> None:
+def test_analysis_pick_does_not_require_lock_approval() -> None:
     plan = _plan(
         fixtures=[
             _fixture(
@@ -92,9 +92,9 @@ def test_lock_candidate_requires_lock_approval_without_writing_lock() -> None:
         approve_db_writes=True,
     )
 
-    assert plan["lock_write_approval_required"] is True
-    assert "STAGING_FORMAL_LOCK_CAPTURE_WRITE" in plan["required_approvals"]  # type: ignore[operator]
-    assert plan["lock_candidates"] != []
+    assert plan["lock_write_approval_required"] is False
+    assert "STAGING_FORMAL_LOCK_CAPTURE_WRITE" not in plan["required_approvals"]  # type: ignore[operator]
+    assert plan["lock_candidates"] == []
     assert plan["would_write_lock"] is False
 
 

@@ -213,7 +213,7 @@ def test_analysis_pick_and_lock_policy_are_environmental() -> None:
 
     assert staging["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert staging["outcome_tracked"] is True
-    assert staging["lock_eligible"] is True
+    assert staging["lock_eligible"] is False
     assert production["lock_eligible"] is False
     assert staging["card_hash"] == production["card_hash"]
     assert "分析参考" in staging["pick"]["disclaimer"]  # type: ignore[index]
@@ -337,6 +337,7 @@ def test_market_anchor_display_requires_market_probability(monkeypatch) -> None:
             "model_market_divergence": {
                 "status": "READY",
                 "magnitude": 0.2,
+                # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
                 "direction_allowed": True,
             },
         },
@@ -395,6 +396,7 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
             "model_market_divergence": {
                 "status": "READY",
                 "magnitude": 0.2,
+                # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
                 "direction_allowed": True,
             },
         },
@@ -445,11 +447,11 @@ def test_staging_lock_requires_market_line_and_odds() -> None:
 
     assert missing_odds["lock_eligible"] is False
     assert missing_line["lock_eligible"] is False
-    assert complete["lock_eligible"] is True
+    assert complete["lock_eligible"] is False
     assert production_analysis["lock_eligible"] is False
 
 
-def test_production_recommend_requires_explicit_tier_and_ev_evidence() -> None:
+def test_recommend_requires_prerequisites_before_lock_eligible() -> None:
     market = {
         "market": "ASIAN_HANDICAP",
         "decision_tier": "RECOMMEND",
@@ -459,15 +461,22 @@ def test_production_recommend_requires_explicit_tier_and_ev_evidence() -> None:
     }
     readiness = {"status": "READY", "blockers": []}
 
-    without_evidence = _fields(market=market, readiness=readiness, environment="production")
-    with_evidence = _fields(
-        card={"forward_ev_evidence_satisfied": True},
+    without_evidence = _fields(
+        recommendation={"recommendation_id": "rec-1"},
         market=market,
         readiness=readiness,
-        environment="production",
+        environment="staging",
+    )
+    with_evidence = _fields(
+        card={"forward_ev_evidence_satisfied": True},
+        recommendation={"recommendation_id": "rec-1"},
+        market=market,
+        readiness=readiness,
+        environment="staging",
     )
 
     assert without_evidence["lock_eligible"] is False
+    assert without_evidence["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert with_evidence["decision_tier"] == DecisionTier.RECOMMEND.value
     assert with_evidence["lock_eligible"] is True
 

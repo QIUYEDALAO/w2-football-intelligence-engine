@@ -37,17 +37,17 @@ def test_l1_html_renders_first_screen_counts_and_no_formal_empty_state() -> None
     assert "W2 今日比赛日" in html
     assert "正式可锁" in html
     assert "分析推荐" in html
-    assert "当前无可锁审批候选" in html
+    assert "当前无正式可锁推荐" in html
     assert "分析参考·非稳赢；production 动作需 RECOMMEND" in html
 
 
-def test_l1_html_staging_lock_eligible_analysis_pick_is_staging_only_approval() -> None:
+def test_l1_html_staging_analysis_pick_is_not_lock_eligible() -> None:
     html = render_boss_dashboard_l1_html(
         _day_view(
             environment="staging",
             counts={
                 "total": 1,
-                "lock_eligible": 1,
+                "lock_eligible": 0,
                 "analysis_pick": 1,
                 "recommend": 0,
                 "watch": 0,
@@ -63,25 +63,23 @@ def test_l1_html_staging_lock_eligible_analysis_pick_is_staging_only_approval() 
                     "analysis",
                     decision_tier="ANALYSIS_PICK",
                     data_status="READY",
-                    lock_eligible=True,
+                    lock_eligible=False,
                     pick={"market": "ASIAN_HANDICAP", "selection": "HOME"},
                 )
             ],
         )
     )
 
-    lock_section = html.split("可锁审批 / 正式可锁", 1)[1].split("分析推荐", 1)[0]
-    header = html.split("可锁审批 / 正式可锁", 1)[0]
-    assert "可锁审批" in header
-    assert "正式可锁</span>" not in header
-    assert "今日有 1 场可锁审批候选" in html
-    assert "staging-only / 可锁审批 / 分析参考·非稳赢" in html
-    assert "Home analysis vs Away analysis" in lock_section
-    assert "staging-only" in lock_section
-    assert "需要审批" in lock_section
-    assert "分析参考" in lock_section
-    assert "非稳赢" in lock_section
-    assert "production 动作需 RECOMMEND" in lock_section
+    lock_section = html.split("正式可锁推荐", 1)[1].split("分析推荐", 1)[0]
+    header = html.split("正式可锁推荐", 1)[0]
+    assert "正式可锁" in header
+    assert "当前无正式可锁推荐" in html
+    assert "Home analysis vs Away analysis" not in lock_section
+    analysis_section = html.split("分析推荐", 1)[1]
+    assert "Home analysis vs Away analysis" in analysis_section
+    assert "分析参考" in analysis_section
+    assert "非稳赢" in analysis_section
+    assert "production 动作需 RECOMMEND" in analysis_section
 
 
 def test_l1_html_production_analysis_pick_not_in_lock_section() -> None:
@@ -112,10 +110,10 @@ def test_l1_html_production_analysis_pick_not_in_lock_section() -> None:
         )
     )
 
-    lock_section = html.split("可锁审批 / 正式可锁", 1)[1].split("分析推荐", 1)[0]
-    header = html.split("可锁审批 / 正式可锁", 1)[0]
+    lock_section = html.split("正式可锁推荐", 1)[1].split("分析推荐", 1)[0]
+    header = html.split("正式可锁推荐", 1)[0]
     assert "正式可锁" in header
-    assert "production B / RECOMMEND-only / 正式可锁" in html
+    assert "RECOMMEND-only / 正式可锁；ANALYSIS_PICK 仅分析参考" in html
     assert "Home analysis vs Away analysis" not in lock_section
     assert "Home analysis vs Away analysis" in html.split("分析推荐", 1)[1]
 
@@ -160,8 +158,7 @@ def test_l1_html_empty_lock_notice_uses_environment_copy() -> None:
         )
     )
 
-    assert "当前无可锁审批候选" in staging_html
-    assert "当前无正式可锁推荐" not in staging_html
+    assert "当前无正式可锁推荐" in staging_html
     assert "当前无正式可锁推荐" in production_html
 
 
@@ -347,16 +344,19 @@ def test_l1_html_renders_degradation_diagnostics_source_and_reason() -> None:
         _day_view(
             degradation={
                 "state": "NO_LOCK_ELIGIBLE",
-                "title": "当前无可锁审批候选",
-                "message": "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。",
-                "action": "继续观察分析推荐和未就绪原因。",
+                "title": "当前无正式可锁推荐",
+                "message": (
+                    "今天暂时没有 RECOMMEND 卡片，因此没有 lock_eligible=true，"
+                    "这不是系统故障。"
+                ),
+                "action": "继续观察分析推荐和未就绪原因，等待 R3.0 前向门槛。",
                 "reason_code": "NO_LOCK_ELIGIBLE",
                 "source": "w2.dashboard.degradation.v1",
             }
         )
     )
 
-    assert "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。" in html
+    assert "今天暂时没有 RECOMMEND 卡片，因此没有 lock_eligible=true，这不是系统故障。" in html
     assert "degradation_source" in html
     assert "w2.dashboard.degradation.v1" in html
     assert "degradation_reason_code" in html
@@ -380,16 +380,20 @@ def test_l1_html_no_lock_degradation_copy_respects_environment() -> None:
             environment="staging",
             degradation={
                 "state": "NO_LOCK_ELIGIBLE",
-                "title": "当前无可锁审批候选",
-                "message": "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。",
-                "action": "继续观察分析推荐和未就绪原因。",
+                "title": "当前无正式可锁推荐",
+                "message": (
+                    "今天暂时没有 RECOMMEND 卡片，因此没有 lock_eligible=true，"
+                    "这不是系统故障。"
+                ),
+                "action": "继续观察分析推荐和未就绪原因，等待 R3.0 前向门槛。",
             },
         )
     )
 
     assert "当前无正式可锁推荐" in production_html
     assert "当前无可锁审批候选" not in production_html
-    assert "当前无可锁审批候选" in staging_html
+    assert "当前无正式可锁推荐" in staging_html
+    assert "当前无可锁审批候选" not in staging_html
 
 
 def test_l1_html_forbidden_words_guard() -> None:

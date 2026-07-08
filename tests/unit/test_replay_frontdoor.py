@@ -36,7 +36,7 @@ def test_replay_frontdoor_tracks_analysis_pick_without_outcomes() -> None:
     )
 
     assert replay["replay_status"] == "MISSING_OUTCOMES"
-    assert replay["environment_policy"]["lock_policy"]["name"] == "staging_A"
+    assert replay["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert replay["decision_summary"]["by_decision_tier"]["ANALYSIS_PICK"] == 1
     assert replay["outcome_tracking_summary"]["tracked_count"] == 1
     assert replay["outcome_tracking_summary"]["tracked_fixture_ids"] == ["fixture-1"]
@@ -132,7 +132,7 @@ def _day_view(
             "environment": environment,
             "policy_version": "w2.environment_policy.v1",
             "lock_policy": {
-                "name": "production_B" if environment == "production" else "staging_A"
+                "name": "production_B" if environment == "production" else "staging_B"
             },
             "disclaimer": "ANALYSIS_PICK 非正式可动作；production 仅 RECOMMEND 可锁"
             if environment == "production"

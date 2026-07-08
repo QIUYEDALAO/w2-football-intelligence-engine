@@ -84,7 +84,7 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["db_writes"] == 0
     assert view["environment_policy"]["environment"] == "staging"
     assert view["environment_policy"]["policy_version"] == "w2.environment_policy.v1"
-    assert view["environment_policy"]["lock_policy"]["name"] == "staging_A"
+    assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
     assert view["counts"]["total"] == 2
     assert view["counts"]["analysis_pick"] == 1

@@ -32,7 +32,7 @@ def render_boss_dashboard_l1_html(day_view: Mapping[str, Any]) -> str:
             _date_navigation(model),
             _notice(model, counts, freshness),
             _section(
-                "可锁审批 / 正式可锁",
+                "正式可锁推荐",
                 _card_list(sections.get("lock_eligible_recommendations")),
                 empty_text=_empty_lock_text(model),
             ),
@@ -136,10 +136,7 @@ def _environment_policy_notice(model: Mapping[str, Any]) -> str:
     lock_policy = _mapping(policy.get("lock_policy"))
     name = _optional_text(lock_policy.get("name")) or "unknown"
     disclaimer = _optional_text(policy.get("disclaimer"))
-    if model.get("environment") == "production":
-        summary = "production B / RECOMMEND-only / 正式可锁"
-    else:
-        summary = "staging-only / 可锁审批 / 分析参考·非稳赢"
+    summary = "RECOMMEND-only / 正式可锁；ANALYSIS_PICK 仅分析参考"
     parts = [
         '<section class="policy-stamp">',
         f"<p>{_e(summary)}</p>",
@@ -295,13 +292,11 @@ def _metric(label: str, value: Any) -> str:
 
 
 def _lock_metric_label(model: Mapping[str, Any]) -> str:
-    return "正式可锁" if model.get("environment") == "production" else "可锁审批"
+    return "正式可锁"
 
 
 def _empty_lock_text(model: Mapping[str, Any]) -> str:
-    if model.get("environment") == "production":
-        return "当前无正式可锁推荐"
-    return "当前无可锁审批候选"
+    return "当前无正式可锁推荐"
 
 
 def _card_list(value: Any) -> list[Mapping[str, Any]]:

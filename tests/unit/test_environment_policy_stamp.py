@@ -8,7 +8,7 @@ def test_staging_policy_stamp_is_staging_only_non_production_actionable() -> Non
 
     assert stamp["environment"] == "staging"
     assert stamp["policy_version"] == "w2.environment_policy.v1"
-    assert stamp["lock_policy"]["name"] == "staging_A"
+    assert stamp["lock_policy"]["name"] == "staging_B"
     assert stamp["lock_policy"]["staging_only"] is True
     assert stamp["lock_policy"]["production_action_allowed"] is False
     assert stamp["actionability"]["ANALYSIS_PICK"] == "display_track_replay_only"
@@ -33,6 +33,6 @@ def test_unknown_environment_fails_safe_to_non_production_policy() -> None:
     stamp = build_environment_policy_stamp("qa")
 
     assert stamp["environment"] == "qa"
-    assert stamp["lock_policy"]["name"] == "staging_A"
+    assert stamp["lock_policy"]["name"] == "staging_B"
     assert stamp["lock_policy"]["production_action_allowed"] is False
     assert stamp["lock_policy"]["staging_only"] is True
