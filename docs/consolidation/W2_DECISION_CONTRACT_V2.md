@@ -131,6 +131,18 @@ DecisionCard {
 
 离线 LL、离线 +EV、离线拟合改善、单场主观强信号只能作为研究或排序参考，**不得作为 `RECOMMEND` / EV 腿开关依据**。若未来重开，必须新增一份 R3.0 前向验收报告，列出样本窗口、CLV 分布、滚动 blend、失败样本与回滚条件。
 
+## 分歧雷达放行规则（预注册，2026-07-08）
+
+市场锚定期允许记录 `shadow_pick`，用于积累模型相对市场的方向证据；`shadow_pick` 必须标记 `not_a_recommendation=true`、`not_displayed=true`，不得作为展示推荐、可锁推荐、命中率或 production 动作依据。真实展示层的 `direction_allowed` 默认保持 false。
+
+单联赛满足以下全部条件，方可经**单独批准 PR** 将该联赛 `direction_allowed` 置 true。放行必须按联赛白名单实施，禁止全局开关：
+
+1. shadow CLV 样本 `>=100`；
+2. shadow CLV 中位数 `>0`；
+3. 该联赛最近一次 `market_baseline_eval` gap `<=0.04`。
+
+放行后真实 pick 才开始积累，R3.0 的 `>=200` 真实 pick CLV 门槛仍在真实轨上计算，门槛数字不变。修改本规则必须留下评审记录。
+
 ## 落地检查（此契约"进了代码"的判定）
 
 - `domain/enums.py` 出现唯一 `DecisionTier`（五值）；
