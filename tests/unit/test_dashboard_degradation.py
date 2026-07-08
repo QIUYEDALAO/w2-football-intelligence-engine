@@ -77,7 +77,7 @@ def test_degradation_no_lock_eligible_is_info_not_blocker() -> None:
 
     assert degradation["state"] == "NO_LOCK_ELIGIBLE"
     assert degradation["severity"] == "info"
-    assert degradation["title"] == "当前无可锁审批候选"
+    assert degradation["title"] == "当前无正式可锁推荐"
     assert "不是系统故障" in degradation["message"]
     assert "lock_eligible=true" in degradation["message"]
 
@@ -99,7 +99,7 @@ def test_degradation_no_lock_eligible_copy_uses_production_boundary() -> None:
     assert degradation["state"] == "NO_LOCK_ELIGIBLE"
     assert degradation["severity"] == "info"
     assert degradation["title"] == "当前无正式可锁推荐"
-    assert "production 正式可锁推荐" in degradation["message"]
+    assert "RECOMMEND" in degradation["message"]
     assert "可锁审批候选" not in degradation["message"]
 
 

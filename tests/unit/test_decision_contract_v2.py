@@ -168,7 +168,7 @@ def test_pick_disclaimer_rejects_deterministic_claims(term: str) -> None:
         _card(DecisionTier.RECOMMEND, pick=_pick(disclaimer=f"production recommend；{term}"))
 
 
-def test_staging_a_and_production_b_lock_policy_keep_core_hash_stable() -> None:
+def test_lock_eligible_is_recommend_only_and_keeps_core_hash_stable() -> None:
     card = _pick_card(DecisionTier.ANALYSIS_PICK)
     config = DecisionPolicyConfig(
         now_utc=datetime(2026, 7, 5, 0, 0, tzinfo=UTC),
@@ -182,23 +182,24 @@ def test_staging_a_and_production_b_lock_policy_keep_core_hash_stable() -> None:
     production_card = replace(card, environment="production", lock_eligible=production)
     staging_card = replace(card, lock_eligible=staging)
 
-    assert staging is True
+    assert staging is False
     assert production is False
     assert staging_card.card_hash == production_card.card_hash
 
 
-def test_recommend_can_be_lock_eligible_in_production_with_forward_ev_evidence() -> None:
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_recommend_is_lock_eligible_in_all_environments(environment: str) -> None:
     card = _pick_card(DecisionTier.RECOMMEND)
 
     assert (
         compute_lock_eligible(
             card,
-            "production",
+            environment,
             DecisionPolicyConfig(
                 now_utc=datetime(2026, 7, 5, 0, 0, tzinfo=UTC),
-                data_integrity_passed=True,
-                market_complete=True,
-                forward_ev_evidence_satisfied=True,
+                data_integrity_passed=False,
+                market_complete=False,
+                forward_ev_evidence_satisfied=False,
             ),
         )
         is True

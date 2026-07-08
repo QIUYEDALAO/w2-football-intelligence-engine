@@ -31,7 +31,7 @@ def test_empty_day_returns_no_fixtures_without_side_effects() -> None:
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_enqueue"] is False
-    assert payload["environment_policy"]["lock_policy"]["name"] == "staging_A"  # type: ignore[index]
+    assert payload["environment_policy"]["lock_policy"]["name"] == "staging_B"  # type: ignore[index]
     assert payload["dashboard_would_generate"] == {"would_generate": False, "card_count": 0}
 
 
@@ -99,7 +99,7 @@ def test_production_analysis_pick_is_not_lock_eligible() -> None:
     assert payload["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]
 
 
-def test_staging_lock_candidate_is_approval_only_when_eligible_and_future() -> None:
+def test_staging_analysis_pick_does_not_create_lock_candidate() -> None:
     payload = _payload(
         fixtures=[
             {
@@ -117,15 +117,11 @@ def test_staging_lock_candidate_is_approval_only_when_eligible_and_future() -> N
         ],
     )
 
-    assert payload["lock_candidates"] == [
-        {
-            "fixture_id": "fixture-1",
-            "recommendation_id": "rec-1",
-            "needs_approval": True,
-            "approval_required": "STAGING_FORMAL_LOCK_CAPTURE_WRITE",
-            "would_write_lock": False,
-        }
-    ]
+    fixture = payload["fixtures"][0]  # type: ignore[index]
+
+    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fixture["lock_eligible"] is False
+    assert payload["lock_candidates"] == []
     assert payload["would_write_lock"] is False
 
 

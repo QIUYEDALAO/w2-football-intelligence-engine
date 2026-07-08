@@ -25,7 +25,7 @@ def test_l1_counts_are_copied_from_day_view_counts() -> None:
     model = build_boss_dashboard_l1(day_view)
 
     assert model["counts"] == day_view["counts"]
-    assert model["environment_policy"]["lock_policy"]["name"] == "staging_A"
+    assert model["environment_policy"]["lock_policy"]["name"] == "staging_B"
 
 
 def test_l1_passes_degradation_through_from_day_view() -> None:
@@ -109,13 +109,13 @@ def test_l1_analysis_pick_disclaimer_and_production_section_boundary() -> None:
     assert model["sections"]["lock_eligible_recommendations"] == []
 
 
-def test_l1_staging_lock_eligible_analysis_pick_enters_approval_section() -> None:
+def test_l1_staging_analysis_pick_stays_out_of_lock_section() -> None:
     model = build_boss_dashboard_l1(
         _day_view(
             environment="staging",
             counts={
                 "total": 1,
-                "lock_eligible": 1,
+                "lock_eligible": 0,
                 "analysis_pick": 1,
                 "recommend": 0,
                 "watch": 0,
@@ -131,7 +131,7 @@ def test_l1_staging_lock_eligible_analysis_pick_enters_approval_section() -> Non
                     "analysis",
                     decision_tier="ANALYSIS_PICK",
                     data_status="READY",
-                    lock_eligible=True,
+                    lock_eligible=False,
                     pick={"market": "ASIAN_HANDICAP", "selection": "HOME"},
                 )
             ],
@@ -139,14 +139,13 @@ def test_l1_staging_lock_eligible_analysis_pick_enters_approval_section() -> Non
     )
 
     lock_section = model["sections"]["lock_eligible_recommendations"]
-    assert len(lock_section) == model["counts"]["lock_eligible"] == 1
-    assert model["headline"] == "今日有 1 场可锁审批候选"
-    assert lock_section[0]["fixture_id"] == "analysis"
-    assert lock_section[0]["staging_only"] is True
-    assert lock_section[0]["action_label"] == "需要审批"
-    assert "分析参考" in lock_section[0]["disclaimer"]
-    assert "非稳赢" in lock_section[0]["disclaimer"]
-    assert "production 动作需 RECOMMEND" in lock_section[0]["disclaimer"]
+    assert lock_section == []
+    assert model["headline"] == "当前无正式可锁推荐"
+    assert model["sections"]["analysis_picks"][0]["fixture_id"] == "analysis"
+    assert model["sections"]["analysis_picks"][0]["lock_eligible"] is False
+    assert "分析参考" in model["sections"]["analysis_picks"][0]["disclaimer"]
+    assert "非稳赢" in model["sections"]["analysis_picks"][0]["disclaimer"]
+    assert "production 动作需 RECOMMEND" in model["sections"]["analysis_picks"][0]["disclaimer"]
 
 
 def test_l1_production_lock_section_is_recommend_only() -> None:
@@ -230,7 +229,7 @@ def test_l1_empty_lock_headline_uses_environment_copy() -> None:
         )
     )
 
-    assert staging["headline"] == "当前无可锁审批候选"
+    assert staging["headline"] == "当前无正式可锁推荐"
     assert production["headline"] == "当前无正式可锁推荐"
 
 

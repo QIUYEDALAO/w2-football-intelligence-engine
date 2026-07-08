@@ -22,7 +22,7 @@ def test_boss_5s_test_passes() -> None:
     result = run_acceptance(fixture_path=FIXTURE)
 
     assert result["boss_5s_test"]["status"] == "PASS"
-    assert result["boss_5s_test"]["lock_eligible"] == 1
+    assert result["boss_5s_test"]["lock_eligible"] == 0
     assert result["boss_5s_test"]["analysis_pick"] == 1
     assert result["boss_5s_test"]["not_ready"] == 1
 
@@ -78,8 +78,8 @@ def test_boss_5s_required_text_only_in_details_fails(monkeypatch) -> None:  # ty
         acceptance,
         "render_boss_dashboard_l1_html",
         lambda _day_view: (
-            "<main><header>可锁审批 分析推荐 未就绪 下一次刷新 "
-            "2026-07-05T01:30:00Z staging-only</header>"
+            "<main><header>正式可锁 分析推荐 未就绪 下一次刷新 "
+            "2026-07-05T01:30:00Z RECOMMEND-only</header>"
             "<details>LINEUPS_PENDING MARKET_UNAVAILABLE 主要未出原因</details></main>"
         ),
     )
@@ -88,7 +88,7 @@ def test_boss_5s_required_text_only_in_details_fails(monkeypatch) -> None:  # ty
         "build_boss_dashboard_l1",
         lambda _day_view: {
             "environment": "staging",
-            "counts": {"lock_eligible": 1, "analysis_pick": 1, "not_ready": 1},
+            "counts": {"lock_eligible": 0, "analysis_pick": 1, "not_ready": 1},
             "freshness": {"next_refresh_tick": "2026-07-05T01:30:00Z"},
         },
     )

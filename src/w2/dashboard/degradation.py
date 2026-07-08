@@ -10,7 +10,6 @@ SOURCE = "w2.dashboard.degradation.v1"
 def build_dashboard_degradation(day_view: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     freshness = _mapping(day_view.get("freshness"))
-    environment = _optional_text(day_view.get("environment"))
     total = _int(counts.get("total"))
     stale = _int(counts.get("stale"))
     blocked = _int(counts.get("blocked"))
@@ -84,24 +83,12 @@ def build_dashboard_degradation(day_view: Mapping[str, Any]) -> dict[str, Any]:
             stale_or_blocked_count=stale_or_blocked_count,
         )
     if lock_eligible == 0:
-        if environment == "production":
-            return _state(
-                "NO_LOCK_ELIGIBLE",
-                "info",
-                "当前无正式可锁推荐",
-                "今天暂时没有 production 正式可锁推荐，这不是系统故障。",
-                "继续观察分析推荐、观察名单和未就绪原因。",
-                next_eval_at=next_eval_at,
-                reason_code="NO_LOCK_ELIGIBLE",
-                provider_budget_status=provider_budget_status,
-                stale_or_blocked_count=stale_or_blocked_count,
-            )
         return _state(
             "NO_LOCK_ELIGIBLE",
             "info",
-            "当前无可锁审批候选",
-            "今天暂时没有 lock_eligible=true 的卡片，这不是系统故障。",
-            "继续观察分析推荐和未就绪原因。",
+            "当前无正式可锁推荐",
+            "今天暂时没有 RECOMMEND 卡片，因此没有 lock_eligible=true，这不是系统故障。",
+            "继续观察分析推荐、观察名单和未就绪原因，等待 R3.0 前向门槛。",
             next_eval_at=next_eval_at,
             reason_code="NO_LOCK_ELIGIBLE",
             provider_budget_status=provider_budget_status,

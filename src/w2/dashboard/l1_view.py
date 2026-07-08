@@ -32,7 +32,6 @@ def build_boss_dashboard_l1(day_view: Mapping[str, Any]) -> dict[str, Any]:
     sections = {
         "lock_eligible_recommendations": _lock_section_cards(
             ordered_cards,
-            environment=environment,
         ),
         "analysis_picks": [
             card
@@ -130,17 +129,13 @@ def _l1_card(
 
 def _lock_section_cards(
     cards: Sequence[Mapping[str, Any]],
-    *,
-    environment: str,
 ) -> list[Mapping[str, Any]]:
-    if environment == "production":
-        return [
-            card
-            for card in cards
-            if card.get("lock_eligible") is True
-            and card.get("decision_tier") == DecisionTier.RECOMMEND.value
-        ]
-    return [card for card in cards if card.get("lock_eligible") is True]
+    return [
+        card
+        for card in cards
+        if card.get("lock_eligible") is True
+        and card.get("decision_tier") == DecisionTier.RECOMMEND.value
+    ]
 
 
 def _action_label(
@@ -169,13 +164,9 @@ def _headline(
     if provider_budget_status == "EXHAUSTED":
         return "provider 预算耗尽，等待下一 tick 或预算恢复"
     lock_count = _int(counts.get("lock_eligible"))
-    if environment == "production":
-        if lock_count <= 0:
-            return "当前无正式可锁推荐"
-        return f"今日有 {lock_count} 场正式可锁推荐"
     if lock_count <= 0:
-        return "当前无可锁审批候选"
-    return f"今日有 {lock_count} 场可锁审批候选"
+        return "当前无正式可锁推荐"
+    return f"今日有 {lock_count} 场正式可锁推荐"
 
 
 def _reason_summary(cards: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

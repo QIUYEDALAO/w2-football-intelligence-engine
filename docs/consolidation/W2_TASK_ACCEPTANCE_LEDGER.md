@@ -326,3 +326,11 @@
 - 当前无结算样本时诚实标"积累中",不显示假命中率、不制造 CLV。
 - R2.2 小修完成:空区收成单行摘要,`UNVALIDATED` 改为"模型未验证"。
 - 可见产品 + 前向引擎已建完;剩余为日历时间累积 + R2.3 收口 + 后续。
+
+### V3 进展续12 · B 方案拍板与积累期入口(2026-07-08)
+
+- #204 已合并 main `90e42fb`,V3 市场锚定改造整条进入主线。
+- R2.3 已核:staging env 叠加启用巴西/中超/瑞典超/挪超,provider usage `116 < 120`,production 未动。
+- 老板拍板 `lock_eligible=B`:可锁当且仅当 `DecisionTier.RECOMMEND`;ANALYSIS_PICK 继续 `outcome_tracked=true` 积累 CLV/战绩,但 `lock_eligible=false`。
+- EV/RECOMMEND 腿仍默认关闭,R3.0 门槛不变:单联赛前向 `>=200` 卡、CLV 中位数 `>0`,且滚动 blend `w*<1` 稳定优于纯市场。
+- 阶段进入 accrual 积累期;下一硬门为 R1.1 两周检查点:`>=100` 双快照卡 + 收盘快照真在写。

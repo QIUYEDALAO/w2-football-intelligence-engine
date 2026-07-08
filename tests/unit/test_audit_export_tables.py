@@ -29,7 +29,7 @@ def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     assert export.manifest["status"] == "PASS"
     assert export.manifest["environment"] == "staging"
     assert export.manifest["policy_version"] == "w2.environment_policy.v1"
-    assert export.manifest["lock_policy_name"] == "staging_A"
+    assert export.manifest["lock_policy_name"] == "staging_B"
     assert export.manifest["exported_at"] == "2026-07-01T01:00:00Z"
     assert export.tables["prematch_recommendations"][0]["fixture_id"] == "fixture-1"
     assert export.tables["prematch_recommendations"][0]["environment"] == "staging"
@@ -37,7 +37,7 @@ def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
         export.tables["prematch_recommendations"][0]["policy_version"]
         == "w2.environment_policy.v1"
     )
-    assert export.tables["prematch_recommendations"][0]["lock_policy_name"] == "staging_A"
+    assert export.tables["prematch_recommendations"][0]["lock_policy_name"] == "staging_B"
     assert export.tables["prematch_recommendations"][0]["report_state"] == "LOCKED"
     assert export.tables["prematch_recommendations"][0]["decision_tier"] == "ANALYSIS_PICK"
     assert export.tables["prematch_recommendations"][0]["data_status"] == "READY"

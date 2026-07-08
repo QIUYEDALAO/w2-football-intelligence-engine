@@ -145,7 +145,7 @@ def test_render_markdown_includes_environment_policy_summary() -> None:
 
     assert "环境策略：" in report
     assert "environment：staging" in report
-    assert "policy：staging_A" in report
+    assert "policy：staging_B" in report
     assert "ANALYSIS_PICK=display_track_replay_only" in report
     assert "staging-only" in report
     assert "分析参考" in report
