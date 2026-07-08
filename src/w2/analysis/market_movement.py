@@ -113,6 +113,8 @@ def build_market_divergence(
         "model_family_fallback_reason": _optional_text(
             shadow.get("model_family_fallback_reason")
         ),
+        "artifact_hash": _optional_text(shadow.get("artifact_hash")),
+        "artifact_version": _optional_text(shadow.get("artifact_version")),
         "model_probabilities": _mapping_copy(shadow.get("model_probabilities")),
         "fair_ah": fair_ah,
         "market_open_ah": market_open,

@@ -87,6 +87,12 @@ from w2.matchday.timezone import (
     next_36_hours_window,
 )
 from w2.models.divergence_champion import select_divergence_champion_probabilities
+from w2.models.r4_1_artifacts import (
+    R4_1Artifact,
+    load_r4_1_artifacts,
+    predict_r4_1_from_artifact,
+    r4_1_artifact_dir,
+)
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -412,22 +418,14 @@ def _one_x_two_probabilities(value: Any) -> dict[str, float] | None:
     return {key: probability / total for key, probability in probabilities.items()}
 
 
-def _r4_1_model_payload(
+def _r4_1_calibrated_payload(
     card: dict[str, Any],
     pricing_shadow: dict[str, Any],
 ) -> dict[str, Any]:
     for source in (card, pricing_shadow):
-        for key in (
-            "r4_1_calibrated",
-            "r4_1_model",
-            "r4_1_divergence_model",
-            "probabilities_r4_1_calibrated",
-        ):
-            value = source.get(key)
-            if isinstance(value, dict):
-                if "probabilities" in value or "one_x_two" in value:
-                    return dict(value)
-                return {"probabilities": value, "fair_ah": source.get("fair_ah_r4_1")}
+        value = source.get("r4_1_calibrated")
+        if isinstance(value, dict):
+            return dict(value)
     return {}
 
 
@@ -855,10 +853,20 @@ class ReadModelRepository:
 
 
 class ReadModelService:
-    def __init__(self, repository: ReadModelRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: ReadModelRepository | None = None,
+        *,
+        r4_1_artifact_root: Path | None = None,
+    ) -> None:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
+        artifact_result = load_r4_1_artifacts(
+            r4_1_artifact_root or r4_1_artifact_dir(ROOT)
+        )
+        self._r4_1_artifacts: dict[str, R4_1Artifact] = artifact_result.artifacts
+        self._r4_1_artifact_invalid_reasons: dict[str, str] = artifact_result.invalid_reasons
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
         self._fixture_payload_index_cache: dict[str, dict[str, Any]] | None = None
         self._future_market_observations_cache: list[dict[str, Any]] | None = None
@@ -3770,7 +3778,7 @@ class ReadModelService:
         fitted_probabilities = _one_x_two_probabilities(
             card.get("model_probabilities"),
         ) or _one_x_two_probabilities(pricing_shadow.get("model_probabilities"))
-        r4_1_payload = _r4_1_model_payload(card, pricing_shadow)
+        r4_1_payload = self._r4_1_payload_for_card(card, pricing_shadow)
         r4_1_fair_ah = _float_or_none(r4_1_payload.get("fair_ah"))
         r4_1_probabilities = _one_x_two_probabilities(r4_1_payload.get("probabilities"))
         if r4_1_fair_ah is None:
@@ -3782,16 +3790,69 @@ class ReadModelService:
         )
         pricing_shadow["model_family"] = selection.family.value
         pricing_shadow["model_probabilities"] = dict(selection.probabilities)
-        if selection.fallback_reason:
+        if r4_1_payload.get("fallback_reason"):
+            pricing_shadow["model_family_fallback_reason"] = str(
+                r4_1_payload["fallback_reason"]
+            )
+        elif selection.fallback_reason:
             pricing_shadow["model_family_fallback_reason"] = selection.fallback_reason
         else:
             pricing_shadow.pop("model_family_fallback_reason", None)
         if selection.family.value == "R4_1_CALIBRATED" and r4_1_fair_ah is not None:
             pricing_shadow["fair_ah"] = r4_1_fair_ah
+            if r4_1_payload.get("artifact_hash"):
+                pricing_shadow["artifact_hash"] = str(r4_1_payload["artifact_hash"])
+            if r4_1_payload.get("artifact_version"):
+                pricing_shadow["artifact_version"] = str(r4_1_payload["artifact_version"])
             pricing_shadow["edge_ah"] = edge(
                 r4_1_fair_ah,
                 _float_or_none(pricing_shadow.get("market_ah")),
             )
+
+    def _r4_1_payload_for_card(
+        self,
+        card: dict[str, Any],
+        pricing_shadow: dict[str, Any],
+    ) -> dict[str, Any]:
+        explicit_payload = _r4_1_calibrated_payload(card, pricing_shadow)
+        if explicit_payload:
+            return explicit_payload
+        competition_id = str(card.get("competition_id") or "")
+        invalid_reason = self._r4_1_artifact_invalid_reasons.get(competition_id)
+        if invalid_reason:
+            return {"fallback_reason": invalid_reason}
+        artifact = self._r4_1_artifacts.get(competition_id)
+        if artifact is None:
+            return {}
+        rows = self._r4_1_feature_rows_for_card(card, artifact)
+        if rows is None:
+            return {"fallback_reason": "R4_1_FEATURE_HISTORY_INSUFFICIENT"}
+        home_row, away_row = rows
+        return predict_r4_1_from_artifact(
+            artifact,
+            home_row=home_row,
+            away_row=away_row,
+        )
+
+    def _r4_1_feature_rows_for_card(
+        self,
+        card: dict[str, Any],
+        artifact: R4_1Artifact,
+    ) -> tuple[list[float], list[float]] | None:
+        payload = card.get("r4_1_feature_rows")
+        if not isinstance(payload, dict):
+            return None
+        home = payload.get("home")
+        away = payload.get("away")
+        if not isinstance(home, list) or not isinstance(away, list):
+            return None
+        expected_length = len(artifact.coefficients)
+        if len(home) != expected_length or len(away) != expected_length:
+            return None
+        try:
+            return [float(value) for value in home], [float(value) for value in away]
+        except (TypeError, ValueError):
+            return None
 
     def _apply_signed_ah_line_from_timeline(
         self,

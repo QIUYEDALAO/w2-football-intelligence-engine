@@ -688,6 +688,12 @@ def _model_market_divergence(
             _get(divergence, "model_family_fallback_reason")
             or _get(pricing, "model_family_fallback_reason")
         ),
+        "artifact_hash": _optional_text(
+            _get(divergence, "artifact_hash") or _get(pricing, "artifact_hash")
+        ),
+        "artifact_version": _optional_text(
+            _get(divergence, "artifact_version") or _get(pricing, "artifact_version")
+        ),
     }
 
 
