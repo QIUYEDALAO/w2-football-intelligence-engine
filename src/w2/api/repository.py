@@ -86,6 +86,7 @@ from w2.matchday.timezone import (
     FixtureOperationalDateResolver,
     next_36_hours_window,
 )
+from w2.models.divergence_champion import select_divergence_champion_probabilities
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -94,6 +95,7 @@ from w2.operations.tournament import (
     readiness_report,
 )
 from w2.pricing.shadow import build_pricing_shadow
+from w2.pricing.value_vs_market import edge
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
 from w2.strategy.analysis_recommendation import (
@@ -390,6 +392,43 @@ def _float_or_none(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _one_x_two_probabilities(value: Any) -> dict[str, float] | None:
+    if not isinstance(value, dict):
+        return None
+    payload = value.get("one_x_two") if isinstance(value.get("one_x_two"), dict) else value
+    if not isinstance(payload, dict):
+        return None
+    probabilities: dict[str, float] = {}
+    for key in ("HOME", "DRAW", "AWAY"):
+        parsed = _float_or_none(payload.get(key))
+        if parsed is None:
+            return None
+        probabilities[key] = parsed
+    total = sum(probabilities.values())
+    if total <= 0:
+        return None
+    return {key: probability / total for key, probability in probabilities.items()}
+
+
+def _r4_1_model_payload(
+    card: dict[str, Any],
+    pricing_shadow: dict[str, Any],
+) -> dict[str, Any]:
+    for source in (card, pricing_shadow):
+        for key in (
+            "r4_1_calibrated",
+            "r4_1_model",
+            "r4_1_divergence_model",
+            "probabilities_r4_1_calibrated",
+        ):
+            value = source.get(key)
+            if isinstance(value, dict):
+                if "probabilities" in value or "one_x_two" in value:
+                    return dict(value)
+                return {"probabilities": value, "fair_ah": source.get("fair_ah_r4_1")}
+    return {}
 
 
 def _valid_formal_recommendation_payload(value: Any) -> bool:
@@ -3705,6 +3744,7 @@ class ReadModelService:
         fixture_id = str(card.get("fixture_id") or "")
         timeline = self._market_timeline_payload(fixture_id) if fixture_id else {}
         self._apply_signed_ah_line_from_timeline(card, timeline)
+        self._apply_divergence_champion_model(card)
         movement = build_market_movement(timeline)
         divergence = build_market_divergence(
             pricing_shadow=card.get("pricing_shadow")
@@ -3722,6 +3762,36 @@ class ReadModelService:
             market_movement=movement,
             market_divergence=divergence,
         )
+
+    def _apply_divergence_champion_model(self, card: dict[str, Any]) -> None:
+        pricing_shadow = card.get("pricing_shadow")
+        if not isinstance(pricing_shadow, dict):
+            return
+        fitted_probabilities = _one_x_two_probabilities(
+            card.get("model_probabilities"),
+        ) or _one_x_two_probabilities(pricing_shadow.get("model_probabilities"))
+        r4_1_payload = _r4_1_model_payload(card, pricing_shadow)
+        r4_1_fair_ah = _float_or_none(r4_1_payload.get("fair_ah"))
+        r4_1_probabilities = _one_x_two_probabilities(r4_1_payload.get("probabilities"))
+        if r4_1_fair_ah is None:
+            r4_1_probabilities = None
+        selection = select_divergence_champion_probabilities(
+            competition_id=str(card.get("competition_id") or ""),
+            fitted_calibrated=fitted_probabilities or {},
+            r4_1_calibrated=r4_1_probabilities,
+        )
+        pricing_shadow["model_family"] = selection.family.value
+        pricing_shadow["model_probabilities"] = dict(selection.probabilities)
+        if selection.fallback_reason:
+            pricing_shadow["model_family_fallback_reason"] = selection.fallback_reason
+        else:
+            pricing_shadow.pop("model_family_fallback_reason", None)
+        if selection.family.value == "R4_1_CALIBRATED" and r4_1_fair_ah is not None:
+            pricing_shadow["fair_ah"] = r4_1_fair_ah
+            pricing_shadow["edge_ah"] = edge(
+                r4_1_fair_ah,
+                _float_or_none(pricing_shadow.get("market_ah")),
+            )
 
     def _apply_signed_ah_line_from_timeline(
         self,

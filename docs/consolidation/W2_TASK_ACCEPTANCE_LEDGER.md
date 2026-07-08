@@ -368,3 +368,11 @@
 - CLV 口径补强:无赛前 closing snapshot 不再 fallback 到 `records[-1]`,改为排除并计数 `excluded_no_prematch_closing`;每行记录 `entry_window_met`,并输出达标窗口中位 CLV。
 - 证据污染防御:新增 `entry_line_mismatch_count`;缺 `settled_side` 的 outcome 记录排除于真实 pick 与 shadow 两轨之外,避免混合历史记录污染首屏命中率。
 - 下一步:FIX-F 合入后进入 FIX-D(R4.1b champion model_family 接线),随后 FIX-F+FIX-D 一并提 staging 部署审批。
+
+### V3 进展续17 · FIX-F 合入与 FIX-D champion 接线(2026-07-08)
+
+- #213 已补 R1.1 字段契约测试并合并 main `adba8d1`;FIX-F 进入主线但未单独部署 staging。
+- FIX-D 已启动:repository 的分歧雷达接入 per-league champion 选择器,`bundesliga`/`chinese_super_league`/`allsvenskan` 在 R4.1 artifact 可用时标记 `R4_1_CALIBRATED`,artifact 缺失则 fail closed 到 `FITTED_CALIBRATED` 并记录 `model_family_fallback_reason`。
+- `market_divergence`/Decision Contract/forward ledger 透传 `model_family`;`direction_allowed` 仍保持 false,EV/RECOMMEND 腿仍默认关闭,`src/w2/models/independent.py` 保持零 diff。
+- R1.1 检查点字段清单追加 FIX-F 数据质量项:`unsettled_missing_fulltime`,`excluded_no_prematch_closing`,`entry_window_met` 占比,`entry_line_mismatch_count`。若 `entry_window_met` 占比过低,先修 T-24 采集节奏,再谈逐联赛放行评估。
+- 部署策略:FIX-D 合入后立即提请 #212+#213+FIX-D 合批 staging 部署审批;当前线上 staging 仍是 `b5cfd65`,尚无 AET/PEN fulltime 结算保护。
