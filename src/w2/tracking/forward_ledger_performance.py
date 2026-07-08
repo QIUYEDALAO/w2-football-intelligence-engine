@@ -28,7 +28,8 @@ def forward_ledger_performance(
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     records = list(load_forward_ledger_records(root))
-    outcome_counts = _outcome_counts(records)
+    outcome_counts = _outcome_counts(records, side="pick")
+    outcome_shadow_counts = _outcome_counts(records, side="shadow_pick")
     clv_rows = _clv_rows(records, key_fn=_clv_key)
     clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
@@ -50,6 +51,8 @@ def forward_ledger_performance(
         "push_count": outcome_counts["push"],
         "void_count": outcome_counts["void"],
         "hit_rate": _hit_rate(outcome_counts),
+        "outcomes": _outcome_summary(outcome_counts),
+        "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
         "accumulation_label": _accumulation_label(len(records), sample_target),
         "clv": _clv_summary(
             clv_values,
@@ -69,7 +72,8 @@ def forward_ledger_performance(
             records,
             clv_rows,
             clv_shadow_rows,
-            outcome_counts_by_league(records),
+            outcome_counts_by_league(records, side="pick"),
+            outcome_counts_by_league(records, side="shadow_pick"),
         ),
         "provider_calls": 0,
         "db_reads": 0,
@@ -94,9 +98,15 @@ def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
     return records
 
 
-def _outcome_counts(records: Sequence[Mapping[str, Any]]) -> defaultdict[str, int]:
+def _outcome_counts(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    side: str,
+) -> defaultdict[str, int]:
     counts: defaultdict[str, int] = defaultdict(int)
     for record in records:
+        if _outcome_side(record) != side:
+            continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
             counts[bucket] += 1
@@ -105,13 +115,28 @@ def _outcome_counts(records: Sequence[Mapping[str, Any]]) -> defaultdict[str, in
 
 def outcome_counts_by_league(
     records: Sequence[Mapping[str, Any]],
+    *,
+    side: str = "pick",
 ) -> dict[str, defaultdict[str, int]]:
     by_league: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
     for record in records:
+        if _outcome_side(record) != side:
+            continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
             by_league[_league_key(record)][bucket] += 1
     return by_league
+
+
+def _outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
+    return {
+        "settled_sample_count": sum(counts.values()),
+        "hit_count": int(counts.get("hit", 0)),
+        "miss_count": int(counts.get("miss", 0)),
+        "push_count": int(counts.get("push", 0)),
+        "void_count": int(counts.get("void", 0)),
+        "hit_rate": _hit_rate(counts),
+    }
 
 
 def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:
@@ -268,6 +293,7 @@ def _league_rows(
     clv_rows: Sequence[Mapping[str, Any]],
     clv_shadow_rows: Sequence[Mapping[str, Any]],
     league_outcomes: dict[str, defaultdict[str, int]],
+    league_shadow_outcomes: dict[str, defaultdict[str, int]],
 ) -> list[dict[str, Any]]:
     league_records: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for record in records:
@@ -285,6 +311,7 @@ def _league_rows(
     rows: list[dict[str, Any]] = []
     for league, items in league_records.items():
         outcomes = league_outcomes.get(league, defaultdict(int))
+        shadow_outcomes = league_shadow_outcomes.get(league, defaultdict(int))
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
         fixture_ids = {
@@ -303,6 +330,12 @@ def _league_rows(
                 "push_count": outcomes["push"],
                 "void_count": outcomes["void"],
                 "hit_rate": _hit_rate(outcomes),
+                "shadow_settled_sample_count": sum(shadow_outcomes.values()),
+                "shadow_hit_count": shadow_outcomes["hit"],
+                "shadow_miss_count": shadow_outcomes["miss"],
+                "shadow_push_count": shadow_outcomes["push"],
+                "shadow_void_count": shadow_outcomes["void"],
+                "shadow_hit_rate": _hit_rate(shadow_outcomes),
                 "clv_sample_count": len(values),
                 "clv_median_decimal": median(values) if values else None,
                 "clv_shadow_sample_count": len(shadow_values),
@@ -329,6 +362,15 @@ def _outcome(record: Mapping[str, Any]) -> str:
     settlement = record.get("settlement")
     if isinstance(settlement, Mapping):
         return _text(settlement.get("outcome") or settlement.get("settlement")).upper()
+    return ""
+
+
+def _outcome_side(record: Mapping[str, Any]) -> str:
+    side = _text(record.get("settled_side"))
+    if side in {"pick", "shadow_pick"}:
+        return side
+    if _outcome(record):
+        return "pick"
     return ""
 
 

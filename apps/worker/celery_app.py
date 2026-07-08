@@ -192,6 +192,29 @@ def forward_outcome_ledger(
     }
 
 
+@celery_app.task(name="w2.forward_outcome_backfill", bind=True)
+def forward_outcome_backfill(
+    self: object,
+    queued_at_utc: str | None = None,
+    window: str = "next36",
+) -> dict[str, object]:
+    request = getattr(self, "request", None)
+    task_id = str(getattr(request, "id", None) or "forward-outcome-backfill")
+    result = _run_forward_outcome_backfill(window=window)
+    return {
+        "task_id": task_id,
+        "queued_at_utc": queued_at_utc,
+        "status": result["status"],
+        "result": result,
+        "candidate": False,
+        "formal_recommendation": False,
+        "provider_calls": 0,
+        "db_writes": 0,
+        "lock_capture_write": False,
+        "settlement_write": False,
+    }
+
+
 def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     from w2.api.repository import ReadModelService
     from w2.dashboard.day_view import build_dashboard_day_view
@@ -205,6 +228,22 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     )
     return run_forward_outcome_ledger(
         day_view,
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+
+def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
+    from pathlib import Path
+
+    from w2.api.repository import ReadModelService
+    from w2.tracking.forward_outcome_ledger import backfill_outcomes
+
+    service = ReadModelService()
+    dashboard = service.dashboard(window=window, include_debug=False)
+    return backfill_outcomes(
+        Path.cwd(),
+        dashboard,
         dry_run=False,
         write_artifacts=True,
     )
