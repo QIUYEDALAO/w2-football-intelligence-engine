@@ -70,6 +70,7 @@ DecisionCard {
   recommendation_id        # 仅锁定提交时铸；非锁为 null
   model_version, card_hash # 确定性哈希，同输入同版本必同哈希
   provenance[]             # 每输入的来源 + 采集时间戳
+  market_probabilities     # 展示用市场概率一律 POWER devig；method 必须写入 provenance/概率对象
 
   # —— 仅当 decision_tier ∈ {ANALYSIS_PICK, RECOMMEND} ——
   pick {
@@ -142,6 +143,8 @@ DecisionCard {
 3. 该联赛最近一次 `market_baseline_eval` gap `<=0.04`。
 
 放行后真实 pick 才开始积累，R3.0 的 `>=200` 真实 pick CLV 门槛仍在真实轨上计算，门槛数字不变。修改本规则必须留下评审记录。
+
+`model_market_divergence.magnitude` 的单位为 AH 线差；当前默认门槛为 `0.25` 线差。概率空间阈值待展示概率分档后另行预注册。
 
 ## 落地检查（此契约"进了代码"的判定）
 

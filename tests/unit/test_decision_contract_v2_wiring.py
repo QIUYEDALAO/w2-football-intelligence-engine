@@ -395,7 +395,7 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
             "probability_source": "MARKET_DEVIG",
             "model_market_divergence": {
                 "status": "READY",
-                "magnitude": 0.2,
+                "magnitude": 0.3,
                 # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
                 "direction_allowed": True,
             },
@@ -414,6 +414,35 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fields["pick"] is not None
     assert fields["non_pick"] is None
+
+
+def test_market_anchor_display_blocks_below_ah_line_threshold(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+
+    fields = _fields(
+        card={
+            "probability_source": "MARKET_DEVIG",
+            "model_market_divergence": {
+                "status": "READY",
+                "magnitude": 0.2,
+                # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
+                "direction_allowed": True,
+            },
+        },
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+            "confidence": 0.72,
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
+    assert fields["pick"] is None
 
 
 def test_staging_lock_requires_market_line_and_odds() -> None:

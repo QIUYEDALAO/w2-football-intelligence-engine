@@ -5,7 +5,7 @@ import math
 import os
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from time import monotonic
 from typing import Any, cast
@@ -72,6 +72,7 @@ from w2.markets.asian_handicap_scope import (
     is_full_time_asian_handicap_observation,
     is_full_time_totals_observation,
 )
+from w2.markets.devig import DevigMethod, devig
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -3205,21 +3206,21 @@ class ReadModelService:
             grouped.setdefault((market, line), []).append(row)
         probabilities: dict[str, Any] = {}
         for (market, line), rows in grouped.items():
-            implied: dict[str, float] = {}
+            odds: dict[str, Decimal] = {}
             for row in rows:
                 try:
-                    price = float(row["decimal_odds"])
-                except (TypeError, ValueError):
+                    price = Decimal(str(row["decimal_odds"]))
+                except (InvalidOperation, TypeError, ValueError):
                     continue
-                if price <= 1.0:
+                if price <= Decimal("1.0"):
                     continue
-                implied[str(row["selection"])] = 1 / price
-            total = sum(implied.values())
-            if len(implied) < 2 or total <= 0:
+                odds[str(row["selection"])] = price
+            if len(odds) < 2:
                 continue
+            result = devig(odds, DevigMethod.POWER)
             probabilities[f"{market}:{line}"] = {
-                selection: round(value / total, 4)
-                for selection, value in sorted(implied.items())
+                selection: round(value, 6)
+                for selection, value in sorted(result.probabilities.items())
             }
         return probabilities
 

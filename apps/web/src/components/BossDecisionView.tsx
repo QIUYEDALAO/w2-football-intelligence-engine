@@ -49,7 +49,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
-const MARKET_ANCHOR_MIN_DIVERGENCE = Number(import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.05);
+const MARKET_ANCHOR_MIN_DIVERGENCE = Number(import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.25);
 
 type ScheduleFilter = "all" | "recommended" | "hide-not-ready";
 
@@ -230,7 +230,7 @@ function divergenceLabel(card: DashboardDayViewCard): string {
   const divergence = asRecord(card.model_market_divergence);
   const magnitude = typeof divergence.magnitude === "number" ? divergence.magnitude : null;
   const status = textValue(divergence.status, "UNKNOWN");
-  if (magnitude != null) return `模型与市场差 ${magnitude.toFixed(2)}`;
+  if (magnitude != null) return `模型与市场线差 ${magnitude.toFixed(2)}`;
   if (status === "INSUFFICIENT") return "模型分歧不足";
   if (status === "UNVALIDATED") return "模型未验证";
   if (status === "READY") return "分歧可读";

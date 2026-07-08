@@ -28,7 +28,8 @@ from w2.readiness.data_gate import (
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
-MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
+# AH line-unit divergence. One quarter line is the minimum meaningful handicap step.
+MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE = 0.25
 
 
 def build_decision_contract_fields(
@@ -281,7 +282,7 @@ def _market_anchor_blocks_pick(
     magnitude = _number(_get(model_market_divergence, "magnitude"))
     threshold = _number(os.getenv("W2_MARKET_ANCHOR_MIN_DIVERGENCE"))
     if threshold is None:
-        threshold = MIN_MARKET_ANCHOR_DIVERGENCE
+        threshold = MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE
     return magnitude is None or abs(magnitude) < threshold
 
 
