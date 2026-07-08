@@ -79,8 +79,79 @@ def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_p
 
     assert payload["clv"]["sample_count"] == 1
     assert payload["clv"]["median_decimal"] == 0.15
+    assert payload["clv_shadow"]["sample_count"] == 0
     assert payload["clv"]["positive_count"] == 1
     assert payload["by_league"][0]["clv_median_decimal"] == 0.15
+
+
+def test_forward_ledger_performance_tracks_shadow_clv_separately(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-07T00:00:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=2.05,
+                shadow_pick=True,
+            ),
+            _record(
+                "2026-07-08T00:30:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=1.90,
+                shadow_pick=True,
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv"]["sample_count"] == 0
+    assert payload["clv_shadow"]["sample_count"] == 1
+    assert payload["clv_shadow"]["median_decimal"] == 0.15
+    assert payload["clv_shadow"]["method"] == (
+        "shadow_pick_entry_minus_closing_same_line; not_displayed_direction"
+    )
+    assert "shadow CLV" in payload["accrual_note"]
+    assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15
+
+
+def test_forward_ledger_performance_reads_legacy_v1_capture_records(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-07T00:00:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=2.05,
+                pick=True,
+                record_type=None,
+            ),
+            _record(
+                "2026-07-08T00:30:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=1.90,
+                pick=True,
+                record_type=None,
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv"]["sample_count"] == 1
+    assert payload["clv"]["median_decimal"] == 0.15
 
 
 def _record(
@@ -90,8 +161,11 @@ def _record(
     kickoff: str = "2026-07-08T01:00:00Z",
     home_price: float = 2.0,
     pick: bool = False,
+    shadow_pick: bool = False,
+    record_type: str | None = "capture",
 ) -> dict[str, object]:
     row: dict[str, object] = {
+        "record_type": record_type,
         "captured_at": captured_at,
         "football_day": "2026-07-07",
         "environment": "staging",
@@ -110,6 +184,15 @@ def _record(
     }
     if pick:
         row["pick"] = {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"}
+    if shadow_pick:
+        row["shadow_pick"] = {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "shadow": True,
+            "not_a_recommendation": True,
+        }
+    if record_type is None:
+        row.pop("record_type")
     return row
 
 

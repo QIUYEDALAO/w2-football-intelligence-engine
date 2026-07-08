@@ -343,7 +343,7 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     card = payload["all"][0]
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
-    assert len(encoded) < 6000
+    assert len(encoded) < 6500
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",

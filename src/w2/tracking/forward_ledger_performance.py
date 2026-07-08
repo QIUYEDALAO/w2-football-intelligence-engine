@@ -29,12 +29,10 @@ def forward_ledger_performance(
     root = runtime_root / "forward_outcome_ledger"
     records = list(load_forward_ledger_records(root))
     outcome_counts = _outcome_counts(records)
-    clv_rows = _clv_rows(records)
-    clv_values = [
-        row["clv_decimal"]
-        for row in clv_rows
-        if isinstance(row.get("clv_decimal"), int | float)
-    ]
+    clv_rows = _clv_rows(records, key_fn=_clv_key)
+    clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
+    clv_values = _clv_values(clv_rows)
+    clv_shadow_values = _clv_values(clv_shadow_rows)
     fixture_ids = {
         _text(record.get("fixture_id"))
         for record in records
@@ -53,16 +51,26 @@ def forward_ledger_performance(
         "void_count": outcome_counts["void"],
         "hit_rate": _hit_rate(outcome_counts),
         "accumulation_label": _accumulation_label(len(records), sample_target),
-        "clv": {
-            "sample_count": len(clv_values),
-            "median_decimal": median(clv_values) if clv_values else None,
-            "positive_count": len([value for value in clv_values if value > 0]),
-            "negative_count": len([value for value in clv_values if value < 0]),
-            "push_count": len([value for value in clv_values if value == 0]),
-            "line_changed_count": len([row for row in clv_rows if row.get("line_changed") is True]),
-            "method": "entry_minus_closing_decimal_odds_same_line",
-        },
-        "by_league": _league_rows(records, clv_rows, outcome_counts_by_league(records)),
+        "clv": _clv_summary(
+            clv_values,
+            clv_rows,
+            method="entry_minus_closing_decimal_odds_same_line",
+        ),
+        "clv_shadow": _clv_summary(
+            clv_shadow_values,
+            clv_shadow_rows,
+            method="shadow_pick_entry_minus_closing_same_line; not_displayed_direction",
+        ),
+        "accrual_note": (
+            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 "
+            "direction_allowed;非展示战绩"
+        ),
+        "by_league": _league_rows(
+            records,
+            clv_rows,
+            clv_shadow_rows,
+            outcome_counts_by_league(records),
+        ),
         "provider_calls": 0,
         "db_reads": 0,
         "db_writes": 0,
@@ -106,10 +114,39 @@ def outcome_counts_by_league(
     return by_league
 
 
-def _clv_rows(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:
+    return [
+        float(row["clv_decimal"])
+        for row in rows
+        if isinstance(row.get("clv_decimal"), int | float)
+    ]
+
+
+def _clv_summary(
+    values: Sequence[float],
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    method: str,
+) -> dict[str, Any]:
+    return {
+        "sample_count": len(values),
+        "median_decimal": median(values) if values else None,
+        "positive_count": len([value for value in values if value > 0]),
+        "negative_count": len([value for value in values if value < 0]),
+        "push_count": len([value for value in values if value == 0]),
+        "line_changed_count": len([row for row in rows if row.get("line_changed") is True]),
+        "method": method,
+    }
+
+
+def _clv_rows(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    key_fn: Any,
+) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for record in records:
-        key = _clv_key(record)
+        key = key_fn(record)
         if key is not None:
             grouped[key].append(record)
 
@@ -169,6 +206,8 @@ def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
 
 
 def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    if _record_type(record) != "capture":
+        return None
     fixture_id = _text(record.get("fixture_id"))
     pick = record.get("pick")
     if not fixture_id or not isinstance(pick, Mapping):
@@ -176,6 +215,20 @@ def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
     market = _text(pick.get("market"))
     selection = _text(pick.get("selection"))
     if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
+        return None
+    return (fixture_id, market, selection)
+
+
+def _clv_shadow_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    if _record_type(record) != "capture":
+        return None
+    fixture_id = _text(record.get("fixture_id"))
+    shadow_pick = record.get("shadow_pick")
+    if not fixture_id or not isinstance(shadow_pick, Mapping):
+        return None
+    market = _text(shadow_pick.get("market"))
+    selection = _text(shadow_pick.get("selection"))
+    if market not in {"ASIAN_HANDICAP"} or not selection:
         return None
     return (fixture_id, market, selection)
 
@@ -213,6 +266,7 @@ def _line_price(line: Any, price: Any) -> tuple[str, float] | None:
 def _league_rows(
     records: Sequence[Mapping[str, Any]],
     clv_rows: Sequence[Mapping[str, Any]],
+    clv_shadow_rows: Sequence[Mapping[str, Any]],
     league_outcomes: dict[str, defaultdict[str, int]],
 ) -> list[dict[str, Any]]:
     league_records: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
@@ -223,10 +277,16 @@ def _league_rows(
         value = row.get("clv_decimal")
         if isinstance(value, int | float):
             clv_by_league[_text(row.get("league"))].append(value)
+    clv_shadow_by_league: dict[str, list[float]] = defaultdict(list)
+    for row in clv_shadow_rows:
+        value = row.get("clv_decimal")
+        if isinstance(value, int | float):
+            clv_shadow_by_league[_text(row.get("league"))].append(value)
     rows: list[dict[str, Any]] = []
     for league, items in league_records.items():
         outcomes = league_outcomes.get(league, defaultdict(int))
         values = clv_by_league.get(league, [])
+        shadow_values = clv_shadow_by_league.get(league, [])
         fixture_ids = {
             _text(item.get("fixture_id"))
             for item in items
@@ -245,6 +305,10 @@ def _league_rows(
                 "hit_rate": _hit_rate(outcomes),
                 "clv_sample_count": len(values),
                 "clv_median_decimal": median(values) if values else None,
+                "clv_shadow_sample_count": len(shadow_values),
+                "clv_shadow_median_decimal": median(shadow_values)
+                if shadow_values
+                else None,
             }
         )
     return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))
@@ -266,6 +330,10 @@ def _outcome(record: Mapping[str, Any]) -> str:
     if isinstance(settlement, Mapping):
         return _text(settlement.get("outcome") or settlement.get("settlement")).upper()
     return ""
+
+
+def _record_type(record: Mapping[str, Any]) -> str:
+    return _text(record.get("record_type") or "capture")
 
 
 def _hit_rate(counts: Mapping[str, int]) -> float | None:

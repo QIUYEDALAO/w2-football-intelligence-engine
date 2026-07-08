@@ -30,6 +30,8 @@ def _day_view() -> dict[str, object]:
                     "status": "READY",
                     "magnitude": 0.03,
                     "direction_allowed": False,
+                    "model_fair_line": "-1.5",
+                    "market_line": "-1.25",
                 },
                 "current_odds": {
                     "ah": {
@@ -90,7 +92,39 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0]["not_a_lock"] is True
     assert rows[0]["posthoc_only"] is True
+    assert rows[0]["record_type"] == "capture"
+    assert rows[0]["shadow_pick"] == {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "model_fair_line": -1.5,
+        "market_line_at_capture": -1.25,
+        "divergence_line_units": -0.25,
+        "derived_from": "model_market_divergence",
+        "display_tier_at_capture": "WATCH",
+        "shadow": True,
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
+
+
+def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    divergence = card["model_market_divergence"]  # type: ignore[index]
+    divergence.pop("model_fair_line")  # type: ignore[union-attr]
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=True,
+        write_artifacts=False,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert payload["records"][0]["shadow_pick"] is None
 
 
 def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
