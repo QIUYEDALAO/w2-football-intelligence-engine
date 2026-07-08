@@ -342,3 +342,12 @@
 - shadow 证据流正式生效:`shadow_pick` 只从 `model_market_divergence` 的 fair/market AH 线差派生,并强制 `not_a_recommendation=true`、`not_displayed=true`;真实推荐 CLV 与 `clv_shadow` 双轨记录,永不合并。
 - 预注册规则日期:2026-07-08。未来按联赛放行 `direction_allowed` 必须单独批准 PR,且满足 shadow CLV 样本 `>=100`、shadow CLV 中位数 `>0`、最新 market gap `<=0.04`;离线数字和 shadow 方向不得直接开 EV/RECOMMEND 腿。
 - 下一张 PR:FIX-B outcome 回填 writer,写入 `record_type="outcome"` 与 `settlement_outcome`,并把真实 pick 与 shadow_pick 的赛后结果继续分轨。
+
+### V3 进展续14 · FIX-B outcome 回填 writer(2026-07-08)
+
+- FIX-B 已实现为独立 PR:forward ledger 新增 `record_type="outcome"` 回填 writer,只用现有 read-model FT 赛果与 capture entry 盘口结算,provider_calls=0,db_writes=0。
+- outcome 记录字段与读取口径对齐:`settlement_outcome` 值域为 `WIN/HALF_WIN/PUSH/HALF_LOSS/LOSS/VOID`;`settled_side` 分为 `pick` 与 `shadow_pick`。
+- 真实 pick 命中率与 shadow 证据轨已分离:`forward_ledger_performance` 输出 `outcomes` 与 `outcomes_shadow`;首屏命中率继续只读真实 pick 轨,无真实 pick 时保持"积累中"。
+- 回填幂等:同一 fixture/market/selection/settled_side 重跑不会重复写;无 FT 赛果不产 outcome;线或价格缺失写 `VOID` + `void_reason`。
+- staging 调度开关已预置:`W2_FORWARD_OUTCOME_BACKFILL_ENABLED` 默认代码为 false,staging compose 显式 true,间隔默认 `3600s`;production 不启用。
+- 下一步队列保持不变:FIX-C(锚定阈值 0.25 线差单位 + devig POWER 统一) -> FIX-D(R4.1b champion model_family 接线)。

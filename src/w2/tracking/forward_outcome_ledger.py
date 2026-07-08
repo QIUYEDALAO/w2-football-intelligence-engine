@@ -3,11 +3,15 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from w2.domain.odds import settle_asian_handicap
+
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
+FT_STATUSES = {"FT"}
 
 
 def run_forward_outcome_ledger(
@@ -103,6 +107,70 @@ def build_forward_outcome_records(
     return rows
 
 
+def backfill_outcomes(
+    runtime_root: Path,
+    day_view_or_results_source: Mapping[str, Any],
+    *,
+    dry_run: bool = True,
+    write_artifacts: bool = False,
+    settled_at: datetime | None = None,
+) -> dict[str, Any]:
+    root = runtime_root / "forward_outcome_ledger"
+    resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
+    results = _finished_results(day_view_or_results_source)
+    ledger_rows = _ledger_rows_by_file(root)
+    outcome_records: list[tuple[Path, dict[str, Any]]] = []
+    for path, records in ledger_rows.items():
+        for entry, side, item in _settlement_entries(records, results):
+            outcome_records.append(
+                (
+                    path,
+                    _outcome_record(
+                        entry,
+                        side=side,
+                        item=item,
+                        result=results[_text(entry.get("fixture_id"))],
+                        settled_at=resolved_settled_at,
+                    ),
+                )
+            )
+
+    written = 0
+    skipped_existing = 0
+    if write_artifacts and not dry_run:
+        existing_by_path = {path: _existing_keys(path) for path in ledger_rows}
+        for path, record in outcome_records:
+            existing_keys = existing_by_path.setdefault(path, _existing_keys(path))
+            key = _record_key(record)
+            if key in existing_keys:
+                skipped_existing += 1
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _append_jsonl_record(path, record)
+            existing_keys.add(key)
+            written += 1
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "PASS",
+        "dry_run": bool(dry_run),
+        "write_artifacts": bool(write_artifacts),
+        "provider_calls": 0,
+        "db_reads": 0,
+        "db_writes": 0,
+        "lock_capture_write": False,
+        "settlement_write": False,
+        "runtime_root": str(runtime_root),
+        "result_fixture_count": len(results),
+        "record_count": len(outcome_records),
+        "written": written,
+        "skipped_existing": skipped_existing,
+        "records": [record for _, record in outcome_records]
+        if dry_run or not write_artifacts
+        else [],
+    }
+
+
 def _ledger_path(root: Path, day_view: Mapping[str, Any]) -> Path:
     football_day = _text(day_view.get("football_day") or day_view.get("date") or "unknown")
     environment = _text(day_view.get("environment") or "unknown")
@@ -124,15 +192,301 @@ def _existing_keys(path: Path) -> set[str]:
 
 
 def _record_key(record: Mapping[str, Any]) -> str:
-    return "|".join(
-        [
-            _text(record.get("football_day")),
-            _text(record.get("environment")),
-            _text(record.get("fixture_id")),
-            _text(record.get("card_hash") or record.get("captured_at")),
-            _text(record.get("record_type") or "capture"),
-        ]
+    record_type = _text(record.get("record_type") or "capture")
+    parts = [
+        _text(record.get("football_day")),
+        _text(record.get("environment")),
+        _text(record.get("fixture_id")),
+        _text(record.get("card_hash") or record.get("captured_at")),
+        record_type,
+    ]
+    if record_type == "outcome":
+        parts.extend(
+            [
+                _text(record.get("settled_side")),
+                _text(record.get("market")),
+                _text(record.get("selection")),
+            ]
+        )
+    return "|".join(parts)
+
+
+def _ledger_rows_by_file(root: Path) -> dict[Path, list[dict[str, Any]]]:
+    if not root.exists():
+        return {}
+    rows: dict[Path, list[dict[str, Any]]] = {}
+    for path in sorted(root.glob("*.jsonl")):
+        items: list[dict[str, Any]] = []
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict):
+                    items.append(record)
+        rows[path] = items
+    return rows
+
+
+def _append_jsonl_record(path: Path, record: Mapping[str, Any]) -> None:
+    needs_newline = path.exists() and path.stat().st_size > 0
+    if needs_newline:
+        with path.open("rb") as handle:
+            handle.seek(-1, 2)
+            needs_newline = handle.read(1) != b"\n"
+    with path.open("a", encoding="utf-8") as handle:
+        if needs_newline:
+            handle.write("\n")
+        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _settlement_entries(
+    records: Sequence[Mapping[str, Any]],
+    results: Mapping[str, Mapping[str, Any]],
+) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
+    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
+    for record in records:
+        if _text(record.get("record_type") or "capture") != "capture":
+            continue
+        fixture_id = _text(record.get("fixture_id"))
+        if fixture_id not in results:
+            continue
+        for side, item in (
+            ("pick", record.get("pick")),
+            ("shadow_pick", record.get("shadow_pick")),
+        ):
+            if not isinstance(item, Mapping):
+                continue
+            market = _text(item.get("market"))
+            selection = _text(item.get("selection"))
+            if market != "ASIAN_HANDICAP" or not selection:
+                continue
+            grouped.setdefault((fixture_id, side, market, selection), []).append(record)
+
+    entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
+    for (_, side, _, _), items in grouped.items():
+        ordered = sorted(
+            items,
+            key=lambda item: (
+                _parse_time(item.get("captured_at"))
+                or datetime.min.replace(tzinfo=UTC)
+            ),
+        )
+        entry = _entry_record(ordered)
+        pick_item = entry.get(side)
+        if isinstance(pick_item, Mapping):
+            entries.append((entry, side, pick_item))
+    return entries
+
+
+def _outcome_record(
+    entry: Mapping[str, Any],
+    *,
+    side: str,
+    item: Mapping[str, Any],
+    result: Mapping[str, Any],
+    settled_at: datetime,
+) -> dict[str, Any]:
+    market = _text(item.get("market"))
+    selection = _text(item.get("selection"))
+    quote = _quote(entry, market, selection)
+    home_goals = int(result["home_goals"])
+    away_goals = int(result["away_goals"])
+    final_score = {
+        "home": home_goals,
+        "away": away_goals,
+        "status": _text(result.get("status") or "FT"),
+    }
+    base = {
+        "schema_version": SCHEMA_VERSION,
+        "record_type": "outcome",
+        "settled_at": settled_at.isoformat().replace("+00:00", "Z"),
+        "football_day": _text(entry.get("football_day")),
+        "environment": _text(entry.get("environment")),
+        "fixture_id": _text(entry.get("fixture_id")),
+        "competition_id": _optional_text(entry.get("competition_id")),
+        "competition_name": _optional_text(entry.get("competition_name")),
+        "card_hash": _optional_text(entry.get("card_hash")),
+        "market": market,
+        "selection": selection,
+        "settled_side": side,
+        "final_score": final_score,
+        "provider_calls": 0,
+        "db_writes": 0,
+        "lock_capture_write": False,
+        "settlement_write": False,
+    }
+    if quote is None:
+        return {
+            **base,
+            "settlement_outcome": "VOID",
+            "void_reason": "MISSING_ENTRY_LINE_OR_PRICE",
+        }
+    line, _price = quote
+    settlement_selection = _settlement_selection(selection)
+    decimal_line = _decimal(line)
+    if settlement_selection is None or decimal_line is None:
+        return {
+            **base,
+            "entry_line": line,
+            "entry_price": _price,
+            "settlement_outcome": "VOID",
+            "void_reason": "INVALID_ENTRY_LINE_OR_SELECTION",
+        }
+    outcome = settle_asian_handicap(
+        home_goals,
+        away_goals,
+        settlement_selection,
+        decimal_line,
     )
+    return {
+        **base,
+        "entry_line": line,
+        "entry_price": _price,
+        "settlement_outcome": outcome.value,
+    }
+
+
+def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    results: dict[str, dict[str, Any]] = {}
+    candidates: list[Mapping[str, Any]] = []
+    for key in ("cards", "results", "fixtures"):
+        value = source.get(key)
+        if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+            candidates.extend(item for item in value if isinstance(item, Mapping))
+    if not candidates and source:
+        candidates.append(source)
+    for item in candidates:
+        fixture_id = _fixture_id(item)
+        status = _status(item)
+        score = _score(item)
+        if not fixture_id or status not in FT_STATUSES or score is None:
+            continue
+        home_goals, away_goals = score
+        results[fixture_id] = {
+            "fixture_id": fixture_id,
+            "status": status,
+            "home_goals": home_goals,
+            "away_goals": away_goals,
+        }
+    return results
+
+
+def _fixture_id(item: Mapping[str, Any]) -> str:
+    fixture = item.get("fixture")
+    if isinstance(fixture, Mapping):
+        value = fixture.get("id")
+        if value is not None:
+            return _text(value)
+    return _text(item.get("fixture_id") or item.get("id"))
+
+
+def _status(item: Mapping[str, Any]) -> str:
+    fixture = item.get("fixture")
+    if isinstance(fixture, Mapping):
+        status = fixture.get("status")
+        if isinstance(status, Mapping):
+            return _text(status.get("short")).upper()
+        value = fixture.get("status")
+        if value is not None:
+            return _text(value).upper()
+    return _text(item.get("status") or item.get("result_status")).upper()
+
+
+def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
+    direct = _score_pair(item.get("home_score"), item.get("away_score"))
+    if direct is not None:
+        return direct
+    goals = item.get("goals")
+    if isinstance(goals, Mapping):
+        pair = _score_pair(goals.get("home"), goals.get("away"))
+        if pair is not None:
+            return pair
+    score = item.get("score")
+    if isinstance(score, Mapping):
+        for key in ("fulltime", "full_time", "ft"):
+            value = score.get(key)
+            if isinstance(value, Mapping):
+                pair = _score_pair(value.get("home"), value.get("away"))
+                if pair is not None:
+                    return pair
+        pair = _score_pair(score.get("home"), score.get("away"))
+        if pair is not None:
+            return pair
+    result = item.get("result")
+    if isinstance(result, Mapping):
+        return _score_pair(result.get("home_goals"), result.get("away_goals"))
+    return None
+
+
+def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
+    home_goals = _int(home)
+    away_goals = _int(away)
+    if home_goals is None or away_goals is None:
+        return None
+    return (home_goals, away_goals)
+
+
+def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
+    odds = record.get("current_odds")
+    if not isinstance(odds, Mapping) or market != "ASIAN_HANDICAP":
+        return None
+    ah = odds.get("ah")
+    if not isinstance(ah, Mapping):
+        return None
+    if selection == "HOME_AH":
+        return _line_price(ah.get("home_line"), ah.get("home_price"))
+    if selection == "AWAY_AH":
+        return _line_price(ah.get("away_line"), ah.get("away_price"))
+    return None
+
+
+def _line_price(line: Any, price: Any) -> tuple[str, float] | None:
+    if _optional_text(line) is None:
+        return None
+    value = _number(price)
+    if value is None:
+        return None
+    return (_text(line), value)
+
+
+def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+    for record in records:
+        kickoff = _parse_time(record.get("kickoff_utc"))
+        captured = _parse_time(record.get("captured_at"))
+        if kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600:
+            return record
+    return records[0]
+
+
+def _settlement_selection(selection: str) -> str | None:
+    if selection == "HOME_AH":
+        return "HOME"
+    if selection == "AWAY_AH":
+        return "AWAY"
+    return None
+
+
+def _decimal(value: str) -> Decimal | None:
+    try:
+        return Decimal(value)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _parse_time(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -217,6 +571,19 @@ def _number(value: Any) -> float | None:
     if isinstance(value, str):
         try:
             return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _int(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
         except ValueError:
             return None
     return None

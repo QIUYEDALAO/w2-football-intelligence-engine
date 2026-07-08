@@ -50,6 +50,63 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     assert payload["miss_count"] == 1
     assert payload["push_count"] == 1
     assert payload["hit_rate"] == 0.5
+    assert payload["outcomes"]["settled_sample_count"] == 3
+    assert payload["outcomes_shadow"]["settled_sample_count"] == 0
+
+
+def test_forward_ledger_performance_splits_shadow_outcomes_from_real_hit_rate(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _outcome_record("fixture-1", "WIN", side="shadow_pick"),
+            _outcome_record("fixture-2", "LOSS", side="shadow_pick"),
+            _record("2026-07-07T03:00:00Z", fixture_id="fixture-3"),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["settled_sample_count"] == 0
+    assert payload["hit_rate"] is None
+    assert payload["outcomes"]["settled_sample_count"] == 0
+    assert payload["outcomes_shadow"]["settled_sample_count"] == 2
+    assert payload["outcomes_shadow"]["hit_count"] == 1
+    assert payload["outcomes_shadow"]["miss_count"] == 1
+    assert payload["outcomes_shadow"]["hit_rate"] == 0.5
+    assert payload["by_league"][0]["shadow_settled_sample_count"] == 2
+
+
+def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    legacy = _record(
+        "2026-07-07T00:00:00Z",
+        fixture_id="fixture-legacy",
+        record_type=None,
+    )
+    legacy["outcome"] = "WIN"
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            legacy,
+            _record("2026-07-07T01:00:00Z", fixture_id="fixture-v2"),
+            _outcome_record("fixture-outcome", "PUSH", side="pick"),
+            _outcome_record("fixture-shadow", "VOID", side="shadow_pick"),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 4
+    assert payload["settled_sample_count"] == 2
+    assert payload["push_count"] == 1
+    assert payload["outcomes_shadow"]["void_count"] == 1
 
 
 def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_path: Path) -> None:
@@ -194,6 +251,28 @@ def _record(
     if record_type is None:
         row.pop("record_type")
     return row
+
+
+def _outcome_record(
+    fixture_id: str,
+    settlement_outcome: str,
+    *,
+    side: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": "w2.forward_outcome_ledger.v2",
+        "record_type": "outcome",
+        "settled_at": "2026-07-08T03:00:00Z",
+        "football_day": "2026-07-07",
+        "environment": "staging",
+        "fixture_id": fixture_id,
+        "competition_name": "World Cup",
+        "card_hash": f"hash-{fixture_id}",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "settled_side": side,
+        "settlement_outcome": settlement_outcome,
+    }
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
