@@ -1,5 +1,7 @@
 # W2 系统升级 · 任务与验收台账
 
+**【状态口径】当前状态以续18为准，S0–S13为历史记录，不能作为当前执行队列。**
+
 用途:记录每一条下发给 Codex 的指令、执行结果、我方(reviewer)验收结论、以及据此进入的下一阶段。供后续接手者一眼看清系统怎么一步步变成现在的样子。
 
 维护规则:**每下发一条指令、每验收通过进入下一阶段,都追加一条。** 台账只增不改历史条目;结论有修正就新增一条注明。
@@ -376,3 +378,28 @@
 - `market_divergence`/Decision Contract/forward ledger 透传 `model_family`;`direction_allowed` 仍保持 false,EV/RECOMMEND 腿仍默认关闭,`src/w2/models/independent.py` 保持零 diff。
 - R1.1 检查点字段清单追加 FIX-F 数据质量项:`unsettled_missing_fulltime`,`excluded_no_prematch_closing`,`entry_window_met` 占比,`entry_line_mismatch_count`。若 `entry_window_met` 占比过低,先修 T-24 采集节奏,再谈逐联赛放行评估。
 - 部署策略:FIX-D 合入后立即提请 #212+#213+FIX-D 合批 staging 部署审批;当前线上 staging 仍是 `b5cfd65`,尚无 AET/PEN fulltime 结算保护。
+
+### V3 进展续18 · 独立评审收口与交接(2026-07-08,评审会话撰写,项目总监接手)
+
+**状态定格**:#214 已合并 main `4232ff6`,CI 全绿。冷读审查(见 `W2_ARCHITECTURE_REVIEW_2026_07.md` 与修复工单 `W2_FIX_WORKORDER_20260708.md`)发现的 D1–D5 已全部修复合入:FIX-E(#207)、FIX-A shadow 证据流(#209)、FIX-B outcome 回填(#211)、FIX-C 阈值单位+devig POWER(#212)、FIX-F ledger 口径补强(#213)、FIX-D champion 接线(#214)。D1 死锁(direction_allowed 恒 False 导致 CLV 永零)已用影子轨解耦,证据闭环 shadow CLV → 逐联赛放行 → 真实 pick → R3.0 现已贯通,等时间攒样本。
+
+**交接队列(按优先级,含门槛与时间点)**:
+
+1. **合批 staging 部署(最急,审批中)**:#212+#213+#214,main SHA `4232ff6`。线上仍 `b5cfd65`,无 AET/PEN fulltime 结算保护——世界杯淘汰赛期间每拖一天,加时/点球 outcome 样本永久漏一天。部署后验收:`/v1/version` SHA 一致;抽查当日 ledger 记录含 `model_family`。
+2. **R4.1 artifact 发布器 PR**:工单已备(`W2_R4_1_ARTIFACT_PUBLISHER_WORKORDER_20260708.md`)。要点:特征同源抽取 `r4_1_features.py`(eval 与 serving 共用,禁止重写)、协议同一性自检(系数对上 eval 记录才产 artifact)、巴甲守卫测试(R4.1 在巴甲恶化,禁用)、规范 key 收敛。§6 artifact 分发方式(建议 CI 产出随部署包)是老板决策,不阻塞脚本+加载器交付。
+3. **R1.1 检查点(≈2026-07-22,时钟自 07-08 首次部署起)**:报告必含——双快照卡数(目标 ≥100)、shadow_pick 非空占比、`clv_shadow` 样本数与中位、`entry_window_met` 占比、`excluded_no_prematch_closing`、`unsettled_missing_fulltime`、outcome FT/AET 分列、provider 日用量(<120)。`entry_window_met` 占比过低则先修 T-24 采集节奏。报告交独立评审复核。
+4. **direction_allowed 逐联赛放行评估(R1.1 之后,按预注册三条件)**:shadow CLV ≥100 且中位 >0 且最新 gap ≤0.04,单独批准 PR、按联赛白名单放行。当前 gap 候选排序:挪超 0.0164(现役模型)、瑞典超 0.0188(R4_1)、中超 0.0354(R4_1);巴甲 >0.04 不候选且 R4.1 禁用。放行后该联赛真实 pick 开始积累,R3.0 在真实轨计数。
+5. **月度 `market_baseline_eval` 重跑**(R4 常设节奏):gap 门槛用滚动值;下轮重跑同时验证 R4.1 artifact 是否续版(v2)。
+6. **R3.0 EV/RECOMMEND 腿**:保持默认关;季度裁决点按 R1.2 数据跑门槛判定(≥200 真实 pick、CLV 中位 >0、blend w*<1 稳定优于纯市场)。离线数字不得开腿。
+7. **S17 收尾确认**:三态截图验收(满负荷/空日/降级日)是否已归档待确认;若未做,列入 dashboard 下一轮。
+
+**红线(不因交接松动)**:`direction_allowed` 恒 False 直至第 4 项流程;EV/RECOMMEND 默认关;enable/部署永远单独批准;production 零触碰;provider <120/日;不造假绿灯——无结算样本处永远是"积累中",不是数字。
+
+### V3 进展续19 · R4.1 artifact 发布器启动(2026-07-08)
+
+- R4.1 artifact 发布器 PR 已启动:工单 `docs/consolidation/W2_R4_1_ARTIFACT_PUBLISHER_WORKORDER_20260708.md` 纳入版本管理。
+- 特征同源抽取已落地为 `src/w2/models/r4_1_features.py`:eval 脚本与 serving/artifact 路径共用同一份 8 场窗口、对手调整、365 天衰减、Dixon-Coles rho 特征/预测实现,避免 eval/serving 双写漂移。
+- 发布器 `scripts/publish_w2_r4_1_artifacts.py` 只读本地缓存,provider_calls=0;本地试跑已通过协议同一性自检:big5 cross-season 与 in-season pooled 两条 R4.1 血统均 `protocol_identity_check=PASS`。
+- artifact 写入 `runtime/model_artifacts/r4_1/*.v1.json`,目录已由 `.gitignore` 排除;PR 不提交 runtime artifact、不提交 raw/key/header。
+- repository 只认规范 key `pricing_shadow.r4_1_calibrated`;旧防御性 key `r4_1_model/r4_1_divergence_model/probabilities_r4_1_calibrated` 已从 `src/` 清空。artifact hash/version 透传至 market_divergence/DecisionCard provenance。
+- 巴甲守卫继续有效:`brasileirao_serie_a` 因 R4.1 eval 恶化不进入 R4.1 发布/选择集合;EV/RECOMMEND 与 `direction_allowed` 仍保持关闭。

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from w2.api.repository import ReadModelService
@@ -8,6 +11,7 @@ from w2.models.divergence_champion import (
     divergence_model_family_for,
     select_divergence_champion_probabilities,
 )
+from w2.models.r4_1_artifacts import build_r4_1_artifact_payload
 
 
 def test_r4_1b_adopts_only_reviewed_league_champions() -> None:
@@ -24,6 +28,15 @@ def test_r4_1b_adopts_only_reviewed_league_champions() -> None:
     )
     assert divergence_model_family_for("premier_league") == DivergenceModelFamily.FITTED_CALIBRATED
     assert divergence_model_family_for(None) == DivergenceModelFamily.FITTED_CALIBRATED
+
+
+def test_brasileirao_guard_stays_off_r4_1_after_failed_eval() -> None:
+    # W2_R4_1_MODEL_GAP_REDUCTION_EVAL_20260708.md:
+    # brasileirao worsened (+0.0538 -> +0.0550), so it must not be adopted.
+    assert (
+        divergence_model_family_for("brasileirao_serie_a")
+        == DivergenceModelFamily.FITTED_CALIBRATED
+    )
 
 
 def test_select_divergence_champion_uses_r4_1_when_adopted() -> None:
@@ -90,10 +103,86 @@ def test_repository_divergence_uses_r4_1_champion_when_artifact_available(
     assert card["market_divergence"]["direction_allowed"] is False
 
 
+def test_repository_divergence_loads_r4_1_artifact_when_feature_rows_available(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    _write_artifact(tmp_path, "chinese_super_league")
+    service = ReadModelService(r4_1_artifact_root=tmp_path)
+    monkeypatch.setattr(service, "_market_timeline_payload", lambda _fixture_id: _timeline())
+    card = _card("chinese_super_league")
+    card["r4_1_feature_rows"] = {
+        "home": [1.0, 1.0, 1.2, 1.1, 0.15, 1.0],
+        "away": [1.0, 0.0, 0.9, 1.0, -0.15, 0.0],
+    }
+
+    service._attach_market_movement_fields(card)
+
+    shadow = card["pricing_shadow"]
+    divergence = card["market_divergence"]
+    assert shadow["model_family"] == "R4_1_CALIBRATED"
+    assert "model_family_fallback_reason" not in shadow
+    assert abs(sum(shadow["model_probabilities"].values()) - 1.0) < 1e-9
+    assert shadow["artifact_hash"]
+    assert shadow["artifact_version"] == "v1"
+    assert divergence["artifact_hash"] == shadow["artifact_hash"]
+    assert divergence["model_family"] == "R4_1_CALIBRATED"
+    assert divergence["direction_allowed"] is False
+
+
+def test_repository_divergence_falls_back_when_r4_1_history_is_insufficient(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    _write_artifact(tmp_path, "allsvenskan")
+    service = ReadModelService(r4_1_artifact_root=tmp_path)
+    monkeypatch.setattr(service, "_market_timeline_payload", lambda _fixture_id: _timeline())
+    card = _card("allsvenskan")
+
+    service._attach_market_movement_fields(card)
+
+    assert card["pricing_shadow"]["model_family"] == "FITTED_CALIBRATED"
+    assert (
+        card["pricing_shadow"]["model_family_fallback_reason"]
+        == "R4_1_FEATURE_HISTORY_INSUFFICIENT"
+    )
+    assert card["market_divergence"]["model_family"] == "FITTED_CALIBRATED"
+    assert (
+        card["market_divergence"]["model_family_fallback_reason"]
+        == "R4_1_FEATURE_HISTORY_INSUFFICIENT"
+    )
+
+
+def test_repository_divergence_falls_back_when_r4_1_artifact_hash_is_invalid(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    path = _write_artifact(tmp_path, "allsvenskan")
+    payload = path.read_text(encoding="utf-8").replace("artifact_hash", "artifact_hash_broken")
+    path.write_text(payload, encoding="utf-8")
+    service = ReadModelService(r4_1_artifact_root=tmp_path)
+    monkeypatch.setattr(service, "_market_timeline_payload", lambda _fixture_id: _timeline())
+    card = _card("allsvenskan")
+    card["r4_1_feature_rows"] = {
+        "home": [1.0, 1.0, 1.2, 1.1, 0.15, 1.0],
+        "away": [1.0, 0.0, 0.9, 1.0, -0.15, 0.0],
+    }
+
+    service._attach_market_movement_fields(card)
+
+    assert card["pricing_shadow"]["model_family"] == "FITTED_CALIBRATED"
+    assert (
+        card["pricing_shadow"]["model_family_fallback_reason"]
+        == "R4_1_ARTIFACT_INVALID"
+    )
+    assert card["market_divergence"]["direction_allowed"] is False
+
+
 def test_repository_divergence_falls_back_when_r4_1_artifact_missing(
     monkeypatch: Any,
+    tmp_path: Path,
 ) -> None:
-    service = ReadModelService()
+    service = ReadModelService(r4_1_artifact_root=tmp_path)
     monkeypatch.setattr(service, "_market_timeline_payload", lambda _fixture_id: _timeline())
     card = _card("allsvenskan")
 
@@ -177,3 +266,27 @@ def _timeline() -> dict[str, Any]:
             },
         ]
     }
+
+
+def _write_artifact(path: Path, competition_id: str) -> Path:
+    payload = build_r4_1_artifact_payload(
+        competition_id=competition_id,
+        coefficients=(0.05, 0.12, 0.2, 0.14, 0.3, 0.08),
+        feature_names=(
+            "intercept",
+            "home_field",
+            "attack_xg_for",
+            "opponent_xg_against",
+            "elo_gap",
+            f"home_field__{competition_id}",
+            "dixon_coles_rho=-0.03",
+        ),
+        temperature=0.96,
+        rho=-0.03,
+        train_cutoff_utc=datetime(2026, 1, 1, tzinfo=UTC),
+        fit_sample_count=250,
+        protocol_identity_check="PASS",
+    )
+    target = path / f"{competition_id}.v1.json"
+    target.write_text(json.dumps(payload), encoding="utf-8")
+    return target
