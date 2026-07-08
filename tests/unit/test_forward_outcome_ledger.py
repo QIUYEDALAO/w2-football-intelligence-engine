@@ -247,6 +247,67 @@ def test_forward_outcome_backfill_ignores_non_ft_results(tmp_path: Path) -> None
     assert payload["written"] == 0
 
 
+def test_forward_outcome_backfill_settles_aet_with_fulltime_score(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [_capture("fixture-aet", "hash-aet", home_line="-1", home_price="1.9")],
+    )
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {
+            "results": [
+                {
+                    "fixture_id": "fixture-aet",
+                    "status": "AET",
+                    "score": {
+                        "fulltime": {"home": 1, "away": 0},
+                        "extratime": {"home": 2, "away": 0},
+                    },
+                }
+            ]
+        },
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    outcome = [row for row in rows if row.get("record_type") == "outcome"][0]
+    assert payload["record_count"] == 1
+    assert payload["unsettled_missing_fulltime"] == 0
+    assert outcome["settlement_outcome"] == "PUSH"
+    assert outcome["final_score"] == {"home": 1, "away": 0, "status": "AET"}
+
+
+def test_forward_outcome_backfill_skips_aet_without_fulltime_score(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [_capture("fixture-aet", "hash-aet", home_line="-1", home_price="1.9")],
+    )
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-aet", 2, 0, status="AET")]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert payload["record_count"] == 0
+    assert payload["written"] == 0
+    assert payload["unsettled_missing_fulltime"] == 1
+
+
 def test_forward_outcome_backfill_settles_shadow_pick_separately(
     tmp_path: Path,
 ) -> None:

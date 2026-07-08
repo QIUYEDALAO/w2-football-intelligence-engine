@@ -11,7 +11,7 @@ from w2.domain.odds import settle_asian_handicap
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
-FT_STATUSES = {"FT"}
+FT_STATUSES = {"FT", "AET", "PEN"}
 
 
 def run_forward_outcome_ledger(
@@ -117,7 +117,7 @@ def backfill_outcomes(
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    results = _finished_results(day_view_or_results_source)
+    results, unsettled_missing_fulltime = _finished_results(day_view_or_results_source)
     ledger_rows = _ledger_rows_by_file(root)
     outcome_records: list[tuple[Path, dict[str, Any]]] = []
     for path, records in ledger_rows.items():
@@ -162,6 +162,7 @@ def backfill_outcomes(
         "settlement_write": False,
         "runtime_root": str(runtime_root),
         "result_fixture_count": len(results),
+        "unsettled_missing_fulltime": unsettled_missing_fulltime,
         "record_count": len(outcome_records),
         "written": written,
         "skipped_existing": skipped_existing,
@@ -348,8 +349,9 @@ def _outcome_record(
     }
 
 
-def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], int]:
     results: dict[str, dict[str, Any]] = {}
+    unsettled_missing_fulltime = 0
     candidates: list[Mapping[str, Any]] = []
     for key in ("cards", "results", "fixtures"):
         value = source.get(key)
@@ -360,8 +362,12 @@ def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     for item in candidates:
         fixture_id = _fixture_id(item)
         status = _status(item)
-        score = _score(item)
-        if not fixture_id or status not in FT_STATUSES or score is None:
+        if not fixture_id or status not in FT_STATUSES:
+            continue
+        score = _score(item, status=status)
+        if score is None:
+            if status in {"AET", "PEN"}:
+                unsettled_missing_fulltime += 1
             continue
         home_goals, away_goals = score
         results[fixture_id] = {
@@ -370,7 +376,7 @@ def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
             "home_goals": home_goals,
             "away_goals": away_goals,
         }
-    return results
+    return results, unsettled_missing_fulltime
 
 
 def _fixture_id(item: Mapping[str, Any]) -> str:
@@ -394,7 +400,12 @@ def _status(item: Mapping[str, Any]) -> str:
     return _text(item.get("status") or item.get("result_status")).upper()
 
 
-def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
+def _score(item: Mapping[str, Any], *, status: str) -> tuple[int, int] | None:
+    fulltime = _fulltime_score(item)
+    if fulltime is not None:
+        return fulltime
+    if status in {"AET", "PEN"}:
+        return None
     direct = _score_pair(item.get("home_score"), item.get("away_score"))
     if direct is not None:
         return direct
@@ -417,6 +428,26 @@ def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
     result = item.get("result")
     if isinstance(result, Mapping):
         return _score_pair(result.get("home_goals"), result.get("away_goals"))
+    return None
+
+
+def _fulltime_score(item: Mapping[str, Any]) -> tuple[int, int] | None:
+    score = item.get("score")
+    if isinstance(score, Mapping):
+        for key in ("fulltime", "full_time", "ft"):
+            value = score.get(key)
+            if isinstance(value, Mapping):
+                pair = _score_pair(value.get("home"), value.get("away"))
+                if pair is not None:
+                    return pair
+    result = item.get("result")
+    if isinstance(result, Mapping):
+        for key in ("fulltime", "full_time", "ft"):
+            value = result.get(key)
+            if isinstance(value, Mapping):
+                pair = _score_pair(value.get("home"), value.get("away"))
+                if pair is not None:
+                    return pair
     return None
 
 
