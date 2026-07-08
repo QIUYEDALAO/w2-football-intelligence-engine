@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -153,13 +154,33 @@ def _clv_summary(
     *,
     method: str,
 ) -> dict[str, Any]:
+    window_values = [
+        float(row["clv_decimal"])
+        for row in rows
+        if row.get("entry_window_met") is True
+        and isinstance(row.get("clv_decimal"), int | float)
+    ]
     return {
         "sample_count": len(values),
         "median_decimal": median(values) if values else None,
+        "entry_window_met_count": len(
+            [row for row in rows if row.get("entry_window_met") is True]
+        ),
+        "median_decimal_window_met": median(window_values) if window_values else None,
         "positive_count": len([value for value in values if value > 0]),
         "negative_count": len([value for value in values if value < 0]),
         "push_count": len([value for value in values if value == 0]),
         "line_changed_count": len([row for row in rows if row.get("line_changed") is True]),
+        "excluded_no_prematch_closing": len(
+            [
+                row
+                for row in rows
+                if row.get("excluded_reason") == "NO_PREMATCH_CLOSING"
+            ]
+        ),
+        "entry_line_mismatch_count": len(
+            [row for row in rows if row.get("entry_line_mismatch") is True]
+        ),
         "method": method,
     }
 
@@ -188,6 +209,25 @@ def _clv_rows(
             continue
         entry = _entry_record(ordered)
         closing = _closing_record(ordered)
+        if closing is None:
+            entry_quote = _quote(entry, market, selection)
+            entry_line = entry_quote[0] if entry_quote is not None else None
+            rows.append(
+                {
+                    "fixture_id": fixture_id,
+                    "league": _league_key(entry),
+                    "market": market,
+                    "selection": selection,
+                    "entry_captured_at": _text(entry.get("captured_at")),
+                    "closing_captured_at": None,
+                    "entry_window_met": _entry_window_met(entry),
+                    "line_changed": False,
+                    "entry_line_mismatch": _entry_line_mismatch(entry, entry_line),
+                    "excluded_reason": "NO_PREMATCH_CLOSING",
+                    "clv_decimal": None,
+                }
+            )
+            continue
         entry_quote = _quote(entry, market, selection)
         closing_quote = _quote(closing, market, selection)
         if entry_quote is None or closing_quote is None:
@@ -203,7 +243,9 @@ def _clv_rows(
                 "selection": selection,
                 "entry_captured_at": _text(entry.get("captured_at")),
                 "closing_captured_at": _text(closing.get("captured_at")),
+                "entry_window_met": _entry_window_met(entry),
                 "line_changed": line_changed,
+                "entry_line_mismatch": _entry_line_mismatch(entry, entry_line),
                 "clv_decimal": None if line_changed else round(entry_price - closing_price, 6),
             }
         )
@@ -219,7 +261,7 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     return records[0]
 
 
-def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any] | None:
     before_kickoff = [
         record
         for record in records
@@ -227,7 +269,27 @@ def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
         and (captured := _parse_time(record.get("captured_at")))
         and captured <= kickoff
     ]
-    return before_kickoff[-1] if before_kickoff else records[-1]
+    return before_kickoff[-1] if before_kickoff else None
+
+
+def _entry_window_met(record: Mapping[str, Any]) -> bool:
+    kickoff = _parse_time(record.get("kickoff_utc"))
+    captured = _parse_time(record.get("captured_at"))
+    return bool(kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600)
+
+
+def _entry_line_mismatch(record: Mapping[str, Any], entry_line: str | None) -> bool:
+    shadow_pick = record.get("shadow_pick")
+    if not isinstance(shadow_pick, Mapping) or entry_line is None:
+        return False
+    market_line = shadow_pick.get("market_line_at_capture")
+    if market_line is None:
+        return False
+    entry_decimal = _decimal_value(entry_line)
+    market_decimal = _decimal_value(market_line)
+    if entry_decimal is not None and market_decimal is not None:
+        return entry_decimal != market_decimal
+    return _text(entry_line) != _text(market_line)
 
 
 def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
@@ -369,8 +431,6 @@ def _outcome_side(record: Mapping[str, Any]) -> str:
     side = _text(record.get("settled_side"))
     if side in {"pick", "shadow_pick"}:
         return side
-    if _outcome(record):
-        return "pick"
     return ""
 
 
@@ -414,6 +474,16 @@ def _number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def _decimal_value(value: Any) -> Decimal | None:
+    text = _text(value)
+    if not text:
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
 
 
 def _text(value: Any) -> str:

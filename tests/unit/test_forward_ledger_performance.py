@@ -28,6 +28,14 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     assert payload["hit_rate"] is None
     assert payload["accumulation_label"] == "积累中 2/200"
     assert payload["mock_data"] is False
+    for key in (
+        "entry_window_met_count",
+        "median_decimal_window_met",
+        "excluded_no_prematch_closing",
+        "entry_line_mismatch_count",
+    ):
+        assert key in payload["clv"]
+        assert key in payload["clv_shadow"]
 
 
 def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) -> None:
@@ -36,9 +44,9 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
         [
-            {**_record("2026-07-07T00:00:00Z", fixture_id="fixture-1"), "outcome": "WIN"},
-            {**_record("2026-07-07T01:00:00Z", fixture_id="fixture-2"), "outcome": "LOSS"},
-            {**_record("2026-07-07T02:00:00Z", fixture_id="fixture-3"), "outcome": "PUSH"},
+            _outcome_record("fixture-1", "WIN", side="pick"),
+            _outcome_record("fixture-2", "LOSS", side="pick"),
+            _outcome_record("fixture-3", "PUSH", side="pick"),
             _record("2026-07-07T03:00:00Z", fixture_id="fixture-4"),
         ],
     )
@@ -51,6 +59,22 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     assert payload["push_count"] == 1
     assert payload["hit_rate"] == 0.5
     assert payload["outcomes"]["settled_sample_count"] == 3
+    assert payload["outcomes_shadow"]["settled_sample_count"] == 0
+
+
+def test_forward_ledger_performance_excludes_outcomes_without_settled_side(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    outcome = _outcome_record("fixture-1", "WIN", side="pick")
+    outcome.pop("settled_side")
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["settled_sample_count"] == 0
+    assert payload["outcomes"]["settled_sample_count"] == 0
     assert payload["outcomes_shadow"]["settled_sample_count"] == 0
 
 
@@ -104,7 +128,7 @@ def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["record_count"] == 4
-    assert payload["settled_sample_count"] == 2
+    assert payload["settled_sample_count"] == 1
     assert payload["push_count"] == 1
     assert payload["outcomes_shadow"]["void_count"] == 1
 
@@ -136,6 +160,8 @@ def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_p
 
     assert payload["clv"]["sample_count"] == 1
     assert payload["clv"]["median_decimal"] == 0.15
+    assert payload["clv"]["entry_window_met_count"] == 1
+    assert payload["clv"]["median_decimal_window_met"] == 0.15
     assert payload["clv_shadow"]["sample_count"] == 0
     assert payload["clv"]["positive_count"] == 1
     assert payload["by_league"][0]["clv_median_decimal"] == 0.15
@@ -176,6 +202,102 @@ def test_forward_ledger_performance_tracks_shadow_clv_separately(
     )
     assert "shadow CLV" in payload["accrual_note"]
     assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15
+
+
+def test_forward_ledger_performance_excludes_clv_without_prematch_closing(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-08T01:05:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=2.05,
+                pick=True,
+            ),
+            _record(
+                "2026-07-08T01:10:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=1.90,
+                pick=True,
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv"]["sample_count"] == 0
+    assert payload["clv"]["excluded_no_prematch_closing"] == 1
+
+
+def test_forward_ledger_performance_marks_late_entry_window(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-07T12:00:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=2.05,
+                pick=True,
+            ),
+            _record(
+                "2026-07-08T00:30:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=1.90,
+                pick=True,
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv"]["sample_count"] == 1
+    assert payload["clv"]["entry_window_met_count"] == 0
+    assert payload["clv"]["median_decimal_window_met"] is None
+
+
+def test_forward_ledger_performance_counts_entry_line_mismatch(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-07T00:00:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=2.05,
+                shadow_pick=True,
+                shadow_market_line="-0.75",
+            ),
+            _record(
+                "2026-07-08T00:30:00Z",
+                fixture_id="fixture-1",
+                kickoff="2026-07-08T01:00:00Z",
+                home_price=1.90,
+                shadow_pick=True,
+                shadow_market_line="-0.75",
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv_shadow"]["sample_count"] == 1
+    assert payload["clv_shadow"]["entry_line_mismatch_count"] == 1
 
 
 def test_forward_ledger_performance_reads_legacy_v1_capture_records(
@@ -219,6 +341,7 @@ def _record(
     home_price: float = 2.0,
     pick: bool = False,
     shadow_pick: bool = False,
+    shadow_market_line: str = "-1",
     record_type: str | None = "capture",
 ) -> dict[str, object]:
     row: dict[str, object] = {
@@ -245,6 +368,7 @@ def _record(
         row["shadow_pick"] = {
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
+            "market_line_at_capture": shadow_market_line,
             "shadow": True,
             "not_a_recommendation": True,
         }

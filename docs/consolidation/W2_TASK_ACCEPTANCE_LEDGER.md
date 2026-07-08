@@ -359,3 +359,12 @@
 - FIX-C 已启动为独立分支:将 market-anchor magnitude 明确定义为 AH 线差单位,默认门槛从 `0.05` 调整为 `0.25`,后端、compose、Dockerfile.web、前端默认值同步。
 - devig 口径收敛:DayView 与 read-model repository 展示市场概率统一使用 `POWER` devig,方法写入概率对象/契约,避免同屏概率口径漂移。
 - 下一步队列保持不变:FIX-C 完成验证并开 Draft PR后,进入 FIX-D(R4.1b champion model_family 接线)。
+
+### V3 进展续16 · #212 合入与 FIX-F ledger 口径补强(2026-07-08)
+
+- #212 已转 Ready 并合并 main `6af19f1`,main CI `verify / staging-parity / predeploy-e2e` 全绿;本次不单独 staging 部署,后续与 FIX-F/FIX-D 合并后统一提部署审批。
+- FIX-F 已启动为独立微 PR:优先补强 forward ledger 结算/CLV 口径,不打 provider、不部署、不新增 enable、不改采集端 schema。
+- 结算口径补强:AET/PEN 纳入完成状态,但亚盘结算一律使用 90 分钟 `score.fulltime`;缺 fulltime 的 AET/PEN 计入 `unsettled_missing_fulltime`,不硬结算。
+- CLV 口径补强:无赛前 closing snapshot 不再 fallback 到 `records[-1]`,改为排除并计数 `excluded_no_prematch_closing`;每行记录 `entry_window_met`,并输出达标窗口中位 CLV。
+- 证据污染防御:新增 `entry_line_mismatch_count`;缺 `settled_side` 的 outcome 记录排除于真实 pick 与 shadow 两轨之外,避免混合历史记录污染首屏命中率。
+- 下一步:FIX-F 合入后进入 FIX-D(R4.1b champion model_family 接线),随后 FIX-F+FIX-D 一并提 staging 部署审批。

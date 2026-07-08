@@ -1204,17 +1204,19 @@ class ReadModelService:
     def _compact_all_window_card(self, card: dict[str, Any]) -> dict[str, Any]:
         """Return a lightweight index row for large all-window payloads."""
         payload = self._all_window_card_reference(card)
-        payload.update(
-            {
-                "kickoff_beijing": card.get("kickoff_beijing"),
-                "operational_date_beijing": card.get("operational_date_beijing"),
-                "competition_id": card.get("competition_id"),
-                "competition_name": card.get("competition_name"),
-                "raw_status": card.get("raw_status"),
-                "formal_suppressed": card.get("formal_suppressed"),
-                "formal_suppressed_reason": card.get("formal_suppressed_reason"),
-            }
-        )
+        for key in (
+            "kickoff_beijing",
+            "operational_date_beijing",
+            "competition_id",
+            "competition_name",
+            "raw_status",
+            "formal_suppressed_reason",
+        ):
+            value = card.get(key)
+            if value:
+                payload[key] = value
+        if card.get("formal_suppressed") is True:
+            payload["formal_suppressed"] = True
         return payload
 
     def _all_window_card_reference(self, card: dict[str, Any]) -> dict[str, Any]:
