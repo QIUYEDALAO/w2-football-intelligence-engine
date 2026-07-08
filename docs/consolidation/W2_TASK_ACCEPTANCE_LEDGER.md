@@ -351,3 +351,11 @@
 - 回填幂等:同一 fixture/market/selection/settled_side 重跑不会重复写;无 FT 赛果不产 outcome;线或价格缺失写 `VOID` + `void_reason`。
 - staging 调度开关已预置:`W2_FORWARD_OUTCOME_BACKFILL_ENABLED` 默认代码为 false,staging compose 显式 true,间隔默认 `3600s`;production 不启用。
 - 下一步队列保持不变:FIX-C(锚定阈值 0.25 线差单位 + devig POWER 统一) -> FIX-D(R4.1b champion model_family 接线)。
+
+### V3 进展续15 · #211 合入、staging 部署与 FIX-C 启动(2026-07-08)
+
+- #211 已合并 main `b5cfd65`,main CI `verify / staging-parity / predeploy-e2e` 全绿;FIX-B outcome 回填 writer 已进入主线。
+- 老板批准的 staging 部署已执行:staging Web/API SHA 均为 `b5cfd6575ba7274692714c9fc814916a00c13e36`,`/health`、`/ready`、`/v1/version`、`/meta.json` 验收 PASS;production 未部署。
+- FIX-C 已启动为独立分支:将 market-anchor magnitude 明确定义为 AH 线差单位,默认门槛从 `0.05` 调整为 `0.25`,后端、compose、Dockerfile.web、前端默认值同步。
+- devig 口径收敛:DayView 与 read-model repository 展示市场概率统一使用 `POWER` devig,方法写入概率对象/契约,避免同屏概率口径漂移。
+- 下一步队列保持不变:FIX-C 完成验证并开 Draft PR后,进入 FIX-D(R4.1b champion model_family 接线)。

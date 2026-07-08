@@ -219,7 +219,7 @@ def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
         prices = _market_prices(market, labels)
         if len(prices) < 2:
             continue
-        result = devig(prices, DevigMethod.PROPORTIONAL)
+        result = devig(prices, DevigMethod.POWER)
         markets[key] = {
             "method": result.method.value,
             "probabilities": {

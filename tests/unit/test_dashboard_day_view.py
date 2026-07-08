@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from w2.api.repository import ReadModelService
 from w2.dashboard import day_view
 from w2.dashboard.day_view import build_dashboard_day_view
 
@@ -122,8 +123,10 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
     assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
+    assert contract_card["market_probabilities"]["ah"]["method"] == "POWER"
     assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
-    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502604
+    assert contract_card["market_probabilities"]["ou"]["method"] == "POWER"
+    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502767
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"
@@ -137,6 +140,40 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert legacy_card["decision_tier"] == "ANALYSIS_PICK"
     assert legacy_card["lock_eligible"] is True
     assert legacy_card["recommendation_id"] == "legacy-rec"
+
+
+def test_day_view_and_repository_use_same_power_devig_market_probability() -> None:
+    card = {
+        "current_odds": {
+            "ah": {
+                "home_line": "-0.25",
+                "home_price": 1.8,
+                "away_line": "0.25",
+                "away_price": 2.04,
+            }
+        }
+    }
+    day_view_probabilities = day_view._market_probabilities(card)["ah"]["probabilities"]
+    repository_probabilities = ReadModelService()._market_probabilities_from_observations(
+        [
+            {
+                "canonical_market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+                "line": "-0.25",
+                "decimal_odds": "1.80",
+                "captured_at": "2026-07-08T00:00:00Z",
+            },
+            {
+                "canonical_market": "ASIAN_HANDICAP",
+                "selection": "AWAY_AH",
+                "line": "-0.25",
+                "decimal_odds": "2.04",
+                "captured_at": "2026-07-08T00:00:00Z",
+            },
+        ]
+    )["ASIAN_HANDICAP:-0.25"]
+
+    assert day_view_probabilities == repository_probabilities
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:
