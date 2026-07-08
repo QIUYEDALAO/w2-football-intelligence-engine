@@ -334,3 +334,11 @@
 - 老板拍板 `lock_eligible=B`:可锁当且仅当 `DecisionTier.RECOMMEND`;ANALYSIS_PICK 继续 `outcome_tracked=true` 积累 CLV/战绩,但 `lock_eligible=false`。
 - EV/RECOMMEND 腿仍默认关闭,R3.0 门槛不变:单联赛前向 `>=200` 卡、CLV 中位数 `>0`,且滚动 blend `w*<1` 稳定优于纯市场。
 - 阶段进入 accrual 积累期;下一硬门为 R1.1 两周检查点:`>=100` 双快照卡 + 收盘快照真在写。
+
+### V3 进展续13 · B 方案合入与 shadow 证据流生效(2026-07-08)
+
+- #207 已合并 main `f9aac8e`:Decision Contract V2 与代码口径统一为老板拍板 B 方案,`lock_eligible` 当且仅当 `DecisionTier.RECOMMEND`;ANALYSIS_PICK 不可锁,但继续 `outcome_tracked=true`。
+- #209 已合并 main `9ac45e8`:#208 stacked PR 因 base 分支删除自动关闭后,同一 FIX-A diff 已重开为 #209 并基于 main 合入。
+- shadow 证据流正式生效:`shadow_pick` 只从 `model_market_divergence` 的 fair/market AH 线差派生,并强制 `not_a_recommendation=true`、`not_displayed=true`;真实推荐 CLV 与 `clv_shadow` 双轨记录,永不合并。
+- 预注册规则日期:2026-07-08。未来按联赛放行 `direction_allowed` 必须单独批准 PR,且满足 shadow CLV 样本 `>=100`、shadow CLV 中位数 `>0`、最新 market gap `<=0.04`;离线数字和 shadow 方向不得直接开 EV/RECOMMEND 腿。
+- 下一张 PR:FIX-B outcome 回填 writer,写入 `record_type="outcome"` 与 `settlement_outcome`,并把真实 pick 与 shadow_pick 的赛后结果继续分轨。
