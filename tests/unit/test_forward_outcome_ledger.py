@@ -32,6 +32,7 @@ def _day_view() -> dict[str, object]:
                     "direction_allowed": False,
                     "model_fair_line": "-1.5",
                     "market_line": "-1.25",
+                    "model_family": "R4_1_CALIBRATED",
                 },
                 "current_odds": {
                     "ah": {
@@ -106,6 +107,7 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
         "not_displayed": True,
     }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
+    assert rows[0]["model_market_divergence"]["model_family"] == "R4_1_CALIBRATED"
 
 
 def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(

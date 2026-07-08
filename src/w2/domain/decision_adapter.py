@@ -681,6 +681,13 @@ def _model_market_divergence(
         ),
         "calibration_status": _optional_text(_get(divergence, "calibration_status")),
         "direction_allowed": _truthy(_get(divergence, "direction_allowed")),
+        "model_family": _optional_text(
+            _get(divergence, "model_family") or _get(pricing, "model_family")
+        ),
+        "model_family_fallback_reason": _optional_text(
+            _get(divergence, "model_family_fallback_reason")
+            or _get(pricing, "model_family_fallback_reason")
+        ),
     }
 
 
