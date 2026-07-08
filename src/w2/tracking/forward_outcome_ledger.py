@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "w2.forward_outcome_ledger.v1"
+SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
 
 
@@ -73,6 +73,7 @@ def build_forward_outcome_records(
         rows.append(
             {
                 "schema_version": SCHEMA_VERSION,
+                "record_type": "capture",
                 "captured_at": captured,
                 "football_day": football_day,
                 "environment": environment,
@@ -88,6 +89,7 @@ def build_forward_outcome_records(
                 "action": _optional_text(card.get("action")),
                 "probability_source": _optional_text(card.get("probability_source")),
                 "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+                "shadow_pick": _shadow_pick(card),
                 "pick": _mapping_copy(card.get("pick")),
                 "non_pick": _mapping_copy(card.get("non_pick")),
                 "current_odds": _market_odds_summary(card.get("current_odds")),
@@ -128,8 +130,34 @@ def _record_key(record: Mapping[str, Any]) -> str:
             _text(record.get("environment")),
             _text(record.get("fixture_id")),
             _text(record.get("card_hash") or record.get("captured_at")),
+            _text(record.get("record_type") or "capture"),
         ]
     )
+
+
+def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
+    # v2 shadow capture starts with AH only. TOTALS shadow capture needs a separate
+    # fair_ou/market_ou contract before it can be made deterministic.
+    divergence = _mapping(card.get("model_market_divergence"))
+    fair_line = _number(divergence.get("model_fair_line"))
+    market_line = _number(divergence.get("market_line"))
+    if fair_line is None or market_line is None:
+        return None
+    delta = fair_line - market_line
+    if abs(delta) <= 0.005:
+        return None
+    return {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH" if delta < 0 else "AWAY_AH",
+        "model_fair_line": fair_line,
+        "market_line_at_capture": market_line,
+        "divergence_line_units": round(delta, 4),
+        "derived_from": "model_market_divergence",
+        "display_tier_at_capture": _text(card.get("decision_tier") or "SKIP"),
+        "shadow": True,
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
 
 
 def _cards(day_view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -181,3 +209,14 @@ def _optional_text(value: Any) -> str | None:
 
 def _text(value: Any) -> str:
     return _optional_text(value) or ""
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
