@@ -1107,6 +1107,20 @@ button {
   font-size: 11px;
 }
 
+.decision-teams .scoreline-mini {
+  display: block;
+  margin-top: 3px;
+  color: #87938b;
+  font-size: 10px;
+  font-weight: 780;
+  line-height: 1.25;
+  text-wrap: pretty;
+}
+
+.decision-teams .scoreline-mini.has-picks {
+  color: #bfe6d4;
+}
+
 .decision-market span {
   color: #dce5dc;
   font-size: 12px;
@@ -1281,6 +1295,49 @@ button {
   font-size: 12px;
   font-weight: 850;
   line-height: 1.3;
+}
+
+.evidence-section {
+  display: grid;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.evidence-section > strong {
+  color: #f4f7ef;
+  font-size: 12px;
+}
+
+.evidence-section ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 17px;
+}
+
+.evidence-section li,
+.evidence-section p {
+  color: #aeb8b0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.boss-scoreline-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.boss-scoreline-picks span {
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(145, 226, 174, 0.12);
+  color: #c7f2d6;
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
 
 .tracking-note {
