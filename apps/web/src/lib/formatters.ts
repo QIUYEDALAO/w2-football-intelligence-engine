@@ -99,6 +99,30 @@ export function translateTeam(value: unknown): string {
   return TEAM_TRANSLATIONS[raw] ?? raw;
 }
 
+type TeamNamePayload = {
+  home_team_name?: string | null;
+  away_team_name?: string | null;
+  home_team_name_zh?: string | null;
+  away_team_name_zh?: string | null;
+  home_team_display_name?: string | null;
+  away_team_display_name?: string | null;
+  home_team_provider_name?: string | null;
+  away_team_provider_name?: string | null;
+};
+
+export function localizedTeamName(payload: TeamNamePayload, side: "home" | "away"): string {
+  const display = payload[`${side}_team_display_name`];
+  const nameZh = payload[`${side}_team_name_zh`];
+  const provider = payload[`${side}_team_provider_name`] ?? payload[`${side}_team_name`];
+  return display || nameZh || translateTeam(provider) || (side === "home" ? "主队" : "客队");
+}
+
+export function localizedTeamTitle(payload: TeamNamePayload, side: "home" | "away"): string | undefined {
+  const display = localizedTeamName(payload, side);
+  const provider = payload[`${side}_team_provider_name`] ?? payload[`${side}_team_name`];
+  return provider && provider !== display ? provider : undefined;
+}
+
 export function confidenceLabel(value: unknown): string {
   const numeric = typeof value === "number" && Number.isFinite(value) ? value : 0;
   const percent = numeric > 1 ? Math.round(numeric) : Math.round(numeric * 100);

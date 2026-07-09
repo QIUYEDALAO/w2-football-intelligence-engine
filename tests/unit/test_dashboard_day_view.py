@@ -20,8 +20,11 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
             {
                 "fixture_id": "fixture-1",
                 "kickoff_utc": "2026-07-05T10:00:00Z",
-                "home_team_name": "Home",
-                "away_team_name": "Away",
+                "competition_id": "world_cup_2026",
+                "home_team_id": "2",
+                "away_team_id": "31",
+                "home_team_name": "France",
+                "away_team_name": "Morocco",
                 "decision_tier": "ANALYSIS_PICK",
                 "data_status": "READY",
                 "lifecycle_status": "DRAFT",
@@ -117,6 +120,19 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     )
     assert view["degradation"]["state"] == "OK"
     assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
+    first_card = view["cards"][0]
+    assert first_card["home_team_id"] == "2"
+    assert first_card["away_team_id"] == "31"
+    assert first_card["home_team_name"] == "France"
+    assert first_card["away_team_name"] == "Morocco"
+    assert first_card["home_team_name_zh"] == "法国"
+    assert first_card["away_team_name_zh"] == "摩洛哥"
+    assert first_card["home_team_display_name"] == "法国"
+    assert first_card["away_team_display_name"] == "摩洛哥"
+    assert first_card["home_team_provider_name"] == "France"
+    assert first_card["away_team_provider_name"] == "Morocco"
+    assert first_card["home_team_localization_status"] == "MATCHED_BY_ID"
+    assert first_card["away_team_localization_status"] == "MATCHED_BY_ID"
 
     contract_card = view["cards"][0]
     assert contract_card["source"] == "decision_contract"

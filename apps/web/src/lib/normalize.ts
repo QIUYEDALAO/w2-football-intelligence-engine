@@ -88,7 +88,7 @@ export function fixtureTeamName(fixture: unknown, side: "home" | "away"): string
   const teams = asRecord(record.teams);
   const team = asRecord(teams[side]);
   return textValue(
-    record[`${side}_team_name`] ?? record[`${side}_name`] ?? record[`${side}_cn`] ?? team.name,
+    record[`${side}_team_display_name`] ?? record[`${side}_team_name_zh`] ?? record[`${side}_team_name`] ?? record[`${side}_name`] ?? record[`${side}_cn`] ?? team.name,
     side === "home" ? "主队" : "客队",
   );
 }
@@ -364,11 +364,25 @@ export function scoreRows(market: MarketAnalysis): ScoreReference[] {
 }
 
 export function homeName(card: DashboardCard): string {
-  return textValue(card.home_name ?? card.home_cn ?? card.home_team_name, "主队");
+  return textValue(
+    card.home_team_display_name
+      ?? card.home_team_name_zh
+      ?? card.home_name
+      ?? card.home_cn
+      ?? card.home_team_name,
+    "主队",
+  );
 }
 
 export function awayName(card: DashboardCard): string {
-  return textValue(card.away_name ?? card.away_cn ?? card.away_team_name, "客队");
+  return textValue(
+    card.away_team_display_name
+      ?? card.away_team_name_zh
+      ?? card.away_name
+      ?? card.away_cn
+      ?? card.away_team_name,
+    "客队",
+  );
 }
 
 export function teamBadgeLabel(name: string): string {
