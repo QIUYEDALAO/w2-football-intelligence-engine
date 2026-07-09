@@ -7,6 +7,7 @@ from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
+from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
@@ -137,6 +138,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
         **_market_context_fields(card),
+        **_analysis_context_fields(card),
         "pick": _mapping_copy(_field(card, contract, "pick"))
         if isinstance(_field(card, contract, "pick"), Mapping)
         else None,
@@ -170,6 +172,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "stale_fields": _string_list(card.get("stale_fields")),
         "data_readiness": _mapping_copy(card.get("data_readiness")),
         **_market_context_fields(card),
+        **_analysis_context_fields(card),
         "pick": None,
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
@@ -201,6 +204,29 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
+    }
+
+
+def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
+    card_dict = dict(card)
+    scoreline_picks = _mapping_list(card.get("scoreline_picks"))
+    if not scoreline_picks:
+        scoreline_picks = scoreline_picks_from_card(card_dict)
+    scoreline_reference = _mapping_copy(card.get("scoreline_reference"))
+    if not scoreline_reference:
+        scoreline_reference = (
+            scoreline_reference_from_card(
+                card_dict,
+                recommendation=dict(_mapping(card.get("recommendation"))) or None,
+            )
+            or {}
+        )
+    return {
+        "pricing_shadow": _mapping_copy(card.get("pricing_shadow")),
+        "scoreline_picks": scoreline_picks,
+        "scoreline_reference": scoreline_reference or None,
+        "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
+        "diagnostics": _mapping_copy(card.get("diagnostics")),
     }
 
 

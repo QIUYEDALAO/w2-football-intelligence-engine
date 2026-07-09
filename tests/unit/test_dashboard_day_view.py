@@ -264,6 +264,48 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
     assert view["counts"]["watch"] == 1
 
 
+def test_day_view_preserves_shadow_and_scoreline_context_for_boss_view() -> None:
+    payload = {
+        "generated_at": "2026-07-05T08:00:00Z",
+        "date": "2026-07-05",
+        "selected_football_day": "2026-07-05",
+        "all": [
+            {
+                "fixture_id": "future",
+                "kickoff_utc": "2026-07-05T10:00:00Z",
+                "status": "NS",
+                "decision_tier": "WATCH",
+                "data_status": "PARTIAL",
+                "lifecycle_status": "DRAFT",
+                "reason_code": "EDGE_INSUFFICIENT",
+                "pricing_shadow": {
+                    "status": "SIMULATION_READY",
+                    "simulation": {
+                        "status": "READY",
+                        "scoreline_picks": [
+                            {"scoreline": "1-1", "probability": 0.12},
+                            {"scoreline": "2-1", "probability": 0.10},
+                        ],
+                    },
+                },
+                "scoreline_readiness": {
+                    "status": "READY",
+                    "source": "formal_simulation",
+                },
+            }
+        ],
+    }
+
+    view = build_dashboard_day_view(payload, environment="staging")
+    card = view["cards"][0]
+
+    assert card["pricing_shadow"]["status"] == "SIMULATION_READY"
+    assert card["scoreline_readiness"]["status"] == "READY"
+    assert card["scoreline_picks"][0]["scoreline"] == "1-1"
+    assert card["scoreline_reference"]["source"] == "formal_simulation"
+    assert card["scoreline_reference"]["top_scorelines"][1]["scoreline"] == "2-1"
+
+
 def test_day_view_production_includes_production_environment_policy() -> None:
     view = build_dashboard_day_view(
         {
