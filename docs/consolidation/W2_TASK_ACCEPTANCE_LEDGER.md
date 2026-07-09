@@ -411,3 +411,11 @@
 - DayView 新增中文名、展示名、provider 原名与本地化状态字段;Boss View、L2、赛后验证、联赛表现、replay/旧卡兼容路径统一优先显示中文名,英文原名保留为悬停对照。
 - 未知球队 fail-safe 显示 provider 英文名,不猜译、不阻塞卡片、不改变 readiness/decision tier/fixture identity/odds/card hash。
 - 本轮 `provider_calls=0`,`db_writes=0`,不部署 staging/production,不启用新联赛,不改 `direction_allowed`,不改 EV/RECOMMEND 腿;积累期与 R1.1/R1.3 主队列保持不变。
+
+### V3 进展续21 · 球队中文名 staging 集成部署(2026-07-10)
+
+- #223 球队本地化与 #222 观察/比分解释以可追踪集成分支 `codex/staging-dashboard-localization-integration` 合并部署,staging API/Web SHA=`1858ce76456cedeceba2e1442da41bbcf075e385`;#223 仍保持 Draft,未合并 main。
+- 公网 `/health`、`/ready`、`/v1/version`、`/meta.json` 与 release-sync PASS;真实 DayView 已显示`山东泰山 vs 云南玉昆`、`西班牙 vs 比利时`、`浙江队 vs 青岛海牛`、`武汉三镇 vs 河南队`,同时保留 provider 英文原名。
+- 部署接缝修正:发布包 runtime 使用实体版本化 config 并叠加 staging policy override;Web 在 API 容器重建后同步重建以刷新 upstream DNS。最终 DayView 与公网反代均恢复 PASS。
+- scheduler 容器创建/启动时间和 `unless-stopped` 策略未变化;`provider_request_logs 276->276`,`future_refresh_run_audit 1395->1395`,Celery queue=`0`。
+- `provider_calls=0`,`db_writes=0`,`production_deploy=false`,`scheduler_restart=false`;不新增 enable、不改 `direction_allowed`、不改 EV/RECOMMEND 腿。
