@@ -172,7 +172,7 @@ cards from Chinese Super League plus one non-Chinese league.
 1. Add registry, loader, validation, and backend DayView fields.
 2. Update all Dashboard consumers and compatibility fallback.
 3. Run unit, contract, TypeScript, build, W2 acceptance, tracked-output, lint,
-   secret, and migration checks.
+   credential-safety, and migration checks.
 4. Open a Draft PR and verify CI.
 5. Deploy to staging only after explicit approval and confirm Chinese names across
    Boss View, L2, post-match validation, and replay.

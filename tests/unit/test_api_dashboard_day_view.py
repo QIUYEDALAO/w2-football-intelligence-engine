@@ -45,6 +45,11 @@ class RecordingDashboardService:
                 {
                     "fixture_id": "fixture-1",
                     "kickoff_utc": "2026-07-05T10:00:00Z",
+                    "competition_id": "world_cup_2026",
+                    "home_team_id": "15",
+                    "away_team_id": "8",
+                    "home_team_name": "Switzerland",
+                    "away_team_name": "Colombia",
                     "decision_tier": "NOT_READY",
                     "data_status": "BLOCKED",
                     "lifecycle_status": "DRAFT",
@@ -102,6 +107,10 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["counts"]["not_ready"] == 1
     assert payload["counts"]["by_decision_tier"]["RECOMMEND"] == 0
     assert payload["cards"][0]["source"] == "decision_contract"
+    assert payload["cards"][0]["home_team_display_name"] == "瑞士"
+    assert payload["cards"][0]["away_team_display_name"] == "哥伦比亚"
+    assert payload["cards"][0]["home_team_provider_name"] == "Switzerland"
+    assert payload["cards"][0]["away_team_provider_name"] == "Colombia"
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_write_checkpoint"] is False

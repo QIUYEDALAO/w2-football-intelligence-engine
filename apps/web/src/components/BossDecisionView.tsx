@@ -1,5 +1,12 @@
 import { useMemo, useState } from "react";
-import { fmtTime, formatLine, formatOdds, translateCompetition } from "../lib/formatters";
+import {
+  fmtTime,
+  formatLine,
+  formatOdds,
+  localizedTeamName,
+  localizedTeamTitle,
+  translateCompetition,
+} from "../lib/formatters";
 import { asArray, asRecord, textValue } from "../lib/normalize";
 import type {
   DashboardDayView,
@@ -290,8 +297,8 @@ function ahProbabilitySummary(card: DashboardDayViewCard, markets: Record<string
     const away = probabilityPercent(ahProbabilities.AWAY_AH);
     const odds = asRecord(card.current_odds);
     const ahOdds = asRecord(odds.ah);
-    const homeLine = displayLineForTeam(card.home_team_name || "主队", ahOdds.home_line, textValue(ahOdds.home_display_line_cn));
-    const awayLine = displayLineForTeam(card.away_team_name || "客队", ahOdds.away_line, textValue(ahOdds.away_display_line_cn));
+    const homeLine = displayLineForTeam(localizedTeamName(card, "home"), ahOdds.home_line, textValue(ahOdds.home_display_line_cn));
+    const awayLine = displayLineForTeam(localizedTeamName(card, "away"), ahOdds.away_line, textValue(ahOdds.away_display_line_cn));
     return `市场概率 ${homeLine} ${home} / ${awayLine} ${away}`;
   }
   return null;
@@ -420,8 +427,8 @@ function selectionLabel(value: string): string {
 }
 
 function pickSelectionLabel(card: DashboardDayViewCard, value: string): string {
-  if (value === "HOME_AH") return card.home_team_name || "主队";
-  if (value === "AWAY_AH") return card.away_team_name || "客队";
+  if (value === "HOME_AH") return localizedTeamName(card, "home");
+  if (value === "AWAY_AH") return localizedTeamName(card, "away");
   return selectionLabel(value);
 }
 
@@ -434,8 +441,8 @@ function displayLineForTeam(team: string, line: unknown, fallback?: string | nul
 }
 
 function teamLabel(card: DashboardDayViewCard): string {
-  const home = card.home_team_name || "主队";
-  const away = card.away_team_name || "客队";
+  const home = localizedTeamName(card, "home");
+  const away = localizedTeamName(card, "away");
   return `${home} vs ${away}`;
 }
 
@@ -739,7 +746,9 @@ export function EvidencePanel({
     return (
       <aside className="evidence-panel" aria-label="选中比赛证据预览">
         <span>选中比赛证据</span>
-        <h2>{teamLabel(selectedCard)}</h2>
+        <h2 title={`${localizedTeamTitle(selectedCard, "home") ?? localizedTeamName(selectedCard, "home")} vs ${localizedTeamTitle(selectedCard, "away") ?? localizedTeamName(selectedCard, "away")}`}>
+          {teamLabel(selectedCard)}
+        </h2>
         <p>{marketSourceLabel(selectedCard)}</p>
         <div className="trust-grid">
           {evidenceStatements(selectedCard).map((statement) => (
@@ -818,7 +827,9 @@ export function DecisionRow({
           <span>{competitionLabel(card)}</span>
         </div>
         <div className="decision-cell decision-teams">
-          <strong>{teamLabel(card)}</strong>
+          <strong title={`${localizedTeamTitle(card, "home") ?? localizedTeamName(card, "home")} vs ${localizedTeamTitle(card, "away") ?? localizedTeamName(card, "away")}`}>
+            {teamLabel(card)}
+          </strong>
           <span>{l1OneLiner(card)}</span>
           <small className={scoreline.hasPicks ? "scoreline-mini has-picks" : "scoreline-mini"}>{scoreline.message}</small>
         </div>
@@ -1006,7 +1017,11 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
           {settled.map((match) => (
             <div key={match.fixture_id}>
               <span>{fmtTime(match.kickoff_utc)} · {translateCompetition(match.competition_name)}</span>
-              <strong>{match.home_team_name} vs {match.away_team_name}</strong>
+              <strong>
+                <span title={localizedTeamTitle(match, "home")}>{localizedTeamName(match, "home")}</span>
+                {" vs "}
+                <span title={localizedTeamTitle(match, "away")}>{localizedTeamName(match, "away")}</span>
+              </strong>
               <small>{settlementLabel(match.validation?.settlement)} · {match.result?.final_score ?? "比分待同步"} · {match.validation?.closing_line_value ?? "CLV 待接入"}</small>
             </div>
           ))}

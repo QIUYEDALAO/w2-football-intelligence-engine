@@ -403,3 +403,11 @@
 - artifact 写入 `runtime/model_artifacts/r4_1/*.v1.json`,目录已由 `.gitignore` 排除;PR 不提交 runtime artifact、不提交 raw/key/header。
 - repository 只认规范 key `pricing_shadow.r4_1_calibrated`;旧防御性 key `r4_1_model/r4_1_divergence_model/probabilities_r4_1_calibrated` 已从 `src/` 清空。artifact hash/version 透传至 market_divergence/DecisionCard provenance。
 - 巴甲守卫继续有效:`brasileirao_serie_a` 因 R4.1 eval 恶化不进入 R4.1 发布/选择集合;EV/RECOMMEND 与 `direction_allowed` 仍保持关闭。
+
+### V3 进展续20 · Dashboard 球队名称后端统一本地化(2026-07-10)
+
+- Dashboard 球队名称本地化改为后端 DayView 单一真源:以 `(competition_id, provider_team_id)` 为主键,联赛内英文 alias 仅作缺 ID 回退;原 provider 英文名保持不变。
+- 版本化 `zh-CN` 注册表覆盖本地 14 个白名单联赛 2026 fixture 缓存中的 `308/308` 支球队;世界杯、中超、巴甲、瑞典超、挪超及五大联赛等使用同一契约。
+- DayView 新增中文名、展示名、provider 原名与本地化状态字段;Boss View、L2、赛后验证、联赛表现、replay/旧卡兼容路径统一优先显示中文名,英文原名保留为悬停对照。
+- 未知球队 fail-safe 显示 provider 英文名,不猜译、不阻塞卡片、不改变 readiness/decision tier/fixture identity/odds/card hash。
+- 本轮 `provider_calls=0`,`db_writes=0`,不部署 staging/production,不启用新联赛,不改 `direction_allowed`,不改 EV/RECOMMEND 腿;积累期与 R1.1/R1.3 主队列保持不变。

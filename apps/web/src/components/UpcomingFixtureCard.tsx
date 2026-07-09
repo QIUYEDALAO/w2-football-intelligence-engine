@@ -1,4 +1,4 @@
-import { fmtTime, teamCode } from "../lib/formatters";
+import { fmtTime, localizedTeamName, localizedTeamTitle, teamCode } from "../lib/formatters";
 import type { DashboardMatchCard, PricingShadow } from "../types/dashboard";
 import { DataReadinessRow } from "./DataReadinessRow";
 
@@ -51,6 +51,8 @@ function blockerLabel(blocker: string): string {
 }
 
 export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
+  const homeName = localizedTeamName(match, "home");
+  const awayName = localizedTeamName(match, "away");
   const judgement = match.recommendation ? `${match.recommendation.market_label_cn} · ${match.recommendation.selection_label_cn ?? match.recommendation.selection}` : "观察";
   const readiness = match.analysis_readiness;
   const blockers = readiness?.blockers ?? [];
@@ -62,9 +64,9 @@ export function UpcomingFixtureCard({ match }: { match: DashboardMatchCard }) {
       </span>
       <div className="compact-teams">
         <span>{teamCode(match.home_team_name)}</span>
-        <strong>{match.home_team_name}</strong>
+        <strong title={localizedTeamTitle(match, "home")}>{homeName}</strong>
         <em>vs</em>
-        <strong>{match.away_team_name}</strong>
+        <strong title={localizedTeamTitle(match, "away")}>{awayName}</strong>
         <span>{teamCode(match.away_team_name)}</span>
       </div>
       <DataReadinessRow match={match} />

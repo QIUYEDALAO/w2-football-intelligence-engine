@@ -8,6 +8,7 @@ from typing import Any
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
 from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
+from w2.dashboard.team_localization import localize_team_name
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
@@ -183,14 +184,41 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
+    competition_id = _optional_text(card.get("competition_id"))
+    home_team_id = _optional_text(card.get("home_team_id"))
+    away_team_id = _optional_text(card.get("away_team_id"))
+    home_provider_name = _optional_text(card.get("home_team_name"))
+    away_provider_name = _optional_text(card.get("away_team_name"))
+    home = localize_team_name(
+        competition_id=competition_id,
+        provider_team_id=home_team_id,
+        provider_name=home_provider_name,
+        missing_name_fallback="主队",
+    )
+    away = localize_team_name(
+        competition_id=competition_id,
+        provider_team_id=away_team_id,
+        provider_name=away_provider_name,
+        missing_name_fallback="客队",
+    )
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "kickoff_utc": _format_time(card.get("kickoff_utc")),
         "kickoff_beijing": _optional_text(card.get("kickoff_beijing")),
-        "competition_id": _optional_text(card.get("competition_id")),
+        "competition_id": competition_id,
         "competition_name": _optional_text(card.get("competition_name")),
-        "home_team_name": _optional_text(card.get("home_team_name")),
-        "away_team_name": _optional_text(card.get("away_team_name")),
+        "home_team_id": home_team_id,
+        "away_team_id": away_team_id,
+        "home_team_name": home_provider_name,
+        "away_team_name": away_provider_name,
+        "home_team_name_zh": home.name_zh,
+        "away_team_name_zh": away.name_zh,
+        "home_team_display_name": home.display_name,
+        "away_team_display_name": away.display_name,
+        "home_team_provider_name": home.provider_name,
+        "away_team_provider_name": away.provider_name,
+        "home_team_localization_status": home.status,
+        "away_team_localization_status": away.status,
         "status": _optional_text(card.get("status")),
     }
 

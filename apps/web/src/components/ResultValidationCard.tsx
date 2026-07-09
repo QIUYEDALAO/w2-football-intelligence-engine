@@ -1,4 +1,4 @@
-import { fmtTime } from "../lib/formatters";
+import { fmtTime, localizedTeamName, localizedTeamTitle } from "../lib/formatters";
 import type { DashboardMatchCard } from "../types/dashboard";
 import { ScorelinePicks } from "./ScorelinePicks";
 import { SettlementBadge } from "./SettlementBadge";
@@ -13,7 +13,9 @@ export function ResultValidationCard({ match }: { match: DashboardMatchCard }) {
             已完场 · {fmtTime(match.kickoff_utc)} · {match.competition_name}
           </span>
           <strong>
-            {match.home_team_name} {match.result?.final_score ?? "-"} {match.away_team_name}
+            <span title={localizedTeamTitle(match, "home")}>{localizedTeamName(match, "home")}</span>
+            {` ${match.result?.final_score ?? "-"} `}
+            <span title={localizedTeamTitle(match, "away")}>{localizedTeamName(match, "away")}</span>
           </strong>
         </div>
         <SettlementBadge status={validation.settlement} />
