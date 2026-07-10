@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T19:43:02Z"
+last_updated_utc: "2026-07-10T20:47:44Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_staging_analysis_pick_sample_gate_removed_pending_deploy
+current_status: phase_3_staging_analysis_pick_sample_gate_removed_deployed_and_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,21 +20,21 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: b94885732115944d7f0ed81890e5436c4c3988e7
+  main_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T19:43:02Z"
+  observed_at_utc: "2026-07-10T20:47:44Z"
 
 staging_state:
   environment: staging
-  api_git_sha: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
-  web_git_sha: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
-  release_id: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
+  api_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  web_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  release_id: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
   source_branch: main
-  source_note: Scheduler-safe API/worker/web deploy through PR 228; scheduler container was not recreated or restarted.
+  source_note: Scheduler-safe API/worker/web deploy through PR 231; scheduler container was not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -60,14 +60,14 @@ staging_state:
     provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-10T19:43:02Z"
+  observed_at_utc: "2026-07-10T20:47:44Z"
   source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
   cards_total: 10
   decision_counts:
     NOT_READY: 0
     SKIP: 0
-    WATCH: 9
-    ANALYSIS_PICK: 0
+    WATCH: 2
+    ANALYSIS_PICK: 7
     RECOMMEND: 0
   data_status_counts:
     READY: 0
@@ -75,10 +75,10 @@ current_product_observation:
     STALE: 0
     BLOCKED: 1
   lock_eligible_count: 0
-  outcome_tracked_count: 0
+  outcome_tracked_count: 7
   formal_tracking_status: OBSERVING
   formal_tracking_sample_count: 0
-  conclusion: CSL and Allsvenskan now produce artifact-backed fair AH/OU estimates; cards remain observation-only while forward evidence accumulates and direction_allowed remains false.
+  conclusion: Staging now exposes seven non-locking ANALYSIS_PICK cards from validated fair-line divergence while forward evidence continues to accumulate.
   primary_data_blockers:
     - Missing or insufficient xG history.
     - Missing model probabilities.
@@ -208,7 +208,7 @@ completed_milestones:
 open_work:
   - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: PHASE_3_STAGING_ANALYSIS_PICK_SAMPLE_GATE_REMOVED_PENDING_DEPLOY
+    status: PHASE_3_STAGING_ANALYSIS_PICK_SAMPLE_GATE_REMOVED_DEPLOYED_AND_ACCEPTED
     branch: main
     objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
     active_whitelist_target: 13
@@ -224,7 +224,7 @@ open_work:
       - Add approved secondary provider port and controlled capability probe.
       - Display staging ANALYSIS_PICK when market/model are ready and line divergence is at least 0.25.
       - Accrue forward samples per league-market for validation maturity and formal upgrade review.
-    deployment_status: STAGING_DATA_INJECTION_ACCEPTED_API_RESTART_ONLY
+    deployment_status: STAGING_API_WORKER_WEB_DEPLOYED_SCHEDULER_UNCHANGED
     direction_allowed_changes: []
     scheduler_runtime_change: NEED_USER_APPROVAL_STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP
   - id: R1.1-ACCRUAL-CHECKPOINT
