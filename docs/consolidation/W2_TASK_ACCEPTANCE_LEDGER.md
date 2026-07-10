@@ -488,3 +488,11 @@
 - 当前真实卡片仍为 `WATCH/ACCUMULATING` 或 `NO_EDGE`，原因是 `FORWARD_EVIDENCE_ACCUMULATING`、`direction_allowed=false` 或实际无线差，不是模型或特征读取失败；本轮未开放 ANALYSIS_PICK/RECOMMEND。
 - 注入后仅重启 API 以刷新 read-model；scheduler 容器 ID、created/started 时间和 `unless-stopped` policy 未变。`provider_calls=0`、`production_deploy=false`，未改 `direction_allowed`、EV/RECOMMEND/lock，未提交物化文件、runtime artifact、raw/key/header。
 - 下一队列：继续逐联赛补齐 serving model/artifact，同时让中超/瑞典超按预注册门槛积累真实 shadow closing pair、CLV 和 outcome；达标也只进入 `ELIGIBLE_FOR_REVIEW`，不自动放行。
+
+### V3 进展续30 · 取消 ANALYSIS_PICK 的 100 样本展示前置(2026-07-11)
+
+- 老板明确取消「每联赛每市场满 100 个前向样本才能展示分析推荐」的产品门；原规则导致系统虽然已产生公平盘和方向，老板仍无法看到推荐与赛后验证。
+- 新口径：staging 中 `market_ready=true` + `model_ready=true` + 线差 `>=0.25` 即可输出 `ANALYSIS_PICK`；`evidence_ready/direction_allowed=false` 仍如实保留，并以 `FORWARD_EVIDENCE_ACCUMULATING` advisory 标记「前向验证中」，不再将卡片降级为 WATCH。
+- 不降低选择性：无市场盘、无验证模型、数据 BLOCKED 或线差 `<0.25` 仍为 WATCH/NOT_READY/NO_EDGE；不设每日数量上限，也不为凑数降门槛。
+- `ANALYSIS_PICK` 强制 `outcome_tracked=true`、`lock_eligible=false`、「分析参考·非稳赢·前向验证中」；赛后用真实 outcome/CLV 验证系统价值。
+- 原 100 样本等指标保留为证据成熟度与更高信任层评审，不再是 staging 分析推荐展示前置。production 仍 fail closed，`RECOMMEND`/EV、lock 和 production 全部保持关闭。

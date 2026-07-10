@@ -5,7 +5,7 @@ project:
 
 last_updated_utc: "2026-07-10T19:43:02Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_staging_feature_snapshot_injection_accepted
+current_status: phase_3_staging_analysis_pick_sample_gate_removed_pending_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -86,7 +86,7 @@ current_product_observation:
     - Missing ratings and team-value inputs on current cards.
     - Lineups are missing, but they are not the only or primary blocker.
   policy_blockers:
-    - direction_allowed remains false.
+    - direction_allowed remains false as evidence maturity; it no longer blocks staging ANALYSIS_PICK display.
     - EV and RECOMMEND legs remain default off.
     - formal_recommendation policy remains false.
   ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
@@ -208,7 +208,7 @@ completed_milestones:
 open_work:
   - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: PHASE_3_STAGING_FEATURE_SNAPSHOT_INJECTION_ACCEPTED
+    status: PHASE_3_STAGING_ANALYSIS_PICK_SAMPLE_GATE_REMOVED_PENDING_DEPLOY
     branch: main
     objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
     active_whitelist_target: 13
@@ -222,7 +222,8 @@ open_work:
       - Publish top-five champions and repair Bundesliga gap.
       - Complete Brazil, Argentina, MLS, Eredivisie, and Primeira Liga models.
       - Add approved secondary provider port and controlled capability probe.
-      - Validate AH and OU independently and accrue 100 forward samples per league-market.
+      - Display staging ANALYSIS_PICK when market/model are ready and line divergence is at least 0.25.
+      - Accrue forward samples per league-market for validation maturity and formal upgrade review.
     deployment_status: STAGING_DATA_INJECTION_ACCEPTED_API_RESTART_ONLY
     direction_allowed_changes: []
     scheduler_runtime_change: NEED_USER_APPROVAL_STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP
