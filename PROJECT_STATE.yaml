@@ -1,0 +1,293 @@
+project:
+  name: w2-football-intelligence-engine
+  repository: QIUYEDALAO/w2-football-intelligence-engine
+  dashboard_staging_url: http://43.155.208.138/
+
+last_updated_utc: "2026-07-09T23:56:37Z"
+current_phase: recommendation path unlock audit preparation
+current_status: staging_watch_only_zero_analysis_pick_zero_recommend
+
+context_contract:
+  purpose: Restore the current operational and product state without replaying chat history.
+  history_source: docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+  current_state_source: PROJECT_STATE.yaml
+  precedence:
+    - Live read-only observations override stale snapshots in this file.
+    - Merged main and GitHub CI define repository truth.
+    - Staging SHA and health endpoints define deployed truth.
+    - The task ledger remains append-only history, not the current execution queue.
+  update_rule: Update this file in every stage-changing PR and after every merge or deployment acceptance.
+  security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
+
+repository_state:
+  main_sha: 9c6026121f988a393f398997b8f19296b6474e32
+  main_ci: SUCCESS
+  main_ci_checks:
+    - verify
+    - staging-parity
+    - predeploy-e2e
+  observed_at_utc: "2026-07-09T23:55:56Z"
+
+staging_state:
+  environment: staging
+  api_git_sha: 1858ce76456cedeceba2e1442da41bbcf075e385
+  web_git_sha: 1858ce76456cedeceba2e1442da41bbcf075e385
+  release_id: 1858ce76456cedeceba2e1442da41bbcf075e385
+  source_branch: codex/staging-dashboard-localization-integration
+  source_note: Traceable integration of open PRs 222 and 223; not equivalent to merged main.
+  health: PASS
+  ready: PASS
+  data_profile: real-db
+  data_source: read-model-db
+  provider_calls_during_latest_deploy: 0
+  db_writes_during_latest_deploy: 0
+  production_deploy: false
+  scheduler_restart_during_latest_deploy: false
+  provider_request_logs_latest_deploy_delta: 0
+  future_refresh_run_audit_latest_deploy_delta: 0
+  celery_queue_after_latest_deploy: 0
+
+current_product_observation:
+  observed_at_utc: "2026-07-09T23:48:41Z"
+  source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
+  cards_total: 6
+  decision_counts:
+    NOT_READY: 0
+    SKIP: 0
+    WATCH: 6
+    ANALYSIS_PICK: 0
+    RECOMMEND: 0
+  data_status_counts:
+    READY: 0
+    PARTIAL: 6
+    STALE: 0
+    BLOCKED: 0
+  lock_eligible_count: 0
+  outcome_tracked_count: 0
+  formal_tracking_status: OBSERVING
+  formal_tracking_sample_count: 0
+  conclusion: The visible product is currently an observation and evidence system, not a recommendation-producing product.
+  primary_data_blockers:
+    - Missing or insufficient xG history.
+    - Missing model probabilities.
+    - Missing score probability matrix.
+    - Missing ratings and team-value inputs on current cards.
+    - Lineups are missing, but they are not the only or primary blocker.
+  policy_blockers:
+    - direction_allowed remains false.
+    - EV and RECOMMEND legs remain default off.
+    - formal_recommendation policy remains false.
+  ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+
+completed_milestones:
+  - phase: Decision Contract V2 and output wiring
+    status: merged
+    evidence: docs/consolidation/W2_DECISION_CONTRACT_V2.md
+  - phase: Single Data Readiness Gate
+    status: merged
+    merged_pr: 167
+  - phase: Controlled refresh and matchday safety gates
+    status: merged
+    merged_pr_range: 168-170
+  - phase: DayView, boss dashboard, diagnostics, degradation, and replay foundations
+    status: merged
+    merged_pr_range: 171-177
+  - phase: Offline acceptance suite
+    status: merged
+    merged_pr: 178
+  - phase: League whitelist inventory
+    status: evidence_complete_no_enablement
+    scope: 14 competitions
+    provider_mapping: 14/14 PASS
+    fixtures: 14/14 PASS
+    bookmaker_depth: 5 PASS / 9 FAIL
+    enabled_leagues_changed: false
+  - phase: Market-anchor product direction
+    status: merged
+    evidence: docs/consolidation/W2_REVISED_ROADMAP_2026_07.md
+  - phase: Shadow evidence, outcome backfill, and ledger accounting
+    status: merged
+    merged_prs:
+      - 209
+      - 211
+      - 213
+  - phase: R4.1 artifact publisher, bundle distribution, and staging loader acceptance
+    status: merged_and_staging_accepted
+    merged_prs:
+      - 215
+      - 216
+      - 217
+  - phase: direction_allowed prereg and monthly eval preparation
+    status: merged_accumulating
+    merged_prs:
+      - 218
+      - 219
+  - phase: World Cup isolated replay/backtest 10 rehearsal
+    status: merged_not_statistical_validation
+    merged_prs:
+      - 220
+      - 221
+
+open_work:
+  - id: PROJECT-CONTEXT-SYSTEM
+    priority: critical
+    status: OPEN_DRAFT
+    branch: codex/w2-project-context
+    pr: 224
+    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/224
+    objective: Merge the current-state recovery file before starting the recommendation-path unlock audit.
+    blocker: Review and green CI are required before merge.
+  - id: RECOMMENDATION-PATH-UNLOCK-AUDIT
+    priority: critical
+    status: approved_not_started
+    objective: Explain and unblock the path from WATCH to ANALYSIS_PICK without opening formal RECOMMEND.
+    required_checks:
+      - Verify shadow_pick and clv_shadow are actually accruing in staging.
+      - Report each league's missing inputs and policy gates.
+      - Correct misleading blocker presentation that overstates lineup dependency.
+      - Identify the first league eligible for a staging-only direction_allowed review.
+    blocker: Context recovery file must be merged first.
+  - id: R1.1-ACCRUAL-CHECKPOINT
+    priority: high
+    status: ACCUMULATING
+    acceptance_gate:
+      - At least 100 cards with entry and prematch closing snapshots.
+      - Shadow CLV sample count and median are measurable.
+      - Closing snapshots are demonstrably being written.
+      - Provider usage remains at or below 120 calls per day.
+    warning: Local dry-run without staging runtime data must not be interpreted as zero staging accrual.
+  - id: DIRECTION-ALLOWED-PREREG
+    priority: high
+    status: REVIEW_ONLY
+    candidate_order:
+      - eliteserien
+      - allsvenskan
+      - chinese_super_league
+    disabled_leagues:
+      - brasileirao_serie_a
+    automatic_release: false
+  - id: PR-222
+    priority: high
+    status: OPEN_DRAFT
+    title: W2 dashboard explain watch blockers and scorelines
+    branch: codex/w2-dashboard-watch-scoreline-explain
+    head_sha: a0cfb0d0a9e32db0539406f76ddcf58a2f8409ba
+    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/222
+  - id: PR-223
+    priority: medium
+    status: OPEN_DRAFT_CI_GREEN
+    title: W2 Dashboard backend team name localization
+    branch: codex/w2-team-name-localization-design
+    head_sha: 447e5d4bd03dab0779141b9a89f62b4d44ff232a
+    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/223
+  - id: LEAGUE-WHITELIST-BOOKMAKER-REMEDIATION
+    priority: backlog
+    status: offline_only_not_started
+    scope: Explain and propose AH/OU mapping and bookmaker-depth remediation for 9 FAIL competitions.
+
+active_decisions:
+  - id: MARKET-PROBABILITY-SOURCE
+    decision: Display probabilities use de-vig market probabilities; model output is a divergence signal and explanation.
+    status: active
+  - id: LOCK-ELIGIBLE-B
+    decision: lock_eligible if and only if decision_tier is RECOMMEND.
+    status: active
+  - id: DIRECTION-ALLOWED-GATE
+    decision: direction_allowed remains false until a separate per-league approved release PR.
+    status: active
+    prereg_conditions:
+      - shadow CLV sample count is at least 100.
+      - median shadow CLV is greater than 0.
+      - latest market gap is at most 0.04.
+  - id: RECOMMEND-GATE
+    decision: EV and RECOMMEND remain default off.
+    status: active
+    prereg_conditions:
+      - At least 200 real forward picks per league.
+      - Median real-pick CLV is greater than 0.
+      - Rolling blend weight remains below 1 and stably outperforms pure market.
+  - id: SHADOW-EVIDENCE-BOUNDARY
+    decision: shadow_pick is not a recommendation, is not displayed, and never merges with real-pick CLV.
+    status: active
+  - id: DEPLOYMENT-BOUNDARY
+    decision: Staging and production deployments always require explicit, separate approval.
+    status: active
+
+allowed_next_work:
+  - Merge this context-governance PR after review and green CI.
+  - Perform the approved recommendation-path unlock audit, starting read-only.
+  - Fix shadow evidence accrual if the read-only audit proves it is not writing.
+  - Correct blocker reason output so xG, model probability, and score-matrix gaps are explicit.
+  - Prepare a staging-only per-league direction_allowed review only after prereg evidence passes.
+  - Continue periodic R1.1 and monthly-eval read-only checks while status is ACCUMULATING.
+  - Keep formal RECOMMEND closed until the registered real-pick evidence gate passes.
+
+prohibited:
+  - automatic direction_allowed release
+  - opening EV or RECOMMEND from offline metrics
+  - treating shadow_pick as a recommendation
+  - production deployment without explicit approval
+  - staging deployment without explicit approval
+  - enabling a new league without explicit approval
+  - provider calls without an explicit approved scope and hard cap
+  - database writes without explicit approval
+  - scheduler restart or restart-policy change without explicit approval
+  - lock capture or settlement writes without explicit approval
+  - committing runtime artifacts, reports, dist output, logs, cache, .env, keys, headers, raw provider payloads, or .learnings
+  - adding Stage 16
+
+latest_merged_prs:
+  - number: 215
+    title: W2 R4.1 Artifact publisher and serving loader
+    merge_sha: 9317399d0cddca49e3b8a689e0785024416df8ac
+  - number: 216
+    title: W2 R4.1 Artifact bundle distribution
+    merge_sha: 807a6ef2ae4d4aeb45e39f84444a6043f91e7a87
+  - number: 217
+    title: W2 R1.1 Checkpoint prep
+    merge_sha: b61a08f7e60c4c4bd01c36e12e553c565d74008a
+  - number: 218
+    title: W2 direction_allowed prereg gate
+    merge_sha: 66275bf00daf26cdf098c26e2973d348d4fa6850
+  - number: 219
+    title: W2 monthly eval rerun prep
+    merge_sha: 0e31125296094c1dbf57d9f34189ed01c524a5dd
+  - number: 220
+    title: W2 replay isolated World Cup backtest 10
+    merge_sha: 7d4207c34208bf3511f7c2d2c16b262ab99cb164
+  - number: 221
+    title: W2 replay World Cup backtest 10 result report
+    merge_sha: 9c6026121f988a393f398997b8f19296b6474e32
+
+latest_reports:
+  - path: docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+    role: append-only history and reviewer decisions
+  - path: docs/consolidation/W2_DECISION_CONTRACT_V2.md
+    role: decision-tier, lock, shadow, and recommendation gates
+  - path: docs/consolidation/W2_REVISED_ROADMAP_2026_07.md
+    role: current market-anchor roadmap
+  - path: docs/r4_1/W2_R4_1_STAGING_ACCEPTANCE_20260708.md
+    role: R4.1 staging artifact acceptance
+  - path: docs/replay/W2_WC_REPLAY_BACKTEST_10_RESULT_20260709.md
+    role: isolated replay rehearsal result, not statistical validation
+
+required_context_files:
+  - PROJECT_STATE.yaml
+  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+  - docs/consolidation/W2_DECISION_CONTRACT_V2.md
+  - docs/consolidation/W2_REVISED_ROADMAP_2026_07.md
+
+startup_read_order:
+  - PROJECT_STATE.yaml
+  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+  - Relevant contract, runbook, or work order named by open_work.
+  - GitHub PR and main status.
+  - Staging health, version, scheduler, queue, and approved safety baselines when deployment state matters.
+
+validation_commands:
+  - uv run --python 3.12 python scripts/check_w2_acceptance.py
+  - uv run --python 3.12 python scripts/check_tracked_outputs.py
+  - uv run --python 3.12 python scripts/check_w2_all.py
+  - uv run --python 3.12 ruff check .
+  - uv run --python 3.12 python tests/secret_scan.py
+  - uv run --with alembic --python 3.12 python -m alembic heads
