@@ -204,6 +204,49 @@ def test_forward_ledger_performance_tracks_shadow_clv_separately(
     assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15
 
 
+def test_forward_ledger_performance_splits_totals_decimal_and_line_clv(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    entry = _record(
+        "2026-07-07T00:00:00Z",
+        fixture_id="fixture-ou",
+        kickoff="2026-07-08T01:00:00Z",
+    )
+    closing = _record(
+        "2026-07-08T00:30:00Z",
+        fixture_id="fixture-ou",
+        kickoff="2026-07-08T01:00:00Z",
+    )
+    for row, line, price in ((entry, "2.25", 2.05), (closing, "2.5", 1.90)):
+        row["shadow_picks"] = [
+            {
+                "market": "TOTALS",
+                "selection": "OVER",
+                "market_line_at_capture": line,
+                "not_a_recommendation": True,
+            }
+        ]
+        row["current_odds"]["ou"] = {  # type: ignore[index]
+            "line": line,
+            "over_price": price,
+            "under_price": 1.85,
+        }
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [entry, closing])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["clv_shadow"]["sample_count"] == 0
+    assert payload["clv_shadow"]["line_changed_count"] == 1
+    assert payload["clv_shadow"]["line_clv_sample_count"] == 1
+    assert payload["clv_shadow"]["median_line_clv"] == 0.25
+    market = payload["by_league_market"][0]
+    assert market["market"] == "TOTALS"
+    assert market["median_decimal_clv"] is None
+    assert market["median_line_clv"] == 0.25
+
+
 def test_forward_ledger_performance_excludes_clv_without_prematch_closing(
     tmp_path: Path,
 ) -> None:

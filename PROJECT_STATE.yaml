@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-09T23:56:37Z"
-current_phase: recommendation path unlock audit preparation
-current_status: staging_watch_only_zero_analysis_pick_zero_recommend
+last_updated_utc: "2026-07-10T02:10:37Z"
+current_phase: selective analysis recommendation implementation
+current_status: implementation_in_progress_no_release_no_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 9c6026121f988a393f398997b8f19296b6474e32
+  main_sha: 81a2add6fbd58304e225b0f2079a4893ecad16a8
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-09T23:55:56Z"
+  observed_at_utc: "2026-07-10T02:10:37Z"
 
 staging_state:
   environment: staging
@@ -34,7 +34,7 @@ staging_state:
   web_git_sha: 1858ce76456cedeceba2e1442da41bbcf075e385
   release_id: 1858ce76456cedeceba2e1442da41bbcf075e385
   source_branch: codex/staging-dashboard-localization-integration
-  source_note: Traceable integration of open PRs 222 and 223; not equivalent to merged main.
+  source_note: Traceable integration deployment of changes now merged through PRs 222 and 223; selective-analysis changes are not deployed.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -79,7 +79,35 @@ current_product_observation:
     - formal_recommendation policy remains false.
   ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
 
+selective_analysis_baseline:
+  source: staging sanitized evidence audit before this implementation
+  capture_count: 8352
+  fixture_count: 43
+  legacy_double_snapshot_fixture_count: 42
+  shadow_pick_count: 6
+  valid_shadow_clv_count: 2
+  outcome_count: 0
+  conclusion: Existing row volume does not constitute a working release-evidence loop.
+  first_scope:
+    - eliteserien
+    - allsvenskan
+    - chinese_super_league
+  markets:
+    - ASIAN_HANDICAP
+    - TOTALS
+  daily_analysis_pick_cap: 3
+  zero_pick_day_allowed: true
+
 completed_milestones:
+  - phase: Project context governance
+    status: merged
+    merged_pr: 224
+  - phase: Dashboard watch and scoreline explanation
+    status: merged
+    merged_pr: 222
+  - phase: Backend team-name localization
+    status: merged
+    merged_pr: 223
   - phase: Decision Contract V2 and output wiring
     status: merged
     evidence: docs/consolidation/W2_DECISION_CONTRACT_V2.md
@@ -129,24 +157,19 @@ completed_milestones:
       - 221
 
 open_work:
-  - id: PROJECT-CONTEXT-SYSTEM
+  - id: SELECTIVE-ANALYSIS-RECOMMENDATIONS
     priority: critical
-    status: OPEN_DRAFT
-    branch: codex/w2-project-context
-    pr: 224
-    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/224
-    objective: Merge the current-state recovery file before starting the recommendation-path unlock audit.
-    blocker: Review and green CI are required before merge.
-  - id: RECOMMENDATION-PATH-UNLOCK-AUDIT
-    priority: critical
-    status: approved_not_started
-    objective: Explain and unblock the path from WATCH to ANALYSIS_PICK without opening formal RECOMMEND.
+    status: IMPLEMENTING_LOCAL
+    branch: codex/w2-selective-analysis-recommendations
+    objective: Repair the evidence loop and add validated, selective AH/OU ANALYSIS_PICK output without opening RECOMMEND.
     required_checks:
-      - Verify shadow_pick and clv_shadow are actually accruing in staging.
-      - Report each league's missing inputs and policy gates.
-      - Correct misleading blocker presentation that overstates lineup dependency.
-      - Identify the first league eligible for a staging-only direction_allowed review.
-    blocker: Context recovery file must be merged first.
+      - FairMarketEstimate derives AH and TOTALS from one prematch score distribution.
+      - Shadow evidence and outcomes are isolated per league and market.
+      - analysis_gate separates data readiness from analysis eligibility.
+      - At most three ANALYSIS_PICK cards per football day; zero is valid.
+      - Full validation and review are required before any staging deployment request.
+    deployment_status: NOT_RUN
+    direction_allowed_changes: []
   - id: R1.1-ACCRUAL-CHECKPOINT
     priority: high
     status: ACCUMULATING
@@ -166,20 +189,6 @@ open_work:
     disabled_leagues:
       - brasileirao_serie_a
     automatic_release: false
-  - id: PR-222
-    priority: high
-    status: OPEN_DRAFT
-    title: W2 dashboard explain watch blockers and scorelines
-    branch: codex/w2-dashboard-watch-scoreline-explain
-    head_sha: a0cfb0d0a9e32db0539406f76ddcf58a2f8409ba
-    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/222
-  - id: PR-223
-    priority: medium
-    status: OPEN_DRAFT_CI_GREEN
-    title: W2 Dashboard backend team name localization
-    branch: codex/w2-team-name-localization-design
-    head_sha: 447e5d4bd03dab0779141b9a89f62b4d44ff232a
-    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/223
   - id: LEAGUE-WHITELIST-BOOKMAKER-REMEDIATION
     priority: backlog
     status: offline_only_not_started
@@ -196,9 +205,13 @@ active_decisions:
     decision: direction_allowed remains false until a separate per-league approved release PR.
     status: active
     prereg_conditions:
-      - shadow CLV sample count is at least 100.
-      - median shadow CLV is greater than 0.
-      - latest market gap is at most 0.04.
+      - Each league and market has at least 100 distinct-fixture valid same-line shadow CLV samples.
+      - Median same-line decimal shadow CLV is greater than 0.
+      - Latest matching-market gap is at most 0.04.
+      - Entry-window coverage is at least 80 percent.
+      - Valid prematch closing-pair coverage is at least 80 percent.
+      - Settled-outcome coverage is at least 90 percent.
+      - Provider daily usage remains at or below 120.
   - id: RECOMMEND-GATE
     decision: EV and RECOMMEND remain default off.
     status: active
@@ -214,11 +227,10 @@ active_decisions:
     status: active
 
 allowed_next_work:
-  - Merge this context-governance PR after review and green CI.
-  - Perform the approved recommendation-path unlock audit, starting read-only.
-  - Fix shadow evidence accrual if the read-only audit proves it is not writing.
-  - Correct blocker reason output so xG, model probability, and score-matrix gaps are explicit.
-  - Prepare a staging-only per-league direction_allowed review only after prereg evidence passes.
+  - Complete and review the selective-analysis implementation on its current branch.
+  - Verify evidence-loop, no-leakage, AH/OU settlement, feature parity, and selectivity tests.
+  - Request separate staging deployment approval only after the implementation PR is reviewed and merged.
+  - Prepare a staging-only per-league and per-market direction_allowed review only after all prereg evidence passes.
   - Continue periodic R1.1 and monthly-eval read-only checks while status is ACCUMULATING.
   - Keep formal RECOMMEND closed until the registered real-pick evidence gate passes.
 
@@ -237,6 +249,15 @@ prohibited:
   - adding Stage 16
 
 latest_merged_prs:
+  - number: 224
+    title: W2 project context and recommendation-path unlock audit
+    merge_sha: 663b64d
+  - number: 222
+    title: W2 dashboard explain watch blockers and scorelines
+    merge_sha: 5ca49c5
+  - number: 223
+    title: W2 Dashboard backend team name localization
+    merge_sha: 81a2add6fbd58304e225b0f2079a4893ecad16a8
   - number: 215
     title: W2 R4.1 Artifact publisher and serving loader
     merge_sha: 9317399d0cddca49e3b8a689e0785024416df8ac
@@ -260,6 +281,8 @@ latest_merged_prs:
     merge_sha: 9c6026121f988a393f398997b8f19296b6474e32
 
 latest_reports:
+  - path: docs/consolidation/W2_SELECTIVE_ANALYSIS_RECOMMENDATION_IMPLEMENTATION_20260710.md
+    role: selective AH and totals analysis implementation and release boundary
   - path: docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
     role: append-only history and reviewer decisions
   - path: docs/consolidation/W2_DECISION_CONTRACT_V2.md

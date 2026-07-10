@@ -196,7 +196,7 @@ def forward_outcome_ledger(
 def forward_outcome_backfill(
     self: object,
     queued_at_utc: str | None = None,
-    window: str = "next36",
+    window: str = "all",
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "forward-outcome-backfill")

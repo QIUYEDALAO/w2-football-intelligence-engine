@@ -72,6 +72,24 @@ DecisionCard {
   provenance[]             # 每输入的来源 + 采集时间戳
   market_probabilities     # 展示用市场概率一律 POWER devig；method 必须写入 provenance/概率对象
 
+  fair_market_estimates[] {
+    market                 # ASIAN_HANDICAP | TOTALS
+    status                 # READY | INSUFFICIENT | INVALID
+    model_family
+    fair_line, probabilities
+    home_mu, away_mu
+    feature_as_of, train_cutoff
+    artifact_hash, artifact_version, fallback_reason
+  }
+
+  analysis_gate {
+    market                 # 当前主方向；另一市场保留在 analysis_gates/L2
+    status                 # ELIGIBLE | ACCUMULATING | NO_EDGE | BLOCKED
+    market_ready, model_ready, evidence_ready, direction_allowed
+    divergence_line_units, threshold_line_units
+    blockers[], next_eval_at
+  }
+
   # —— 仅当 decision_tier ∈ {ANALYSIS_PICK, RECOMMEND} ——
   pick {
     market, selection, line, odds
@@ -102,6 +120,9 @@ DecisionCard {
 | `CONTRADICTION_UNEXPLAINED` | 因子与价值方向冲突且无"盘口价值"解释 | 人工复核 | 人工 |
 | `COVERAGE_NONE` | 赛事未覆盖 | 降级 SKIP | 不重评 |
 | `FIXTURE_LIVE_OR_FINISHED` | 已开赛/结束 | 赛前窗口关闭 | 无 |
+| `MODEL_FAIR_LINE_UNAVAILABLE` | 盘口已齐但独立模型尚无可信 fair line | 等模型/特征就绪 | 下一模型评估点 |
+| `NO_EDGE` | 模型与市场线差不足 0.25 球 | 保持观察，不降低阈值凑数 | 下一盘口刷新点 |
+| `FORWARD_EVIDENCE_ACCUMULATING` | 模型有方向但该联赛该市场前向证据未过门 | 继续积累 shadow CLV/outcome | 下一 R1.1 检查点 |
 
 ## 退役映射（迁移 shim，不删除）
 
@@ -132,19 +153,25 @@ DecisionCard {
 
 离线 LL、离线 +EV、离线拟合改善、单场主观强信号只能作为研究或排序参考，**不得作为 `RECOMMEND` / EV 腿开关依据**。若未来重开，必须新增一份 R3.0 前向验收报告，列出样本窗口、CLV 分布、滚动 blend、失败样本与回滚条件。
 
-## 分歧雷达放行规则（预注册，2026-07-08）
+## 分歧雷达放行规则（预注册，2026-07-10 修订）
 
 市场锚定期允许记录 `shadow_pick`，用于积累模型相对市场的方向证据；`shadow_pick` 必须标记 `not_a_recommendation=true`、`not_displayed=true`，不得作为展示推荐、可锁推荐、命中率或 production 动作依据。真实展示层的 `direction_allowed` 默认保持 false。
 
-单联赛满足以下全部条件，方可经**单独批准 PR** 将该联赛 `direction_allowed` 置 true。放行必须按联赛白名单实施，禁止全局开关：
+每个“联赛 + 市场（AH / TOTALS）”满足以下全部条件，方可经**单独批准 PR** 将对应市场的 `direction_allowed` 置 true。放行必须按联赛与市场分别实施，禁止全局开关；AH 通过不得自动开放 TOTALS：
 
-1. shadow CLV 样本 `>=100`；
-2. shadow CLV 中位数 `>0`；
-3. 该联赛最近一次 `market_baseline_eval` gap `<=0.04`。
+1. 不同 fixture 的有效同线 shadow CLV 样本 `>=100`；
+2. 同线 decimal shadow CLV 中位数 `>0`；
+3. 对应市场最近一次 `market_baseline_eval` gap `<=0.04`；
+4. entry window 达标率 `>=80%`；
+5. 有效赛前 closing pair 覆盖率 `>=80%`；
+6. 可结算比赛 outcome 覆盖率 `>=90%`；
+7. provider 日用量始终 `<=120`。
+
+满足以上条件只产生 `ELIGIBLE_FOR_REVIEW`，不得自动放行。证据缺失、过期或任一指标退化时必须 fail closed 回 `WATCH`。
 
 放行后真实 pick 才开始积累，R3.0 的 `>=200` 真实 pick CLV 门槛仍在真实轨上计算，门槛数字不变。修改本规则必须留下评审记录。
 
-`model_market_divergence.magnitude` 的单位为 AH 线差；当前默认门槛为 `0.25` 线差。概率空间阈值待展示概率分档后另行预注册。
+AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。每个比赛日只展示最强的至多 3 张 `ANALYSIS_PICK`，允许无信号时为 0，禁止降低阈值凑数。
 
 ## 落地检查（此契约"进了代码"的判定）
 

@@ -125,9 +125,7 @@ def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
     client = TestClient(app)
 
     version = client.get("/v1/version").json()
-    dashboard = client.get(
-        "/v1/dashboard?date=2026-06-26&window=today&include_debug=true"
-    ).json()
+    dashboard = client.get("/v1/dashboard?date=2026-06-26&window=today&include_debug=true").json()
 
     assert version["api_git_sha"] == "UNKNOWN"
     assert dashboard["debug"]["empty_reason"] == "READ_MODEL_EMPTY"
@@ -343,7 +341,8 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     card = payload["all"][0]
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
-    assert len(encoded) < 6500
+    # The all-window index remains compact even as the response adds release metadata.
+    assert len(encoded) < 7000
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",
@@ -387,14 +386,8 @@ def test_dashboard_all_window_index_contract_is_not_formal_authority(
 
     assert len(payload["all"]) == 2
     assert payload["performance"]["all_window_surface"] == "INDEX_ONLY"
-    assert (
-        payload["performance"]["all_window_formal_monitor_contract"]
-        == "NOT_AUTHORITATIVE"
-    )
-    assert (
-        payload["performance"]["formal_candidate_detection"]
-        == "USE_TODAY_NEXT36_OR_FULL_DETAIL"
-    )
+    assert payload["performance"]["all_window_formal_monitor_contract"] == "NOT_AUTHORITATIVE"
+    assert payload["performance"]["formal_candidate_detection"] == "USE_TODAY_NEXT36_OR_FULL_DETAIL"
     assert payload["debug"]["all_window_surface"] == "INDEX_ONLY"
     assert payload["debug"]["all_window_formal_monitor_contract"] == "NOT_AUTHORITATIVE"
     assert payload["all"][0]["recommendation"] is None
@@ -419,8 +412,8 @@ def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
     body = Path("apps/web/src/lib/dashboardApi.ts").read_text(encoding="utf-8")
 
     assert 'getJSON("/meta.json")' in body
-    assert 'getJSON(`${API_BASE}/version`)' in body
-    assert '`${API_BASE}/dashboard?' in body
+    assert "getJSON(`${API_BASE}/version`)" in body
+    assert "`${API_BASE}/dashboard?" in body
     assert 'include_debug: includeDebug ? "true" : "false"' in body
     assert "getCachedDashboardView" in body
     assert 'params.get("demo") === "1"' in body

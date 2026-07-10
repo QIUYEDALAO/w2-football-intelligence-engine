@@ -8,13 +8,15 @@ from pathlib import Path
 from scripts.run_w2_monthly_eval_rerun_dry_run import build_monthly_eval_rerun_report
 
 
-def test_monthly_eval_no_samples_accumulates(tmp_path: Path) -> None:
+def test_monthly_eval_without_evidence_source_blocks_instead_of_reporting_staging_zero(
+    tmp_path: Path,
+) -> None:
     repo = _repo(tmp_path)
 
     payload = build_monthly_eval_rerun_report(repo_root=repo, runtime_root=Path("runtime"))
 
-    assert payload["readiness_status"] == "ACCUMULATING"
-    assert payload["sample_status"]["status"] == "ACCUMULATING"
+    assert payload["readiness_status"] == "BLOCKED"
+    assert payload["sample_status"]["status"] == "NO_EVIDENCE_SOURCE"
     assert payload["shadow_clv_status"]["median"] == "ACCUMULATING"
     assert payload["direction_allowed_gate_status"]["release_decision"] == "REVIEW_ONLY"
     assert payload["provider_calls"] == 0

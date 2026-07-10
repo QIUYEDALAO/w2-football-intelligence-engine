@@ -233,6 +233,10 @@ def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> N
     assert {endpoint for endpoint, _ in repository.raw} == {"fixtures", "statistics"}
 
 
+def test_xg_backfill_default_window_matches_r4_1_serving_protocol() -> None:
+    assert XgBackfillConfig().max_rolling_matches == 8
+
+
 def test_xg_backfill_stops_before_consuming_live_reserve() -> None:
     client = LowQuotaFakeClient()
     repository = FakeRepository()

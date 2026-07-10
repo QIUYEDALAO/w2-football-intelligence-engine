@@ -32,13 +32,12 @@ def forward_ledger_performance(
     outcome_counts = _outcome_counts(records, side="pick")
     outcome_shadow_counts = _outcome_counts(records, side="shadow_pick")
     clv_rows = _clv_rows(records, key_fn=_clv_key)
-    clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
+    shadow_capture_records = _expanded_shadow_capture_records(records)
+    clv_shadow_rows = _clv_rows(shadow_capture_records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
     clv_shadow_values = _clv_values(clv_shadow_rows)
     fixture_ids = {
-        _text(record.get("fixture_id"))
-        for record in records
-        if _text(record.get("fixture_id"))
+        _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
     return {
         "schema_version": "w2.forward_ledger_performance.v1",
@@ -66,8 +65,7 @@ def forward_ledger_performance(
             method="shadow_pick_entry_minus_closing_same_line; not_displayed_direction",
         ),
         "accrual_note": (
-            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 "
-            "direction_allowed;非展示战绩"
+            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 direction_allowed;非展示战绩"
         ),
         "by_league": _league_rows(
             records,
@@ -75,6 +73,11 @@ def forward_ledger_performance(
             clv_shadow_rows,
             outcome_counts_by_league(records, side="pick"),
             outcome_counts_by_league(records, side="shadow_pick"),
+        ),
+        "by_league_market": _league_market_rows(
+            shadow_capture_records,
+            clv_shadow_rows,
+            records,
         ),
         "provider_calls": 0,
         "db_reads": 0,
@@ -142,9 +145,7 @@ def _outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
 
 def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:
     return [
-        float(row["clv_decimal"])
-        for row in rows
-        if isinstance(row.get("clv_decimal"), int | float)
+        float(row["clv_decimal"]) for row in rows if isinstance(row.get("clv_decimal"), int | float)
     ]
 
 
@@ -157,26 +158,24 @@ def _clv_summary(
     window_values = [
         float(row["clv_decimal"])
         for row in rows
-        if row.get("entry_window_met") is True
-        and isinstance(row.get("clv_decimal"), int | float)
+        if row.get("entry_window_met") is True and isinstance(row.get("clv_decimal"), int | float)
     ]
     return {
         "sample_count": len(values),
         "median_decimal": median(values) if values else None,
-        "entry_window_met_count": len(
-            [row for row in rows if row.get("entry_window_met") is True]
-        ),
+        "valid_pair_count": len([row for row in rows if row.get("excluded_reason") is None]),
+        "entry_window_met_count": len([row for row in rows if row.get("entry_window_met") is True]),
         "median_decimal_window_met": median(window_values) if window_values else None,
         "positive_count": len([value for value in values if value > 0]),
         "negative_count": len([value for value in values if value < 0]),
         "push_count": len([value for value in values if value == 0]),
         "line_changed_count": len([row for row in rows if row.get("line_changed") is True]),
+        "line_clv_sample_count": len(
+            [row for row in rows if isinstance(row.get("line_clv"), int | float)]
+        ),
+        "median_line_clv": _median_field(rows, "line_clv"),
         "excluded_no_prematch_closing": len(
-            [
-                row
-                for row in rows
-                if row.get("excluded_reason") == "NO_PREMATCH_CLOSING"
-            ]
+            [row for row in rows if row.get("excluded_reason") == "NO_PREMATCH_CLOSING"]
         ),
         "entry_line_mismatch_count": len(
             [row for row in rows if row.get("entry_line_mismatch") is True]
@@ -201,8 +200,7 @@ def _clv_rows(
         ordered = sorted(
             items,
             key=lambda item: (
-                _parse_time(item.get("captured_at"))
-                or datetime.min.replace(tzinfo=UTC)
+                _parse_time(item.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
         if len(ordered) < 2:
@@ -247,6 +245,14 @@ def _clv_rows(
                 "line_changed": line_changed,
                 "entry_line_mismatch": _entry_line_mismatch(entry, entry_line),
                 "clv_decimal": None if line_changed else round(entry_price - closing_price, 6),
+                "line_clv": _directional_line_clv(
+                    market=market,
+                    selection=selection,
+                    entry_line=entry_line,
+                    closing_line=closing_line,
+                )
+                if line_changed
+                else None,
             }
         )
     return rows
@@ -315,9 +321,29 @@ def _clv_shadow_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
         return None
     market = _text(shadow_pick.get("market"))
     selection = _text(shadow_pick.get("selection"))
-    if market not in {"ASIAN_HANDICAP"} or not selection:
+    if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
         return None
     return (fixture_id, market, selection)
+
+
+def _expanded_shadow_capture_records(
+    records: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    expanded: list[Mapping[str, Any]] = []
+    for record in records:
+        if _record_type(record) != "capture":
+            continue
+        shadow_picks = record.get("shadow_picks")
+        if isinstance(shadow_picks, Sequence) and not isinstance(
+            shadow_picks, str | bytes | bytearray
+        ):
+            for item in shadow_picks:
+                if isinstance(item, Mapping):
+                    expanded.append({**record, "shadow_pick": dict(item)})
+            continue
+        if isinstance(record.get("shadow_pick"), Mapping):
+            expanded.append(record)
+    return expanded
 
 
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
@@ -377,9 +403,7 @@ def _league_rows(
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
         fixture_ids = {
-            _text(item.get("fixture_id"))
-            for item in items
-            if _text(item.get("fixture_id"))
+            _text(item.get("fixture_id")) for item in items if _text(item.get("fixture_id"))
         }
         rows.append(
             {
@@ -401,12 +425,99 @@ def _league_rows(
                 "clv_sample_count": len(values),
                 "clv_median_decimal": median(values) if values else None,
                 "clv_shadow_sample_count": len(shadow_values),
-                "clv_shadow_median_decimal": median(shadow_values)
-                if shadow_values
-                else None,
+                "clv_shadow_median_decimal": median(shadow_values) if shadow_values else None,
             }
         )
     return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))
+
+
+def _league_market_rows(
+    shadow_captures: Sequence[Mapping[str, Any]],
+    clv_rows: Sequence[Mapping[str, Any]],
+    records: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    fixtures: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for record in shadow_captures:
+        shadow_pick = record.get("shadow_pick")
+        if not isinstance(shadow_pick, Mapping):
+            continue
+        key = (_league_key(record), _text(shadow_pick.get("market")))
+        fixture_id = _text(record.get("fixture_id"))
+        if key[1] and fixture_id:
+            fixtures[key].add(fixture_id)
+    rows_by_key: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    for row in clv_rows:
+        rows_by_key[(_text(row.get("league")), _text(row.get("market")))].append(row)
+    outcomes_by_key: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for record in records:
+        if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
+            continue
+        key = (_league_key(record), _text(record.get("market")))
+        fixture_id = _text(record.get("fixture_id"))
+        if key[1] and fixture_id and _outcome(record) != "VOID":
+            outcomes_by_key[key].add(fixture_id)
+    output: list[dict[str, Any]] = []
+    for key in sorted(set(fixtures) | set(rows_by_key)):
+        league, market = key
+        market_rows = rows_by_key.get(key, [])
+        same_line = [
+            float(row["clv_decimal"])
+            for row in market_rows
+            if isinstance(row.get("clv_decimal"), int | float)
+        ]
+        valid_pairs = [row for row in market_rows if row.get("excluded_reason") is None]
+        fixture_count = len(fixtures.get(key, set()))
+        entry_window_count = len(
+            [row for row in valid_pairs if row.get("entry_window_met") is True]
+        )
+        outcome_count = len(outcomes_by_key.get(key, set()))
+        output.append(
+            {
+                "league": league,
+                "market": market,
+                "fixture_count": fixture_count,
+                "valid_closing_pair_count": len(valid_pairs),
+                "closing_pair_coverage_rate": _ratio(len(valid_pairs), fixture_count),
+                "same_line_decimal_clv_sample_count": len(same_line),
+                "median_decimal_clv": median(same_line) if same_line else None,
+                "line_clv_sample_count": len(
+                    [row for row in market_rows if isinstance(row.get("line_clv"), int | float)]
+                ),
+                "median_line_clv": _median_field(market_rows, "line_clv"),
+                "entry_window_met_count": entry_window_count,
+                "entry_window_met_rate": _ratio(entry_window_count, len(valid_pairs)),
+                "outcome_count": outcome_count,
+                "outcome_coverage_rate": _ratio(outcome_count, len(valid_pairs)),
+            }
+        )
+    return output
+
+
+def _directional_line_clv(
+    *,
+    market: str,
+    selection: str,
+    entry_line: str,
+    closing_line: str,
+) -> float | None:
+    entry = _number(entry_line)
+    closing = _number(closing_line)
+    if entry is None or closing is None:
+        return None
+    if market == "TOTALS" and selection == "OVER":
+        return round(closing - entry, 6)
+    return round(entry - closing, 6)
+
+
+def _median_field(rows: Sequence[Mapping[str, Any]], field: str) -> float | None:
+    values = [float(row[field]) for row in rows if isinstance(row.get(field), int | float)]
+    return median(values) if values else None
+
+
+def _ratio(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round(numerator / denominator, 6)
 
 
 def _league_key(record: Mapping[str, Any]) -> str:

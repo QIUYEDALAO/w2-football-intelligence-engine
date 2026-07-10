@@ -70,6 +70,9 @@ class DecisionCard:
     environment: str
     probability_source: ProbabilitySource = ProbabilitySource.UNKNOWN
     model_market_divergence: Mapping[str, Any] = field(default_factory=dict)
+    analysis_gate: Mapping[str, Any] = field(default_factory=dict)
+    analysis_gates: tuple[Mapping[str, Any], ...] = ()
+    fair_market_estimates: tuple[Mapping[str, Any], ...] = ()
     pick: DecisionPick | None = None
     non_pick: DecisionNonPick | None = None
     one_liner: str = ""
@@ -114,6 +117,9 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "model_version": card.model_version,
             "probability_source": card.probability_source,
             "model_market_divergence": card.model_market_divergence,
+            "analysis_gate": card.analysis_gate,
+            "analysis_gates": card.analysis_gates,
+            "fair_market_estimates": card.fair_market_estimates,
             "provenance": card.provenance,
             "pick": card.pick,
             "non_pick": card.non_pick,

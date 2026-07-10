@@ -108,6 +108,42 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
     assert rows[0]["model_market_divergence"]["model_family"] == "R4_1_CALIBRATED"
+    assert rows[0]["capture_checkpoint"] == "EVIDENCE_CHANGE"
+    assert len(rows[0]["evidence_hash"]) == 64
+
+
+def test_forward_outcome_ledger_records_distinct_t24_and_t1_checkpoints(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["kickoff_utc"] = "2026-07-08T12:00:00Z"  # type: ignore[index]
+
+    first = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    second = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 8, 11, 0, tzinfo=UTC),
+    )
+
+    assert first["written"] == 1
+    assert second["written"] == 1
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "2026-07-07_staging.jsonl").read_text().splitlines()
+    ]
+    assert {row["capture_checkpoint"] for row in rows} == {
+        "T_MINUS_24H",
+        "T_MINUS_1H",
+    }
 
 
 def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
@@ -127,6 +163,86 @@ def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
     )
 
     assert payload["records"][0]["shadow_pick"] is None
+
+
+def test_forward_outcome_ledger_records_ah_and_totals_shadow_picks(tmp_path: Path) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.95",
+        "under_price": "1.91",
+    }
+    card["fair_market_estimates"] = [  # type: ignore[index]
+        {
+            "market": "ASIAN_HANDICAP",
+            "status": "READY",
+            "fair_line": -1.5,
+            "model_family": "R4_1_CALIBRATED",
+        },
+        {
+            "market": "TOTALS",
+            "status": "READY",
+            "fair_line": 3.0,
+            "model_family": "R4_1_CALIBRATED",
+        },
+    ]
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert [item["market"] for item in payload["records"][0]["shadow_picks"]] == [
+        "ASIAN_HANDICAP",
+        "TOTALS",
+    ]
+    assert payload["records"][0]["shadow_picks"][1]["selection"] == "OVER"
+
+
+def test_forward_outcome_backfill_settles_two_shadow_markets_from_one_capture(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.95",
+        "under_price": "1.91",
+    }
+    card["fair_market_estimates"] = [  # type: ignore[index]
+        {"market": "ASIAN_HANDICAP", "status": "READY", "fair_line": -1.5},
+        {"market": "TOTALS", "status": "READY", "fair_line": 3.0},
+    ]
+    run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    result = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 3, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert result["written"] == 2
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    assert {(row["market"], row["settlement_outcome"]) for row in outcomes} == {
+        ("ASIAN_HANDICAP", "WIN"),
+        ("TOTALS", "WIN"),
+    }
 
 
 def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
@@ -191,11 +307,7 @@ def test_forward_outcome_backfill_writes_win_push_half_loss_and_void(
         json.loads(line)
         for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    outcomes = {
-        row["fixture_id"]: row
-        for row in rows
-        if row.get("record_type") == "outcome"
-    }
+    outcomes = {row["fixture_id"]: row for row in rows if row.get("record_type") == "outcome"}
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["settlement_write"] is False
@@ -337,14 +449,49 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
         json.loads(line)
         for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    outcomes = [
-        row for row in rows if row.get("record_type") == "outcome"
-    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
     assert payload["written"] == 2
     assert {row["settled_side"] for row in outcomes} == {"pick", "shadow_pick"}
     shadow = [row for row in outcomes if row["settled_side"] == "shadow_pick"][0]
     assert shadow["settlement_outcome"] == "LOSS"
     assert shadow["selection"] == "AWAY_AH"
+
+
+def test_forward_outcome_backfill_settles_totals_quarter_line_from_all_window(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-total", "hash-total", home_line="-1", home_price="1.9")
+    capture["shadow_pick"] = {
+        "market": "TOTALS",
+        "selection": "OVER",
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
+    capture["shadow_picks"] = [capture["shadow_pick"]]
+    capture["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.25",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    capture["pick"] = None
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"all": [_result("fixture-total", 2, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    rows = [
+        json.loads(line) for line in (root / "2026-07-07_staging.jsonl").read_text().splitlines()
+    ]
+    outcome = [row for row in rows if row.get("record_type") == "outcome"][0]
+    assert payload["written"] == 1
+    assert outcome["market"] == "TOTALS"
+    assert outcome["settlement_outcome"] == "HALF_LOSS"
 
 
 def _capture(

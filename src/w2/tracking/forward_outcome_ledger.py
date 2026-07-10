@@ -4,14 +4,16 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from w2.domain.odds import settle_asian_handicap
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
 FT_STATUSES = {"FT", "AET", "PEN"}
+MIN_SHADOW_LINE_DIVERGENCE = 0.25
 
 
 def run_forward_outcome_ledger(
@@ -74,36 +76,42 @@ def build_forward_outcome_records(
         fixture_id = _text(card.get("fixture_id"))
         if not fixture_id:
             continue
-        rows.append(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "record_type": "capture",
-                "captured_at": captured,
-                "football_day": football_day,
-                "environment": environment,
-                "fixture_id": fixture_id,
-                "kickoff_utc": _optional_text(card.get("kickoff_utc")),
-                "competition_id": _optional_text(card.get("competition_id")),
-                "competition_name": _optional_text(card.get("competition_name")),
-                "home_team_name": _optional_text(card.get("home_team_name")),
-                "away_team_name": _optional_text(card.get("away_team_name")),
-                "decision_tier": _text(card.get("decision_tier") or "SKIP"),
-                "data_status": _text(card.get("data_status") or "PARTIAL"),
-                "reason_code": _optional_text(card.get("reason_code")),
-                "action": _optional_text(card.get("action")),
-                "probability_source": _optional_text(card.get("probability_source")),
-                "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-                "shadow_pick": _shadow_pick(card),
-                "pick": _mapping_copy(card.get("pick")),
-                "non_pick": _mapping_copy(card.get("non_pick")),
-                "current_odds": _market_odds_summary(card.get("current_odds")),
-                "card_hash": _optional_text(card.get("card_hash")),
-                "outcome_tracked": bool(card.get("outcome_tracked") is True),
-                "source": _optional_text(card.get("source")),
-                "posthoc_only": True,
-                "not_a_lock": True,
-            }
-        )
+        shadow_picks = _shadow_picks(card)
+        record = {
+            "schema_version": SCHEMA_VERSION,
+            "record_type": "capture",
+            "captured_at": captured,
+            "football_day": football_day,
+            "environment": environment,
+            "fixture_id": fixture_id,
+            "kickoff_utc": _optional_text(card.get("kickoff_utc")),
+            "competition_id": _optional_text(card.get("competition_id")),
+            "competition_name": _optional_text(card.get("competition_name")),
+            "home_team_name": _optional_text(card.get("home_team_name")),
+            "away_team_name": _optional_text(card.get("away_team_name")),
+            "decision_tier": _text(card.get("decision_tier") or "SKIP"),
+            "data_status": _text(card.get("data_status") or "PARTIAL"),
+            "reason_code": _optional_text(card.get("reason_code")),
+            "action": _optional_text(card.get("action")),
+            "probability_source": _optional_text(card.get("probability_source")),
+            "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+            "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
+            "analysis_gate": _mapping_copy(card.get("analysis_gate")),
+            "analysis_gates": _mapping_list(card.get("analysis_gates")),
+            "shadow_pick": shadow_picks[0] if shadow_picks else None,
+            "shadow_picks": shadow_picks,
+            "pick": _mapping_copy(card.get("pick")),
+            "non_pick": _mapping_copy(card.get("non_pick")),
+            "current_odds": _market_odds_summary(card.get("current_odds")),
+            "card_hash": _optional_text(card.get("card_hash")),
+            "outcome_tracked": bool(card.get("outcome_tracked") is True),
+            "source": _optional_text(card.get("source")),
+            "posthoc_only": True,
+            "not_a_lock": True,
+        }
+        record["capture_checkpoint"] = _capture_checkpoint(record, captured_at)
+        record["evidence_hash"] = _evidence_hash(record)
+        rows.append(record)
     return rows
 
 
@@ -194,11 +202,19 @@ def _existing_keys(path: Path) -> set[str]:
 
 def _record_key(record: Mapping[str, Any]) -> str:
     record_type = _text(record.get("record_type") or "capture")
+    capture_identity = _text(record.get("card_hash") or record.get("captured_at"))
+    if record_type == "capture" and record.get("evidence_hash"):
+        capture_identity = "|".join(
+            [
+                _text(record.get("capture_checkpoint") or "EVIDENCE_CHANGE"),
+                _text(record.get("evidence_hash")),
+            ]
+        )
     parts = [
         _text(record.get("football_day")),
         _text(record.get("environment")),
         _text(record.get("fixture_id")),
-        _text(record.get("card_hash") or record.get("captured_at")),
+        capture_identity,
         record_type,
     ]
     if record_type == "outcome":
@@ -246,38 +262,44 @@ def _settlement_entries(
     records: Sequence[Mapping[str, Any]],
     results: Mapping[str, Mapping[str, Any]],
 ) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
-    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
+    grouped: dict[
+        tuple[str, str, str, str],
+        list[tuple[Mapping[str, Any], Mapping[str, Any]]],
+    ] = {}
     for record in records:
         if _text(record.get("record_type") or "capture") != "capture":
             continue
         fixture_id = _text(record.get("fixture_id"))
         if fixture_id not in results:
             continue
-        for side, item in (
-            ("pick", record.get("pick")),
-            ("shadow_pick", record.get("shadow_pick")),
+        settlement_items: list[tuple[str, Any]] = [("pick", record.get("pick"))]
+        shadow_picks = record.get("shadow_picks")
+        if isinstance(shadow_picks, Sequence) and not isinstance(
+            shadow_picks, str | bytes | bytearray
         ):
+            settlement_items.extend(("shadow_pick", item) for item in shadow_picks)
+        else:
+            settlement_items.append(("shadow_pick", record.get("shadow_pick")))
+        for side, item in settlement_items:
             if not isinstance(item, Mapping):
                 continue
             market = _text(item.get("market"))
             selection = _text(item.get("selection"))
-            if market != "ASIAN_HANDICAP" or not selection:
+            if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
                 continue
-            grouped.setdefault((fixture_id, side, market, selection), []).append(record)
+            grouped.setdefault((fixture_id, side, market, selection), []).append((record, item))
 
     entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
     for (_, side, _, _), items in grouped.items():
         ordered = sorted(
             items,
-            key=lambda item: (
-                _parse_time(item.get("captured_at"))
-                or datetime.min.replace(tzinfo=UTC)
+            key=lambda pair: (
+                _parse_time(pair[0].get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        entry = _entry_record(ordered)
-        pick_item = entry.get(side)
-        if isinstance(pick_item, Mapping):
-            entries.append((entry, side, pick_item))
+        entry = _entry_record([pair[0] for pair in ordered])
+        pick_item = next(item for record, item in ordered if record is entry)
+        entries.append((entry, side, pick_item))
     return entries
 
 
@@ -335,12 +357,27 @@ def _outcome_record(
             "settlement_outcome": "VOID",
             "void_reason": "INVALID_ENTRY_LINE_OR_SELECTION",
         }
-    outcome = settle_asian_handicap(
-        home_goals,
-        away_goals,
-        settlement_selection,
-        decimal_line,
-    )
+    if market == "ASIAN_HANDICAP":
+        outcome = settle_asian_handicap(
+            home_goals,
+            away_goals,
+            settlement_selection,
+            decimal_line,
+        )
+    elif market == "TOTALS":
+        outcome = settle_total_goals(
+            home_goals + away_goals,
+            settlement_selection,
+            decimal_line,
+        )
+    else:
+        return {
+            **base,
+            "entry_line": line,
+            "entry_price": _price,
+            "settlement_outcome": "VOID",
+            "void_reason": "INVALID_ENTRY_MARKET",
+        }
     return {
         **base,
         "entry_line": line,
@@ -353,7 +390,7 @@ def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, An
     results: dict[str, dict[str, Any]] = {}
     unsettled_missing_fulltime = 0
     candidates: list[Mapping[str, Any]] = []
-    for key in ("cards", "results", "fixtures"):
+    for key in ("cards", "results", "fixtures", "all"):
         value = source.get(key)
         if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
             candidates.extend(item for item in value if isinstance(item, Mapping))
@@ -461,15 +498,24 @@ def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
 
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
     odds = record.get("current_odds")
-    if not isinstance(odds, Mapping) or market != "ASIAN_HANDICAP":
+    if not isinstance(odds, Mapping):
         return None
-    ah = odds.get("ah")
-    if not isinstance(ah, Mapping):
-        return None
-    if selection == "HOME_AH":
-        return _line_price(ah.get("home_line"), ah.get("home_price"))
-    if selection == "AWAY_AH":
-        return _line_price(ah.get("away_line"), ah.get("away_price"))
+    if market == "ASIAN_HANDICAP":
+        ah = odds.get("ah")
+        if not isinstance(ah, Mapping):
+            return None
+        if selection == "HOME_AH":
+            return _line_price(ah.get("home_line"), ah.get("home_price"))
+        if selection == "AWAY_AH":
+            return _line_price(ah.get("away_line"), ah.get("away_price"))
+    if market == "TOTALS":
+        totals = odds.get("ou")
+        if not isinstance(totals, Mapping):
+            return None
+        if selection == "OVER":
+            return _line_price(totals.get("line"), totals.get("over_price"))
+        if selection == "UNDER":
+            return _line_price(totals.get("line"), totals.get("under_price"))
     return None
 
 
@@ -496,6 +542,8 @@ def _settlement_selection(selection: str) -> str | None:
         return "HOME"
     if selection == "AWAY_AH":
         return "AWAY"
+    if selection in {"OVER", "UNDER"}:
+        return selection
     return None
 
 
@@ -520,29 +568,132 @@ def _parse_time(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
-    # v2 shadow capture starts with AH only. TOTALS shadow capture needs a separate
-    # fair_ou/market_ou contract before it can be made deterministic.
+def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    picks: list[dict[str, Any]] = []
+    estimates = card.get("fair_market_estimates")
+    if isinstance(estimates, Sequence) and not isinstance(estimates, str | bytes | bytearray):
+        odds = _mapping(card.get("current_odds"))
+        for estimate in estimates:
+            if not isinstance(estimate, Mapping) or _text(estimate.get("status")) != "READY":
+                continue
+            market = _text(estimate.get("market"))
+            fair_line = _number(estimate.get("fair_line"))
+            market_line = _estimate_market_line(odds, market)
+            if fair_line is None or market_line is None:
+                continue
+            delta = fair_line - market_line
+            if abs(delta) < MIN_SHADOW_LINE_DIVERGENCE:
+                continue
+            selection = (
+                ("HOME_AH" if delta < 0 else "AWAY_AH")
+                if market == "ASIAN_HANDICAP"
+                else ("OVER" if delta > 0 else "UNDER")
+            )
+            payload = _shadow_pick_payload(
+                card,
+                market=market,
+                selection=selection,
+                fair_line=fair_line,
+                market_line=market_line,
+                delta=delta,
+                derived_from="fair_market_estimates",
+            )
+            for field in (
+                "model_family",
+                "artifact_hash",
+                "artifact_version",
+                "train_cutoff",
+                "feature_as_of",
+            ):
+                if estimate.get(field) is not None:
+                    payload[field] = estimate[field]
+            picks.append(payload)
+        return picks
+
     divergence = _mapping(card.get("model_market_divergence"))
     fair_line = _number(divergence.get("model_fair_line"))
     market_line = _number(divergence.get("market_line"))
-    if fair_line is None or market_line is None:
-        return None
-    delta = fair_line - market_line
-    if abs(delta) <= 0.005:
-        return None
+    if fair_line is not None and market_line is not None:
+        delta = fair_line - market_line
+        if abs(delta) >= MIN_SHADOW_LINE_DIVERGENCE:
+            picks.append(
+                _shadow_pick_payload(
+                    card,
+                    market="ASIAN_HANDICAP",
+                    selection="HOME_AH" if delta < 0 else "AWAY_AH",
+                    fair_line=fair_line,
+                    market_line=market_line,
+                    delta=delta,
+                    derived_from="model_market_divergence",
+                )
+            )
+
+    return picks
+
+
+def _estimate_market_line(odds: Mapping[str, Any], market: str) -> float | None:
+    if market == "ASIAN_HANDICAP":
+        return _number(_mapping(odds.get("ah")).get("home_line"))
+    if market == "TOTALS":
+        return _number(_mapping(odds.get("ou")).get("line"))
+    return None
+
+
+def _shadow_pick_payload(
+    card: Mapping[str, Any],
+    *,
+    market: str,
+    selection: str,
+    fair_line: float,
+    market_line: float,
+    delta: float,
+    derived_from: str,
+) -> dict[str, Any]:
     return {
-        "market": "ASIAN_HANDICAP",
-        "selection": "HOME_AH" if delta < 0 else "AWAY_AH",
+        "market": market,
+        "selection": selection,
         "model_fair_line": fair_line,
         "market_line_at_capture": market_line,
         "divergence_line_units": round(delta, 4),
-        "derived_from": "model_market_divergence",
+        "derived_from": derived_from,
         "display_tier_at_capture": _text(card.get("decision_tier") or "SKIP"),
         "shadow": True,
         "not_a_recommendation": True,
         "not_displayed": True,
     }
+
+
+def _capture_checkpoint(record: Mapping[str, Any], captured_at: datetime) -> str:
+    kickoff = _parse_time(record.get("kickoff_utc"))
+    if kickoff is None:
+        return "EVIDENCE_CHANGE"
+    seconds = (kickoff - captured_at.astimezone(UTC)).total_seconds()
+    if 23 * 3600 <= seconds <= 25 * 3600:
+        return "T_MINUS_24H"
+    if 45 * 60 <= seconds <= 75 * 60:
+        return "T_MINUS_1H"
+    if 0 <= seconds < 45 * 60:
+        return "LOCK_WINDOW"
+    return "EVIDENCE_CHANGE"
+
+
+def _evidence_hash(record: Mapping[str, Any]) -> str:
+    evidence = {
+        "fixture_id": record.get("fixture_id"),
+        "kickoff_utc": record.get("kickoff_utc"),
+        "decision_tier": record.get("decision_tier"),
+        "data_status": record.get("data_status"),
+        "reason_code": record.get("reason_code"),
+        "probability_source": record.get("probability_source"),
+        "model_market_divergence": record.get("model_market_divergence"),
+        "shadow_picks": record.get("shadow_picks"),
+        "pick": record.get("pick"),
+        "non_pick": record.get("non_pick"),
+        "current_odds": record.get("current_odds"),
+        "analysis_gate": record.get("analysis_gate"),
+    }
+    canonical = json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _cards(day_view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -583,6 +734,12 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _mapping_copy(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _mapping_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [dict(item) for item in value if isinstance(item, Mapping)]
 
 
 def _optional_text(value: Any) -> str | None:

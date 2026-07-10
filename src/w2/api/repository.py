@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -49,6 +50,7 @@ from w2.dashboard.status_labels import (
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
+from w2.domain.selective_analysis import apply_daily_analysis_pick_cap
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -87,12 +89,14 @@ from w2.matchday.timezone import (
     next_36_hours_window,
 )
 from w2.models.divergence_champion import select_divergence_champion_probabilities
+from w2.models.fair_market_estimate import FairMarketEstimate, fair_lines_from_lambdas
 from w2.models.r4_1_artifacts import (
     R4_1Artifact,
     load_r4_1_artifacts,
     predict_r4_1_from_artifact,
     r4_1_artifact_dir,
 )
+from w2.models.r4_1_features import r4_1_strength_features_from_rolling
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -143,7 +147,6 @@ WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json
 STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
-
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
     "TOTALS": "大小球",
@@ -274,8 +277,7 @@ def _is_world_cup_2026_item(
     return (
         competition_id in identifiers
         or (
-            provider_league_id in identifiers
-            and (not provider_season or season == provider_season)
+            provider_league_id in identifiers and (not provider_season or season == provider_season)
         )
         or any("world cup" in name or "世界杯" in name for name in names)
     )
@@ -733,9 +735,7 @@ class ReadModelRepository:
         locks_count = len(locks)
         run_state = str(replay.get("run_state", "NO_RUN"))
         return {
-            "status": run_state
-            if run_state != "COMPLETED_WITH_RESULTS"
-            else "SHADOW_READY",
+            "status": run_state if run_state != "COMPLETED_WITH_RESULTS" else "SHADOW_READY",
             "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
             "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
             "gate5_status": "PROVISIONAL_BLOCKED_GATE4",
@@ -862,9 +862,7 @@ class ReadModelService:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
-        artifact_result = load_r4_1_artifacts(
-            r4_1_artifact_root or r4_1_artifact_dir(ROOT)
-        )
+        artifact_result = load_r4_1_artifacts(r4_1_artifact_root or r4_1_artifact_dir(ROOT))
         self._r4_1_artifacts: dict[str, R4_1Artifact] = artifact_result.artifacts
         self._r4_1_artifact_invalid_reasons: dict[str, str] = artifact_result.invalid_reasons
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
@@ -900,9 +898,7 @@ class ReadModelService:
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
             fixture_reader = getattr(self.repository, "fixture_payloads", None)
-            self._fixture_payloads_cache = (
-                fixture_reader() if callable(fixture_reader) else []
-            )
+            self._fixture_payloads_cache = fixture_reader() if callable(fixture_reader) else []
         return self._fixture_payloads_cache
 
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
@@ -1032,11 +1028,7 @@ class ReadModelService:
         version = self.version()
         counts = self.repository.release_counts()
         seed = self.repository.staging_seed_dashboard()
-        if (
-            not counts["read_model_fixture_count"]
-            and not counts["matchday_card_count"]
-            and seed
-        ):
+        if not counts["read_model_fixture_count"] and not counts["matchday_card_count"] and seed:
             return self._seed_dashboard_response(
                 seed,
                 requested_date=requested_date,
@@ -1049,11 +1041,7 @@ class ReadModelService:
 
         today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
         next36_rows = self.matchday_next_36_hours().get("items", [])
-        result_rows = [
-            row
-            for row in self._all_matchday_rows()
-            if self._is_finished_row(row)
-        ]
+        result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
         result_rows = self._filter_rows_for_operational_date(
             result_rows,
             requested_date=requested_date,
@@ -1094,13 +1082,12 @@ class ReadModelService:
             selected_rows = today_rows
 
         if window == "all":
-            all_cards = [
-                self._dashboard_index_card_from_matchday(row) for row in selected_rows
-            ]
+            all_cards = [self._dashboard_index_card_from_matchday(row) for row in selected_rows]
             response_cards = [self._compact_all_window_card(card) for card in all_cards]
         else:
             self._prime_observations_for_rows(selected_rows)
             all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+            all_cards = apply_daily_analysis_pick_cap(all_cards)
             response_cards = all_cards
         recommendations = [
             card
@@ -1110,14 +1097,10 @@ class ReadModelService:
             in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
         ]
         upcoming = [
-            card
-            for card in response_cards
-            if str(card.get("status", "")).upper() != "FINISHED"
+            card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
         ]
         finished = [
-            card
-            for card in response_cards
-            if str(card.get("status", "")).upper() == "FINISHED"
+            card for card in response_cards if str(card.get("status", "")).upper() == "FINISHED"
         ]
         if window == "all":
             recommendations_payload = [
@@ -1390,11 +1373,7 @@ class ReadModelService:
         if status:
             rows = [row for row in rows if row["status"] == status]
         if team_id:
-            rows = [
-                row
-                for row in rows
-                if team_id in {row["home_team_id"], row["away_team_id"]}
-            ]
+            rows = [row for row in rows if team_id in {row["home_team_id"], row["away_team_id"]}]
         total = len(rows)
         start = (page - 1) * page_size
         return rows[start : start + page_size], total
@@ -1449,9 +1428,9 @@ class ReadModelService:
             row
             for row in rows
             if start
-            <= datetime.fromisoformat(
-                str(row["kickoff_utc"]).replace("Z", "+00:00")
-            ).astimezone(UTC)
+            <= datetime.fromisoformat(str(row["kickoff_utc"]).replace("Z", "+00:00")).astimezone(
+                UTC
+            )
             < end
         ]
         return {
@@ -1639,9 +1618,10 @@ class ReadModelService:
         if not fixture_id or kickoff is None or not home_id or not away_id:
             return None
         repository = self._future_refresh_repository()
+        competition_id = self._competition_id_from_provider_fixture(item)
         context = FeatureContext(
             fixture_id=fixture_id,
-            competition_id="world_cup_2026",
+            competition_id=competition_id,
             home_team_id=home_id,
             away_team_id=away_id,
             kickoff_at=kickoff,
@@ -1722,7 +1702,10 @@ class ReadModelService:
         if not market_snapshots and not home_xg and not away_xg:
             return None
         registry = CompetitionRegistry()
-        coverage = registry.require_enabled("world_cup_2026").coverage_profile
+        registry_entry = registry.entries().get(competition_id)
+        if registry_entry is None:
+            return None
+        coverage = registry_entry.coverage_profile
         feature_set = build_feature_set(
             context=context,
             inputs=FeatureInputs(
@@ -1780,15 +1763,19 @@ class ReadModelService:
         latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
         latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
         neutral_site = _fixture_neutral_site(item)
+        home_model_for = latest_home_xg.xg_for if latest_home_xg is not None else None
+        home_model_against = latest_home_xg.xg_against if latest_home_xg is not None else None
+        away_model_for = latest_away_xg.xg_for if latest_away_xg is not None else None
+        away_model_against = latest_away_xg.xg_against if latest_away_xg is not None else None
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
                 home_team_id=home_id,
                 away_team_id=away_id,
-                home_xg_for=latest_home_xg.xg_for if latest_home_xg is not None else None,
-                home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
-                away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
-                away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
+                home_xg_for=home_model_for,
+                home_xg_against=home_model_against,
+                away_xg_for=away_model_for,
+                away_xg_against=away_model_against,
                 home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
                 away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
                 home_elo_source=latest_home_rating.source
@@ -1812,6 +1799,7 @@ class ReadModelService:
                 neutral_site=neutral_site,
                 input_readiness={
                     "xg_status": xg_readiness["status"],
+                    "model_input_source": "ROLLING_XG",
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
                     "ratings_ready": latest_home_rating is not None
@@ -1828,32 +1816,32 @@ class ReadModelService:
             reason=str(xg_readiness["status"]),
             xg_sample_status=str(xg_readiness["status"]),
         )
-        if (
-            xg_readiness["status"] != "READY"
-            or latest_home_xg is None
-            or latest_away_xg is None
-        ):
+        if simulation_output.status != "READY":
             missing.update({AnalysisMarket.FIRST_HALF_GOALS, AnalysisMarket.SCORE})
         else:
-            scoreline_output = independent_xg_poisson(
-                home_xg_for=latest_home_xg.xg_for,
-                home_xg_against=latest_home_xg.xg_against,
-                away_xg_for=latest_away_xg.xg_for,
-                away_xg_against=latest_away_xg.xg_against,
-            )
-            expected_home = scoreline_output.lambda_home
-            expected_away = scoreline_output.lambda_away
+            expected_home = float(simulation_output.lambda_home or 0.0)
+            expected_away = float(simulation_output.lambda_away or 0.0)
             half_goals = HalfGoalModelInput(
                 expected_home_goals=expected_home,
                 expected_away_goals=expected_away,
             )
-            score_matrix = scoreline_output.score_matrix
+            score_matrix = self._poisson_score_matrix(expected_home, expected_away)
             if expected_home > expected_away + 0.10:
                 score_direction = "HOME"
             elif expected_away > expected_home + 0.10:
                 score_direction = "AWAY"
             else:
                 score_direction = "DRAW"
+            assert home_model_for is not None
+            assert home_model_against is not None
+            assert away_model_for is not None
+            assert away_model_against is not None
+            scoreline_output = independent_xg_poisson(
+                home_xg_for=float(home_model_for),
+                home_xg_against=float(home_model_against),
+                away_xg_for=float(away_model_for),
+                away_xg_against=float(away_model_against),
+            )
             scoreline_readiness = self._scoreline_readiness(
                 status="READY",
                 reason=None,
@@ -1874,11 +1862,20 @@ class ReadModelService:
         )
         payload = self._analysis_card_payload(card)
         payload["feature_contributions"] = [
-            self._feature_contribution_payload(item)
-            for item in feature_set.contributions
+            self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
         payload["scoreline_readiness"] = scoreline_readiness
+        r4_1_rows = self._serving_r4_1_feature_rows(
+            competition_id=competition_id,
+            neutral_site=neutral_site,
+            home_xg=latest_home_xg,
+            away_xg=latest_away_xg,
+            home_rating=latest_home_rating,
+            away_rating=latest_away_rating,
+        )
+        if r4_1_rows is not None:
+            payload["r4_1_feature_rows"] = r4_1_rows
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
@@ -1900,6 +1897,58 @@ class ReadModelService:
             away_xg=latest_away_xg,
         )
         return payload
+
+    def _competition_id_from_provider_fixture(self, item: Mapping[str, Any]) -> str:
+        explicit = str(item.get("competition_id") or "")
+        if explicit:
+            return explicit
+        league = item.get("league")
+        provider_id = str(league.get("id") or "") if isinstance(league, Mapping) else ""
+        registry = CompetitionRegistry()
+        for competition_id, entry in registry.entries().items():
+            if entry.provider_mapping.get("api_football_league_id") == provider_id:
+                return competition_id
+        return "world_cup_2026"
+
+    def _serving_r4_1_feature_rows(
+        self,
+        *,
+        competition_id: str,
+        neutral_site: bool,
+        home_xg: TeamXgSnapshot | None,
+        away_xg: TeamXgSnapshot | None,
+        home_rating: TeamRatingSnapshot | None,
+        away_rating: TeamRatingSnapshot | None,
+    ) -> dict[str, list[float]] | None:
+        if competition_id not in self._r4_1_artifacts:
+            return None
+        if home_xg is None or away_xg is None or home_rating is None or away_rating is None:
+            return None
+        features = r4_1_strength_features_from_rolling(
+            home_for=home_xg.xg_for,
+            home_against=home_xg.xg_against,
+            away_for=away_xg.xg_for,
+            away_against=away_xg.xg_against,
+        )
+        elo_gap = (home_rating.elo - away_rating.elo) / 400.0
+        return {
+            "home": [
+                1.0,
+                0.0 if neutral_site else 1.0,
+                features["home_attack_strength"],
+                features["away_defence_strength"],
+                elo_gap,
+                1.0,
+            ],
+            "away": [
+                1.0,
+                0.0,
+                features["away_attack_strength"],
+                features["home_defence_strength"],
+                -elo_gap,
+                0.0,
+            ],
+        }
 
     def _mainline_market_selection(
         self,
@@ -2146,12 +2195,9 @@ class ReadModelService:
                 market["balanced_prices"] = resolved.get("side_prices", {})
                 if side_price is not None:
                     market["odds"] = side_price
-                should_downgrade_to_watch = (
-                    str(market.get("decision") or "") != "SKIP"
-                    and (
-                        (side_price is not None and float(side_price) < 1.40)
-                        or float(market.get("confidence") or 0.0) < 0.50
-                    )
+                should_downgrade_to_watch = str(market.get("decision") or "") != "SKIP" and (
+                    (side_price is not None and float(side_price) < 1.40)
+                    or float(market.get("confidence") or 0.0) < 0.50
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
@@ -2176,9 +2222,7 @@ class ReadModelService:
         if not isinstance(markets, list):
             return
         decisions = {
-            str(market.get("decision") or "")
-            for market in markets
-            if isinstance(market, dict)
+            str(market.get("decision") or "") for market in markets if isinstance(market, dict)
         }
         if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
             payload["decision"] = "ANALYSIS_PICK"
@@ -3035,9 +3079,7 @@ class ReadModelService:
             if row.get("bookmaker_id") or row.get("bookmaker_name")
         }
         captured_points = {
-            str(row.get("captured_at"))
-            for row in observations
-            if row.get("captured_at")
+            str(row.get("captured_at")) for row in observations if row.get("captured_at")
         }
         lineups_status = self._enrichment_status(fixture_id=fixture_id, endpoint="lineups")
         statistics_status = self._enrichment_status(fixture_id=fixture_id, endpoint="statistics")
@@ -3155,9 +3197,7 @@ class ReadModelService:
     def _enrichment_status(self, *, fixture_id: str, endpoint: str) -> dict[str, Any]:
         rows = self._raw_payloads_for_endpoint(endpoint)
         matching = [
-            row
-            for row in rows
-            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+            row for row in rows if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
         ]
         if not matching:
             return {
@@ -3281,19 +3321,13 @@ class ReadModelService:
         if total <= 0:
             return {}
         home = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals > away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals > away_goals
         )
         draw = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals == away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals == away_goals
         )
         away = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals < away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals < away_goals
         )
         over_2_5 = sum(
             value
@@ -3508,9 +3542,7 @@ class ReadModelService:
                         for row in dashboard.get("all_market_ranking", [])
                         if row.get("market") == "BTTS"
                     ],
-                    "secondary_market_direction": dashboard.get(
-                        "secondary_market_direction"
-                    ),
+                    "secondary_market_direction": dashboard.get("secondary_market_direction"),
                     "source_snapshot_id": dashboard.get("provenance", {}).get("snapshot_id"),
                     "source_captured_at": self._optional_datetime(dashboard.get("captured_at")),
                     "source_phase": dashboard.get("phase"),
@@ -3550,9 +3582,7 @@ class ReadModelService:
                     if item.get("canonical_market")
                 }
                 obs_bookmaker_ids: set[str] = {
-                    str(item["bookmaker_id"])
-                    for item in observations
-                    if item.get("bookmaker_id")
+                    str(item["bookmaker_id"]) for item in observations if item.get("bookmaker_id")
                 }
                 row.update(
                     {
@@ -3780,6 +3810,7 @@ class ReadModelService:
         ) or _one_x_two_probabilities(pricing_shadow.get("model_probabilities"))
         r4_1_payload = self._r4_1_payload_for_card(card, pricing_shadow)
         r4_1_fair_ah = _float_or_none(r4_1_payload.get("fair_ah"))
+        r4_1_fair_ou = _float_or_none(r4_1_payload.get("fair_ou"))
         r4_1_probabilities = _one_x_two_probabilities(r4_1_payload.get("probabilities"))
         if r4_1_fair_ah is None:
             r4_1_probabilities = None
@@ -3791,23 +3822,112 @@ class ReadModelService:
         pricing_shadow["model_family"] = selection.family.value
         pricing_shadow["model_probabilities"] = dict(selection.probabilities)
         if r4_1_payload.get("fallback_reason"):
-            pricing_shadow["model_family_fallback_reason"] = str(
-                r4_1_payload["fallback_reason"]
-            )
+            pricing_shadow["model_family_fallback_reason"] = str(r4_1_payload["fallback_reason"])
         elif selection.fallback_reason:
             pricing_shadow["model_family_fallback_reason"] = selection.fallback_reason
         else:
             pricing_shadow.pop("model_family_fallback_reason", None)
         if selection.family.value == "R4_1_CALIBRATED" and r4_1_fair_ah is not None:
             pricing_shadow["fair_ah"] = r4_1_fair_ah
+            pricing_shadow["fair_ou"] = r4_1_fair_ou
             if r4_1_payload.get("artifact_hash"):
                 pricing_shadow["artifact_hash"] = str(r4_1_payload["artifact_hash"])
             if r4_1_payload.get("artifact_version"):
                 pricing_shadow["artifact_version"] = str(r4_1_payload["artifact_version"])
+            if r4_1_payload.get("train_cutoff"):
+                pricing_shadow["train_cutoff"] = str(r4_1_payload["train_cutoff"])
             pricing_shadow["edge_ah"] = edge(
                 r4_1_fair_ah,
                 _float_or_none(pricing_shadow.get("market_ah")),
             )
+            pricing_shadow["edge_ou"] = edge(
+                r4_1_fair_ou,
+                _float_or_none(pricing_shadow.get("market_ou")),
+            )
+        self._attach_fair_market_estimates(card, pricing_shadow, r4_1_payload)
+
+    def _attach_fair_market_estimates(
+        self,
+        card: dict[str, Any],
+        pricing_shadow: dict[str, Any],
+        r4_1_payload: Mapping[str, Any],
+    ) -> None:
+        model_family = str(pricing_shadow.get("model_family") or "FITTED_CALIBRATED")
+        simulation = card.get("simulation")
+        simulation_payload = simulation if isinstance(simulation, Mapping) else {}
+        data_readiness = card.get("data_readiness")
+        data_readiness = data_readiness if isinstance(data_readiness, Mapping) else {}
+        feature_as_of = self._first_text(
+            data_readiness.get("statistics_captured_at"),
+            data_readiness.get("xg_captured_at"),
+        )
+        home_mu = _float_or_none(r4_1_payload.get("home_mu"))
+        away_mu = _float_or_none(r4_1_payload.get("away_mu"))
+        if model_family != "R4_1_CALIBRATED":
+            home_mu = _float_or_none(simulation_payload.get("lambda_home"))
+            away_mu = _float_or_none(simulation_payload.get("lambda_away"))
+        probability_sources = {
+            "ASIAN_HANDICAP": r4_1_payload.get("ah_probabilities")
+            if model_family == "R4_1_CALIBRATED"
+            else simulation_payload.get("ah_probabilities"),
+            "TOTALS": r4_1_payload.get("ou_probabilities")
+            if model_family == "R4_1_CALIBRATED"
+            else simulation_payload.get("ou_probabilities"),
+        }
+        derived_lines: dict[str, float] = {}
+        if model_family != "R4_1_CALIBRATED" and home_mu is not None and away_mu is not None:
+            fair_ah, fair_ou, ah_probabilities, ou_probabilities = fair_lines_from_lambdas(
+                home_mu=home_mu,
+                away_mu=away_mu,
+            )
+            derived_lines = {"fair_ah": fair_ah, "fair_ou": fair_ou}
+            probability_sources = {
+                "ASIAN_HANDICAP": ah_probabilities,
+                "TOTALS": ou_probabilities,
+            }
+            pricing_shadow.update(derived_lines)
+            pricing_shadow["edge_ah"] = (
+                None
+                if pricing_shadow.get("mainline_materialization_status") == "STALE"
+                else edge(
+                    fair_ah,
+                    _float_or_none(pricing_shadow.get("market_ah")),
+                )
+            )
+            pricing_shadow["edge_ou"] = edge(
+                fair_ou,
+                _float_or_none(pricing_shadow.get("market_ou")),
+            )
+        estimates: list[dict[str, object]] = []
+        for market, fair_key in (("ASIAN_HANDICAP", "fair_ah"), ("TOTALS", "fair_ou")):
+            fair_line = derived_lines.get(fair_key, _float_or_none(pricing_shadow.get(fair_key)))
+            fallback_reason = pricing_shadow.get("model_family_fallback_reason")
+            status = (
+                "READY"
+                if fair_line is not None and home_mu is not None and away_mu is not None
+                else "INSUFFICIENT"
+            )
+            estimate = FairMarketEstimate(
+                market=market,
+                status=status,
+                model_family=model_family,
+                fair_line=fair_line,
+                probabilities=cast(Mapping[str, float], probability_sources[market])
+                if isinstance(probability_sources[market], Mapping)
+                else {},
+                home_mu=home_mu,
+                away_mu=away_mu,
+                feature_as_of=feature_as_of,
+                train_cutoff=self._first_text(
+                    r4_1_payload.get("train_cutoff"),
+                    pricing_shadow.get("train_cutoff"),
+                ),
+                artifact_hash=self._first_text(pricing_shadow.get("artifact_hash")) or None,
+                artifact_version=self._first_text(pricing_shadow.get("artifact_version")) or None,
+                fallback_reason=str(fallback_reason) if fallback_reason else None,
+            )
+            estimates.append(estimate.as_dict())
+        card["fair_market_estimates"] = estimates
 
     def _r4_1_payload_for_card(
         self,
@@ -3816,7 +3936,9 @@ class ReadModelService:
     ) -> dict[str, Any]:
         explicit_payload = _r4_1_calibrated_payload(card, pricing_shadow)
         if explicit_payload:
-            return explicit_payload
+            if self._r4_1_cutoff_before_fixture(card, explicit_payload.get("train_cutoff")):
+                return explicit_payload
+            return {"fallback_reason": "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"}
         competition_id = str(card.get("competition_id") or "")
         invalid_reason = self._r4_1_artifact_invalid_reasons.get(competition_id)
         if invalid_reason:
@@ -3824,6 +3946,8 @@ class ReadModelService:
         artifact = self._r4_1_artifacts.get(competition_id)
         if artifact is None:
             return {}
+        if not self._r4_1_cutoff_before_fixture(card, artifact.train_cutoff_utc):
+            return {"fallback_reason": "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"}
         rows = self._r4_1_feature_rows_for_card(card, artifact)
         if rows is None:
             return {"fallback_reason": "R4_1_FEATURE_HISTORY_INSUFFICIENT"}
@@ -3833,6 +3957,15 @@ class ReadModelService:
             home_row=home_row,
             away_row=away_row,
         )
+
+    def _r4_1_cutoff_before_fixture(self, card: Mapping[str, Any], value: Any) -> bool:
+        kickoff = _parse_utc_text(card.get("kickoff_utc"))
+        cutoff: datetime | None
+        if isinstance(value, datetime):
+            cutoff = value.astimezone(UTC)
+        else:
+            cutoff = _parse_utc_text(value)
+        return kickoff is not None and cutoff is not None and cutoff < kickoff
 
     def _r4_1_feature_rows_for_card(
         self,
@@ -3914,9 +4047,7 @@ class ReadModelService:
             pricing_shadow["materialized_market_ah"] = materialized_line
             pricing_shadow["selector_market_ah"] = selector_line
             pricing_shadow["mainline_materialization_status"] = "STALE"
-            pricing_shadow["mainline_materialization_blocker"] = (
-                AH_MAINLINE_STALE_MATERIALIZATION
-            )
+            pricing_shadow["mainline_materialization_blocker"] = AH_MAINLINE_STALE_MATERIALIZATION
         elif materialized_line is not None:
             pricing_shadow["mainline_materialization_status"] = "READY"
         if not overwrite_materialized:
@@ -3938,9 +4069,7 @@ class ReadModelService:
         if not isinstance(ah, dict):
             return
         shadow = card.get("pricing_shadow")
-        market_ah = (
-            self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
-        )
+        market_ah = self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
         raw_home_line = self._snapshot_float(ah, "home_line")
         canonical_home_line = market_ah if market_ah is not None else raw_home_line
         if canonical_home_line is None:
@@ -4125,6 +4254,7 @@ class ReadModelService:
         home_name = str(item.get("home_team_name") or item.get("home_cn") or "主队")
         away_name = str(item.get("away_team_name") or item.get("away_cn") or "客队")
         return {
+            "competition_id": item.get("competition_id"),
             "kickoff_utc": item.get("kickoff_utc"),
             "competition_name": competition,
             "competition_cn": competition_cn,
@@ -4146,6 +4276,7 @@ class ReadModelService:
         home_name = str(home.get("name") or "主队")
         away_name = str(away.get("name") or "客队")
         return {
+            "competition_id": self._competition_id_from_provider_fixture(item),
             "kickoff_utc": fixture.get("date"),
             "competition_name": competition,
             "competition_cn": competition_cn,
@@ -4270,9 +4401,7 @@ class ReadModelService:
                     "market": str(observation.get("canonical_market")),
                     "selection": str(observation.get("selection")),
                     "line": (
-                        None
-                        if observation.get("line") is None
-                        else str(observation.get("line"))
+                        None if observation.get("line") is None else str(observation.get("line"))
                     ),
                     "decimal_odds": str(observation.get("decimal_odds")),
                     "bookmaker_count": 1,
@@ -4673,8 +4802,7 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         filtered.sort(
-            key=lambda row: self._row_kickoff_utc(row)
-            or datetime.max.replace(tzinfo=UTC)
+            key=lambda row: self._row_kickoff_utc(row) or datetime.max.replace(tzinfo=UTC)
         )
         return filtered[:limit]
 
@@ -4791,11 +4919,7 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
-        markets = [
-            item
-            for item in card.get("markets", [])
-            if isinstance(item, dict)
-        ]
+        markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
         picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
@@ -4982,9 +5106,7 @@ class ReadModelService:
     ) -> dict[str, Any]:
         raw_data_readiness = card.get("data_readiness")
         data_readiness: dict[str, Any] = (
-            cast(dict[str, Any], raw_data_readiness)
-            if isinstance(raw_data_readiness, dict)
-            else {}
+            cast(dict[str, Any], raw_data_readiness) if isinstance(raw_data_readiness, dict) else {}
         )
         raw_available_inputs = readiness.get("available_inputs")
         available_inputs: dict[str, Any] = (
@@ -5164,18 +5286,20 @@ class ReadModelService:
         include_debug: bool,
     ) -> dict[str, Any]:
         cards = [
-            item
-            for item in seed.get("all", seed.get("upcoming", []))
-            if isinstance(item, dict)
+            item for item in seed.get("all", seed.get("upcoming", [])) if isinstance(item, dict)
         ]
-        debug = {
-            **counts,
-            "selected_date": requested_date.isoformat(),
-            "selected_date_has_data": bool(cards),
-            "next_available_date": requested_date.isoformat() if cards else None,
-            "empty_reason": None if cards else "STAGING_SEED_EMPTY",
-            "suggested_actions": ["staging seed is active; run live ingestion for real data"],
-        } if include_debug else {}
+        debug = (
+            {
+                **counts,
+                "selected_date": requested_date.isoformat(),
+                "selected_date_has_data": bool(cards),
+                "next_available_date": requested_date.isoformat() if cards else None,
+                "empty_reason": None if cards else "STAGING_SEED_EMPTY",
+                "suggested_actions": ["staging seed is active; run live ingestion for real data"],
+            }
+            if include_debug
+            else {}
+        )
         return {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),

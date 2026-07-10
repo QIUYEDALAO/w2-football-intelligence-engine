@@ -130,17 +130,21 @@ def test_readiness_status_mapping_is_not_optimistic() -> None:
     }
     assert _fields(market=ready_market, readiness={"status": "READY", "blockers": []})[
         "data_status"
-    ] == (
-        DataStatus.READY.value
+    ] == (DataStatus.READY.value)
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+        )["data_status"]
+        == DataStatus.PARTIAL.value
     )
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
-    )["data_status"] == DataStatus.PARTIAL.value
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
-    )["data_status"] == DataStatus.STALE.value
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+        )["data_status"]
+        == DataStatus.STALE.value
+    )
 
 
 def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
@@ -604,3 +608,135 @@ def test_data_gate_fields_pass_through_decision_contract() -> None:
     assert fields["decision_contract"]["data_readiness"]["source"] == (  # type: ignore[index]
         "w2.readiness.data_gate.v1"
     )
+
+
+def test_analysis_gate_lineups_are_advisory_when_ah_is_eligible(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    fields = _fields(
+        card=_selective_card(direction_allowed={"ASIAN_HANDICAP": True}),
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME_AH",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["analysis_gate"]["status"] == "ELIGIBLE"  # type: ignore[index]
+    assert fields["analysis_gate"]["advisories"] == ["LINEUPS_PENDING"]  # type: ignore[index]
+    assert fields["pick"]["selection"] == "HOME_AH"  # type: ignore[index]
+
+
+def test_analysis_gate_eligible_signal_promotes_legacy_watch(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    fields = _fields(
+        card=_selective_card(direction_allowed={"ASIAN_HANDICAP": True}),
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "WATCH",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["outcome_tracked"] is True
+    assert fields["lock_eligible"] is False
+
+
+def test_analysis_gate_model_missing_beats_lineup_reason(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": False})
+    card["fair_market_estimates"][0]["status"] = "INSUFFICIENT"  # type: ignore[index]
+    card["fair_market_estimates"][0]["fair_line"] = None  # type: ignore[index]
+    card["fair_market_estimates"][1]["status"] = "INSUFFICIENT"  # type: ignore[index]
+    card["fair_market_estimates"][1]["fair_line"] = None  # type: ignore[index]
+
+    fields = _fields(
+        card=card,
+        market={"market": "ASIAN_HANDICAP", "decision": "PICK", "line": "-0.25", "odds": "1.95"},
+        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["reason_code"] == DecisionReasonCode.MODEL_FAIR_LINE_UNAVAILABLE.value
+    assert fields["analysis_gate"]["status"] == "BLOCKED"  # type: ignore[index]
+
+
+def test_analysis_gate_no_edge_and_evidence_accumulating_are_distinct(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    no_edge = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    no_edge["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
+    accumulating = _selective_card(direction_allowed={"ASIAN_HANDICAP": False})
+    market = {"market": "ASIAN_HANDICAP", "decision": "PICK", "line": "-0.25", "odds": "1.95"}
+
+    no_edge_fields = _fields(
+        card=no_edge, market=market, readiness={"status": "READY", "blockers": []}
+    )
+    accumulating_fields = _fields(
+        card=accumulating,
+        market=market,
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert no_edge_fields["reason_code"] == DecisionReasonCode.NO_EDGE.value
+    assert accumulating_fields["reason_code"] == (
+        DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value
+    )
+    assert accumulating_fields["analysis_gate"]["market"] == "ASIAN_HANDICAP"  # type: ignore[index]
+
+
+def test_analysis_gate_direction_release_is_isolated_by_market(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(
+        direction_allowed={"ASIAN_HANDICAP": False, "TOTALS": True},
+    )
+    card["fair_market_estimates"][1]["fair_line"] = 3.0  # type: ignore[index]
+
+    fields = _fields(
+        card=card,
+        market={"market": "ASIAN_HANDICAP", "decision": "PICK", "line": "-0.25", "odds": "1.80"},
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["analysis_gate"]["market"] == "TOTALS"  # type: ignore[index]
+    assert fields["pick"]["selection"] == "OVER"  # type: ignore[index]
+    assert fields["pick"]["line"] == "2.5"  # type: ignore[index]
+    assert fields["pick"]["odds"] == "1.95"  # type: ignore[index]
+
+
+def _selective_card(*, direction_allowed: dict[str, bool]) -> dict[str, object]:
+    return {
+        "source": "unit",
+        "probability_source": "MARKET_DEVIG",
+        "data_readiness": {"lineups": False},
+        "direction_allowed_by_market": direction_allowed,
+        "current_odds": {
+            "ah": {
+                "home_line": "-0.25",
+                "away_line": "+0.25",
+                "home_price": "1.95",
+                "away_price": "1.95",
+            },
+            "ou": {"line": "2.5", "over_price": "1.95", "under_price": "1.95"},
+        },
+        "fair_market_estimates": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "fair_line": -0.75,
+            },
+            {
+                "market": "TOTALS",
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "fair_line": 2.5,
+            },
+        ],
+    }

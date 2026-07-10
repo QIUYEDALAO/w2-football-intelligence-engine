@@ -17,8 +17,7 @@ from w2.models.r4_1_artifacts import build_r4_1_artifact_payload
 def test_r4_1b_adopts_only_reviewed_league_champions() -> None:
     assert divergence_model_family_for("bundesliga") == DivergenceModelFamily.R4_1_CALIBRATED
     assert (
-        divergence_model_family_for("chinese_super_league")
-        == DivergenceModelFamily.R4_1_CALIBRATED
+        divergence_model_family_for("chinese_super_league") == DivergenceModelFamily.R4_1_CALIBRATED
     )
     assert divergence_model_family_for("allsvenskan") == DivergenceModelFamily.R4_1_CALIBRATED
 
@@ -28,6 +27,16 @@ def test_r4_1b_adopts_only_reviewed_league_champions() -> None:
     )
     assert divergence_model_family_for("premier_league") == DivergenceModelFamily.FITTED_CALIBRATED
     assert divergence_model_family_for(None) == DivergenceModelFamily.FITTED_CALIBRATED
+
+
+def test_repository_resolves_provider_league_for_initial_selective_scope() -> None:
+    service = ReadModelService()
+
+    assert service._competition_id_from_provider_fixture({"league": {"id": 103}}) == ("eliteserien")
+    assert service._competition_id_from_provider_fixture({"league": {"id": 113}}) == ("allsvenskan")
+    assert service._competition_id_from_provider_fixture({"league": {"id": 169}}) == (
+        "chinese_super_league"
+    )
 
 
 def test_brasileirao_guard_stays_off_r4_1_after_failed_eval() -> None:
@@ -92,6 +101,7 @@ def test_repository_divergence_uses_r4_1_champion_when_artifact_available(
     card["r4_1_calibrated"] = {
         "probabilities": {"HOME": 0.52, "DRAW": 0.25, "AWAY": 0.23},
         "fair_ah": -1.0,
+        "train_cutoff": "2026-01-01T00:00:00Z",
     }
 
     service._attach_market_movement_fields(card)
@@ -153,6 +163,33 @@ def test_repository_divergence_falls_back_when_r4_1_history_is_insufficient(
     )
 
 
+def test_repository_divergence_rejects_artifact_trained_after_fixture(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    _write_artifact(tmp_path, "allsvenskan")
+    service = ReadModelService(r4_1_artifact_root=tmp_path)
+    monkeypatch.setattr(service, "_market_timeline_payload", lambda _fixture_id: _timeline())
+    card = _card("allsvenskan")
+    card["kickoff_utc"] = "2025-12-01T00:00:00Z"
+    card["r4_1_feature_rows"] = {
+        "home": [1.0, 1.0, 1.2, 1.1, 0.15, 1.0],
+        "away": [1.0, 0.0, 0.9, 1.0, -0.15, 0.0],
+    }
+
+    service._attach_market_movement_fields(card)
+
+    assert card["pricing_shadow"]["model_family"] == "FITTED_CALIBRATED"
+    assert card["pricing_shadow"]["model_family_fallback_reason"] == (
+        "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"
+    )
+    assert card["market_divergence"]["model_family"] == "FITTED_CALIBRATED"
+    assert (
+        card["market_divergence"]["model_family_fallback_reason"]
+        == "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"
+    )
+
+
 def test_repository_divergence_falls_back_when_r4_1_artifact_hash_is_invalid(
     monkeypatch: Any,
     tmp_path: Path,
@@ -171,10 +208,7 @@ def test_repository_divergence_falls_back_when_r4_1_artifact_hash_is_invalid(
     service._attach_market_movement_fields(card)
 
     assert card["pricing_shadow"]["model_family"] == "FITTED_CALIBRATED"
-    assert (
-        card["pricing_shadow"]["model_family_fallback_reason"]
-        == "R4_1_ARTIFACT_INVALID"
-    )
+    assert card["pricing_shadow"]["model_family_fallback_reason"] == "R4_1_ARTIFACT_INVALID"
     assert card["market_divergence"]["direction_allowed"] is False
 
 
@@ -189,15 +223,9 @@ def test_repository_divergence_falls_back_when_r4_1_artifact_missing(
     service._attach_market_movement_fields(card)
 
     assert card["pricing_shadow"]["model_family"] == "FITTED_CALIBRATED"
-    assert (
-        card["pricing_shadow"]["model_family_fallback_reason"]
-        == "R4_1_PROBABILITIES_MISSING"
-    )
+    assert card["pricing_shadow"]["model_family_fallback_reason"] == "R4_1_PROBABILITIES_MISSING"
     assert card["market_divergence"]["model_family"] == "FITTED_CALIBRATED"
-    assert (
-        card["market_divergence"]["model_family_fallback_reason"]
-        == "R4_1_PROBABILITIES_MISSING"
-    )
+    assert card["market_divergence"]["model_family_fallback_reason"] == "R4_1_PROBABILITIES_MISSING"
     assert card["pricing_shadow"]["fair_ah"] == -0.25
     assert card["market_divergence"]["direction_allowed"] is False
 
@@ -211,6 +239,7 @@ def test_repository_divergence_keeps_premier_league_on_fitted(
     card["r4_1_calibrated"] = {
         "probabilities": {"HOME": 0.52, "DRAW": 0.25, "AWAY": 0.23},
         "fair_ah": -1.0,
+        "train_cutoff": "2026-01-01T00:00:00Z",
     }
 
     service._attach_market_movement_fields(card)
@@ -221,9 +250,37 @@ def test_repository_divergence_keeps_premier_league_on_fitted(
     assert card["pricing_shadow"]["fair_ah"] == -0.25
 
 
+def test_fitted_serving_derives_ah_and_totals_from_one_score_distribution() -> None:
+    service = ReadModelService()
+    card: dict[str, Any] = {
+        "simulation": {
+            "lambda_home": 1.55,
+            "lambda_away": 1.05,
+            "ah_probabilities": {"HOME": 0.1, "AWAY": 0.9},
+            "ou_probabilities": {"OVER": 0.1, "UNDER": 0.9},
+        },
+        "data_readiness": {"statistics_captured_at": "2026-07-09T00:00:00Z"},
+    }
+    pricing_shadow: dict[str, Any] = {
+        "model_family": "FITTED_CALIBRATED",
+        "market_ah": -0.5,
+        "market_ou": 2.5,
+    }
+
+    service._attach_fair_market_estimates(card, pricing_shadow, {})
+
+    estimates = card["fair_market_estimates"]
+    assert {item["market"] for item in estimates} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(item["status"] == "READY" for item in estimates)
+    assert all(float(item["fair_line"]) * 4 % 1 == 0 for item in estimates)
+    assert pricing_shadow["fair_ah"] == estimates[0]["fair_line"]
+    assert pricing_shadow["fair_ou"] == estimates[1]["fair_line"]
+
+
 def _card(competition_id: str) -> dict[str, Any]:
     return {
         "fixture_id": "fixture-1",
+        "kickoff_utc": "2026-07-08T12:00:00Z",
         "competition_id": competition_id,
         "home_name": "Home",
         "away_name": "Away",

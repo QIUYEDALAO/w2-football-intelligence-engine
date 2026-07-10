@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from w2.models.dixon_coles import one_x_two_from_matrix, tau_correction
+from w2.models.fair_market_estimate import fair_lines_from_lambdas
 from w2.models.independent import AsOfFeatureBuilder, MatchRecord
 
 R4_1_WINDOW_MATCHES = 8
@@ -33,6 +34,9 @@ class R4_1LambdaModel:
 class R4_1Prediction:
     probabilities: dict[str, float]
     fair_ah: float
+    fair_ou: float
+    ah_probabilities: dict[str, float]
+    ou_probabilities: dict[str, float]
     home_mu: float
     away_mu: float
 
@@ -122,6 +126,25 @@ def r4_1_strength_features(
     home_against = _mean([item[1] for item in home_recent], default=league_against)
     away_for = _mean([item[0] for item in away_recent], default=league_for)
     away_against = _mean([item[1] for item in away_recent], default=league_against)
+    return r4_1_strength_features_from_rolling(
+        home_for=home_for,
+        home_against=home_against,
+        away_for=away_for,
+        away_against=away_against,
+        league_for=league_for,
+        league_against=league_against,
+    )
+
+
+def r4_1_strength_features_from_rolling(
+    *,
+    home_for: float,
+    home_against: float,
+    away_for: float,
+    away_against: float,
+    league_for: float = 1.25,
+    league_against: float = 1.25,
+) -> dict[str, float]:
     home_attack = home_for * _safe_ratio(away_against, league_against)
     away_attack = away_for * _safe_ratio(home_against, league_against)
     home_defence = home_against * _safe_ratio(away_for, league_for)
@@ -214,8 +237,7 @@ def r4_1_feature_rows(
     features = sample.true_features
     elo_gap = float(features["elo_diff"]) / 400.0
     league_home = [
-        1.0 if fixture.competition_id == competition else 0.0
-        for competition in competitions
+        1.0 if fixture.competition_id == competition else 0.0 for competition in competitions
     ]
     home_row = [
         1.0,
@@ -333,6 +355,9 @@ def r4_1_prediction_from_feature_rows(
     return R4_1Prediction(
         probabilities=temperature_scale_probabilities(raw.probabilities, temperature=temperature),
         fair_ah=raw.fair_ah,
+        fair_ou=raw.fair_ou,
+        ah_probabilities=raw.ah_probabilities,
+        ou_probabilities=raw.ou_probabilities,
         home_mu=raw.home_mu,
         away_mu=raw.away_mu,
     )
@@ -340,9 +365,17 @@ def r4_1_prediction_from_feature_rows(
 
 def r4_1_prediction_from_lambdas(*, home_mu: float, away_mu: float, rho: float) -> R4_1Prediction:
     probabilities = dc_one_x_two(home_mu, away_mu, rho)
+    fair_ah, fair_ou, ah_probabilities, ou_probabilities = fair_lines_from_lambdas(
+        home_mu=home_mu,
+        away_mu=away_mu,
+        rho=rho,
+    )
     return R4_1Prediction(
         probabilities=probabilities,
-        fair_ah=round(_clamp(away_mu - home_mu, -3.0, 3.0), 6),
+        fair_ah=fair_ah,
+        fair_ou=fair_ou,
+        ah_probabilities=ah_probabilities,
+        ou_probabilities=ou_probabilities,
         home_mu=home_mu,
         away_mu=away_mu,
     )
@@ -354,8 +387,7 @@ def temperature_scale_probabilities(
     temperature: float,
 ) -> dict[str, float]:
     adjusted = {
-        key: max(float(value), 1e-12) ** (1.0 / temperature)
-        for key, value in probabilities.items()
+        key: max(float(value), 1e-12) ** (1.0 / temperature) for key, value in probabilities.items()
     }
     total = sum(adjusted.values())
     if total <= 0:

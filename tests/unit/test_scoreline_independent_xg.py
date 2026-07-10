@@ -140,9 +140,7 @@ class LegacyEmbeddedScorelineRepository(FutureFixtureRepository):
                             "market": "SCORE",
                             "decision": "ANALYSIS_PICK",
                             "score_card": {
-                                "scenarios": [
-                                    {"scoreline": "1-0", "conditional_probability": 0.2}
-                                ]
+                                "scenarios": [{"scoreline": "1-0", "conditional_probability": 0.2}]
                             },
                         }
                     ],
@@ -203,7 +201,11 @@ def test_xg_ready_emits_scoreline_readiness_and_dashboard_picks(
     assert card["scoreline_readiness"]["status"] == "READY"
     assert card["scoreline_readiness"]["source"] == "independent_xg_poisson"
     assert card["scoreline_readiness"]["lambda_home"] > card["scoreline_readiness"]["lambda_away"]
-    assert card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    totals_estimate = next(
+        item for item in card["fair_market_estimates"] if item["market"] == "TOTALS"
+    )
+    assert card["pricing_shadow"]["fair_ou"] == totals_estimate["fair_line"]
+    assert card["pricing_shadow"]["fair_ou"] * 4 % 1 == 0
     assert card["pricing_shadow"]["beats_market"] is False
     assert card["formal_recommendation"] is False
     assert card["candidate"] is False
@@ -275,9 +277,16 @@ def test_legacy_embedded_scoreline_card_is_refreshed_for_readiness(
     assert card is not None
     assert card["scoreline_readiness"]["status"] == "READY"
     assert card["scoreline_readiness"]["source"] == "independent_xg_poisson"
-    assert card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    totals_estimate = next(
+        item for item in card["fair_market_estimates"] if item["market"] == "TOTALS"
+    )
+    assert card["pricing_shadow"]["fair_ou"] == totals_estimate["fair_line"]
+    assert card["pricing_shadow"]["fair_ou"] * 4 % 1 == 0
 
     target_date = KICKOFF.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
     dashboard_card = service.dashboard(target_date=target_date, window="next36")["all"][0]
     assert dashboard_card["scoreline_readiness"]["status"] == "READY"
-    assert dashboard_card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    dashboard_totals = next(
+        item for item in dashboard_card["fair_market_estimates"] if item["market"] == "TOTALS"
+    )
+    assert dashboard_card["pricing_shadow"]["fair_ou"] == dashboard_totals["fair_line"]
