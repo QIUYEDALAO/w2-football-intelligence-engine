@@ -52,6 +52,7 @@ from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
+from w2.features.league_snapshot import build_league_feature_pair
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
@@ -95,7 +96,7 @@ from w2.models.r4_1_artifacts import (
     predict_r4_1_from_artifact,
     r4_1_artifact_dir,
 )
-from w2.models.r4_1_features import r4_1_strength_features_from_rolling
+from w2.models.r4_1_features import r4_1_feature_rows_from_values
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -1883,14 +1884,23 @@ class ReadModelService:
         payload["scoreline_readiness"] = scoreline_readiness
         r4_1_rows = self._serving_r4_1_feature_rows(
             competition_id=competition_id,
+            kickoff=kickoff,
             neutral_site=neutral_site,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            snapshots=snapshots,
             home_xg=latest_home_xg,
             away_xg=latest_away_xg,
             home_rating=latest_home_rating,
             away_rating=latest_away_rating,
+            home_value=latest_home_value,
+            away_value=latest_away_value,
+            home_history=home_history,
+            away_history=away_history,
         )
         if r4_1_rows is not None:
             payload["r4_1_feature_rows"] = r4_1_rows
+            payload["league_feature_snapshots"] = r4_1_rows["snapshots"]
         self._apply_mainline_market_selection(payload, mainline_selection)
         payload.update(
             self._analysis_input_summary(
@@ -1929,41 +1939,97 @@ class ReadModelService:
         self,
         *,
         competition_id: str,
+        kickoff: datetime,
         neutral_site: bool,
+        home_team_id: str,
+        away_team_id: str,
+        snapshots: list[dict[str, Any]],
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
         home_rating: TeamRatingSnapshot | None,
         away_rating: TeamRatingSnapshot | None,
-    ) -> dict[str, list[float]] | None:
-        if competition_id not in self._r4_1_artifacts:
+        home_value: TeamValueSnapshot | None,
+        away_value: TeamValueSnapshot | None,
+        home_history: list[TeamMatchHistory],
+        away_history: list[TeamMatchHistory],
+    ) -> dict[str, Any] | None:
+        artifact = self._r4_1_artifacts.get(competition_id)
+        if artifact is None:
             return None
         if home_xg is None or away_xg is None or home_rating is None or away_rating is None:
             return None
-        features = r4_1_strength_features_from_rolling(
-            home_for=home_xg.xg_for,
-            home_against=home_xg.xg_against,
-            away_for=away_xg.xg_for,
-            away_against=away_xg.xg_against,
+        home_raw = self._latest_team_xg_snapshot_row(snapshots, home_team_id)
+        away_raw = self._latest_team_xg_snapshot_row(snapshots, away_team_id)
+        feature_pair = build_league_feature_pair(
+            competition_id=competition_id,
+            kickoff_utc=kickoff,
+            home_xg=home_xg,
+            away_xg=away_xg,
+            home_rating=home_rating,
+            away_rating=away_rating,
+            home_value=home_value,
+            away_value=away_value,
+            home_sample_count=self._int_or_none(home_raw.get("match_count")) or 0,
+            away_sample_count=self._int_or_none(away_raw.get("match_count")) or 0,
+            home_rolling_goals_for=_float_or_none(home_raw.get("rolling_goals_for")),
+            home_rolling_goals_against=_float_or_none(home_raw.get("rolling_goals_against")),
+            away_rolling_goals_for=_float_or_none(away_raw.get("rolling_goals_for")),
+            away_rolling_goals_against=_float_or_none(away_raw.get("rolling_goals_against")),
+            home_rest_days=self._rest_days_before_kickoff(home_history, kickoff),
+            away_rest_days=self._rest_days_before_kickoff(away_history, kickoff),
         )
-        elo_gap = (home_rating.elo - away_rating.elo) / 400.0
+        if feature_pair is None:
+            return None
+        home_snapshot, away_snapshot = feature_pair
+        home_row, away_row = r4_1_feature_rows_from_values(
+            competition_id=competition_id,
+            neutral_site=neutral_site,
+            home_attack_strength=home_snapshot.opponent_adjusted_strength,
+            home_defence_strength=home_snapshot.opponent_adjusted_defence,
+            away_attack_strength=away_snapshot.opponent_adjusted_strength,
+            away_defence_strength=away_snapshot.opponent_adjusted_defence,
+            elo_gap=(home_rating.elo - away_rating.elo) / 400.0,
+            feature_names=artifact.feature_names,
+        )
         return {
-            "home": [
-                1.0,
-                0.0 if neutral_site else 1.0,
-                features["home_attack_strength"],
-                features["away_defence_strength"],
-                elo_gap,
-                1.0,
-            ],
-            "away": [
-                1.0,
-                0.0,
-                features["away_attack_strength"],
-                features["home_defence_strength"],
-                -elo_gap,
-                0.0,
-            ],
+            "home": home_row,
+            "away": away_row,
+            "feature_names": list(artifact.feature_names),
+            "feature_as_of": max(
+                home_snapshot.feature_as_of,
+                away_snapshot.feature_as_of,
+            )
+            .astimezone(UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "snapshots": {
+                "home": home_snapshot.as_dict(),
+                "away": away_snapshot.as_dict(),
+            },
         }
+
+    def _latest_team_xg_snapshot_row(
+        self,
+        snapshots: list[dict[str, Any]],
+        team_id: str,
+    ) -> dict[str, Any]:
+        rows = [row for row in snapshots if str(row.get("team_id") or "") == team_id]
+        return max(
+            rows,
+            key=lambda row: parse_provider_time(row.get("as_of_time"))
+            or datetime.min.replace(tzinfo=UTC),
+            default={},
+        )
+
+    def _rest_days_before_kickoff(
+        self,
+        history: list[TeamMatchHistory],
+        kickoff: datetime,
+    ) -> float | None:
+        eligible = [row.kickoff_at for row in history if row.kickoff_at < kickoff]
+        if not eligible:
+            return None
+        return round((kickoff - max(eligible)).total_seconds() / 86400.0, 4)
 
     def _mainline_market_selection(
         self,
@@ -3872,7 +3938,10 @@ class ReadModelService:
         simulation_payload = simulation if isinstance(simulation, Mapping) else {}
         data_readiness = card.get("data_readiness")
         data_readiness = data_readiness if isinstance(data_readiness, Mapping) else {}
+        r4_1_features = card.get("r4_1_feature_rows")
+        r4_1_features = r4_1_features if isinstance(r4_1_features, Mapping) else {}
         feature_as_of = self._first_text(
+            r4_1_features.get("feature_as_of"),
             data_readiness.get("statistics_captured_at"),
             data_readiness.get("xg_captured_at"),
         )

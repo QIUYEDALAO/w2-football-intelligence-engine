@@ -236,26 +236,62 @@ def r4_1_feature_rows(
     fixture = sample.fixture
     features = sample.true_features
     elo_gap = float(features["elo_diff"]) / 400.0
-    league_home = [
-        1.0 if fixture.competition_id == competition else 0.0 for competition in competitions
+    feature_names = (
+        *R4_1_FEATURE_NAMES_BASE,
+        *(f"home_field__{competition}" for competition in competitions),
+    )
+    return r4_1_feature_rows_from_values(
+        competition_id=str(fixture.competition_id),
+        neutral_site=not bool(features["home_field"]),
+        home_attack_strength=float(features["home_attack_strength"]),
+        home_defence_strength=float(features["home_defence_strength"]),
+        away_attack_strength=float(features["away_attack_strength"]),
+        away_defence_strength=float(features["away_defence_strength"]),
+        elo_gap=elo_gap,
+        feature_names=feature_names,
+    )
+
+
+def r4_1_feature_rows_from_values(
+    *,
+    competition_id: str,
+    neutral_site: bool,
+    home_attack_strength: float,
+    home_defence_strength: float,
+    away_attack_strength: float,
+    away_defence_strength: float,
+    elo_gap: float,
+    feature_names: Sequence[str],
+) -> tuple[list[float], list[float]]:
+    home_values = {
+        "intercept": 1.0,
+        "home_field": 0.0 if neutral_site else 1.0,
+        "attack_xg_for": home_attack_strength,
+        "opponent_xg_against": away_defence_strength,
+        "elo_gap": elo_gap,
+    }
+    away_values = {
+        "intercept": 1.0,
+        "home_field": 0.0,
+        "attack_xg_for": away_attack_strength,
+        "opponent_xg_against": home_defence_strength,
+        "elo_gap": -elo_gap,
+    }
+    for name in feature_names:
+        if name.startswith("home_field__"):
+            home_values[name] = (
+                0.0 if neutral_site else float(name == f"home_field__{competition_id}")
+            )
+            away_values[name] = 0.0
+    unsupported = [
+        name for name in feature_names if name not in home_values or name not in away_values
     ]
-    home_row = [
-        1.0,
-        float(features["home_field"]),
-        float(features["home_attack_strength"]),
-        float(features["away_defence_strength"]),
-        elo_gap,
-        *league_home,
-    ]
-    away_row = [
-        1.0,
-        0.0,
-        float(features["away_attack_strength"]),
-        float(features["home_defence_strength"]),
-        -elo_gap,
-        *([0.0] * len(competitions)),
-    ]
-    return home_row, away_row
+    if unsupported:
+        raise ValueError(f"unsupported R4.1 feature names: {','.join(unsupported)}")
+    return (
+        [float(home_values[name]) for name in feature_names],
+        [float(away_values[name]) for name in feature_names],
+    )
 
 
 def fit_r4_1_rho(

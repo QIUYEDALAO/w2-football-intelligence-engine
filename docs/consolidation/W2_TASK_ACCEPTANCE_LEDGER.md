@@ -456,3 +456,11 @@
 - 状态只允许 `BLOCKED/TECHNICALLY_READY/ACCUMULATING/ELIGIBLE_FOR_REVIEW`；无脱敏 evidence 输入时 13 联赛 26 个市场全部 fail closed 为 `BLOCKED`，不会猜测或制造可用结论。
 - Data Readiness 接缝修正：`pricing_shadow.factors` 已存在且状态为 READY 的 `F7_STRENGTH_FORM` 与 `F8_SQUAD_VALUE` 不再同时被误报为缺 ratings/team_value。
 - 本阶段安全口径：`provider_calls=0`、`db_reads=0`、`db_writes=0`、未部署、未 enable、`direction_allowed_changes=[]`、未改 EV/RECOMMEND/lock、未提交 runtime/raw/key/header。
+
+### V3 进展续26 · 十三联赛 readiness 合入与统一特征快照(2026-07-11)
+
+- #227 已合并 main `5aeef99840ce4dbbf5abc9492d116375cd615c90`，13 联赛 x AH/OU 的 26 行只读 readiness 真相矩阵进入主线；main CI 全绿，本次仍未部署。
+- 第 3 阶段在 `codex/w2-league-feature-snapshot` 启动统一 `LeagueFeatureSnapshot`：固定 competition/team/as-of、滚动 xG/进球、对手调整强度、Elo、身价、休息天数、样本量、source/freshness，并把快照 provenance 透传到 serving 卡片。
+- 已定位中超/瑞典超 `R4_1_FEATURE_HISTORY_INSUFFICIENT` 的关键接缝：pooled R4.1 artifact 实际含 11 维系数，旧 serving 却硬编码 6 维向量，导致已有输入仍在 artifact 长度校验处 fail closed。
+- offline eval 与 serving 现共用按 artifact `feature_names` 组装向量的单一实现；任意联赛 dummy 维度由 artifact 决定，不重训已验收 artifact。目标场开球后的特征时间戳会被拒绝，目标场结果和 closing odds 不进入输入。
+- 当前阶段只交付契约和 serving 接缝；本地缓存缺口、provider backfill、staging 部署均保留为后续独立审批动作。`provider_calls=0`、`db_reads=0`、`db_writes=0`、未 deploy/enable、未改 direction_allowed/EV/RECOMMEND/lock。
