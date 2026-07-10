@@ -155,9 +155,9 @@ DecisionCard {
 
 ## 分歧雷达放行规则（预注册，2026-07-10 修订）
 
-市场锚定期允许记录 `shadow_pick`，用于积累模型相对市场的方向证据；`shadow_pick` 必须标记 `not_a_recommendation=true`、`not_displayed=true`，不得作为展示推荐、可锁推荐、命中率或 production 动作依据。真实展示层的 `direction_allowed` 默认保持 false。
+市场锚定期允许记录 `shadow_pick`，用于积累模型相对市场的方向证据。自 2026-07-11 起，老板取消「满 100 个前向样本才能展示 `ANALYSIS_PICK`」的前置门：staging 中只要市场盘口完整、验证模型 fair line 可用且线差至少 `0.25`，即可展示 `ANALYSIS_PICK`，并强制标记「分析参考·非稳赢·前向验证中」。`direction_allowed/evidence_ready` 继续记录证据成熟度，但不再阻塞 staging 分析推荐；production 仍 fail closed。
 
-每个“联赛 + 市场（AH / TOTALS）”满足以下全部条件，方可经**单独批准 PR** 将对应市场的 `direction_allowed` 置 true。放行必须按联赛与市场分别实施，禁止全局开关；AH 通过不得自动开放 TOTALS：
+以下条件改为「前向验证成熟度 / 正式升级」门，不再是 staging `ANALYSIS_PICK` 的展示前置。每个“联赛 + 市场（AH / TOTALS）”满足以下全部条件，方可经**单独批准 PR** 进入更高信任层或后续正式放行评审。AH 与 TOTALS 必须分别评估：
 
 1. 不同 fixture 的有效同线 shadow CLV 样本 `>=100`；
 2. 同线 decimal shadow CLV 中位数 `>0`；

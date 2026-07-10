@@ -67,6 +67,7 @@ def build_decision_contract_fields(
         card=card,
         kickoff_utc=kickoff_utc,
         as_of=as_of,
+        environment=environment,
     )
     analysis_gate = _primary_analysis_gate(analysis_gates)
     tier = _market_anchor_display_tier(
@@ -746,6 +747,7 @@ def _analysis_gates(
     card: Mapping[str, Any],
     kickoff_utc: datetime,
     as_of: datetime,
+    environment: str,
 ) -> list[dict[str, Any]]:
     estimates = _fair_market_estimates(card)
     if not estimates:
@@ -766,7 +768,9 @@ def _analysis_gates(
         )
         threshold = MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE
         direction_allowed = _direction_allowed(card, estimate, market)
+        staging_analysis_visible = environment.strip().lower() == "staging"
         blockers: list[str] = []
+        advisories: list[str] = []
         if not market_ready:
             blockers.append("MARKET_UNAVAILABLE")
         if not model_ready:
@@ -774,16 +778,20 @@ def _analysis_gates(
         if market_ready and model_ready and delta is not None and abs(delta) < threshold:
             blockers.append("NO_EDGE")
         if market_ready and model_ready and delta is not None and abs(delta) >= threshold:
-            if not direction_allowed:
+            if not direction_allowed and not staging_analysis_visible:
                 blockers.append("FORWARD_EVIDENCE_ACCUMULATING")
+            elif not direction_allowed:
+                advisories.append("FORWARD_EVIDENCE_ACCUMULATING")
         if not market_ready or not model_ready:
             status = "BLOCKED"
         elif delta is None or abs(delta) < threshold:
             status = "NO_EDGE"
-        elif not direction_allowed:
+        elif not direction_allowed and not staging_analysis_visible:
             status = "ACCUMULATING"
         else:
             status = "ELIGIBLE"
+        if _lineups_pending(card):
+            advisories.append("LINEUPS_PENDING")
         gates.append(
             {
                 "market": market,
@@ -801,7 +809,7 @@ def _analysis_gates(
                 if delta is not None
                 else None,
                 "blockers": blockers,
-                "advisories": ["LINEUPS_PENDING"] if _lineups_pending(card) else [],
+                "advisories": advisories,
                 "next_eval_at": _analysis_next_eval(
                     kickoff_utc=kickoff_utc,
                     as_of=as_of,

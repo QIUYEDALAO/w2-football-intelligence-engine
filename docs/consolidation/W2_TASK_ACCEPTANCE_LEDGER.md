@@ -479,3 +479,20 @@
 - 对当前 staging 的中超/瑞典超/挪超 10 场目标比赛实跑完成：`ready_fixture_count=10/10`、`team_xg_match_count=1053`、`rolling_snapshot_count=20`、`blockers=[]`。
 - 物化结果位于 `/private/tmp/w2_league_feature_materialization_20260711.json`；`provider_calls=0`、`db_reads=0`、`db_writes=0`。该文件不进入 Git。
 - 下一门是独立审批的 staging feature snapshot injection；注入后重建 DayView，真实验收中超/瑞典超卡片 `model_family=R4_1_CALIBRATED`、无 `R4_1_FEATURE_HISTORY_INSUFFICIENT`、fair AH/OU 与 artifact provenance 在场。生产、direction_allowed、EV/RECOMMEND/lock 不动。
+
+### V3 进展续29 · staging 特征快照注入与真实卡片验收(2026-07-11)
+
+- 老板批准 `STAGING_FEATURE_SNAPSHOT_INJECTION`；已将经验证的本地物化结果注入 staging read-model：10 场目标 fixture、20 条 rolling snapshot，`team_xg_match 248 -> 1301`、`rolling_snapshot 47 -> 67`。
+- 真实 DayView 验收 PASS：中超与瑞典超卡片均真实加载 `R4_1_CALIBRATED`，`fallback_reason=null`，AH/OU `FairMarketEstimate=READY`，artifact hash/version/train_cutoff 在场；`R4_1_FEATURE_HISTORY_INSUFFICIENT` 接缝已关闭。
+- 挪超卡片保持 `FITTED_CALIBRATED`，可产生 fair AH/OU；后续仍需按十三联赛计划补齐版本化 artifact/provenance。
+- 当前真实卡片仍为 `WATCH/ACCUMULATING` 或 `NO_EDGE`，原因是 `FORWARD_EVIDENCE_ACCUMULATING`、`direction_allowed=false` 或实际无线差，不是模型或特征读取失败；本轮未开放 ANALYSIS_PICK/RECOMMEND。
+- 注入后仅重启 API 以刷新 read-model；scheduler 容器 ID、created/started 时间和 `unless-stopped` policy 未变。`provider_calls=0`、`production_deploy=false`，未改 `direction_allowed`、EV/RECOMMEND/lock，未提交物化文件、runtime artifact、raw/key/header。
+- 下一队列：继续逐联赛补齐 serving model/artifact，同时让中超/瑞典超按预注册门槛积累真实 shadow closing pair、CLV 和 outcome；达标也只进入 `ELIGIBLE_FOR_REVIEW`，不自动放行。
+
+### V3 进展续30 · 取消 ANALYSIS_PICK 的 100 样本展示前置(2026-07-11)
+
+- 老板明确取消「每联赛每市场满 100 个前向样本才能展示分析推荐」的产品门；原规则导致系统虽然已产生公平盘和方向，老板仍无法看到推荐与赛后验证。
+- 新口径：staging 中 `market_ready=true` + `model_ready=true` + 线差 `>=0.25` 即可输出 `ANALYSIS_PICK`；`evidence_ready/direction_allowed=false` 仍如实保留，并以 `FORWARD_EVIDENCE_ACCUMULATING` advisory 标记「前向验证中」，不再将卡片降级为 WATCH。
+- 不降低选择性：无市场盘、无验证模型、数据 BLOCKED 或线差 `<0.25` 仍为 WATCH/NOT_READY/NO_EDGE；不设每日数量上限，也不为凑数降门槛。
+- `ANALYSIS_PICK` 强制 `outcome_tracked=true`、`lock_eligible=false`、「分析参考·非稳赢·前向验证中」；赛后用真实 outcome/CLV 验证系统价值。
+- 原 100 样本等指标保留为证据成熟度与更高信任层评审，不再是 staging 分析推荐展示前置。production 仍 fail closed，`RECOMMEND`/EV、lock 和 production 全部保持关闭。

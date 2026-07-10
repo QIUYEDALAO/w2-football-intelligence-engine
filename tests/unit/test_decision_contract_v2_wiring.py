@@ -667,7 +667,7 @@ def test_analysis_gate_model_missing_beats_lineup_reason(monkeypatch) -> None:
     assert fields["analysis_gate"]["status"] == "BLOCKED"  # type: ignore[index]
 
 
-def test_analysis_gate_no_edge_and_evidence_accumulating_are_distinct(monkeypatch) -> None:
+def test_analysis_gate_no_edge_and_staging_evidence_accumulation_are_distinct(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     no_edge = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
     no_edge["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
@@ -684,13 +684,38 @@ def test_analysis_gate_no_edge_and_evidence_accumulating_are_distinct(monkeypatc
     )
 
     assert no_edge_fields["reason_code"] == DecisionReasonCode.NO_EDGE.value
-    assert accumulating_fields["reason_code"] == (
-        DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value
+    assert accumulating_fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert accumulating_fields["outcome_tracked"] is True
+    assert accumulating_fields["lock_eligible"] is False
+    assert accumulating_fields["analysis_gate"]["status"] == "ELIGIBLE"  # type: ignore[index]
+    assert accumulating_fields["analysis_gate"]["evidence_ready"] is False  # type: ignore[index]
+    assert accumulating_fields["analysis_gate"]["direction_allowed"] is False  # type: ignore[index]
+    assert DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value in (  # type: ignore[index]
+        accumulating_fields["analysis_gate"]["advisories"]
     )
     assert accumulating_fields["analysis_gate"]["market"] == "ASIAN_HANDICAP"  # type: ignore[index]
 
 
-def test_analysis_gate_direction_release_is_isolated_by_market(monkeypatch) -> None:
+def test_analysis_gate_production_still_requires_forward_evidence(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    fields = _fields(
+        card=_selective_card(direction_allowed={"ASIAN_HANDICAP": False}),
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+        environment="production",
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["analysis_gate"]["status"] == "ACCUMULATING"  # type: ignore[index]
+    assert fields["reason_code"] == DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value
+
+
+def test_analysis_gate_evidence_maturity_is_isolated_but_strongest_market_wins(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     card = _selective_card(
         direction_allowed={"ASIAN_HANDICAP": False, "TOTALS": True},
@@ -704,9 +729,10 @@ def test_analysis_gate_direction_release_is_isolated_by_market(monkeypatch) -> N
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert fields["analysis_gate"]["market"] == "TOTALS"  # type: ignore[index]
-    assert fields["pick"]["selection"] == "OVER"  # type: ignore[index]
-    assert fields["pick"]["line"] == "2.5"  # type: ignore[index]
+    assert fields["analysis_gate"]["market"] == "ASIAN_HANDICAP"  # type: ignore[index]
+    assert fields["analysis_gate"]["evidence_ready"] is False  # type: ignore[index]
+    assert fields["pick"]["selection"] == "HOME_AH"  # type: ignore[index]
+    assert fields["pick"]["line"] == "-0.25"  # type: ignore[index]
     assert fields["pick"]["odds"] == "1.95"  # type: ignore[index]
 
 
