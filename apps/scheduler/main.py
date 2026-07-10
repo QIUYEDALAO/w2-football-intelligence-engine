@@ -58,10 +58,10 @@ def forward_outcome_backfill_enabled() -> bool:
 def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
     raw = os.environ.get(
         "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026"),
+        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a"),
     )
     ids = tuple(item.strip() for item in raw.split(",") if item.strip())
-    return ids or ("world_cup_2026",)
+    return ids or ("brasileirao_serie_a",)
 
 
 def future_fixture_refresh_contract_ready() -> bool:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -22,7 +23,19 @@ OBSERVER_SPEC.loader.exec_module(OBSERVER)
 
 
 def run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=False)
+    env = {
+        **os.environ,
+        "W2_ENVIRONMENT": "staging",
+        "W2_STAGING_ENABLED_COMPETITIONS": "chinese_super_league",
+    }
+    return subprocess.run(
+        args,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
 
 
 def write_json(path: Path, payload: dict[str, object]) -> Path:
@@ -52,7 +65,7 @@ def candidate(
     fixture_id: str,
     kickoff: str = FUTURE_KICKOFF_UTC,
     *,
-    competition_id: str = "world_cup_2026",
+    competition_id: str = "chinese_super_league",
     status: str = "NS",
     reliable: bool = True,
     conflict: bool = False,

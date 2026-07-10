@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
@@ -25,6 +26,15 @@ from apps.worker.celery_app import (
 
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
+
+
+@pytest.fixture(autouse=True)
+def _active_scheduler_competitions(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv(
+        "W2_STAGING_ENABLED_COMPETITIONS",
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+    )
 
 
 def test_celery_ping_task_has_no_business_side_effect() -> None:
@@ -101,7 +111,7 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_key"]).startswith("checkpoint-refresh:world_cup_2026:2026:")
+    assert str(result["task_key"]).startswith("checkpoint-refresh:brasileirao_serie_a:2026:")
     assert result["provider_refresh_min_interval_policy"] == ("REPLACED_BY_PER_FIXTURE_CHECKPOINTS")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
@@ -262,7 +272,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv(
         "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
     )
     monkeypatch.setattr(
         scheduler_main,
@@ -305,10 +315,9 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert result["queued_count"] == 5
-    assert len(sent) == 5
+    assert result["queued_count"] == 4
+    assert len(sent) == 4
     assert {item["kwargs"]["competition_id"] for item in sent} == {
-        "world_cup_2026",
         "brasileirao_serie_a",
         "chinese_super_league",
         "allsvenskan",

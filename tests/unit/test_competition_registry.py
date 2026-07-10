@@ -6,16 +6,24 @@ from pathlib import Path
 
 import pytest
 
-from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
+from w2.competitions.registry import (
+    CompetitionRegistry,
+    CompetitionRegistryError,
+    WhitelistStatus,
+)
 from w2.ingestion.future_refresh import FutureRefreshError, load_refresh_policy
 from w2.strategy.score_card import build_score_card
 
 
-def test_only_world_cup_2026_is_enabled_in_competition_registry() -> None:
+def test_world_cup_is_archived_outside_active_competition_registry() -> None:
     registry = CompetitionRegistry()
 
-    assert registry.enabled_ids() == {"world_cup_2026"}
-    world_cup = registry.require_enabled("world_cup_2026")
+    assert len(registry.entries()) == 13
+    assert registry.enabled_ids() == set()
+    assert "world_cup_2026" not in registry.entries()
+    world_cup = registry.require_registered("world_cup_2026")
+    assert world_cup.whitelist_status is WhitelistStatus.ARCHIVED
+    assert world_cup.enabled is False
     assert world_cup.season == "2026"
     assert (
         world_cup.coverage_profile.xg
@@ -24,12 +32,8 @@ def test_only_world_cup_2026_is_enabled_in_competition_registry() -> None:
     assert world_cup.provider_mapping["api_football_league_id"] == "1"
     assert world_cup.provider_mapping["api_football_season"] == "2026"
 
-    disabled = [entry for entry in registry.entries().values() if not entry.enabled]
-    assert disabled
-    assert all(
-        entry.coverage_profile.bookmaker_depth == "NOT_AUDITED_STAGE14_REQUIRED"
-        for entry in disabled
-    )
+    with pytest.raises(CompetitionRegistryError, match="COMPETITION_ARCHIVED"):
+        registry.require_enabled("world_cup_2026")
 
 
 def test_future_refresh_policy_rejects_non_whitelisted_competition(tmp_path: Path) -> None:
@@ -84,16 +88,14 @@ def test_registry_rejects_missing_coverage_profile(tmp_path: Path) -> None:
         CompetitionRegistry(root).entries()
 
 
-def test_future_refresh_world_cup_policy_remains_enabled() -> None:
-    policy = load_refresh_policy(competition_id="world_cup_2026")
-
-    assert policy.competition_id == "world_cup_2026"
-    assert policy.enabled is True
+def test_future_refresh_world_cup_policy_is_unavailable() -> None:
+    with pytest.raises(FutureRefreshError, match="COMPETITION_ARCHIVED"):
+        load_refresh_policy(competition_id="world_cup_2026")
 
 
 def test_registry_uses_static_config_not_runtime_time() -> None:
     assert datetime(2026, 6, 25, tzinfo=UTC).tzinfo is UTC
-    assert CompetitionRegistry().is_enabled("world_cup_2026") is True
+    assert CompetitionRegistry().is_enabled("world_cup_2026") is False
 
 
 def test_staging_enabled_competitions_are_environment_scoped(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -106,7 +108,6 @@ def test_staging_enabled_competitions_are_environment_scoped(monkeypatch) -> Non
     registry = CompetitionRegistry()
 
     assert {
-        "world_cup_2026",
         "brasileirao_serie_a",
         "chinese_super_league",
         "allsvenskan",
@@ -123,4 +124,15 @@ def test_staging_enabled_competitions_do_not_apply_to_production(monkeypatch) ->
 
     registry = CompetitionRegistry()
 
-    assert registry.enabled_ids() == {"world_cup_2026"}
+    assert registry.enabled_ids() == set()
+
+
+def test_staging_override_cannot_reactivate_archived_competition(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "world_cup_2026")
+
+    with pytest.raises(
+        CompetitionRegistryError,
+        match="STAGING_ENABLED_COMPETITION_NOT_REGISTERED:world_cup_2026",
+    ):
+        CompetitionRegistry().entries()

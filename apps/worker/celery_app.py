@@ -35,7 +35,7 @@ def ping() -> str:
 @celery_app.task(name="w2.future_fixture_refresh", bind=True)
 def future_fixture_refresh(
     self: object,
-    competition_id: str = "world_cup_2026",
+    competition_id: str = "brasileirao_serie_a",
     task_key: str | None = None,
     queued_at_utc: str | None = None,
     requested_interval_seconds: int | None = None,

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from w2.features.xg_materialization import (
     materialize_rolling_xg,
     parse_team_xg_matches,
@@ -11,6 +13,12 @@ from w2.ingestion.xg_backfill import XgBackfillConfig, XgHistoryBackfillService
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 20, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _enable_active_test_competition(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "chinese_super_league")
 
 
 def finished_fixture(
@@ -160,7 +168,7 @@ class FakeRepository:
                     "date": (NOW + timedelta(days=1)).isoformat(),
                     "status": {"short": "NS"},
                 },
-                "league": {"id": 1, "season": "2026"},
+                "league": {"id": 169, "season": "2026"},
                 "teams": {"home": {"id": 10}, "away": {"id": 20}},
             },
             {
@@ -169,7 +177,7 @@ class FakeRepository:
                     "date": (NOW - timedelta(days=2)).isoformat(),
                     "status": {"short": "FT"},
                 },
-                "league": {"id": 1, "season": "2026"},
+                "league": {"id": 169, "season": "2026"},
                 "teams": {"home": {"id": 30}, "away": {"id": 40}},
             },
             {

@@ -69,7 +69,7 @@ class XgBackfillRepository(Protocol):
 
 @dataclass(frozen=True, kw_only=True)
 class XgBackfillConfig:
-    competition_id: str = "world_cup_2026"
+    competition_id: str = "chinese_super_league"
     recent_match_count: int = 5
     request_budget: int = 120
     quota_reserve: int = 1500

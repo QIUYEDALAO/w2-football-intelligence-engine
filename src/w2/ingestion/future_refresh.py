@@ -74,7 +74,7 @@ class CompetitionRefreshPolicy:
 @dataclass(frozen=True)
 class FutureRefreshConfig:
     runtime_root: Path = Path("runtime/future_refresh")
-    competition_id: str = "world_cup_2026"
+    competition_id: str = "brasileirao_serie_a"
     league_id: str = "1"
     season: str = "2026"
     horizon_days: int = 4
@@ -269,7 +269,7 @@ def load_refresh_policy(
 
 def config_from_policy(
     *,
-    competition_id: str = "world_cup_2026",
+    competition_id: str = "brasileirao_serie_a",
     runtime_root: Path | None = None,
     policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
 ) -> FutureRefreshConfig:
@@ -1489,7 +1489,7 @@ def deterministic_task_key(
 
 def run_future_fixture_refresh(
     *,
-    competition_id: str = "world_cup_2026",
+    competition_id: str = "brasileirao_serie_a",
     runtime_root: Path | None = None,
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
@@ -1538,7 +1538,7 @@ def run_future_refresh_task(
     key: str,
     owner: str | None = None,
     queued_at: datetime | None = None,
-    competition_id: str = "world_cup_2026",
+    competition_id: str = "brasileirao_serie_a",
     runtime_root: Path | None = None,
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
