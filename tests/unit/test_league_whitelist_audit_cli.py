@@ -118,14 +118,14 @@ def test_evidence_only_dry_run_uses_evidence_endpoint_plan() -> None:
 
     assert payload["status"] == "DRY_RUN_READY"
     assert payload["audit_mode"] == "EVIDENCE_ONLY"
-    assert payload["competition_count"] == 14
+    assert payload["competition_count"] == 13
     assert payload["endpoint_allowlist"] == ["leagues", "fixtures", "odds"]
-    assert payload["planned_provider_calls"] == 56
+    assert payload["planned_provider_calls"] == 52
     assert payload["planned_provider_calls_by_endpoint"] == {
-        "leagues": 14,
-        "fixtures_future": 14,
-        "fixtures_results": 14,
-        "odds": 14,
+        "leagues": 13,
+        "fixtures_future": 13,
+        "fixtures_results": 13,
+        "odds": 13,
     }
     assert payload["provider_calls"] == 0
 

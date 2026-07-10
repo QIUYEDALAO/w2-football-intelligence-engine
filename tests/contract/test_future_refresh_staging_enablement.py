@@ -36,10 +36,11 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
+        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == (
+            "brasileirao_serie_a"
+        )
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == (
-            "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
-            "allsvenskan,eliteserien"
+            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
         )
         assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "false"
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "true"
@@ -134,17 +135,20 @@ def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
 
 
-def test_future_refresh_policy_matches_staging_competition() -> None:
+def test_future_refresh_policy_excludes_archived_world_cup() -> None:
     import json
 
     policy = json.loads(
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
-    world_cup = next(
-        item for item in policy["competitions"] if item["competition_id"] == "world_cup_2026"
-    )
-    assert world_cup["enabled"] is True
-    assert world_cup["season"] == "2026"
+    competition_ids = {item["competition_id"] for item in policy["competitions"]}
+    assert "world_cup_2026" not in competition_ids
+    assert competition_ids == {
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    }
 
 
 def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:
@@ -173,8 +177,10 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setattr(
         "apps.scheduler.main.due_checkpoint_refresh_batch",
         lambda now, **kwargs: {
@@ -210,7 +216,7 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert result["competition_id"] == "world_cup_2026"
+    assert result["competition_id"] == "brasileirao_serie_a"
     assert sent[0]["name"] == "w2.future_fixture_refresh"
 
 
@@ -219,7 +225,9 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
         raise AssertionError("health contract must not dispatch")
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setattr(celery_app, "send_task", forbidden_send_task)
     runtime_path = ROOT / "runtime/future_refresh"
     before_exists = runtime_path.exists()
@@ -230,7 +238,7 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
 
 def test_health_contract_fails_closed_when_policy_is_missing(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a")
     monkeypatch.chdir(tmp_path)
 
     assert not future_fixture_refresh_contract_ready()

@@ -44,7 +44,6 @@ from w2.competitions.league_whitelist_scope import (
     NATIONAL_LEAGUES_OFFSEASON,
     REMAINING_UNAUDITED_WHITELIST,
     TOP_FIVE_COMPETITIONS,
-    WORLD_CUP_COMPETITIONS,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
 
@@ -298,8 +297,6 @@ def _selected_entries(
         return [entries[item] for item in FREE_TIER_CONTROL_COMPETITIONS]
     if group == "top_five":
         return [entries[item] for item in TOP_FIVE_COMPETITIONS]
-    if group == "world_cup":
-        return [entries[item] for item in WORLD_CUP_COMPETITIONS]
     if group == "national_leagues_offseason":
         return [entries[item] for item in NATIONAL_LEAGUES_OFFSEASON]
     if group and group != "national_leagues":

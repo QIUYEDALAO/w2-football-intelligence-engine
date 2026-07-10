@@ -159,7 +159,7 @@ class FakeLiveApiFootballPort:
                             "status": {"short": "NS"},
                             "venue": {"name": "Predeploy Venue"},
                         },
-                        "league": {"id": 1, "name": "World Cup", "round": "Group Stage - 3"},
+                        "league": {"id": 71, "name": "Serie A", "round": "Regular Season"},
                         "teams": {
                             "home": {"id": 10, "name": "Predeploy Home"},
                             "away": {"id": 20, "name": "Predeploy Away"},
@@ -211,7 +211,7 @@ class FakeLiveApiFootballPort:
 
 fake = FakeLiveApiFootballPort()
 key = deterministic_task_key(
-    competition_id="world_cup_2026",
+    competition_id="brasileirao_serie_a",
     season="2026",
     now=NOW,
     interval_seconds=900,
@@ -220,7 +220,7 @@ audit = run_future_refresh_task(
     task_id=f"{key}:predeploy-e2e",
     key=key,
     queued_at=NOW,
-    competition_id="world_cup_2026",
+    competition_id="brasileirao_serie_a",
     runtime_root=Path("/app/runtime/future_refresh"),
     client=fake,
     now=NOW,
@@ -230,14 +230,13 @@ audit = run_future_refresh_task(
 assert audit.status == "COMPLETED", audit
 assert audit.result["fixture_count"] == 1
 assert audit.result["market_snapshot_count"] == 1
-assert audit.result["feature_enrichment_payload_count"] == 1
+assert audit.result["feature_enrichment_payload_count"] == 0
 assert audit.result["candidate"] is False
 assert audit.result["formal_recommendation"] is False
 assert [endpoint for endpoint, _ in fake.calls] == [
     "status",
     "fixtures",
     "odds",
-    "lineups",
 ]
 assert "statistics" not in [endpoint for endpoint, _ in fake.calls]
 assert "injuries" not in [endpoint for endpoint, _ in fake.calls]
@@ -344,14 +343,14 @@ BLOCKED_ENDPOINT_COUNT="$(
 )"
 RUN_AUDIT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
-    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'world_cup_2026' and candidate = false and formal_recommendation = false;"
+    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'brasileirao_serie_a' and candidate = false and formal_recommendation = false;"
 )"
 if [ "${OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing DB market observations" >&2
   exit 1
 fi
-if [ "${RAW_ENDPOINT_COUNT}" -ne 1 ]; then
-  echo "predeploy_e2e FAIL missing feature enrichment raw payload endpoints" >&2
+if [ "${RAW_ENDPOINT_COUNT}" -ne 0 ]; then
+  echo "predeploy_e2e FAIL inactive feature enrichment endpoints were persisted" >&2
   exit 1
 fi
 if [ "${BLOCKED_ENDPOINT_COUNT}" -ne 0 ]; then

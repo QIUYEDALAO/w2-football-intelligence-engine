@@ -59,7 +59,7 @@ class FakeApiFootballClient:
                             "status": {"short": "NS"},
                             "venue": {"name": "DB Test Venue"},
                         },
-                        "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                        "league": {"id": 71, "name": "Serie A", "round": "Regular Season"},
                         "teams": {
                             "home": {"id": 10, "name": "Team A"},
                             "away": {"id": 20, "name": "Team B"},
@@ -115,7 +115,8 @@ class FakeApiFootballClient:
 
 def configure_sqlite_db(monkeypatch: Any, tmp_path: Path) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'future-refresh.db'}"
-    monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_DATABASE_URL", database_url)
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
     get_settings.cache_clear()
@@ -132,7 +133,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
     runtime_root.mkdir()
     runtime_root.chmod(0o500)
     key = deterministic_task_key(
-        competition_id="world_cup_2026",
+        competition_id="brasileirao_serie_a",
         season="2026",
         now=NOW,
         interval_seconds=900,
@@ -175,7 +176,6 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert set(session.scalars(select(RawPayloadModel.endpoint)).all()) == {
             "fixtures",
             "odds",
-            "lineups",
             "status",
         }
         observation = session.scalar(select(FutureMarketObservationModel))
@@ -190,7 +190,7 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
     key = deterministic_task_key(
-        competition_id="world_cup_2026",
+        competition_id="brasileirao_serie_a",
         season="2026",
         now=NOW,
         interval_seconds=900,
@@ -231,7 +231,6 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
         "status",
         "fixtures",
         "odds",
-        "lineups",
     ]
 
 
@@ -242,7 +241,7 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     configure_sqlite_db(monkeypatch, tmp_path)
     monkeypatch.setattr(api_repository, "RUNTIME", tmp_path / "api-runtime")
     key = deterministic_task_key(
-        competition_id="world_cup_2026",
+        competition_id="brasileirao_serie_a",
         season="2026",
         now=NOW,
         interval_seconds=900,

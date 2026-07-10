@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T02:30:30Z"
-current_phase: selective analysis recommendation implementation
-current_status: implementation_in_progress_no_release_no_deploy
+last_updated_utc: "2026-07-10T16:30:00Z"
+current_phase: thirteen league recommendation readiness
+current_status: world_cup_runtime_archive_pr_in_progress_no_release_no_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 81a2add6fbd58304e225b0f2079a4893ecad16a8
+  main_sha: 69f9facd5e19912d6784f5a22e22493feeb0b402
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T02:10:37Z"
+  observed_at_utc: "2026-07-10T16:20:02Z"
 
 staging_state:
   environment: staging
@@ -157,24 +157,32 @@ completed_milestones:
     merged_prs:
       - 220
       - 221
+  - phase: Selective analysis recommendation gates
+    status: merged_no_deploy
+    merged_pr: 225
+    merge_sha: 69f9facd5e19912d6784f5a22e22493feeb0b402
 
 open_work:
-  - id: SELECTIVE-ANALYSIS-RECOMMENDATIONS
+  - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: OPEN_DRAFT_CI_GREEN
-    branch: codex/w2-selective-analysis-recommendations
-    pr: 225
-    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/225
-    ci: SUCCESS
-    objective: Repair the evidence loop and add validated, selective AH/OU ANALYSIS_PICK output without opening RECOMMEND.
-    required_checks:
-      - FairMarketEstimate derives AH and TOTALS from one prematch score distribution.
-      - Shadow evidence and outcomes are isolated per league and market.
-      - analysis_gate separates data readiness from analysis eligibility.
-      - At most three ANALYSIS_PICK cards per football day; zero is valid.
-      - Full validation and review are required before any staging deployment request.
+    status: PHASE_1_WORLD_CUP_RUNTIME_ARCHIVE_IN_PROGRESS
+    branch: codex/w2-world-cup-runtime-archive
+    objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
+    active_whitelist_target: 13
+    archived_competitions:
+      - world_cup_2026
+    implementation_order:
+      - Archive World Cup from live registry, scheduler, refresh policy, audit scope, and DayView.
+      - Add per-league and per-market readiness truth matrix.
+      - Unify LeagueFeatureSnapshot across eval, artifact publishing, and serving.
+      - Wire CSL, Allsvenskan, and Eliteserien serving models.
+      - Publish top-five champions and repair Bundesliga gap.
+      - Complete Brazil, Argentina, MLS, Eredivisie, and Primeira Liga models.
+      - Add approved secondary provider port and controlled capability probe.
+      - Validate AH and OU independently and accrue 100 forward samples per league-market.
     deployment_status: NOT_RUN
     direction_allowed_changes: []
+    scheduler_runtime_change: NEED_USER_APPROVAL_STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP
   - id: R1.1-ACCRUAL-CHECKPOINT
     priority: high
     status: ACCUMULATING
@@ -232,9 +240,10 @@ active_decisions:
     status: active
 
 allowed_next_work:
-  - Complete and review the selective-analysis implementation on its current branch.
-  - Verify evidence-loop, no-leakage, AH/OU settlement, feature parity, and selectivity tests.
-  - Request separate staging deployment approval only after the implementation PR is reviewed and merged.
+  - Complete the World Cup runtime archive PR while preserving historical replay and localization.
+  - Build the thirteen-league readiness matrix as the next independent PR.
+  - Materialize one shared as-of feature contract before adding more serving artifacts.
+  - Request separate approval before any provider probe, scheduler reconfiguration, staging deployment, league enablement, or account cost.
   - Prepare a staging-only per-league and per-market direction_allowed review only after all prereg evidence passes.
   - Continue periodic R1.1 and monthly-eval read-only checks while status is ACCUMULATING.
   - Keep formal RECOMMEND closed until the registered real-pick evidence gate passes.

@@ -437,3 +437,13 @@
 - 选择性改为逐场独立判定：每场通过 `analysis_gate` 即保留 `ANALYSIS_PICK`，不因当天已有 3 场而被降级为 `WATCH`；无信号日仍允许 0 场，门槛不降低、不凑数。
 - 线差强度、数据质量、开球时间和 fixture_id 仅用于展示排序，不影响推荐资格；每场仍只展示最强一个主方向，另一市场留在 L2。
 - `RECOMMEND`/EV、lock、production 与 `direction_allowed` 继续保持关闭；历史 `SELECTIVITY_DAILY_CAP` 仅保留读取兼容，不再产生新记录。
+
+### V3 进展续24 · 十三联赛推荐就绪改造启动(2026-07-11)
+
+- #225 已合并 main `69f9facd5e19912d6784f5a22e22493feeb0b402`，逐卡 AH/OU `analysis_gate`、统一 `FairMarketEstimate`、shadow 双轨、outcome 回填与取消每日推荐上限进入主线；本次未部署 staging/production。
+- 老板确认活跃白名单由 14 缩减为 13：`world_cup_2026` 退出运行态并归档，历史 replay/backtest、已结算 ledger、球队中文本地化、历史文档与审计证据全部保留。
+- 十三联赛“修好”口径固定为逐联赛逐市场具备盘口、严格赛前特征、验证模型、FairMarketEstimate、shadow 证据与人工放行路径；缺真 xG 时只允许使用独立 walk-forward 且 market gap `<=0.04` 的 `GOALS_ELO_FALLBACK`。
+- 每个“联赛 + AH/OU”继续保留 100 个不同 fixture 的真实前向 closing pair 门槛；达到门槛最多进入 `ELIGIBLE_FOR_REVIEW`，不得自动修改 `direction_allowed`。
+- 当前独立分支 `codex/w2-world-cup-runtime-archive` 只处理世界杯 active/archive 边界、live scheduler/refresh/DayView 排除与历史只读兼容；服务器实际停止世界杯调度仍需单独审批 `STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP`。
+- 后续固定顺序：13 联赛 readiness matrix -> 统一 `LeagueFeatureSnapshot` -> 中超/瑞典超/挪超 serving -> 五大及德甲 -> 巴甲/阿甲/MLS/荷甲/葡超 -> Sportmonks 受控探针与 adapter -> AH/OU 技术验收 -> shadow accrual -> 逐联赛逐市场人工 release PR。
+- 红线保持：`RECOMMEND`/EV、lock、production 关闭；不为凑推荐降低阈值；provider、账号费用、scheduler 变更、staging deploy、league enable 均需独立批准；runtime/raw/key/header 不进 Git。

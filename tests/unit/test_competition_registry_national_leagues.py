@@ -35,7 +35,7 @@ def test_all_national_leagues_are_disabled_and_not_active() -> None:
 
     assert all(entries[competition_id].enabled is False for competition_id in NATIONAL_IDS)
     assert not (NATIONAL_IDS & registry.enabled_ids())
-    assert registry.enabled_ids() == {"world_cup_2026"}
+    assert registry.enabled_ids() == set()
 
 
 def test_national_league_schema_basic_fields_exist() -> None:
@@ -49,14 +49,15 @@ def test_national_league_schema_basic_fields_exist() -> None:
         assert '"enabled": false' in payload
 
 
-def test_top_five_and_world_cup_registry_behavior_remains() -> None:
+def test_top_five_active_and_world_cup_historical_registry_behavior() -> None:
     registry = CompetitionRegistry()
     entries = registry.entries()
 
     assert {"premier_league", "serie_a", "la_liga", "bundesliga", "ligue_1"}.issubset(
         entries
     )
-    assert registry.require_enabled("world_cup_2026").enabled is True
+    assert registry.require_registered("world_cup_2026").enabled is False
+    assert "world_cup_2026" not in entries
     assert all(entries[item].enabled is False for item in ("premier_league", "serie_a"))
 
 
@@ -67,7 +68,7 @@ def test_registry_defaults_do_not_enable_national_leagues(monkeypatch) -> None: 
     registry = CompetitionRegistry()
 
     assert "argentina_primera" in registry.entries()
-    assert registry.enabled_ids() == {"world_cup_2026"}
+    assert registry.enabled_ids() == set()
 
 
 def test_national_league_profile_files_exist() -> None:

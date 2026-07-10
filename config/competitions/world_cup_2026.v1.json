@@ -1,5 +1,6 @@
 {
   "competition_id": "world_cup_2026",
+  "whitelist_status": "ARCHIVED",
   "version": "world-cup-2026-profile-v1",
   "provider_mapping": {
     "api_football_league_id": "1",
@@ -188,7 +189,7 @@
     "single_match_tuning": "FORBIDDEN",
     "research_proposals_after_round_only": true
   },
-  "enabled": true,
+  "enabled": false,
   "coverage_profile": {
     "xg": "API_FOOTBALL_FIXTURES_STATISTICS_AVAILABLE_CONTROLLED_LIVE",
     "lineups_injuries": "API_FOOTBALL_AVAILABLE_CONTROLLED_LIVE",

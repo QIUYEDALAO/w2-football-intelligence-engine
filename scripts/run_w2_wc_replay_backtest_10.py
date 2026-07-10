@@ -128,7 +128,7 @@ def run_wc_replay_backtest_10(
     raw_fixtures_payload: dict[str, Any] = {"response": []}
     raw_odds_by_fixture: dict[str, dict[str, Any]] = {}
 
-    registry_entry = CompetitionRegistry().require_enabled(competition)
+    registry_entry = CompetitionRegistry().require_registered(competition)
     league_id = str(registry_entry.provider_mapping["api_football_league_id"])
     season = str(registry_entry.provider_mapping["api_football_season"])
     date_to = fixture_date_to or started_at.date().isoformat()

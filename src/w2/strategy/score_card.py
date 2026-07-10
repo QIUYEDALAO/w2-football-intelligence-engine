@@ -100,7 +100,7 @@ def build_score_card(
 ) -> ScoreCard:
     if competition_id is not None:
         resolved_registry = registry or CompetitionRegistry()
-        if not resolved_registry.is_enabled(competition_id):
+        if not resolved_registry.is_analysis_available(competition_id):
             return ScoreCard(decision="SKIP", primary_direction=None, scenarios=[])
     if decision == "SKIP":
         return ScoreCard(decision="SKIP", primary_direction=None, scenarios=[])

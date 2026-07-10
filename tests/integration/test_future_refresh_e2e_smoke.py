@@ -175,7 +175,9 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
     monkeypatch.setattr(

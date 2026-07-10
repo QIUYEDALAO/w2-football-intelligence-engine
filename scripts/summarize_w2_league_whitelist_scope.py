@@ -10,7 +10,6 @@ from w2.competitions.league_whitelist_scope import (
     NATIONAL_LEAGUES_OFFSEASON,
     REMAINING_UNAUDITED_WHITELIST,
     TOP_FIVE_COMPETITIONS,
-    WORLD_CUP_COMPETITIONS,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
 
@@ -99,8 +98,6 @@ def _inventory_item(entry: CompetitionRegistryEntry) -> dict[str, Any]:
 def _group(competition_id: str) -> str:
     if competition_id in TOP_FIVE_COMPETITIONS:
         return "top_five"
-    if competition_id in WORLD_CUP_COMPETITIONS:
-        return "world_cup"
     return "national_leagues"
 
 

@@ -1361,7 +1361,7 @@ class ReadModelService:
             for row, dash in zip(rows, is_dashboard, strict=False)
             if dash or not (row["status"] == "NS" and row["kickoff_utc"] < now)
         ]
-        rows = visible
+        rows = [row for row in visible if self._is_active_competition_row(row)]
         if date_from:
             rows = [row for row in rows if row["kickoff_utc"] >= date_from.astimezone(UTC)]
         if date_to:
@@ -1392,7 +1392,11 @@ class ReadModelService:
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
-        rows = [self._matchday_item(card) for card in cards]
+        rows = [
+            row
+            for card in cards
+            if self._is_active_competition_row(row := self._matchday_item(card))
+        ]
         rows = [
             row
             for row in rows
@@ -1421,7 +1425,11 @@ class ReadModelService:
 
     def matchday_next_36_hours(self, *, now_utc: datetime | None = None) -> dict[str, Any]:
         start, end = next_36_hours_window(now_utc)
-        rows = [self._matchday_item(card) for card in self.repository.matchday_cards()]
+        rows = [
+            row
+            for card in self.repository.matchday_cards()
+            if self._is_active_competition_row(row := self._matchday_item(card))
+        ]
         rows = [
             row
             for row in rows
@@ -1448,7 +1456,16 @@ class ReadModelService:
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
-        read_model = self.repository.dashboard_latest_fixtures()
+        read_model = [
+            row
+            for row in self.repository.dashboard_latest_fixtures()
+            if self._is_active_competition_row(row)
+        ]
+        cards = [
+            card
+            for card in cards
+            if self._is_active_competition_row(self._matchday_item(card))
+        ]
         authoritative = [
             {
                 "fixture_id": row["fixture_id"],
@@ -1700,7 +1717,7 @@ class ReadModelService:
         if not market_snapshots and not home_xg and not away_xg:
             return None
         registry = CompetitionRegistry()
-        registry_entry = registry.entries().get(competition_id)
+        registry_entry = registry.all_entries().get(competition_id)
         if registry_entry is None:
             return None
         coverage = registry_entry.coverage_profile
@@ -4729,7 +4746,9 @@ class ReadModelService:
         rows: list[dict[str, Any]] = []
         for card in self.repository.matchday_cards():
             with suppress(Exception):
-                rows.append(self._matchday_item(card))
+                row = self._matchday_item(card)
+                if self._is_active_competition_row(row):
+                    rows.append(row)
         return rows
 
     def _future_fixture_rows_with_errors(self) -> tuple[list[dict[str, Any]], int]:
@@ -4741,9 +4760,27 @@ class ReadModelService:
             except Exception:
                 parse_error_count += 1
                 continue
+            if not self._is_active_competition_row(row):
+                continue
             row["_dashboard_source"] = "future_fixture_payload"
             rows.append(row)
         return rows, parse_error_count
+
+    def _is_active_competition_row(self, row: Mapping[str, Any]) -> bool:
+        if os.environ.get("W2_ENVIRONMENT", "").strip().lower() not in {
+            "staging",
+            "production",
+        }:
+            return True
+        identifier = str(row.get("competition_id") or "")
+        registry = CompetitionRegistry()
+        active = registry.entries()
+        if identifier in active:
+            return True
+        return any(
+            entry.provider_mapping.get("api_football_league_id") == identifier
+            for entry in active.values()
+        )
 
     def _filter_rows_for_operational_date(
         self,

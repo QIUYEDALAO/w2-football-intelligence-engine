@@ -163,21 +163,13 @@ def test_trickle_backfill_plan_never_steals_matchday_reserve() -> None:
     assert busy_day["allowed"] is False
 
 
-def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() -> None:
+def test_world_cup_is_absent_from_live_refresh_policy_after_archive() -> None:
     payload = json.loads(
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
-    policy = next(
-        item
-        for item in payload["competitions"]
-        if item["competition_id"] == "world_cup_2026"
-    )
-
-    assert policy["daily_hard_cap"] == 120
-    assert policy["daily_reserve"] == 0
-    assert policy["request_budget"] == 30
-    assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
-    assert policy["trickle_backfill_daily_budget"] == 0
+    assert "world_cup_2026" not in {
+        item["competition_id"] for item in payload["competitions"]
+    }
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:

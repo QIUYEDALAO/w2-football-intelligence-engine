@@ -1,10 +1,45 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from w2.api.repository import ReadModelService
 from w2.dashboard import day_view
 from w2.dashboard.day_view import build_dashboard_day_view
+
+
+class _ActiveAndArchivedMatchdayRepository:
+    def matchday_cards(self) -> list[dict[str, Any]]:
+        return [
+            _matchday_payload("active", "chinese_super_league"),
+            _matchday_payload("archived", "world_cup_2026"),
+        ]
+
+
+def _matchday_payload(fixture_id: str, competition_id: str) -> dict[str, Any]:
+    return {
+        "fixture": {
+            "fixture_id": fixture_id,
+            "competition_id": competition_id,
+            "competition_name": competition_id,
+            "kickoff_utc": "2026-07-12T10:00:00Z",
+            "status": "NS",
+            "home_team_id": "home",
+            "away_team_id": "away",
+        },
+        "card": {},
+        "temporal": {},
+        "integrity": {},
+    }
+
+
+def test_runtime_matchday_rows_exclude_archived_world_cup(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    service = ReadModelService(repository=cast(Any, _ActiveAndArchivedMatchdayRepository()))
+
+    rows = service._all_matchday_rows()
+
+    assert [row["fixture_id"] for row in rows] == ["active"]
 
 
 def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None:
