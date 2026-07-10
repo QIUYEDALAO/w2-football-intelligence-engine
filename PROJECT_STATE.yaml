@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T18:55:00Z"
+last_updated_utc: "2026-07-10T19:43:02Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_offline_feature_materialization_ready_staging_injection_pending
+current_status: phase_3_staging_feature_snapshot_injection_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 5aeef99840ce4dbbf5abc9492d116375cd615c90
+  main_sha: b94885732115944d7f0ed81890e5436c4c3988e7
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T18:39:05Z"
+  observed_at_utc: "2026-07-10T19:43:02Z"
 
 staging_state:
   environment: staging
@@ -46,27 +46,39 @@ staging_state:
   provider_request_logs_latest_deploy_delta: 0
   future_refresh_run_audit_latest_deploy_delta: 0
   celery_queue_after_latest_deploy: 0
+  latest_feature_snapshot_injection:
+    status: PASS
+    approved_scope: STAGING_FEATURE_SNAPSHOT_INJECTION
+    target_fixture_count: 10
+    target_rolling_snapshot_count: 20
+    team_xg_match_count_before: 248
+    team_xg_match_count_after: 1301
+    rolling_snapshot_count_before: 47
+    rolling_snapshot_count_after: 67
+    api_restart: true
+    scheduler_restart: false
+    provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-09T23:48:41Z"
+  observed_at_utc: "2026-07-10T19:43:02Z"
   source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
-  cards_total: 6
+  cards_total: 10
   decision_counts:
     NOT_READY: 0
     SKIP: 0
-    WATCH: 6
+    WATCH: 9
     ANALYSIS_PICK: 0
     RECOMMEND: 0
   data_status_counts:
     READY: 0
-    PARTIAL: 6
+    PARTIAL: 9
     STALE: 0
-    BLOCKED: 0
+    BLOCKED: 1
   lock_eligible_count: 0
   outcome_tracked_count: 0
   formal_tracking_status: OBSERVING
   formal_tracking_sample_count: 0
-  conclusion: The visible product is currently an observation and evidence system, not a recommendation-producing product.
+  conclusion: CSL and Allsvenskan now produce artifact-backed fair AH/OU estimates; cards remain observation-only while forward evidence accumulates and direction_allowed remains false.
   primary_data_blockers:
     - Missing or insufficient xG history.
     - Missing model probabilities.
@@ -180,12 +192,24 @@ completed_milestones:
     pooled_artifact_dimensions:
       chinese_super_league: 11
       allsvenskan: 11
+  - phase: Offline feature materialization and staging snapshot injection
+    status: staging_accepted
+    merged_pr: 229
+    merge_sha: b94885732115944d7f0ed81890e5436c4c3988e7
+    target_fixtures: 10
+    target_rolling_snapshots: 20
+    real_day_view_acceptance:
+      chinese_super_league: R4_1_CALIBRATED
+      allsvenskan: R4_1_CALIBRATED
+      eliteserien: FITTED_CALIBRATED
+    provider_calls: 0
+    production_deploy: false
 
 open_work:
   - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: PHASE_3_STAGING_FEATURE_SNAPSHOT_INJECTION_PENDING_APPROVAL
-    branch: codex/w2-offline-feature-materialization
+    status: PHASE_3_STAGING_FEATURE_SNAPSHOT_INJECTION_ACCEPTED
+    branch: main
     objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
     active_whitelist_target: 13
     archived_competitions:
@@ -199,7 +223,7 @@ open_work:
       - Complete Brazil, Argentina, MLS, Eredivisie, and Primeira Liga models.
       - Add approved secondary provider port and controlled capability probe.
       - Validate AH and OU independently and accrue 100 forward samples per league-market.
-    deployment_status: NOT_RUN
+    deployment_status: STAGING_DATA_INJECTION_ACCEPTED_API_RESTART_ONLY
     direction_allowed_changes: []
     scheduler_runtime_change: NEED_USER_APPROVAL_STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP
   - id: R1.1-ACCRUAL-CHECKPOINT
