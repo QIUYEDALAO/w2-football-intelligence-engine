@@ -1,6 +1,57 @@
 from __future__ import annotations
 
+import pytest
+
 from w2.dashboard.scorelines import scoreline_reference_from_card
+
+
+def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distribution() -> None:
+    card = {
+        "analysis_gate": {"market": "TOTALS"},
+        "decision_contract": {
+            "pick": {
+                "market": "TOTALS",
+                "selection": "OVER",
+                "line": "3.25",
+            }
+        },
+        "fair_market_estimates": [
+            {
+                "market": "TOTALS",
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "home_mu": 3.1462969750688647,
+                "away_mu": 1.3672753468077237,
+                "artifact_hash": "artifact-1",
+                "artifact_version": "v1",
+                "train_cutoff": "2025-12-08T20:00:00Z",
+            }
+        ],
+        "pricing_shadow": {
+            "simulation": {
+                "status": "READY",
+                "lambda_home": 1.2,
+                "lambda_away": 1.0,
+                "scoreline_picks": [
+                    {"scoreline": "1-1", "probability": 0.99},
+                ],
+            }
+        },
+    }
+
+    reference = scoreline_reference_from_card(card)
+
+    assert reference is not None
+    assert reference["source"] == "fair_market_estimate"
+    assert all(item["scoreline"] != "1-1" for item in reference["top_scorelines"])
+    assert reference["distribution_provenance"]["artifact_hash"] == "artifact-1"
+    settlement = reference["market_settlement"]
+    assert settlement["market"] == "TOTALS"
+    assert settlement["selection"] == "OVER"
+    assert settlement["line"] == 3.25
+    assert settlement["probabilities"]["WIN"] == pytest.approx(0.65999, abs=2e-5)
+    assert settlement["probabilities"]["HALF_LOSS"] == pytest.approx(0.16795, abs=2e-5)
+    assert settlement["probabilities"]["LOSS"] == pytest.approx(0.17206, abs=2e-5)
 
 
 def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:

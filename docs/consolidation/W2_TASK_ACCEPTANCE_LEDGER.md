@@ -496,3 +496,20 @@
 - 不降低选择性：无市场盘、无验证模型、数据 BLOCKED 或线差 `<0.25` 仍为 WATCH/NOT_READY/NO_EDGE；不设每日数量上限，也不为凑数降门槛。
 - `ANALYSIS_PICK` 强制 `outcome_tracked=true`、`lock_eligible=false`、「分析参考·非稳赢·前向验证中」；赛后用真实 outcome/CLV 验证系统价值。
 - 原 100 样本等指标保留为证据成熟度与更高信任层评审，不再是 staging 分析推荐展示前置。production 仍 fail closed，`RECOMMEND`/EV、lock 和 production 全部保持关闭。
+
+### V3 进展续31 · ANALYSIS_PICK 新口径合入并部署 staging(2026-07-11)
+
+- #231 已 squash merge main `391b9b008e07e45bab39a88aa0e468ecbbb092d6`，GitHub main CI `verify/staging-parity/predeploy-e2e` 全绿；已经老板批准 scheduler-safe 部署 API/worker/web 到 staging。
+- 真实公网 DayView 验收：10 张卡中 `ANALYSIS_PICK=7`、`WATCH=2`、`NOT_READY=1`，`outcome_tracked=7`、`lock_eligible=0`、`RECOMMEND=0`。分析推荐已成为用户可见产品输出，不再只藏在 shadow 证据中。
+- 当前可见分析方向包含 4 场中超、2 场挪超、1 场瑞典超；主方向为 AH 或 TOTALS，均携市场盘、模型公平盘、线差、风险和「分析参考·非稳赢」声明。
+- 部署期间 scheduler 容器 ID/created/started/restart policy 未变；`provider_request_logs 319->319`、`future_refresh_run_audit 1407->1407`、Celery queue=`0`。仅 API/worker/web 更新，production 未部署。
+- 部署包装发现并修正 config 根目录权限继承为 `700` 导致 DayView 500 的问题；恢复既有 `775` 后公网 DayView PASS，无 DB schema 或决策逻辑额外修改。
+- 后续从这 7 张真实 `ANALYSIS_PICK` 开始自动结算胜/半胜/走/半负/负与 CLV，用结果判断系统是否有价值。100 样本仅用于更高信任层评审，不再阻塞分析推荐展示。
+
+### V3 进展续32 · 推荐盘、结算概率与比分分布同源(2026-07-11)
+
+- 老板指出真实卡片「大 3.25」与页面展示的 `2-1 / 1-1 / 2-2` 参考比分缺乏同源解释。根因为推荐来自 R4.1 `FairMarketEstimate`，Dashboard 比分却优先读取旧 `pricing_shadow.simulation.scoreline_picks`。
+- 后端现优先使用主 `analysis_gate` 对应 fair estimate 的 `home_mu/away_mu` 重建唯一比分分布，同时生成参考比分和推荐盘的五档结算概率；旧模拟比分不再覆盖 artifact-backed 分布。
+- 对浙江队 vs 青岛海牛的当前参数 `home_mu=3.1463/away_mu=1.3673`，大 3.25 同源结算为全赢约 66%、半输约 17%、全输约 17%。这三组数与页面参考比分现共用同一分布。
+- Dashboard 证据面板新增「同源盘口结算」，显示全赢/半赢/走水/半输/全输；provenance 携带 model family、artifact hash/version、train cutoff 与 feature as-of。
+- 本轮不改推荐方向、线差门槛、`RECOMMEND`/EV/lock 或 production；仅修复解释与概率同源性。

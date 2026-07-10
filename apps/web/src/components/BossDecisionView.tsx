@@ -270,6 +270,23 @@ function scorelineStatusText(card: DashboardDayViewCard): { message: string; has
   return { hasPicks: false, message: "比分模拟暂无可展示结果。" };
 }
 
+function settlementDistributionText(card: DashboardDayViewCard): string | null {
+  const labels = card.scoreline_reference?.market_settlement?.probability_labels;
+  if (!labels) return null;
+  const names: Record<string, string> = {
+    WIN: "全赢",
+    HALF_WIN: "半赢",
+    PUSH: "走水",
+    HALF_LOSS: "半输",
+    LOSS: "全输",
+    VOID: "作废",
+  };
+  return Object.entries(names)
+    .map(([key, label]) => (labels[key] ? `${label} ${labels[key]}` : null))
+    .filter(Boolean)
+    .join(" · ") || null;
+}
+
 function oddsSummary(card: DashboardDayViewCard): string | null {
   const odds = asRecord(card.current_odds);
   const ah = asRecord(odds.ah);
@@ -808,6 +825,9 @@ export function EvidencePanel({
         <div className="evidence-section">
           <strong>模拟比分参考</strong>
           <p>{scoreline.message}</p>
+          {settlementDistributionText(selectedCard) ? (
+            <p>同源盘口结算：{settlementDistributionText(selectedCard)}</p>
+          ) : null}
           {scorelines.length ? (
             <div className="boss-scoreline-picks">
               {scorelines.map((pick) => (

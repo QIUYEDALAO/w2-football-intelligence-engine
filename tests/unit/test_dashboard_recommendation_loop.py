@@ -1430,7 +1430,7 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
 
 
-def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
+def test_dashboard_scoreline_picks_prefer_fair_market_estimate_source() -> None:
     service = ReadModelService(
         repository=cast(
             Any,
@@ -1470,11 +1470,17 @@ def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
     assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
-    assert card["scoreline_reference"]["source"] == "formal_simulation"
+    assert card["scoreline_reference"]["source"] == "fair_market_estimate"
+    assert card["scoreline_reference"]["distribution_provenance"]["home_mu"] == (
+        card["fair_market_estimates"][0]["home_mu"]
+    )
+    assert card["scoreline_reference"]["distribution_provenance"]["away_mu"] == (
+        card["fair_market_estimates"][0]["away_mu"]
+    )
     assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
-    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
-    assert card["scoreline_reference"]["ah_key_scorelines"] == []
+    assert card["scoreline_reference"]["market_settlement"] is None
+    assert "high_total" not in card["scoreline_reference"]
+    assert "ah_key_scorelines" not in card["scoreline_reference"]
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

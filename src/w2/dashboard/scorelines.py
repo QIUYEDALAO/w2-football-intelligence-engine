@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any
+
+from w2.domain.enums import SettlementOutcome
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.models.fair_market_estimate import score_distribution
 
 
 def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    fair_picks = _fair_estimate_scoreline_picks(card)
+    if fair_picks:
+        return fair_picks[:limit]
     simulation_picks = _simulation_scoreline_picks(card)
     if simulation_picks:
         return simulation_picks[:limit]
@@ -39,6 +48,9 @@ def scoreline_reference_from_card(
     *,
     recommendation: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
+    fair_reference = _fair_estimate_reference(card, recommendation=recommendation)
+    if fair_reference is not None:
+        return fair_reference
     simulation = _simulation_from_card(card)
     if not isinstance(simulation, dict) or simulation.get("status") != "READY":
         return None
@@ -68,6 +80,148 @@ def scoreline_reference_from_card(
             "probability_label": _probability_label(None, very_high_total_probability),
         },
         "ah_key_scorelines": _ah_key_scorelines(simulation, recommendation=recommendation),
+    }
+
+
+def _fair_estimate_reference(
+    card: dict[str, Any],
+    *,
+    recommendation: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    estimate = _primary_fair_estimate(card)
+    if estimate is None:
+        return None
+    top_scorelines = _fair_estimate_scoreline_picks(card)
+    if not top_scorelines:
+        return None
+    pick = _decision_pick(card, recommendation)
+    settlement = _market_settlement_distribution(estimate, pick)
+    return {
+        "source": "fair_market_estimate",
+        "label": "同源比分分布",
+        "top_scorelines": top_scorelines,
+        "market_settlement": settlement,
+        "distribution_provenance": {
+            "model_family": estimate.get("model_family"),
+            "artifact_hash": estimate.get("artifact_hash"),
+            "artifact_version": estimate.get("artifact_version"),
+            "train_cutoff": estimate.get("train_cutoff"),
+            "feature_as_of": estimate.get("feature_as_of"),
+            "home_mu": estimate.get("home_mu"),
+            "away_mu": estimate.get("away_mu"),
+        },
+    }
+
+
+def _fair_estimate_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]:
+    estimate = _primary_fair_estimate(card)
+    if estimate is None:
+        return []
+    matrix = _score_matrix_from_estimate(estimate)
+    if matrix is None:
+        return []
+    return [
+        {
+            "scoreline": f"{home}-{away}",
+            "home_goals": home,
+            "away_goals": away,
+            "probability": round(probability, 6),
+            "probability_label": _probability_label(None, probability),
+        }
+        for (home, away), probability in sorted(
+            matrix.items(),
+            key=lambda item: (-item[1], item[0][0] + item[0][1], item[0]),
+        )[:3]
+    ]
+
+
+def _primary_fair_estimate(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    estimates = card.get("fair_market_estimates")
+    if not isinstance(estimates, list):
+        return None
+    gate = card.get("analysis_gate")
+    if not isinstance(gate, Mapping):
+        contract = card.get("decision_contract")
+        gate = contract.get("analysis_gate") if isinstance(contract, Mapping) else None
+    primary_market = str(gate.get("market") or "") if isinstance(gate, Mapping) else ""
+    ready = [
+        item
+        for item in estimates
+        if isinstance(item, Mapping)
+        and str(item.get("status") or "").upper() == "READY"
+        and _number(item.get("home_mu")) is not None
+        and _number(item.get("away_mu")) is not None
+    ]
+    if not ready:
+        return None
+    return next((item for item in ready if str(item.get("market")) == primary_market), ready[0])
+
+
+def _score_matrix_from_estimate(
+    estimate: Mapping[str, Any],
+) -> dict[tuple[int, int], float] | None:
+    home_mu = _number(estimate.get("home_mu"))
+    away_mu = _number(estimate.get("away_mu"))
+    if home_mu is None or away_mu is None or home_mu <= 0 or away_mu <= 0:
+        return None
+    try:
+        return score_distribution(home_mu=home_mu, away_mu=away_mu)
+    except ValueError:
+        return None
+
+
+def _decision_pick(
+    card: Mapping[str, Any],
+    recommendation: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    contract = card.get("decision_contract")
+    contract_pick = contract.get("pick") if isinstance(contract, Mapping) else None
+    if isinstance(contract_pick, Mapping):
+        return contract_pick
+    card_pick = card.get("pick")
+    if isinstance(card_pick, Mapping):
+        return card_pick
+    return recommendation
+
+
+def _market_settlement_distribution(
+    estimate: Mapping[str, Any],
+    pick: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(pick, Mapping):
+        return None
+    market = str(pick.get("market") or "")
+    selection = str(pick.get("selection") or "")
+    line = _number(pick.get("line"))
+    matrix = _score_matrix_from_estimate(estimate)
+    if matrix is None or line is None:
+        return None
+    if market == "ASIAN_HANDICAP":
+        side = {"HOME_AH": "HOME", "AWAY_AH": "AWAY"}.get(selection)
+    elif market == "TOTALS":
+        side = selection if selection in {"OVER", "UNDER"} else None
+    else:
+        side = None
+    if side is None:
+        return None
+    buckets = {outcome.value: 0.0 for outcome in SettlementOutcome}
+    decimal_line = Decimal(str(line))
+    for (home, away), probability in matrix.items():
+        outcome = (
+            settle_asian_handicap(home, away, side, decimal_line)
+            if market == "ASIAN_HANDICAP"
+            else settle_total_goals(home + away, side, decimal_line)
+        )
+        buckets[outcome.value] += probability
+    return {
+        "market": market,
+        "selection": selection,
+        "line": line,
+        "source": "fair_market_estimate",
+        "probabilities": {key: round(value, 8) for key, value in buckets.items()},
+        "probability_labels": {
+            key: _probability_label(None, value) for key, value in buckets.items()
+        },
     }
 
 

@@ -264,6 +264,23 @@ export interface ScorelineReference {
     settlement_probability_label?: string | null;
     source?: string | null;
   }>;
+  market_settlement?: {
+    market?: string;
+    selection?: string;
+    line?: number;
+    source?: string;
+    probabilities?: Record<string, number>;
+    probability_labels?: Record<string, string>;
+  } | null;
+  distribution_provenance?: {
+    model_family?: string | null;
+    artifact_hash?: string | null;
+    artifact_version?: string | null;
+    train_cutoff?: string | null;
+    feature_as_of?: string | null;
+    home_mu?: number | null;
+    away_mu?: number | null;
+  } | null;
 }
 
 export interface ScorelineReadiness {
