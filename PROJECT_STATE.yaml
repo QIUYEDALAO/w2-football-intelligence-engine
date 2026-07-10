@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T02:26:30Z"
+last_updated_utc: "2026-07-10T02:30:30Z"
 current_phase: selective analysis recommendation implementation
 current_status: implementation_in_progress_no_release_no_deploy
 
@@ -95,7 +95,9 @@ selective_analysis_baseline:
   markets:
     - ASIAN_HANDICAP
     - TOTALS
-  daily_analysis_pick_cap: 3
+  daily_analysis_pick_cap: null
+  analysis_pick_eligibility: per_card_analysis_gate
+  analysis_pick_ordering_only: strength_data_quality_kickoff_fixture_id
   zero_pick_day_allowed: true
 
 completed_milestones:
@@ -159,11 +161,11 @@ completed_milestones:
 open_work:
   - id: SELECTIVE-ANALYSIS-RECOMMENDATIONS
     priority: critical
-    status: OPEN_DRAFT_CI_RUNNING
+    status: OPEN_DRAFT_CI_GREEN
     branch: codex/w2-selective-analysis-recommendations
     pr: 225
     url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/225
-    head_sha: 80b2dcbf0a29ce7ca3a66b48011b2598ba965018
+    ci: SUCCESS
     objective: Repair the evidence loop and add validated, selective AH/OU ANALYSIS_PICK output without opening RECOMMEND.
     required_checks:
       - FairMarketEstimate derives AH and TOTALS from one prematch score distribution.

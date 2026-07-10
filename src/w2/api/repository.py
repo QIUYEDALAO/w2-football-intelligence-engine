@@ -50,7 +50,6 @@ from w2.dashboard.status_labels import (
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
-from w2.domain.selective_analysis import apply_daily_analysis_pick_cap
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -1087,7 +1086,6 @@ class ReadModelService:
         else:
             self._prime_observations_for_rows(selected_rows)
             all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
-            all_cards = apply_daily_analysis_pick_cap(all_cards)
             response_cards = all_cards
         recommendations = [
             card

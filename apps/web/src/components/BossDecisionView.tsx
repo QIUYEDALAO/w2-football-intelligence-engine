@@ -45,7 +45,6 @@ const REASON_LABELS: Record<string, string> = {
   MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
   NO_EDGE: "模型与市场线差不足",
   FORWARD_EVIDENCE_ACCUMULATING: "前向证据积累中",
-  SELECTIVITY_DAILY_CAP: "当日更强信号已达上限",
   NO_SUPPORTED_MARKET: "无可支持市场",
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
 };
@@ -79,7 +78,6 @@ const BLOCKER_LABELS: Record<string, string> = {
   MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
   NO_EDGE: "模型与市场线差不足 0.25 球",
   FORWARD_EVIDENCE_ACCUMULATING: "该联赛该市场的前向证据积累中",
-  SELECTIVITY_DAILY_CAP: "当日只展示最强 3 场分析参考",
 };
 
 const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
@@ -1244,7 +1242,7 @@ export function BossDecisionView({
             <>
               <ScheduleSection
                 title="值得看"
-                hint="最多 3 场；只有市场锚定且分歧达标才置顶"
+                hint="逐场通过分析门才置顶；排序不改变推荐资格"
                 cards={worthWatching}
                 empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
                 selectedFixtureId={selectedCard?.fixture_id}

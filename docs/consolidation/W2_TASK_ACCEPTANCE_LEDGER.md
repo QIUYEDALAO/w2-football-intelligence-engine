@@ -430,3 +430,10 @@
 - 预注册 `direction_allowed` 按“联赛+市场”评估:不同 fixture 的同线 shadow CLV >=100、中位数 >0、对应 market gap <=0.04、entry window >=80%、closing pair >=80%、outcome coverage >=90%、provider <=120/日,且必须单独批准 PR;最多只输出 `ELIGIBLE_FOR_REVIEW`,不得自动放行。
 - 选择性口径:首发仅 advisory;每天最多 3 张 ANALYSIS_PICK,按线差强度/数据质量/开球时间排序,无信号允许 0;ANALYSIS_PICK 继续 `outcome_tracked=true`、`lock_eligible=false`;RECOMMEND/EV、production、lock 全部保持关闭。
 - 本轮安全边界:`provider_calls=0`,`db_writes=0`,未部署 staging/production,未新增 league enable,未改 `direction_allowed`,未提交 runtime/raw/key/header。
+
+### V3 进展续23 · 取消每日 ANALYSIS_PICK 全局上限(2026-07-10)
+
+- 老板否决续22中的“每天最多 3 张 ANALYSIS_PICK”规则并确认方案 A；该旧口径不再代表当前产品契约。
+- 选择性改为逐场独立判定：每场通过 `analysis_gate` 即保留 `ANALYSIS_PICK`，不因当天已有 3 场而被降级为 `WATCH`；无信号日仍允许 0 场，门槛不降低、不凑数。
+- 线差强度、数据质量、开球时间和 fixture_id 仅用于展示排序，不影响推荐资格；每场仍只展示最强一个主方向，另一市场留在 L2。
+- `RECOMMEND`/EV、lock、production 与 `direction_allowed` 继续保持关闭；历史 `SELECTIVITY_DAILY_CAP` 仅保留读取兼容，不再产生新记录。

@@ -171,7 +171,7 @@ DecisionCard {
 
 放行后真实 pick 才开始积累，R3.0 的 `>=200` 真实 pick CLV 门槛仍在真实轨上计算，门槛数字不变。修改本规则必须留下评审记录。
 
-AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。每个比赛日只展示最强的至多 3 张 `ANALYSIS_PICK`，允许无信号时为 0，禁止降低阈值凑数。
+AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。`ANALYSIS_PICK` 不设每日全局数量上限：每场比赛独立通过 `analysis_gate` 即保留分析推荐资格，排序只影响展示顺序，不得把第 N 场以后降级为 `WATCH`。允许无信号时为 0，禁止降低阈值凑数。
 
 ## 落地检查（此契约"进了代码"的判定）
 

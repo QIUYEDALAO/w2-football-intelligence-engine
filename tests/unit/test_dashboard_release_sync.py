@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from apps.api.main import app
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from w2.api import routers
 from w2.api.repository import ReadModelService
@@ -114,6 +115,44 @@ def test_dashboard_empty_response_has_actionable_diagnostics() -> None:
     assert debug["result_event_count"] == 0
     assert debug["selected_date"] == "2026-06-26"
     assert debug["suggested_actions"]
+
+
+def test_dashboard_preserves_every_per_card_eligible_analysis_pick(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+    rows = [{"fixture_id": f"fixture-{index}"} for index in range(5)]
+
+    monkeypatch.setattr(service, "matchday", lambda **_: {"items": rows})
+    monkeypatch.setattr(service, "matchday_next_36_hours", lambda: {"items": []})
+    monkeypatch.setattr(service, "_all_matchday_rows", lambda: [])
+    monkeypatch.setattr(service, "_future_fixture_rows_with_errors", lambda: ([], 0))
+    monkeypatch.setattr(service, "_prime_observations_for_rows", lambda _: None)
+    monkeypatch.setattr(
+        service,
+        "_dashboard_card_from_matchday",
+        lambda row: {
+            "fixture_id": row["fixture_id"],
+            "kickoff_utc": "2026-07-10T12:00:00Z",
+            "status": "UPCOMING",
+            "decision_tier": "ANALYSIS_PICK",
+            "data_status": "READY",
+            "outcome_tracked": True,
+            "lock_eligible": False,
+            "analysis_gate": {"status": "ELIGIBLE"},
+            "recommendation": {
+                "tier": "ANALYSIS_PICK",
+                "decision_tier": "ANALYSIS_PICK",
+            },
+        },
+    )
+
+    payload = service.dashboard(target_date="2026-07-10", window="today")
+
+    assert len(payload["all"]) == 5
+    assert all(card["decision_tier"] == "ANALYSIS_PICK" for card in payload["all"])
+    assert all(card["outcome_tracked"] is True for card in payload["all"])
+    assert all(card.get("reason_code") != "SELECTIVITY_DAILY_CAP" for card in payload["all"])
 
 
 def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
