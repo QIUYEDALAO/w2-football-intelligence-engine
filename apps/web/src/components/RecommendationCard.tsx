@@ -1,4 +1,12 @@
-import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
+import {
+  fmtTime,
+  formatLine,
+  formatOdds,
+  localizedTeamName,
+  localizedTeamTitle,
+  teamCode,
+  translateCompetition,
+} from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
 import {
@@ -781,8 +789,8 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const pick = displayPick(match);
   const risks = pick?.risks.length ? pick.risks : ["天气、红牌、阵容临场变化可能改变判断"];
   const stars = watchLevel({ watch_level: match.watch_level });
-  const homeName = translateTeam(match.home_team_name);
-  const awayName = translateTeam(match.away_team_name);
+  const homeName = localizedTeamName(match, "home");
+  const awayName = localizedTeamName(match, "away");
   const minutes = minutesToKickoff(match.kickoff_utc);
   const phase = matchPhase(match.kickoff_utc, match.status);
   const prematchReview = requiresPrematchReview(phase);
@@ -806,9 +814,9 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             {fmtTime(match.kickoff_utc)} · {translateCompetition(match.competition_name)}
           </span>
           <div className="fixture-title">
-            <strong>{homeName}</strong>
+            <strong title={localizedTeamTitle(match, "home")}>{homeName}</strong>
             <span>{match.result?.final_score ?? "vs"}</span>
-            <strong>{awayName}</strong>
+            <strong title={localizedTeamTitle(match, "away")}>{awayName}</strong>
           </div>
           <div className="team-code-row" aria-hidden="true">
             <span>{teamCode(match.home_team_name)}</span>
