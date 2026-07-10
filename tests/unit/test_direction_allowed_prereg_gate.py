@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.check_w2_direction_allowed_prereg import (
     CANDIDATE_ORDER,
+    _per_league_market_status,
     build_prereg_report,
 )
 
@@ -22,7 +23,7 @@ def test_prereg_gate_missing_conditions_returns_blocker(tmp_path: Path) -> None:
     assert payload["direction_allowed_changes"] == []
 
 
-def test_prereg_gate_no_samples_accumulates(tmp_path: Path) -> None:
+def test_prereg_gate_without_staging_snapshot_does_not_report_zero_samples(tmp_path: Path) -> None:
     payload = build_prereg_report(ledger_path=_ledger(tmp_path), runtime_root=tmp_path)
 
     candidate_statuses = {
@@ -31,7 +32,8 @@ def test_prereg_gate_no_samples_accumulates(tmp_path: Path) -> None:
         if row["competition_id"] in CANDIDATE_ORDER
     }
     assert payload["release_decision"] == "REVIEW_ONLY"
-    assert set(candidate_statuses.values()) == {"ACCUMULATING"}
+    assert set(candidate_statuses.values()) == {"NO_EVIDENCE_SOURCE"}
+    assert "R1_1_NO_EVIDENCE_SOURCE" in payload["blockers"]
     assert payload["evidence_summary"]["clv_shadow_median"] == "ACCUMULATING"
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
@@ -87,6 +89,58 @@ def test_prereg_gate_never_changes_direction_allowed(tmp_path: Path) -> None:
     assert payload["direction_allowed_changes"] == []
     assert payload["direction_allowed_changed"] is False
     assert all(row["direction_allowed_change"] is False for row in payload["per_league_status"])
+    assert all(
+        row["direction_allowed_change"] is False for row in payload["per_league_market_status"]
+    )
+
+
+def test_prereg_gate_isolated_by_league_and_market(tmp_path: Path) -> None:
+    payload = build_prereg_report(ledger_path=_ledger(tmp_path), runtime_root=tmp_path)
+
+    candidates = [
+        (row["competition_id"], row["market"])
+        for row in payload["per_league_market_status"]
+        if row["competition_id"] in CANDIDATE_ORDER
+    ]
+    assert candidates == [
+        (league, market) for league in CANDIDATE_ORDER for market in ("ASIAN_HANDICAP", "TOTALS")
+    ]
+
+
+def test_prereg_gate_does_not_open_totals_from_ah_evidence() -> None:
+    checkpoint = {
+        "league_market_evidence": [
+            {
+                "league": "eliteserien",
+                "market": market,
+                "same_line_decimal_clv_sample_count": 100,
+                "median_decimal_clv": 0.03,
+                "entry_window_met_rate": 0.9,
+                "closing_pair_coverage_rate": 0.9,
+                "outcome_coverage_rate": 0.95,
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+        "provider_usage_curve_summary": {"daily_provider_calls": {"2026-07-10": 100}},
+    }
+
+    rows = _per_league_market_status(
+        checkpoint,
+        min_sample_count=100,
+        conditions_available=True,
+    )
+
+    ah = next(
+        row
+        for row in rows
+        if row["competition_id"] == "eliteserien" and row["market"] == "ASIAN_HANDICAP"
+    )
+    totals = next(
+        row for row in rows if row["competition_id"] == "eliteserien" and row["market"] == "TOTALS"
+    )
+    assert ah["status"] == "ELIGIBLE_FOR_REVIEW"
+    assert totals["status"] == "NOT_ELIGIBLE"
+    assert totals["market_gap_evidence_available"] is False
 
 
 def test_prereg_gate_cli_json_has_zero_side_effect_flags(tmp_path: Path) -> None:
@@ -127,7 +181,9 @@ def _ledger(tmp_path: Path) -> Path:
         (
             "预注册规则日期:2026-07-08。未来按联赛放行 `direction_allowed` "
             "必须单独批准 PR,且满足 shadow CLV 样本 `>=100`、shadow CLV "
-            "中位数 `>0`、最新 market gap `<=0.04`;离线数字和 shadow 方向"
+            "中位数 `>0`、最新 market gap `<=0.04`、entry window 达标率 >=80%、"
+            "closing 收盘配对覆盖率 >=80%、outcome 结算覆盖率 >=90%、provider "
+            "每日 <=120;按联赛+市场分别验收;离线数字和 shadow 方向"
             "不得直接开 EV/RECOMMEND 腿。"
         ),
         encoding="utf-8",

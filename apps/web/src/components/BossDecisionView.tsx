@@ -42,6 +42,9 @@ const REASON_LABELS: Record<string, string> = {
   XG_PENDING: "xG 待刷新",
   CONTRACT_BLOCKED_BY_DATA_STATUS: "数据状态阻塞",
   EDGE_INSUFFICIENT: "优势不足",
+  MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
+  NO_EDGE: "模型与市场线差不足",
+  FORWARD_EVIDENCE_ACCUMULATING: "前向证据积累中",
   NO_SUPPORTED_MARKET: "无可支持市场",
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
 };
@@ -72,6 +75,9 @@ const BLOCKER_LABELS: Record<string, string> = {
   UNSUPPORTED_MARKET: "不支持的盘口",
   DATA_MISSING_XG: "缺关键 xG",
   PROVIDER_EMPTY_OR_UNAVAILABLE: "provider 空返",
+  MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
+  NO_EDGE: "模型与市场线差不足 0.25 球",
+  FORWARD_EVIDENCE_ACCUMULATING: "该联赛该市场的前向证据积累中",
 };
 
 const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
@@ -113,6 +119,19 @@ function blockerLabel(value?: string | null): string {
   return BLOCKER_LABELS[value] ?? REASON_LABELS[value] ?? value.replace(/_/g, " ").toLowerCase();
 }
 
+function analysisGateLabel(value: string): string {
+  return {
+    ELIGIBLE: "分析资格已满足",
+    ACCUMULATING: "前向证据积累中",
+    NO_EDGE: "线差不足",
+    BLOCKED: "分析资格受阻",
+  }[value] ?? "待评估";
+}
+
+function analysisMarketLabel(value: string): string {
+  return value === "ASIAN_HANDICAP" ? "让球" : value === "TOTALS" ? "大小球" : "市场待定";
+}
+
 function numericValue(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -146,12 +165,26 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
     return [`已出${tierLabel(card.decision_tier)}，仍需按赛后 ledger 验证。`];
   }
   const reasons: string[] = [];
+  const analysisGate = asRecord(card.analysis_gate);
+  const gateBlockers = asArray(analysisGate.blockers)
+    .map((value) => textValue(value))
+    .filter(Boolean);
   const analysis = asRecord(card.analysis_readiness);
   const blockers = [
     ...asArray(analysis.blockers),
     ...(card.missing_inputs ?? []),
     ...(card.missing_fields ?? []),
   ].map((value) => textValue(value)).filter(Boolean);
+
+  for (const blocker of gateBlockers) {
+    reasons.push(blockerLabel(blocker));
+  }
+  const advisories = asArray(analysisGate.advisories)
+    .map((value) => textValue(value))
+    .filter(Boolean);
+  if (advisories.includes("LINEUPS_PENDING")) {
+    reasons.push("首发未确认是临场提示，不会单独阻断分析资格；公布后会自动重算。");
+  }
 
   if (card.reason_code === "EDGE_INSUFFICIENT") {
     reasons.push("模型-市场分歧没有达到高亮门槛，当前不输出方向。");
@@ -660,11 +693,20 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
 }
 
 function evidenceStatements(card: DashboardDayViewCard): string[] {
+  const gate = asRecord(card.analysis_gate);
+  const gateMarket = analysisMarketLabel(textValue(gate.market));
+  const gateStatus = analysisGateLabel(textValue(gate.status));
+  const fairLine = numericValue(gate.fair_line);
+  const marketLine = numericValue(gate.market_line);
+  const gateSummary = fairLine != null && marketLine != null
+    ? `${gateMarket} ${gateStatus}; 公平盘 ${fairLine.toFixed(2)} / 市场盘 ${marketLine.toFixed(2)}`
+    : `${gateMarket} ${gateStatus}`;
   return [
     `盘口源:${marketSourceLabel(card)}`,
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
     `数据:${dataStatusLabel(card.data_status)}; ${trustSignalSummary(card)}`,
     `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
+    `分析资格:${gateSummary}`,
     `模拟:${scorelineStatusText(card).message}`,
     `下一步:${actionLabel(card.action)}; ${card.next_eval_at ? fmtTime(card.next_eval_at) : "待定"}再看`,
   ];
@@ -1200,7 +1242,7 @@ export function BossDecisionView({
             <>
               <ScheduleSection
                 title="值得看"
-                hint="最多 3 场；只有市场锚定且分歧达标才置顶"
+                hint="逐场通过分析门才置顶；排序不改变推荐资格"
                 cards={worthWatching}
                 empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
                 selectedFixtureId={selectedCard?.fixture_id}

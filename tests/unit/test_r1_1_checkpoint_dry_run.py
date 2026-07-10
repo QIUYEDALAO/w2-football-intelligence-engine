@@ -13,7 +13,8 @@ def test_r1_1_checkpoint_no_samples_accumulates_without_numeric_conclusion(
 ) -> None:
     payload = build_checkpoint_report(tmp_path)
 
-    assert payload["readiness_status"] == "ACCUMULATING"
+    assert payload["readiness_status"] == "NO_EVIDENCE_SOURCE"
+    assert payload["evidence_source"] == "NONE"
     assert payload["double_snapshot_card_count"] == 0
     assert payload["shadow_nonempty_rate"] == "ACCUMULATING"
     assert payload["clv_shadow_sample_count"] == 0
@@ -21,7 +22,7 @@ def test_r1_1_checkpoint_no_samples_accumulates_without_numeric_conclusion(
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["direction_allowed_changed"] is False
-    assert "NO_SETTLEMENT_SAMPLES_ACCUMULATING" in payload["blockers"]
+    assert "STAGING_EVIDENCE_SNAPSHOT_NOT_PROVIDED" in payload["blockers"]
 
 
 def test_r1_1_checkpoint_below_threshold_is_not_enough_sample(tmp_path: Path) -> None:
@@ -94,6 +95,36 @@ def test_r1_1_checkpoint_reports_model_family_and_artifact_provenance(
     )
 
 
+def test_r1_1_checkpoint_uses_sanitized_staging_provider_usage(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [_capture("fixture-1", "2026-07-07T00:00:00Z", "FITTED_CALIBRATED")],
+    )
+    (tmp_path / "evidence_snapshot.json").write_text(
+        json.dumps(
+            {
+                "source_sha": "staging-sha",
+                "provider_daily_calls": {"2026-07-07": 117},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_checkpoint_report(tmp_path)
+
+    assert payload["evidence_source_sha"] == "staging-sha"
+    assert payload["evidence_source"] == "STAGING_SANITIZED_SNAPSHOT"
+    assert payload["provider_usage_curve_summary"] == {
+        "source": "STAGING_EVIDENCE_SNAPSHOT",
+        "status": "SANITIZED_SNAPSHOT",
+        "provider_calls": 0,
+        "daily_provider_calls": {"2026-07-07": 117},
+        "hard_cap_per_day": 120,
+    }
+
+
 def test_r1_1_checkpoint_cli_outputs_json_and_zero_side_effect_flags(
     tmp_path: Path,
 ) -> None:
@@ -115,6 +146,38 @@ def test_r1_1_checkpoint_cli_outputs_json_and_zero_side_effect_flags(
     assert payload["db_writes"] == 0
     assert payload["lock_writes"] == 0
     assert payload["settlement_writes"] == 0
+
+
+def test_r1_1_checkpoint_cli_accepts_sanitized_evidence_snapshot_root(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [_capture("fixture-1", "2026-07-07T00:00:00Z", "FITTED_CALIBRATED")],
+    )
+    (tmp_path / "evidence_snapshot.json").write_text(
+        json.dumps({"source_sha": "staging-source"}),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_w2_r1_1_checkpoint_dry_run.py",
+            "--evidence-snapshot-root",
+            str(tmp_path),
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["evidence_source"] == "STAGING_SANITIZED_SNAPSHOT"
+    assert payload["evidence_source_sha"] == "staging-source"
 
 
 def test_r1_1_checkpoint_has_no_stage16_surface(tmp_path: Path) -> None:
@@ -166,9 +229,7 @@ def _capture(
         "current_odds": {
             "ah": {
                 "home_line": "-1",
-                "home_price": "1.90"
-                if captured_at == "2026-07-07T00:00:00Z"
-                else "2.00",
+                "home_price": "1.90" if captured_at == "2026-07-07T00:00:00Z" else "2.00",
                 "away_line": "+1",
                 "away_price": "1.88",
             }

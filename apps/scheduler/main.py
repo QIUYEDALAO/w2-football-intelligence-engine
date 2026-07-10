@@ -110,9 +110,7 @@ def checkpoint_task_key(
     season: str,
     checkpoints: list[dict[str, Any]],
 ) -> str:
-    identity = "|".join(
-        f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints
-    )
+    identity = "|".join(f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints)
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
 
@@ -277,9 +275,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
                     "blockers": [gate.status],
                     "dedup_backend": gate.backend,
                     "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                    "provider_refresh_min_interval_policy": (
-                        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
-                    ),
+                    "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
                 }
             task_id = f"{task_key}:{uuid4()}"
             celery_app.send_task(
@@ -302,9 +298,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
                 "candidate": False,
                 "formal_recommendation": False,
                 "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                "provider_refresh_min_interval_policy": (
-                    "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
-                ),
+                "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
             }
         return {
             **batch,
@@ -345,9 +339,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "competition_id": config.competition_id,
             "task_key": task_key,
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "checkpoint_fixture_ids": [
-                str(item["fixture_id"]) for item in batch["checkpoints"]
-            ],
+            "checkpoint_fixture_ids": [str(item["fixture_id"]) for item in batch["checkpoints"]],
             "refresh_checkpoints": batch["checkpoints"],
         },
         task_id=task_id,
@@ -413,8 +405,7 @@ def market_timeline_refresh_tick() -> dict[str, object]:
     now = datetime.now(UTC)
     max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
     capture_forward_ledger = (
-        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower()
-        == "true"
+        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower() == "true"
     )
     task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
     celery_app.send_task(
@@ -495,7 +486,7 @@ def forward_outcome_backfill_tick() -> dict[str, object]:
         "w2.forward_outcome_backfill",
         kwargs={
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_WINDOW", "next36"),
+            "window": os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_WINDOW", "all"),
         },
         task_id=task_id,
     )
@@ -583,10 +574,7 @@ def run_forever() -> None:
                 next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
                 tz=UTC,
             )
-        if (
-            forward_outcome_ledger_enabled()
-            and datetime.now(UTC) >= next_forward_outcome_ledger_at
-        ):
+        if forward_outcome_ledger_enabled() and datetime.now(UTC) >= next_forward_outcome_ledger_at:
             try:
                 result = forward_outcome_ledger_tick()
                 logger.info("w2 forward outcome ledger %s", result)
@@ -632,12 +620,10 @@ def run_forever() -> None:
                     )
                 )
             next_forward_outcome_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
-            next_forward_outcome_backfill_at = (
-                next_forward_outcome_backfill_at.fromtimestamp(
-                    next_forward_outcome_backfill_at.timestamp()
-                    + forward_outcome_backfill_interval_seconds,
-                    tz=UTC,
-                )
+            next_forward_outcome_backfill_at = next_forward_outcome_backfill_at.fromtimestamp(
+                next_forward_outcome_backfill_at.timestamp()
+                + forward_outcome_backfill_interval_seconds,
+                tz=UTC,
             )
         time.sleep(interval_seconds)
 

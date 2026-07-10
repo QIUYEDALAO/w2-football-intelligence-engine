@@ -32,6 +32,19 @@ def build_checkpoint_report(
     min_double_snapshot_cards: int = DEFAULT_MIN_DOUBLE_SNAPSHOT_CARDS,
 ) -> dict[str, Any]:
     ledger_root = _ledger_root(runtime_root)
+    evidence_metadata = _evidence_metadata(ledger_root)
+    evidence_source_available = ledger_root.exists()
+    evidence_source = (
+        _text(evidence_metadata.get("evidence_source"))
+        or ("STAGING_SANITIZED_SNAPSHOT" if evidence_metadata else "LOCAL_RUNTIME_SNAPSHOT")
+        if evidence_source_available
+        else "NONE"
+    )
+    source_generated_at = (
+        _text(evidence_metadata.get("generated_at"))
+        or _text(evidence_metadata.get("generated_at_utc"))
+        or _source_generated_at(ledger_root)
+    )
     records = list(load_forward_ledger_records(ledger_root))
     filtered = [
         record
@@ -41,17 +54,25 @@ def build_checkpoint_report(
     captures = [
         record for record in filtered if _text(record.get("record_type") or "capture") == "capture"
     ]
-    outcomes = [
-        record for record in filtered if _text(record.get("record_type")) == "outcome"
-    ]
+    outcomes = [record for record in filtered if _text(record.get("record_type")) == "outcome"]
     performance = forward_ledger_performance(ledger_root.parent, sample_target=200)
     clv_shadow = performance.get("clv_shadow")
     if not isinstance(clv_shadow, Mapping):
         clv_shadow = {}
 
-    double_snapshot_card_count = _double_snapshot_card_count(captures)
+    double_snapshot_card_count = int(clv_shadow.get("valid_pair_count") or 0)
+    if double_snapshot_card_count == 0:
+        double_snapshot_card_count = _double_snapshot_card_count(captures)
     shadow_nonempty_rate = _rate(
-        len([record for record in captures if isinstance(record.get("shadow_pick"), Mapping)]),
+        len(
+            [
+                record
+                for record in captures
+                if isinstance(record.get("shadow_pick"), Mapping)
+                or isinstance(record.get("shadow_picks"), list)
+                and bool(record.get("shadow_picks"))
+            ]
+        ),
         len(captures),
     )
     clv_shadow_sample_count = int(clv_shadow.get("sample_count") or 0)
@@ -65,16 +86,32 @@ def build_checkpoint_report(
     if clv_shadow_sample_count == 0:
         entry_window_met_rate = "ACCUMULATING"
 
-    readiness_status, blockers = _readiness_status(
-        double_snapshot_card_count=double_snapshot_card_count,
-        clv_shadow_sample_count=clv_shadow_sample_count,
-        outcome_count=len(outcomes),
+    if evidence_source_available:
+        readiness_status, blockers = _readiness_status(
+            double_snapshot_card_count=double_snapshot_card_count,
+            clv_shadow_sample_count=clv_shadow_sample_count,
+            outcome_count=len(outcomes),
+            min_double_snapshot_cards=min_double_snapshot_cards,
+        )
+    else:
+        readiness_status = "NO_EVIDENCE_SOURCE"
+        blockers = ["STAGING_EVIDENCE_SNAPSHOT_NOT_PROVIDED"]
+    candidate_leagues = _candidate_leagues(
+        performance.get("by_league"),
         min_double_snapshot_cards=min_double_snapshot_cards,
     )
+    if not evidence_source_available:
+        for item in candidate_leagues:
+            if item.get("competition_id") != "brasileirao_serie_a":
+                item["status"] = "NO_EVIDENCE_SOURCE"
 
     return {
         "checkpoint_date": checkpoint_date,
         "environment": environment,
+        "evidence_source": evidence_source,
+        "evidence_source_available": evidence_source_available,
+        "evidence_generated_at": source_generated_at,
+        "evidence_source_sha": _text(evidence_metadata.get("source_sha")) or None,
         "double_snapshot_card_count": double_snapshot_card_count,
         "shadow_nonempty_rate": shadow_nonempty_rate,
         "clv_shadow_sample_count": clv_shadow_sample_count,
@@ -87,13 +124,14 @@ def build_checkpoint_report(
         "outcome_count_ft": _outcome_count_by_status(outcomes, "FT"),
         "outcome_count_aet": _outcome_count_by_status(outcomes, "AET"),
         "outcome_count_pen": _outcome_count_by_status(outcomes, "PEN"),
-        "provider_usage_curve_summary": _provider_usage_curve_summary(filtered),
+        "provider_usage_curve_summary": _provider_usage_curve_summary(
+            filtered,
+            evidence_metadata=evidence_metadata,
+        ),
         "model_family_distribution": _model_family_distribution(captures),
         "r4_1_artifact_provenance_distribution": _artifact_provenance_distribution(captures),
-        "direction_allowed_candidate_leagues": _candidate_leagues(
-            performance.get("by_league"),
-            min_double_snapshot_cards=min_double_snapshot_cards,
-        ),
+        "direction_allowed_candidate_leagues": candidate_leagues,
+        "league_market_evidence": performance.get("by_league_market", []),
         "readiness_status": readiness_status,
         "blockers": blockers,
         "provider_calls": 0,
@@ -115,6 +153,27 @@ def _ledger_root(runtime_root: Path) -> Path:
     if runtime_root.name == "forward_outcome_ledger":
         return runtime_root
     return runtime_root / "forward_outcome_ledger"
+
+
+def _source_generated_at(ledger_root: Path) -> str | None:
+    paths = sorted(ledger_root.glob("*.jsonl")) if ledger_root.exists() else []
+    if not paths:
+        return None
+    timestamp = max(path.stat().st_mtime for path in paths)
+    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat().replace("+00:00", "Z")
+
+
+def _evidence_metadata(ledger_root: Path) -> Mapping[str, Any]:
+    metadata = ledger_root.parent / "evidence_snapshot.json"
+    if not metadata.exists():
+        return {}
+    try:
+        payload = json.loads(metadata.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
+    return payload
 
 
 def _double_snapshot_card_count(captures: Sequence[Mapping[str, Any]]) -> int:
@@ -148,7 +207,23 @@ def _readiness_status(
     return ("READY_FOR_REVIEW", [])
 
 
-def _provider_usage_curve_summary(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _provider_usage_curve_summary(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    evidence_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    snapshot_usage = evidence_metadata.get("provider_daily_calls")
+    if isinstance(snapshot_usage, Mapping):
+        daily_calls = {
+            _text(day): _int(calls) or 0 for day, calls in snapshot_usage.items() if _text(day)
+        }
+        return {
+            "source": "STAGING_EVIDENCE_SNAPSHOT",
+            "status": "SANITIZED_SNAPSHOT",
+            "provider_calls": 0,
+            "daily_provider_calls": dict(sorted(daily_calls.items())),
+            "hard_cap_per_day": 120,
+        }
     by_day: Counter[str] = Counter()
     for record in records:
         calls = _int(record.get("provider_calls")) or 0
@@ -190,17 +265,13 @@ def _candidate_leagues(
 ) -> list[dict[str, Any]]:
     rows = by_league if isinstance(by_league, Sequence) and not isinstance(by_league, str) else []
     rows_by_league = {
-        _normalize_league(_text(row.get("league"))): row
-        for row in rows
-        if isinstance(row, Mapping)
+        _normalize_league(_text(row.get("league"))): row for row in rows if isinstance(row, Mapping)
     }
     candidates: list[dict[str, Any]] = []
     for league in CANDIDATE_LEAGUES:
         row = rows_by_league.get(league, {})
         sample_count = (
-            int(row.get("clv_shadow_sample_count") or 0)
-            if isinstance(row, Mapping)
-            else 0
+            int(row.get("clv_shadow_sample_count") or 0) if isinstance(row, Mapping) else 0
         )
         median_value = row.get("clv_shadow_median_decimal") if isinstance(row, Mapping) else None
         candidates.append(
@@ -210,9 +281,7 @@ def _candidate_leagues(
                 if sample_count >= min_double_snapshot_cards and _positive(median_value)
                 else "NOT_ENOUGH_SAMPLE",
                 "clv_shadow_sample_count": sample_count,
-                "clv_shadow_median": median_value
-                if sample_count > 0
-                else "ACCUMULATING",
+                "clv_shadow_median": median_value if sample_count > 0 else "ACCUMULATING",
                 "direction_allowed_changed": False,
             }
         )
@@ -361,6 +430,14 @@ def main() -> int:
         description="Read-only R1.1 checkpoint dry-run for W2 forward ledger accrual."
     )
     parser.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
+    parser.add_argument(
+        "--evidence-snapshot-root",
+        type=Path,
+        help=(
+            "Read a sanitized staging snapshot directory containing "
+            "forward_outcome_ledger/ and evidence_snapshot.json."
+        ),
+    )
     parser.add_argument("--checkpoint-date", default=DEFAULT_CHECKPOINT_DATE)
     parser.add_argument("--environment", default=DEFAULT_ENVIRONMENT)
     parser.add_argument(
@@ -372,7 +449,7 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = build_checkpoint_report(
-        args.runtime_root,
+        args.evidence_snapshot_root or args.runtime_root,
         checkpoint_date=args.checkpoint_date,
         environment=args.environment,
         min_double_snapshot_cards=args.min_double_snapshot_cards,

@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from apps.api.main import app
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from w2.api import routers
 from w2.api.repository import ReadModelService
@@ -116,6 +117,44 @@ def test_dashboard_empty_response_has_actionable_diagnostics() -> None:
     assert debug["suggested_actions"]
 
 
+def test_dashboard_preserves_every_per_card_eligible_analysis_pick(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+    rows = [{"fixture_id": f"fixture-{index}"} for index in range(5)]
+
+    monkeypatch.setattr(service, "matchday", lambda **_: {"items": rows})
+    monkeypatch.setattr(service, "matchday_next_36_hours", lambda: {"items": []})
+    monkeypatch.setattr(service, "_all_matchday_rows", lambda: [])
+    monkeypatch.setattr(service, "_future_fixture_rows_with_errors", lambda: ([], 0))
+    monkeypatch.setattr(service, "_prime_observations_for_rows", lambda _: None)
+    monkeypatch.setattr(
+        service,
+        "_dashboard_card_from_matchday",
+        lambda row: {
+            "fixture_id": row["fixture_id"],
+            "kickoff_utc": "2026-07-10T12:00:00Z",
+            "status": "UPCOMING",
+            "decision_tier": "ANALYSIS_PICK",
+            "data_status": "READY",
+            "outcome_tracked": True,
+            "lock_eligible": False,
+            "analysis_gate": {"status": "ELIGIBLE"},
+            "recommendation": {
+                "tier": "ANALYSIS_PICK",
+                "decision_tier": "ANALYSIS_PICK",
+            },
+        },
+    )
+
+    payload = service.dashboard(target_date="2026-07-10", window="today")
+
+    assert len(payload["all"]) == 5
+    assert all(card["decision_tier"] == "ANALYSIS_PICK" for card in payload["all"])
+    assert all(card["outcome_tracked"] is True for card in payload["all"])
+    assert all(card.get("reason_code") != "SELECTIVITY_DAILY_CAP" for card in payload["all"])
+
+
 def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
     monkeypatch.setattr(
         routers,
@@ -125,9 +164,7 @@ def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
     client = TestClient(app)
 
     version = client.get("/v1/version").json()
-    dashboard = client.get(
-        "/v1/dashboard?date=2026-06-26&window=today&include_debug=true"
-    ).json()
+    dashboard = client.get("/v1/dashboard?date=2026-06-26&window=today&include_debug=true").json()
 
     assert version["api_git_sha"] == "UNKNOWN"
     assert dashboard["debug"]["empty_reason"] == "READ_MODEL_EMPTY"
@@ -343,7 +380,8 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     card = payload["all"][0]
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
-    assert len(encoded) < 6500
+    # The all-window index remains compact even as the response adds release metadata.
+    assert len(encoded) < 7000
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",
@@ -387,14 +425,8 @@ def test_dashboard_all_window_index_contract_is_not_formal_authority(
 
     assert len(payload["all"]) == 2
     assert payload["performance"]["all_window_surface"] == "INDEX_ONLY"
-    assert (
-        payload["performance"]["all_window_formal_monitor_contract"]
-        == "NOT_AUTHORITATIVE"
-    )
-    assert (
-        payload["performance"]["formal_candidate_detection"]
-        == "USE_TODAY_NEXT36_OR_FULL_DETAIL"
-    )
+    assert payload["performance"]["all_window_formal_monitor_contract"] == "NOT_AUTHORITATIVE"
+    assert payload["performance"]["formal_candidate_detection"] == "USE_TODAY_NEXT36_OR_FULL_DETAIL"
     assert payload["debug"]["all_window_surface"] == "INDEX_ONLY"
     assert payload["debug"]["all_window_formal_monitor_contract"] == "NOT_AUTHORITATIVE"
     assert payload["all"][0]["recommendation"] is None
@@ -419,8 +451,8 @@ def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
     body = Path("apps/web/src/lib/dashboardApi.ts").read_text(encoding="utf-8")
 
     assert 'getJSON("/meta.json")' in body
-    assert 'getJSON(`${API_BASE}/version`)' in body
-    assert '`${API_BASE}/dashboard?' in body
+    assert "getJSON(`${API_BASE}/version`)" in body
+    assert "`${API_BASE}/dashboard?" in body
     assert 'include_debug: includeDebug ? "true" : "false"' in body
     assert "getCachedDashboardView" in body
     assert 'params.get("demo") === "1"' in body

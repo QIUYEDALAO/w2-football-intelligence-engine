@@ -699,6 +699,9 @@ export interface DashboardDayViewCard {
   odds_movement?: Record<string, unknown>;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
+  fair_market_estimates?: Array<Record<string, unknown>>;
+  analysis_gate?: Record<string, unknown>;
+  analysis_gates?: Array<Record<string, unknown>>;
   market_strip?: Array<Record<string, unknown>>;
   missing_inputs?: string[];
   pricing_shadow?: PricingShadow | null;

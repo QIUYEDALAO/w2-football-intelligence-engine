@@ -419,3 +419,21 @@
 - 部署接缝修正:发布包 runtime 使用实体版本化 config 并叠加 staging policy override;Web 在 API 容器重建后同步重建以刷新 upstream DNS。最终 DayView 与公网反代均恢复 PASS。
 - scheduler 容器创建/启动时间和 `unless-stopped` 策略未变化;`provider_request_logs 276->276`,`future_refresh_run_audit 1395->1395`,Celery queue=`0`。
 - `provider_calls=0`,`db_writes=0`,`production_deploy=false`,`scheduler_restart=false`;不新增 enable、不改 `direction_allowed`、不改 EV/RECOMMEND 腿。
+
+### V3 进展续22 · 选择性分析推荐闭环改造(2026-07-10)
+
+- 治理入口已收口:#224 `PROJECT_STATE.yaml`、#222 观察/比分解释、#223 后端球队本地化均已合入 main;本轮在 `codex/w2-selective-analysis-recommendations` 实施统一 fair line、证据闭环与选择性输出。
+- staging 审计事实:现有 8,352 条 capture、43 个 fixture、42 场旧口径双快照,但仅 6 条 shadow_pick、2 个有效 shadow CLV、0 outcome;这不是“继续等时间”能自行修复的问题。
+- 证据闭环修复:outcome 从 ledger fixture_id 对全窗口已完赛 read-model 回填;capture 仅保留 T-24/T-1/lock 或证据 hash 变化;R1.1 按不同 fixture-market 的有效 entry/closing pair 计数,本地无 staging 脱敏快照时不得报告 staging=0。
+- 模型输出收敛为 `FairMarketEstimate`:同一赛前比分分布同时产生 AH/OU fair line;瑞典超/中超优先 R4.1 artifact;挪超 goals/Elo fallback 因尚无对应独立 walk-forward 血统而保持关闭,无验证模型时继续 WATCH,市场概率不得冒充 fair line。
+- AH/OU shadow 双轨独立记录、结算与统计;固定最小线差 0.25;同线 decimal CLV 与变线 directional line CLV 分开,AH 放行不自动开放 TOTALS。
+- 预注册 `direction_allowed` 按“联赛+市场”评估:不同 fixture 的同线 shadow CLV >=100、中位数 >0、对应 market gap <=0.04、entry window >=80%、closing pair >=80%、outcome coverage >=90%、provider <=120/日,且必须单独批准 PR;最多只输出 `ELIGIBLE_FOR_REVIEW`,不得自动放行。
+- 选择性口径:首发仅 advisory;每天最多 3 张 ANALYSIS_PICK,按线差强度/数据质量/开球时间排序,无信号允许 0;ANALYSIS_PICK 继续 `outcome_tracked=true`、`lock_eligible=false`;RECOMMEND/EV、production、lock 全部保持关闭。
+- 本轮安全边界:`provider_calls=0`,`db_writes=0`,未部署 staging/production,未新增 league enable,未改 `direction_allowed`,未提交 runtime/raw/key/header。
+
+### V3 进展续23 · 取消每日 ANALYSIS_PICK 全局上限(2026-07-10)
+
+- 老板否决续22中的“每天最多 3 张 ANALYSIS_PICK”规则并确认方案 A；该旧口径不再代表当前产品契约。
+- 选择性改为逐场独立判定：每场通过 `analysis_gate` 即保留 `ANALYSIS_PICK`，不因当天已有 3 场而被降级为 `WATCH`；无信号日仍允许 0 场，门槛不降低、不凑数。
+- 线差强度、数据质量、开球时间和 fixture_id 仅用于展示排序，不影响推荐资格；每场仍只展示最强一个主方向，另一市场留在 L2。
+- `RECOMMEND`/EV、lock、production 与 `direction_allowed` 继续保持关闭；历史 `SELECTIVITY_DAILY_CAP` 仅保留读取兼容，不再产生新记录。

@@ -74,8 +74,7 @@ def build_r4_1_artifact_payload(
         "schema_version": R4_1_ARTIFACT_SCHEMA_VERSION,
         "competition_id": competition_id,
         "coefficients": {
-            name: float(value)
-            for name, value in zip(feature_names, coefficients, strict=False)
+            name: float(value) for name, value in zip(feature_names, coefficients, strict=False)
         },
         "temperature": float(temperature),
         "rho": float(rho),
@@ -191,8 +190,14 @@ def predict_r4_1_from_artifact(
     return {
         "probabilities": prediction.probabilities,
         "fair_ah": prediction.fair_ah,
+        "fair_ou": prediction.fair_ou,
+        "ah_probabilities": prediction.ah_probabilities,
+        "ou_probabilities": prediction.ou_probabilities,
+        "home_mu": prediction.home_mu,
+        "away_mu": prediction.away_mu,
         "artifact_hash": artifact.artifact_hash,
         "artifact_version": artifact.artifact_version,
+        "train_cutoff": _iso_utc(artifact.train_cutoff_utc),
     }
 
 

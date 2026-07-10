@@ -128,13 +128,11 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
-        "provider_budget_status": _optional_text(
-            _field(card, contract, "provider_budget_status")
-        ),
+        "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
         "probability_source": _optional_text(_field(card, contract, "probability_source")),
-        "model_market_divergence": _mapping_copy(
-            _field(card, contract, "model_market_divergence")
-        ),
+        "model_market_divergence": _mapping_copy(_field(card, contract, "model_market_divergence")),
+        "analysis_gate": _mapping_copy(_field(card, contract, "analysis_gate")),
+        "analysis_gates": _mapping_list(_field(card, contract, "analysis_gates")),
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
@@ -169,6 +167,8 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "provider_budget_status": _optional_text(card.get("provider_budget_status")),
         "probability_source": _optional_text(card.get("probability_source")),
         "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+        "analysis_gate": _mapping_copy(card.get("analysis_gate")),
+        "analysis_gates": _mapping_list(card.get("analysis_gates")),
         "missing_fields": _string_list(card.get("missing_fields")),
         "stale_fields": _string_list(card.get("stale_fields")),
         "data_readiness": _mapping_copy(card.get("data_readiness")),
@@ -251,6 +251,7 @@ def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         )
     return {
         "pricing_shadow": _mapping_copy(card.get("pricing_shadow")),
+        "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
         "scoreline_picks": scoreline_picks,
         "scoreline_reference": scoreline_reference or None,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
