@@ -5,7 +5,7 @@ project:
 
 last_updated_utc: "2026-07-10T20:47:44Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_staging_analysis_pick_sample_gate_removed_deployed_and_accepted
+current_status: phase_3_unified_pick_score_distribution_implemented_pending_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.

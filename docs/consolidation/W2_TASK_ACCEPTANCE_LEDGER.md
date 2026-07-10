@@ -505,3 +505,11 @@
 - 部署期间 scheduler 容器 ID/created/started/restart policy 未变；`provider_request_logs 319->319`、`future_refresh_run_audit 1407->1407`、Celery queue=`0`。仅 API/worker/web 更新，production 未部署。
 - 部署包装发现并修正 config 根目录权限继承为 `700` 导致 DayView 500 的问题；恢复既有 `775` 后公网 DayView PASS，无 DB schema 或决策逻辑额外修改。
 - 后续从这 7 张真实 `ANALYSIS_PICK` 开始自动结算胜/半胜/走/半负/负与 CLV，用结果判断系统是否有价值。100 样本仅用于更高信任层评审，不再阻塞分析推荐展示。
+
+### V3 进展续32 · 推荐盘、结算概率与比分分布同源(2026-07-11)
+
+- 老板指出真实卡片「大 3.25」与页面展示的 `2-1 / 1-1 / 2-2` 参考比分缺乏同源解释。根因为推荐来自 R4.1 `FairMarketEstimate`，Dashboard 比分却优先读取旧 `pricing_shadow.simulation.scoreline_picks`。
+- 后端现优先使用主 `analysis_gate` 对应 fair estimate 的 `home_mu/away_mu` 重建唯一比分分布，同时生成参考比分和推荐盘的五档结算概率；旧模拟比分不再覆盖 artifact-backed 分布。
+- 对浙江队 vs 青岛海牛的当前参数 `home_mu=3.1463/away_mu=1.3673`，大 3.25 同源结算为全赢约 66%、半输约 17%、全输约 17%。这三组数与页面参考比分现共用同一分布。
+- Dashboard 证据面板新增「同源盘口结算」，显示全赢/半赢/走水/半输/全输；provenance 携带 model family、artifact hash/version、train cutoff 与 feature as-of。
+- 本轮不改推荐方向、线差门槛、`RECOMMEND`/EV/lock 或 production；仅修复解释与概率同源性。

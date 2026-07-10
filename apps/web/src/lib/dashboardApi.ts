@@ -396,6 +396,10 @@ function normalizeScorelineReference(payload: unknown) {
     high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
     very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
     ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => asRecord(item)),
+    market_settlement: Object.keys(asRecord(record.market_settlement)).length ? asRecord(record.market_settlement) : null,
+    distribution_provenance: Object.keys(asRecord(record.distribution_provenance)).length
+      ? asRecord(record.distribution_provenance)
+      : null,
   };
 }
 

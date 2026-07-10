@@ -173,6 +173,13 @@ DecisionCard {
 
 AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。`ANALYSIS_PICK` 不设每日全局数量上限：每场比赛独立通过 `analysis_gate` 即保留分析推荐资格，排序只影响展示顺序，不得把第 N 场以后降级为 `WATCH`。允许无信号时为 0，禁止降低阈值凑数。
 
+### 推荐、结算概率与比分分布同源契约
+
+- 推荐盘口、该盘口的 `WIN/HALF_WIN/PUSH/HALF_LOSS/LOSS` 概率与参考比分必须由同一 `FairMarketEstimate` 的 `home_mu/away_mu` 比分分布生成。
+- `scoreline_reference.source` 必须为 `fair_market_estimate`，并携带与推荐一致的 `model_family/artifact_hash/artifact_version/train_cutoff/feature_as_of`。
+- 已有旧 `simulation.scoreline_picks` 不得覆盖 artifact-backed fair distribution。若 fair estimate 无完整 mu/provenance，应隐藏同源比分与结算概率，不得拼接另一模型的比分解释。
+- 四分之一盘必须分开展示全赢、半赢、走水、半输和全输概率；例如大 3.25 的 4+ 球为全赢、3 球为半输、0–2 球为全输。
+
 ## 落地检查（此契约"进了代码"的判定）
 
 - `domain/enums.py` 出现唯一 `DecisionTier`（五值）；
