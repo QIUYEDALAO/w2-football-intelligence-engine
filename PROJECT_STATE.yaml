@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T02:10:37Z"
+last_updated_utc: "2026-07-10T02:26:30Z"
 current_phase: selective analysis recommendation implementation
 current_status: implementation_in_progress_no_release_no_deploy
 
@@ -159,8 +159,11 @@ completed_milestones:
 open_work:
   - id: SELECTIVE-ANALYSIS-RECOMMENDATIONS
     priority: critical
-    status: IMPLEMENTING_LOCAL
+    status: OPEN_DRAFT_CI_RUNNING
     branch: codex/w2-selective-analysis-recommendations
+    pr: 225
+    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/225
+    head_sha: 80b2dcbf0a29ce7ca3a66b48011b2598ba965018
     objective: Repair the evidence loop and add validated, selective AH/OU ANALYSIS_PICK output without opening RECOMMEND.
     required_checks:
       - FairMarketEstimate derives AH and TOTALS from one prematch score distribution.
