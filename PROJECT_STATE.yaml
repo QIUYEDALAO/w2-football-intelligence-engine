@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T18:39:05Z"
+last_updated_utc: "2026-07-10T18:55:00Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_unified_league_feature_snapshot_in_progress_no_release_no_deploy
+current_status: phase_3_offline_feature_materialization_ready_staging_injection_pending
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -30,11 +30,11 @@ repository_state:
 
 staging_state:
   environment: staging
-  api_git_sha: 1858ce76456cedeceba2e1442da41bbcf075e385
-  web_git_sha: 1858ce76456cedeceba2e1442da41bbcf075e385
-  release_id: 1858ce76456cedeceba2e1442da41bbcf075e385
-  source_branch: codex/staging-dashboard-localization-integration
-  source_note: Traceable integration deployment of changes now merged through PRs 222 and 223; selective-analysis changes are not deployed.
+  api_git_sha: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
+  web_git_sha: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
+  release_id: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
+  source_branch: main
+  source_note: Scheduler-safe API/worker/web deploy through PR 228; scheduler container was not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -172,12 +172,20 @@ completed_milestones:
     merged_pr: 227
     merge_sha: 5aeef99840ce4dbbf5abc9492d116375cd615c90
     active_league_market_rows: 26
+  - phase: Unified LeagueFeatureSnapshot serving
+    status: merged_and_staging_deployed
+    merged_pr: 228
+    merge_sha: e37ff28cd409ba46dcaa7a5e6071bc8988a7c817
+    loader_smoke: PASS
+    pooled_artifact_dimensions:
+      chinese_super_league: 11
+      allsvenskan: 11
 
 open_work:
   - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: PHASE_3_UNIFIED_LEAGUE_FEATURE_SNAPSHOT_IN_PROGRESS
-    branch: codex/w2-league-feature-snapshot
+    status: PHASE_3_STAGING_FEATURE_SNAPSHOT_INJECTION_PENDING_APPROVAL
+    branch: codex/w2-offline-feature-materialization
     objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
     active_whitelist_target: 13
     archived_competitions:
@@ -251,8 +259,8 @@ active_decisions:
     status: active
 
 allowed_next_work:
-  - Complete one shared as-of LeagueFeatureSnapshot contract across eval and serving.
-  - Materialize serving rows from validated pre-kickoff inputs using artifact-defined feature names.
+  - Inject the verified sanitized TeamXgMatch and rolling snapshots into staging after explicit approval.
+  - Rebuild DayView cards and verify R4_1_CALIBRATED provenance on real CSL and Allsvenskan fixtures.
   - Request separate approval before any provider probe, scheduler reconfiguration, staging deployment, league enablement, or account cost.
   - Prepare a staging-only per-league and per-market direction_allowed review only after all prereg evidence passes.
   - Continue periodic R1.1 and monthly-eval read-only checks while status is ACCUMULATING.

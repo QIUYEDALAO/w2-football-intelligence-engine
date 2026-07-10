@@ -464,3 +464,18 @@
 - 已定位中超/瑞典超 `R4_1_FEATURE_HISTORY_INSUFFICIENT` 的关键接缝：pooled R4.1 artifact 实际含 11 维系数，旧 serving 却硬编码 6 维向量，导致已有输入仍在 artifact 长度校验处 fail closed。
 - offline eval 与 serving 现共用按 artifact `feature_names` 组装向量的单一实现；任意联赛 dummy 维度由 artifact 决定，不重训已验收 artifact。目标场开球后的特征时间戳会被拒绝，目标场结果和 closing odds 不进入输入。
 - 当前阶段只交付契约和 serving 接缝；本地缓存缺口、provider backfill、staging 部署均保留为后续独立审批动作。`provider_calls=0`、`db_reads=0`、`db_writes=0`、未 deploy/enable、未改 direction_allowed/EV/RECOMMEND/lock。
+
+### V3 进展续27 · 统一特征 serving 合入部署与缓存真相(2026-07-11)
+
+- #228 已合并 main 并 scheduler-safe 部署 staging `e37ff28cd409ba46dcaa7a5e6071bc8988a7c817`；API/Web SHA 对齐，health/ready PASS。只重建 API/worker/web，scheduler 容器 ID、created/started 时间与 `unless-stopped` policy 完全未变。
+- staging R4.1 loader 真实加载中超/瑞典超 11 维 pooled artifact，容器内 serving smoke 均无 fallback，可生成 fair AH/OU 与 artifact hash/version；6 维硬编码接缝已关闭。
+- 真实 DayView 仍显示 `R4_1_FEATURE_HISTORY_INSUFFICIENT`，原因已从代码维度问题收敛为数据层：当前中超/瑞典超/挪超目标球队在 staging 的 `team_xg_match` 历史为 0，目标 fixture rolling snapshot 为 0。
+- 本机既有 Pro 缓存足够且无需 provider：中超 2024–2026 fixture 720 场/真 xG 533 场，瑞典超真 xG 423 场，挪超真 xG 522 场；当前目标球队各有约 7–70 场可用历史。
+- 下一步固定为纯离线 materialization 到 `/tmp`，随后另行审批 staging snapshot injection。不得把 loader smoke 冒充真实卡片就绪，不打 provider、不改 direction_allowed/EV/RECOMMEND/lock。
+
+### V3 进展续28 · 本地历史特征物化完成(2026-07-11)
+
+- #229 新增零 provider、零 DB 的离线物化器，只读本机 `w2_pro_day1_provider_data` 缓存并严格按目标 fixture kickoff 截断历史；输出路径强制限定系统 `/tmp`，不提交 raw 或派生 artifact。
+- 对当前 staging 的中超/瑞典超/挪超 10 场目标比赛实跑完成：`ready_fixture_count=10/10`、`team_xg_match_count=1053`、`rolling_snapshot_count=20`、`blockers=[]`。
+- 物化结果位于 `/private/tmp/w2_league_feature_materialization_20260711.json`；`provider_calls=0`、`db_reads=0`、`db_writes=0`。该文件不进入 Git。
+- 下一门是独立审批的 staging feature snapshot injection；注入后重建 DayView，真实验收中超/瑞典超卡片 `model_family=R4_1_CALIBRATED`、无 `R4_1_FEATURE_HISTORY_INSUFFICIENT`、fair AH/OU 与 artifact provenance 在场。生产、direction_allowed、EV/RECOMMEND/lock 不动。
