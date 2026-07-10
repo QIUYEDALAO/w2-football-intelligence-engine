@@ -152,3 +152,31 @@ def test_baseline_prior_and_calibration_report_are_not_readiness_blockers() -> N
 
     assert result.data_status is not DataStatus.BLOCKED
     assert result.reason_code is not DecisionReasonCode.COVERAGE_NONE
+
+
+def test_pricing_factors_prevent_false_ratings_and_team_value_missing() -> None:
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-pricing-factors",
+            "fixture_status": "UPCOMING",
+            "pricing_shadow": {
+                "factors": [
+                    {"id": "F7_STRENGTH_FORM", "status": "READY"},
+                    {"feature_id": "F8_SQUAD_VALUE", "status": "READY"},
+                ],
+            },
+        },
+        market={"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "PARTIAL",
+            "available_inputs": {"lineups": True, "xg": True},
+        },
+        provider_status={"status": "AVAILABLE", "remaining_quota": 6000},
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    assert "ratings" not in result.missing_fields
+    assert "team_value" not in result.missing_fields

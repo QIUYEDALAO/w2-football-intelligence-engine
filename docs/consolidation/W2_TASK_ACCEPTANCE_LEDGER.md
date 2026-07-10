@@ -447,3 +447,12 @@
 - 当前独立分支 `codex/w2-world-cup-runtime-archive` 只处理世界杯 active/archive 边界、live scheduler/refresh/DayView 排除与历史只读兼容；服务器实际停止世界杯调度仍需单独审批 `STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP`。
 - 后续固定顺序：13 联赛 readiness matrix -> 统一 `LeagueFeatureSnapshot` -> 中超/瑞典超/挪超 serving -> 五大及德甲 -> 巴甲/阿甲/MLS/荷甲/葡超 -> Sportmonks 受控探针与 adapter -> AH/OU 技术验收 -> shadow accrual -> 逐联赛逐市场人工 release PR。
 - 红线保持：`RECOMMEND`/EV、lock、production 关闭；不为凑推荐降低阈值；provider、账号费用、scheduler 变更、staging deploy、league enable 均需独立批准；runtime/raw/key/header 不进 Git。
+
+### V3 进展续25 · 世界杯运行态归档合入与 readiness 真相矩阵(2026-07-11)
+
+- #226 已合并 main `ca68240754ce7a0ec5fa4702fc5a9d9f0f04090e`：活跃白名单固定为 13 个联赛，`world_cup_2026` 归档且退出 live registry、默认 refresh/scheduler scope、审计 scope 与 DayView；历史 replay、本地化和既有证据继续保留。本次未执行服务器 scheduler 重配或部署。
+- 第 2 阶段在独立分支 `codex/w2-thirteen-league-readiness-matrix` 启动只读 `LeagueMarketReadiness` 真相矩阵，逐联赛、逐 `ASIAN_HANDICAP/TOTALS` 输出 fixture、真实数值 xG、滚动特征、Elo、身价、休息、阵容、Pinnacle、artifact/provenance、market gap 与前向证据门状态。
+- `statistics_response_count` 与 `xg_numeric_match_count` 明确分开：HTTP statistics 成功不再冒充存在真 xG；AH 与 TOTALS 独立评估，一个市场通过不会自动放行另一个市场。
+- 状态只允许 `BLOCKED/TECHNICALLY_READY/ACCUMULATING/ELIGIBLE_FOR_REVIEW`；无脱敏 evidence 输入时 13 联赛 26 个市场全部 fail closed 为 `BLOCKED`，不会猜测或制造可用结论。
+- Data Readiness 接缝修正：`pricing_shadow.factors` 已存在且状态为 READY 的 `F7_STRENGTH_FORM` 与 `F8_SQUAD_VALUE` 不再同时被误报为缺 ratings/team_value。
+- 本阶段安全口径：`provider_calls=0`、`db_reads=0`、`db_writes=0`、未部署、未 enable、`direction_allowed_changes=[]`、未改 EV/RECOMMEND/lock、未提交 runtime/raw/key/header。

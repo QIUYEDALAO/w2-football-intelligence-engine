@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T16:30:00Z"
+last_updated_utc: "2026-07-10T18:06:57Z"
 current_phase: thirteen league recommendation readiness
-current_status: world_cup_runtime_archive_pr_in_progress_no_release_no_deploy
+current_status: phase_2_readiness_truth_matrix_in_progress_no_release_no_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 69f9facd5e19912d6784f5a22e22493feeb0b402
+  main_sha: ca68240754ce7a0ec5fa4702fc5a9d9f0f04090e
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T16:20:02Z"
+  observed_at_utc: "2026-07-10T18:06:57Z"
 
 staging_state:
   environment: staging
@@ -161,12 +161,18 @@ completed_milestones:
     status: merged_no_deploy
     merged_pr: 225
     merge_sha: 69f9facd5e19912d6784f5a22e22493feeb0b402
+  - phase: World Cup active-runtime archive
+    status: merged_no_deploy
+    merged_pr: 226
+    merge_sha: ca68240754ce7a0ec5fa4702fc5a9d9f0f04090e
+    active_whitelist_count: 13
+    archived_competition: world_cup_2026
 
 open_work:
   - id: THIRTEEN-LEAGUE-READINESS
     priority: critical
-    status: PHASE_1_WORLD_CUP_RUNTIME_ARCHIVE_IN_PROGRESS
-    branch: codex/w2-world-cup-runtime-archive
+    status: PHASE_2_READINESS_TRUTH_MATRIX_IN_PROGRESS
+    branch: codex/w2-thirteen-league-readiness-matrix
     objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
     active_whitelist_target: 13
     archived_competitions:
@@ -240,8 +246,8 @@ active_decisions:
     status: active
 
 allowed_next_work:
-  - Complete the World Cup runtime archive PR while preserving historical replay and localization.
-  - Build the thirteen-league readiness matrix as the next independent PR.
+  - Complete the thirteen-league readiness matrix without treating statistics response success as numeric xG evidence.
+  - Evaluate AH and TOTALS independently and fail closed when sanitized evidence is absent.
   - Materialize one shared as-of feature contract before adding more serving artifacts.
   - Request separate approval before any provider probe, scheduler reconfiguration, staging deployment, league enablement, or account cost.
   - Prepare a staging-only per-league and per-market direction_allowed review only after all prereg evidence passes.

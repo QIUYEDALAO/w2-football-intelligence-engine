@@ -250,8 +250,16 @@ def build_data_readiness_from_legacy_payload(
     ratings_available = _truthy(_get(raw_data_readiness, "ratings")) or _truthy(
         _get(pricing, "ratings_ready"),
     )
+    ratings_available = ratings_available or _pricing_factor_ready(
+        pricing,
+        "F7_STRENGTH_FORM",
+    )
     team_value_available = _truthy(_get(raw_data_readiness, "team_value")) or _truthy(
         _get(pricing, "team_value_ready"),
+    )
+    team_value_available = team_value_available or _pricing_factor_ready(
+        pricing,
+        "F8_SQUAD_VALUE",
     )
     status = _first_text(_get(analysis_readiness, "status"))
     if status == "READY":
@@ -320,6 +328,18 @@ def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | Non
             for item in _list(payload.get("field_statuses"))
             if isinstance(item, Mapping)
         ),
+    )
+
+
+def _pricing_factor_ready(pricing: Mapping[str, Any], factor_id: str) -> bool:
+    factors = pricing.get("factors")
+    if not isinstance(factors, list):
+        return False
+    return any(
+        isinstance(item, Mapping)
+        and str(item.get("id") or item.get("feature_id") or "") == factor_id
+        and str(item.get("status") or "").upper() == "READY"
+        for item in factors
     )
 
 
