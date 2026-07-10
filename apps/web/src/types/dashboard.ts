@@ -675,6 +675,10 @@ export interface DashboardDayViewCard {
   model_market_divergence?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   missing_inputs?: string[];
+  pricing_shadow?: PricingShadow | null;
+  scoreline_picks: ScorelinePick[];
+  scoreline_reference?: ScorelineReference | null;
+  scoreline_readiness?: ScorelineReadiness | null;
   pick?: {
     market?: string | null;
     selection?: string | null;

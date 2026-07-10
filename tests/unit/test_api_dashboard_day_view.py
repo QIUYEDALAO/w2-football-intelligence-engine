@@ -51,6 +51,13 @@ class RecordingDashboardService:
                     "outcome_tracked": False,
                     "lock_eligible": False,
                     "reason_code": "LINEUPS_PENDING",
+                    "pricing_shadow": {
+                        "simulation": {
+                            "status": "READY",
+                            "scoreline_picks": [{"scoreline": "1-0", "probability": 0.2}],
+                        }
+                    },
+                    "scoreline_readiness": {"status": "READY", "source": "formal_simulation"},
                     "non_pick": {
                         "reason_code": "LINEUPS_PENDING",
                         "reason_human": "首发未出",
@@ -88,6 +95,8 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["window"] == "future"
     assert payload["navigation"]["current_date"] == "2026-07-05"
     assert payload["navigation"]["fallback_mode"] == "read_model"
+    assert payload["cards"][0]["scoreline_picks"][0]["scoreline"] == "1-0"
+    assert payload["cards"][0]["scoreline_readiness"]["status"] == "READY"
     assert payload["degradation"]["state"] == "BLOCKED_DAY"
     assert payload["counts"]["total"] == 1
     assert payload["counts"]["not_ready"] == 1

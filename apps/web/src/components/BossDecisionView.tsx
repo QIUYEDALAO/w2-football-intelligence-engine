@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { fmtTime, formatLine, formatOdds, translateCompetition } from "../lib/formatters";
-import { asRecord, textValue } from "../lib/normalize";
+import { asArray, asRecord, textValue } from "../lib/normalize";
 import type {
   DashboardDayView,
   DashboardDayViewCard,
@@ -48,6 +48,25 @@ const ACTION_LABELS: Record<string, string> = {
   KEEP_WATCHING: "继续观察",
 };
 
+const BLOCKER_LABELS: Record<string, string> = {
+  MISSING_ANALYSIS_CARD: "缺少分析卡",
+  ALL_MARKETS_SKIP: "所有市场均为跳过",
+  MISSING_MARKET_OBSERVATIONS: "盘口观察不足",
+  MISSING_BOOKMAKER_QUOTES: "bookmaker 报价不足",
+  MISSING_ODDS_TIMELINE: "赔率时间线不足",
+  MISSING_XG: "xG/独立信号不足",
+  MISSING_LINEUPS: "首发未出",
+  MISSING_SCORE_MATRIX: "比分矩阵不足",
+  MISSING_MODEL_PROBABILITIES: "模型概率缺失",
+  MISSING_MARKET_PROBABILITIES: "市场概率缺失",
+  SCORE_MARKET_UNAVAILABLE: "比分市场不可用",
+  ODDS_UNAVAILABLE: "赔率未返回",
+  FIXTURE_NOT_UPCOMING: "非赛前窗口",
+  UNSUPPORTED_MARKET: "不支持的盘口",
+  DATA_MISSING_XG: "缺关键 xG",
+  PROVIDER_EMPTY_OR_UNAVAILABLE: "provider 空返",
+};
+
 const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
 const MARKET_ANCHOR_MIN_DIVERGENCE = Number(import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.25);
 
@@ -82,6 +101,24 @@ function actionLabel(value?: string | null): string {
   return ACTION_LABELS[value] ?? "继续观察";
 }
 
+function blockerLabel(value?: string | null): string {
+  if (!value) return "";
+  return BLOCKER_LABELS[value] ?? REASON_LABELS[value] ?? value.replace(/_/g, " ").toLowerCase();
+}
+
+function numericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function uniqueItems(items: string[]): string[] {
+  return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+}
+
 function isWorldCup(dayView: DashboardDayView): boolean {
   return dayView.cards.some((card) => card.competition_id === "world_cup_2026" || (card.competition_name ?? "").toLowerCase().includes("world cup"));
 }
@@ -94,7 +131,103 @@ function l1OneLiner(card: DashboardDayViewCard): string {
   if (card.decision_tier === "ANALYSIS_PICK" && card.pick) {
     return `${tierLabel(card.decision_tier)}：${marketPickLabel(card)}；分析参考·非稳赢。`;
   }
-  return `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
+  return nonRecommendationReasons(card)[0] ?? `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
+}
+
+function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
+  if (["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier)) {
+    return [`已出${tierLabel(card.decision_tier)}，仍需按赛后 ledger 验证。`];
+  }
+  const reasons: string[] = [];
+  const analysis = asRecord(card.analysis_readiness);
+  const blockers = [
+    ...asArray(analysis.blockers),
+    ...(card.missing_inputs ?? []),
+    ...(card.missing_fields ?? []),
+  ].map((value) => textValue(value)).filter(Boolean);
+
+  if (card.reason_code === "EDGE_INSUFFICIENT") {
+    reasons.push("模型-市场分歧没有达到高亮门槛，当前不输出方向。");
+  }
+  if (card.reason_code === "LINEUPS_PENDING") {
+    reasons.push("首发未出只是临场复核项，不是唯一拦截原因。");
+  }
+  if (card.reason_code && !["EDGE_INSUFFICIENT", "LINEUPS_PENDING"].includes(card.reason_code)) {
+    reasons.push(`${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`);
+  }
+
+  for (const blocker of blockers) {
+    if (blocker === "MISSING_LINEUPS") {
+      reasons.push("首发未出会降低临场完整度，但系统还会同时看盘口、xG 和分歧门槛。");
+    } else if (blocker === "MISSING_XG") {
+      reasons.push("xG/独立信号不足，模型侧证据不够。");
+    } else if (blocker === "MISSING_SCORE_MATRIX") {
+      reasons.push("比分矩阵不足，暂时不给比分型结论。");
+    } else if (blocker === "MISSING_ODDS_TIMELINE") {
+      reasons.push("赔率时间线不足，无法判断开盘到现价的变化质量。");
+    } else if (blocker === "MISSING_MARKET_PROBABILITIES") {
+      reasons.push("市场概率缺失，不能做市场锚定判断。");
+    } else if (blocker === "MISSING_MODEL_PROBABILITIES") {
+      reasons.push("模型概率缺失，只能保留观察。");
+    } else {
+      reasons.push(blockerLabel(blocker));
+    }
+  }
+
+  const divergence = asRecord(card.model_market_divergence);
+  const divergenceStatus = textValue(divergence.status).toUpperCase();
+  const directionAllowed = divergence.direction_allowed === true || textValue(divergence.direction_allowed).toLowerCase() === "true";
+  const magnitude = numericValue(divergence.magnitude);
+  if (divergenceStatus === "INSUFFICIENT") {
+    reasons.push("模型与市场没有形成足够分歧，当前只是观察。");
+  }
+  if (divergenceStatus === "UNVALIDATED") {
+    reasons.push("模型适用性未验证，方向只能进入证据积累。");
+  }
+  if (magnitude != null && magnitude < MARKET_ANCHOR_MIN_DIVERGENCE) {
+    reasons.push(`线差 ${magnitude.toFixed(2)} < ${MARKET_ANCHOR_MIN_DIVERGENCE.toFixed(2)}，未达分歧雷达门槛。`);
+  }
+  if (!directionAllowed && card.probability_source === "MARKET_DEVIG") {
+    reasons.push("direction_allowed 未放行：只积累 shadow 证据，不展示真实推荐方向。");
+  }
+
+  const scoreline = scorelineStatusText(card);
+  if (!scoreline.hasPicks && scoreline.message !== "比分模拟暂无可展示结果。") {
+    reasons.push(scoreline.message);
+  }
+  if (!reasons.length) {
+    reasons.push("没有达到 ANALYSIS_PICK / RECOMMEND 门槛，保留观察。");
+  }
+  return uniqueItems(reasons).slice(0, 5);
+}
+
+function scorelineItems(card: DashboardDayViewCard): DashboardDayViewCard["scoreline_picks"] {
+  if (card.scoreline_reference?.top_scorelines?.length) return card.scoreline_reference.top_scorelines;
+  return card.scoreline_picks ?? [];
+}
+
+function scorelineItemText(pick: { scoreline?: string; probability_label?: string | null }): string {
+  return `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`;
+}
+
+function scorelineStatusText(card: DashboardDayViewCard): { message: string; hasPicks: boolean } {
+  const picks = scorelineItems(card).filter((pick) => pick.scoreline);
+  if (picks.length) {
+    return {
+      hasPicks: true,
+      message: `模拟比分参考：${picks.slice(0, 3).map(scorelineItemText).join(" / ")}`,
+    };
+  }
+  const readiness = card.scoreline_readiness;
+  const readinessReason = blockerLabel(readiness?.reason);
+  if (readinessReason) return { hasPicks: false, message: `比分模拟未显示：${readinessReason}` };
+  const shadow = asRecord(card.pricing_shadow);
+  const simulation = asRecord(shadow.simulation);
+  const simulationStatus = textValue(simulation.status, textValue(shadow.simulation_status));
+  if (simulationStatus && simulationStatus !== "READY") {
+    return { hasPicks: false, message: `比分模拟未显示：${blockerLabel(simulationStatus) || statusCn(simulationStatus)}` };
+  }
+  return { hasPicks: false, message: "比分模拟暂无可展示结果。" };
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
@@ -500,6 +633,7 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
   const readiness = asRecord(diagnostics.data_readiness_summary);
   const missingFields = card.missing_fields ?? [];
   const staleFields = card.stale_fields ?? [];
+  const scoreline = scorelineStatusText(card);
   return [
     ["decision", tierLabel(card.decision_tier)],
     ["data", dataStatusLabel(card.data_status)],
@@ -509,6 +643,8 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
     ["probability_source", probabilitySourceLabel(card)],
     ["model_market_divergence", divergenceLabel(card)],
     ["model_applicability", applicabilityLabel(card)],
+    ["scoreline", scoreline.message],
+    ["scoreline_readiness", textValue(card.scoreline_readiness?.status, "-")],
     ["card_hash", textValue(card.card_hash, "-").slice(0, 16)],
     ["missing", missingFields.join(", ") || "-"],
     ["stale", staleFields.join(", ") || "-"],
@@ -522,6 +658,7 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
     `数据:${dataStatusLabel(card.data_status)}; ${trustSignalSummary(card)}`,
     `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
+    `模拟:${scorelineStatusText(card).message}`,
     `下一步:${actionLabel(card.action)}; ${card.next_eval_at ? fmtTime(card.next_eval_at) : "待定"}再看`,
   ];
 }
@@ -596,6 +733,9 @@ export function EvidencePanel({
 }) {
   const reasons = reasonSummary(cards);
   if (selectedCard) {
+    const reasons = nonRecommendationReasons(selectedCard);
+    const scoreline = scorelineStatusText(selectedCard);
+    const scorelines = scorelineItems(selectedCard).filter((pick) => pick.scoreline).slice(0, 3);
     return (
       <aside className="evidence-panel" aria-label="选中比赛证据预览">
         <span>选中比赛证据</span>
@@ -605,6 +745,25 @@ export function EvidencePanel({
           {evidenceStatements(selectedCard).map((statement) => (
             <strong key={statement}>{statement}</strong>
           ))}
+        </div>
+        <div className="evidence-section">
+          <strong>为什么现在不是推荐</strong>
+          <ul>
+            {reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="evidence-section">
+          <strong>模拟比分参考</strong>
+          <p>{scoreline.message}</p>
+          {scorelines.length ? (
+            <div className="boss-scoreline-picks">
+              {scorelines.map((pick) => (
+                <span key={`${pick.scoreline}-${pick.probability_label ?? ""}`}>{scorelineItemText(pick)}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="tracking-note">
           <span>赛后追踪</span>
@@ -647,6 +806,7 @@ export function DecisionRow({
 }) {
   const tierClass = `tier-${card.decision_tier.toLowerCase().replace("_", "-")}`;
   const muted = card.decision_tier === "NOT_READY" || card.decision_tier === "SKIP" || card.data_status === "BLOCKED";
+  const scoreline = scorelineStatusText(card);
   return (
     <article className={`decision-row ${tierClass}${selected ? " is-selected" : ""}${muted ? " is-muted" : ""}`}>
       <button className="decision-row-button" type="button" onClick={onSelect} aria-pressed={selected}>
@@ -660,6 +820,7 @@ export function DecisionRow({
         <div className="decision-cell decision-teams">
           <strong>{teamLabel(card)}</strong>
           <span>{l1OneLiner(card)}</span>
+          <small className={scoreline.hasPicks ? "scoreline-mini has-picks" : "scoreline-mini"}>{scoreline.message}</small>
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>

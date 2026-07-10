@@ -778,6 +778,10 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     model_market_divergence: asRecord(record.model_market_divergence),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
+    pricing_shadow: normalizePricingShadow(record.pricing_shadow),
+    scoreline_picks: asArray(record.scoreline_picks).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    scoreline_reference: normalizeScorelineReference(record.scoreline_reference),
+    scoreline_readiness: normalizeScorelineReadiness(record.scoreline_readiness),
     pick: Object.keys(pick).length
       ? {
           market: textValue(pick.market) || null,
