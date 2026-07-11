@@ -14,6 +14,9 @@ SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
 FT_STATUSES = {"FT", "AET", "PEN"}
 MIN_SHADOW_LINE_DIVERGENCE = 0.25
+OFFICIAL_SCOPE = "OFFICIAL"
+VALIDATION_SCOPE = "VALIDATION"
+SHADOW_SCOPE = "SHADOW"
 
 
 def run_forward_outcome_ledger(
@@ -105,6 +108,7 @@ def build_forward_outcome_records(
             "current_odds": _market_odds_summary(card.get("current_odds")),
             "card_hash": _optional_text(card.get("card_hash")),
             "outcome_tracked": bool(card.get("outcome_tracked") is True),
+            "recommendation_scope": _recommendation_scope(card),
             "source": _optional_text(card.get("source")),
             "posthoc_only": True,
             "not_a_lock": True,
@@ -234,6 +238,7 @@ def _record_key(record: Mapping[str, Any]) -> str:
         parts.extend(
             [
                 _text(record.get("settled_side")),
+                _text(record.get("recommendation_scope")),
                 _text(record.get("market")),
                 _text(record.get("selection")),
             ]
@@ -276,7 +281,7 @@ def _settlement_entries(
     results: Mapping[str, Mapping[str, Any]],
 ) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
     grouped: dict[
-        tuple[str, str, str, str],
+        tuple[str, str, str, str, str],
         list[tuple[Mapping[str, Any], Mapping[str, Any]]],
     ] = {}
     for record in records:
@@ -300,10 +305,15 @@ def _settlement_entries(
             selection = _text(item.get("selection"))
             if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
                 continue
-            grouped.setdefault((fixture_id, side, market, selection), []).append((record, item))
+            scope = SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(record)
+            if side == "pick" and scope is None:
+                continue
+            grouped.setdefault((fixture_id, side, _text(scope), market, selection), []).append(
+                (record, item)
+            )
 
     entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
-    for (_, side, _, _), items in grouped.items():
+    for (_, side, _, _, _), items in grouped.items():
         ordered = sorted(
             items,
             key=lambda pair: (
@@ -347,6 +357,9 @@ def _outcome_record(
         "market": market,
         "selection": selection,
         "settled_side": side,
+        "recommendation_scope": (
+            SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(entry)
+        ),
         "final_score": final_score,
         "provider_calls": 0,
         "db_writes": 0,
@@ -548,6 +561,21 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
         if kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600:
             return record
     return records[0]
+
+
+def _recommendation_scope(record: Mapping[str, Any]) -> str | None:
+    explicit = _text(record.get("recommendation_scope")).upper()
+    if explicit in {OFFICIAL_SCOPE, VALIDATION_SCOPE, SHADOW_SCOPE}:
+        return explicit
+    tier = _text(record.get("decision_tier")).upper()
+    if tier == "ANALYSIS_PICK":
+        return VALIDATION_SCOPE
+    if tier in {"RECOMMEND", "FORMAL", "CANDIDATE"}:
+        return OFFICIAL_SCOPE
+    if isinstance(record.get("pick"), Mapping):
+        # Historical captures predate recommendation_scope and remain official.
+        return OFFICIAL_SCOPE
+    return None
 
 
 def _settlement_selection(selection: str) -> str | None:

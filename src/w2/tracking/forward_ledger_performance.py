@@ -10,6 +10,8 @@ from statistics import median
 from typing import Any
 
 SAMPLE_TARGET = 200
+OFFICIAL_SCOPE = "OFFICIAL"
+VALIDATION_SCOPE = "VALIDATION"
 SETTLED_OUTCOMES = {
     "HIT": "hit",
     "WIN": "hit",
@@ -46,9 +48,17 @@ def forward_ledger_performance(
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     records = list(load_forward_ledger_records(root))
-    outcome_counts = _outcome_counts(records, side="pick")
+    outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
+    outcome_validation_counts = _outcome_counts(
+        records,
+        side="pick",
+        scope=VALIDATION_SCOPE,
+    )
     outcome_shadow_counts = _outcome_counts(records, side="shadow_pick")
-    clv_rows = _clv_rows(records, key_fn=_clv_key)
+    official_records = [
+        record for record in records if _recommendation_scope(record) == OFFICIAL_SCOPE
+    ]
+    clv_rows = _clv_rows(official_records, key_fn=_clv_key)
     shadow_capture_records = _expanded_shadow_capture_records(records)
     clv_shadow_rows = _clv_rows(shadow_capture_records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
@@ -75,6 +85,7 @@ def forward_ledger_performance(
         "void_count": outcome_counts["void"],
         "hit_rate": _hit_rate(outcome_counts),
         "outcomes": _outcome_summary(outcome_counts),
+        "outcomes_validation": _outcome_summary(outcome_validation_counts),
         "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
         "accumulation_label": _accumulation_label(len(fixture_ids), sample_target),
         "clv": _clv_summary(
@@ -94,7 +105,8 @@ def forward_ledger_performance(
             records,
             clv_rows,
             clv_shadow_rows,
-            outcome_counts_by_league(records, side="pick"),
+            outcome_counts_by_league(records, side="pick", scope=OFFICIAL_SCOPE),
+            outcome_counts_by_league(records, side="pick", scope=VALIDATION_SCOPE),
             outcome_counts_by_league(records, side="shadow_pick"),
         ),
         "by_league_market": _league_market_rows(
@@ -129,10 +141,13 @@ def _outcome_counts(
     records: Sequence[Mapping[str, Any]],
     *,
     side: str,
+    scope: str | None = None,
 ) -> defaultdict[str, int]:
     counts: defaultdict[str, int] = defaultdict(int)
     for record in records:
         if _outcome_side(record) != side:
+            continue
+        if scope is not None and _recommendation_scope(record) != scope:
             continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
@@ -144,10 +159,13 @@ def outcome_counts_by_league(
     records: Sequence[Mapping[str, Any]],
     *,
     side: str = "pick",
+    scope: str | None = None,
 ) -> dict[str, defaultdict[str, int]]:
     by_league: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
     for record in records:
         if _outcome_side(record) != side:
+            continue
+        if scope is not None and _recommendation_scope(record) != scope:
             continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
@@ -404,6 +422,7 @@ def _league_rows(
     clv_rows: Sequence[Mapping[str, Any]],
     clv_shadow_rows: Sequence[Mapping[str, Any]],
     league_outcomes: dict[str, defaultdict[str, int]],
+    league_validation_outcomes: dict[str, defaultdict[str, int]],
     league_shadow_outcomes: dict[str, defaultdict[str, int]],
 ) -> list[dict[str, Any]]:
     league_records: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
@@ -422,6 +441,7 @@ def _league_rows(
     rows: list[dict[str, Any]] = []
     for league, items in league_records.items():
         outcomes = league_outcomes.get(league, defaultdict(int))
+        validation_outcomes = league_validation_outcomes.get(league, defaultdict(int))
         shadow_outcomes = league_shadow_outcomes.get(league, defaultdict(int))
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
@@ -445,6 +465,12 @@ def _league_rows(
                 "push_count": outcomes["push"],
                 "void_count": outcomes["void"],
                 "hit_rate": _hit_rate(outcomes),
+                "validation_settled_sample_count": sum(validation_outcomes.values()),
+                "validation_hit_count": validation_outcomes["hit"],
+                "validation_miss_count": validation_outcomes["miss"],
+                "validation_push_count": validation_outcomes["push"],
+                "validation_void_count": validation_outcomes["void"],
+                "validation_hit_rate": _hit_rate(validation_outcomes),
                 "shadow_settled_sample_count": sum(shadow_outcomes.values()),
                 "shadow_hit_count": shadow_outcomes["hit"],
                 "shadow_miss_count": shadow_outcomes["miss"],
@@ -585,6 +611,17 @@ def _outcome_side(record: Mapping[str, Any]) -> str:
     if side in {"pick", "shadow_pick"}:
         return side
     return ""
+
+
+def _recommendation_scope(record: Mapping[str, Any]) -> str:
+    explicit = _text(record.get("recommendation_scope")).upper()
+    if explicit in {OFFICIAL_SCOPE, VALIDATION_SCOPE}:
+        return explicit
+    tier = _text(record.get("decision_tier")).upper()
+    if tier == "ANALYSIS_PICK":
+        return VALIDATION_SCOPE
+    # Historical pick outcomes predate recommendation_scope and remain official.
+    return OFFICIAL_SCOPE
 
 
 def _record_type(record: Mapping[str, Any]) -> str:

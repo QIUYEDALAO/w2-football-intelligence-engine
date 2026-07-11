@@ -583,3 +583,17 @@
 - DecisionCard 新增 `optional_enrichment` 与 `player_impact_estimate`。当前所有联赛球员影响默认 `NOT_SUPPORTED`、`net_adjustment=0`、`affects_estimate=false`，因此不伪造球员影响，也不改变现有推荐方向。
 - 后续顺序固定：PR B 隔离 legacy baseline 并强化 FairMarketEstimate 单一真源；PR C 冻结/结算验证推荐并隔离统计；PR D 更新 Dashboard 文案与增强状态。部署仍需单独批准。
 - 安全：`provider_calls=0`、`db_writes=0`、未部署 staging/production、未改联赛 enable、scheduler、RECOMMEND、EV、lock 或 provider 日预算。
+
+### V3 进展续42 · FairMarketEstimate 单一真源 PR B(2026-07-11)
+
+- #248 已 squash merge main `725df8d736b5903d6a679cb84010719e6d7b4ee7`，GitHub `verify/staging-parity/predeploy-e2e` 全部 SUCCESS。
+- FairMarketEstimate 成为可见 pick 的方向、公平盘、比分与结算概率权威源；显式缺失或 provenance 不一致时 fail closed 为 WATCH。
+- `pricing_shadow.simulation` 标记为 `LEGACY_BASELINE_NOT_DECISION_SOURCE`，可见 pick 不再回退 legacy simulation 比分。
+- 未部署、未调用 provider、未写业务数据库，未改 RECOMMEND、EV、lock、production 或联赛 enable。
+
+### V3 进展续43 · 验证推荐冻结、结算与统计隔离 PR C(2026-07-11)
+
+- forward outcome capture/outcome 新增 `recommendation_scope=VALIDATION|OFFICIAL|SHADOW`；ANALYSIS_PICK 与 RECOMMEND 可在同一 fixture 上分别冻结、分别结算，幂等键包含 scope。
+- 正式 outcome 顶层统计只读取 OFFICIAL；ANALYSIS_PICK 进入独立 `outcomes_validation`，shadow 继续进入 `outcomes_shadow`，三轨不互相污染。
+- 无 scope 的历史 pick 记录继续按 OFFICIAL 读取，不重写历史快照；本阶段不执行 artifact 或数据库写入。
+- 未部署、未调用 provider，未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler。
