@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T20:47:44Z"
+last_updated_utc: "2026-07-11T00:12:08Z"
 current_phase: thirteen league recommendation readiness
-current_status: phase_3_unified_pick_score_distribution_implemented_pending_deploy
+current_status: phase_3_unified_pick_score_distribution_deployed_and_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,21 +20,21 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  main_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T20:47:44Z"
+  observed_at_utc: "2026-07-11T00:12:08Z"
 
 staging_state:
   environment: staging
-  api_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
-  web_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
-  release_id: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  api_git_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
+  web_git_sha: b47b1e65ed03fea6777d6d9843e51b4242401ed9
+  release_id: e27730e1d76ec2c2c516c2f01167eda16921629d
   source_branch: main
-  source_note: Scheduler-safe API/worker/web deploy through PR 231; scheduler container was not recreated or restarted.
+  source_note: Scheduler-safe API/Web deployment through PR 233 plus API-only acceptance fixes 234/235; scheduler container was not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db

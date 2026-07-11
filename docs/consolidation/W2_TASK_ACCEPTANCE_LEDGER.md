@@ -513,3 +513,10 @@
 - 对浙江队 vs 青岛海牛的当前参数 `home_mu=3.1463/away_mu=1.3673`，大 3.25 同源结算为全赢约 66%、半输约 17%、全输约 17%。这三组数与页面参考比分现共用同一分布。
 - Dashboard 证据面板新增「同源盘口结算」，显示全赢/半赢/走水/半输/全输；provenance 携带 model family、artifact hash/version、train cutoff 与 feature as-of。
 - 本轮不改推荐方向、线差门槛、`RECOMMEND`/EV/lock 或 production；仅修复解释与概率同源性。
+
+### V3 进展续33 · 同源比分与结算概率 staging 验收(2026-07-11)
+
+- #233 已合并 main `b47b1e65ed03fea6777d6d9843e51b4242401ed9` 并部署 API/Web；真实验收发现 repository 早于 DecisionCard 物化结算 reference，随后以 #234/#235 收口 `analysis_gate` fallback 和 DayView 契约完成后强制重算。最终 main/API SHA=`e27730e1d76ec2c2c516c2f01167eda16921629d`。
+- 浙江队 vs 青岛海牛真实 DayView 现为：`ANALYSIS_PICK` 大 3.25 @1.91，fair line=4.25；同源参考比分 `3-1 8% / 2-1 7% / 4-1 6%`；结算概率全赢 `66%`、半输 `17%`、全输 `17%`。
+- `scoreline_reference.source=fair_market_estimate`，比分、结算概率和推荐均共用 `home_mu=3.1463/away_mu=1.3673`、`R4_1_CALIBRATED`、artifact hash/version/train cutoff/feature as-of。
+- 部署期间 `provider_request_logs 319->319`、`future_refresh_run_audit 1407->1407`、Celery queue=`0`；scheduler 容器 ID、created/started 和 `unless-stopped` policy 未变。production 未部署，未改推荐方向、`RECOMMEND`/EV/lock。
