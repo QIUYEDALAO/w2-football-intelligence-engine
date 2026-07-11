@@ -113,7 +113,7 @@ DecisionCard {
 |---|---|---|---|
 | `DATA_MISSING_XG` | 缺关键 xG | 等 xG 回填 | 下一 backfill tick |
 | `DATA_STALE_ODDS` | 盘口线过期 | 触发盘口刷新 | T-90 刷新点 |
-| `LINEUPS_PENDING` | 首发未出 | 等官方首发 | 开球前 ~60m |
+| `LINEUPS_PENDING` | 首发增强待公布（不阻塞分析推荐） | 使用球队模型继续评估 | 仅支持已验证首发增强的联赛临场重算 |
 | `MARKET_UNAVAILABLE` | 该盘口无线 | 换盘口/等开盘 | 下一刷新点 |
 | `EDGE_INSUFFICIENT` | 有观点但价值不够 | 盯价格变动 | T-30 |
 | `PROVIDER_BUDGET_EXHAUSTED` | 当日 provider 预算耗尽，数据降级 | 等下一 tick 预算 | 下一 tick |
@@ -172,6 +172,19 @@ DecisionCard {
 放行后真实 pick 才开始积累，R3.0 的 `>=200` 真实 pick CLV 门槛仍在真实轨上计算，门槛数字不变。修改本规则必须留下评审记录。
 
 AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。`ANALYSIS_PICK` 不设每日全局数量上限：每场比赛独立通过 `analysis_gate` 即保留分析推荐资格，排序只影响展示顺序，不得把第 N 场以后降级为 `WATCH`。允许无信号时为 0，禁止降低阈值凑数。
+
+### 可选首发与球员价值增强（2026-07-11）
+
+`lineups` 与 `team_value` 不属于 `missing_fields` 硬缺失，不得降低
+`analysis_gate=ELIGIBLE`，也不得成为主要 `reason_code`。DecisionCard 通过
+`optional_enrichment.lineups`、`optional_enrichment.player_value` 公开其真实状态；
+没有经过独立 walk-forward 验证的球员影响模型时，`affects_estimate=false`、
+`PlayerImpactEstimate.status=NOT_SUPPORTED`、`net_adjustment=0`。只有证明能改善
+联赛级市场 gap 的已验证模型才允许 `APPLIED`，并必须携带完整 provenance。
+
+等待首发本身不得安排 T-90 重评。只有 `lineups.affects_estimate=true` 的联赛才可
+保留临场首发重算点。未经授权不得抓取 Transfermarkt；授权数据源、capability probe
+和 provider 调用均须单独审批。
 
 ### 推荐、结算概率与比分分布同源契约
 

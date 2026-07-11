@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T07:36:00Z"
-current_phase: dashboard cache-first performance
-current_status: deployed_and_staging_accepted
+last_updated_utc: "2026-07-11T08:30:00Z"
+current_phase: optional lineup enrichment and validation recommendation
+current_status: pr_a_implementation
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,38 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+  main_sha: 63e8d735d577595292b4c2c88c57c67952a4e754
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
   observed_at_utc: "2026-07-11T01:25:00Z"
+
+current_execution_queue:
+  name: W2 optional lineup enrichment and validation recommendation
+  invariant:
+    - Lineups and player value are optional enrichment, never analysis hard gates.
+    - FairMarketEstimate remains the only L1 decision probability and score-distribution source.
+    - ANALYSIS_PICK is a tracked validation recommendation and is never lock eligible.
+    - RECOMMEND, EV, lock, production, league enablement, and provider budgets remain unchanged.
+  stages:
+    - id: A
+      name: optional enrichment contract
+      status: IN_PROGRESS
+    - id: B
+      name: FairMarketEstimate authority and legacy isolation
+      status: PENDING
+    - id: C
+      name: validation recommendation freeze settlement and statistics
+      status: PENDING
+    - id: D
+      name: dashboard wording and enrichment status
+      status: PENDING
+  external_actions:
+    provider_calls: 0
+    staging_deploy: false
+    production_deploy: false
 
 staging_state:
   environment: staging

@@ -99,27 +99,30 @@ def test_stale_odds_marks_stale() -> None:
     assert result.stale_fields == ("odds",)
 
 
-def test_lineups_missing_before_t90_is_partial_not_blocked() -> None:
+def test_lineups_missing_before_t90_is_optional_and_ready() -> None:
     as_of = KICKOFF - timedelta(minutes=120)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
-    assert result.missing_fields == ("lineups",)
+    assert result.data_status is DataStatus.READY
+    assert result.reason_code is None
+    assert result.missing_fields == ()
+    lineup_status = next(field for field in result.field_statuses if field.field == "lineups")
+    assert lineup_status.present is False
 
 
-def test_lineups_missing_after_t30_is_still_partial_by_default() -> None:
+def test_lineups_missing_after_t30_does_not_schedule_a_lineup_only_retry() -> None:
     as_of = KICKOFF - timedelta(minutes=20)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.data_status is DataStatus.READY
+    assert result.reason_code is None
+    assert result.next_eval_at is None
 
 
 def test_missing_xg_is_partial() -> None:

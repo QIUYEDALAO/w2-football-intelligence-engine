@@ -19,6 +19,7 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.domain.legacy_decision_shim import legacy_decision_view
+from w2.models.player_impact import unsupported_player_impact
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
     DataReadinessResult,
@@ -70,6 +71,8 @@ def build_decision_contract_fields(
         environment=environment,
     )
     analysis_gate = _primary_analysis_gate(analysis_gates)
+    optional_enrichment = _optional_enrichment(card)
+    player_impact_estimate = unsupported_player_impact().as_dict()
     tier = _market_anchor_display_tier(
         tier=tier,
         data_status=data_status,
@@ -142,6 +145,8 @@ def build_decision_contract_fields(
         "analysis_gate": analysis_gate,
         "analysis_gates": analysis_gates,
         "fair_market_estimates": [dict(item) for item in _fair_market_estimates(card)],
+        "optional_enrichment": optional_enrichment,
+        "player_impact_estimate": player_impact_estimate,
         "provenance": {
             "source": str(_get(card, "source") or "legacy_payload"),
             "adapter": "w2.decision_contract.v2.adapter",
@@ -733,6 +738,8 @@ def _validated_card_hash(
         fair_market_estimates=tuple(
             item for item in core.get("fair_market_estimates", []) if isinstance(item, Mapping)
         ),
+        optional_enrichment=_as_mapping(core.get("optional_enrichment")),
+        player_impact_estimate=_as_mapping(core.get("player_impact_estimate")),
         provenance=_as_mapping(core.get("provenance")),
         environment=environment,
         pick=_decision_pick(_as_mapping(core.get("pick"))),
@@ -900,6 +907,32 @@ def _selection_for_delta(market: str, delta: float | None) -> str | None:
 def _lineups_pending(card: Mapping[str, Any]) -> bool:
     readiness = _as_mapping(card.get("data_readiness"))
     return not _truthy(readiness.get("lineups"))
+
+
+def _optional_enrichment(card: Mapping[str, Any]) -> dict[str, Any]:
+    readiness = _as_mapping(card.get("data_readiness"))
+    available_inputs = _as_mapping(
+        _get(_as_mapping(card.get("analysis_readiness")), "available_inputs")
+    )
+    lineups_available = _truthy(readiness.get("lineups")) or _truthy(
+        available_inputs.get("lineups")
+    )
+    player_value_available = _truthy(readiness.get("team_value"))
+    return {
+        "lineups": {
+            "status": "AVAILABLE_NOT_MODELED" if lineups_available else "PENDING",
+            "affects_estimate": False,
+            "adjustment": 0.0,
+            "source": None,
+            "as_of": readiness.get("lineups_captured_at"),
+        },
+        "player_value": {
+            "status": "AVAILABLE_NOT_MODELED" if player_value_available else "NOT_SUPPORTED",
+            "affects_estimate": False,
+            "source": None,
+            "as_of": readiness.get("team_value_captured_at"),
+        },
+    }
 
 
 def _analysis_next_eval(
