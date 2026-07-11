@@ -1298,7 +1298,11 @@ def _score_line(match: dict[str, Any], decision: MatchDecision) -> str | None:
     if decision.state != MatchDecisionState.FORMAL:
         return None
     reference = _dict(match.get("scoreline_reference"))
-    rows = [item for item in _list(reference.get("direction_top3")) if isinstance(item, dict)]
+    rows = [
+        item
+        for item in _list(reference.get("direction_scorelines") or reference.get("direction_top3"))
+        if isinstance(item, dict)
+    ]
     if not rows:
         return None
     parts = []

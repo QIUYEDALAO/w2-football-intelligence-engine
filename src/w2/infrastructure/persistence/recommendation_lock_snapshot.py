@@ -207,7 +207,7 @@ def _require_formal_ah_recommendation(
 
 def _direction_top3(card: dict[str, Any]) -> Any | None:
     reference = _dict(card.get("scoreline_reference"))
-    rows = reference.get("direction_top3")
+    rows = reference.get("direction_scorelines") or reference.get("direction_top3")
     if isinstance(rows, list):
         return rows
     return None

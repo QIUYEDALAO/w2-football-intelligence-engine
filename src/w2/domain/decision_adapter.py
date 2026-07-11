@@ -760,6 +760,7 @@ def _analysis_gates(
     if "fair_market_estimates" not in card:
         return []
     odds = _as_mapping(_get(card, "current_odds"))
+    estimate_set_consistent = _estimate_set_provenance_consistent(estimates)
     gates: list[dict[str, Any]] = []
     for market in ANALYSIS_MARKETS:
         estimate = next(
@@ -773,6 +774,10 @@ def _analysis_gates(
             estimate=estimate,
             fair_line=fair_line,
             market=market,
+            provenance_consistent=(
+                estimate_set_consistent
+                and _estimate_matches_card_provenance(card=card, estimate=estimate)
+            ),
         )
         model_ready = source_consistent
         delta = (
@@ -846,15 +851,66 @@ def _estimate_source_consistent(
     estimate: Mapping[str, Any],
     fair_line: float | None,
     market: str,
+    provenance_consistent: bool = True,
 ) -> bool:
+    home_mu = _number(estimate.get("home_mu"))
+    away_mu = _number(estimate.get("away_mu"))
     return (
         str(estimate.get("market") or "") == market
         and str(estimate.get("status") or "").upper() == "READY"
         and fair_line is not None
-        and _number(estimate.get("home_mu")) is not None
-        and _number(estimate.get("away_mu")) is not None
+        and home_mu is not None
+        and home_mu > 0
+        and away_mu is not None
+        and away_mu > 0
         and bool(str(estimate.get("model_family") or "").strip())
+        and provenance_consistent
     )
+
+
+def _estimate_set_provenance_consistent(
+    estimates: Sequence[Mapping[str, Any]],
+) -> bool:
+    markets = [str(item.get("market") or "") for item in estimates]
+    if len(markets) != len(ANALYSIS_MARKETS) or set(markets) != set(ANALYSIS_MARKETS):
+        return False
+    ready = [
+        item
+        for item in estimates
+        if str(item.get("status") or "").upper() == "READY"
+    ]
+    for key in (
+        "model_family",
+        "artifact_hash",
+        "artifact_version",
+        "train_cutoff",
+        "feature_as_of",
+        "home_mu",
+        "away_mu",
+    ):
+        if len({_provenance_value(item.get(key)) for item in ready}) > 1:
+            return False
+    return True
+
+
+def _estimate_matches_card_provenance(
+    *,
+    card: Mapping[str, Any],
+    estimate: Mapping[str, Any],
+) -> bool:
+    pricing = _as_mapping(card.get("pricing_shadow"))
+    for key in ("model_family", "artifact_hash", "artifact_version", "train_cutoff"):
+        expected = _provenance_value(pricing.get(key))
+        actual = _provenance_value(estimate.get(key))
+        if expected and actual != expected:
+            return False
+    return True
+
+
+def _provenance_value(value: Any) -> str:
+    if isinstance(value, float):
+        return format(value, ".12g")
+    return str(value or "").strip()
 
 
 def _analysis_gates_from_card(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:

@@ -469,15 +469,15 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
     );
   }
   const reference = match.scoreline_reference;
-  const topScorelines = (reference?.top_scorelines?.length ? reference.top_scorelines : match.scoreline_picks)
+  const directionScorelines = (reference?.direction_scorelines ?? [])
     .slice(0, 3)
-    .map((pick) => scorelineItemText(pick))
+    .map((pick) => pick.scoreline)
     .filter(Boolean)
     .join(" · ");
   const highTotal = highTotalText(match);
   const veryHighTotal = veryHighTotalText(match);
   const ahKeys = ahKeyScorelineText(match);
-  if (!topScorelines && !highTotal && !ahKeys) {
+  if (!directionScorelines && !highTotal && !ahKeys) {
     return (
       <p className="scoreline-hero-copy">
         <strong>模拟比分参考：</strong>
@@ -488,7 +488,7 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
   return (
     <div className="scoreline-reference-block" aria-label="分层模拟比分参考">
       <strong>模拟比分参考，不是推荐比分</strong>
-      {topScorelines ? <p>最可能：{topScorelines}</p> : null}
+      {directionScorelines ? <p>与推荐方向一致：{directionScorelines}</p> : null}
       {highTotal ? <p>{highTotal}{veryHighTotal ? ` · ${veryHighTotal}` : ""}</p> : null}
       {ahKeys ? <p>让球结算关键比分：{ahKeys}</p> : null}
     </div>

@@ -5139,6 +5139,10 @@ class ReadModelService:
             if kickoff_for_contract is not None
             else {}
         )
+        scoreline_reference = scoreline_reference_from_card(
+            {**card, **decision_contract},
+            recommendation=recommendation,
+        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
