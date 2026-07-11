@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T16:18:00Z"
+last_updated_utc: "2026-07-11T16:55:00Z"
 current_phase: optional lineup enrichment and validation recommendation
 current_status: COMPLETE
 
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
+  main_sha: c79d29283f1a0617f3e3abbd771c640ef0ca0265
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-11T16:18:00Z"
+  observed_at_utc: "2026-07-11T16:55:00Z"
 
 current_execution_queue:
   name: W2 optional lineup enrichment and validation recommendation
@@ -85,22 +85,22 @@ staging_state:
     provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-11T01:25:00Z"
-  source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
-  cards_total: 16
+  observed_at_utc: "2026-07-11T16:52:00Z"
+  source: staging /v1/dashboard/day-view?window=future&timezone=Asia/Shanghai
+  cards_total: 32
   decision_counts:
-    NOT_READY: 1
+    NOT_READY: 17
     SKIP: 0
-    WATCH: 8
-    ANALYSIS_PICK: 7
+    WATCH: 15
+    ANALYSIS_PICK: 0
     RECOMMEND: 0
   data_status_counts:
     READY: 0
     PARTIAL: 15
     STALE: 0
-    BLOCKED: 1
+    BLOCKED: 17
   lock_eligible_count: 0
-  outcome_tracked_count: 7
+  outcome_tracked_count: 0
   active_whitelist_count: 13
   distinct_forward_fixture_count: 46
   double_snapshot_fixture_count: 10
@@ -108,7 +108,7 @@ current_product_observation:
   shadow_clv_sample_count: 14
   formal_tracking_status: OBSERVING
   formal_tracking_sample_count: 0
-  conclusion: Staging now exposes seven non-locking ANALYSIS_PICK cards from validated fair-line divergence while forward evidence continues to accumulate.
+  conclusion: Current future window has no validation recommendation; 15 cards remain WATCH and 17 are data-blocked while evidence accumulates.
   primary_data_blockers:
     - Missing or insufficient xG history.
     - Missing model probabilities.
@@ -119,7 +119,7 @@ current_product_observation:
     - direction_allowed remains false as evidence maturity; it no longer blocks staging ANALYSIS_PICK display.
     - EV and RECOMMEND legs remain default off.
     - formal_recommendation policy remains false.
-  ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+  ui_accuracy_risk: Visible TOTALS picks currently show unconditional global score modes, which can contradict the selected OVER/UNDER direction unless separately labelled.
 
 d0_forward_evidence_closure:
   status: deployed_and_staging_accepted
@@ -448,6 +448,24 @@ prohibited:
   - adding Stage 16
 
 latest_merged_prs:
+  - number: 252
+    title: W2 record optional enrichment staging acceptance
+    merge_sha: c79d292
+  - number: 251
+    title: W2 close optional enrichment execution queue
+    merge_sha: 493b4b6
+  - number: 250
+    title: W2 clarify validation recommendation and optional enrichment status
+    merge_sha: 52a39e2
+  - number: 249
+    title: W2 freeze and isolate validation recommendation outcomes
+    merge_sha: 4d04133
+  - number: 248
+    title: W2 FairMarketEstimate authority and legacy simulation isolation
+    merge_sha: 725df8d
+  - number: 247
+    title: W2 Optional lineup enrichment contract
+    merge_sha: 794c37a
   - number: 224
     title: W2 project context and recommendation-path unlock audit
     merge_sha: 663b64d
@@ -480,6 +498,8 @@ latest_merged_prs:
     merge_sha: 9c6026121f988a393f398997b8f19296b6474e32
 
 latest_reports:
+  - path: docs/consolidation/W2_EXPERT_HANDOFF_20260712.md
+    role: current expert review entrypoint, open findings, runtime truth, and review questions
   - path: docs/consolidation/W2_SELECTIVE_ANALYSIS_RECOMMENDATION_IMPLEMENTATION_20260710.md
     role: selective AH and totals analysis implementation and release boundary
   - path: docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
@@ -495,12 +515,14 @@ latest_reports:
 
 required_context_files:
   - PROJECT_STATE.yaml
+  - docs/consolidation/W2_EXPERT_HANDOFF_20260712.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_REVISED_ROADMAP_2026_07.md
 
 startup_read_order:
   - PROJECT_STATE.yaml
+  - docs/consolidation/W2_EXPERT_HANDOFF_20260712.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
   - Relevant contract, runbook, or work order named by open_work.
   - GitHub PR and main status.
