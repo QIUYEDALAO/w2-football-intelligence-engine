@@ -766,6 +766,7 @@ export function MatchdayHeader({
   release?: ReleaseSyncState;
 }) {
   const upcoming = dayView.cards.filter(isPreMatch).length;
+  const truth = cardTruthCounts(dayView.cards);
   return (
     <header className="boss-commandbar">
       <div className="boss-brand">
@@ -779,9 +780,9 @@ export function MatchdayHeader({
         <span>最后刷新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"}</strong></span>
         <span>下次刷新 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
         <span>即将比赛 <strong>{upcoming}</strong></span>
-        <span>分析推荐 <strong>{dayView.counts.analysis_pick}</strong></span>
-        <span>正式推荐 <strong>{dayView.counts.recommend}</strong></span>
-        <span>数据阻塞 <strong>{dayView.counts.blocked}</strong></span>
+        <span>分析推荐 <strong>{truth.analysisPick}</strong></span>
+        <span>正式推荐 <strong>{truth.recommend}</strong></span>
+        <span>数据阻塞 <strong>{truth.blocked}</strong></span>
       </div>
     </header>
   );
@@ -963,13 +964,40 @@ export function DecisionRow({
   );
 }
 
+function cardTruthCounts(cards: DashboardDayViewCard[]) {
+  return cards.reduce(
+    (counts, card) => {
+      if (card.decision_tier === "ANALYSIS_PICK") counts.analysisPick += 1;
+      if (card.decision_tier === "RECOMMEND") counts.recommend += 1;
+      if (card.decision_tier === "WATCH") counts.watch += 1;
+      if (card.decision_tier === "NOT_READY") counts.notReady += 1;
+      if (card.decision_tier === "SKIP") counts.skip += 1;
+      if (card.data_status === "PARTIAL") counts.partial += 1;
+      if (card.data_status === "STALE") counts.stale += 1;
+      if (card.data_status === "BLOCKED") counts.blocked += 1;
+      return counts;
+    },
+    { analysisPick: 0, recommend: 0, watch: 0, notReady: 0, skip: 0, partial: 0, stale: 0, blocked: 0 },
+  );
+}
+
 function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
-  const blocked = dayView.counts.blocked + dayView.counts.stale;
+  const truth = cardTruthCounts(dayView.cards);
+  const blocked = truth.blocked + truth.stale;
+  const headline = blocked
+    ? `${blocked} 场数据阻塞`
+    : truth.partial
+      ? `${truth.partial} 场部分就绪`
+      : "比赛数据正常";
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
-      <strong>{blocked ? `${blocked} 场数据需等待` : "比赛数据正常"}</strong>
-      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 分析推荐 {dayView.counts.analysis_pick} · 观察 {dayView.counts.watch} · 数据阻塞 {dayView.counts.blocked}</span>
-      {blocked ? <small>受阻比赛仍保留在赛程中，并显示下次评估时间。</small> : <small>覆盖诊断只在异常时展开。</small>}
+      <strong>{headline}</strong>
+      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 分析推荐 {truth.analysisPick} · 观察 {truth.watch} · 部分就绪 {truth.partial} · 数据阻塞 {blocked}</span>
+      {blocked
+        ? <small>仅受阻比赛等待补数；分析推荐和观察比赛继续保留在赛程中。</small>
+        : truth.partial
+          ? <small>部分就绪不等于阻塞；已满足分析门的比赛仍正常展示。</small>
+          : <small>覆盖诊断只在异常时展开。</small>}
     </section>
   );
 }
