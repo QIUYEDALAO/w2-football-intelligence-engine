@@ -260,6 +260,8 @@ def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "fair_market_estimate_snapshots": _mapping_list(
             card.get("fair_market_estimate_snapshots")
         ),
+        "analysis_gate_v2_shadow": _mapping_copy(card.get("analysis_gate_v2_shadow")),
+        "analysis_gate_v2_shadows": _mapping_list(card.get("analysis_gate_v2_shadows")),
         "scoreline_picks": scoreline_picks,
         "scoreline_reference": scoreline_reference or None,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),

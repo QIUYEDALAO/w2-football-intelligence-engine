@@ -19,7 +19,11 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.domain.legacy_decision_shim import legacy_decision_view
-from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
+from w2.models.fair_market_estimate import (
+    estimate_snapshot_by_id,
+    estimate_snapshots,
+    verify_estimate_snapshot,
+)
 from w2.models.player_impact import unsupported_player_impact
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
@@ -27,6 +31,7 @@ from w2.readiness.data_gate import (
     build_data_readiness_from_legacy_payload,
     result_from_mapping,
 )
+from w2.strategy.analysis_gate_shadow import build_analysis_gate_v2_shadow
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
@@ -72,6 +77,15 @@ def build_decision_contract_fields(
         environment=environment,
     )
     analysis_gate = _primary_analysis_gate(analysis_gates)
+    analysis_gate_v2_shadows = _analysis_gate_v2_shadows(card, analysis_gates)
+    analysis_gate_v2_shadow = next(
+        (
+            item
+            for item in analysis_gate_v2_shadows
+            if item.get("estimate_id") == analysis_gate.get("estimate_id")
+        ),
+        {},
+    )
     optional_enrichment = _optional_enrichment(card)
     player_impact_estimate = unsupported_player_impact().as_dict()
     tier = _market_anchor_display_tier(
@@ -145,6 +159,8 @@ def build_decision_contract_fields(
         "model_market_divergence": model_market_divergence,
         "analysis_gate": analysis_gate,
         "analysis_gates": analysis_gates,
+        "analysis_gate_v2_shadow": analysis_gate_v2_shadow,
+        "analysis_gate_v2_shadows": analysis_gate_v2_shadows,
         "fair_market_estimates": [dict(item) for item in _fair_market_estimates(card)],
         "fair_market_estimate_ids": _fair_market_estimate_ids(card),
         "fair_market_estimate_snapshots": [
@@ -741,6 +757,12 @@ def _validated_card_hash(
         analysis_gates=tuple(
             item for item in core.get("analysis_gates", []) if isinstance(item, Mapping)
         ),
+        analysis_gate_v2_shadow=_as_mapping(core.get("analysis_gate_v2_shadow")),
+        analysis_gate_v2_shadows=tuple(
+            item
+            for item in core.get("analysis_gate_v2_shadows", [])
+            if isinstance(item, Mapping)
+        ),
         fair_market_estimates=tuple(
             item for item in core.get("fair_market_estimates", []) if isinstance(item, Mapping)
         ),
@@ -953,6 +975,26 @@ def _primary_analysis_gate(gates: Sequence[Mapping[str, Any]]) -> Mapping[str, A
             market_rank.get(str(item.get("market")), 9),
         ),
     )
+
+
+def _analysis_gate_v2_shadows(
+    card: Mapping[str, Any],
+    gates: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for gate in gates:
+        estimate = estimate_snapshot_by_id(card, gate.get("estimate_id"))
+        if estimate is None:
+            continue
+        quote = _analysis_gate_quote(card, gate)
+        rows.append(
+            build_analysis_gate_v2_shadow(
+                estimate=estimate,
+                gate=gate,
+                odds=quote.get("odds"),
+            )
+        )
+    return rows
 
 
 def _fair_market_estimates(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:

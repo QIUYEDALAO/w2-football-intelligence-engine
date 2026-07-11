@@ -835,6 +835,8 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
       .map((item) => textValue(item))
       .filter(Boolean),
     fair_market_estimate_snapshots: asArray(record.fair_market_estimate_snapshots).map((item) => asRecord(item)),
+    analysis_gate_v2_shadow: asRecord(record.analysis_gate_v2_shadow),
+    analysis_gate_v2_shadows: asArray(record.analysis_gate_v2_shadows).map((item) => asRecord(item)),
     optional_enrichment: {
       lineups: normalizeEnrichmentItem(optionalEnrichment.lineups),
       player_value: normalizeEnrichmentItem(optionalEnrichment.player_value),

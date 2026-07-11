@@ -73,6 +73,8 @@ class DecisionCard:
     model_market_divergence: Mapping[str, Any] = field(default_factory=dict)
     analysis_gate: Mapping[str, Any] = field(default_factory=dict)
     analysis_gates: tuple[Mapping[str, Any], ...] = ()
+    analysis_gate_v2_shadow: Mapping[str, Any] = field(default_factory=dict)
+    analysis_gate_v2_shadows: tuple[Mapping[str, Any], ...] = ()
     fair_market_estimates: tuple[Mapping[str, Any], ...] = ()
     fair_market_estimate_ids: tuple[str, ...] = ()
     fair_market_estimate_snapshots: tuple[Mapping[str, Any], ...] = ()
@@ -129,6 +131,8 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "model_market_divergence": card.model_market_divergence,
             "analysis_gate": card.analysis_gate,
             "analysis_gates": card.analysis_gates,
+            "analysis_gate_v2_shadow": card.analysis_gate_v2_shadow,
+            "analysis_gate_v2_shadows": card.analysis_gate_v2_shadows,
             "fair_market_estimates": card.fair_market_estimates,
             "fair_market_estimate_ids": card.fair_market_estimate_ids,
             "fair_market_estimate_snapshots": card.fair_market_estimate_snapshots,
