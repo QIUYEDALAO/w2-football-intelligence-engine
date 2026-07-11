@@ -184,6 +184,20 @@ DecisionCard {
 
 AH 与 TOTALS 的方向门槛均为 `0.25` 球线差。展示概率仍来自主线盘口的 POWER devig；模型输出只提供 fair line、分歧与解释。首发缺失是 advisory，不是 `ANALYSIS_PICK` 硬门。`ANALYSIS_PICK` 不设每日全局数量上限：每场比赛独立通过 `analysis_gate` 即保留分析推荐资格，排序只影响展示顺序，不得把第 N 场以后降级为 `WATCH`。允许无信号时为 0，禁止降低阈值凑数。
 
+### Analysis Gate V2 Shadow Challenger（预注册，2026-07-12）
+
+`analysis_gate_v2_shadow` 只使用当前 `analysis_gate` 已选择的市场方向、同一个
+`estimate_id` 冻结的五态结算概率及捕获时实际赔率，计算亚洲盘净 EV。研究标签固定为：
+`net_ev >= 2%`、`LOSS <= 35%`、`HALF_LOSS + LOSS <= 55%`。该标签始终
+`shadow_only=true`、`affects_decision=false`，不得改变 pick、DecisionTier、lock、
+`ANALYSIS_PICK` 或 `RECOMMEND`。
+
+证据按“联赛 + 市场”分开累计，AH 与 TOTALS 不得合并。每组记录覆盖率、CLV、ROI、
+EV 校准、最大回撤及样本日期范围。已结算 challenger 样本达到 35 个仅标记
+`REVIEW_ELIGIBLE`，达到 100 个标记 `MATURE`；两者都只允许发起人工升级评审，禁止
+自动放行或修改现行 divergence gate。正式/验证结算不得混入 challenger 样本，只有
+`settled_side=shadow_pick` 的 outcome 可进入该证据流。
+
 ### 可选首发与球员价值增强（2026-07-11）
 
 `lineups` 与 `team_value` 不属于 `missing_fields` 硬缺失，不得降低

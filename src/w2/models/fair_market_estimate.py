@@ -246,6 +246,27 @@ def estimate_snapshot_for_market(
     )
 
 
+def snapshot_score_matrix(
+    snapshot: Mapping[str, object],
+) -> dict[tuple[int, int], float] | None:
+    value = snapshot.get("score_matrix")
+    if not isinstance(value, Mapping):
+        return None
+    matrix: dict[tuple[int, int], float] = {}
+    for key, raw_probability in value.items():
+        parts = str(key).split("-", maxsplit=1)
+        if len(parts) != 2 or not isinstance(raw_probability, int | float):
+            return None
+        try:
+            score = (int(parts[0]), int(parts[1]))
+        except ValueError:
+            return None
+        matrix[score] = float(raw_probability)
+    if not matrix or abs(sum(matrix.values()) - 1.0) > 1e-8:
+        return None
+    return matrix
+
+
 def _canonical_mapping(value: Mapping[str, object]) -> dict[str, object]:
     return cast(
         dict[str, object],

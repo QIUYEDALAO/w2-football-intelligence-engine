@@ -114,6 +114,8 @@ def build_forward_outcome_records(
             ],
             "analysis_gate": _mapping_copy(card.get("analysis_gate")),
             "analysis_gates": _mapping_list(card.get("analysis_gates")),
+            "analysis_gate_v2_shadow": _mapping_copy(card.get("analysis_gate_v2_shadow")),
+            "analysis_gate_v2_shadows": _mapping_list(card.get("analysis_gate_v2_shadows")),
             "shadow_pick": shadow_picks[0] if shadow_picks else None,
             "shadow_picks": shadow_picks,
             "pick": _mapping_copy(card.get("pick")),
@@ -370,6 +372,7 @@ def _outcome_record(
         "market": market,
         "selection": selection,
         "estimate_id": _optional_text(item.get("estimate_id")),
+        "analysis_gate_v2_shadow": _shadow_gate_for_item(entry, item),
         "settled_side": side,
         "recommendation_scope": (
             SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(entry)
@@ -424,6 +427,25 @@ def _outcome_record(
         "entry_price": _price,
         "settlement_outcome": outcome.value,
     }
+
+
+def _shadow_gate_for_item(
+    entry: Mapping[str, Any],
+    item: Mapping[str, Any],
+) -> dict[str, Any]:
+    estimate_id = _text(item.get("estimate_id"))
+    market = _text(item.get("market"))
+    rows = entry.get("analysis_gate_v2_shadows")
+    if isinstance(rows, Sequence) and not isinstance(rows, str | bytes | bytearray):
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            if estimate_id and _text(row.get("estimate_id")) == estimate_id:
+                return dict(row)
+            if not estimate_id and _text(row.get("market")) == market:
+                return dict(row)
+    primary = entry.get("analysis_gate_v2_shadow")
+    return dict(primary) if isinstance(primary, Mapping) else {}
 
 
 def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], int]:

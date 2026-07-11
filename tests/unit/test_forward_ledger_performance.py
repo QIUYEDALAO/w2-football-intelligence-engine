@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 
@@ -363,6 +365,65 @@ def test_forward_ledger_performance_excludes_clv_without_prematch_closing(
 
     assert payload["clv"]["sample_count"] == 0
     assert payload["clv"]["excluded_no_prematch_closing"] == 1
+
+
+@pytest.mark.parametrize(
+    ("settled_count", "expected_status"),
+    [(34, "ACCUMULATING"), (35, "REVIEW_ELIGIBLE"), (100, "MATURE")],
+)
+def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
+    tmp_path: Path,
+    settled_count: int,
+    expected_status: str,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    records: list[dict[str, object]] = []
+    for index in range(settled_count):
+        fixture_id = f"fixture-ev-{index}"
+        shadow = {
+            "market": "TOTALS",
+            "candidate_pass": True,
+            "net_ev": 0.04,
+            "shadow_only": True,
+            "affects_decision": False,
+        }
+        records.extend(
+            [
+                {
+                    "record_type": "capture",
+                    "fixture_id": fixture_id,
+                    "competition_id": "39",
+                    "captured_at": f"2026-08-{index % 28 + 1:02d}T10:00:00Z",
+                    "analysis_gate_v2_shadows": [shadow],
+                },
+                {
+                    "record_type": "outcome",
+                    "fixture_id": fixture_id,
+                    "competition_id": "39",
+                    "market": "TOTALS",
+                    "settled_side": "shadow_pick",
+                    "settlement_outcome": "WIN" if index % 2 == 0 else "LOSS",
+                    "entry_price": "1.95",
+                    "analysis_gate_v2_shadow": shadow,
+                },
+            ]
+        )
+    _write_jsonl(root / "2026-08-01_staging.jsonl", records)
+
+    payload = forward_ledger_performance(tmp_path)
+
+    row = next(
+        item
+        for item in payload["by_league_market"]
+        if item["league"] == "premier_league" and item["market"] == "TOTALS"
+    )
+    challenger = row["ev_shadow_challenger"]
+    assert challenger["settled_candidate_count"] == settled_count
+    assert challenger["evidence_status"] == expected_status
+    assert challenger["review_threshold"] == 35
+    assert challenger["maturity_threshold"] == 100
+    assert challenger["affects_decision"] is False
 
 
 def test_forward_ledger_performance_marks_late_entry_window(

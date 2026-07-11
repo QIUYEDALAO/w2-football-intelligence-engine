@@ -491,6 +491,34 @@ def _league_market_rows(
     clv_rows: Sequence[Mapping[str, Any]],
     records: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
+    challenger_captures: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
+    for record in records:
+        if _record_type(record) != "capture":
+            continue
+        rows = record.get("analysis_gate_v2_shadows")
+        if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            market = _text(row.get("market"))
+            fixture_id = _text(record.get("fixture_id"))
+            if market and fixture_id:
+                challenger_captures[(_league_key(record), market)][fixture_id] = {
+                    **dict(row),
+                    "captured_at": record.get("captured_at"),
+                }
+    challenger_outcomes: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
+    for record in records:
+        if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
+            continue
+        shadow = record.get("analysis_gate_v2_shadow")
+        if not isinstance(shadow, Mapping) or shadow.get("candidate_pass") is not True:
+            continue
+        market = _text(record.get("market"))
+        fixture_id = _text(record.get("fixture_id"))
+        if market and fixture_id and _outcome(record) != "VOID":
+            challenger_outcomes[(_league_key(record), market)][fixture_id] = record
     fixtures: dict[tuple[str, str], set[str]] = defaultdict(set)
     for record in shadow_captures:
         shadow_pick = record.get("shadow_pick")
@@ -512,7 +540,9 @@ def _league_market_rows(
         if key[1] and fixture_id and _outcome(record) != "VOID":
             outcomes_by_key[key].add(fixture_id)
     output: list[dict[str, Any]] = []
-    for key in sorted(set(fixtures) | set(rows_by_key)):
+    for key in sorted(
+        set(fixtures) | set(rows_by_key) | set(challenger_captures) | set(challenger_outcomes)
+    ):
         league, market = key
         market_rows = rows_by_key.get(key, [])
         same_line = [
@@ -526,6 +556,45 @@ def _league_market_rows(
             [row for row in valid_pairs if row.get("entry_window_met") is True]
         )
         outcome_count = len(outcomes_by_key.get(key, set()))
+        challenger_capture_rows = list(challenger_captures.get(key, {}).values())
+        challenger_pass_rows = [
+            row for row in challenger_capture_rows if row.get("candidate_pass") is True
+        ]
+        challenger_settled_rows = list(challenger_outcomes.get(key, {}).values())
+        profit_units = [
+            value
+            for value in (_profit_units(row) for row in challenger_settled_rows)
+            if value is not None
+        ]
+        predicted_ev: list[float] = []
+        for row in challenger_settled_rows:
+            value = _mapping(row.get("analysis_gate_v2_shadow")).get("net_ev")
+            if isinstance(value, int | float):
+                predicted_ev.append(float(value))
+        candidate_fixture_ids = {
+            fixture_id
+            for fixture_id, row in challenger_captures.get(key, {}).items()
+            if row.get("candidate_pass") is True
+        }
+        candidate_clv = [
+            float(row["clv_decimal"])
+            for row in market_rows
+            if _text(row.get("fixture_id")) in candidate_fixture_ids
+            and isinstance(row.get("clv_decimal"), int | float)
+        ]
+        settled_count = len(challenger_settled_rows)
+        mean_profit = _mean(profit_units)
+        mean_ev = _mean(predicted_ev)
+        evidence_status = (
+            "MATURE"
+            if settled_count >= 100
+            else "REVIEW_ELIGIBLE" if settled_count >= 35 else "ACCUMULATING"
+        )
+        captured_times = sorted(
+            _text(row.get("captured_at"))
+            for row in challenger_capture_rows
+            if _text(row.get("captured_at"))
+        )
         output.append(
             {
                 "league": league,
@@ -543,6 +612,29 @@ def _league_market_rows(
                 "entry_window_met_rate": _ratio(entry_window_count, len(valid_pairs)),
                 "outcome_count": outcome_count,
                 "outcome_coverage_rate": _ratio(outcome_count, len(valid_pairs)),
+                "ev_shadow_challenger": {
+                    "shadow_only": True,
+                    "affects_decision": False,
+                    "evaluated_fixture_count": len(challenger_capture_rows),
+                    "candidate_pass_count": len(challenger_pass_rows),
+                    "settled_candidate_count": settled_count,
+                    "evidence_status": evidence_status,
+                    "review_threshold": 35,
+                    "maturity_threshold": 100,
+                    "coverage_start": captured_times[0] if captured_times else None,
+                    "coverage_end": captured_times[-1] if captured_times else None,
+                    "roi": mean_profit,
+                    "profit_units": round(sum(profit_units), 6),
+                    "max_drawdown_units": _max_drawdown(profit_units),
+                    "median_clv_decimal": median(candidate_clv) if candidate_clv else None,
+                    "mean_predicted_ev": mean_ev,
+                    "mean_actual_units": mean_profit,
+                    "ev_calibration_gap": (
+                        round(mean_profit - mean_ev, 6)
+                        if mean_profit is not None and mean_ev is not None
+                        else None
+                    ),
+                },
             }
         )
     return output
@@ -573,6 +665,43 @@ def _ratio(numerator: int, denominator: int) -> float | None:
     if denominator <= 0:
         return None
     return round(numerator / denominator, 6)
+
+
+def _mean(values: Sequence[float]) -> float | None:
+    return round(sum(values) / len(values), 6) if values else None
+
+
+def _max_drawdown(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    equity = 0.0
+    peak = 0.0
+    drawdown = 0.0
+    for value in values:
+        equity += value
+        peak = max(peak, equity)
+        drawdown = max(drawdown, peak - equity)
+    return round(drawdown, 6)
+
+
+def _profit_units(record: Mapping[str, Any]) -> float | None:
+    price = _number(record.get("entry_price"))
+    outcome = _outcome(record)
+    if outcome == "WIN" and price is not None:
+        return price - 1.0
+    if outcome == "HALF_WIN" and price is not None:
+        return (price - 1.0) / 2.0
+    if outcome == "PUSH":
+        return 0.0
+    if outcome == "HALF_LOSS":
+        return -0.5
+    if outcome == "LOSS":
+        return -1.0
+    return None
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def _league_key(record: Mapping[str, Any]) -> str:

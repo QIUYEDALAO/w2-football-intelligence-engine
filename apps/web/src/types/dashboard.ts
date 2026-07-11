@@ -754,6 +754,8 @@ export interface DashboardDayViewCard {
   fair_market_estimates?: Array<Record<string, unknown>>;
   fair_market_estimate_ids?: string[];
   fair_market_estimate_snapshots?: Array<Record<string, unknown>>;
+  analysis_gate_v2_shadow?: Record<string, unknown>;
+  analysis_gate_v2_shadows?: Array<Record<string, unknown>>;
   optional_enrichment?: OptionalEnrichment;
   player_impact_estimate?: Record<string, unknown>;
   analysis_gate?: Record<string, unknown>;
