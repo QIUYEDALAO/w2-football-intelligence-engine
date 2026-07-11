@@ -1468,7 +1468,9 @@ def test_dashboard_scoreline_picks_prefer_fair_market_estimate_source() -> None:
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
-    assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
+    assert card["pricing_shadow"]["simulation"]["decision_source_status"] == (
+        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
+    )
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
     assert card["scoreline_reference"]["source"] == "fair_market_estimate"
     assert card["scoreline_reference"]["distribution_provenance"]["home_mu"] == (

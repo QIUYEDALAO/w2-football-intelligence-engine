@@ -3936,6 +3936,8 @@ class ReadModelService:
         model_family = str(pricing_shadow.get("model_family") or "FITTED_CALIBRATED")
         simulation = card.get("simulation")
         simulation_payload = simulation if isinstance(simulation, Mapping) else {}
+        if isinstance(simulation, dict):
+            simulation["decision_source_status"] = "LEGACY_BASELINE_NOT_DECISION_SOURCE"
         data_readiness = card.get("data_readiness")
         data_readiness = data_readiness if isinstance(data_readiness, Mapping) else {}
         r4_1_features = card.get("r4_1_feature_rows")

@@ -757,7 +757,7 @@ def _analysis_gates(
     environment: str,
 ) -> list[dict[str, Any]]:
     estimates = _fair_market_estimates(card)
-    if not estimates:
+    if "fair_market_estimates" not in card:
         return []
     odds = _as_mapping(_get(card, "current_odds"))
     gates: list[dict[str, Any]] = []
@@ -769,7 +769,12 @@ def _analysis_gates(
         market_line = _market_line(odds, market)
         market_ready = _market_odds_ready(odds, market)
         fair_line = _number(estimate.get("fair_line"))
-        model_ready = str(estimate.get("status") or "").upper() == "READY" and fair_line is not None
+        source_consistent = _estimate_source_consistent(
+            estimate=estimate,
+            fair_line=fair_line,
+            market=market,
+        )
+        model_ready = source_consistent
         delta = (
             fair_line - market_line if fair_line is not None and market_line is not None else None
         )
@@ -782,6 +787,8 @@ def _analysis_gates(
             blockers.append("MARKET_UNAVAILABLE")
         if not model_ready:
             blockers.append("MODEL_FAIR_LINE_UNAVAILABLE")
+        if estimate and not source_consistent:
+            blockers.append("DECISION_SOURCE_INCONSISTENT")
         if market_ready and model_ready and delta is not None and abs(delta) < threshold:
             blockers.append("NO_EDGE")
         if market_ready and model_ready and delta is not None and abs(delta) >= threshold:
@@ -826,9 +833,28 @@ def _analysis_gates(
                 "artifact_hash": estimate.get("artifact_hash"),
                 "artifact_version": estimate.get("artifact_version"),
                 "train_cutoff": estimate.get("train_cutoff"),
+                "feature_as_of": estimate.get("feature_as_of"),
+                "decision_source": "FAIR_MARKET_ESTIMATE",
+                "decision_source_consistent": source_consistent,
             }
         )
     return gates
+
+
+def _estimate_source_consistent(
+    *,
+    estimate: Mapping[str, Any],
+    fair_line: float | None,
+    market: str,
+) -> bool:
+    return (
+        str(estimate.get("market") or "") == market
+        and str(estimate.get("status") or "").upper() == "READY"
+        and fair_line is not None
+        and _number(estimate.get("home_mu")) is not None
+        and _number(estimate.get("away_mu")) is not None
+        and bool(str(estimate.get("model_family") or "").strip())
+    )
 
 
 def _analysis_gates_from_card(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:

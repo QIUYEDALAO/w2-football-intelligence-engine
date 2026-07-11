@@ -808,12 +808,71 @@ def _selective_card(*, direction_allowed: dict[str, bool]) -> dict[str, object]:
                 "status": "READY",
                 "model_family": "R4_1_CALIBRATED",
                 "fair_line": -0.75,
+                "home_mu": 1.6,
+                "away_mu": 1.0,
             },
             {
                 "market": "TOTALS",
                 "status": "READY",
                 "model_family": "R4_1_CALIBRATED",
                 "fair_line": 2.5,
+                "home_mu": 1.6,
+                "away_mu": 1.0,
             },
         ],
     }
+
+
+def test_analysis_gate_missing_fair_market_estimate_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    card["fair_market_estimates"] = []
+    card["pricing_shadow"] = {
+        "simulation": {
+            "status": "READY",
+            "fair_ah": -1.5,
+            "lambda_home": 3.0,
+            "lambda_away": 0.2,
+        }
+    }
+
+    fields = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["pick"] is None
+    assert fields["analysis_gate"]["status"] == "BLOCKED"  # type: ignore[index]
+    assert fields["analysis_gate"]["decision_source"] == "FAIR_MARKET_ESTIMATE"  # type: ignore[index]
+    assert fields["analysis_gate"]["decision_source_consistent"] is False  # type: ignore[index]
+
+
+def test_analysis_gate_inconsistent_fair_market_provenance_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    card["fair_market_estimates"][0]["model_family"] = ""  # type: ignore[index]
+
+    fields = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    ah_gate = next(
+        gate for gate in fields["analysis_gates"] if gate["market"] == "ASIAN_HANDICAP"  # type: ignore[union-attr]
+    )
+    assert ah_gate["status"] == "BLOCKED"
+    assert "DECISION_SOURCE_INCONSISTENT" in ah_gate["blockers"]
