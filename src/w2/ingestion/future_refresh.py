@@ -1282,6 +1282,18 @@ class FutureFixtureRefreshService:
     ) -> FutureRefreshResult:
         repository = self._db_repository()
         try:
+            repository.append_finished_result_events(
+                payload=fixtures_response.payload,
+                captured_at=fixtures_response.captured_at,
+                raw_payload_hash=hashlib.sha256(
+                    json.dumps(
+                        fixtures_response.payload,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+            )
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
                 observations.extend(
