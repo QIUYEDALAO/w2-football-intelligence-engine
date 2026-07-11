@@ -181,6 +181,19 @@ def _decision_pick(
     card_pick = card.get("pick")
     if isinstance(card_pick, Mapping):
         return card_pick
+    gate = card.get("analysis_gate")
+    if not isinstance(gate, Mapping) and isinstance(contract, Mapping):
+        gate = contract.get("analysis_gate")
+    if isinstance(gate, Mapping):
+        market = str(gate.get("market") or "")
+        selection = str(gate.get("selection") or "")
+        market_line = _number(gate.get("market_line"))
+        if market in {"ASIAN_HANDICAP", "TOTALS"} and selection and market_line is not None:
+            return {
+                "market": market,
+                "selection": selection,
+                "line": market_line,
+            }
     return recommendation
 
 

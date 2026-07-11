@@ -54,6 +54,33 @@ def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distributi
     assert settlement["probabilities"]["LOSS"] == pytest.approx(0.17206, abs=2e-5)
 
 
+def test_fair_estimate_uses_analysis_gate_before_decision_pick_is_materialized() -> None:
+    card = {
+        "analysis_gate": {
+            "market": "TOTALS",
+            "selection": "OVER",
+            "market_line": 3.25,
+        },
+        "fair_market_estimates": [
+            {
+                "market": "TOTALS",
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "home_mu": 3.1462969750688647,
+                "away_mu": 1.3672753468077237,
+            }
+        ],
+    }
+
+    reference = scoreline_reference_from_card(card)
+
+    assert reference is not None
+    settlement = reference["market_settlement"]
+    assert settlement["selection"] == "OVER"
+    assert settlement["line"] == 3.25
+    assert settlement["probabilities"]["WIN"] == pytest.approx(0.65999, abs=2e-5)
+
+
 def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
     card = {
         "pricing_shadow": {
