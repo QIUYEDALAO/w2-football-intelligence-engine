@@ -513,3 +513,19 @@
 - 对浙江队 vs 青岛海牛的当前参数 `home_mu=3.1463/away_mu=1.3673`，大 3.25 同源结算为全赢约 66%、半输约 17%、全输约 17%。这三组数与页面参考比分现共用同一分布。
 - Dashboard 证据面板新增「同源盘口结算」，显示全赢/半赢/走水/半输/全输；provenance 携带 model family、artifact hash/version、train cutoff 与 feature as-of。
 - 本轮不改推荐方向、线差门槛、`RECOMMEND`/EV/lock 或 production；仅修复解释与概率同源性。
+
+### V3 进展续33 · 同源比分与结算概率 staging 验收(2026-07-11)
+
+- #233 已合并 main `b47b1e65ed03fea6777d6d9843e51b4242401ed9` 并部署 API/Web；真实验收发现 repository 早于 DecisionCard 物化结算 reference，随后以 #234/#235 收口 `analysis_gate` fallback 和 DayView 契约完成后强制重算。最终 main/API SHA=`e27730e1d76ec2c2c516c2f01167eda16921629d`。
+- 浙江队 vs 青岛海牛真实 DayView 现为：`ANALYSIS_PICK` 大 3.25 @1.91，fair line=4.25；同源参考比分 `3-1 8% / 2-1 7% / 4-1 6%`；结算概率全赢 `66%`、半输 `17%`、全输 `17%`。
+- `scoreline_reference.source=fair_market_estimate`，比分、结算概率和推荐均共用 `home_mu=3.1463/away_mu=1.3673`、`R4_1_CALIBRATED`、artifact hash/version/train cutoff/feature as-of。
+- 部署期间 `provider_request_logs 319->319`、`future_refresh_run_audit 1407->1407`、Celery queue=`0`；scheduler 容器 ID、created/started 和 `unless-stopped` policy 未变。production 未部署，未改推荐方向、`RECOMMEND`/EV/lock。
+
+### V3 进展续34 · Dashboard 产品真相修复(2026-07-11)
+
+- 老板完整截图确认 Dashboard 仍存在展示层旧口径：真实 DayView 已有 `ANALYSIS_PICK=7`，但首屏“已出推荐/值得看”仍显示 0；根因是 Web 继续要求 `data_status=READY + direction_allowed=true` 并残留 `.slice(0, 3)`。
+- `codex/w2-dashboard-product-truth` 已完成两批代码修复：分析推荐直接按 `decision_tier=ANALYSIS_PICK` 展示且无全局数量上限；正式推荐单独按 `RECOMMEND` 计数；右侧证据拆分“为什么分析这个方向”与“为什么还不是正式推荐”。
+- 本机新前端读取真实 staging DayView 验收：顶部显示分析推荐 7，7 场全部进入“值得看”，未来日期推荐携日期且不再散落到今日/未来普通赛程；浙江队 vs 青岛海牛继续显示同源公平盘、比分与结算概率。
+- 前向表现口径改为不同 fixture、有效双快照、真实 outcome 与 `clv_shadow`；原始 capture 行数不再冒充样本。联赛表现改按稳定 competition identity 聚合，跨轮次不再拆行；归档世界杯默认不进入当前联赛表现。
+- DayView 新增 registry 驱动的 `active_whitelist_count`，前端不再硬编码 14；L1 清理 `provider 空返/outcome tracking/ledger/direction_allowed` 等内部术语，Web/API SHA 移入 L2 系统信息。
+- 当前状态是代码与本地真实数据验收完成、尚未提交 PR、尚未部署。安全保持：`provider_calls=0`、`db_writes=0`、未部署 staging/production、未重启 scheduler、未改 `RECOMMEND`/EV/lock/league enable。

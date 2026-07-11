@@ -202,6 +202,33 @@ def test_forward_ledger_performance_tracks_shadow_clv_separately(
     )
     assert "shadow CLV" in payload["accrual_note"]
     assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15
+    assert payload["double_snapshot_fixture_count"] == 1
+    assert payload["by_league"][0]["double_snapshot_fixture_count"] == 1
+
+
+def test_forward_ledger_performance_uses_distinct_fixtures_and_stable_competition_id(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    rows = [
+        _record(
+            f"2026-07-07T{hour:02d}:00:00Z",
+            fixture_id="fixture-1" if hour < 5 else "fixture-2",
+            competition_name=f"Allsvenskan · Regular Season - {12 + hour}",
+        )
+        for hour in range(10)
+    ]
+    _write_jsonl(root / "2026-07-07_staging.jsonl", rows)
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 10
+    assert payload["fixture_count"] == 2
+    assert payload["accumulation_label"] == "积累中 2/200"
+    assert len(payload["by_league"]) == 1
+    assert payload["by_league"][0]["league"] == "allsvenskan"
+    assert payload["by_league"][0]["fixture_count"] == 2
 
 
 def test_forward_ledger_performance_splits_totals_decimal_and_line_clv(
@@ -386,6 +413,8 @@ def _record(
     shadow_pick: bool = False,
     shadow_market_line: str = "-1",
     record_type: str | None = "capture",
+    competition_id: str | None = None,
+    competition_name: str = "World Cup",
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "record_type": record_type,
@@ -394,7 +423,7 @@ def _record(
         "environment": "staging",
         "fixture_id": fixture_id,
         "kickoff_utc": kickoff,
-        "competition_name": "World Cup",
+        "competition_name": competition_name,
         "decision_tier": "WATCH",
         "current_odds": {
             "ah": {
@@ -405,6 +434,8 @@ def _record(
             }
         },
     }
+    if competition_id:
+        row["competition_id"] = competition_id
     if pick:
         row["pick"] = {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"}
     if shadow_pick:

@@ -74,13 +74,12 @@ const BLOCKER_LABELS: Record<string, string> = {
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
   UNSUPPORTED_MARKET: "不支持的盘口",
   DATA_MISSING_XG: "缺关键 xG",
-  PROVIDER_EMPTY_OR_UNAVAILABLE: "provider 空返",
+  PROVIDER_EMPTY_OR_UNAVAILABLE: "数据源暂未返回",
   MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
   NO_EDGE: "模型与市场线差不足 0.25 球",
   FORWARD_EVIDENCE_ACCUMULATING: "该联赛该市场的前向证据积累中",
 };
 
-const MARKET_ANCHOR_DISPLAY_ENABLED = import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
 const MARKET_ANCHOR_MIN_DIVERGENCE = Number(import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.25);
 
 type ScheduleFilter = "all" | "recommended" | "hide-not-ready";
@@ -162,7 +161,9 @@ function l1OneLiner(card: DashboardDayViewCard): string {
 
 function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
   if (["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier)) {
-    return [`已出${tierLabel(card.decision_tier)}，仍需按赛后 ledger 验证。`];
+    return card.decision_tier === "RECOMMEND"
+      ? ["已达到正式推荐口径，等待赛后结算验证。"]
+      : ["当前是分析推荐，尚未开放为正式推荐；赛后结果会进入前向验证。"];
   }
   const reasons: string[] = [];
   const analysisGate = asRecord(card.analysis_gate);
@@ -228,7 +229,7 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
     reasons.push(`线差 ${magnitude.toFixed(2)} < ${MARKET_ANCHOR_MIN_DIVERGENCE.toFixed(2)}，未达分歧雷达门槛。`);
   }
   if (!directionAllowed && card.probability_source === "MARKET_DEVIG") {
-    reasons.push("direction_allowed 未放行：只积累 shadow 证据，不展示真实推荐方向。");
+    reasons.push("正式推荐权限尚未开放；当前方向仅作为分析参考并持续积累证据。");
   }
 
   const scoreline = scorelineStatusText(card);
@@ -392,6 +393,11 @@ function trustSignalSummary(card: DashboardDayViewCard): string {
 }
 
 function applicabilityLabel(card: DashboardDayViewCard): string {
+  const gate = asRecord(card.analysis_gate);
+  const provenance = card.scoreline_reference?.distribution_provenance;
+  if (textValue(gate.status).toUpperCase() === "ELIGIBLE" && provenance?.model_family) {
+    return modelFamilyLabel(provenance.model_family);
+  }
   const diagnostics = asRecord(card.diagnostics);
   const explicit = textValue(diagnostics.model_applicability) || textValue(asRecord(card.model_market_divergence).calibration_status);
   if (explicit === "UNVALIDATED") return "模型未验证";
@@ -399,6 +405,14 @@ function applicabilityLabel(card: DashboardDayViewCard): string {
   if (explicit) return explicit.replace(/_/g, " ");
   if ((card.competition_id ?? "").includes("world_cup")) return "国际赛未独立验证";
   return "按联赛校准状态";
+}
+
+function modelFamilyLabel(value: string): string {
+  const normalized = value.toUpperCase();
+  if (normalized === "R4_1_CALIBRATED") return "联赛校准模型已加载";
+  if (normalized === "FITTED_CALIBRATED") return "联赛拟合模型已加载";
+  if (normalized === "GOALS_ELO_FALLBACK") return "进球与评分备用模型";
+  return "独立模型已加载";
 }
 
 function probabilitySourceLabel(card: DashboardDayViewCard): string {
@@ -412,11 +426,20 @@ function marketSourceLabel(card: DashboardDayViewCard): string {
   const odds = asRecord(card.current_odds);
   const preferred = card.pick?.market === "TOTALS" ? asRecord(odds.ou) : asRecord(odds.ah);
   const source = textValue(preferred.source) || textValue(preferred.bookmaker);
-  if (source) return `${source} · 去水市场概率`;
-  return "Pinnacle 优先 · 共识主线去水";
+  if (source) return `${source} · POWER 去水`;
+  return "主线共识盘 · POWER 去水";
 }
 
 function divergenceLabel(card: DashboardDayViewCard): string {
+  const gate = asRecord(card.analysis_gate);
+  const gateStatus = textValue(gate.status).toUpperCase();
+  const fairLine = numericValue(gate.fair_line);
+  const marketLine = numericValue(gate.market_line);
+  if (gateStatus === "ELIGIBLE" && fairLine != null && marketLine != null) {
+    return `模型与市场线差 ${Math.abs(fairLine - marketLine).toFixed(2)}`;
+  }
+  if (gateStatus === "NO_EDGE") return "模型与市场线差不足";
+  if (gateStatus === "BLOCKED") return "独立模型或盘口尚未就绪";
   const divergence = asRecord(card.model_market_divergence);
   const magnitude = typeof divergence.magnitude === "number" ? divergence.magnitude : null;
   const status = textValue(divergence.status, "UNKNOWN");
@@ -436,7 +459,7 @@ function statusCn(value: string): string {
   const status = value.toUpperCase();
   if (status === "READY") return "已就绪";
   if (status === "WAITING") return "等待";
-  if (status === "PROVIDER_EMPTY") return "provider 空返";
+  if (status === "PROVIDER_EMPTY") return "数据源暂未返回";
   if (status === "INSUFFICIENT_HISTORY") return "样本不足";
   if (status === "NOT_REQUESTED") return "未请求";
   if (status === "UNKNOWN") return "未知";
@@ -528,6 +551,17 @@ function minutesUntil(card: DashboardDayViewCard, now: Date): number | null {
   return Math.round((kickoff.getTime() - now.getTime()) / 60000);
 }
 
+function kickoffDateLabel(value?: string | null): string {
+  if (!value) return "日期待定";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "日期待定";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function isPreMatch(card: DashboardDayViewCard): boolean {
   const status = (card.status ?? "").toUpperCase();
   return !["FT", "AET", "PEN", "FINISHED", "CANCELLED", "POSTPONED"].includes(status);
@@ -542,22 +576,7 @@ function isLiveOrRecentlyStarted(card: DashboardDayViewCard, now: Date): boolean
 }
 
 function isReadyRecommendation(card: DashboardDayViewCard): boolean {
-  const pickTier = ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);
-  if (!pickTier || card.data_status !== "READY") return false;
-  if (!MARKET_ANCHOR_DISPLAY_ENABLED || card.decision_tier === "RECOMMEND") return true;
-  return hasActionableMarketDivergence(card);
-}
-
-function hasActionableMarketDivergence(card: DashboardDayViewCard): boolean {
-  if (card.probability_source !== "MARKET_DEVIG") return false;
-  const divergence = asRecord(card.model_market_divergence);
-  const status = textValue(divergence.status, "UNKNOWN").toUpperCase();
-  const directionAllowed = divergence.direction_allowed === true || textValue(divergence.direction_allowed).toLowerCase() === "true";
-  const magnitude = typeof divergence.magnitude === "number" ? Math.abs(divergence.magnitude) : null;
-  return ["READY", "SIGNIFICANT", "ACTIONABLE"].includes(status)
-    && directionAllowed
-    && magnitude != null
-    && magnitude >= MARKET_ANCHOR_MIN_DIVERGENCE;
+  return ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);
 }
 
 function orderedByKickoff(cards: DashboardDayViewCard[]): DashboardDayViewCard[] {
@@ -729,6 +748,11 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
   ];
 }
 
+function evidenceOverviewStatements(card: DashboardDayViewCard): string[] {
+  const statements = evidenceStatements(card);
+  return [statements[0], statements[2], statements[3], statements[4], statements[6]].filter(Boolean);
+}
+
 function nextVisibleKickoff(cards: DashboardDayViewCard[]): string | null {
   return cards
     .filter((card) => card.kickoff_utc && isPreMatch(card))
@@ -737,13 +761,11 @@ function nextVisibleKickoff(cards: DashboardDayViewCard[]): string | null {
 
 export function MatchdayHeader({
   dayView,
-  release,
 }: {
   dayView: DashboardDayView;
   release?: ReleaseSyncState;
 }) {
   const upcoming = dayView.cards.filter(isPreMatch).length;
-  const readyRecommendations = orderedForTriage(dayView.cards.filter(isReadyRecommendation)).slice(0, 3).length;
   return (
     <header className="boss-commandbar">
       <div className="boss-brand">
@@ -757,10 +779,9 @@ export function MatchdayHeader({
         <span>最后刷新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"}</strong></span>
         <span>下次刷新 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
         <span>即将比赛 <strong>{upcoming}</strong></span>
-        <span>已出推荐 <strong>{readyRecommendations}</strong></span>
-      </div>
-      <div className="boss-command-release">
-        Web {shortSha(release?.web_git_sha)} · API {shortSha(release?.api_git_sha)}
+        <span>分析推荐 <strong>{dayView.counts.analysis_pick}</strong></span>
+        <span>正式推荐 <strong>{dayView.counts.recommend}</strong></span>
+        <span>数据阻塞 <strong>{dayView.counts.blocked}</strong></span>
       </div>
     </header>
   );
@@ -810,18 +831,32 @@ export function EvidencePanel({
         </h2>
         <p>{marketSourceLabel(selectedCard)}</p>
         <div className="trust-grid">
-          {evidenceStatements(selectedCard).map((statement) => (
+          {evidenceOverviewStatements(selectedCard).map((statement) => (
             <strong key={statement}>{statement}</strong>
           ))}
         </div>
         <div className="evidence-section">
-          <strong>为什么现在不是推荐</strong>
+          <strong>
+            {selectedCard.decision_tier === "RECOMMEND"
+              ? "正式推荐依据"
+              : selectedCard.decision_tier === "ANALYSIS_PICK"
+                ? "为什么分析这个方向"
+                : "为什么当前只观察"}
+          </strong>
           <ul>
-            {reasons.map((reason) => (
+            {(selectedCard.decision_tier === "ANALYSIS_PICK"
+              ? [evidenceStatements(selectedCard)[4], l1OneLiner(selectedCard)]
+              : reasons).map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
         </div>
+        {selectedCard.decision_tier === "ANALYSIS_PICK" ? (
+          <div className="evidence-section">
+            <strong>为什么还不是正式推荐</strong>
+            <p>{reasons[0]}</p>
+          </div>
+        ) : null}
         <div className="evidence-section">
           <strong>模拟比分参考</strong>
           <p>{scoreline.message}</p>
@@ -838,7 +873,7 @@ export function EvidencePanel({
         </div>
         <div className="tracking-note">
           <span>赛后追踪</span>
-          <strong>{selectedCard.outcome_tracked ? "已纳入 outcome tracking" : "等待完场后追踪"}</strong>
+          <strong>{selectedCard.outcome_tracked ? "已纳入赛后追踪" : "等待完场后追踪"}</strong>
           <small>结算后会进入赛后验证，和联赛表现一起计入样本。</small>
         </div>
       </aside>
@@ -883,7 +918,7 @@ export function DecisionRow({
       <button className="decision-row-button" type="button" onClick={onSelect} aria-pressed={selected}>
         <div className="decision-cell decision-time">
           <strong>{fmtTime(card.kickoff_utc)}</strong>
-          <span>T{minutesUntil(card, now) != null ? `${minutesUntil(card, now)}min` : "--"}</span>
+          <span>{kickoffDateLabel(card.kickoff_utc)} · T{minutesUntil(card, now) != null ? `${minutesUntil(card, now)}min` : "--"}</span>
         </div>
         <div className="decision-cell decision-league">
           <span>{competitionLabel(card)}</span>
@@ -932,9 +967,9 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
   const blocked = dayView.counts.blocked + dayView.counts.stale;
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
-      <strong>{blocked ? "部分数据需等待" : "白名单正常"}</strong>
-      <span>14 联赛可用 · {dayView.environment} · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
-      {blocked ? <small>未就绪比赛已保留在赛程中，按 next_eval_at 再评估。</small> : <small>覆盖诊断只在异常时展开。</small>}
+      <strong>{blocked ? `${blocked} 场数据需等待` : "比赛数据正常"}</strong>
+      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 分析推荐 {dayView.counts.analysis_pick} · 观察 {dayView.counts.watch} · 数据阻塞 {dayView.counts.blocked}</span>
+      {blocked ? <small>受阻比赛仍保留在赛程中，并显示下次评估时间。</small> : <small>覆盖诊断只在异常时展开。</small>}
     </section>
   );
 }
@@ -1029,13 +1064,15 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     .map((row) => translateCompetition(row.league))
     .join(" / ");
   const settled = forwardLedger?.settled_sample_count ?? 0;
+  const shadowClv = forwardLedger?.clv_shadow;
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>近 30 天</strong>
-      <span>前向卡 {forwardLedger?.accumulation_label ?? "积累中 0/200"}</span>
+      <span>前向比赛 {forwardLedger?.fixture_count ?? 0} 场</span>
+      <span>有效双快照 {forwardLedger?.double_snapshot_fixture_count ?? 0} 场</span>
       <span>结算 {settled ? `${settled} 条` : "积累中"}</span>
       <span>命中率 {settled ? percent(forwardLedger?.hit_rate) : "积累中"}</span>
-      <span>CLV {forwardLedger?.clv.sample_count ? clvUnits(forwardLedger.clv.median_decimal) : "积累中"}</span>
+      <span>影子 CLV {shadowClv?.sample_count && shadowClv.median_decimal != null ? `${clvUnits(shadowClv.median_decimal)} · ${shadowClv.sample_count} 样本` : "积累中"}</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
   );
@@ -1049,7 +1086,7 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
           <span>赛后验证</span>
-          <strong>{settled ? `真实结算 ${settled} 条` : forwardLedger.accumulation_label}</strong>
+          <strong>{settled ? `真实结算 ${settled} 条` : `已记录 ${forwardLedger.fixture_count} 场 · 战绩积累中`}</strong>
         </header>
         {settled ? (
           <div className="verification-list">
@@ -1062,7 +1099,7 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
             </div>
           </div>
         ) : (
-          <p>真实前向卡已进入 ledger,但 outcome 仍在积累中；暂不显示命中率,不制造战绩。</p>
+          <p>真实前向比赛已记录，当前结算 0 场；暂不显示命中率，不制造战绩。</p>
         )}
       </section>
     );
@@ -1098,34 +1135,37 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
 function LeaguePerformancePreview({ rows, performance }: { rows: LeaguePerformanceRow[]; performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
-    const visibleForwardRows = forwardLedger.by_league.slice(0, 6);
+    const visibleForwardRows = forwardLedger.by_league
+      .filter((row) => row.league !== "world_cup_2026")
+      .sort((left, right) => right.fixture_count - left.fixture_count || left.league.localeCompare(right.league))
+      .slice(0, 6);
     return (
       <section className="league-performance-preview" aria-label="联赛表现预览">
         <header>
           <span>联赛表现</span>
-          <strong>{visibleForwardRows.length ? "真实 ledger" : forwardLedger.accumulation_label}</strong>
+          <strong>{visibleForwardRows.length ? "真实前向记录" : "样本积累中"}</strong>
         </header>
         {visibleForwardRows.length ? (
           <div className="league-performance-table">
             <div className="league-performance-head">
               <span>联赛</span>
-              <span>前向卡</span>
-              <span>结算</span>
-              <span>CLV</span>
+              <span>比赛</span>
+              <span>双快照</span>
+              <span>影子 CLV</span>
               <span>状态</span>
             </div>
             {visibleForwardRows.map((row) => (
               <div key={row.league}>
                 <span>{translateCompetition(row.league)}</span>
-                <span>{row.record_count}</span>
-                <span>{row.settled_sample_count || "积累中"}</span>
-                <span>{row.clv_sample_count ? clvUnits(row.clv_median_decimal) : "积累中"}</span>
-                <span>{row.settled_sample_count ? percent(row.hit_rate) : "未结算"}</span>
+                <span>{row.fixture_count}</span>
+                <span>{row.double_snapshot_fixture_count || "积累中"}</span>
+                <span>{row.clv_shadow_sample_count && row.clv_shadow_median_decimal != null ? `${clvUnits(row.clv_shadow_median_decimal)} · ${row.clv_shadow_sample_count} 样本` : "积累中"}</span>
+                <span>{row.settled_sample_count ? `${row.settled_sample_count} 场已结算` : "未结算"}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p>真实 ledger 还没有足够联赛样本；当前只显示积累状态,不制造胜率。</p>
+          <p>真实前向记录还没有足够联赛样本；当前只显示积累状态，不制造胜率。</p>
         )}
       </section>
     );
@@ -1204,8 +1244,8 @@ export function BossDecisionView({
   const scheduleDay = dayView.selected_football_day || dayView.football_day || dayView.generated_at;
   const activeCards = useMemo(() => orderedByKickoff(dayView.cards.filter(isPreMatch)), [dayView.cards]);
   const worthWatching = useMemo(
-    () => orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3),
-    [activeCards],
+    () => orderedForTriage(activeCards.filter((card) => isReadyRecommendation(card) && !isLiveOrRecentlyStarted(card, now))),
+    [activeCards, now],
   );
   const worthWatchingIds = useMemo(
     () => new Set(worthWatching.map((card) => card.fixture_id)),
@@ -1317,6 +1357,10 @@ export function BossDecisionView({
         </aside>
       </div>
 
+      <details className="boss-system-info">
+        <summary>系统信息</summary>
+        <span>Web {shortSha(release?.web_git_sha)} · API {shortSha(release?.api_git_sha)}</span>
+      </details>
       <footer className="boss-disclaimer">分析参考·非稳赢·不构成投注建议</footer>
     </section>
   );

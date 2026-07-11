@@ -117,6 +117,7 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const analysisShadow = asRecord(record.analysis_shadow);
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
+  const forwardShadowClv = asRecord(forwardLedger.clv_shadow);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
     hit_count: numberValue(row.hit_count),
@@ -172,6 +173,7 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       sample_target: numberValue(forwardLedger.sample_target),
       record_count: numberValue(forwardLedger.record_count),
       fixture_count: numberValue(forwardLedger.fixture_count),
+      double_snapshot_fixture_count: numberValue(forwardLedger.double_snapshot_fixture_count),
       settled_sample_count: numberValue(forwardLedger.settled_sample_count),
       hit_count: numberValue(forwardLedger.hit_count),
       miss_count: numberValue(forwardLedger.miss_count),
@@ -188,12 +190,24 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
         line_changed_count: numberValue(forwardClv.line_changed_count),
         method: textValue(forwardClv.method) || undefined,
       },
+      clv_shadow: {
+        sample_count: numberValue(forwardShadowClv.sample_count),
+        median_decimal: typeof forwardShadowClv.median_decimal === "number" ? forwardShadowClv.median_decimal : null,
+        positive_count: numberValue(forwardShadowClv.positive_count),
+        negative_count: numberValue(forwardShadowClv.negative_count),
+        push_count: numberValue(forwardShadowClv.push_count),
+        line_changed_count: numberValue(forwardShadowClv.line_changed_count),
+        line_clv_sample_count: numberValue(forwardShadowClv.line_clv_sample_count),
+        median_line_clv: typeof forwardShadowClv.median_line_clv === "number" ? forwardShadowClv.median_line_clv : null,
+        method: textValue(forwardShadowClv.method) || undefined,
+      },
       by_league: asArray(forwardLedger.by_league).map((item) => {
         const row = asRecord(item);
         return {
           league: textValue(row.league, "UNKNOWN"),
           record_count: numberValue(row.record_count),
           fixture_count: numberValue(row.fixture_count),
+          double_snapshot_fixture_count: numberValue(row.double_snapshot_fixture_count),
           settled_sample_count: numberValue(row.settled_sample_count),
           hit_count: numberValue(row.hit_count),
           miss_count: numberValue(row.miss_count),
@@ -202,6 +216,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
           hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
           clv_sample_count: numberValue(row.clv_sample_count),
           clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
+          clv_shadow_sample_count: numberValue(row.clv_shadow_sample_count),
+          clv_shadow_median_decimal: typeof row.clv_shadow_median_decimal === "number" ? row.clv_shadow_median_decimal : null,
         };
       }),
       mock_data: Boolean(forwardLedger.mock_data),
@@ -836,6 +852,7 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     football_day: textValue(record.football_day, textValue(record.selected_football_day)),
     selected_football_day: textValue(record.selected_football_day, textValue(record.football_day)),
     environment: textValue(record.environment, "unknown"),
+    active_whitelist_count: typeof record.active_whitelist_count === "number" ? record.active_whitelist_count : null,
     environment_policy: asRecord(record.environment_policy),
     timezone: textValue(record.timezone, "Asia/Shanghai"),
     window: textValue(record.window, "today"),

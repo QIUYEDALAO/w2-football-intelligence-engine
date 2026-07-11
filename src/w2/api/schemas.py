@@ -163,6 +163,7 @@ class DashboardDayViewResponse(BaseModel):
     football_day: str
     selected_football_day: str
     environment: str
+    active_whitelist_count: int | None = None
     environment_policy: dict[str, Any]
     timezone: str
     window: str
