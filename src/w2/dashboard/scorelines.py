@@ -14,6 +14,8 @@ def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[d
     fair_picks = _fair_estimate_scoreline_picks(card)
     if fair_picks:
         return fair_picks[:limit]
+    if _is_visible_pick(card, None):
+        return []
     simulation_picks = _simulation_scoreline_picks(card)
     if simulation_picks:
         return simulation_picks[:limit]
@@ -51,6 +53,10 @@ def scoreline_reference_from_card(
     fair_reference = _fair_estimate_reference(card, recommendation=recommendation)
     if fair_reference is not None:
         return fair_reference
+    if _is_visible_pick(card, recommendation):
+        # A visible pick must use the authoritative FairMarketEstimate distribution.
+        # Falling back to the old simulation would mix decision and display sources.
+        return None
     simulation = _simulation_from_card(card)
     if not isinstance(simulation, dict) or simulation.get("status") != "READY":
         return None
@@ -58,8 +64,9 @@ def scoreline_reference_from_card(
     high_total_probability = _over_probability(simulation, 3.5)
     very_high_total_probability = _over_probability(simulation, 4.5)
     return {
-        "source": "formal_simulation",
-        "label": "模拟比分参考",
+        "source": "legacy_baseline_simulation",
+        "source_status": "LEGACY_BASELINE_NOT_DECISION_SOURCE",
+        "label": "旧基线模拟（仅技术参考）",
         "top_scorelines": top_scorelines,
         "direction_top3": _direction_top3_scorelines(
             simulation,
@@ -81,6 +88,25 @@ def scoreline_reference_from_card(
         },
         "ah_key_scorelines": _ah_key_scorelines(simulation, recommendation=recommendation),
     }
+
+
+def _is_visible_pick(
+    card: Mapping[str, Any],
+    recommendation: Mapping[str, Any] | None,
+) -> bool:
+    contract = card.get("decision_contract")
+    tier = str(
+        (contract.get("decision_tier") if isinstance(contract, Mapping) else None)
+        or card.get("decision_tier")
+        or (recommendation.get("decision_tier") if isinstance(recommendation, Mapping) else None)
+        or ""
+    ).upper()
+    if tier in {"ANALYSIS_PICK", "RECOMMEND"}:
+        return True
+    decision = str(
+        (recommendation.get("decision") if isinstance(recommendation, Mapping) else None) or ""
+    ).upper()
+    return decision in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}
 
 
 def _fair_estimate_reference(

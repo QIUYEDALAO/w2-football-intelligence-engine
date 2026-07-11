@@ -358,7 +358,10 @@ def test_day_view_preserves_shadow_and_scoreline_context_for_boss_view() -> None
     assert card["pricing_shadow"]["status"] == "SIMULATION_READY"
     assert card["scoreline_readiness"]["status"] == "READY"
     assert card["scoreline_picks"][0]["scoreline"] == "1-1"
-    assert card["scoreline_reference"]["source"] == "formal_simulation"
+    assert card["scoreline_reference"]["source"] == "legacy_baseline_simulation"
+    assert card["scoreline_reference"]["source_status"] == (
+        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
+    )
     assert card["scoreline_reference"]["top_scorelines"][1]["scoreline"] == "2-1"
 
 

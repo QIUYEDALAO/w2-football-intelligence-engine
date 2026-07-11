@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from w2.dashboard.scorelines import scoreline_reference_from_card
+from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
 
 
 def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distribution() -> None:
@@ -118,7 +118,8 @@ def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
     )
 
     assert reference is not None
-    assert reference["source"] == "formal_simulation"
+    assert reference["source"] == "legacy_baseline_simulation"
+    assert reference["source_status"] == "LEGACY_BASELINE_NOT_DECISION_SOURCE"
     assert reference["direction_top3"] == []
     assert "midband_scorelines" not in reference
     assert "_midband_scorelines" not in reference
@@ -261,3 +262,19 @@ def test_scoreline_reference_direction_top3_filters_by_formal_away_ah_direction(
 def test_scoreline_reference_returns_none_without_ready_simulation() -> None:
     card = {"pricing_shadow": {"simulation": {"status": "WATCH"}}}
     assert scoreline_reference_from_card(card) is None
+
+
+def test_visible_pick_never_falls_back_to_legacy_simulation() -> None:
+    card = {
+        "decision_tier": "ANALYSIS_PICK",
+        "pricing_shadow": {
+            "simulation": {
+                "status": "READY",
+                "lambda_home": 1.4,
+                "lambda_away": 1.1,
+            }
+        },
+    }
+
+    assert scoreline_reference_from_card(card) is None
+    assert scoreline_picks_from_card(card) == []
