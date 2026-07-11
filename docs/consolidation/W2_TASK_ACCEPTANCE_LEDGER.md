@@ -604,3 +604,11 @@
 - 选中比赛证据区展示 `optional_enrichment.lineups/player_value` 的真实状态；当前 `affects_estimate=false` 时明确“仅作信息增强/不参与当前模型/净调整为 0”。
 - 移除“首发公布后自动重算”“开赛前必须复核首发”等与合同不一致的暗示；首发待公布不再被描述为分析硬门或自动改向触发器。
 - 未部署、未调用 provider、未写业务数据库，未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler。
+
+### V3 进展续45 · 可选首发增强与验证推荐 staging 部署验收(2026-07-12)
+
+- 用户单独批准 staging 部署后，将 main `493b4b6baf1fb42183a86183622aa3d65ec2cf39` scheduler-safe 部署；仅重建 API/Web，production 未部署。
+- `/health`、`/ready`、`/v1/version`、`/meta.json`、公网 React root 与 release-sync 全部 PASS；API/Web SHA 对齐，真实数据源为 `real-db/read-model-db`，Dashboard 返回 12 行。
+- scheduler 容器 `7e3dc0913f2a...` 与 worker 容器 `0019f0a8d961...` 的 ID、created、started、`unless-stopped` policy 均未变化且健康。
+- 部署前后 `provider_request_logs=381`、`future_refresh_run_audit=1423`、Celery queue=`0`，确认 provider 调用、刷新任务与队列均无增量；未写业务数据库。
+- 未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler 配置。
