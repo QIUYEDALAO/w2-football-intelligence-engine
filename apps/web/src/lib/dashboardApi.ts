@@ -398,6 +398,11 @@ function normalizeScorelinePick(payload: unknown) {
     away_goals: numberValue(row.away_goals) ?? undefined,
     probability: typeof row.probability === "number" ? row.probability : undefined,
     probability_label: textValue(row.probability_label),
+    probability_type: textValue(row.probability_type) || undefined,
+    selection: textValue(row.selection) || undefined,
+    line: numberValue(row.line) ?? undefined,
+    outcome: textValue(row.outcome) || undefined,
+    source: textValue(row.source) || undefined,
   };
 }
 
@@ -409,6 +414,7 @@ function normalizeScorelineReference(payload: unknown) {
     source: source || null,
     label: textValue(record.label) || null,
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    direction_scorelines: asArray(record.direction_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
     high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
     very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
     ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => asRecord(item)),

@@ -876,3 +876,27 @@ def test_analysis_gate_inconsistent_fair_market_provenance_fails_closed(monkeypa
     )
     assert ah_gate["status"] == "BLOCKED"
     assert "DECISION_SOURCE_INCONSISTENT" in ah_gate["blockers"]
+
+
+def test_analysis_gate_non_positive_goal_estimate_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    card["fair_market_estimates"][0]["home_mu"] = 0  # type: ignore[index]
+
+    fields = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    ah_gate = next(
+        gate for gate in fields["analysis_gates"] if gate["market"] == "ASIAN_HANDICAP"  # type: ignore[union-attr]
+    )
+    assert ah_gate["status"] == "BLOCKED"
+    assert "DECISION_SOURCE_INCONSISTENT" in ah_gate["blockers"]

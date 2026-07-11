@@ -101,8 +101,8 @@ def _is_visible_pick(
         or (recommendation.get("decision_tier") if isinstance(recommendation, Mapping) else None)
         or ""
     ).upper()
-    if tier in {"ANALYSIS_PICK", "RECOMMEND"}:
-        return True
+    if tier:
+        return tier in {"ANALYSIS_PICK", "RECOMMEND"}
     decision = str(
         (recommendation.get("decision") if isinstance(recommendation, Mapping) else None) or ""
     ).upper()
@@ -114,18 +114,29 @@ def _fair_estimate_reference(
     *,
     recommendation: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    estimate = _primary_fair_estimate(card)
+    pick = _decision_pick(card, recommendation)
+    pick_market = str(pick.get("market") or "") if isinstance(pick, Mapping) else ""
+    estimate = _primary_fair_estimate(card, market=pick_market)
     if estimate is None:
         return None
-    top_scorelines = _fair_estimate_scoreline_picks(card)
+    top_scorelines = _fair_estimate_scoreline_picks(card, market=pick_market)
     if not top_scorelines:
         return None
-    pick = _decision_pick(card, recommendation)
     settlement = _market_settlement_distribution(estimate, pick)
+    direction_scorelines = (
+        _direction_scorelines_from_estimate(estimate, pick)
+        if isinstance(pick, Mapping)
+        else []
+    )
+    if _is_visible_pick(card, recommendation) and (
+        settlement is None or not direction_scorelines
+    ):
+        return None
     return {
         "source": "fair_market_estimate",
         "label": "同源比分分布",
         "top_scorelines": top_scorelines,
+        "direction_scorelines": direction_scorelines,
         "market_settlement": settlement,
         "distribution_provenance": {
             "model_family": estimate.get("model_family"),
@@ -139,8 +150,12 @@ def _fair_estimate_reference(
     }
 
 
-def _fair_estimate_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]:
-    estimate = _primary_fair_estimate(card)
+def _fair_estimate_scoreline_picks(
+    card: dict[str, Any],
+    *,
+    market: str | None = None,
+) -> list[dict[str, Any]]:
+    estimate = _primary_fair_estimate(card, market=market)
     if estimate is None:
         return []
     matrix = _score_matrix_from_estimate(estimate)
@@ -161,7 +176,11 @@ def _fair_estimate_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]
     ]
 
 
-def _primary_fair_estimate(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
+def _primary_fair_estimate(
+    card: Mapping[str, Any],
+    *,
+    market: str | None = None,
+) -> Mapping[str, Any] | None:
     estimates = card.get("fair_market_estimates")
     if not isinstance(estimates, list):
         return None
@@ -169,7 +188,9 @@ def _primary_fair_estimate(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if not isinstance(gate, Mapping):
         contract = card.get("decision_contract")
         gate = contract.get("analysis_gate") if isinstance(contract, Mapping) else None
-    primary_market = str(gate.get("market") or "") if isinstance(gate, Mapping) else ""
+    primary_market = market or (
+        str(gate.get("market") or "") if isinstance(gate, Mapping) else ""
+    )
     ready = [
         item
         for item in estimates
@@ -180,7 +201,9 @@ def _primary_fair_estimate(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
     ]
     if not ready:
         return None
-    return next((item for item in ready if str(item.get("market")) == primary_market), ready[0])
+    if primary_market:
+        return next((item for item in ready if str(item.get("market")) == primary_market), None)
+    return ready[0]
 
 
 def _score_matrix_from_estimate(
@@ -262,6 +285,59 @@ def _market_settlement_distribution(
             key: _probability_label(None, value) for key, value in buckets.items()
         },
     }
+
+
+def _direction_scorelines_from_estimate(
+    estimate: Mapping[str, Any],
+    pick: Mapping[str, Any],
+    *,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    market = str(pick.get("market") or "")
+    selection = str(pick.get("selection") or "")
+    line = _number(pick.get("line"))
+    matrix = _score_matrix_from_estimate(estimate)
+    if matrix is None or line is None:
+        return []
+    side = (
+        {"HOME_AH": "HOME", "AWAY_AH": "AWAY"}.get(selection)
+        if market == "ASIAN_HANDICAP"
+        else selection if market == "TOTALS" and selection in {"OVER", "UNDER"} else None
+    )
+    if side is None:
+        return []
+    decimal_line = Decimal(str(line))
+    rows: list[dict[str, Any]] = []
+    for (home, away), probability in matrix.items():
+        outcome = (
+            settle_asian_handicap(home, away, side, decimal_line)
+            if market == "ASIAN_HANDICAP"
+            else settle_total_goals(home + away, side, decimal_line)
+        )
+        if outcome not in {SettlementOutcome.WIN, SettlementOutcome.HALF_WIN}:
+            continue
+        rows.append(
+            {
+                "scoreline": f"{home}-{away}",
+                "home_goals": home,
+                "away_goals": away,
+                "probability": round(probability, 6),
+                "probability_label": _probability_label(None, probability),
+                "probability_type": "UNCONDITIONAL_FILTERED_BY_SETTLEMENT",
+                "selection": selection,
+                "line": line,
+                "outcome": outcome.value,
+                "source": "fair_market_estimate",
+            }
+        )
+    return sorted(
+        rows,
+        key=lambda item: (
+            -float(item["probability"]),
+            int(item["home_goals"]) + int(item["away_goals"]),
+            str(item["scoreline"]),
+        ),
+    )[:limit]
 
 
 def _direction_top3_scorelines(

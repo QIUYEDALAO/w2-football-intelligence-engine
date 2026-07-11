@@ -847,12 +847,16 @@ def _estimate_source_consistent(
     fair_line: float | None,
     market: str,
 ) -> bool:
+    home_mu = _number(estimate.get("home_mu"))
+    away_mu = _number(estimate.get("away_mu"))
     return (
         str(estimate.get("market") or "") == market
         and str(estimate.get("status") or "").upper() == "READY"
         and fair_line is not None
-        and _number(estimate.get("home_mu")) is not None
-        and _number(estimate.get("away_mu")) is not None
+        and home_mu is not None
+        and home_mu > 0
+        and away_mu is not None
+        and away_mu > 0
         and bool(str(estimate.get("model_family") or "").strip())
     )
 

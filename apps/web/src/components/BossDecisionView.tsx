@@ -259,11 +259,17 @@ function optionalEnrichmentStatements(card: DashboardDayViewCard): string[] {
 }
 
 function scorelineItems(card: DashboardDayViewCard): DashboardDayViewCard["scoreline_picks"] {
+  if (card.scoreline_reference?.direction_scorelines?.length) return card.scoreline_reference.direction_scorelines;
+  if (isReadyRecommendation(card)) return [];
   if (card.scoreline_reference?.top_scorelines?.length) return card.scoreline_reference.top_scorelines;
   return card.scoreline_picks ?? [];
 }
 
-function scorelineItemText(pick: { scoreline?: string; probability_label?: string | null }): string {
+function scorelineItemText(pick: { scoreline?: string }): string {
+  return `${pick.scoreline}`;
+}
+
+function scorelineAuditText(pick: { scoreline?: string; probability_label?: string | null }): string {
   return `${pick.scoreline}${pick.probability_label ? ` ${pick.probability_label}` : ""}`;
 }
 
@@ -884,7 +890,7 @@ export function EvidencePanel({
           </ul>
         </div>
         <div className="evidence-section">
-          <strong>模拟比分参考</strong>
+          <strong>方向比分与模型审计</strong>
           <p>{scoreline.message}</p>
           {settlementDistributionText(selectedCard) ? (
             <p>同源盘口结算：{settlementDistributionText(selectedCard)}</p>
@@ -892,9 +898,12 @@ export function EvidencePanel({
           {scorelines.length ? (
             <div className="boss-scoreline-picks">
               {scorelines.map((pick) => (
-                <span key={`${pick.scoreline}-${pick.probability_label ?? ""}`}>{scorelineItemText(pick)}</span>
+                <span key={`${pick.scoreline}-${pick.probability_label ?? ""}`}>{scorelineAuditText(pick)}</span>
               ))}
             </div>
+          ) : null}
+          {selectedCard.scoreline_reference?.top_scorelines?.length ? (
+            <p>全局最高概率比分：{selectedCard.scoreline_reference.top_scorelines.slice(0, 3).map(scorelineAuditText).join(" / ")}</p>
           ) : null}
         </div>
         <div className="tracking-note">

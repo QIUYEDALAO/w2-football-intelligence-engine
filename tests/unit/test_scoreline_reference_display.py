@@ -45,6 +45,14 @@ def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distributi
     assert reference["source"] == "fair_market_estimate"
     assert all(item["scoreline"] != "1-1" for item in reference["top_scorelines"])
     assert reference["distribution_provenance"]["artifact_hash"] == "artifact-1"
+    direction = reference["direction_scorelines"]
+    assert [item["scoreline"] for item in direction] == ["3-1", "4-1", "3-2"]
+    assert all(item["outcome"] in {"WIN", "HALF_WIN"} for item in direction)
+    assert all(
+        item["probability_type"] == "UNCONDITIONAL_FILTERED_BY_SETTLEMENT"
+        for item in direction
+    )
+    assert all(item["source"] == "fair_market_estimate" for item in direction)
     settlement = reference["market_settlement"]
     assert settlement["market"] == "TOTALS"
     assert settlement["selection"] == "OVER"
@@ -79,6 +87,73 @@ def test_fair_estimate_uses_analysis_gate_before_decision_pick_is_materialized()
     assert settlement["selection"] == "OVER"
     assert settlement["line"] == 3.25
     assert settlement["probabilities"]["WIN"] == pytest.approx(0.65999, abs=2e-5)
+    assert all(
+        int(item["home_goals"]) + int(item["away_goals"]) >= 4
+        for item in reference["direction_scorelines"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("market", "selection", "line", "expected_outcomes"),
+    [
+        ("TOTALS", "OVER", 2.75, {"WIN", "HALF_WIN"}),
+        ("TOTALS", "UNDER", 2.75, {"WIN", "HALF_WIN"}),
+        ("ASIAN_HANDICAP", "HOME_AH", -0.75, {"WIN", "HALF_WIN"}),
+        ("ASIAN_HANDICAP", "AWAY_AH", 0.75, {"WIN", "HALF_WIN"}),
+    ],
+)
+def test_direction_scorelines_follow_pick_settlement_for_quarter_lines(
+    market: str,
+    selection: str,
+    line: float,
+    expected_outcomes: set[str],
+) -> None:
+    card = {
+        "analysis_gate": {"market": market},
+        "decision_tier": "ANALYSIS_PICK",
+        "decision_contract": {
+            "pick": {"market": market, "selection": selection, "line": line}
+        },
+        "fair_market_estimates": [
+            {
+                "market": market,
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "home_mu": 1.8,
+                "away_mu": 1.2,
+            }
+        ],
+    }
+
+    reference = scoreline_reference_from_card(card)
+
+    assert reference is not None
+    assert len(reference["direction_scorelines"]) == 3
+    assert {item["outcome"] for item in reference["direction_scorelines"]} <= expected_outcomes
+    assert all(
+        item["probability_type"] == "UNCONDITIONAL_FILTERED_BY_SETTLEMENT"
+        for item in reference["direction_scorelines"]
+    )
+
+
+def test_visible_pick_rejects_fair_estimate_for_another_market() -> None:
+    card = {
+        "decision_tier": "ANALYSIS_PICK",
+        "decision_contract": {
+            "pick": {"market": "TOTALS", "selection": "OVER", "line": 2.5}
+        },
+        "fair_market_estimates": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "status": "READY",
+                "model_family": "R4_1_CALIBRATED",
+                "home_mu": 1.8,
+                "away_mu": 1.2,
+            }
+        ],
+    }
+
+    assert scoreline_reference_from_card(card) is None
 
 
 def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:

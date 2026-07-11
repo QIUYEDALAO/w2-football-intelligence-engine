@@ -235,12 +235,18 @@ export interface ScorelinePick {
   probability_label?: string;
   hit?: boolean;
   direction_hit?: boolean;
+  probability_type?: "UNCONDITIONAL_FILTERED_BY_SETTLEMENT" | string;
+  selection?: string;
+  line?: number;
+  outcome?: string;
+  source?: string;
 }
 
 export interface ScorelineReference {
   source?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
+  direction_scorelines?: ScorelinePick[];
   high_total?: {
     threshold?: number;
     probability?: number | null;
