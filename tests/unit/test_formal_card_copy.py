@@ -83,7 +83,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "sortFormalFirst" not in page
     assert "DecisionCounts" in boss_view
     assert "EvidencePanel" in boss_view
-    assert "readyRecommendations" in boss_view
+    assert "validationRecommendations" in boss_view
     assert (
         "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
         not in boss_view
@@ -92,6 +92,11 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "为什么分析这个方向" in boss_view
     assert "为什么还不是正式推荐" in boss_view
     assert "为什么当前只观察" in boss_view
+    assert "可选增强状态" in boss_view
+    assert "首发已获取，仅作信息增强，不参与当前模型" in boss_view
+    assert "首发待公布，不阻断当前分析，也不会触发自动改向" in boss_view
+    assert "球员影响模型未启用，净调整为 0" in boss_view
+    assert "公布后会自动重算" not in boss_view
     assert "14 联赛可用" not in boss_view
     assert "active_whitelist_count" in boss_view
     assert "前向比赛" in boss_view

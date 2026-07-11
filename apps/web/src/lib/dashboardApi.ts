@@ -772,6 +772,17 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
   const pick = asRecord(record.pick);
+  const optionalEnrichment = asRecord(record.optional_enrichment);
+  const normalizeEnrichmentItem = (payload: unknown) => {
+    const row = asRecord(payload);
+    return {
+      status: textValue(row.status) || null,
+      affects_estimate: row.affects_estimate === true,
+      adjustment: nullableNumber(row.adjustment),
+      source: textValue(row.source) || null,
+      as_of: textValue(row.as_of) || null,
+    };
+  };
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc) || null,
@@ -813,6 +824,11 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
     fair_market_estimates: asArray(record.fair_market_estimates).map((item) => asRecord(item)),
+    optional_enrichment: {
+      lineups: normalizeEnrichmentItem(optionalEnrichment.lineups),
+      player_value: normalizeEnrichmentItem(optionalEnrichment.player_value),
+    },
+    player_impact_estimate: asRecord(record.player_impact_estimate),
     analysis_gate: asRecord(record.analysis_gate),
     analysis_gates: asArray(record.analysis_gates).map((item) => asRecord(item)),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),

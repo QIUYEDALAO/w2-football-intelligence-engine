@@ -1521,7 +1521,7 @@ def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate()
     assert payload["validation"]["analysis_shadow"]["hit_rate"] is None
     assert (
         payload["validation"]["analysis_shadow"]["label"]
-        == "analysis_shadow 样本不足，暂不计算命中率"
+        == "验证推荐样本不足，暂不计算命中率（不计入正式战绩）"
     )
 
 

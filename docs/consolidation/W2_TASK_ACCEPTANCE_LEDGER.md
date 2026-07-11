@@ -597,3 +597,10 @@
 - 正式 outcome 顶层统计只读取 OFFICIAL；ANALYSIS_PICK 进入独立 `outcomes_validation`，shadow 继续进入 `outcomes_shadow`，三轨不互相污染。
 - 无 scope 的历史 pick 记录继续按 OFFICIAL 读取，不重写历史快照；本阶段不执行 artifact 或数据库写入。
 - 未部署、未调用 provider，未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler。
+
+### V3 进展续44 · Dashboard 验证推荐与可选增强文案 PR D(2026-07-11)
+
+- Dashboard 将 ANALYSIS_PICK 用户文案统一为“验证推荐”，并明确其单独追踪、不计入正式战绩；内部兼容字段与 DecisionTier 不变。
+- 选中比赛证据区展示 `optional_enrichment.lineups/player_value` 的真实状态；当前 `affects_estimate=false` 时明确“仅作信息增强/不参与当前模型/净调整为 0”。
+- 移除“首发公布后自动重算”“开赛前必须复核首发”等与合同不一致的暗示；首发待公布不再被描述为分析硬门或自动改向触发器。
+- 未部署、未调用 provider、未写业务数据库，未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler。

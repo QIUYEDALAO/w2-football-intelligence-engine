@@ -394,9 +394,9 @@ function actionabilityLine(match: DashboardMatchCard): string {
   if (phase === "LIVE") return "已开赛：赛前判断停止更新";
   if (phase === "FINISHED") return "已完场：查看复盘验证";
   if (requiresPrematchReview(phase)) {
-    if (!lineupsReady) return "临场待确认：首发未出，开赛前需复核";
+    if (!lineupsReady) return "首发待公布：当前为可选增强，不阻断或改变分析";
     if (!oddsReady) return "临场待确认：盘口快照不足，需复核";
-    return "临场可参考：仍需赛前复核阵容与盘口跳线";
+    return "临场可参考：首发仅作信息增强，继续关注盘口跳线";
   }
   if (ahMainlineBlocker(match)) return "全场让球主盘口不明确，保持观察";
   if (!oddsReady) return "等待盘口快照后再看";
