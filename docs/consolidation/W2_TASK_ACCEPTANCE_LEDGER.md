@@ -538,3 +538,12 @@
 - 联赛表现键已归一为 `allsvenskan/eliteserien/chinese_super_league/brasileirao_serie_a`；`world_cup_2026` 仅保留历史数据，当前 L1 联赛表现默认隐藏。
 - 最终 staging API SHA=`ffecded5019290aa73538f4e1886e3fea0bcdca1`，Web SHA=`8bc1004820b98f19335db21f5665c800bfe8d418`；health/ready PASS，数据库与 Redis 均 PASS。
 - 部署前后 `provider_request_logs=319`、`future_refresh_run_audit=1407`、Celery queue=`0`；scheduler 容器 ID/created/started/restart policy 与 worker 容器 ID 均未变化。production 未部署，未改 `RECOMMEND`/EV/lock/league enable，未提交 runtime/raw/key/header。
+
+### V3 进展续36 · D0 巡检真源与 outcome 持久结果闭环(2026-07-11)
+
+- 每日 09:00 自动巡检此前只读本机空 runtime，错误地把 staging 前向证据与 provider 用量长期报告为 `UNKNOWN`。自动化已改为读取公网 Dashboard performance、SSH 只读 staging ledger、PostgreSQL provider usage 和 scheduler/Celery 状态；本机空目录不再代表 staging=0。
+- 首次真源巡检：46 个不同 fixture、10 个双快照 fixture、14 个 shadow CLV 样本、0 outcome；今日 provider calls=10/120，fixtures/odds/status 各 3、lineups 1，最新 capture=`2026-07-11T01:40:01Z`。
+- D0 根因确认：outcome backfill 虽配置 `window=all`，实际仍依赖按当前比赛日过滤的 Dashboard；完场 fixture 退出 future/DayView 后失去结算来源，因此 9303 条 ledger 记录全部仍为 capture。
+- 方案 A 已实现：复用现有 `forward_result_event` 持久表，把 fixture refresh 中 FT/AET/PEN 规范为脱敏结果事件；backfill 按 ledger fixture_id 查询，不再依赖当前 DayView。已有 DB raw fixture 响应提供只读迁移 fallback，无需新增 provider 请求。
+- AET/PEN 只用 90 分钟 fulltime 比分；缺失则保持未结算并计数。结果持久和 outcome JSONL 均幂等，历史 capture/outcome 混合读取不回归。
+- 当前为代码与测试完成、待 PR review，尚未部署。`provider_calls=0`、`db_writes=0`、未部署、未重启 scheduler、未改推荐/EV/RECOMMEND/lock/direction_allowed。

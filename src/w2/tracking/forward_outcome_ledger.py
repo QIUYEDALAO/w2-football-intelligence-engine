@@ -180,6 +180,19 @@ def backfill_outcomes(
     }
 
 
+def ledger_fixture_ids(runtime_root: Path) -> list[str]:
+    root = runtime_root / "forward_outcome_ledger"
+    fixture_ids: dict[str, None] = {}
+    for records in _ledger_rows_by_file(root).values():
+        for record in records:
+            if _text(record.get("record_type") or "capture") != "capture":
+                continue
+            fixture_id = _text(record.get("fixture_id"))
+            if fixture_id:
+                fixture_ids.setdefault(fixture_id, None)
+    return list(fixture_ids)
+
+
 def _ledger_path(root: Path, day_view: Mapping[str, Any]) -> Path:
     football_day = _text(day_view.get("football_day") or day_view.get("date") or "unknown")
     environment = _text(day_view.get("environment") or "unknown")
