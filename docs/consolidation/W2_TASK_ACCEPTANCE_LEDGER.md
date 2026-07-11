@@ -568,3 +568,10 @@
 - 前端此前仅缓存 60 秒，手动刷新会清空可见内容；DayView 失败后还会原样重试一次 20 秒请求，网络波动时会放大为接近 40 秒的等待。
 - 已批准 cache-first 方案：15 分钟本地快照始终先显示并后台 revalidate；刷新不清空当前画面；取消重复请求；API 对大 JSON 启用 gzip，并为 DayView 声明 30 秒 max-age 与 5 分钟 stale-while-revalidate。
 - 本轮只修读取与传输体验，不改推荐、EV/RECOMMEND、lock、direction_allowed、provider、DB 或 scheduler。当前实现进入验证，尚未部署。
+
+### V3 进展续40 · Dashboard cache-first staging 验收(2026-07-11)
+
+- #245 已 squash merge main `8d056a3ab468e660d2e6cfc45f87fd332567415f`，GitHub main `verify/staging-parity/predeploy-e2e` 全部 SUCCESS，并 scheduler-safe 部署 API/Web。
+- staging DayView 响应已返回 `Content-Encoding: gzip` 与 `Cache-Control: public, max-age=30, stale-while-revalidate=300`。future payload 网络传输从约 692 KB 降至约 53 KB，repository cache 命中请求实测约 2.48–3.22 秒；已有浏览器快照不再等待网络即可先显示。
+- API/Web SHA 均为 `8d056a3`；scheduler ID/created/started/restart policy 未变化，Celery queue=0，provider logs 仍 319、refresh audit 仍 1407。
+- `provider_calls=0`、`db_writes=0`、production 未部署，未改推荐、EV/RECOMMEND、lock、direction_allowed。
