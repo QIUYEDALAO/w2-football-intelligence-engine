@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from celery import Celery
 
@@ -234,12 +235,10 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
 
 
 def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
-    from pathlib import Path
-
     from w2.api.repository import ReadModelService, future_refresh_db_repository
     from w2.tracking.forward_outcome_ledger import backfill_outcomes, ledger_fixture_ids
 
-    runtime_root = Path.cwd()
+    runtime_root = _forward_runtime_root()
     fixture_ids = ledger_fixture_ids(runtime_root)
     persisted_results: list[dict[str, object]] = []
     repository = future_refresh_db_repository()
@@ -256,3 +255,7 @@ def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
         dry_run=False,
         write_artifacts=True,
     )
+
+
+def _forward_runtime_root() -> Path:
+    return Path.cwd() / "runtime"
