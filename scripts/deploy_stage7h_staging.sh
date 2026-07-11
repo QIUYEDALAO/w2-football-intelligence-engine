@@ -166,10 +166,9 @@ if [ "${START_AFTER_DEPLOY}" = "true" ]; then
   ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
-export COMPOSE_PROJECT_NAME=w2
 compose() {
-  sudo --preserve-env=COMPOSE_PROJECT_NAME,W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID \
-    docker compose \
+  sudo docker compose \
+    -p w2-staging \
     -f infra/compose/compose.staging.yml \
     --env-file /opt/w2/shared/.env \
     --env-file /opt/w2/shared/release.env \
