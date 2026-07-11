@@ -15,6 +15,7 @@ from apps.scheduler.main import (
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
+    _forward_runtime_root,
     celery_app,
     forward_outcome_backfill,
     forward_outcome_ledger,
@@ -547,6 +548,14 @@ def test_scheduler_forward_outcome_backfill_dispatches_without_provider_calls(
     assert str(result["task_id"]).startswith("forward-outcome-backfill:")
     assert sent[0]["name"] == "w2.forward_outcome_backfill"
     assert sent[0]["kwargs"]["window"] == "all"
+
+
+def test_worker_forward_outcome_backfill_uses_mounted_runtime_root(
+    tmp_path, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.chdir(tmp_path)
+
+    assert _forward_runtime_root() == tmp_path / "runtime"
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
