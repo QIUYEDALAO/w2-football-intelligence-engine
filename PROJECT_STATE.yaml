@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T01:25:00Z"
-current_phase: dashboard product truth repair
-current_status: merged_and_staging_accepted
+last_updated_utc: "2026-07-11T01:50:00Z"
+current_phase: D0 forward evidence closure
+current_status: outcome_result_source_implemented_pending_review
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -64,14 +64,14 @@ current_product_observation:
   source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
   cards_total: 16
   decision_counts:
-    NOT_READY: 0
+    NOT_READY: 1
     SKIP: 0
     WATCH: 8
     ANALYSIS_PICK: 7
     RECOMMEND: 0
   data_status_counts:
     READY: 0
-    PARTIAL: 9
+    PARTIAL: 15
     STALE: 0
     BLOCKED: 1
   lock_eligible_count: 0
@@ -95,6 +95,34 @@ current_product_observation:
     - EV and RECOMMEND legs remain default off.
     - formal_recommendation policy remains false.
   ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+
+d0_forward_evidence_closure:
+  status: implementation_complete_pending_review
+  observed_at_utc: "2026-07-11T01:40:01Z"
+  staging_truth:
+    distinct_fixture_count: 46
+    double_snapshot_fixture_count: 10
+    shadow_clv_sample_count: 14
+    outcome_count: 0
+    provider_calls_today: 10
+    provider_daily_hard_cap: 120
+    latest_capture_at_utc: "2026-07-11T01:40:01Z"
+  root_cause: Outcome backfill used the date-scoped Dashboard all window; finished fixtures disappeared before settlement.
+  implementation:
+    - Persist sanitized FT/AET/PEN result events from fixture refresh responses.
+    - Resolve backfill results by fixture IDs present in the forward ledger.
+    - Read already persisted fixture raw responses as a migration fallback without provider calls.
+    - Settle AET/PEN from the 90-minute fulltime score and remain unsettled when it is absent.
+  daily_patrol:
+    automation_id: w2-r1-1-r1-3-forward-ledger-daily-patrol
+    schedule: daily 09:00 Asia/Shanghai
+    staging_evidence_source_enabled: true
+  safety:
+    provider_calls: 0
+    db_writes: 0
+    staging_deploy: false
+    production_deploy: false
+    scheduler_restart: false
 
 dashboard_product_truth_repair:
   branch: codex/w2-dashboard-product-truth

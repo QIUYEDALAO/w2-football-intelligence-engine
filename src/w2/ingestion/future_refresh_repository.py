@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from w2.config import Settings
 from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.forward_ops_models import ForwardResultEventModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
@@ -23,6 +24,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.tracking.forward_result_source import normalized_finished_results
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -102,6 +104,76 @@ class FutureRefreshDbRepository:
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RAW_PAYLOAD_WRITE_FAILED") from exc
+
+    def append_finished_result_events(
+        self,
+        *,
+        payload: dict[str, Any],
+        captured_at: datetime,
+        raw_payload_hash: str,
+        provider: str = "api_football",
+    ) -> int:
+        events = normalized_finished_results(
+            payload,
+            provider=provider,
+            confirmed_at=captured_at,
+            raw_payload_hash=raw_payload_hash,
+        )
+        appended = 0
+        with Session(self.engine) as session:
+            for event in events:
+                session.add(ForwardResultEventModel(**event))
+                try:
+                    session.commit()
+                    appended += 1
+                except IntegrityError:
+                    session.rollback()
+                except Exception as exc:
+                    session.rollback()
+                    raise FutureRefreshPersistenceError("RESULT_EVENT_WRITE_FAILED") from exc
+        return appended
+
+    def result_events_for_fixture_ids(self, fixture_ids: list[str]) -> list[dict[str, Any]]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return []
+        latest: dict[str, tuple[datetime, dict[str, Any]]] = {}
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(ForwardResultEventModel)
+                    .where(ForwardResultEventModel.fixture_id.in_(ids))
+                    .order_by(ForwardResultEventModel.confirmed_at)
+                )
+            )
+            raw_rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == "fixtures")
+                    .order_by(RawPayloadModel.captured_at)
+                )
+            )
+        for row in rows:
+            latest[row.fixture_id] = (
+                parse_db_datetime(row.confirmed_at),
+                dict(row.result_payload),
+            )
+        wanted = set(ids)
+        for raw in raw_rows:
+            for event in normalized_finished_results(
+                raw.payload,
+                provider="api_football",
+                confirmed_at=raw.captured_at,
+                raw_payload_hash=raw.sha256,
+            ):
+                fixture_id = str(event["fixture_id"])
+                if fixture_id not in wanted:
+                    continue
+                confirmed_at = parse_db_datetime(event["confirmed_at"])
+                current = latest.get(fixture_id)
+                if current is None or confirmed_at > current[0]:
+                    latest[fixture_id] = (confirmed_at, dict(event["result_payload"]))
+        return [latest[fixture_id][1] for fixture_id in ids if fixture_id in latest]
 
     def append_observations(self, observations: list[dict[str, Any]]) -> int:
         appended = 0

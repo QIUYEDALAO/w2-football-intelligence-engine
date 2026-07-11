@@ -236,14 +236,23 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
 def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
     from pathlib import Path
 
-    from w2.api.repository import ReadModelService
-    from w2.tracking.forward_outcome_ledger import backfill_outcomes
+    from w2.api.repository import ReadModelService, future_refresh_db_repository
+    from w2.tracking.forward_outcome_ledger import backfill_outcomes, ledger_fixture_ids
 
+    runtime_root = Path.cwd()
+    fixture_ids = ledger_fixture_ids(runtime_root)
+    persisted_results: list[dict[str, object]] = []
+    repository = future_refresh_db_repository()
+    if repository is not None:
+        persisted_results = repository.result_events_for_fixture_ids(fixture_ids)
     service = ReadModelService()
     dashboard = service.dashboard(window=window, include_debug=False)
+    dashboard_results = dashboard.get("results")
+    existing_results = dashboard_results if isinstance(dashboard_results, list) else []
+    result_source = {**dashboard, "results": [*existing_results, *persisted_results]}
     return backfill_outcomes(
-        Path.cwd(),
-        dashboard,
+        runtime_root,
+        result_source,
         dry_run=False,
         write_artifacts=True,
     )
