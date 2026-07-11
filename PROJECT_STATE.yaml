@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T07:18:00Z"
+last_updated_utc: "2026-07-11T07:36:00Z"
 current_phase: dashboard cache-first performance
-current_status: implementation_in_validation
+current_status: deployed_and_staging_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,7 +20,7 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
+  main_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
   main_ci: SUCCESS
   main_ci_checks:
     - verify
@@ -30,11 +30,11 @@ repository_state:
 
 staging_state:
   environment: staging
-  api_git_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
-  web_git_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
-  release_id: 92f8e657
+  api_git_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+  web_git_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+  release_id: 8d056a3
   source_branch: main
-  source_note: PR 244 Dashboard truth-count and localization deployment; API/Web were updated scheduler-safe while worker and scheduler were not recreated or restarted.
+  source_note: PR 245 Dashboard cache-first performance deployment; API/Web were updated scheduler-safe while worker and scheduler were not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -178,7 +178,7 @@ dashboard_product_truth_repair:
     scheduler_restart: false
 
 dashboard_cache_first_performance:
-  status: implementation_in_validation
+  status: deployed_and_staging_accepted
   measured_baseline:
     day_view_cold_seconds: 11.1
     day_view_cached_seconds: 3.8
@@ -190,6 +190,17 @@ dashboard_cache_first_performance:
     - Extend the browser snapshot TTL from one minute to fifteen minutes.
     - Remove the duplicate retry of the same long DayView request.
     - Add gzip compression and a stale-while-revalidate cache contract.
+  staging_acceptance:
+    main_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+    api_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+    web_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
+    compressed_payload_bytes: 53217
+    cached_request_seconds_min: 2.48
+    cached_request_seconds_max: 3.22
+    cache_control: public, max-age=30, stale-while-revalidate=300
+    scheduler_restart: false
+    provider_request_logs_delta: 0
+    future_refresh_run_audit_delta: 0
   safety:
     provider_calls: 0
     db_writes: 0
