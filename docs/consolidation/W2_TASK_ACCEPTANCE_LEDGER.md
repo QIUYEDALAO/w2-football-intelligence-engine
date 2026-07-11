@@ -554,3 +554,10 @@
 - 首次受控 backfill 从既有持久 fixture raw 读取 1 个已完赛结果并写入首条 outcome：fixture `1576804`、TOTALS OVER 2.5、FT 3-2、WIN。第二次运行 `written=0/skipped_existing=1`，幂等验收 PASS。
 - Dashboard 真实表现从 settled=0 变为 settled=1、hit=1；样本仅 1，不能据此声称模型有效，只证明赛后结算链路开始工作。
 - 部署前后 provider logs=`319`、refresh audit=`1407`、Celery queue=`0`；`provider_calls=0`、`db_writes=0`、production 未部署、未改推荐/EV/RECOMMEND/lock/direction_allowed。
+
+### V3 进展续38 · Dashboard 汇总真相与联赛本地化收尾(2026-07-11)
+
+- 用户截图确认 L1 仍显示互相矛盾的 `观察17/数据阻塞16`，而真实 DayView 为 total=16、ANALYSIS_PICK=7、WATCH=8、NOT_READY=1、PARTIAL=15、BLOCKED=1；同时联赛栏仍泄漏 `Super League/Allsvenskan/Eliteserien`。
+- L1 header 与 health strip 现从实际 `cards[]` 重新聚合，不再依赖可能滞后的 summary；状态条明确拆分 `部分就绪` 与 `数据阻塞`，PARTIAL 不再被描述成整日阻塞。
+- 联赛本地化覆盖 canonical ID、API-Football numeric ID 与英文赛事名，中超/瑞典超/挪超及其常规赛轮次使用中文显示；联赛表现摘要不再泄漏内部 ID。
+- 本轮只改展示口径和文本，不改 DayView/DecisionCard 决策、不改推荐数量/排序、不改 EV/RECOMMEND/lock/direction_allowed。当前代码完成、待 PR review 和独立 staging 部署批准。

@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T01:50:00Z"
-current_phase: D0 forward evidence closure
-current_status: outcome_result_source_deployed_and_accepted
+last_updated_utc: "2026-07-11T02:38:00Z"
+current_phase: dashboard product truth follow-up
+current_status: implementation_complete_pending_review_and_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -157,6 +157,19 @@ dashboard_product_truth_repair:
     distinct_forward_fixture_count: 46
     canonical_league_identity: PASS
     archived_world_cup_hidden_from_current_league_view: PASS
+  follow_up:
+    status: implementation_complete_pending_review_and_deploy
+    changes:
+      - Derive L1 decision and data counts from the rendered cards to prevent stale summary contradictions.
+      - Separate PARTIAL from BLOCKED in the health strip.
+      - Localize canonical/provider competition identifiers and active league names.
+      - Preserve recommendation visibility and ordering while changing no decision semantics.
+    safety:
+      provider_calls: 0
+      db_writes: 0
+      staging_deploy: false
+      production_deploy: false
+      scheduler_restart: false
   safety:
     provider_calls: 0
     db_writes: 0
