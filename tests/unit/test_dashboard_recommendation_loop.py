@@ -51,6 +51,12 @@ def test_future_flat_fixture_context_preserves_team_identity() -> None:
     assert context["home_team_provider_name"] == "Home Provider"
     assert context["competition_id"] == "allsvenskan"
 
+    decorated = service._decorate_analysis_card(
+        {"fixture_id": "fixture", "competition_id": "113", "markets": []},
+        fixture_context=context,
+    )
+    assert decorated["competition_id"] == "allsvenskan"
+
 
 class RecommendationLoopRepository:
     def release_counts(self) -> dict[str, int]:
