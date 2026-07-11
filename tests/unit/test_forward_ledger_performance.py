@@ -231,6 +231,37 @@ def test_forward_ledger_performance_uses_distinct_fixtures_and_stable_competitio
     assert payload["by_league"][0]["fixture_count"] == 2
 
 
+def test_forward_ledger_performance_maps_provider_ids_to_canonical_competitions(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            _record(
+                "2026-07-07T00:00:00Z",
+                fixture_id="sweden",
+                competition_id="113",
+                competition_name="Allsvenskan · Regular Season - 12",
+            ),
+            _record(
+                "2026-07-07T01:00:00Z",
+                fixture_id="world-cup",
+                competition_id="1",
+                competition_name="World Cup",
+            ),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert {row["league"] for row in payload["by_league"]} == {
+        "allsvenskan",
+        "world_cup_2026",
+    }
+
+
 def test_forward_ledger_performance_splits_totals_decimal_and_line_clv(
     tmp_path: Path,
 ) -> None:
