@@ -237,18 +237,20 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     card_dict = dict(card)
-    scoreline_picks = _mapping_list(card.get("scoreline_picks"))
+    derived_reference = scoreline_reference_from_card(
+        card_dict,
+        recommendation=dict(_mapping(card.get("recommendation"))) or None,
+    )
+    scoreline_reference = derived_reference or _mapping_copy(card.get("scoreline_reference"))
+    scoreline_picks = (
+        _mapping_list(scoreline_reference.get("top_scorelines"))
+        if isinstance(scoreline_reference, Mapping)
+        else []
+    )
     if not scoreline_picks:
         scoreline_picks = scoreline_picks_from_card(card_dict)
-    scoreline_reference = _mapping_copy(card.get("scoreline_reference"))
-    if not scoreline_reference:
-        scoreline_reference = (
-            scoreline_reference_from_card(
-                card_dict,
-                recommendation=dict(_mapping(card.get("recommendation"))) or None,
-            )
-            or {}
-        )
+    if not scoreline_picks:
+        scoreline_picks = _mapping_list(card.get("scoreline_picks"))
     return {
         "pricing_shadow": _mapping_copy(card.get("pricing_shadow")),
         "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),

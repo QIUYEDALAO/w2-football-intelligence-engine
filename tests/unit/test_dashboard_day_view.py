@@ -372,6 +372,58 @@ def test_day_view_production_includes_production_environment_policy() -> None:
     assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
+def test_day_view_recomputes_same_source_settlement_after_decision_contract_pick() -> None:
+    payload = {
+        "generated_at": "2026-07-11T00:00:00Z",
+        "date": "2026-07-11",
+        "selected_football_day": "2026-07-11",
+        "all": [
+            {
+                "fixture_id": "same-source",
+                "kickoff_utc": "2026-07-11T12:00:00Z",
+                "status": "NS",
+                "decision_contract": {
+                    "decision_tier": "ANALYSIS_PICK",
+                    "data_status": "PARTIAL",
+                    "lifecycle_status": "DRAFT",
+                    "outcome_tracked": True,
+                    "lock_eligible": False,
+                    "pick": {
+                        "market": "TOTALS",
+                        "selection": "OVER",
+                        "line": "3.25",
+                        "odds": "1.91",
+                        "disclaimer": "分析参考·非稳赢",
+                    },
+                    "analysis_gate": {"market": "TOTALS"},
+                },
+                "fair_market_estimates": [
+                    {
+                        "market": "TOTALS",
+                        "status": "READY",
+                        "model_family": "R4_1_CALIBRATED",
+                        "home_mu": 3.1462969750688647,
+                        "away_mu": 1.3672753468077237,
+                    }
+                ],
+                "scoreline_reference": {
+                    "source": "fair_market_estimate",
+                    "top_scorelines": [{"scoreline": "3-1", "probability": 0.08}],
+                    "market_settlement": None,
+                },
+            }
+        ],
+    }
+
+    view = build_dashboard_day_view(payload, environment="staging")
+    reference = view["cards"][0]["scoreline_reference"]
+
+    assert reference["source"] == "fair_market_estimate"
+    assert reference["market_settlement"]["selection"] == "OVER"
+    assert reference["market_settlement"]["line"] == 3.25
+    assert reference["market_settlement"]["probabilities"]["WIN"] > 0.65
+
+
 def test_day_view_degradation_reflects_refreshing_payload() -> None:
     view = build_dashboard_day_view(
         {
