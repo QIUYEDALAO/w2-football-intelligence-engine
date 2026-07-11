@@ -21,6 +21,23 @@ SETTLED_OUTCOMES = {
     "VOID": "void",
 }
 
+API_FOOTBALL_COMPETITION_IDS = {
+    "1": "world_cup_2026",
+    "39": "premier_league",
+    "61": "ligue_1",
+    "71": "brasileirao_serie_a",
+    "78": "bundesliga",
+    "88": "eredivisie",
+    "94": "primeira_liga",
+    "103": "eliteserien",
+    "113": "allsvenskan",
+    "128": "argentina_primera",
+    "135": "serie_a",
+    "140": "la_liga",
+    "169": "chinese_super_league",
+    "253": "mls",
+}
+
 
 def forward_ledger_performance(
     runtime_root: Path,
@@ -535,7 +552,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 def _league_key(record: Mapping[str, Any]) -> str:
     competition_id = _text(record.get("competition_id"))
     if competition_id:
-        return competition_id
+        return API_FOOTBALL_COMPETITION_IDS.get(competition_id, competition_id)
     name = _text(record.get("competition_name"))
     normalized = name.lower()
     for marker, canonical in (
