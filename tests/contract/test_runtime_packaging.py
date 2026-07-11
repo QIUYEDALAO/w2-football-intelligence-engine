@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 
 def test_dockerfiles_install_non_editable_package_and_package_required_runtime_scripts() -> None:
     root = Path(__file__).resolve().parents[2]
@@ -70,8 +72,18 @@ def test_staging_api_uses_explicit_runtime_artifact_path() -> None:
         "infra/compose/compose.staging.yml",
         "infra/compose/staging-lite.override.yml",
     ):
-        text = (root / relative).read_text(encoding="utf-8")
-        assert "W2_R4_1_ARTIFACT_DIR: /app/runtime/model_artifacts/r4_1" in text
+        payload = yaml.safe_load((root / relative).read_text(encoding="utf-8"))
+        api_environment = payload["services"]["api"]["environment"]
+        assert api_environment["W2_R4_1_ARTIFACT_DIR"] == (
+            "/app/runtime/model_artifacts/r4_1"
+        )
+        assert api_environment["W2_TEAM_LOCALIZATION_REGISTRY_PATH"] == (
+            "/app/config/team_localization/teams.zh-CN.v1.json"
+        )
+        migration_environment = payload["services"].get("migration", {}).get(
+            "environment", {}
+        )
+        assert "W2_R4_1_ARTIFACT_DIR" not in migration_environment
 
 
 def test_wheel_install_exposes_entrypoints(tmp_path: Path) -> None:
