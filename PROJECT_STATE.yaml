@@ -5,7 +5,7 @@ project:
 
 last_updated_utc: "2026-07-11T01:50:00Z"
 current_phase: D0 forward evidence closure
-current_status: outcome_result_source_implemented_pending_review
+current_status: outcome_result_source_deployed_and_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -97,13 +97,13 @@ current_product_observation:
   ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
 
 d0_forward_evidence_closure:
-  status: implementation_complete_pending_review
+  status: deployed_and_staging_accepted
   observed_at_utc: "2026-07-11T01:40:01Z"
   staging_truth:
     distinct_fixture_count: 46
     double_snapshot_fixture_count: 10
     shadow_clv_sample_count: 14
-    outcome_count: 0
+    outcome_count: 1
     provider_calls_today: 10
     provider_daily_hard_cap: 120
     latest_capture_at_utc: "2026-07-11T01:40:01Z"
@@ -123,6 +123,15 @@ d0_forward_evidence_closure:
     staging_deploy: false
     production_deploy: false
     scheduler_restart: false
+  acceptance:
+    main_sha: af41a05aeb7867b08b09ceb0548b65d7cfabc7a1
+    api_sha: de4e1d8ac78daff33d78f8aeeb6b4b829e5cddb9
+    worker_sha: af41a05aeb7867b08b09ceb0548b65d7cfabc7a1
+    first_outcome_fixture_id: "1576804"
+    first_outcome_market: TOTALS
+    first_outcome_selection: OVER
+    first_outcome_result: WIN
+    idempotent_rerun_written: 0
 
 dashboard_product_truth_repair:
   branch: codex/w2-dashboard-product-truth
