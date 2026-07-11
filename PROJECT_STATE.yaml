@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T15:42:00Z"
+last_updated_utc: "2026-07-11T16:18:00Z"
 current_phase: optional lineup enrichment and validation recommendation
 current_status: COMPLETE
 
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 52a39e26fef03287b132c4fccbc2af2539e82ca6
+  main_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-11T15:42:00Z"
+  observed_at_utc: "2026-07-11T16:18:00Z"
 
 current_execution_queue:
   name: W2 optional lineup enrichment and validation recommendation
@@ -50,16 +50,16 @@ current_execution_queue:
       status: COMPLETE
   external_actions:
     provider_calls: 0
-    staging_deploy: false
+    staging_deploy: true
     production_deploy: false
 
 staging_state:
   environment: staging
-  api_git_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
-  web_git_sha: 8d056a3ab468e660d2e6cfc45f87fd332567415f
-  release_id: 8d056a3
+  api_git_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
+  web_git_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
+  release_id: 493b4b6
   source_branch: main
-  source_note: PR 245 Dashboard cache-first performance deployment; API/Web were updated scheduler-safe while worker and scheduler were not recreated or restarted.
+  source_note: Optional lineup enrichment and validation recommendation A-D deployed scheduler-safe; API/Web only, worker and scheduler were not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
