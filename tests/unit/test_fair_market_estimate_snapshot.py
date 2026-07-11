@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import pytest
+
 from w2.dashboard.scorelines import scoreline_reference_from_card
 from w2.models.fair_market_estimate import (
     FairMarketEstimate,
@@ -91,6 +93,10 @@ def test_snapshot_integrity_detects_tampering_and_resolves_only_by_id() -> None:
     tampered_input["input_context"]["odds_snapshot"]["ou"]["line"] = 4.0  # type: ignore[index]
     assert verify_estimate_snapshot(tampered_input) is False
 
+    tampered_matrix = deepcopy(snapshot)
+    tampered_matrix["score_matrix"]["1-1"] = 0.99  # type: ignore[index]
+    assert verify_estimate_snapshot(tampered_matrix) is False
+
 
 def test_runtime_fingerprint_is_not_part_of_estimate_entity() -> None:
     snapshot = _snapshot()
@@ -126,3 +132,15 @@ def test_one_estimate_id_drives_fair_line_scorelines_and_settlement() -> None:
     assert all(row["estimate_id"] == estimate_id for row in reference["direction_scorelines"])
     assert reference["distribution_provenance"]["estimate_id"] == estimate_id
     assert snapshot["fair_line"] == 2.75
+    assert reference["top_scorelines"][0]["probability"] == pytest.approx(
+        max(snapshot["score_matrix"].values()),  # type: ignore[union-attr]
+        abs=1e-6,
+    )
+
+
+def test_score_matrix_is_frozen_into_estimate_hash() -> None:
+    snapshot = _snapshot()
+
+    assert len(snapshot["score_matrix"]) == 169  # type: ignore[arg-type]
+    assert sum(snapshot["score_matrix"].values()) == 1.0  # type: ignore[union-attr]
+    assert verify_estimate_snapshot(snapshot)

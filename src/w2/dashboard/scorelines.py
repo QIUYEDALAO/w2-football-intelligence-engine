@@ -233,6 +233,24 @@ def _primary_fair_estimate(
 def _score_matrix_from_estimate(
     estimate: Mapping[str, Any],
 ) -> dict[tuple[int, int], float] | None:
+    stored = estimate.get("score_matrix")
+    if isinstance(stored, Mapping):
+        matrix: dict[tuple[int, int], float] = {}
+        for key, value in stored.items():
+            parts = str(key).split("-", maxsplit=1)
+            probability = _number(value)
+            if len(parts) != 2 or probability is None:
+                return None
+            try:
+                score = (int(parts[0]), int(parts[1]))
+            except ValueError:
+                return None
+            matrix[score] = probability
+        if matrix and abs(sum(matrix.values()) - 1.0) <= 1e-8:
+            return matrix
+        return None
+    if estimate.get("estimate_id"):
+        return None
     home_mu = _number(estimate.get("home_mu"))
     away_mu = _number(estimate.get("away_mu"))
     if home_mu is None or away_mu is None or home_mu <= 0 or away_mu <= 0:

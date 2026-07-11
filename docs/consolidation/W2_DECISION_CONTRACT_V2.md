@@ -79,6 +79,7 @@ DecisionCard {
     status                 # READY | INSUFFICIENT | INVALID
     fair_line, probabilities
     home_mu, away_mu
+    score_matrix           # 冻结的完整比分矩阵；replay 不得按当前代码重新推导
     input_context {
       odds_snapshot_hash, feature_snapshot_hash
       odds_snapshot, feature_snapshot

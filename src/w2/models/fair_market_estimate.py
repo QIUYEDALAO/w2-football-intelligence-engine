@@ -48,6 +48,7 @@ class FairMarketEstimateSnapshot:
     probabilities: Mapping[str, float]
     home_mu: float | None
     away_mu: float | None
+    score_matrix: Mapping[str, float]
     input_context: Mapping[str, object]
     model_context: Mapping[str, object]
     integrity: Mapping[str, str]
@@ -77,6 +78,20 @@ class FairMarketEstimateSnapshot:
             "train_cutoff": estimate.train_cutoff,
             "feature_as_of": estimate.feature_as_of,
         }
+        score_matrix = (
+            {
+                f"{home}-{away}": probability
+                for (home, away), probability in score_distribution(
+                    home_mu=estimate.home_mu,
+                    away_mu=estimate.away_mu,
+                ).items()
+            }
+            if estimate.home_mu is not None
+            and estimate.home_mu > 0
+            and estimate.away_mu is not None
+            and estimate.away_mu > 0
+            else {}
+        )
         payload = {
             "fixture_id": fixture_id,
             "market": estimate.market,
@@ -85,6 +100,7 @@ class FairMarketEstimateSnapshot:
             "probabilities": dict(estimate.probabilities),
             "home_mu": estimate.home_mu,
             "away_mu": estimate.away_mu,
+            "score_matrix": score_matrix,
             "input_context": input_context,
             "model_context": model_context,
         }
@@ -98,6 +114,7 @@ class FairMarketEstimateSnapshot:
             probabilities=dict(estimate.probabilities),
             home_mu=estimate.home_mu,
             away_mu=estimate.away_mu,
+            score_matrix=score_matrix,
             input_context=input_context,
             model_context=model_context,
             integrity={
@@ -178,6 +195,7 @@ def verify_estimate_snapshot(snapshot: Mapping[str, object]) -> bool:
         "probabilities": dict(_mapping(snapshot.get("probabilities"))),
         "home_mu": snapshot.get("home_mu"),
         "away_mu": snapshot.get("away_mu"),
+        "score_matrix": dict(_mapping(snapshot.get("score_matrix"))),
         "input_context": dict(input_context),
         "model_context": dict(model_context),
     }
