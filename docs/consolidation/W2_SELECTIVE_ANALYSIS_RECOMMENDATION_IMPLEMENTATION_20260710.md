@@ -1,6 +1,14 @@
 # W2 Selective Analysis Recommendation Implementation - 2026-07-10
 
-Status: code complete pending review. No staging or production deployment has been performed.
+> **Status: SUPERSEDED**
+>
+> Superseded by [Decision Contract V2](W2_DECISION_CONTRACT_V2.md). This file is
+> retained as historical implementation evidence only. In particular, its
+> three-card daily cap and lineup-blocking language must not be used to infer
+> current runtime behavior.
+
+Historical status at publication: code complete pending review. No staging or
+production deployment had been performed.
 
 ## Scope
 

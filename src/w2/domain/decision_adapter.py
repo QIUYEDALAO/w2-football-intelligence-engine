@@ -116,7 +116,8 @@ def build_decision_contract_fields(
     ):
         tier = DecisionTier.ANALYSIS_PICK if market_complete else DecisionTier.WATCH
     legacy = legacy_decision_view(card, market)
-    legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
+    recommendation_legacy = legacy_decision_view({}, recommendation)
+    legacy_formal = legacy.legacy_formal or recommendation_legacy.legacy_formal
     pick_payload = (
         _pick_payload(
             card=card,
@@ -236,7 +237,8 @@ def _decision_tier(
             return tier
 
     legacy = legacy_decision_view(card, market)
-    if legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation")):
+    recommendation_legacy = legacy_decision_view({}, recommendation)
+    if legacy.legacy_formal or recommendation_legacy.legacy_formal:
         return DecisionTier.ANALYSIS_PICK
 
     decision = _first_upper(
@@ -252,7 +254,10 @@ def _decision_tier(
         if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
             return DecisionTier.WATCH
         return DecisionTier.ANALYSIS_PICK
-    if _truthy(_get(card, "candidate")) or _truthy(_get(market, "candidate")):
+    if (
+        legacy.decision_tier is DecisionTier.WATCH
+        or recommendation_legacy.decision_tier is DecisionTier.WATCH
+    ):
         return DecisionTier.WATCH
     if decision == "WATCH":
         return DecisionTier.WATCH

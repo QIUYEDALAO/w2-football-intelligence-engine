@@ -1,5 +1,10 @@
 # W2 Football Intelligence Engine
 
+Document conflicts are resolved using
+[`docs/DOCUMENT_AUTHORITY.md`](docs/DOCUMENT_AUTHORITY.md); historical plans and
+this README do not override current code, tests, `PROJECT_STATE.yaml`, or
+Decision Contract V2.
+
 Current status: W2 F1 hardening is merged and documented, but the visible
 boss-view product is not finished. `main` contains the verified spine: unified
 DecisionCard contract, `w2-matchday` mainline, controlled refresh planning,
