@@ -64,6 +64,16 @@ def test_dockerignore_excludes_runtime_reports_and_private_inputs() -> None:
         assert entry in text
 
 
+def test_staging_api_uses_explicit_runtime_artifact_path() -> None:
+    root = Path(__file__).resolve().parents[2]
+    for relative in (
+        "infra/compose/compose.staging.yml",
+        "infra/compose/staging-lite.override.yml",
+    ):
+        text = (root / relative).read_text(encoding="utf-8")
+        assert "W2_R4_1_ARTIFACT_DIR: /app/runtime/model_artifacts/r4_1" in text
+
+
 def test_wheel_install_exposes_entrypoints(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     dist = tmp_path / "dist"
