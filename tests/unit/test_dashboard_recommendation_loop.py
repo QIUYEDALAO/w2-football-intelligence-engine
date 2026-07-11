@@ -11,6 +11,46 @@ from w2.strategy.formal_recommendation import ah_display_contract
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
+def test_future_provider_fixture_context_preserves_team_identity() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    context = service._analysis_context_from_provider_fixture(
+        {
+            "fixture": {"date": "2026-07-12T11:00:00Z"},
+            "league": {"id": 169, "name": "Chinese Super League", "round": "Round 18"},
+            "teams": {
+                "home": {"id": 1001, "name": "Tianjin Teda"},
+                "away": {"id": 1002, "name": "Shenyang Urban"},
+            },
+        }
+    )
+
+    assert context["competition_id"] == "chinese_super_league"
+    assert context["home_team_id"] == 1001
+    assert context["away_team_id"] == 1002
+    assert context["home_team_name"] == "Tianjin Teda"
+    assert context["away_team_provider_name"] == "Shenyang Urban"
+
+
+def test_future_flat_fixture_context_preserves_team_identity() -> None:
+    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
+
+    context = service._analysis_context_from_flat_fixture(
+        {
+            "competition_id": "allsvenskan",
+            "competition_name": "Allsvenskan",
+            "home_team_id": "11",
+            "away_team_id": "22",
+            "home_team_name": "Home Provider",
+            "away_team_name": "Away Provider",
+        }
+    )
+
+    assert context["home_team_id"] == "11"
+    assert context["away_team_id"] == "22"
+    assert context["home_team_provider_name"] == "Home Provider"
+
+
 class RecommendationLoopRepository:
     def release_counts(self) -> dict[str, int]:
         return {

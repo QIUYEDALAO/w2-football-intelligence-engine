@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_REGISTRY_PATH = ROOT / "config/team_localization/teams.zh-CN.v1.json"
+REGISTRY_PATH_ENV = "W2_TEAM_LOCALIZATION_REGISTRY_PATH"
+SOURCE_REGISTRY_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "config/team_localization/teams.zh-CN.v1.json"
+)
+DEFAULT_REGISTRY_PATH = Path.cwd() / "config/team_localization/teams.zh-CN.v1.json"
+if not DEFAULT_REGISTRY_PATH.is_file():
+    DEFAULT_REGISTRY_PATH = SOURCE_REGISTRY_PATH
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,7 +69,8 @@ class TeamLocalizationRegistry:
                 self._by_alias[alias_key] = entry
 
     @classmethod
-    def load(cls, path: Path = DEFAULT_REGISTRY_PATH) -> TeamLocalizationRegistry:
+    def load(cls, path: Path | None = None) -> TeamLocalizationRegistry:
+        path = path or team_localization_registry_path()
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -161,13 +169,26 @@ def _normalize_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
 
 
-@lru_cache(maxsize=1)
-def default_team_localization_registry() -> TeamLocalizationRegistry:
+def team_localization_registry_path() -> Path:
+    configured = os.getenv(REGISTRY_PATH_ENV)
+    return Path(configured) if configured else DEFAULT_REGISTRY_PATH
+
+
+@lru_cache(maxsize=4)
+def _load_default_registry(path: str) -> TeamLocalizationRegistry:
     try:
-        return TeamLocalizationRegistry.load()
+        return TeamLocalizationRegistry.load(Path(path))
     except TeamLocalizationRegistryError as exc:
         LOGGER.warning("team localization registry unavailable: %s", exc)
         return TeamLocalizationRegistry(competition_aliases={}, entries=[])
+
+
+def default_team_localization_registry() -> TeamLocalizationRegistry:
+    return _load_default_registry(str(team_localization_registry_path()))
+
+
+def clear_team_localization_registry_cache() -> None:
+    _load_default_registry.cache_clear()
 
 
 def localize_team_name(

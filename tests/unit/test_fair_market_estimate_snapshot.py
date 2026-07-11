@@ -13,7 +13,9 @@ from w2.models.fair_market_estimate import (
 )
 
 
-def _estimate(*, fair_line: float = 2.75) -> FairMarketEstimate:
+def _estimate(
+    *, fair_line: float = 2.75, fallback_reason: str | None = None
+) -> FairMarketEstimate:
     return FairMarketEstimate(
         market="TOTALS",
         status="READY",
@@ -26,6 +28,7 @@ def _estimate(*, fair_line: float = 2.75) -> FairMarketEstimate:
         train_cutoff="2026-06-30T00:00:00Z",
         artifact_hash="artifact-hash",
         artifact_version="r4.1",
+        fallback_reason=fallback_reason,
     )
 
 
@@ -34,10 +37,11 @@ def _snapshot(
     fair_line: float = 2.75,
     odds_snapshot: dict[str, object] | None = None,
     created_at: str = "2026-07-12T00:00:00Z",
+    fallback_reason: str | None = None,
 ) -> dict[str, object]:
     return FairMarketEstimateSnapshot.create(
         fixture_id="fixture-1",
-        estimate=_estimate(fair_line=fair_line),
+        estimate=_estimate(fair_line=fair_line, fallback_reason=fallback_reason),
         odds_snapshot=odds_snapshot or {"ou": {"line": 2.5, "over_price": 1.95}},
         feature_snapshot={"home_xg": 1.6, "away_xg": 1.1},
         created_at=created_at,
@@ -61,14 +65,54 @@ def test_estimate_id_changes_with_input_or_output() -> None:
         odds_snapshot={"ou": {"line": 2.75, "over_price": 1.95}}
     )
     changed_output = _snapshot(fair_line=3.0)
+    changed_diagnostic = _snapshot(fallback_reason="R4_1_FEATURE_HISTORY_INSUFFICIENT")
 
     assert len(
         {
             baseline["estimate_id"],
             changed_input["estimate_id"],
             changed_output["estimate_id"],
+            changed_diagnostic["estimate_id"],
         }
-    ) == 3
+    ) == 4
+
+
+def test_fallback_reason_is_integrity_protected() -> None:
+    snapshot = _snapshot(fallback_reason="R4_1_FEATURE_HISTORY_INSUFFICIENT")
+    assert verify_estimate_snapshot(snapshot)
+
+    tampered = deepcopy(snapshot)
+    tampered["fallback_reason"] = "OTHER_REASON"
+    assert verify_estimate_snapshot(tampered) is False
+
+
+def test_snapshot_without_fallback_reason_keeps_legacy_hash_compatibility() -> None:
+    snapshot = _snapshot()
+    legacy = deepcopy(snapshot)
+    legacy.pop("fallback_reason")
+    from w2.models.fair_market_estimate import canonical_estimate_hash
+
+    payload = {
+        key: legacy[key]
+        for key in (
+            "fixture_id",
+            "market",
+            "status",
+            "fair_line",
+            "probabilities",
+            "home_mu",
+            "away_mu",
+            "score_matrix",
+            "input_context",
+            "model_context",
+        )
+    }
+    estimate_hash = canonical_estimate_hash(payload)
+    legacy["estimate_id"] = f"fme_{estimate_hash}"
+    legacy["estimate_hash"] = estimate_hash
+    legacy["integrity"]["estimate_hash"] = estimate_hash  # type: ignore[index]
+
+    assert verify_estimate_snapshot(legacy)
 
 
 def test_snapshot_integrity_detects_tampering_and_resolves_only_by_id() -> None:
