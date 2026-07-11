@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "infra/compose/compose.staging.yml"
 NGINX = ROOT / "apps/web/nginx.conf"
 DEPLOY = ROOT / "scripts/deploy_stage7h_staging.sh"
+SYSTEMD_UNIT = ROOT / "infra/systemd/w2-staging.service"
 RUNTIME_DOCKERFILES = (
     ROOT / "Dockerfile.api",
     ROOT / "Dockerfile.migrations",
@@ -58,3 +59,13 @@ def test_release_switches_api_before_web_without_restarting_worker_or_scheduler(
     assert "sudo systemctl restart w2-staging.service" not in deploy
     assert "-p w2-staging" in deploy
     assert "COMPOSE_PROJECT_NAME=w2\n" not in deploy
+    assert "check_staging_disk_capacity.py" in deploy
+
+
+def test_systemd_and_deploy_target_one_staging_compose_project() -> None:
+    unit = SYSTEMD_UNIT.read_text(encoding="utf-8")
+    deploy = DEPLOY.read_text(encoding="utf-8")
+
+    assert "Environment=COMPOSE_PROJECT_NAME=w2-staging" in unit
+    assert "-p w2-staging" in deploy
+    assert "COMPOSE_PROJECT_NAME=w2\n" not in unit
