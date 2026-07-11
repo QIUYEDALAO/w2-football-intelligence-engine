@@ -204,7 +204,7 @@ export function readinessItems(card: DashboardCard): ReadinessItem[] {
     if (xgReady) return "已就绪";
     if (xgStatus === "PARTIAL_HISTORY") return "部分覆盖";
     if (xgStatus === "INSUFFICIENT_HISTORY") return "历史不足";
-    if (xgStatus === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "源无返回";
+    if (xgStatus === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "模型特征未物化";
     if (xgStatus === "NOT_REQUESTED") return "未请求";
     return "富集中";
   })();

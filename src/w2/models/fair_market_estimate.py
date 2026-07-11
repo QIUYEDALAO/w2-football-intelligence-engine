@@ -44,6 +44,7 @@ class FairMarketEstimateSnapshot:
     fixture_id: str
     market: str
     status: str
+    fallback_reason: str | None
     fair_line: float | None
     probabilities: Mapping[str, float]
     home_mu: float | None
@@ -96,6 +97,7 @@ class FairMarketEstimateSnapshot:
             "fixture_id": fixture_id,
             "market": estimate.market,
             "status": estimate.status,
+            "fallback_reason": estimate.fallback_reason,
             "fair_line": estimate.fair_line,
             "probabilities": dict(estimate.probabilities),
             "home_mu": estimate.home_mu,
@@ -110,6 +112,7 @@ class FairMarketEstimateSnapshot:
             fixture_id=fixture_id,
             market=estimate.market,
             status=estimate.status,
+            fallback_reason=estimate.fallback_reason,
             fair_line=estimate.fair_line,
             probabilities=dict(estimate.probabilities),
             home_mu=estimate.home_mu,
@@ -199,6 +202,10 @@ def verify_estimate_snapshot(snapshot: Mapping[str, object]) -> bool:
         "input_context": dict(input_context),
         "model_context": dict(model_context),
     }
+    # Snapshots created before fallback_reason became part of the immutable
+    # estimate remain verifiable with their original content identity.
+    if "fallback_reason" in snapshot:
+        payload["fallback_reason"] = snapshot.get("fallback_reason")
     return canonical_estimate_hash(payload) == estimate_hash
 
 

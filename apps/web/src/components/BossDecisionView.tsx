@@ -74,7 +74,7 @@ const BLOCKER_LABELS: Record<string, string> = {
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
   UNSUPPORTED_MARKET: "不支持的盘口",
   DATA_MISSING_XG: "缺关键 xG",
-  PROVIDER_EMPTY_OR_UNAVAILABLE: "数据源暂未返回",
+  PROVIDER_EMPTY_OR_UNAVAILABLE: "模型历史特征尚未物化",
   MODEL_FAIR_LINE_UNAVAILABLE: "模型公平盘不可用",
   NO_EDGE: "模型与市场线差不足 0.25 球",
   FORWARD_EVIDENCE_ACCUMULATING: "该联赛该市场的前向证据积累中",

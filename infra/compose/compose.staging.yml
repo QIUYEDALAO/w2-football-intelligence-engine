@@ -1,6 +1,6 @@
 # W2 Staging Compose — standalone (no inheritance from docker-compose.yml)
 # All business ports bound to 127.0.0.1 only.
-# Usage: sudo docker compose -f infra/compose/compose.staging.yml --env-file /opt/w2/shared/.env -p w2 up -d
+# Usage: sudo docker compose -f infra/compose/compose.staging.yml --env-file /opt/w2/shared/.env -p w2-staging up -d
 
 name: w2-staging
 
@@ -68,6 +68,7 @@ services:
     environment:
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD}@postgres:5432/w2
       W2_ENVIRONMENT: staging
+      W2_TEAM_LOCALIZATION_REGISTRY_PATH: /app/config/team_localization/teams.zh-CN.v1.json
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
       W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}

@@ -10,6 +10,7 @@ from w2.dashboard.team_localization import (
     DEFAULT_REGISTRY_PATH,
     TeamLocalizationRegistry,
     TeamLocalizationRegistryError,
+    clear_team_localization_registry_cache,
     localize_team_name,
 )
 
@@ -105,6 +106,40 @@ def test_registry_rejects_conflicting_aliases(tmp_path: Path) -> None:
 
     with pytest.raises(TeamLocalizationRegistryError, match="conflicting"):
         TeamLocalizationRegistry.load(path)
+
+
+def test_explicit_registry_path_works_outside_source_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "installed-wheel-registry.json"
+    path.write_text(
+        json.dumps(
+            {
+                "competition_aliases": {},
+                "teams": [
+                    {
+                        "competition_id": "league",
+                        "provider_team_id": "7",
+                        "provider_name": "Provider Club",
+                        "name_zh": "测试俱乐部",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("W2_TEAM_LOCALIZATION_REGISTRY_PATH", str(path))
+    clear_team_localization_registry_cache()
+    try:
+        localized = localize_team_name(
+            competition_id="league",
+            provider_team_id="7",
+            provider_name="Provider Club",
+            missing_name_fallback="主队",
+        )
+        assert localized.display_name == "测试俱乐部"
+    finally:
+        clear_team_localization_registry_cache()
 
 
 def test_l1_view_uses_localized_display_names_without_leaking_status() -> None:
