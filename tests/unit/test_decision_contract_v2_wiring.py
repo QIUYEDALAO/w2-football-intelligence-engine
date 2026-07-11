@@ -45,11 +45,62 @@ def test_missing_lineups_soft_gate_keeps_staging_analysis_pick() -> None:
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fields["data_status"] == DataStatus.PARTIAL.value
     assert fields["outcome_tracked"] is True
-    assert fields["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
-    assert fields["action"] == "等官方首发"
-    assert fields["missing_fields"] == ["lineups", "xg", "ratings", "team_value"]
+    assert fields["reason_code"] == DecisionReasonCode.DATA_MISSING_XG.value
+    assert fields["action"] == "等回填或下一刷新"
+    assert fields["missing_fields"] == ["xg", "ratings"]
     assert fields["pick"] is not None
     assert fields["non_pick"] is None
+    enrichment = fields["optional_enrichment"]
+    assert enrichment["lineups"] == {
+        "status": "PENDING",
+        "affects_estimate": False,
+        "adjustment": 0.0,
+        "source": None,
+        "as_of": None,
+    }
+    assert enrichment["player_value"]["status"] == "NOT_SUPPORTED"
+    assert enrichment["player_value"]["affects_estimate"] is False
+    assert fields["player_impact_estimate"]["status"] == "NOT_SUPPORTED"
+    assert fields["player_impact_estimate"]["net_adjustment"] == 0.0
+
+
+def test_optional_lineups_and_player_value_do_not_change_an_eligible_pick(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    card["data_readiness"] = {"lineups": True, "team_value": True}
+    with_enrichment = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME_AH",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+    card["data_readiness"] = {"lineups": False, "team_value": False}
+    without_enrichment = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME_AH",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert with_enrichment["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert without_enrichment["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert with_enrichment["pick"] == without_enrichment["pick"]
+    assert with_enrichment["optional_enrichment"]["lineups"]["status"] == (
+        "AVAILABLE_NOT_MODELED"
+    )
+    assert without_enrichment["optional_enrichment"]["lineups"]["status"] == "PENDING"
+    assert with_enrichment["player_impact_estimate"]["net_adjustment"] == 0.0
+    assert without_enrichment["player_impact_estimate"]["net_adjustment"] == 0.0
 
 
 def test_totals_pick_uses_totals_pricing_shadow_not_ah_lines() -> None:

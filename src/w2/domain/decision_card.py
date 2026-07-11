@@ -73,6 +73,8 @@ class DecisionCard:
     analysis_gate: Mapping[str, Any] = field(default_factory=dict)
     analysis_gates: tuple[Mapping[str, Any], ...] = ()
     fair_market_estimates: tuple[Mapping[str, Any], ...] = ()
+    optional_enrichment: Mapping[str, Any] = field(default_factory=dict)
+    player_impact_estimate: Mapping[str, Any] = field(default_factory=dict)
     pick: DecisionPick | None = None
     non_pick: DecisionNonPick | None = None
     one_liner: str = ""
@@ -120,6 +122,8 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "analysis_gate": card.analysis_gate,
             "analysis_gates": card.analysis_gates,
             "fair_market_estimates": card.fair_market_estimates,
+            "optional_enrichment": card.optional_enrichment,
+            "player_impact_estimate": card.player_impact_estimate,
             "provenance": card.provenance,
             "pick": card.pick,
             "non_pick": card.non_pick,

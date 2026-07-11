@@ -8,6 +8,7 @@ from typing import Any, Literal
 from w2.domain.enums import DataStatus, DecisionReasonCode
 
 READINESS_SOURCE: Literal["w2.readiness.data_gate.v1"] = "w2.readiness.data_gate.v1"
+OPTIONAL_ENRICHMENT_FIELDS = frozenset({"lineups", "team_value"})
 
 
 @dataclass(frozen=True)
@@ -102,10 +103,17 @@ def evaluate_data_readiness(
     policy: DataFreshnessPolicy,
 ) -> DataReadinessResult:
     as_of = data.as_of.astimezone(UTC)
-    kickoff = data.kickoff_utc.astimezone(UTC)
     fields = _field_statuses(data, policy)
-    missing = tuple(field.field for field in fields if not field.present)
-    stale = tuple(field.field for field in fields if field.stale)
+    missing = tuple(
+        field.field
+        for field in fields
+        if not field.present and field.field not in OPTIONAL_ENRICHMENT_FIELDS
+    )
+    stale = tuple(
+        field.field
+        for field in fields
+        if field.stale and field.field not in OPTIONAL_ENRICHMENT_FIELDS
+    )
     next_tick = as_of + timedelta(minutes=policy.default_next_refresh_minutes)
     provider_budget_status = _provider_budget_status(data)
 
@@ -150,10 +158,7 @@ def evaluate_data_readiness(
             provider_budget_status,
         )
 
-    lineups_soft = "lineups" in missing or "lineups" in stale
-    independent_soft = any(
-        field in missing or field in stale for field in ("xg", "ratings", "team_value")
-    )
+    independent_soft = any(field in missing or field in stale for field in ("xg", "ratings"))
     hard_missing = _hard_required_missing(missing, policy)
     if hard_missing:
         return _result(
@@ -161,14 +166,6 @@ def evaluate_data_readiness(
             fields,
             _hard_required_reason(hard_missing),
             next_tick,
-            provider_budget_status,
-        )
-    if lineups_soft:
-        return _result(
-            DataStatus.PARTIAL,
-            fields,
-            DecisionReasonCode.LINEUPS_PENDING,
-            _lineups_next_eval(kickoff, as_of, policy, next_tick),
             provider_budget_status,
         )
     if independent_soft:
@@ -432,8 +429,16 @@ def _result(
     reason_human, action = _reason_text(reason)
     return DataReadinessResult(
         data_status=status,
-        missing_fields=tuple(field.field for field in fields if not field.present),
-        stale_fields=tuple(field.field for field in fields if field.stale),
+        missing_fields=tuple(
+            field.field
+            for field in fields
+            if not field.present and field.field not in OPTIONAL_ENRICHMENT_FIELDS
+        ),
+        stale_fields=tuple(
+            field.field
+            for field in fields
+            if field.stale and field.field not in OPTIONAL_ENRICHMENT_FIELDS
+        ),
         reason_code=reason,
         reason_human=reason_human,
         action=action,
@@ -473,14 +478,8 @@ def _merge_legacy_status(
         )
     if blocker_set & {"MARKET_NOT_READY", "MARKET_UNAVAILABLE", "MISSING_AH_MARKET"}:
         return _replace_result(result, DataStatus.BLOCKED, DecisionReasonCode.MARKET_UNAVAILABLE)
-    if "MISSING_LINEUPS" in blocker_set and result.data_status is DataStatus.BLOCKED:
-        next_eval = result.next_eval_at or _parse_utc(_get(analysis_readiness, "next_eval_at"))
-        return _replace_result(
-            result,
-            DataStatus.PARTIAL,
-            DecisionReasonCode.LINEUPS_PENDING,
-            next_eval,
-        )
+    # Lineups are optional enrichment. Legacy MISSING_LINEUPS blockers remain observable
+    # through field_statuses, but cannot degrade data readiness or become the primary reason.
     if "AH_EV_BELOW_FORMAL_THRESHOLD" in blocker_set and status == "BLOCKED":
         return _replace_result(result, DataStatus.PARTIAL, DecisionReasonCode.EDGE_INSUFFICIENT)
     return result
@@ -541,10 +540,6 @@ def _hard_required_missing(
         hard_fields.append("xg")
     if policy.ratings_hard_required:
         hard_fields.append("ratings")
-    if policy.team_value_hard_required:
-        hard_fields.append("team_value")
-    if policy.lineups_hard_required:
-        hard_fields.append("lineups")
     return tuple(field for field in missing if field in hard_fields)
 
 

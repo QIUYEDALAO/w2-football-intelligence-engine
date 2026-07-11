@@ -575,3 +575,11 @@
 - staging DayView 响应已返回 `Content-Encoding: gzip` 与 `Cache-Control: public, max-age=30, stale-while-revalidate=300`。future payload 网络传输从约 692 KB 降至约 53 KB，repository cache 命中请求实测约 2.48–3.22 秒；已有浏览器快照不再等待网络即可先显示。
 - API/Web SHA 均为 `8d056a3`；scheduler ID/created/started/restart policy 未变化，Celery queue=0，provider logs 仍 319、refresh audit 仍 1407。
 - `provider_calls=0`、`db_writes=0`、production 未部署，未改推荐、EV/RECOMMEND、lock、direction_allowed。
+
+### V3 进展续41 · 可选首发增强合同 PR A(2026-07-11)
+
+- #246 docs-only 状态收口已合入 main `63e8d735d577595292b4c2c88c57c67952a4e754`；后续执行队列以 `PROJECT_STATE.yaml` 的「optional lineup enrichment and validation recommendation」为准。
+- 首发与球队/球员价值从 `missing_fields` 硬缺失移出；缺首发不再降低数据就绪、不再成为主要 reason，也不再单独触发 T-90 重评。市场、FairMarketEstimate、artifact provenance 与球队级模型特征仍为硬门。
+- DecisionCard 新增 `optional_enrichment` 与 `player_impact_estimate`。当前所有联赛球员影响默认 `NOT_SUPPORTED`、`net_adjustment=0`、`affects_estimate=false`，因此不伪造球员影响，也不改变现有推荐方向。
+- 后续顺序固定：PR B 隔离 legacy baseline 并强化 FairMarketEstimate 单一真源；PR C 冻结/结算验证推荐并隔离统计；PR D 更新 Dashboard 文案与增强状态。部署仍需单独批准。
+- 安全：`provider_calls=0`、`db_writes=0`、未部署 staging/production、未改联赛 enable、scheduler、RECOMMEND、EV、lock 或 provider 日预算。
