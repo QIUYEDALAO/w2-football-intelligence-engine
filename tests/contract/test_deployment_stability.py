@@ -56,3 +56,5 @@ def test_release_switches_api_before_web_without_restarting_worker_or_scheduler(
     assert "release_consecutive" in deploy
     assert "worker_scheduler_restart=false" in deploy
     assert "sudo systemctl restart w2-staging.service" not in deploy
+    assert "-p w2-staging" in deploy
+    assert "COMPOSE_PROJECT_NAME=w2\n" not in deploy
