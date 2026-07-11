@@ -62,9 +62,7 @@ services:
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
-      - "alembic"
+      - "/app/.venv/bin/alembic"
       - "upgrade"
       - "head"
     environment:
@@ -95,9 +93,7 @@ services:
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
-      - "uvicorn"
+      - "/app/.venv/bin/uvicorn"
       - "apps.api.main:app"
       - "--host"
       - "0.0.0.0"
@@ -173,9 +169,7 @@ services:
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
-      - "celery"
+      - "/app/.venv/bin/celery"
       - "-A"
       - "apps.worker.celery_app"
       - "worker"
@@ -226,7 +220,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime')"]
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime')"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -250,9 +244,7 @@ services:
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
-      - "python"
+      - "/app/.venv/bin/python"
       - "-m"
       - "apps.scheduler.main"
     volumes:
@@ -311,7 +303,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready; assert 'heartbeat' in heartbeat(); assert future_fixture_refresh_contract_ready()"]
+      test: ["CMD", "/app/.venv/bin/python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready; assert 'heartbeat' in heartbeat(); assert future_fixture_refresh_contract_ready()"]
       interval: 30s
       timeout: 10s
       retries: 3

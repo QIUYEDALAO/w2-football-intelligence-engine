@@ -162,31 +162,81 @@ echo 'systemd units installed and reloaded'
 "
 
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
-  echo "--- Starting/restarting staging and running stability probe ---"
+  echo "--- Migrating, switching API, then switching Web after stability ---"
   ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
-sudo systemctl restart w2-staging.service
+export COMPOSE_PROJECT_NAME=w2
+compose() {
+  sudo --preserve-env=COMPOSE_PROJECT_NAME,W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID \
+    docker compose \
+    -f infra/compose/compose.staging.yml \
+    --env-file /opt/w2/shared/.env \
+    --env-file /opt/w2/shared/release.env \
+    \"\$@\"
+}
+
+compose run --rm migration
+compose up -d --no-deps api
+
+api_consecutive=0
+for attempt in \$(seq 1 18); do
+  echo \"api_stability_probe_attempt=\${attempt}\"
+  health=false
+  ready=false
+  version=false
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
+  echo \"health=\${health} ready=\${ready} version=\${version}\"
+  if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ]; then
+    api_consecutive=\$((api_consecutive + 1))
+    if [ \"\${api_consecutive}\" -ge 3 ]; then
+      echo 'api_stability_probe=PASS'
+      break
+    fi
+  else
+    api_consecutive=0
+  fi
+  sleep 5
+done
+if [ \"\${api_consecutive}\" -lt 3 ]; then
+  echo 'api_stability_probe=FAIL' >&2
+  exit 1
+fi
+
+compose up -d --no-deps web
 sudo systemctl start w2-staging-watchdog.timer
-for attempt in 1 2 3 4 5 6; do
-  echo \"stability_probe_attempt=\${attempt}\"
+
+release_consecutive=0
+for attempt in \$(seq 1 18); do
+  echo \"release_stability_probe_attempt=\${attempt}\"
   health=false
   ready=false
   version=false
   meta=false
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/health >/tmp/w2-health.json && health=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/ready >/tmp/w2-ready.json && ready=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/v1/version >/tmp/w2-version.json && version=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json && meta=true || true
   echo \"health=\${health} ready=\${ready} version=\${version} meta=\${meta}\"
   if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
-    echo 'stability_probe=PASS'
-    exit 0
+    release_consecutive=\$((release_consecutive + 1))
+    if [ \"\${release_consecutive}\" -ge 3 ]; then
+      echo 'stability_probe=PASS'
+      break
+    fi
+  else
+    release_consecutive=0
   fi
-  sleep 10
+  sleep 5
 done
-echo 'stability_probe=FAIL' >&2
-exit 1
+if [ \"\${release_consecutive}\" -lt 3 ]; then
+  echo 'stability_probe=FAIL' >&2
+  exit 1
+fi
+
+echo 'worker_scheduler_restart=false'
 "
 fi
 
@@ -196,7 +246,7 @@ echo "  Revision: ${REVISION}"
 echo "  Release:  /opt/w2/releases/${REVISION}"
 echo "  Current:  /opt/w2/current"
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
-  echo "  Staging service restarted and stability probe passed."
+  echo "  API and Web switched in order; worker/scheduler untouched; stability probe passed."
 else
   echo "  Run 'sudo systemctl start w2-staging.service' to start."
   echo "  Optional: W2_STAGING_START_AFTER_DEPLOY=true enables post-deploy stability probe."

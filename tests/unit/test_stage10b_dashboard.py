@@ -229,6 +229,7 @@ def test_web_proxy_and_no_api_host_hardcoding() -> None:
     assert "api:8000" not in web
     assert "location /api/" in nginx
     assert "location /v1/" in nginx
-    assert "proxy_pass http://api:8000/" in nginx
-    assert "proxy_pass http://api:8000/v1/" in nginx
+    assert "resolver 127.0.0.11 valid=10s ipv6=off;" in nginx
+    assert "set $api_upstream http://api:8000;" in nginx
+    assert "proxy_pass $api_upstream" in nginx
     assert "VITE_API_BASE_URL" not in compose
