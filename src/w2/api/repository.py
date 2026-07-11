@@ -4024,11 +4024,26 @@ class ReadModelService:
         for market, fair_key in (("ASIAN_HANDICAP", "fair_ah"), ("TOTALS", "fair_ou")):
             fair_line = derived_lines.get(fair_key, _float_or_none(pricing_shadow.get(fair_key)))
             fallback_reason = pricing_shadow.get("model_family_fallback_reason")
-            status = (
-                "READY"
-                if fair_line is not None and home_mu is not None and away_mu is not None
-                else "INSUFFICIENT"
+            train_cutoff = self._first_text(
+                r4_1_payload.get("train_cutoff"),
+                pricing_shadow.get("train_cutoff"),
             )
+            artifact_hash = self._first_text(pricing_shadow.get("artifact_hash")) or None
+            artifact_version = self._first_text(pricing_shadow.get("artifact_version")) or None
+            estimate_is_complete = (
+                fair_line is not None
+                and home_mu is not None
+                and home_mu > 0
+                and away_mu is not None
+                and away_mu > 0
+                and bool(feature_as_of)
+                and bool(train_cutoff)
+                and bool(artifact_hash)
+                and bool(artifact_version)
+            )
+            status = "READY" if estimate_is_complete else "INSUFFICIENT"
+            if not estimate_is_complete and not fallback_reason:
+                fallback_reason = "FME_PROVENANCE_INCOMPLETE"
             estimate = FairMarketEstimate(
                 market=market,
                 status=status,
@@ -4040,12 +4055,9 @@ class ReadModelService:
                 home_mu=home_mu,
                 away_mu=away_mu,
                 feature_as_of=feature_as_of,
-                train_cutoff=self._first_text(
-                    r4_1_payload.get("train_cutoff"),
-                    pricing_shadow.get("train_cutoff"),
-                ),
-                artifact_hash=self._first_text(pricing_shadow.get("artifact_hash")) or None,
-                artifact_version=self._first_text(pricing_shadow.get("artifact_version")) or None,
+                train_cutoff=train_cutoff,
+                artifact_hash=artifact_hash,
+                artifact_version=artifact_version,
                 fallback_reason=str(fallback_reason) if fallback_reason else None,
             )
             snapshot = FairMarketEstimateSnapshot.create(
