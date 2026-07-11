@@ -24,6 +24,8 @@ BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
 PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
+BACKGROUND_DRIFT_REVIEWED="${W2_STAGING_BACKGROUND_DRIFT_REVIEWED:-false}"
+APPROVED_ARTIFACT_VERSION="${W2_STAGING_APPROVED_ARTIFACT_VERSION:-}"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
 echo "  SSH host:  ${SSH_HOST}"
@@ -86,6 +88,8 @@ rm -f /tmp/check_compose_staging_ports.py
 echo "--- Switching /opt/w2/current -> ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
+readlink -f /opt/w2/current > /opt/w2/shared/previous-release-path
+cp /opt/w2/shared/release.env /opt/w2/shared/previous-release.env 2>/dev/null || true
 ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
 ls -la /opt/w2/current
 "
@@ -140,7 +144,7 @@ sudo docker system df || true
 export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
-sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
+sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build migration api web
 echo 'staging images built for current release'
 if [ '${PRUNE_BUILD_CACHE}' = 'true' ]; then
   echo '--- Pruning unused Docker build cache (no volumes) ---'
@@ -164,6 +168,14 @@ echo 'systemd units installed and reloaded'
 "
 
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
+  if [ "${BACKGROUND_DRIFT_REVIEWED}" != "true" ]; then
+    echo 'W2_STAGING_BACKGROUND_DRIFT_REVIEWED=true is required because worker/scheduler are intentionally not switched.' >&2
+    exit 2
+  fi
+  if [ -z "${APPROVED_ARTIFACT_VERSION}" ]; then
+    echo 'W2_STAGING_APPROVED_ARTIFACT_VERSION is required.' >&2
+    exit 2
+  fi
   echo "--- Migrating, switching API, then switching Web after stability ---"
   ssh "${SSH_HOST}" "
 set -euo pipefail
@@ -176,7 +188,29 @@ compose() {
     --env-file /opt/w2/shared/release.env \
     \"\$@\"
 }
+rollback_release() {
+  trap - ERR
+  previous_release=\"\$(cat /opt/w2/shared/previous-release-path)\"
+  echo \"automatic_rollback_to=\${previous_release}\" >&2
+  ln -sfn \"\${previous_release}\" /opt/w2/current
+  if [ -f /opt/w2/shared/previous-release.env ]; then
+    cp /opt/w2/shared/previous-release.env /opt/w2/shared/release.env
+  fi
+  cd /opt/w2/current
+  compose up -d --no-deps api web
+  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/health >/dev/null
+  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/ready >/dev/null
+  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/v1/version >/dev/null
+  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/meta.json >/dev/null
+  echo 'automatic_rollback_probe=PASS' >&2
+  exit 1
+}
+trap rollback_release ERR
 
+compose run --rm --no-deps api /app/.venv/bin/python \
+  scripts/check_r4_artifact_release.py \
+  --artifact-dir /app/runtime/model_artifacts/r4_1 \
+  --approved-version '${APPROVED_ARTIFACT_VERSION}'
 compose run --rm migration
 compose up -d --no-deps api
 
@@ -203,8 +237,13 @@ for attempt in \$(seq 1 18); do
 done
 if [ \"\${api_consecutive}\" -lt 3 ]; then
   echo 'api_stability_probe=FAIL' >&2
-  exit 1
+  false
 fi
+
+compose run --rm --no-deps api /app/.venv/bin/python \
+  scripts/check_dayview_business_readiness.py \
+  --url 'http://api:8000/v1/dashboard?window=next36&include_debug=true' \
+  --audit-file /app/runtime/release-audit-${REVISION}.json
 
 compose up -d --no-deps web
 sudo systemctl start w2-staging-watchdog.timer
@@ -234,9 +273,12 @@ for attempt in \$(seq 1 18); do
 done
 if [ \"\${release_consecutive}\" -lt 3 ]; then
   echo 'stability_probe=FAIL' >&2
-  exit 1
+  false
 fi
 
+compose ps --format json > /opt/w2/shared/service-version-matrix-${REVISION}.json
+printf '%s\n' 'background_version_drift_reviewed=true' \
+  > /opt/w2/shared/service-version-review-${REVISION}.txt
 echo 'worker_scheduler_restart=false'
 "
 fi

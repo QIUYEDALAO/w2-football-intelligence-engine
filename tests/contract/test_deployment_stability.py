@@ -60,6 +60,25 @@ def test_release_switches_api_before_web_without_restarting_worker_or_scheduler(
     assert "-p w2-staging" in deploy
     assert "COMPOSE_PROJECT_NAME=w2\n" not in deploy
     assert "check_staging_disk_capacity.py" in deploy
+    assert "build migration api web" in deploy
+    assert "W2_STAGING_BACKGROUND_DRIFT_REVIEWED" in deploy
+    assert "check_dayview_business_readiness.py" in deploy
+    assert "check_r4_artifact_release.py" in deploy
+    assert "W2_STAGING_APPROVED_ARTIFACT_VERSION" in deploy
+
+
+def test_release_failure_automatically_restores_previous_api_and_web() -> None:
+    deploy = DEPLOY.read_text(encoding="utf-8")
+
+    assert "previous-release-path" in deploy
+    assert "rollback_release()" in deploy
+    assert "trap rollback_release ERR" in deploy
+    assert "compose up -d --no-deps api web" in deploy
+    assert "automatic_rollback_probe=PASS" in deploy
+    assert "api_stability_probe=FAIL' >&2\n  false" in deploy
+    assert "stability_probe=FAIL' >&2\n  false" in deploy
+    for path in ("health", "ready", "v1/version", "meta.json"):
+        assert path in deploy
 
 
 def test_systemd_and_deploy_target_one_staging_compose_project() -> None:
