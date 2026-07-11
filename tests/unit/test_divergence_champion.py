@@ -253,6 +253,9 @@ def test_repository_divergence_keeps_premier_league_on_fitted(
 def test_fitted_serving_derives_ah_and_totals_from_one_score_distribution() -> None:
     service = ReadModelService()
     card: dict[str, Any] = {
+        "fixture_id": "fixture-fitted",
+        "generated_at": "2026-07-09T00:00:00Z",
+        "current_odds": {"ou": {"line": 2.5, "over_price": 1.95, "under_price": 1.95}},
         "simulation": {
             "lambda_home": 1.55,
             "lambda_away": 1.05,
@@ -275,6 +278,11 @@ def test_fitted_serving_derives_ah_and_totals_from_one_score_distribution() -> N
     assert all(float(item["fair_line"]) * 4 % 1 == 0 for item in estimates)
     assert pricing_shadow["fair_ah"] == estimates[0]["fair_line"]
     assert pricing_shadow["fair_ou"] == estimates[1]["fair_line"]
+    assert card["fair_market_estimate_snapshots"] == estimates
+    assert card["fair_market_estimate_ids"] == [item["estimate_id"] for item in estimates]
+    assert all(item["estimate_id"].startswith("fme_") for item in estimates)
+    assert all(item["input_context"]["odds_snapshot_hash"] for item in estimates)
+    assert all(item["input_context"]["feature_snapshot_hash"] for item in estimates)
 
 
 def _card(competition_id: str) -> dict[str, Any]:

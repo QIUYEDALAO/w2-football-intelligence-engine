@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 from w2.replay.front_door import build_replay_front_door, verify_replay_card_hash
 
 
@@ -42,6 +43,46 @@ def test_replay_frontdoor_tracks_analysis_pick_without_outcomes() -> None:
     assert replay["outcome_tracking_summary"]["tracked_fixture_ids"] == ["fixture-1"]
     assert replay["cards"][0]["outcome_status"] == "OUTCOMES_NOT_PROVIDED"
     assert replay["cards"][0]["decision_tier"] == "ANALYSIS_PICK"
+
+
+def test_replay_frontdoor_resolves_immutable_estimate_by_id() -> None:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-1",
+        estimate=FairMarketEstimate(
+            market="TOTALS",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=2.75,
+            probabilities={"OVER": 0.52, "UNDER": 0.48},
+            home_mu=1.6,
+            away_mu=1.1,
+            feature_as_of="2026-07-05T00:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ou": {"line": 2.5}},
+        feature_snapshot={"home_xg": 1.6, "away_xg": 1.1},
+        created_at="2026-07-05T00:00:00Z",
+    ).as_dict()
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["fair_market_estimate_ids"] = [snapshot["estimate_id"]]  # type: ignore[index]
+    card["fair_market_estimate_snapshots"] = [snapshot]  # type: ignore[index]
+
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=day_view,
+        as_of="2026-07-06T00:00:00Z",
+    )
+
+    replay_card = replay["cards"][0]
+    assert replay_card["fair_market_estimate_ids"] == [snapshot["estimate_id"]]
+    assert replay_card["fair_market_estimate_snapshots"] == [snapshot]
+    assert replay_card["estimate_replay"] == [
+        {"estimate_id": snapshot["estimate_id"], "integrity_valid": True}
+    ]
 
 
 def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -> None:

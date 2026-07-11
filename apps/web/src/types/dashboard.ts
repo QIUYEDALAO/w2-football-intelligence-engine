@@ -244,6 +244,7 @@ export interface ScorelinePick {
 
 export interface ScorelineReference {
   source?: string | null;
+  estimate_id?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
   direction_scorelines?: ScorelinePick[];
@@ -751,6 +752,8 @@ export interface DashboardDayViewCard {
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
   fair_market_estimates?: Array<Record<string, unknown>>;
+  fair_market_estimate_ids?: string[];
+  fair_market_estimate_snapshots?: Array<Record<string, unknown>>;
   optional_enrichment?: OptionalEnrichment;
   player_impact_estimate?: Record<string, unknown>;
   analysis_gate?: Record<string, unknown>;

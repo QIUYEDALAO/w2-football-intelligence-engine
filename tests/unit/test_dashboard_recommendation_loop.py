@@ -1482,6 +1482,14 @@ def test_dashboard_scoreline_picks_prefer_fair_market_estimate_source() -> None:
     assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
     assert card["scoreline_reference"]["market_settlement"]["market"] == "ASIAN_HANDICAP"
     assert card["scoreline_reference"]["direction_scorelines"]
+    estimate_id = card["scoreline_reference"]["estimate_id"]
+    assert estimate_id in card["fair_market_estimate_ids"]
+    assert card["scoreline_reference"]["estimate_id"] == estimate_id
+    assert card["scoreline_reference"]["market_settlement"]["estimate_id"] == estimate_id
+    assert all(
+        row["estimate_id"] == estimate_id
+        for row in card["scoreline_reference"]["direction_scorelines"]
+    )
     assert all(
         row["probability_type"] == "UNCONDITIONAL_FILTERED_BY_SETTLEMENT"
         for row in card["scoreline_reference"]["direction_scorelines"]

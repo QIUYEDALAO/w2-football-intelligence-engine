@@ -31,6 +31,7 @@ class DecisionPick:
     fair_line: str | None
     market_line: str | None
     value_edge: float | None
+    estimate_id: str | None = None
     key_factors: tuple[str, ...] = ()
     risks: tuple[str, ...] = ()
     invalidation: str | None = None
@@ -73,6 +74,8 @@ class DecisionCard:
     analysis_gate: Mapping[str, Any] = field(default_factory=dict)
     analysis_gates: tuple[Mapping[str, Any], ...] = ()
     fair_market_estimates: tuple[Mapping[str, Any], ...] = ()
+    fair_market_estimate_ids: tuple[str, ...] = ()
+    fair_market_estimate_snapshots: tuple[Mapping[str, Any], ...] = ()
     optional_enrichment: Mapping[str, Any] = field(default_factory=dict)
     player_impact_estimate: Mapping[str, Any] = field(default_factory=dict)
     pick: DecisionPick | None = None
@@ -85,6 +88,11 @@ class DecisionCard:
         if self.kickoff_beijing.tzinfo is None or self.kickoff_beijing.utcoffset() is None:
             raise ValueError("kickoff_beijing must be timezone-aware")
         _validate_tier_payload(self.decision_tier, self.pick, self.non_pick)
+        _validate_estimate_references(
+            self.fair_market_estimate_ids,
+            self.fair_market_estimate_snapshots,
+            self.pick,
+        )
         object.__setattr__(self, "card_hash", compute_card_hash(self))
 
     def as_dict(self) -> dict[str, Any]:
@@ -122,6 +130,8 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "analysis_gate": card.analysis_gate,
             "analysis_gates": card.analysis_gates,
             "fair_market_estimates": card.fair_market_estimates,
+            "fair_market_estimate_ids": card.fair_market_estimate_ids,
+            "fair_market_estimate_snapshots": card.fair_market_estimate_snapshots,
             "optional_enrichment": card.optional_enrichment,
             "player_impact_estimate": card.player_impact_estimate,
             "provenance": card.provenance,
@@ -155,6 +165,21 @@ def _validate_tier_payload(
         return
 
     raise ValueError(f"unsupported decision_tier: {decision_tier}")
+
+
+def _validate_estimate_references(
+    estimate_ids: Sequence[str],
+    snapshots: Sequence[Mapping[str, Any]],
+    pick: DecisionPick | None,
+) -> None:
+    if not snapshots:
+        return
+    declared = {str(item) for item in estimate_ids if item}
+    captured = {str(item.get("estimate_id") or "") for item in snapshots}
+    if not declared or "" in captured or declared != captured:
+        raise ValueError("DecisionCard estimate IDs must match immutable snapshots")
+    if pick is not None and (not pick.estimate_id or pick.estimate_id not in declared):
+        raise ValueError("DecisionCard pick must reference an immutable estimate snapshot")
 
 
 def _validate_disclaimer(decision_tier: DecisionTier, disclaimer: str) -> None:

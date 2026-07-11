@@ -108,6 +108,8 @@ def build_recommendation_lock_snapshot(
         "market_timeline": market_timeline,
         "ah_settlement_distribution": settlement_distribution,
         "scoreline_top3": scoreline_top3,
+        "fair_market_estimate_ids": card.get("fair_market_estimate_ids"),
+        "fair_market_estimate_snapshots": card.get("fair_market_estimate_snapshots"),
         "signals": {
             "independent_signal_count": pricing.get("independent_signal_count"),
             "groups": pricing.get("independent_signal_groups"),

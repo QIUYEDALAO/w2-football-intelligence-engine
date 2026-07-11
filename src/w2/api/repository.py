@@ -89,7 +89,11 @@ from w2.matchday.timezone import (
     next_36_hours_window,
 )
 from w2.models.divergence_champion import select_divergence_champion_probabilities
-from w2.models.fair_market_estimate import FairMarketEstimate, fair_lines_from_lambdas
+from w2.models.fair_market_estimate import (
+    FairMarketEstimate,
+    FairMarketEstimateSnapshot,
+    fair_lines_from_lambdas,
+)
 from w2.models.r4_1_artifacts import (
     R4_1Artifact,
     load_r4_1_artifacts,
@@ -3984,7 +3988,24 @@ class ReadModelService:
                 fair_ou,
                 _float_or_none(pricing_shadow.get("market_ou")),
             )
-        estimates: list[dict[str, object]] = []
+        snapshots: list[dict[str, object]] = []
+        fixture_id = str(card.get("fixture_id") or "")
+        current_odds = card.get("current_odds")
+        odds_snapshot = dict(current_odds) if isinstance(current_odds, Mapping) else {}
+        feature_snapshot = {
+            "r4_1_feature_rows": dict(r4_1_features),
+            "data_readiness": dict(data_readiness),
+            "model_input_source": (
+                "r4_1_feature_rows"
+                if model_family == "R4_1_CALIBRATED"
+                else "legacy_fitted_model_inputs"
+            ),
+        }
+        created_at = self._first_text(
+            card.get("generated_at"),
+            feature_as_of,
+            pricing_shadow.get("as_of"),
+        ) or "UNKNOWN"
         for market, fair_key in (("ASIAN_HANDICAP", "fair_ah"), ("TOTALS", "fair_ou")):
             fair_line = derived_lines.get(fair_key, _float_or_none(pricing_shadow.get(fair_key)))
             fallback_reason = pricing_shadow.get("model_family_fallback_reason")
@@ -4012,8 +4033,18 @@ class ReadModelService:
                 artifact_version=self._first_text(pricing_shadow.get("artifact_version")) or None,
                 fallback_reason=str(fallback_reason) if fallback_reason else None,
             )
-            estimates.append(estimate.as_dict())
-        card["fair_market_estimates"] = estimates
+            snapshot = FairMarketEstimateSnapshot.create(
+                fixture_id=fixture_id,
+                estimate=estimate,
+                odds_snapshot=odds_snapshot,
+                feature_snapshot=feature_snapshot,
+                created_at=created_at,
+            ).as_dict()
+            snapshots.append(snapshot)
+        card["fair_market_estimate_snapshots"] = snapshots
+        card["fair_market_estimate_ids"] = [item["estimate_id"] for item in snapshots]
+        # Compatibility view only. New decision consumers resolve the immutable snapshots by ID.
+        card["fair_market_estimates"] = snapshots
 
     def _r4_1_payload_for_card(
         self,

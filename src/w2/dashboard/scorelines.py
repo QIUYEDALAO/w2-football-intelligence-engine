@@ -7,7 +7,12 @@ from typing import Any
 
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.models.fair_market_estimate import score_distribution
+from w2.models.fair_market_estimate import (
+    estimate_snapshot_by_id,
+    estimate_snapshots,
+    score_distribution,
+    verify_estimate_snapshot,
+)
 
 
 def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
@@ -116,10 +121,15 @@ def _fair_estimate_reference(
 ) -> dict[str, Any] | None:
     pick = _decision_pick(card, recommendation)
     pick_market = str(pick.get("market") or "") if isinstance(pick, Mapping) else ""
-    estimate = _primary_fair_estimate(card, market=pick_market)
+    estimate_id = pick.get("estimate_id") if isinstance(pick, Mapping) else None
+    estimate = _primary_fair_estimate(card, market=pick_market, estimate_id=estimate_id)
     if estimate is None:
         return None
-    top_scorelines = _fair_estimate_scoreline_picks(card, market=pick_market)
+    top_scorelines = _fair_estimate_scoreline_picks(
+        card,
+        market=pick_market,
+        estimate_id=estimate_id,
+    )
     if not top_scorelines:
         return None
     settlement = _market_settlement_distribution(estimate, pick)
@@ -134,6 +144,7 @@ def _fair_estimate_reference(
         return None
     return {
         "source": "fair_market_estimate",
+        "estimate_id": estimate.get("estimate_id"),
         "label": "同源比分分布",
         "top_scorelines": top_scorelines,
         "direction_scorelines": direction_scorelines,
@@ -146,6 +157,10 @@ def _fair_estimate_reference(
             "feature_as_of": estimate.get("feature_as_of"),
             "home_mu": estimate.get("home_mu"),
             "away_mu": estimate.get("away_mu"),
+            "estimate_id": estimate.get("estimate_id"),
+            "estimate_hash": estimate.get("estimate_hash"),
+            "odds_snapshot_hash": estimate.get("odds_snapshot_hash"),
+            "feature_snapshot_hash": estimate.get("feature_snapshot_hash"),
         },
     }
 
@@ -154,8 +169,9 @@ def _fair_estimate_scoreline_picks(
     card: dict[str, Any],
     *,
     market: str | None = None,
+    estimate_id: object = None,
 ) -> list[dict[str, Any]]:
-    estimate = _primary_fair_estimate(card, market=market)
+    estimate = _primary_fair_estimate(card, market=market, estimate_id=estimate_id)
     if estimate is None:
         return []
     matrix = _score_matrix_from_estimate(estimate)
@@ -180,9 +196,17 @@ def _primary_fair_estimate(
     card: Mapping[str, Any],
     *,
     market: str | None = None,
+    estimate_id: object = None,
 ) -> Mapping[str, Any] | None:
-    estimates = card.get("fair_market_estimates")
-    if not isinstance(estimates, list):
+    snapshots = list(estimate_snapshots(card))
+    explicit = estimate_snapshot_by_id(card, estimate_id)
+    if explicit is not None:
+        if market and str(explicit.get("market") or "") != market:
+            return None
+        if explicit.get("estimate_id") and not verify_estimate_snapshot(explicit):
+            return None
+        return explicit
+    if card.get("fair_market_estimate_snapshots") and _is_visible_pick(card, None):
         return None
     gate = card.get("analysis_gate")
     if not isinstance(gate, Mapping):
@@ -193,7 +217,7 @@ def _primary_fair_estimate(
     )
     ready = [
         item
-        for item in estimates
+        for item in snapshots
         if isinstance(item, Mapping)
         and str(item.get("status") or "").upper() == "READY"
         and _number(item.get("home_mu")) is not None
@@ -209,6 +233,24 @@ def _primary_fair_estimate(
 def _score_matrix_from_estimate(
     estimate: Mapping[str, Any],
 ) -> dict[tuple[int, int], float] | None:
+    stored = estimate.get("score_matrix")
+    if isinstance(stored, Mapping):
+        matrix: dict[tuple[int, int], float] = {}
+        for key, value in stored.items():
+            parts = str(key).split("-", maxsplit=1)
+            probability = _number(value)
+            if len(parts) != 2 or probability is None:
+                return None
+            try:
+                score = (int(parts[0]), int(parts[1]))
+            except ValueError:
+                return None
+            matrix[score] = probability
+        if matrix and abs(sum(matrix.values()) - 1.0) <= 1e-8:
+            return matrix
+        return None
+    if estimate.get("estimate_id"):
+        return None
     home_mu = _number(estimate.get("home_mu"))
     away_mu = _number(estimate.get("away_mu"))
     if home_mu is None or away_mu is None or home_mu <= 0 or away_mu <= 0:
@@ -280,6 +322,7 @@ def _market_settlement_distribution(
         "selection": selection,
         "line": line,
         "source": "fair_market_estimate",
+        "estimate_id": estimate.get("estimate_id"),
         "probabilities": {key: round(value, 8) for key, value in buckets.items()},
         "probability_labels": {
             key: _probability_label(None, value) for key, value in buckets.items()
@@ -328,6 +371,7 @@ def _direction_scorelines_from_estimate(
                 "line": line,
                 "outcome": outcome.value,
                 "source": "fair_market_estimate",
+                "estimate_id": estimate.get("estimate_id"),
             }
         )
     return sorted(

@@ -12,13 +12,15 @@ from w2.audit_export import build_audit_export, write_audit_export
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 
 
-def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
+def test_audit_export_builds_six_tables_from_dashboard_payload() -> None:
     export = build_audit_export(_dashboard_payload())
 
     assert set(export.tables) == {
         "prematch_recommendations",
+        "fair_market_estimate_snapshots",
         "market_timeline_snapshots",
         "locked_recommendation_snapshots",
         "settlement_history",
@@ -68,6 +70,41 @@ def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     assert export.tables["settlement_history"][0]["status"] == "PENDING"
     assert export.tables["settlement_history"][0]["lock_snapshot_status"] == "MISSING_LOCK_SNAPSHOT"
     assert export.tables["calibration_report"] == []
+
+
+def test_audit_export_indexes_immutable_estimate_snapshot_by_id() -> None:
+    payload = _dashboard_payload()
+    match = payload["all"][0]  # type: ignore[index]
+    assert isinstance(match, dict)
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-1",
+        estimate=FairMarketEstimate(
+            market="ASIAN_HANDICAP",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=-0.75,
+            probabilities={"HOME": 0.55, "AWAY": 0.45},
+            home_mu=1.6,
+            away_mu=1.0,
+            feature_as_of="2026-07-01T01:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ah": {"home_line": -0.5}},
+        feature_snapshot={"home_xg": 1.6, "away_xg": 1.0},
+        created_at="2026-07-01T01:00:00Z",
+    ).as_dict()
+    match["fair_market_estimate_ids"] = [snapshot["estimate_id"]]
+    match["fair_market_estimate_snapshots"] = [snapshot]
+
+    export = build_audit_export(payload)
+
+    row = export.tables["fair_market_estimate_snapshots"][0]
+    assert row["estimate_id"] == snapshot["estimate_id"]
+    assert row["estimate_hash"] == snapshot["estimate_hash"]
+    assert row["integrity_valid"] is True
+    assert row["artifact_hash"] == "artifact"
 
 
 def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> None:
