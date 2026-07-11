@@ -457,6 +457,67 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
     assert shadow["selection"] == "AWAY_AH"
 
 
+def test_validation_recommendation_scope_is_frozen_and_settled_separately(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-validation", "hash-validation", home_line="-1", home_price="1.9")
+    capture["decision_tier"] = "ANALYSIS_PICK"
+    capture["outcome_tracked"] = True
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-validation", 2, 0)]},
+        dry_run=True,
+    )
+
+    assert payload["record_count"] == 1
+    outcome = payload["records"][0]
+    assert outcome["settled_side"] == "pick"
+    assert outcome["recommendation_scope"] == "VALIDATION"
+    assert outcome["card_hash"] == "hash-validation"
+
+
+def test_validation_and_official_recommendations_for_same_fixture_settle_as_two_tracks(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    validation = _capture("fixture-upgraded", "hash-validation", home_line="-1", home_price="1.9")
+    validation["decision_tier"] = "ANALYSIS_PICK"
+    validation["recommendation_scope"] = "VALIDATION"
+    official = _capture("fixture-upgraded", "hash-official", home_line="-1", home_price="1.9")
+    official["captured_at"] = "2026-07-07T01:00:00Z"
+    official["decision_tier"] = "RECOMMEND"
+    official["recommendation_scope"] = "OFFICIAL"
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [validation, official])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-upgraded", 2, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+    rerun = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-upgraded", 2, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert payload["written"] == 2
+    assert rerun["written"] == 0
+    assert rerun["skipped_existing"] == 2
+    rows = [
+        json.loads(line)
+        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    assert {row["recommendation_scope"] for row in outcomes} == {"VALIDATION", "OFFICIAL"}
+
+
 def test_forward_outcome_backfill_settles_totals_quarter_line_from_all_window(
     tmp_path: Path,
 ) -> None:

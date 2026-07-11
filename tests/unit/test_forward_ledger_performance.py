@@ -104,6 +104,35 @@ def test_forward_ledger_performance_splits_shadow_outcomes_from_real_hit_rate(
     assert payload["by_league"][0]["shadow_settled_sample_count"] == 2
 
 
+def test_forward_ledger_performance_isolates_validation_from_official_outcomes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    official = _outcome_record("fixture-official", "WIN", side="pick")
+    official["recommendation_scope"] = "OFFICIAL"
+    validation_win = _outcome_record("fixture-validation-win", "WIN", side="pick")
+    validation_win["recommendation_scope"] = "VALIDATION"
+    validation_loss = _outcome_record("fixture-validation-loss", "LOSS", side="pick")
+    validation_loss["recommendation_scope"] = "VALIDATION"
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [official, validation_win, validation_loss],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["settled_sample_count"] == 1
+    assert payload["hit_rate"] == 1.0
+    assert payload["outcomes"]["settled_sample_count"] == 1
+    assert payload["outcomes_validation"]["settled_sample_count"] == 2
+    assert payload["outcomes_validation"]["hit_rate"] == 0.5
+    league = payload["by_league"][0]
+    assert league["settled_sample_count"] == 1
+    assert league["validation_settled_sample_count"] == 2
+    assert league["validation_hit_rate"] == 0.5
+
+
 def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
     tmp_path: Path,
 ) -> None:
