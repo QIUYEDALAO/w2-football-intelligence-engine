@@ -100,7 +100,7 @@ def _boss_5s_test(day_view: Mapping[str, Any]) -> dict[str, Any]:
         "正式可锁",
         "分析推荐",
         "未就绪",
-        "LINEUPS_PENDING",
+        "MODEL_FAIR_LINE_UNAVAILABLE",
         "MARKET_UNAVAILABLE",
         "下一次刷新",
         str(freshness.get("next_refresh_tick") or ""),

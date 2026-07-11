@@ -27,6 +27,15 @@ def test_boss_5s_test_passes() -> None:
     assert result["boss_5s_test"]["not_ready"] == 1
 
 
+def test_latest_acceptance_fixture_does_not_use_lineups_as_watch_blocker() -> None:
+    payload = _fixture_payload()
+    watch = next(card for card in payload["cards"] if card["decision_tier"] == "WATCH")
+
+    assert watch["reason_code"] == "MODEL_FAIR_LINE_UNAVAILABLE"
+    assert watch["non_pick"]["reason_code"] == "MODEL_FAIR_LINE_UNAVAILABLE"
+    assert "首发为可选增强" in watch["one_liner"]
+
+
 def test_lifecycle_status_open_fails_contract(tmp_path: Path) -> None:
     payload = _fixture_payload()
     payload["cards"][0]["lifecycle_status"] = "OPEN"
@@ -80,7 +89,7 @@ def test_boss_5s_required_text_only_in_details_fails(monkeypatch) -> None:  # ty
         lambda _day_view: (
             "<main><header>正式可锁 分析推荐 未就绪 下一次刷新 "
             "2026-07-05T01:30:00Z RECOMMEND-only</header>"
-            "<details>LINEUPS_PENDING MARKET_UNAVAILABLE 主要未出原因</details></main>"
+            "<details>MODEL_FAIR_LINE_UNAVAILABLE MARKET_UNAVAILABLE 主要未出原因</details></main>"
         ),
     )
     monkeypatch.setattr(
@@ -96,7 +105,7 @@ def test_boss_5s_required_text_only_in_details_fails(monkeypatch) -> None:  # ty
     result = acceptance._boss_5s_test({})
 
     assert result["status"] == "FAIL"
-    assert "MISSING_TEXT:LINEUPS_PENDING" in result["blockers"]
+    assert "MISSING_TEXT:MODEL_FAIR_LINE_UNAVAILABLE" in result["blockers"]
     assert "MISSING_REASON_SUMMARY" in result["blockers"]
 
 

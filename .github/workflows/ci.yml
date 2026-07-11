@@ -54,6 +54,8 @@ jobs:
         run: uv run --python 3.12 python scripts/check_tracked_outputs.py
       - name: All-stage checker
         run: uv run --python 3.12 python scripts/check_w2_all.py
+      - name: Legacy decision architecture guard
+        run: uv run --python 3.12 python scripts/check_legacy_decision_allowlist.py
       - name: Ruff
         run: uv run --python 3.12 ruff check .
       - name: Mypy
