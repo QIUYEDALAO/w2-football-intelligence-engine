@@ -184,14 +184,14 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
     .map((value) => textValue(value))
     .filter(Boolean);
   if (advisories.includes("LINEUPS_PENDING")) {
-    reasons.push("首发未确认是临场提示，不会单独阻断分析资格；公布后会自动重算。");
+    reasons.push("首发待公布是可选增强提示；当前球员影响未建模，不会单独阻断或改变分析方向。");
   }
 
   if (card.reason_code === "EDGE_INSUFFICIENT") {
     reasons.push("模型-市场分歧没有达到高亮门槛，当前不输出方向。");
   }
   if (card.reason_code === "LINEUPS_PENDING") {
-    reasons.push("首发未出只是临场复核项，不是唯一拦截原因。");
+    reasons.push("首发待公布不属于分析硬门；请同时查看真正的盘口、模型和数据阻断项。");
   }
   if (card.reason_code && !["EDGE_INSUFFICIENT", "LINEUPS_PENDING"].includes(card.reason_code)) {
     reasons.push(`${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`);
@@ -199,7 +199,7 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
 
   for (const blocker of blockers) {
     if (blocker === "MISSING_LINEUPS") {
-      reasons.push("首发未出会降低临场完整度，但系统还会同时看盘口、xG 和分歧门槛。");
+      reasons.push("首发待公布仅影响信息完整度；当前模型不使用球员影响，因此不改变推荐。");
     } else if (blocker === "MISSING_XG") {
       reasons.push("xG/独立信号不足，模型侧证据不够。");
     } else if (blocker === "MISSING_SCORE_MATRIX") {
@@ -240,6 +240,22 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
     reasons.push("没有达到 ANALYSIS_PICK / RECOMMEND 门槛，保留观察。");
   }
   return uniqueItems(reasons).slice(0, 5);
+}
+
+function optionalEnrichmentStatements(card: DashboardDayViewCard): string[] {
+  const lineups = card.optional_enrichment?.lineups;
+  const playerValue = card.optional_enrichment?.player_value;
+  const lineupText = lineups?.affects_estimate
+    ? "首发增强已应用于估计"
+    : lineups?.status === "AVAILABLE_NOT_MODELED"
+      ? "首发已获取，仅作信息增强，不参与当前模型"
+      : "首发待公布，不阻断当前分析，也不会触发自动改向";
+  const playerText = playerValue?.affects_estimate
+    ? "球员价值增强已应用于估计"
+    : playerValue?.status === "AVAILABLE_NOT_MODELED"
+      ? "球队/球员价值已获取，但尚未通过独立验证"
+      : "球员影响模型未启用，净调整为 0";
+  return [lineupText, playerText];
 }
 
 function scorelineItems(card: DashboardDayViewCard): DashboardDayViewCard["scoreline_picks"] {
@@ -743,6 +759,7 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
     `数据:${dataStatusLabel(card.data_status)}; ${trustSignalSummary(card)}`,
     `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
     `分析资格:${gateSummary}`,
+    `可选增强:${optionalEnrichmentStatements(card).join("；")}`,
     `模拟:${scorelineStatusText(card).message}`,
     `下一步:${actionLabel(card.action)}; ${card.next_eval_at ? fmtTime(card.next_eval_at) : "待定"}再看`,
   ];
@@ -750,7 +767,7 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
 
 function evidenceOverviewStatements(card: DashboardDayViewCard): string[] {
   const statements = evidenceStatements(card);
-  return [statements[0], statements[2], statements[3], statements[4], statements[6]].filter(Boolean);
+  return [statements[0], statements[2], statements[3], statements[4], statements[5], statements[7]].filter(Boolean);
 }
 
 function nextVisibleKickoff(cards: DashboardDayViewCard[]): string | null {
@@ -780,7 +797,7 @@ export function MatchdayHeader({
         <span>最后刷新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"}</strong></span>
         <span>下次刷新 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
         <span>即将比赛 <strong>{upcoming}</strong></span>
-        <span>分析推荐 <strong>{truth.analysisPick}</strong></span>
+        <span>验证推荐 <strong>{truth.analysisPick}</strong></span>
         <span>正式推荐 <strong>{truth.recommend}</strong></span>
         <span>数据阻塞 <strong>{truth.blocked}</strong></span>
       </div>
@@ -790,11 +807,11 @@ export function MatchdayHeader({
 
 export function DecisionCounts({ dayView, performance }: { dayView: DashboardDayView; performance?: DashboardPerformance }) {
   const lockLabel = dayView.environment === "production" ? "正式可锁" : "可锁审批";
-  const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
+  const validationRecommendations = dayView.cards.filter((card) => card.decision_tier === "ANALYSIS_PICK").length;
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
-    ["已出推荐", readyRecommendations, "数据齐全后才置顶"],
-    ["赛后样本", performance?.sample_size ?? 0, `命中率 ${percent(performance?.hit_rate)}`],
+    ["验证推荐", validationRecommendations, "单独追踪，不计入正式战绩"],
+    ["正式战绩", performance?.official?.sample_size ?? performance?.sample_size ?? 0, `命中率 ${percent(performance?.official?.hit_rate ?? performance?.hit_rate)}`],
     ["今日待评估", dayView.counts.not_ready + dayView.counts.watch + dayView.counts.skip, "按开球时间继续观察"],
   ] as const;
   return (
@@ -859,6 +876,14 @@ export function EvidencePanel({
           </div>
         ) : null}
         <div className="evidence-section">
+          <strong>可选增强状态</strong>
+          <ul>
+            {optionalEnrichmentStatements(selectedCard).map((statement) => (
+              <li key={statement}>{statement}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="evidence-section">
           <strong>模拟比分参考</strong>
           <p>{scoreline.message}</p>
           {settlementDistributionText(selectedCard) ? (
@@ -875,7 +900,7 @@ export function EvidencePanel({
         <div className="tracking-note">
           <span>赛后追踪</span>
           <strong>{selectedCard.outcome_tracked ? "已纳入赛后追踪" : "等待完场后追踪"}</strong>
-          <small>结算后会进入赛后验证，和联赛表现一起计入样本。</small>
+          <small>验证推荐单独累计，不计入正式推荐战绩；shadow 证据也保持独立。</small>
         </div>
       </aside>
     );
@@ -992,9 +1017,9 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
       <strong>{headline}</strong>
-      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 分析推荐 {truth.analysisPick} · 观察 {truth.watch} · 部分就绪 {truth.partial} · 数据阻塞 {blocked}</span>
+      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 验证推荐 {truth.analysisPick} · 观察 {truth.watch} · 部分就绪 {truth.partial} · 数据阻塞 {blocked}</span>
       {blocked
-        ? <small>仅受阻比赛等待补数；分析推荐和观察比赛继续保留在赛程中。</small>
+        ? <small>仅受阻比赛等待补数；验证推荐和观察比赛继续保留在赛程中。</small>
         : truth.partial
           ? <small>部分就绪不等于阻塞；已满足分析门的比赛仍正常展示。</small>
           : <small>覆盖诊断只在异常时展开。</small>}

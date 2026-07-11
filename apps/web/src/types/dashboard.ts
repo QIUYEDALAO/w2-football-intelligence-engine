@@ -446,6 +446,19 @@ export interface PerformanceBucket {
   hit_rate?: number | null;
 }
 
+export interface OptionalEnrichmentItem {
+  status?: string | null;
+  affects_estimate?: boolean;
+  adjustment?: number | null;
+  source?: string | null;
+  as_of?: string | null;
+}
+
+export interface OptionalEnrichment {
+  lineups?: OptionalEnrichmentItem;
+  player_value?: OptionalEnrichmentItem;
+}
+
 export interface DashboardMatchCard {
   fixture_id: string;
   kickoff_utc: string;
@@ -732,6 +745,8 @@ export interface DashboardDayViewCard {
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
   fair_market_estimates?: Array<Record<string, unknown>>;
+  optional_enrichment?: OptionalEnrichment;
+  player_impact_estimate?: Record<string, unknown>;
   analysis_gate?: Record<string, unknown>;
   analysis_gates?: Array<Record<string, unknown>>;
   market_strip?: Array<Record<string, unknown>>;

@@ -227,7 +227,7 @@ def test_public_validation_summary_returns_layered_sample_status(monkeypatch) ->
     assert summary["validation"]["official"]["label"] == "official 样本不足，暂不计算命中率"
     assert (
         summary["validation"]["analysis_shadow"]["label"]
-        == "analysis_shadow 样本不足，暂不计算命中率"
+        == "验证推荐样本不足，暂不计算命中率（不计入正式战绩）"
     )
     assert "all" not in summary
     assert "debug" not in summary

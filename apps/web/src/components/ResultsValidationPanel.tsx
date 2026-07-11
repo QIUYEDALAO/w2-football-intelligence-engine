@@ -7,7 +7,7 @@ export function ResultsValidationPanel({ matches }: { matches: DashboardMatchCar
     <section className="dashboard-section">
       <div className="section-heading">
         <h2>完场复盘</h2>
-        <p>official 与 analysis_shadow 分层统计；样本不足时不展示赛后统计。</p>
+        <p>正式推荐与验证推荐分层统计；验证推荐不计入正式战绩，样本不足时不展示命中率。</p>
       </div>
       {matches.length ? (
         <div className="results-grid">
