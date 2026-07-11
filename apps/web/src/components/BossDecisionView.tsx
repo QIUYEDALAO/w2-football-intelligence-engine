@@ -19,7 +19,7 @@ import { RecommendationCard } from "./RecommendationCard";
 
 const TIER_LABELS: Record<string, string> = {
   RECOMMEND: "正式可锁",
-  ANALYSIS_PICK: "分析参考",
+  ANALYSIS_PICK: "验证推荐",
   WATCH: "观察",
   NOT_READY: "未就绪",
   SKIP: "跳过",
@@ -154,7 +154,7 @@ function l1OneLiner(card: DashboardDayViewCard): string {
     return oneLiner;
   }
   if (card.decision_tier === "ANALYSIS_PICK" && card.pick) {
-    return `${tierLabel(card.decision_tier)}：${marketPickLabel(card)}；分析参考·非稳赢。`;
+    return `${tierLabel(card.decision_tier)}：${marketPickLabel(card)}。`;
   }
   return nonRecommendationReasons(card)[0] ?? `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
 }
@@ -229,7 +229,7 @@ function nonRecommendationReasons(card: DashboardDayViewCard): string[] {
     reasons.push(`线差 ${magnitude.toFixed(2)} < ${MARKET_ANCHOR_MIN_DIVERGENCE.toFixed(2)}，未达分歧雷达门槛。`);
   }
   if (!directionAllowed && card.probability_source === "MARKET_DEVIG") {
-    reasons.push("正式推荐权限尚未开放；当前方向仅作为分析参考并持续积累证据。");
+    reasons.push("当前方向继续积累前向证据。");
   }
 
   const scoreline = scorelineStatusText(card);
@@ -291,23 +291,6 @@ function scorelineStatusText(card: DashboardDayViewCard): { message: string; has
     return { hasPicks: false, message: `比分模拟未显示：${blockerLabel(simulationStatus) || statusCn(simulationStatus)}` };
   }
   return { hasPicks: false, message: "比分模拟暂无可展示结果。" };
-}
-
-function settlementDistributionText(card: DashboardDayViewCard): string | null {
-  const labels = card.scoreline_reference?.market_settlement?.probability_labels;
-  if (!labels) return null;
-  const names: Record<string, string> = {
-    WIN: "全赢",
-    HALF_WIN: "半赢",
-    PUSH: "走水",
-    HALF_LOSS: "半输",
-    LOSS: "全输",
-    VOID: "作废",
-  };
-  return Object.entries(names)
-    .map(([key, label]) => (labels[key] ? `${label} ${labels[key]}` : null))
-    .filter(Boolean)
-    .join(" · ") || null;
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
@@ -864,23 +847,17 @@ export function EvidencePanel({
             {selectedCard.decision_tier === "RECOMMEND"
               ? "正式推荐依据"
               : selectedCard.decision_tier === "ANALYSIS_PICK"
-                ? "为什么分析这个方向"
+                ? "为什么选择这个方向"
                 : "为什么当前只观察"}
           </strong>
           <ul>
             {(selectedCard.decision_tier === "ANALYSIS_PICK"
-              ? [evidenceStatements(selectedCard)[4], l1OneLiner(selectedCard)]
+              ? [evidenceStatements(selectedCard)[4]]
               : reasons).map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
         </div>
-        {selectedCard.decision_tier === "ANALYSIS_PICK" ? (
-          <div className="evidence-section">
-            <strong>为什么还不是正式推荐</strong>
-            <p>{reasons[0]}</p>
-          </div>
-        ) : null}
         <div className="evidence-section">
           <strong>可选增强状态</strong>
           <ul>
@@ -892,9 +869,6 @@ export function EvidencePanel({
         <div className="evidence-section">
           <strong>方向比分与模型审计</strong>
           <p>{scoreline.message}</p>
-          {settlementDistributionText(selectedCard) ? (
-            <p>同源盘口结算：{settlementDistributionText(selectedCard)}</p>
-          ) : null}
           {scorelines.length ? (
             <div className="boss-scoreline-picks">
               {scorelines.map((pick) => (
@@ -962,11 +936,8 @@ export function DecisionRow({
           <strong title={`${localizedTeamTitle(card, "home") ?? localizedTeamName(card, "home")} vs ${localizedTeamTitle(card, "away") ?? localizedTeamName(card, "away")}`}>
             {teamLabel(card)}
           </strong>
-          <span>{l1OneLiner(card)}</span>
+          {card.decision_tier === "ANALYSIS_PICK" ? null : <span>{l1OneLiner(card)}</span>}
           <small className={scoreline.hasPicks ? "scoreline-mini has-picks" : "scoreline-mini"}>{scoreline.message}</small>
-          {settlementDistributionText(card) ? (
-            <small className="scoreline-mini settlement-summary">结算概率：{settlementDistributionText(card)}</small>
-          ) : null}
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>
@@ -1426,7 +1397,6 @@ export function BossDecisionView({
         <summary>系统信息</summary>
         <span>Web {shortSha(release?.web_git_sha)} · API {shortSha(release?.api_git_sha)}</span>
       </details>
-      <footer className="boss-disclaimer">分析参考·非稳赢·不构成投注建议</footer>
     </section>
   );
 }

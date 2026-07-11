@@ -15,7 +15,7 @@ export function PerformanceHeader({
     : "赛前分析 · 等待正式条件 · 真实数据";
   const metrics = [
     ["今日", performance.today_count],
-    ["分析参考", performance.analysis_pick_count ?? 0],
+    ["验证推荐", performance.analysis_pick_count ?? 0],
     ["未来36h", performance.next36_count],
     ["已完场", performance.finished_count],
     ["门控通过", officialCount],

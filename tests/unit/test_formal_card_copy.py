@@ -48,7 +48,10 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert "模拟比分参考，不是推荐比分" in card
     assert "与推荐方向一致：" in card
     assert "direction_scorelines" in card
-    assert "结算概率：" in (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
+    boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
+    assert "结算概率：" not in boss_view
+    assert "分析参考" not in boss_view
+    assert "非稳赢" not in boss_view
     assert "总进球≥" in card
     assert "让球结算关键比分" in card
     assert "推荐比分" not in card.replace("不是推荐比分", "")
@@ -91,8 +94,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
         not in boss_view
     )
     assert 'return ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);' in boss_view
-    assert "为什么分析这个方向" in boss_view
-    assert "为什么还不是正式推荐" in boss_view
+    assert "为什么选择这个方向" in boss_view
+    assert "为什么还不是正式推荐" not in boss_view
     assert "为什么当前只观察" in boss_view
     assert "可选增强状态" in boss_view
     assert "首发已获取，仅作信息增强，不参与当前模型" in boss_view
