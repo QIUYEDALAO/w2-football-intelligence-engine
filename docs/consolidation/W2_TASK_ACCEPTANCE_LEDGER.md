@@ -561,3 +561,10 @@
 - L1 header 与 health strip 现从实际 `cards[]` 重新聚合，不再依赖可能滞后的 summary；状态条明确拆分 `部分就绪` 与 `数据阻塞`，PARTIAL 不再被描述成整日阻塞。
 - 联赛本地化覆盖 canonical ID、API-Football numeric ID 与英文赛事名，中超/瑞典超/挪超及其常规赛轮次使用中文显示；联赛表现摘要不再泄漏内部 ID。
 - 本轮只改展示口径和文本，不改 DayView/DecisionCard 决策、不改推荐数量/排序、不改 EV/RECOMMEND/lock/direction_allowed。当前代码完成、待 PR review 和独立 staging 部署批准。
+
+### V3 进展续39 · Dashboard cache-first 性能修复(2026-07-11)
+
+- 用户实测每次刷新页面约需 30 秒。公网分段测量确认静态 shell 不是瓶颈：DayView 冷请求约 11.1 秒，repository cache 命中仍约 3.8 秒且 future payload 约 692 KB；旧 dashboard payload 约 1.6 MB、请求约 18.3 秒。
+- 前端此前仅缓存 60 秒，手动刷新会清空可见内容；DayView 失败后还会原样重试一次 20 秒请求，网络波动时会放大为接近 40 秒的等待。
+- 已批准 cache-first 方案：15 分钟本地快照始终先显示并后台 revalidate；刷新不清空当前画面；取消重复请求；API 对大 JSON 启用 gzip，并为 DayView 声明 30 秒 max-age 与 5 分钟 stale-while-revalidate。
+- 本轮只修读取与传输体验，不改推荐、EV/RECOMMEND、lock、direction_allowed、provider、DB 或 scheduler。当前实现进入验证，尚未部署。

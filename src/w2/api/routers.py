@@ -141,10 +141,12 @@ def dashboard(
 @public_router.get("/dashboard/day-view", response_model=DashboardDayViewResponse)
 def dashboard_day_view(
     request: Request,
+    response: Response,
     date: str | None = None,
     window: str = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=300"
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     payload = service.dashboard(
         target_date=date,

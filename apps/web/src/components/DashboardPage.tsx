@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
+import { fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionView } from "./BossDecisionView";
@@ -46,8 +46,8 @@ export function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   function refreshDashboard(): void {
-    clearCachedDashboardView(date, mode);
-    setState("loading");
+    // Keep the current snapshot visible while a fresh one is loaded in the background.
+    if (!view) setState("loading");
     setRefreshKey((value) => value + 1);
   }
 

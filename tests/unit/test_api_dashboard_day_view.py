@@ -86,6 +86,10 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     )
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == (
+        "public, max-age=30, stale-while-revalidate=300"
+    )
+    assert response.headers["content-encoding"] == "gzip"
     payload = response.json()
     assert service.calls == [
         {

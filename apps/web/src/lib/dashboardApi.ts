@@ -23,9 +23,9 @@ import type {
   ValidationSummary,
 } from "../types/dashboard";
 
-const REQUEST_TIMEOUT_MS = 20000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v12-future-default-dayview-required";
-const DASHBOARD_CACHE_TTL_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 12_000;
+const DASHBOARD_CACHE_VERSION = "dashboard-v13-cache-first";
+const DASHBOARD_CACHE_TTL_MS = 15 * 60_000;
 
 interface DashboardCacheEntry {
   version: string;
@@ -741,11 +741,7 @@ async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): 
 }
 
 async function fetchDashboardDayViewPayloadRequired(date: string, mode: DashboardMode): Promise<unknown> {
-  try {
-    return await fetchDashboardDayViewPayload(date, mode);
-  } catch {
-    return fetchDashboardDayViewPayload(date, mode);
-  }
+  return fetchDashboardDayViewPayload(date, mode);
 }
 
 function normalizeCounts(payload: unknown): DashboardDayViewCounts {
