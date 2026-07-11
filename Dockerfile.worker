@@ -21,5 +21,5 @@ LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       w2.release.id="${W2_RELEASE_ID}" \
       w2.runtime.contract.version="release-train-2-patch2"
 USER w2
-HEALTHCHECK CMD uv run python -c "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
-CMD ["uv", "run", "celery", "-A", "apps.worker.celery_app", "worker", "--loglevel=INFO"]
+HEALTHCHECK CMD /app/.venv/bin/python -c "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
+CMD ["/app/.venv/bin/celery", "-A", "apps.worker.celery_app", "worker", "--loglevel=INFO"]

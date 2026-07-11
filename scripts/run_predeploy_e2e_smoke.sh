@@ -68,7 +68,7 @@ services:
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      test: ["CMD", "/app/.venv/bin/python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,6 +85,50 @@ uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait postgres redis
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" run --rm migration
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait api worker scheduler
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait web
+
+python3 - <<'PY'
+from __future__ import annotations
+
+import time
+import urllib.request
+
+for path in ("health", "ready", "v1/version", "meta.json"):
+    last_error: Exception | None = None
+    for _ in range(20):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1/{path}", timeout=5) as response:
+                assert response.status == 200
+            break
+        except Exception as exc:
+            last_error = exc
+            time.sleep(1)
+    else:
+        raise SystemExit(f"web proxy did not serve {path}: {last_error}")
+print("predeploy_e2e web proxy initial routing PASS")
+PY
+
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --no-deps --force-recreate --wait api
+
+python3 - <<'PY'
+from __future__ import annotations
+
+import time
+import urllib.request
+
+last_error: Exception | None = None
+for _ in range(20):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1/health", timeout=5) as response:
+            assert response.status == 200
+        break
+    except Exception as exc:
+        last_error = exc
+        time.sleep(1)
+else:
+    raise SystemExit(f"web retained a stale API upstream after recreate: {last_error}")
+print("predeploy_e2e web dynamic API resolution PASS")
+PY
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T api /app/.venv/bin/python - <<'PY'
 from __future__ import annotations
