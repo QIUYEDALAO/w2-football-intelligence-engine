@@ -228,6 +228,11 @@ def test_repository_divergence_falls_back_when_r4_1_artifact_missing(
     assert card["market_divergence"]["model_family_fallback_reason"] == "R4_1_PROBABILITIES_MISSING"
     assert card["pricing_shadow"]["fair_ah"] == -0.25
     assert card["market_divergence"]["direction_allowed"] is False
+    assert all(item["status"] == "INSUFFICIENT" for item in card["fair_market_estimates"])
+    assert all(
+        item["fallback_reason"] == "R4_1_PROBABILITIES_MISSING"
+        for item in card["fair_market_estimates"]
+    )
 
 
 def test_repository_divergence_keeps_premier_league_on_fitted(
@@ -250,7 +255,7 @@ def test_repository_divergence_keeps_premier_league_on_fitted(
     assert card["pricing_shadow"]["fair_ah"] == -0.25
 
 
-def test_fitted_serving_derives_ah_and_totals_from_one_score_distribution() -> None:
+def test_fitted_serving_without_artifact_provenance_fails_closed() -> None:
     service = ReadModelService()
     card: dict[str, Any] = {
         "fixture_id": "fixture-fitted",
@@ -274,7 +279,8 @@ def test_fitted_serving_derives_ah_and_totals_from_one_score_distribution() -> N
 
     estimates = card["fair_market_estimates"]
     assert {item["market"] for item in estimates} == {"ASIAN_HANDICAP", "TOTALS"}
-    assert all(item["status"] == "READY" for item in estimates)
+    assert all(item["status"] == "INSUFFICIENT" for item in estimates)
+    assert all(item["fallback_reason"] == "FME_PROVENANCE_INCOMPLETE" for item in estimates)
     assert all(float(item["fair_line"]) * 4 % 1 == 0 for item in estimates)
     assert pricing_shadow["fair_ah"] == estimates[0]["fair_line"]
     assert pricing_shadow["fair_ou"] == estimates[1]["fair_line"]

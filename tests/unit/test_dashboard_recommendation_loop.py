@@ -1477,7 +1477,7 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
 
 
-def test_dashboard_scoreline_picks_prefer_fair_market_estimate_source() -> None:
+def test_dashboard_non_pick_uses_marked_legacy_reference_when_fme_is_incomplete() -> None:
     service = ReadModelService(
         repository=cast(
             Any,
@@ -1519,30 +1519,18 @@ def test_dashboard_scoreline_picks_prefer_fair_market_estimate_source() -> None:
         "LEGACY_BASELINE_NOT_DECISION_SOURCE"
     )
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
-    assert card["scoreline_reference"]["source"] == "fair_market_estimate"
-    assert card["scoreline_reference"]["distribution_provenance"]["home_mu"] == (
-        card["fair_market_estimates"][0]["home_mu"]
+    assert all(item["status"] == "INSUFFICIENT" for item in card["fair_market_estimates"])
+    assert all(
+        item["fallback_reason"] == "FME_PROVENANCE_INCOMPLETE"
+        for item in card["fair_market_estimates"]
     )
-    assert card["scoreline_reference"]["distribution_provenance"]["away_mu"] == (
-        card["fair_market_estimates"][0]["away_mu"]
+    assert card["scoreline_reference"]["source"] == "legacy_baseline_simulation"
+    assert card["scoreline_reference"]["source_status"] == (
+        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
     )
     assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert card["scoreline_reference"]["market_settlement"]["market"] == "ASIAN_HANDICAP"
-    assert card["scoreline_reference"]["direction_scorelines"]
-    estimate_id = card["scoreline_reference"]["estimate_id"]
-    assert estimate_id in card["fair_market_estimate_ids"]
-    assert card["scoreline_reference"]["estimate_id"] == estimate_id
-    assert card["scoreline_reference"]["market_settlement"]["estimate_id"] == estimate_id
-    assert all(
-        row["estimate_id"] == estimate_id
-        for row in card["scoreline_reference"]["direction_scorelines"]
-    )
-    assert all(
-        row["probability_type"] == "UNCONDITIONAL_FILTERED_BY_SETTLEMENT"
-        for row in card["scoreline_reference"]["direction_scorelines"]
-    )
-    assert "high_total" not in card["scoreline_reference"]
-    assert "ah_key_scorelines" not in card["scoreline_reference"]
+    assert "high_total" in card["scoreline_reference"]
+    assert "ah_key_scorelines" in card["scoreline_reference"]
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:
