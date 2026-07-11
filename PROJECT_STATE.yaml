@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T00:45:06Z"
+last_updated_utc: "2026-07-11T01:25:00Z"
 current_phase: dashboard product truth repair
-current_status: implementation_complete_pending_pr_review_and_staging_deploy
+current_status: merged_and_staging_accepted
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,21 +20,21 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
+  main_sha: ffecded5019290aa73538f4e1886e3fea0bcdca1
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-11T00:45:06Z"
+  observed_at_utc: "2026-07-11T01:25:00Z"
 
 staging_state:
   environment: staging
-  api_git_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
-  web_git_sha: b47b1e65ed03fea6777d6d9843e51b4242401ed9
-  release_id: e27730e1d76ec2c2c516c2f01167eda16921629d
+  api_git_sha: ffecded5019290aa73538f4e1886e3fea0bcdca1
+  web_git_sha: 8bc1004820b98f19335db21f5665c800bfe8d418
+  release_id: ffecded
   source_branch: main
-  source_note: Scheduler-safe API/Web deployment through PR 233 plus API-only acceptance fixes 234/235; scheduler container was not recreated or restarted.
+  source_note: PR 237 API/Web product-truth deployment plus PR 238 API-only canonical ledger league identity hotfix; worker and scheduler were not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -60,13 +60,13 @@ staging_state:
     provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-11T00:41:00Z"
+  observed_at_utc: "2026-07-11T01:25:00Z"
   source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
-  cards_total: 10
+  cards_total: 16
   decision_counts:
     NOT_READY: 0
     SKIP: 0
-    WATCH: 2
+    WATCH: 8
     ANALYSIS_PICK: 7
     RECOMMEND: 0
   data_status_counts:
@@ -76,6 +76,11 @@ current_product_observation:
     BLOCKED: 1
   lock_eligible_count: 0
   outcome_tracked_count: 7
+  active_whitelist_count: 13
+  distinct_forward_fixture_count: 46
+  double_snapshot_fixture_count: 10
+  settled_fixture_count: 0
+  shadow_clv_sample_count: 14
   formal_tracking_status: OBSERVING
   formal_tracking_sample_count: 0
   conclusion: Staging now exposes seven non-locking ANALYSIS_PICK cards from validated fair-line divergence while forward evidence continues to accumulate.
@@ -93,7 +98,7 @@ current_product_observation:
 
 dashboard_product_truth_repair:
   branch: codex/w2-dashboard-product-truth
-  status: implementation_complete_not_deployed
+  status: merged_and_staging_accepted
   verified_with_live_staging_data_locally: true
   observed_analysis_pick_count: 7
   corrected_worth_watching_count: 7
@@ -104,7 +109,17 @@ dashboard_product_truth_repair:
     - Active whitelist count comes from CompetitionRegistry instead of a frontend literal.
     - Forward performance uses distinct fixtures, valid double snapshots, shadow CLV, and real outcomes.
     - League performance groups by stable competition identity and hides archived World Cup rows by default.
-  deployment_required_for_public_visibility: true
+  deployment_required_for_public_visibility: false
+  merged_prs:
+    - 237
+    - 238
+  acceptance:
+    analysis_pick_count: 7
+    recommend_count: 0
+    active_whitelist_count: 13
+    distinct_forward_fixture_count: 46
+    canonical_league_identity: PASS
+    archived_world_cup_hidden_from_current_league_view: PASS
   safety:
     provider_calls: 0
     db_writes: 0

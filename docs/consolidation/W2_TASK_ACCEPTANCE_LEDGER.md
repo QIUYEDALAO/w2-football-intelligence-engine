@@ -529,3 +529,12 @@
 - 前向表现口径改为不同 fixture、有效双快照、真实 outcome 与 `clv_shadow`；原始 capture 行数不再冒充样本。联赛表现改按稳定 competition identity 聚合，跨轮次不再拆行；归档世界杯默认不进入当前联赛表现。
 - DayView 新增 registry 驱动的 `active_whitelist_count`，前端不再硬编码 14；L1 清理 `provider 空返/outcome tracking/ledger/direction_allowed` 等内部术语，Web/API SHA 移入 L2 系统信息。
 - 当前状态是代码与本地真实数据验收完成、尚未提交 PR、尚未部署。安全保持：`provider_calls=0`、`db_writes=0`、未部署 staging/production、未重启 scheduler、未改 `RECOMMEND`/EV/lock/league enable。
+
+### V3 进展续35 · Dashboard 产品真相部署验收(2026-07-11)
+
+- #237 已 squash merge main `8bc1004820b98f19335db21f5665c800bfe8d418` 并 scheduler-safe 部署 API/Web；真实 DayView 为 `ANALYSIS_PICK=7`、`RECOMMEND=0`、`WATCH=8`、`NOT_READY=1`，活跃白名单由 registry 返回 13。
+- 部署验收发现旧前向 ledger 仍保存 API-Football 数字联赛 ID，可能导致联赛表现显示数字名称并让归档世界杯绕过当前视图过滤；#238 以 canonical competition identity 归一化修复并合入 main `ffecded5019290aa73538f4e1886e3fea0bcdca1`，随后 API-only 部署。
+- 真实前向表现现按 46 个不同 fixture、10 个双快照 fixture、0 个已结算 fixture 展示；`clv_shadow.sample_count=14`，无结算继续诚实显示积累中，不再把 9279 条 capture 当作比赛样本。
+- 联赛表现键已归一为 `allsvenskan/eliteserien/chinese_super_league/brasileirao_serie_a`；`world_cup_2026` 仅保留历史数据，当前 L1 联赛表现默认隐藏。
+- 最终 staging API SHA=`ffecded5019290aa73538f4e1886e3fea0bcdca1`，Web SHA=`8bc1004820b98f19335db21f5665c800bfe8d418`；health/ready PASS，数据库与 Redis 均 PASS。
+- 部署前后 `provider_request_logs=319`、`future_refresh_run_audit=1407`、Celery queue=`0`；scheduler 容器 ID/created/started/restart policy 与 worker 容器 ID 均未变化。production 未部署，未改 `RECOMMEND`/EV/lock/league enable，未提交 runtime/raw/key/header。
