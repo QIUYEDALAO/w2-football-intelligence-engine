@@ -20,6 +20,7 @@ def test_r4_1b_adopts_only_reviewed_league_champions() -> None:
         divergence_model_family_for("chinese_super_league") == DivergenceModelFamily.R4_1_CALIBRATED
     )
     assert divergence_model_family_for("allsvenskan") == DivergenceModelFamily.R4_1_CALIBRATED
+    assert divergence_model_family_for("eliteserien") == DivergenceModelFamily.R4_1_CALIBRATED
 
     assert (
         divergence_model_family_for("brasileirao_serie_a")
@@ -54,6 +55,21 @@ def test_select_divergence_champion_uses_r4_1_when_adopted() -> None:
 
     selection = select_divergence_champion_probabilities(
         competition_id="chinese_super_league",
+        fitted_calibrated=fitted,
+        r4_1_calibrated=r4_1,
+    )
+
+    assert selection.family == DivergenceModelFamily.R4_1_CALIBRATED
+    assert selection.probabilities == r4_1
+    assert selection.fallback_reason is None
+
+
+def test_select_divergence_champion_uses_reviewed_eliteserien_r4_1() -> None:
+    fitted = {"HOME": 0.4, "DRAW": 0.3, "AWAY": 0.3}
+    r4_1 = {"HOME": 0.48, "DRAW": 0.26, "AWAY": 0.26}
+
+    selection = select_divergence_champion_probabilities(
+        competition_id="eliteserien",
         fitted_calibrated=fitted,
         r4_1_calibrated=r4_1,
     )
