@@ -68,6 +68,7 @@ services:
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_ENVIRONMENT: staging
       W2_TEAM_LOCALIZATION_REGISTRY_PATH: /app/config/team_localization/teams.zh-CN.v1.json
+      W2_R4_1_ARTIFACT_DIR: /app/runtime/model_artifacts/r4_1
     depends_on:
       postgres:
         condition: service_healthy
