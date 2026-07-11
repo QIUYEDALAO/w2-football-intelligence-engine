@@ -32,6 +32,7 @@ echo "  Branch:    $(git rev-parse --abbrev-ref HEAD)"
 
 # ── Step 0: Structural port preflight ──────────────────────
 echo "--- Running local structural staging port preflight ---"
+python3 scripts/check_staging_disk_capacity.py --path /
 if python3 -c "import yaml" >/dev/null 2>&1; then
   python3 scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
 else
@@ -72,6 +73,7 @@ scp scripts/check_compose_staging_ports.py "${SSH_HOST}:/tmp/check_compose_stagi
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/releases/${REVISION}
+python3 scripts/check_staging_disk_capacity.py --path /
 if python3 -c \"import yaml\" >/dev/null 2>&1; then
   python3 /tmp/check_compose_staging_ports.py infra/compose/compose.staging.yml
 else
