@@ -547,3 +547,10 @@
 - 方案 A 已实现：复用现有 `forward_result_event` 持久表，把 fixture refresh 中 FT/AET/PEN 规范为脱敏结果事件；backfill 按 ledger fixture_id 查询，不再依赖当前 DayView。已有 DB raw fixture 响应提供只读迁移 fallback，无需新增 provider 请求。
 - AET/PEN 只用 90 分钟 fulltime 比分；缺失则保持未结算并计数。结果持久和 outcome JSONL 均幂等，历史 capture/outcome 混合读取不回归。
 - 当前为代码与测试完成、待 PR review，尚未部署。`provider_calls=0`、`db_writes=0`、未部署、未重启 scheduler、未改推荐/EV/RECOMMEND/lock/direction_allowed。
+
+### V3 进展续37 · D0 outcome staging 真闭环(2026-07-11)
+
+- #241 合入持久结果源，#242 修复 worker ledger 根目录 `/app/runtime`；两者 CI 全绿并 scheduler-safe 部署 API/worker，scheduler 容器 ID/created/started/restart policy 未变。
+- 首次受控 backfill 从既有持久 fixture raw 读取 1 个已完赛结果并写入首条 outcome：fixture `1576804`、TOTALS OVER 2.5、FT 3-2、WIN。第二次运行 `written=0/skipped_existing=1`，幂等验收 PASS。
+- Dashboard 真实表现从 settled=0 变为 settled=1、hit=1；样本仅 1，不能据此声称模型有效，只证明赛后结算链路开始工作。
+- 部署前后 provider logs=`319`、refresh audit=`1407`、Celery queue=`0`；`provider_calls=0`、`db_writes=0`、production 未部署、未改推荐/EV/RECOMMEND/lock/direction_allowed。
