@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
+from w2.models.fair_market_estimate import score_distribution
 
 
 def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distribution() -> None:
@@ -53,6 +54,12 @@ def test_fair_estimate_drives_pick_settlement_and_scorelines_from_one_distributi
         for item in direction
     )
     assert all(item["source"] == "fair_market_estimate" for item in direction)
+    matrix = score_distribution(
+        home_mu=3.1462969750688647,
+        away_mu=1.3672753468077237,
+    )
+    assert direction[0]["probability"] == pytest.approx(matrix[(3, 1)], abs=1e-6)
+    assert sum(item["probability"] for item in direction) < 1
     settlement = reference["market_settlement"]
     assert settlement["market"] == "TOTALS"
     assert settlement["selection"] == "OVER"

@@ -48,6 +48,7 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert "模拟比分参考，不是推荐比分" in card
     assert "与推荐方向一致：" in card
     assert "direction_scorelines" in card
+    assert "结算概率：" in (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
     assert "总进球≥" in card
     assert "让球结算关键比分" in card
     assert "推荐比分" not in card.replace("不是推荐比分", "")

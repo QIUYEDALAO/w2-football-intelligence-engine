@@ -964,6 +964,9 @@ export function DecisionRow({
           </strong>
           <span>{l1OneLiner(card)}</span>
           <small className={scoreline.hasPicks ? "scoreline-mini has-picks" : "scoreline-mini"}>{scoreline.message}</small>
+          {settlementDistributionText(card) ? (
+            <small className="scoreline-mini settlement-summary">结算概率：{settlementDistributionText(card)}</small>
+          ) : null}
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>
