@@ -75,8 +75,9 @@ def test_release_failure_automatically_restores_previous_api_and_web() -> None:
     assert "trap rollback_release ERR" in deploy
     assert "compose up -d --no-deps api web" in deploy
     assert "automatic_rollback_probe=PASS" in deploy
-    assert "api_stability_probe=FAIL' >&2\n  false" in deploy
-    assert "stability_probe=FAIL' >&2\n  false" in deploy
+    assert "api_stability_probe=FAIL' >&2\n  rollback_release" in deploy
+    assert "stability_probe=FAIL' >&2\n  rollback_release" in deploy
+    assert "if ! compose run --rm --no-deps api" in deploy
     for path in ("health", "ready", "v1/version", "meta.json"):
         assert path in deploy
 
