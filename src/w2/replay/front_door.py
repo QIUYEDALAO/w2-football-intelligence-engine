@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.domain.environment_policy import build_environment_policy_stamp
+from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
 
 SOURCE = "w2.replay.front_door.v1"
 
@@ -129,6 +130,16 @@ def _replay_card(
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
         "expected_card_hash": _optional_text(card.get("expected_card_hash")),
+        "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
+        "fair_market_estimate_snapshots": [dict(item) for item in estimate_snapshots(card)],
+        "estimate_replay": [
+            {
+                "estimate_id": item.get("estimate_id"),
+                "integrity_valid": verify_estimate_snapshot(item),
+            }
+            for item in estimate_snapshots(card)
+            if item.get("estimate_id")
+        ],
         "outcome": outcome,
         "outcome_status": _outcome_status(card, outcome, outcomes),
         "replay_source": _optional_text(card.get("source")) or "day_view",
@@ -264,3 +275,9 @@ def _text(value: Any) -> str:
 def _optional_text(value: Any) -> str | None:
     text = _text(value).strip()
     return text or None
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [str(item) for item in value if item]

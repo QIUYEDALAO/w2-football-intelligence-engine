@@ -14,11 +14,13 @@ from sqlalchemy.orm import Session
 from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
+from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
 from w2.reporting.match_decision import MatchDecisionState, decide_match
 from w2.tracking.calibration_report import build_calibration_report
 
 AUDIT_TABLE_NAMES = (
     "prematch_recommendations",
+    "fair_market_estimate_snapshots",
     "market_timeline_snapshots",
     "locked_recommendation_snapshots",
     "settlement_history",
@@ -26,6 +28,26 @@ AUDIT_TABLE_NAMES = (
 )
 
 AUDIT_TABLE_COLUMNS = {
+    "fair_market_estimate_snapshots": (
+        "estimate_id",
+        "estimate_hash",
+        "integrity_valid",
+        "fixture_id",
+        "market",
+        "status",
+        "fair_line",
+        "home_mu",
+        "away_mu",
+        "odds_snapshot_hash",
+        "feature_snapshot_hash",
+        "model_family",
+        "artifact_hash",
+        "artifact_version",
+        "train_cutoff",
+        "feature_as_of",
+        "created_at",
+        "snapshot_json",
+    ),
     "prematch_recommendations": (
         "source",
         "environment",
@@ -190,6 +212,7 @@ def build_audit_export(
     locked_rows = _locked_recommendation_snapshots(matches)
     settlement_rows = _settlement_history(matches)
     tables = {
+        "fair_market_estimate_snapshots": _fair_market_estimate_snapshots(matches),
         "prematch_recommendations": _prematch_recommendations(
             dashboard_payload,
             matches,
@@ -233,6 +256,45 @@ def build_audit_export(
         "db_writes": 0,
     }
     return AuditExport(tables=tables, manifest=manifest)
+
+
+def _fair_market_estimate_snapshots(
+    matches: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for match in matches:
+        for snapshot in estimate_snapshots(match):
+            estimate_id = str(snapshot.get("estimate_id") or "")
+            if not estimate_id or estimate_id in seen:
+                continue
+            seen.add(estimate_id)
+            input_context = _dict(snapshot.get("input_context"))
+            model_context = _dict(snapshot.get("model_context"))
+            integrity = _dict(snapshot.get("integrity"))
+            rows.append(
+                {
+                    "estimate_id": estimate_id,
+                    "estimate_hash": integrity.get("estimate_hash"),
+                    "integrity_valid": verify_estimate_snapshot(snapshot),
+                    "fixture_id": snapshot.get("fixture_id"),
+                    "market": snapshot.get("market"),
+                    "status": snapshot.get("status"),
+                    "fair_line": snapshot.get("fair_line"),
+                    "home_mu": snapshot.get("home_mu"),
+                    "away_mu": snapshot.get("away_mu"),
+                    "odds_snapshot_hash": input_context.get("odds_snapshot_hash"),
+                    "feature_snapshot_hash": input_context.get("feature_snapshot_hash"),
+                    "model_family": model_context.get("model_family"),
+                    "artifact_hash": model_context.get("artifact_hash"),
+                    "artifact_version": model_context.get("artifact_version"),
+                    "train_cutoff": model_context.get("train_cutoff"),
+                    "feature_as_of": model_context.get("feature_as_of"),
+                    "created_at": integrity.get("created_at"),
+                    "snapshot_json": dict(snapshot),
+                }
+            )
+    return rows
 
 
 def write_audit_export(

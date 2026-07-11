@@ -412,6 +412,7 @@ function normalizeScorelineReference(payload: unknown) {
   if (!source && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
   return {
     source: source || null,
+    estimate_id: textValue(record.estimate_id) || null,
     label: textValue(record.label) || null,
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
     direction_scorelines: asArray(record.direction_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
@@ -830,6 +831,10 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
     fair_market_estimates: asArray(record.fair_market_estimates).map((item) => asRecord(item)),
+    fair_market_estimate_ids: asArray(record.fair_market_estimate_ids)
+      .map((item) => textValue(item))
+      .filter(Boolean),
+    fair_market_estimate_snapshots: asArray(record.fair_market_estimate_snapshots).map((item) => asRecord(item)),
     optional_enrichment: {
       lineups: normalizeEnrichmentItem(optionalEnrichment.lineups),
       player_value: normalizeEnrichmentItem(optionalEnrichment.player_value),

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
@@ -99,6 +100,18 @@ def build_forward_outcome_records(
             "probability_source": _optional_text(card.get("probability_source")),
             "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
             "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
+            "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
+            "fair_market_estimate_snapshots": _mapping_list(
+                card.get("fair_market_estimate_snapshots")
+            ),
+            "estimate_integrity": [
+                {
+                    "estimate_id": item.get("estimate_id"),
+                    "valid": verify_estimate_snapshot(item),
+                }
+                for item in estimate_snapshots(card)
+                if item.get("estimate_id")
+            ],
             "analysis_gate": _mapping_copy(card.get("analysis_gate")),
             "analysis_gates": _mapping_list(card.get("analysis_gates")),
             "shadow_pick": shadow_picks[0] if shadow_picks else None,
@@ -356,6 +369,7 @@ def _outcome_record(
         "card_hash": _optional_text(entry.get("card_hash")),
         "market": market,
         "selection": selection,
+        "estimate_id": _optional_text(item.get("estimate_id")),
         "settled_side": side,
         "recommendation_scope": (
             SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(entry)
@@ -611,8 +625,8 @@ def _parse_time(value: Any) -> datetime | None:
 
 def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
     picks: list[dict[str, Any]] = []
-    estimates = card.get("fair_market_estimates")
-    if isinstance(estimates, Sequence) and not isinstance(estimates, str | bytes | bytearray):
+    estimates = estimate_snapshots(card)
+    if estimates:
         odds = _mapping(card.get("current_odds"))
         for estimate in estimates:
             if not isinstance(estimate, Mapping) or _text(estimate.get("status")) != "READY":
@@ -637,8 +651,9 @@ def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
                 fair_line=fair_line,
                 market_line=market_line,
                 delta=delta,
-                derived_from="fair_market_estimates",
+                derived_from="fair_market_estimate_snapshot",
             )
+            payload["estimate_id"] = _optional_text(estimate.get("estimate_id"))
             for field in (
                 "model_family",
                 "artifact_hash",
@@ -781,6 +796,12 @@ def _mapping_list(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
         return []
     return [dict(item) for item in value if isinstance(item, Mapping)]
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [str(item) for item in value if item]
 
 
 def _optional_text(value: Any) -> str | None:

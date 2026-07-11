@@ -15,6 +15,10 @@ NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
 
 def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
     card = _card()
+    card["fair_market_estimate_ids"] = ["fme_estimate"]
+    card["fair_market_estimate_snapshots"] = [
+        {"estimate_id": "fme_estimate", "estimate_hash": "estimate"}
+    ]
     first = build_recommendation_lock_snapshot(
         recommendation_id="rec-1",
         card=card,
@@ -39,6 +43,10 @@ def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
     assert first.release_sha == "release-sha"
     assert first.market_timeline_json["pattern"] == "ONE_WAY_MOVE"
     assert first.ah_settlement_distribution_json["win"] == 0.41
+    assert first.snapshot_payload_json["fair_market_estimate_ids"] == ["fme_estimate"]
+    assert first.snapshot_payload_json["fair_market_estimate_snapshots"][0]["estimate_id"] == (
+        "fme_estimate"
+    )
 
 
 def test_lock_snapshot_hash_changes_when_freeze_payload_changes() -> None:

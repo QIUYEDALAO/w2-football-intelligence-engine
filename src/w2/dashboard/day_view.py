@@ -256,6 +256,10 @@ def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "pricing_shadow": _mapping_copy(card.get("pricing_shadow")),
         "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
+        "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
+        "fair_market_estimate_snapshots": _mapping_list(
+            card.get("fair_market_estimate_snapshots")
+        ),
         "scoreline_picks": scoreline_picks,
         "scoreline_reference": scoreline_reference or None,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),

@@ -6,6 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 from w2.tracking.forward_outcome_ledger import backfill_outcomes, run_forward_outcome_ledger
 
 
@@ -243,6 +244,80 @@ def test_forward_outcome_backfill_settles_two_shadow_markets_from_one_capture(
         ("ASIAN_HANDICAP", "WIN"),
         ("TOTALS", "WIN"),
     }
+
+
+def test_estimate_id_survives_capture_and_settlement(tmp_path: Path) -> None:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-1",
+        estimate=FairMarketEstimate(
+            market="TOTALS",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=3.0,
+            probabilities={"OVER": 0.55, "UNDER": 0.45},
+            home_mu=1.8,
+            away_mu=1.2,
+            feature_as_of="2026-07-07T12:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ou": {"line": 2.5, "over_price": 1.95}},
+        feature_snapshot={"home_xg": 1.8, "away_xg": 1.2},
+        created_at="2026-07-07T12:00:00Z",
+    ).as_dict()
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
+    card["outcome_tracked"] = True  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.95",
+        "under_price": "1.91",
+    }
+    card["pick"] = {  # type: ignore[index]
+        "market": "TOTALS",
+        "selection": "OVER",
+        "line": "2.5",
+        "odds": "1.95",
+        "estimate_id": snapshot["estimate_id"],
+    }
+    card["fair_market_estimate_ids"] = [snapshot["estimate_id"]]  # type: ignore[index]
+    card["fair_market_estimate_snapshots"] = [snapshot]  # type: ignore[index]
+    card["fair_market_estimates"] = [snapshot]  # type: ignore[index]
+
+    run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    result = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 1)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert result["written"] >= 1
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    capture = next(row for row in rows if row["record_type"] == "capture")
+    outcome = next(
+        row
+        for row in rows
+        if row["record_type"] == "outcome" and row["settled_side"] == "pick"
+    )
+    assert capture["fair_market_estimate_ids"] == [snapshot["estimate_id"]]
+    assert capture["estimate_integrity"] == [
+        {"estimate_id": snapshot["estimate_id"], "valid": True}
+    ]
+    assert outcome["estimate_id"] == snapshot["estimate_id"]
 
 
 def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:

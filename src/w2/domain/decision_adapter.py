@@ -19,6 +19,7 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.domain.legacy_decision_shim import legacy_decision_view
+from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
 from w2.models.player_impact import unsupported_player_impact
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
@@ -145,6 +146,10 @@ def build_decision_contract_fields(
         "analysis_gate": analysis_gate,
         "analysis_gates": analysis_gates,
         "fair_market_estimates": [dict(item) for item in _fair_market_estimates(card)],
+        "fair_market_estimate_ids": _fair_market_estimate_ids(card),
+        "fair_market_estimate_snapshots": [
+            dict(item) for item in _fair_market_estimate_snapshots(card)
+        ],
         "optional_enrichment": optional_enrichment,
         "player_impact_estimate": player_impact_estimate,
         "provenance": {
@@ -398,6 +403,7 @@ def _pick_payload(
             _get(market, "tendency"),
             _get(market, "lean"),
         ),
+        "estimate_id": _optional_text(_get(analysis_gate, "estimate_id")),
         "line": _first_text(
             gate_quote.get("line"),
             _get(recommendation, "line"),
@@ -738,6 +744,14 @@ def _validated_card_hash(
         fair_market_estimates=tuple(
             item for item in core.get("fair_market_estimates", []) if isinstance(item, Mapping)
         ),
+        fair_market_estimate_ids=tuple(
+            str(item) for item in core.get("fair_market_estimate_ids", []) if item
+        ),
+        fair_market_estimate_snapshots=tuple(
+            item
+            for item in core.get("fair_market_estimate_snapshots", [])
+            if isinstance(item, Mapping)
+        ),
         optional_enrichment=_as_mapping(core.get("optional_enrichment")),
         player_impact_estimate=_as_mapping(core.get("player_impact_estimate")),
         provenance=_as_mapping(core.get("provenance")),
@@ -814,6 +828,7 @@ def _analysis_gates(
         gates.append(
             {
                 "market": market,
+                "estimate_id": estimate.get("estimate_id"),
                 "status": status,
                 "market_ready": market_ready,
                 "model_ready": model_ready,
@@ -865,6 +880,10 @@ def _estimate_source_consistent(
         and away_mu > 0
         and bool(str(estimate.get("model_family") or "").strip())
         and provenance_consistent
+        and (
+            not estimate.get("estimate_id")
+            or verify_estimate_snapshot(estimate)
+        )
     )
 
 
@@ -937,10 +956,27 @@ def _primary_analysis_gate(gates: Sequence[Mapping[str, Any]]) -> Mapping[str, A
 
 
 def _fair_market_estimates(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    value = card.get("fair_market_estimates")
+    return list(estimate_snapshots(card))
+
+
+def _fair_market_estimate_snapshots(
+    card: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    value = card.get("fair_market_estimate_snapshots")
     if isinstance(value, list):
         return [item for item in value if isinstance(item, Mapping)]
     return []
+
+
+def _fair_market_estimate_ids(card: Mapping[str, Any]) -> list[str]:
+    value = card.get("fair_market_estimate_ids")
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    return [
+        str(item.get("estimate_id"))
+        for item in _fair_market_estimate_snapshots(card)
+        if item.get("estimate_id")
+    ]
 
 
 def _market_line(odds: Mapping[str, Any], market: str) -> float | None:
@@ -1094,6 +1130,7 @@ def _decision_pick(payload: Mapping[str, Any]) -> DecisionPick | None:
     return DecisionPick(
         market=str(payload.get("market") or ""),
         selection=str(payload.get("selection") or ""),
+        estimate_id=_optional_text(payload.get("estimate_id")),
         line=_optional_text(payload.get("line")),
         odds=_optional_text(payload.get("odds")),
         fair_line=_optional_text(payload.get("fair_line")),

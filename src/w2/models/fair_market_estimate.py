@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+from typing import cast
 
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -33,6 +36,207 @@ class FairMarketEstimate:
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(frozen=True, kw_only=True)
+class FairMarketEstimateSnapshot:
+    estimate_id: str
+    fixture_id: str
+    market: str
+    status: str
+    fair_line: float | None
+    probabilities: Mapping[str, float]
+    home_mu: float | None
+    away_mu: float | None
+    input_context: Mapping[str, object]
+    model_context: Mapping[str, object]
+    integrity: Mapping[str, str]
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        fixture_id: str,
+        estimate: FairMarketEstimate,
+        odds_snapshot: Mapping[str, object],
+        feature_snapshot: Mapping[str, object],
+        created_at: str,
+    ) -> FairMarketEstimateSnapshot:
+        odds_payload = _canonical_mapping(odds_snapshot)
+        feature_payload = _canonical_mapping(feature_snapshot)
+        input_context: dict[str, object] = {
+            "odds_snapshot_hash": canonical_estimate_hash(odds_payload),
+            "feature_snapshot_hash": canonical_estimate_hash(feature_payload),
+            "odds_snapshot": odds_payload,
+            "feature_snapshot": feature_payload,
+        }
+        model_context: dict[str, object] = {
+            "artifact_hash": estimate.artifact_hash,
+            "artifact_version": estimate.artifact_version,
+            "model_family": estimate.model_family,
+            "train_cutoff": estimate.train_cutoff,
+            "feature_as_of": estimate.feature_as_of,
+        }
+        payload = {
+            "fixture_id": fixture_id,
+            "market": estimate.market,
+            "status": estimate.status,
+            "fair_line": estimate.fair_line,
+            "probabilities": dict(estimate.probabilities),
+            "home_mu": estimate.home_mu,
+            "away_mu": estimate.away_mu,
+            "input_context": input_context,
+            "model_context": model_context,
+        }
+        estimate_hash = canonical_estimate_hash(payload)
+        return cls(
+            estimate_id=f"fme_{estimate_hash}",
+            fixture_id=fixture_id,
+            market=estimate.market,
+            status=estimate.status,
+            fair_line=estimate.fair_line,
+            probabilities=dict(estimate.probabilities),
+            home_mu=estimate.home_mu,
+            away_mu=estimate.away_mu,
+            input_context=input_context,
+            model_context=model_context,
+            integrity={
+                "estimate_hash": estimate_hash,
+                "created_at": created_at,
+            },
+        )
+
+    def as_dict(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload.update(
+            {
+                "model_family": self.model_context.get("model_family"),
+                "artifact_hash": self.model_context.get("artifact_hash"),
+                "artifact_version": self.model_context.get("artifact_version"),
+                "train_cutoff": self.model_context.get("train_cutoff"),
+                "feature_as_of": self.model_context.get("feature_as_of"),
+                "odds_snapshot_hash": self.input_context.get("odds_snapshot_hash"),
+                "feature_snapshot_hash": self.input_context.get("feature_snapshot_hash"),
+                "estimate_hash": self.integrity.get("estimate_hash"),
+                "created_at": self.integrity.get("created_at"),
+            }
+        )
+        return payload
+
+
+def canonical_estimate_hash(payload: Mapping[str, object]) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def verify_estimate_snapshot(snapshot: Mapping[str, object]) -> bool:
+    input_context = _mapping(snapshot.get("input_context"))
+    model_context = _mapping(snapshot.get("model_context"))
+    compatibility_fields = {
+        "model_family": "model_family",
+        "artifact_hash": "artifact_hash",
+        "artifact_version": "artifact_version",
+        "train_cutoff": "train_cutoff",
+        "feature_as_of": "feature_as_of",
+    }
+    if any(
+        snapshot.get(flat_key) != model_context.get(context_key)
+        for flat_key, context_key in compatibility_fields.items()
+    ):
+        return False
+    if snapshot.get("odds_snapshot_hash") != input_context.get("odds_snapshot_hash"):
+        return False
+    if snapshot.get("feature_snapshot_hash") != input_context.get("feature_snapshot_hash"):
+        return False
+    if input_context.get("odds_snapshot_hash") != canonical_estimate_hash(
+        _mapping(input_context.get("odds_snapshot"))
+    ):
+        return False
+    if input_context.get("feature_snapshot_hash") != canonical_estimate_hash(
+        _mapping(input_context.get("feature_snapshot"))
+    ):
+        return False
+    estimate_hash = str(
+        _mapping(snapshot.get("integrity")).get("estimate_hash")
+        or snapshot.get("estimate_hash")
+        or ""
+    )
+    estimate_id = str(snapshot.get("estimate_id") or "")
+    if not estimate_hash or estimate_id != f"fme_{estimate_hash}":
+        return False
+    payload = {
+        "fixture_id": snapshot.get("fixture_id"),
+        "market": snapshot.get("market"),
+        "status": snapshot.get("status"),
+        "fair_line": snapshot.get("fair_line"),
+        "probabilities": dict(_mapping(snapshot.get("probabilities"))),
+        "home_mu": snapshot.get("home_mu"),
+        "away_mu": snapshot.get("away_mu"),
+        "input_context": dict(input_context),
+        "model_context": dict(model_context),
+    }
+    return canonical_estimate_hash(payload) == estimate_hash
+
+
+def estimate_snapshots(card: Mapping[str, object]) -> list[Mapping[str, object]]:
+    value = card.get("fair_market_estimate_snapshots")
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, Mapping)]
+    legacy = card.get("fair_market_estimates")
+    if isinstance(legacy, list):
+        return [item for item in legacy if isinstance(item, Mapping)]
+    return []
+
+
+def estimate_snapshot_by_id(
+    card: Mapping[str, object],
+    estimate_id: object,
+) -> Mapping[str, object] | None:
+    target = str(estimate_id or "")
+    if not target:
+        return None
+    return next(
+        (item for item in estimate_snapshots(card) if str(item.get("estimate_id") or "") == target),
+        None,
+    )
+
+
+def estimate_snapshot_for_market(
+    card: Mapping[str, object],
+    market: str,
+) -> Mapping[str, object] | None:
+    ids = card.get("fair_market_estimate_ids")
+    allowed_ids = (
+        {str(item) for item in ids}
+        if isinstance(ids, list | tuple)
+        else set()
+    )
+    return next(
+        (
+            item
+            for item in estimate_snapshots(card)
+            if str(item.get("market") or "") == market
+            and (not allowed_ids or str(item.get("estimate_id") or "") in allowed_ids)
+        ),
+        None,
+    )
+
+
+def _canonical_mapping(value: Mapping[str, object]) -> dict[str, object]:
+    return cast(
+        dict[str, object],
+        json.loads(json.dumps(value, sort_keys=True, default=str)),
+    )
+
+
+def _mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def fair_lines_from_lambdas(
