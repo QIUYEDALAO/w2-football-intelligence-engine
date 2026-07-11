@@ -21,6 +21,7 @@ class OfflineFeatureMaterialization:
     matches: tuple[TeamXgMatch, ...]
     snapshots: tuple[TeamXgRollingSnapshot, ...]
     blockers: tuple[str, ...]
+    input_context: dict[str, Any]
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -30,17 +31,27 @@ class OfflineFeatureMaterialization:
             "rolling_snapshot_count": len(self.snapshots),
             "ready_fixture_count": len({row.as_of_fixture_id for row in self.snapshots}),
             "blockers": list(self.blockers),
+            "target_team_coverage": _target_team_coverage(self.snapshots),
             "provider_calls": 0,
             "db_reads": 0,
             "db_writes": 0,
         }
 
     def payload(self) -> dict[str, Any]:
-        return {
-            "schema_version": "w2.offline_feature_materialization.v1",
+        content = {
+            "schema_version": "w2.offline_feature_materialization.v2",
             "summary": self.summary(),
+            "input_context": self.input_context,
             "team_xg_matches": [_match_payload(row) for row in self.matches],
             "team_xg_rolling_snapshots": [_snapshot_payload(row) for row in self.snapshots],
+        }
+        content_hash = _canonical_hash(content)
+        return {
+            **content,
+            "integrity": {
+                "content_hash": content_hash,
+                "materialization_id": f"w2mat_{content_hash}",
+            },
         }
 
 
@@ -48,11 +59,21 @@ def materialize_from_pro_cache(
     *,
     raw_root: Path,
     target_fixture_ids: tuple[str, ...],
+    target_fixture_file: Path | None = None,
     window: int = 8,
     min_matches: int = 5,
 ) -> OfflineFeatureMaterialization:
-    fixtures = _fixture_payloads(raw_root / "fixtures")
-    targets = [fixtures[fixture_id] for fixture_id in target_fixture_ids if fixture_id in fixtures]
+    history_fixtures = _fixture_payloads(raw_root / "fixtures")
+    target_fixtures = (
+        _fixture_payloads_from_file(target_fixture_file)
+        if target_fixture_file is not None
+        else history_fixtures
+    )
+    targets = [
+        target_fixtures[fixture_id]
+        for fixture_id in target_fixture_ids
+        if fixture_id in target_fixtures
+    ]
     target_teams = {
         str(team.get("id") or "")
         for item in targets
@@ -63,7 +84,7 @@ def materialize_from_pro_cache(
     for path in sorted((raw_root / "statistics").glob("*.json")):
         wrapper = _json(path)
         fixture_id = str(_mapping(wrapper.get("params")).get("fixture") or "")
-        fixture = fixtures.get(fixture_id)
+        fixture = history_fixtures.get(fixture_id)
         if fixture is None:
             continue
         captured_at = _parse_utc(wrapper.get("captured_at"))
@@ -81,7 +102,7 @@ def materialize_from_pro_cache(
     ordered_matches = sorted(matches.values(), key=lambda row: (row.kickoff_at, row.id))
     snapshots: list[TeamXgRollingSnapshot] = []
     blockers: list[str] = []
-    missing_targets = sorted(set(target_fixture_ids) - set(fixtures))
+    missing_targets = sorted(set(target_fixture_ids) - set(target_fixtures))
     blockers.extend(f"TARGET_FIXTURE_NOT_CACHED:{fixture_id}" for fixture_id in missing_targets)
     for item in targets:
         fixture = _mapping(item.get("fixture"))
@@ -109,6 +130,16 @@ def materialize_from_pro_cache(
         matches=tuple(ordered_matches),
         snapshots=tuple(sorted(snapshots, key=lambda row: row.snapshot_id)),
         blockers=tuple(sorted(blockers)),
+        input_context={
+            "history_cache_hash": _directory_hash(raw_root),
+            "target_fixture_hash": (
+                hashlib.sha256(target_fixture_file.read_bytes()).hexdigest()
+                if target_fixture_file is not None
+                else _directory_hash(raw_root / "fixtures")
+            ),
+            "window": window,
+            "min_matches": min_matches,
+        },
     )
 
 
@@ -127,6 +158,91 @@ def _fixture_payloads(root: Path) -> dict[str, dict[str, Any]]:
             if fixture_id:
                 fixtures[fixture_id] = item
     return fixtures
+
+
+def _fixture_payloads_from_file(path: Path) -> dict[str, dict[str, Any]]:
+    payload = _json(path)
+    rows = payload.get("fixtures")
+    if not isinstance(rows, list):
+        rows = _mapping(payload.get("payload")).get("response")
+    if not isinstance(rows, list):
+        rows = payload.get("response")
+    fixtures: dict[str, dict[str, Any]] = {}
+    for item in rows if isinstance(rows, list) else []:
+        if not isinstance(item, dict):
+            continue
+        fixture_id = str(_mapping(item.get("fixture")).get("id") or item.get("fixture_id") or "")
+        if "fixture" not in item and fixture_id:
+            item = {
+                "fixture": {"id": fixture_id, "date": item.get("kickoff_utc")},
+                "league": {"id": item.get("competition_id")},
+                "teams": {
+                    "home": {"id": item.get("home_team_id")},
+                    "away": {"id": item.get("away_team_id")},
+                },
+            }
+        if fixture_id:
+            fixtures[fixture_id] = item
+    return fixtures
+
+
+def verify_materialization_payload(payload: dict[str, Any]) -> bool:
+    integrity = _mapping(payload.get("integrity"))
+    content_hash = str(integrity.get("content_hash") or "")
+    if not content_hash or integrity.get("materialization_id") != f"w2mat_{content_hash}":
+        return False
+    content = {key: value for key, value in payload.items() if key != "integrity"}
+    return _canonical_hash(content) == content_hash
+
+
+def sanitized_target_fixture_payload(
+    fixtures: list[dict[str, Any]],
+    *,
+    kickoff_from: datetime,
+    kickoff_to: datetime,
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for item in fixtures:
+        fixture = _mapping(item.get("fixture"))
+        kickoff = _parse_utc(fixture.get("date"))
+        teams = _mapping(item.get("teams"))
+        league = _mapping(item.get("league"))
+        if kickoff is None or not kickoff_from <= kickoff < kickoff_to:
+            continue
+        rows.append(
+            {
+                "fixture_id": str(fixture.get("id") or ""),
+                "kickoff_utc": _iso(kickoff),
+                "competition_id": str(league.get("id") or ""),
+                "home_team_id": str(_mapping(teams.get("home")).get("id") or ""),
+                "away_team_id": str(_mapping(teams.get("away")).get("id") or ""),
+            }
+        )
+    rows.sort(key=lambda row: (row["kickoff_utc"], row["fixture_id"]))
+    content = {"schema_version": "w2.sanitized_target_fixtures.v1", "fixtures": rows}
+    return {**content, "content_hash": _canonical_hash(content)}
+
+
+def _target_team_coverage(
+    snapshots: tuple[TeamXgRollingSnapshot, ...],
+) -> dict[str, list[str]]:
+    coverage: dict[str, list[str]] = {}
+    for row in snapshots:
+        coverage.setdefault(row.as_of_fixture_id, []).append(row.team_id)
+    return {key: sorted(value) for key, value in sorted(coverage.items())}
+
+
+def _directory_hash(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(item for item in root.rglob("*.json") if item.is_file()):
+        digest.update(str(path.relative_to(root)).encode("utf-8"))
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def _canonical_hash(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _teams(item: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
