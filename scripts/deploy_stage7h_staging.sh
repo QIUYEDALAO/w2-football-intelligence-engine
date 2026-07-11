@@ -237,13 +237,15 @@ for attempt in \$(seq 1 18); do
 done
 if [ \"\${api_consecutive}\" -lt 3 ]; then
   echo 'api_stability_probe=FAIL' >&2
-  false
+  rollback_release
 fi
 
-compose run --rm --no-deps api /app/.venv/bin/python \
+if ! compose run --rm --no-deps api /app/.venv/bin/python \
   scripts/check_dayview_business_readiness.py \
   --url 'http://api:8000/v1/dashboard?window=next36&include_debug=true' \
-  --audit-file /app/runtime/release-audit-${REVISION}.json
+  --audit-file /app/runtime/release-audit-${REVISION}.json; then
+  rollback_release
+fi
 
 compose up -d --no-deps web
 sudo systemctl start w2-staging-watchdog.timer
@@ -273,7 +275,7 @@ for attempt in \$(seq 1 18); do
 done
 if [ \"\${release_consecutive}\" -lt 3 ]; then
   echo 'stability_probe=FAIL' >&2
-  false
+  rollback_release
 fi
 
 compose ps --format json > /opt/w2/shared/service-version-matrix-${REVISION}.json

@@ -37,7 +37,7 @@ def test_future_flat_fixture_context_preserves_team_identity() -> None:
 
     context = service._analysis_context_from_flat_fixture(
         {
-            "competition_id": "allsvenskan",
+            "competition_id": "113",
             "competition_name": "Allsvenskan",
             "home_team_id": "11",
             "away_team_id": "22",
@@ -49,6 +49,7 @@ def test_future_flat_fixture_context_preserves_team_identity() -> None:
     assert context["home_team_id"] == "11"
     assert context["away_team_id"] == "22"
     assert context["home_team_provider_name"] == "Home Provider"
+    assert context["competition_id"] == "allsvenskan"
 
 
 class RecommendationLoopRepository:

@@ -1929,15 +1929,17 @@ class ReadModelService:
 
     def _competition_id_from_provider_fixture(self, item: Mapping[str, Any]) -> str:
         explicit = str(item.get("competition_id") or "")
-        if explicit:
-            return explicit
         league = item.get("league")
-        provider_id = str(league.get("id") or "") if isinstance(league, Mapping) else ""
         registry = CompetitionRegistry()
+        if explicit in registry.all_entries():
+            return explicit
+        provider_id = explicit or (
+            str(league.get("id") or "") if isinstance(league, Mapping) else ""
+        )
         for competition_id, entry in registry.entries().items():
             if entry.provider_mapping.get("api_football_league_id") == provider_id:
                 return competition_id
-        return "world_cup_2026"
+        return explicit or "world_cup_2026"
 
     def _serving_r4_1_feature_rows(
         self,
@@ -4371,7 +4373,7 @@ class ReadModelService:
         home_name = str(item.get("home_team_name") or item.get("home_cn") or "主队")
         away_name = str(item.get("away_team_name") or item.get("away_cn") or "客队")
         return {
-            "competition_id": item.get("competition_id"),
+            "competition_id": self._competition_id_from_provider_fixture(item),
             "kickoff_utc": item.get("kickoff_utc"),
             "competition_name": competition,
             "competition_cn": competition_cn,

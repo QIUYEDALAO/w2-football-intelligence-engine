@@ -13,6 +13,7 @@ from w2.models.fair_market_estimate import verify_estimate_snapshot
 def evaluate_dayview_business_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     cards = _cards(payload)
     ready_estimates = 0
+    ready_fixtures: set[str] = set()
     market_cards = 0
     failures: list[str] = []
     blocker_sets: list[set[str]] = []
@@ -35,6 +36,7 @@ def evaluate_dayview_business_readiness(payload: dict[str, Any]) -> dict[str, An
             if str(snapshot.get("status") or "") != "READY":
                 continue
             ready_estimates += 1
+            ready_fixtures.add(str(card.get("fixture_id") or ""))
             required = (
                 "home_mu", "away_mu", "fair_line", "artifact_hash", "artifact_version",
                 "train_cutoff", "feature_as_of",
@@ -67,7 +69,7 @@ def evaluate_dayview_business_readiness(payload: dict[str, Any]) -> dict[str, An
         "market_fixture_count": market_cards,
         "ready_fme_count": ready_estimates,
         "fme_readiness_coverage": (
-            ready_estimates / market_cards if market_cards else 0.0
+            len(ready_fixtures) / market_cards if market_cards else 0.0
         ),
         "failures": sorted(set(failures)),
         "recommendation_count": sum(
