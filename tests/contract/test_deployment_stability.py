@@ -78,7 +78,8 @@ def test_release_failure_automatically_restores_previous_api_and_web() -> None:
     assert "previous-api-image" in deploy
     assert "previous-web-image" in deploy
     assert "w2-rollback-images.yml" in deploy
-    assert "docker image tag" in deploy
+    assert "docker commit w2-staging-api-1" in deploy
+    assert "docker commit w2-staging-web-1" in deploy
     assert "w2-rollback-api:" in deploy
     assert "w2-rollback-web:" in deploy
     assert "--retry-all-errors" in deploy

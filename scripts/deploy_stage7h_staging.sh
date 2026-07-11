@@ -90,14 +90,12 @@ ssh "${SSH_HOST}" "
 set -euo pipefail
 readlink -f /opt/w2/current > /opt/w2/shared/previous-release-path
 cp /opt/w2/shared/release.env /opt/w2/shared/previous-release.env 2>/dev/null || true
-previous_api_id=\"\$(sudo docker inspect --format '{{.Image}}' w2-staging-api-1 2>/dev/null || true)\"
-previous_web_id=\"\$(sudo docker inspect --format '{{.Image}}' w2-staging-web-1 2>/dev/null || true)\"
-if [ -n \"\${previous_api_id}\" ]; then
-  sudo docker image tag \"\${previous_api_id}\" w2-rollback-api:${REVISION}
+if sudo docker inspect w2-staging-api-1 >/dev/null 2>&1; then
+  sudo docker commit w2-staging-api-1 w2-rollback-api:${REVISION} >/dev/null
   printf '%s\n' 'w2-rollback-api:${REVISION}' > /opt/w2/shared/previous-api-image
 fi
-if [ -n \"\${previous_web_id}\" ]; then
-  sudo docker image tag \"\${previous_web_id}\" w2-rollback-web:${REVISION}
+if sudo docker inspect w2-staging-web-1 >/dev/null 2>&1; then
+  sudo docker commit w2-staging-web-1 w2-rollback-web:${REVISION} >/dev/null
   printf '%s\n' 'w2-rollback-web:${REVISION}' > /opt/w2/shared/previous-web-image
 fi
 ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
