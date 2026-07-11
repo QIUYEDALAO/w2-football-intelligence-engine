@@ -3791,8 +3791,21 @@ class ReadModelService:
     ) -> dict[str, Any]:
         decorated = dict(card)
         if fixture_context:
+            authoritative_identity_fields = {
+                "competition_id",
+                "kickoff_utc",
+                "home_team_id",
+                "away_team_id",
+                "home_team_name",
+                "away_team_name",
+                "home_team_provider_name",
+                "away_team_provider_name",
+            }
             for key, value in fixture_context.items():
-                decorated.setdefault(key, value)
+                if key in authoritative_identity_fields:
+                    decorated[key] = value
+                else:
+                    decorated.setdefault(key, value)
         competition_name = self._first_text(
             decorated.get("competition_name"),
             decorated.get("competition_cn"),

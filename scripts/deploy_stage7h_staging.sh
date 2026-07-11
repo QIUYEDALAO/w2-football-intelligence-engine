@@ -90,6 +90,10 @@ ssh "${SSH_HOST}" "
 set -euo pipefail
 readlink -f /opt/w2/current > /opt/w2/shared/previous-release-path
 cp /opt/w2/shared/release.env /opt/w2/shared/previous-release.env 2>/dev/null || true
+sudo docker inspect --format '{{.Image}}' w2-staging-api-1 \
+  > /opt/w2/shared/previous-api-image 2>/dev/null || true
+sudo docker inspect --format '{{.Image}}' w2-staging-web-1 \
+  > /opt/w2/shared/previous-web-image 2>/dev/null || true
 ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
 ls -la /opt/w2/current
 "
@@ -197,11 +201,26 @@ rollback_release() {
     cp /opt/w2/shared/previous-release.env /opt/w2/shared/release.env
   fi
   cd /opt/w2/current
-  compose up -d --no-deps api web
-  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/health >/dev/null
-  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/ready >/dev/null
-  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/v1/version >/dev/null
-  curl -fsS --retry 12 --retry-delay 5 http://127.0.0.1/meta.json >/dev/null
+  previous_api_image=\"\$(cat /opt/w2/shared/previous-api-image)\"
+  previous_web_image=\"\$(cat /opt/w2/shared/previous-web-image)\"
+  cat > /tmp/w2-rollback-images.yml <<EOF
+services:
+  api:
+    image: \${previous_api_image}
+  web:
+    image: \${previous_web_image}
+EOF
+  sudo docker compose \
+    -p w2-staging \
+    -f infra/compose/compose.staging.yml \
+    -f /tmp/w2-rollback-images.yml \
+    --env-file /opt/w2/shared/.env \
+    --env-file /opt/w2/shared/release.env \
+    up -d --no-deps api web
+  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/health >/dev/null
+  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/ready >/dev/null
+  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/v1/version >/dev/null
+  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/meta.json >/dev/null
   echo 'automatic_rollback_probe=PASS' >&2
   exit 1
 }
