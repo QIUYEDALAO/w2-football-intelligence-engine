@@ -32,7 +32,7 @@ export function DashboardShell({
         <div>
           <p>W2 Football Intelligence</p>
           <h1>Compact match dashboard</h1>
-          <span>W2 足球分析 · 今日比赛 · 分析参考 · 非稳赢</span>
+          <span>W2 足球分析 · 今日比赛 · 验证推荐</span>
         </div>
         <strong>candidate=false · formal=false</strong>
       </header>

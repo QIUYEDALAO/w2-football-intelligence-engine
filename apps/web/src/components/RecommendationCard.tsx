@@ -26,7 +26,7 @@ type VerdictState = "REFERENCE" | "WATCH" | "INSUFFICIENT" | "LOCKED";
 const TIER_LABELS: Record<RecommendationTier, string> = {
   FORMAL: "正式推荐",
   CANDIDATE: "候选观察",
-  ANALYSIS_PICK: "分析参考",
+  ANALYSIS_PICK: "验证推荐",
   WATCH: "观察",
   NO_RECOMMENDATION: "暂无推荐",
 };
@@ -70,7 +70,7 @@ const MARKET_LABELS: Record<string, string> = {
 };
 
 const VERDICT_LABELS: Record<VerdictState, string> = {
-  REFERENCE: "分析参考",
+  REFERENCE: "技术参考",
   WATCH: "观察",
   INSUFFICIENT: "数据不足",
   LOCKED: "已锁定",
@@ -342,7 +342,7 @@ function formalReason(match: DashboardMatchCard): string {
   if (readinessBlockers.length) return readinessBlockers.join(" · ");
   if (match.pricing_shadow?.simulation_status !== "READY") return "模拟引擎未就绪";
   if (match.pricing_shadow?.formal_eligible === false) return "未达到正式推荐门槛";
-  return "当前只保留为观察/分析参考，不伪装成正式推荐。";
+  return "当前保持观察，尚未达到正式推荐条件。";
 }
 
 function lockedSettlementText(match: DashboardMatchCard): string {
@@ -400,7 +400,7 @@ function actionabilityLine(match: DashboardMatchCard): string {
   }
   if (ahMainlineBlocker(match)) return "全场让球主盘口不明确，保持观察";
   if (!oddsReady) return "等待盘口快照后再看";
-  return "赛前分析参考，等待正式条件";
+  return "赛前继续观察，等待正式条件";
 }
 
 function canShowScoreline(match: DashboardMatchCard): boolean {
