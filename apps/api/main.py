@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from w2.api.routers import error_handler, ops_router, public_router, service
 from w2.config import Environment, get_settings
@@ -34,6 +35,7 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["x-request-id", "if-none-match"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1_024, compresslevel=5)
 app.add_exception_handler(Exception, error_handler)
 app.include_router(public_router)
 app.include_router(ops_router)

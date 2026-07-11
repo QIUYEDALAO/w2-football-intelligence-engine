@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T02:38:00Z"
-current_phase: dashboard product truth follow-up
-current_status: implementation_complete_pending_review_and_deploy
+last_updated_utc: "2026-07-11T07:18:00Z"
+current_phase: dashboard cache-first performance
+current_status: implementation_in_validation
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,7 +20,7 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: ffecded5019290aa73538f4e1886e3fea0bcdca1
+  main_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
   main_ci: SUCCESS
   main_ci_checks:
     - verify
@@ -30,11 +30,11 @@ repository_state:
 
 staging_state:
   environment: staging
-  api_git_sha: ffecded5019290aa73538f4e1886e3fea0bcdca1
-  web_git_sha: 8bc1004820b98f19335db21f5665c800bfe8d418
-  release_id: ffecded
+  api_git_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
+  web_git_sha: 92f8e657276833c28c8e93ba1aeefed231221c54
+  release_id: 92f8e657
   source_branch: main
-  source_note: PR 237 API/Web product-truth deployment plus PR 238 API-only canonical ledger league identity hotfix; worker and scheduler were not recreated or restarted.
+  source_note: PR 244 Dashboard truth-count and localization deployment; API/Web were updated scheduler-safe while worker and scheduler were not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -170,6 +170,26 @@ dashboard_product_truth_repair:
       staging_deploy: false
       production_deploy: false
       scheduler_restart: false
+  safety:
+    provider_calls: 0
+    db_writes: 0
+    staging_deploy: false
+    production_deploy: false
+    scheduler_restart: false
+
+dashboard_cache_first_performance:
+  status: implementation_in_validation
+  measured_baseline:
+    day_view_cold_seconds: 11.1
+    day_view_cached_seconds: 3.8
+    day_view_future_payload_bytes: 692279
+    legacy_dashboard_seconds: 18.3
+    legacy_dashboard_payload_bytes: 1616182
+  changes:
+    - Preserve the visible DayView during background revalidation and manual refresh.
+    - Extend the browser snapshot TTL from one minute to fifteen minutes.
+    - Remove the duplicate retry of the same long DayView request.
+    - Add gzip compression and a stale-while-revalidate cache contract.
   safety:
     provider_calls: 0
     db_writes: 0
