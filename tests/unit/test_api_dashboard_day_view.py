@@ -98,6 +98,7 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["request_id"]
     assert payload["football_day"] == "2026-07-05"
     assert payload["window"] == "future"
+    assert payload["active_whitelist_count"] == 13
     assert payload["navigation"]["current_date"] == "2026-07-05"
     assert payload["navigation"]["fallback_mode"] == "read_model"
     assert payload["cards"][0]["scoreline_picks"][0]["scoreline"] == "1-0"

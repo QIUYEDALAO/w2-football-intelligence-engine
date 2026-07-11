@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-10T20:47:44Z"
-current_phase: thirteen league recommendation readiness
-current_status: phase_3_unified_pick_score_distribution_implemented_pending_deploy
+last_updated_utc: "2026-07-11T00:45:06Z"
+current_phase: dashboard product truth repair
+current_status: implementation_complete_pending_pr_review_and_staging_deploy
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,21 +20,21 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  main_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-10T20:47:44Z"
+  observed_at_utc: "2026-07-11T00:45:06Z"
 
 staging_state:
   environment: staging
-  api_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
-  web_git_sha: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
-  release_id: 391b9b008e07e45bab39a88aa0e468ecbbb092d6
+  api_git_sha: e27730e1d76ec2c2c516c2f01167eda16921629d
+  web_git_sha: b47b1e65ed03fea6777d6d9843e51b4242401ed9
+  release_id: e27730e1d76ec2c2c516c2f01167eda16921629d
   source_branch: main
-  source_note: Scheduler-safe API/worker/web deploy through PR 231; scheduler container was not recreated or restarted.
+  source_note: Scheduler-safe API/Web deployment through PR 233 plus API-only acceptance fixes 234/235; scheduler container was not recreated or restarted.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -60,7 +60,7 @@ staging_state:
     provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-10T20:47:44Z"
+  observed_at_utc: "2026-07-11T00:41:00Z"
   source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
   cards_total: 10
   decision_counts:
@@ -90,6 +90,27 @@ current_product_observation:
     - EV and RECOMMEND legs remain default off.
     - formal_recommendation policy remains false.
   ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+
+dashboard_product_truth_repair:
+  branch: codex/w2-dashboard-product-truth
+  status: implementation_complete_not_deployed
+  verified_with_live_staging_data_locally: true
+  observed_analysis_pick_count: 7
+  corrected_worth_watching_count: 7
+  changes:
+    - ANALYSIS_PICK visibility no longer depends on data_status READY or direction_allowed.
+    - The stale global three-card display cap is removed.
+    - Evidence copy distinguishes analysis direction from formal recommendation approval.
+    - Active whitelist count comes from CompetitionRegistry instead of a frontend literal.
+    - Forward performance uses distinct fixtures, valid double snapshots, shadow CLV, and real outcomes.
+    - League performance groups by stable competition identity and hides archived World Cup rows by default.
+  deployment_required_for_public_visibility: true
+  safety:
+    provider_calls: 0
+    db_writes: 0
+    staging_deploy: false
+    production_deploy: false
+    scheduler_restart: false
 
 selective_analysis_baseline:
   source: staging sanitized evidence audit before this implementation

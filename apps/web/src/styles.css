@@ -501,7 +501,7 @@ button {
 
 .boss-commandbar {
   display: grid;
-  grid-template-columns: 170px 116px minmax(0, 1fr) auto;
+  grid-template-columns: 170px 116px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   min-height: 54px;
@@ -629,6 +629,27 @@ button {
   color: #ffd58b;
   font-size: 13px;
   font-weight: 850;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.boss-system-info {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.boss-system-info summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.boss-system-info span {
+  display: block;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .decision-counts {
@@ -1403,7 +1424,7 @@ button {
 
 .league-performance-table > div,
 .league-performance-head {
-  grid-template-columns: minmax(120px, 1fr) 48px 64px 58px 64px;
+  grid-template-columns: minmax(120px, 1fr) 48px 64px 110px 84px;
   align-items: center;
   column-gap: 8px;
 }
@@ -1493,6 +1514,34 @@ button {
   margin-top: 3px;
   color: var(--text);
   font-size: 14px;
+}
+
+@media (max-width: 1400px) {
+  .boss-commandbar {
+    grid-template-columns: 170px 116px;
+  }
+
+  .boss-command-meta {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .boss-command-meta span {
+    min-height: 26px;
+    padding: 0 14px 0 0;
+    border-left: 0;
+  }
+
+  .boss-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .boss-side-rail,
+  .evidence-panel {
+    position: static;
+  }
 }
 
 @media (max-width: 760px) {

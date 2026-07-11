@@ -114,7 +114,11 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
         ],
     }
 
-    view = build_dashboard_day_view(payload, environment="staging")
+    view = build_dashboard_day_view(
+        payload,
+        environment="staging",
+        active_whitelist_count=13,
+    )
 
     assert view["football_day"] == "2026-07-05"
     assert view["checkpoint_key"] == "dashboard:day_view:2026-07-05"
@@ -125,6 +129,7 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["environment_policy"]["policy_version"] == "w2.environment_policy.v1"
     assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
+    assert view["active_whitelist_count"] == 13
     assert view["counts"]["total"] == 2
     assert view["counts"]["analysis_pick"] == 1
     assert view["counts"]["recommend"] == 0

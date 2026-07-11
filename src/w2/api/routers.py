@@ -47,6 +47,7 @@ from w2.api.schemas import (
     VersionResponse,
     WorldCupReadinessResponse,
 )
+from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.monitoring.health import HealthPayload, build_health_payload
@@ -154,6 +155,7 @@ def dashboard_day_view(
     day_view = build_dashboard_day_view(
         payload,
         environment=get_settings().environment.value,
+        active_whitelist_count=len(CompetitionRegistry().entries()),
     )
     day_view["performance"] = payload.get("performance")
     return {

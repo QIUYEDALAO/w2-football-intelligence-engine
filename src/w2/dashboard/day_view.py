@@ -23,6 +23,7 @@ def build_dashboard_day_view(
     dashboard_payload: Mapping[str, Any],
     *,
     environment: str,
+    active_whitelist_count: int | None = None,
 ) -> dict[str, Any]:
     """Build a read-only DayView envelope from the existing dashboard payload."""
     football_day = _text(
@@ -43,6 +44,7 @@ def build_dashboard_day_view(
         "football_day": football_day,
         "selected_football_day": football_day,
         "environment": environment,
+        "active_whitelist_count": active_whitelist_count,
         "environment_policy": build_environment_policy_stamp(environment),
         "timezone": _text(dashboard_payload.get("timezone"), "Asia/Shanghai"),
         "window": _text(dashboard_payload.get("window"), "today"),

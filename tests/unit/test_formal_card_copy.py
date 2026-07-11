@@ -84,6 +84,20 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "DecisionCounts" in boss_view
     assert "EvidencePanel" in boss_view
     assert "readyRecommendations" in boss_view
+    assert (
+        "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
+        not in boss_view
+    )
+    assert 'return ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);' in boss_view
+    assert "为什么分析这个方向" in boss_view
+    assert "为什么还不是正式推荐" in boss_view
+    assert "为什么当前只观察" in boss_view
+    assert "14 联赛可用" not in boss_view
+    assert "active_whitelist_count" in boss_view
+    assert "前向比赛" in boss_view
+    assert "有效双快照" in boss_view
+    assert "影子 CLV" in boss_view
+    assert "已纳入 outcome tracking" not in boss_view
     assert "todaySchedule" in boss_view
     assert "futureSchedule" in boss_view
     assert "ScheduleSection" in boss_view

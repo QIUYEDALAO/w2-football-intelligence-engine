@@ -39,12 +39,18 @@ def forward_ledger_performance(
     fixture_ids = {
         _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
+    double_snapshot_fixture_ids = {
+        _text(row.get("fixture_id"))
+        for row in clv_shadow_rows
+        if _text(row.get("fixture_id"))
+    }
     return {
         "schema_version": "w2.forward_ledger_performance.v1",
         "source": "runtime/forward_outcome_ledger",
         "sample_target": sample_target,
         "record_count": len(records),
         "fixture_count": len(fixture_ids),
+        "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
         "settled_sample_count": sum(outcome_counts.values()),
         "hit_count": outcome_counts["hit"],
         "miss_count": outcome_counts["miss"],
@@ -53,7 +59,7 @@ def forward_ledger_performance(
         "hit_rate": _hit_rate(outcome_counts),
         "outcomes": _outcome_summary(outcome_counts),
         "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
-        "accumulation_label": _accumulation_label(len(records), sample_target),
+        "accumulation_label": _accumulation_label(len(fixture_ids), sample_target),
         "clv": _clv_summary(
             clv_values,
             clv_rows,
@@ -402,6 +408,11 @@ def _league_rows(
         shadow_outcomes = league_shadow_outcomes.get(league, defaultdict(int))
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
+        double_snapshot_fixture_ids = {
+            _text(row.get("fixture_id"))
+            for row in clv_shadow_rows
+            if _text(row.get("league")) == league and _text(row.get("fixture_id"))
+        }
         fixture_ids = {
             _text(item.get("fixture_id")) for item in items if _text(item.get("fixture_id"))
         }
@@ -410,6 +421,7 @@ def _league_rows(
                 "league": league,
                 "record_count": len(items),
                 "fixture_count": len(fixture_ids),
+                "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
                 "settled_sample_count": sum(outcomes.values()),
                 "hit_count": outcomes["hit"],
                 "miss_count": outcomes["miss"],
@@ -521,7 +533,20 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def _league_key(record: Mapping[str, Any]) -> str:
-    return _text(record.get("competition_name")) or _text(record.get("competition_id")) or "UNKNOWN"
+    competition_id = _text(record.get("competition_id"))
+    if competition_id:
+        return competition_id
+    name = _text(record.get("competition_name"))
+    normalized = name.lower()
+    for marker, canonical in (
+        ("allsvenskan", "allsvenskan"),
+        ("eliteserien", "eliteserien"),
+        ("super league", "chinese_super_league"),
+        ("world cup", "world_cup_2026"),
+    ):
+        if marker in normalized:
+            return canonical
+    return name or "UNKNOWN"
 
 
 def _outcome(record: Mapping[str, Any]) -> str:

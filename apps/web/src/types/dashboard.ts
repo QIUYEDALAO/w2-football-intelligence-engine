@@ -542,6 +542,7 @@ export interface ForwardLedgerLeaguePerformance {
   league: string;
   record_count: number;
   fixture_count: number;
+  double_snapshot_fixture_count: number;
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;
@@ -550,6 +551,8 @@ export interface ForwardLedgerLeaguePerformance {
   hit_rate?: number | null;
   clv_sample_count: number;
   clv_median_decimal?: number | null;
+  clv_shadow_sample_count: number;
+  clv_shadow_median_decimal?: number | null;
 }
 
 export interface ForwardLedgerPerformance {
@@ -558,6 +561,7 @@ export interface ForwardLedgerPerformance {
   sample_target: number;
   record_count: number;
   fixture_count: number;
+  double_snapshot_fixture_count: number;
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;
@@ -572,6 +576,17 @@ export interface ForwardLedgerPerformance {
     negative_count: number;
     push_count: number;
     line_changed_count: number;
+    method?: string;
+  };
+  clv_shadow: {
+    sample_count: number;
+    median_decimal?: number | null;
+    positive_count: number;
+    negative_count: number;
+    push_count: number;
+    line_changed_count: number;
+    line_clv_sample_count?: number;
+    median_line_clv?: number | null;
     method?: string;
   };
   by_league: ForwardLedgerLeaguePerformance[];
@@ -745,6 +760,7 @@ export interface DashboardDayView {
   football_day: string;
   selected_football_day: string;
   environment: string;
+  active_whitelist_count?: number | null;
   environment_policy?: Record<string, unknown>;
   timezone: string;
   window: string;
