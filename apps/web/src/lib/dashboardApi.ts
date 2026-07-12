@@ -180,6 +180,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       push_count: numberValue(forwardLedger.push_count),
       void_count: numberValue(forwardLedger.void_count),
       hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
+      outcomes_validation: outcomeSummary(forwardLedger.outcomes_validation),
+      outcomes_shadow: outcomeSummary(forwardLedger.outcomes_shadow),
       accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
       clv: {
         sample_count: numberValue(forwardClv.sample_count),
@@ -222,6 +224,18 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       }),
       mock_data: Boolean(forwardLedger.mock_data),
     } : undefined,
+  };
+}
+
+function outcomeSummary(payload: unknown) {
+  const row = asRecord(payload);
+  return {
+    settled_sample_count: numberValue(row.settled_sample_count),
+    hit_count: numberValue(row.hit_count),
+    miss_count: numberValue(row.miss_count),
+    push_count: numberValue(row.push_count),
+    void_count: numberValue(row.void_count),
+    hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
   };
 }
 

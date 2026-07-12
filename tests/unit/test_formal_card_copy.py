@@ -116,6 +116,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
+    assert "验证结算" in boss_view
+    assert "outcomes_validation" in boss_view
     assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view
     assert "pickSelectionLabel" in boss_view
