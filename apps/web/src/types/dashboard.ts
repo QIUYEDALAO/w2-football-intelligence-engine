@@ -582,6 +582,9 @@ export interface ForwardLedgerPerformance {
   record_count: number;
   fixture_count: number;
   double_snapshot_fixture_count: number;
+  validation_fixture_count: number;
+  validation_settled_fixture_count: number;
+  validation_pending_fixture_count: number;
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;

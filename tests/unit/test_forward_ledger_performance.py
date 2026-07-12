@@ -135,6 +135,33 @@ def test_forward_ledger_performance_isolates_validation_from_official_outcomes(
     assert league["validation_hit_rate"] == 0.5
 
 
+def test_forward_ledger_performance_reports_validation_fixture_denominator(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    settled_capture = _record(
+        "2026-07-07T01:00:00Z", fixture_id="validation-settled", pick=True
+    )
+    settled_capture["decision_tier"] = "ANALYSIS_PICK"
+    pending_capture = _record(
+        "2026-07-07T02:00:00Z", fixture_id="validation-pending", pick=True
+    )
+    pending_capture["decision_tier"] = "ANALYSIS_PICK"
+    outcome = _outcome_record("validation-settled", "WIN", side="pick")
+    outcome["recommendation_scope"] = "VALIDATION"
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [settled_capture, pending_capture, outcome],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["validation_fixture_count"] == 2
+    assert payload["validation_settled_fixture_count"] == 1
+    assert payload["validation_pending_fixture_count"] == 1
+
+
 def test_legacy_unscoped_outcome_inherits_validation_capture_and_deduplicates(
     tmp_path: Path,
 ) -> None:
