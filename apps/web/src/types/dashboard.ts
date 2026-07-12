@@ -588,6 +588,8 @@ export interface ForwardLedgerPerformance {
   push_count: number;
   void_count: number;
   hit_rate?: number | null;
+  outcomes_validation: ForwardLedgerOutcomeSummary;
+  outcomes_shadow: ForwardLedgerOutcomeSummary;
   accumulation_label: string;
   clv: {
     sample_count: number;
@@ -611,6 +613,15 @@ export interface ForwardLedgerPerformance {
   };
   by_league: ForwardLedgerLeaguePerformance[];
   mock_data?: boolean;
+}
+
+export interface ForwardLedgerOutcomeSummary {
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
 }
 
 export interface FormalTrackingSummary {

@@ -1099,15 +1099,16 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     .slice(0, 2)
     .map((row) => translateCompetition(row.league))
     .join(" / ");
-  const settled = forwardLedger?.settled_sample_count ?? 0;
+  const validation = forwardLedger?.outcomes_validation;
+  const settled = validation?.settled_sample_count ?? 0;
   const shadowClv = forwardLedger?.clv_shadow;
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>近 30 天</strong>
       <span>前向比赛 {forwardLedger?.fixture_count ?? 0} 场</span>
       <span>有效双快照 {forwardLedger?.double_snapshot_fixture_count ?? 0} 场</span>
-      <span>结算 {settled ? `${settled} 条` : "积累中"}</span>
-      <span>命中率 {settled ? percent(forwardLedger?.hit_rate) : "积累中"}</span>
+      <span>验证结算 {settled ? `${settled} 条` : "积累中"}</span>
+      <span>验证命中率 {settled ? percent(validation?.hit_rate) : "积累中"}</span>
       <span>影子 CLV {shadowClv?.sample_count && shadowClv.median_decimal != null ? `${clvUnits(shadowClv.median_decimal)} · ${shadowClv.sample_count} 样本` : "积累中"}</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
@@ -1117,25 +1118,26 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
 function VerificationPreview({ matches, performance }: { matches: DashboardMatchCard[]; performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
-    const settled = forwardLedger.settled_sample_count;
+    const validation = forwardLedger.outcomes_validation;
+    const settled = validation.settled_sample_count;
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
           <span>赛后验证</span>
-          <strong>{settled ? `真实结算 ${settled} 条` : `已记录 ${forwardLedger.fixture_count} 场 · 战绩积累中`}</strong>
+          <strong>{settled ? `验证结算 ${settled} 条` : `已记录 ${forwardLedger.fixture_count} 场 · 验证积累中`}</strong>
         </header>
         {settled ? (
           <div className="verification-list">
             <div>
               <span>真实 forward_ledger + outcome</span>
               <strong>
-                命中 {forwardLedger.hit_count} · 未中 {forwardLedger.miss_count} · 走水 {forwardLedger.push_count} · 作废 {forwardLedger.void_count}
+                命中 {validation.hit_count} · 未中 {validation.miss_count} · 走水 {validation.push_count} · 作废 {validation.void_count}
               </strong>
-              <small>命中率 {percent(forwardLedger.hit_rate)} · 未结算卡不计入</small>
+              <small>验证命中率 {percent(validation.hit_rate)} · 不计入正式推荐战绩</small>
             </div>
           </div>
         ) : (
-          <p>真实前向比赛已记录，当前结算 0 场；暂不显示命中率，不制造战绩。</p>
+          <p>真实前向比赛已记录，当前验证结算 0 场；暂不显示命中率，不制造战绩。</p>
         )}
       </section>
     );
