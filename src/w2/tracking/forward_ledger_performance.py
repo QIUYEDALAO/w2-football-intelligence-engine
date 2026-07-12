@@ -66,6 +66,21 @@ def forward_ledger_performance(
     fixture_ids = {
         _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
+    validation_fixture_ids = {
+        _text(record.get("fixture_id"))
+        for record in records
+        if _record_type(record) == "capture"
+        and _recommendation_scope(record) == VALIDATION_SCOPE
+        and _text(record.get("fixture_id"))
+    }
+    validation_settled_fixture_ids = {
+        _text(record.get("fixture_id"))
+        for record in records
+        if _outcome_side(record) == "pick"
+        and _recommendation_scope(record) == VALIDATION_SCOPE
+        and SETTLED_OUTCOMES.get(_outcome(record)) is not None
+        and _text(record.get("fixture_id"))
+    }
     double_snapshot_fixture_ids = {
         _text(row.get("fixture_id"))
         for row in clv_shadow_rows
@@ -78,6 +93,11 @@ def forward_ledger_performance(
         "record_count": len(records),
         "fixture_count": len(fixture_ids),
         "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
+        "validation_fixture_count": len(validation_fixture_ids),
+        "validation_settled_fixture_count": len(validation_settled_fixture_ids),
+        "validation_pending_fixture_count": len(
+            validation_fixture_ids - validation_settled_fixture_ids
+        ),
         "settled_sample_count": sum(outcome_counts.values()),
         "hit_count": outcome_counts["hit"],
         "miss_count": outcome_counts["miss"],

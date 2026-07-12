@@ -174,6 +174,13 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       record_count: numberValue(forwardLedger.record_count),
       fixture_count: numberValue(forwardLedger.fixture_count),
       double_snapshot_fixture_count: numberValue(forwardLedger.double_snapshot_fixture_count),
+      validation_fixture_count: numberValue(forwardLedger.validation_fixture_count),
+      validation_settled_fixture_count: numberValue(
+        forwardLedger.validation_settled_fixture_count,
+      ),
+      validation_pending_fixture_count: numberValue(
+        forwardLedger.validation_pending_fixture_count,
+      ),
       settled_sample_count: numberValue(forwardLedger.settled_sample_count),
       hit_count: numberValue(forwardLedger.hit_count),
       miss_count: numberValue(forwardLedger.miss_count),

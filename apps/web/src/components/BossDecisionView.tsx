@@ -1087,30 +1087,23 @@ function ScheduleSection({
   );
 }
 
-function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerformance; leagueRows: LeaguePerformanceRow[] }) {
+function TrustStrip({ performance }: { performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
-  const bestLeagues = leagueRows
-    .filter((row) => row.sampleSize >= 10)
-    .slice(0, 2)
-    .map((row) => row.label)
-    .join(" / ");
-  const bestForwardLeagues = forwardLedger?.by_league
-    ?.filter((row) => row.record_count > 0)
-    .slice(0, 2)
-    .map((row) => translateCompetition(row.league))
-    .join(" / ");
   const validation = forwardLedger?.outcomes_validation;
   const settled = validation?.settled_sample_count ?? 0;
-  const shadowClv = forwardLedger?.clv_shadow;
+  const validationTotal = forwardLedger?.validation_fixture_count ?? 0;
+  const pending = forwardLedger?.validation_pending_fixture_count ?? 0;
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>近 30 天</strong>
-      <span>前向比赛 {forwardLedger?.fixture_count ?? 0} 场</span>
-      <span>有效双快照 {forwardLedger?.double_snapshot_fixture_count ?? 0} 场</span>
-      <span>验证结算 {settled ? `${settled} 条` : "积累中"}</span>
-      <span>验证命中率 {settled ? percent(validation?.hit_rate) : "积累中"}</span>
-      <span>影子 CLV {shadowClv?.sample_count && shadowClv.median_decimal != null ? `${clvUnits(shadowClv.median_decimal)} · ${shadowClv.sample_count} 样本` : "积累中"}</span>
-      <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
+      <span>验证推荐 {validationTotal} 场</span>
+      <span>已结算 {settled} 场</span>
+      <span>等待赛果 {pending} 场</span>
+      <span>
+        结算结果 {settled
+          ? `${validation?.hit_count ?? 0} 中 · ${validation?.miss_count ?? 0} 未中 · ${validation?.push_count ?? 0} 走水`
+          : "积累中"}
+      </span>
     </section>
   );
 }
@@ -1139,6 +1132,9 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
         ) : (
           <p>真实前向比赛已记录，当前验证结算 0 场；暂不显示命中率，不制造战绩。</p>
         )}
+        <small>
+          L2 审计：前向比赛 {forwardLedger.fixture_count} 场 · 有效双快照 {forwardLedger.double_snapshot_fixture_count} 场
+        </small>
       </section>
     );
   }
@@ -1325,7 +1321,7 @@ export function BossDecisionView({
   return (
     <section className="boss-dashboard" aria-label="老板视角决策页">
       <MatchdayHeader dayView={dayView} release={release} />
-      <TrustStrip performance={performance} leagueRows={leagueRows} />
+      <TrustStrip performance={performance} />
       <HealthStrip dayView={dayView} />
       {isWorldCup(dayView) ? (
         <aside className="model-caveat">

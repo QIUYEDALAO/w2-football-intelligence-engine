@@ -118,6 +118,9 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "VerificationPreview" in boss_view
     assert "验证结算" in boss_view
     assert "outcomes_validation" in boss_view
+    assert "验证推荐 {validationTotal} 场" in boss_view
+    assert "等待赛果 {pending} 场" in boss_view
+    assert "前向比赛 {forwardLedger?.fixture_count" not in boss_view
     assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view
     assert "pickSelectionLabel" in boss_view
