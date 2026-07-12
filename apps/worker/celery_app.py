@@ -258,4 +258,4 @@ def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
 
 
 def _forward_runtime_root() -> Path:
-    return Path.cwd() / "runtime"
+    return get_settings().resolved_runtime_root

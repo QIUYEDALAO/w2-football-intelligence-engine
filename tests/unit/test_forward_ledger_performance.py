@@ -135,6 +135,30 @@ def test_forward_ledger_performance_isolates_validation_from_official_outcomes(
     assert league["validation_hit_rate"] == 0.5
 
 
+def test_legacy_unscoped_outcome_inherits_validation_capture_and_deduplicates(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _record(
+        "2026-07-07T01:00:00Z",
+        fixture_id="fixture-validation",
+        pick=True,
+    )
+    capture["decision_tier"] = "ANALYSIS_PICK"
+    capture["card_hash"] = "hash-fixture-validation"
+    legacy = _outcome_record("fixture-validation", "WIN", side="pick")
+    canonical = dict(legacy)
+    canonical["recommendation_scope"] = "VALIDATION"
+    canonical["source_capture_hash"] = capture["card_hash"]
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, legacy, canonical])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["settled_sample_count"] == 0
+    assert payload["outcomes_validation"]["settled_sample_count"] == 1
+
+
 def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
     tmp_path: Path,
 ) -> None:

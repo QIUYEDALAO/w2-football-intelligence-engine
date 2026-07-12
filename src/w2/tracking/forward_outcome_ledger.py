@@ -335,7 +335,13 @@ def _settlement_entries(
                 _parse_time(pair[0].get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        entry = _entry_record([pair[0] for pair in ordered])
+        entry = (
+            _final_prematch_record([pair[0] for pair in ordered])
+            if side == "pick"
+            else _entry_record([pair[0] for pair in ordered])
+        )
+        if entry is None:
+            continue
         pick_item = next(item for record, item in ordered if record is entry)
         entries.append((entry, side, pick_item))
     return entries
@@ -369,6 +375,10 @@ def _outcome_record(
         "competition_id": _optional_text(entry.get("competition_id")),
         "competition_name": _optional_text(entry.get("competition_name")),
         "card_hash": _optional_text(entry.get("card_hash")),
+        "source_capture_hash": _optional_text(
+            entry.get("evidence_hash") or entry.get("card_hash")
+        ),
+        "source_captured_at": _optional_text(entry.get("captured_at")),
         "market": market,
         "selection": selection,
         "estimate_id": _optional_text(item.get("estimate_id")),
@@ -597,6 +607,26 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
         if kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600:
             return record
     return records[0]
+
+
+def _final_prematch_record(
+    records: list[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    """Return the last valid capture strictly before kickoff."""
+    prematch = [
+        record
+        for record in records
+        if (kickoff := _parse_time(record.get("kickoff_utc"))) is not None
+        and (captured := _parse_time(record.get("captured_at"))) is not None
+        and captured < kickoff
+    ]
+    if prematch:
+        return max(
+            prematch,
+            key=lambda record: _parse_time(record.get("captured_at"))
+            or datetime.min.replace(tzinfo=UTC),
+        )
+    return None
 
 
 def _recommendation_scope(record: Mapping[str, Any]) -> str | None:
