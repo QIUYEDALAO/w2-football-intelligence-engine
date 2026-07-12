@@ -47,7 +47,7 @@ def forward_ledger_performance(
     sample_target: int = SAMPLE_TARGET,
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
-    records = list(load_forward_ledger_records(root))
+    records = _normalize_outcome_records(list(load_forward_ledger_records(root)))
     outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
     outcome_validation_counts = _outcome_counts(
         records,
@@ -135,6 +135,71 @@ def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
                 if isinstance(payload, dict):
                     records.append(payload)
     return records
+
+
+def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach legacy outcomes to their source capture and remove canonical duplicates."""
+    captures_by_hash: dict[str, Mapping[str, Any]] = {}
+    captures_by_pick: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    for record in records:
+        if _record_type(record) != "capture":
+            continue
+        for capture_hash in (record.get("evidence_hash"), record.get("card_hash")):
+            if value := _text(capture_hash):
+                captures_by_hash[value] = record
+        pick = record.get("pick")
+        if isinstance(pick, Mapping):
+            key = (
+                _text(record.get("fixture_id")),
+                _text(pick.get("market")),
+                _text(pick.get("selection")),
+            )
+            captures_by_pick[key].append(record)
+
+    normalized: list[dict[str, Any]] = []
+    outcomes: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for record in records:
+        if _record_type(record) != "outcome":
+            normalized.append(record)
+            continue
+        item = dict(record)
+        explicit_scope = _text(item.get("recommendation_scope")).upper()
+        if explicit_scope not in {OFFICIAL_SCOPE, VALIDATION_SCOPE, "SHADOW"}:
+            source = captures_by_hash.get(
+                _text(item.get("source_capture_hash") or item.get("card_hash"))
+            )
+            if source is None:
+                key = (
+                    _text(item.get("fixture_id")),
+                    _text(item.get("market")),
+                    _text(item.get("selection")),
+                )
+                candidates = captures_by_pick.get(key, [])
+                source = max(
+                    candidates,
+                    key=lambda row: _parse_time(row.get("captured_at"))
+                    or datetime.min.replace(tzinfo=UTC),
+                    default=None,
+                )
+            if source is not None:
+                item["recommendation_scope"] = _recommendation_scope(source)
+                item.setdefault("source_capture_hash", source.get("evidence_hash"))
+                item.setdefault("source_captured_at", source.get("captured_at"))
+        identity = (
+            _text(item.get("fixture_id")),
+            _text(item.get("settled_side")),
+            _recommendation_scope(item),
+            _text(item.get("market")),
+            _text(item.get("selection")),
+        )
+        existing = outcomes.get(identity)
+        if existing is None or (
+            _text(record.get("recommendation_scope"))
+            and not _text(existing.get("recommendation_scope"))
+        ):
+            outcomes[identity] = item
+    normalized.extend(outcomes.values())
+    return normalized
 
 
 def _outcome_counts(

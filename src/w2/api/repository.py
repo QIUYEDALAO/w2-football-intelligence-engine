@@ -1133,7 +1133,9 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
-        performance["forward_ledger"] = forward_ledger_performance(RUNTIME)
+        performance["forward_ledger"] = forward_ledger_performance(
+            get_settings().resolved_runtime_root
+        )
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         payload = {

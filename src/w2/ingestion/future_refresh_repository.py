@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from typing import Any
 
 from sqlalchemy import Engine, desc, func, select
@@ -132,6 +134,52 @@ class FutureRefreshDbRepository:
                     session.rollback()
                     raise FutureRefreshPersistenceError("RESULT_EVENT_WRITE_FAILED") from exc
         return appended
+
+    def persist_result_backfill_payload(
+        self,
+        *,
+        payload: dict[str, Any],
+        captured_at: datetime,
+        provider: str = "api_football",
+    ) -> dict[str, Any]:
+        """Atomically freeze a result response and append its normalized events."""
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        payload_hash = sha256(canonical.encode("utf-8")).hexdigest()
+        events = normalized_finished_results(
+            payload,
+            provider=provider,
+            confirmed_at=captured_at,
+            raw_payload_hash=payload_hash,
+        )
+        inserted = 0
+        with Session(self.engine) as session:
+            try:
+                if session.get(RawPayloadModel, payload_hash) is None:
+                    session.add(
+                        RawPayloadModel(
+                            sha256=payload_hash,
+                            endpoint="fixtures",
+                            captured_at=captured_at,
+                            storage_uri=f"db://raw_payload/{payload_hash}",
+                            payload=payload,
+                        )
+                    )
+                for event in events:
+                    exists = session.scalar(
+                        select(ForwardResultEventModel.id).where(
+                            ForwardResultEventModel.fixture_id == event["fixture_id"],
+                            ForwardResultEventModel.provider == event["provider"],
+                            ForwardResultEventModel.raw_payload_hash == payload_hash,
+                        )
+                    )
+                    if exists is None:
+                        session.add(ForwardResultEventModel(**event))
+                        inserted += 1
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("RESULT_BACKFILL_WRITE_FAILED") from exc
+        return {"raw_payload_hash": payload_hash, "events_inserted": inserted}
 
     def result_events_for_fixture_ids(self, fixture_ids: list[str]) -> list[dict[str, Any]]:
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]

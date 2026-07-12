@@ -320,6 +320,45 @@ def test_estimate_id_survives_capture_and_settlement(tmp_path: Path) -> None:
     assert outcome["estimate_id"] == snapshot["estimate_id"]
 
 
+def test_validation_settlement_uses_last_valid_prematch_snapshot(tmp_path: Path) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["fixture_id"] = "1494699"  # type: ignore[index]
+    card["kickoff_utc"] = "2026-07-11T18:00:00Z"  # type: ignore[index]
+    card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
+    card["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}  # type: ignore[index]
+    card["current_odds"]["ah"].update({"away_line": "+1", "away_price": 1.60})  # type: ignore[index]
+    run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 11, 12, 0, tzinfo=UTC),
+    )
+    card["current_odds"]["ah"].update({"away_line": "+0.75", "away_price": 1.92})  # type: ignore[index]
+    run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 11, 17, 30, tzinfo=UTC),
+    )
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("1494699", 2, 1)]},
+        dry_run=True,
+        settled_at=datetime(2026, 7, 11, 21, 0, tzinfo=UTC),
+    )
+
+    outcome = next(row for row in payload["records"] if row["settled_side"] == "pick")
+    assert outcome["recommendation_scope"] == "VALIDATION"
+    assert outcome["entry_line"] == "+0.75"
+    assert outcome["entry_price"] == 1.92
+    assert outcome["source_captured_at"] == "2026-07-11T17:30:00Z"
+    assert outcome["source_capture_hash"]
+
+
 def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
     day_view_path = tmp_path / "day_view.json"
     day_view_path.write_text(json.dumps(_day_view()), encoding="utf-8")
