@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -160,6 +161,76 @@ def test_forward_ledger_performance_reports_validation_fixture_denominator(
     assert payload["validation_fixture_count"] == 2
     assert payload["validation_settled_fixture_count"] == 1
     assert payload["validation_pending_fixture_count"] == 1
+
+
+def test_validation_pending_status_distinguishes_waiting_from_unsettled_result(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    now = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
+    captures = []
+    for fixture_id, kickoff in (
+        ("validation-settled", "2026-07-11T06:00:00Z"),
+        ("before-window", "2026-07-11T13:00:00Z"),
+        ("in-window", "2026-07-11T10:00:00Z"),
+        ("awaiting-result", "2026-07-11T06:00:00Z"),
+        ("result-unsettled", "2026-07-11T06:00:00Z"),
+    ):
+        capture = _record("2026-07-10T12:00:00Z", fixture_id=fixture_id, kickoff=kickoff, pick=True)
+        capture["decision_tier"] = "ANALYSIS_PICK"
+        captures.append(capture)
+    outcome = _outcome_record("validation-settled", "WIN", side="pick")
+    outcome["recommendation_scope"] = "VALIDATION"
+    _write_jsonl(root / "2026-07-10_staging.jsonl", [*captures, outcome])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=now,
+        result_events=[
+            {
+                "fixture_id": "result-unsettled",
+                "status": "FT",
+                "score": {"fulltime": {"home": 2, "away": 1}},
+            }
+        ],
+    )
+
+    assert payload["validation_fixture_count"] == 5
+    assert payload["validation_settled_fixture_count"] == 1
+    assert payload["validation_pending_fixture_count"] == 4
+    assert payload["validation_pending_status"] == {
+        "pre_settlement_window_fixture_count": 2,
+        "awaiting_official_result_fixture_count": 1,
+        "result_available_unsettled_fixture_count": 1,
+        "result_source_unavailable_fixture_count": 0,
+        "result_source_available": True,
+        "pending_fixture_count": 4,
+    }
+
+
+def test_validation_pending_status_reports_unavailable_result_source(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _record(
+        "2026-07-10T12:00:00Z",
+        fixture_id="pending",
+        kickoff="2026-07-11T06:00:00Z",
+        pick=True,
+    )
+    capture["decision_tier"] = "ANALYSIS_PICK"
+    _write_jsonl(root / "2026-07-10_staging.jsonl", [capture])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 11, 12, 0, tzinfo=UTC),
+        result_events=None,
+    )
+
+    assert payload["validation_pending_status"]["result_source_available"] is False
+    assert payload["validation_pending_status"]["result_source_unavailable_fixture_count"] == 1
 
 
 def test_legacy_unscoped_outcome_inherits_validation_capture_and_deduplicates(

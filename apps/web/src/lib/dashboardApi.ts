@@ -181,6 +181,29 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       validation_pending_fixture_count: numberValue(
         forwardLedger.validation_pending_fixture_count,
       ),
+      validation_pending_status: {
+        pre_settlement_window_fixture_count: numberValue(
+          asRecord(forwardLedger.validation_pending_status)
+            .pre_settlement_window_fixture_count,
+        ),
+        awaiting_official_result_fixture_count: numberValue(
+          asRecord(forwardLedger.validation_pending_status)
+            .awaiting_official_result_fixture_count,
+        ),
+        result_available_unsettled_fixture_count: numberValue(
+          asRecord(forwardLedger.validation_pending_status)
+            .result_available_unsettled_fixture_count,
+        ),
+        result_source_unavailable_fixture_count: numberValue(
+          asRecord(forwardLedger.validation_pending_status)
+            .result_source_unavailable_fixture_count,
+        ),
+        result_source_available:
+          asRecord(forwardLedger.validation_pending_status).result_source_available === true,
+        pending_fixture_count: numberValue(
+          asRecord(forwardLedger.validation_pending_status).pending_fixture_count,
+        ),
+      },
       settled_sample_count: numberValue(forwardLedger.settled_sample_count),
       hit_count: numberValue(forwardLedger.hit_count),
       miss_count: numberValue(forwardLedger.miss_count),
