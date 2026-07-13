@@ -612,3 +612,12 @@
 - scheduler 容器 `7e3dc0913f2a...` 与 worker 容器 `0019f0a8d961...` 的 ID、created、started、`unless-stopped` policy 均未变化且健康。
 - 部署前后 `provider_request_logs=381`、`future_refresh_run_audit=1423`、Celery queue=`0`，确认 provider 调用、刷新任务与队列均无增量；未写业务数据库。
 - 未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler 配置。
+
+### V3 进展续46 · GitHub 上下文重基线与未完成工作收口(2026-07-13)
+
+- GitHub 与本地主干交叉核对：`main`=`78af0dbba98164de233b0959498fe56c95f83878`（#276，验证推荐分母澄清）；#254–#276 均已合入，且对应 `verify`、`staging-parity`、`predeploy-e2e` 为成功状态。当前无 open issue。
+- #254–#257 已完成“方向一致解释 → 不可变 FME audit chain → shadow EV 研究隔离 → legacy compatibility 治理”；#258–#271 已完成 staging 发布切换、回滚、磁盘预检、零 provider 特征物化、FME 业务就绪门和 provenance fail-closed；#272–#276 已完成挪超 artifact 恢复、验证推荐赛后结算链和 Boss View 分母/展示修复。
+- 真正未完成的工作不是待实现的推荐功能：处于**日历驱动的前向积累期**。2026-07-13 只读 staging API 复核口径为 `validation_fixture_count=25`、`validation_settled_fixture_count=13`、`validation_pending_fixture_count=12`、有效 entry/closing pair=`35/100`；R1.1 尚差 65 对，不得降低阈值或把 capture 行数当比赛样本。待结算数是“没有 outcome 的验证 fixture”总数，包含未完赛或缺完整官方全场比分的 fixture，不等同于回填故障。
+- `analysis_gate_v2_shadow` 继续 shadow-only；达到每“联赛 + 市场”35 个已结算 challenger 样本仅可人工评审，100 个才标记成熟，均不得自动改变 `ANALYSIS_PICK`、pick、lock、`RECOMMEND` 或 production。
+- GitHub 仍显示 #253（专家交接文档，Draft/behind main）和 #203（历史 Draft/dirty）。两者不是当前执行队列：#253 不得混入代码或未经复核直接合并；#203 按既有边界不触碰。`PROJECT_STATE.yaml` 已同步这一区分，后续接手者必须先读它，再读本台账和 Decision Contract V2。
+- 安全与边界：本次仅维护上下文文件；未调用 provider、未读写 staging 数据库、未部署、未重启 scheduler/worker、未更改联赛 enable、EV、lock、`RECOMMEND` 或 production。

@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T16:18:00Z"
-current_phase: optional lineup enrichment and validation recommendation
-current_status: COMPLETE
+last_updated_utc: "2026-07-13T09:22:13Z"
+current_phase: staging validation evidence accrual and governance
+current_status: ACTIVE_ACCUMULATING
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,38 +20,67 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
+  main_sha: 78af0dbba98164de233b0959498fe56c95f83878
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-11T16:18:00Z"
+  observed_at_utc: "2026-07-13T01:30:00Z"
 
 current_execution_queue:
-  name: W2 optional lineup enrichment and validation recommendation
+  name: W2 staging validation evidence accrual and release-governance maintenance
   invariant:
     - Lineups and player value are optional enrichment, never analysis hard gates.
     - FairMarketEstimate remains the only L1 decision probability and score-distribution source.
     - ANALYSIS_PICK is a tracked validation recommendation and is never lock eligible.
-    - RECOMMEND, EV, lock, production, league enablement, and provider budgets remain unchanged.
+    - RECOMMEND, lock, production, league enablement, and provider budgets remain unchanged.
+    - EV challenger is shadow-only and cannot affect the current analysis gate or pick.
   stages:
-    - id: A
-      name: optional enrichment contract
+    - id: A-D
+      name: optional enrichment and validation recommendation contract
       status: COMPLETE
-    - id: B
-      name: FairMarketEstimate authority and legacy isolation
+      merged_prs: [247, 248, 249, 250, 251, 252]
+    - id: E
+      name: direction-consistent explanation and immutable FairMarketEstimate audit chain
       status: COMPLETE
-    - id: C
-      name: validation recommendation freeze settlement and statistics
+      merged_prs: [254, 255]
+    - id: F
+      name: shadow EV research boundary and legacy compatibility governance
       status: COMPLETE
-    - id: D
-      name: dashboard wording and enrichment status
+      merged_prs: [256, 257]
+    - id: G
+      name: staging safety, zero-provider feature materialization, and FME business release gates
       status: COMPLETE
+      merged_prs: [258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271]
+    - id: H
+      name: Eliteserien restoration and validation outcome/product-truth repairs
+      status: COMPLETE
+      merged_prs: [272, 273, 274, 275, 276]
+    - id: I
+      name: forward validation evidence accrual and scheduled read-only patrol
+      status: ACTIVE_ACCUMULATING
+      completion: calendar-and-evidence-dependent; no implementation shortcut
   external_actions:
-    provider_calls: 0
-    staging_deploy: true
+    provider_calls: approved-scope-only
+    staging_deploy: explicit-approval-only
     production_deploy: false
+
+github_context:
+  observed_at_utc: "2026-07-13T09:22:13Z"
+  open_issue_count: 0
+  current_main_merge: 276
+  current_main_title: Clarify validation recommendation denominator
+  stale_open_prs_not_current_execution_queue:
+    - number: 253
+      title: W2 add expert review handoff
+      status: DRAFT_BEHIND_MAIN
+      handling: documentation-only historical handoff; do not rebase, merge, or edit without explicit review
+    - number: 203
+      title: S16 dashboard staging content and future odds
+      status: DRAFT_DIRTY_HISTORICAL
+      handling: explicitly out of current scope; do not touch
+  note: Open historical PRs are repository housekeeping, not evidence that current runtime work is incomplete.
 
 staging_state:
   environment: staging
@@ -83,32 +112,32 @@ staging_state:
     api_restart: true
     scheduler_restart: false
     provider_calls: 0
+  context_note: The release fields above are the last deployment acceptance recorded in this file. GitHub main is newer; do not infer deployment of a newer main SHA without a fresh health/version/release-audit observation.
 
 current_product_observation:
-  observed_at_utc: "2026-07-11T01:25:00Z"
-  source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
-  cards_total: 16
-  decision_counts:
-    NOT_READY: 1
-    SKIP: 0
-    WATCH: 8
-    ANALYSIS_PICK: 7
-    RECOMMEND: 0
-  data_status_counts:
-    READY: 0
-    PARTIAL: 15
-    STALE: 0
-    BLOCKED: 1
-  lock_eligible_count: 0
-  outcome_tracked_count: 7
-  active_whitelist_count: 13
-  distinct_forward_fixture_count: 46
-  double_snapshot_fixture_count: 10
-  settled_fixture_count: 0
-  shadow_clv_sample_count: 14
+  observed_at_utc: "2026-07-13T09:22:13Z"
+  source: read-only staging dashboard performance API
+  cards_total: unknown_in_performance_endpoint
+  decision_counts: unknown_in_performance_endpoint
+  data_blocked_count: unknown_in_performance_endpoint
+  lock_eligible_count: unknown_in_performance_endpoint
+  outcome_tracked_count: 25
+  active_whitelist_count: unknown_in_performance_endpoint
+  validation_fixture_count: 25
+  validation_settled_fixture_count: 13
+  validation_pending_fixture_count: 12
+  validation_outcomes:
+    hit_count: 8
+    miss_count: 4
+    push_count: 1
+    void_count: 0
+    hit_rate: 0.6666666666666666
+  distinct_forward_fixture_count: 68
+  double_snapshot_fixture_count: 22
+  shadow_clv_sample_count: 32
   formal_tracking_status: OBSERVING
   formal_tracking_sample_count: 0
-  conclusion: Staging now exposes seven non-locking ANALYSIS_PICK cards from validated fair-line divergence while forward evidence continues to accumulate.
+  conclusion: "The validation settlement chain is working: 13 of 25 validation fixtures have outcomes. The remaining 12 are pending because the performance metric counts every validation capture without a final outcome, including fixtures that have not finished or have no authoritative fulltime result yet. These counts must not be confused with OFFICIAL settled samples."
   primary_data_blockers:
     - Missing or insufficient xG history.
     - Missing model probabilities.
@@ -119,7 +148,7 @@ current_product_observation:
     - direction_allowed remains false as evidence maturity; it no longer blocks staging ANALYSIS_PICK display.
     - EV and RECOMMEND legs remain default off.
     - formal_recommendation policy remains false.
-  ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+  ui_accuracy_risk: RESOLVED_BY_261_272_275_276; L1 wording now distinguishes model/FME readiness, optional enrichment, validation scope, and settled/pending denominators.
 
 d0_forward_evidence_closure:
   status: deployed_and_staging_accepted
@@ -141,6 +170,7 @@ d0_forward_evidence_closure:
   daily_patrol:
     automation_id: w2-r1-1-r1-3-forward-ledger-daily-patrol
     schedule: daily 09:00 Asia/Shanghai
+    delivery: current-thread heartbeat; does not create a new project task per run
     staging_evidence_source_enabled: true
   safety:
     provider_calls: 0
@@ -348,36 +378,32 @@ completed_milestones:
     production_deploy: false
 
 open_work:
-  - id: THIRTEEN-LEAGUE-READINESS
-    priority: critical
-    status: PHASE_3_STAGING_ANALYSIS_PICK_SAMPLE_GATE_REMOVED_DEPLOYED_AND_ACCEPTED
-    branch: main
-    objective: Make all 13 active leagues technically recommendation-ready without opening RECOMMEND, lock, or production.
-    active_whitelist_target: 13
-    archived_competitions:
-      - world_cup_2026
-    implementation_order:
-      - Archive World Cup from live registry, scheduler, refresh policy, audit scope, and DayView.
-      - Add per-league and per-market readiness truth matrix.
-      - Unify LeagueFeatureSnapshot across eval, artifact publishing, and serving.
-      - Wire CSL, Allsvenskan, and Eliteserien serving models.
-      - Publish top-five champions and repair Bundesliga gap.
-      - Complete Brazil, Argentina, MLS, Eredivisie, and Primeira Liga models.
-      - Add approved secondary provider port and controlled capability probe.
-      - Display staging ANALYSIS_PICK when market/model are ready and line divergence is at least 0.25.
-      - Accrue forward samples per league-market for validation maturity and formal upgrade review.
-    deployment_status: STAGING_API_WORKER_WEB_DEPLOYED_SCHEDULER_UNCHANGED
-    direction_allowed_changes: []
-    scheduler_runtime_change: NEED_USER_APPROVAL_STAGING_SCHEDULER_RECONFIGURE_REMOVE_WORLD_CUP
   - id: R1.1-ACCRUAL-CHECKPOINT
-    priority: high
+    priority: critical
     status: ACCUMULATING
     acceptance_gate:
       - At least 100 cards with entry and prematch closing snapshots.
-      - Shadow CLV sample count and median are measurable.
+      - Same-line shadow CLV sample count and median are measurable per league and market.
       - Closing snapshots are demonstrably being written.
       - Provider usage remains at or below 120 calls per day.
-    warning: Local dry-run without staging runtime data must not be interpreted as zero staging accrual.
+      - Validation outcome coverage is at least 90 percent before a direction_allowed review.
+    latest_read_only_observation:
+      observed_at_utc: "2026-07-13T09:22:13Z"
+      validation_fixture_count: 25
+      validation_settled_fixture_count: 13
+      validation_pending_fixture_count: 12
+      valid_entry_closing_pair_count: 35
+      threshold_gap_to_100: 65
+    warning: These are staging evidence observations, not a release authorization. Local dry-run without staging runtime data must not be interpreted as zero staging accrual.
+  - id: VALIDATION-OUTCOME-COVERAGE
+    priority: high
+    status: ACCUMULATING
+    objective: Let every final pre-kickoff VALIDATION snapshot settle from an authoritative FT/AET/PEN result without mixing OFFICIAL or SHADOW outcomes.
+    implemented_by: [249, 274, 275, 276]
+    current_boundary:
+      - Use the final valid pre-kickoff validation snapshot for settlement.
+      - Keep pending, cancelled, postponed, or no-fulltime-result fixtures as PENDING_RESULT.
+      - Do not manually infer scores or count raw ledger rows as fixtures.
   - id: DIRECTION-ALLOWED-PREREG
     priority: high
     status: REVIEW_ONLY
@@ -388,6 +414,14 @@ open_work:
     disabled_leagues:
       - brasileirao_serie_a
     automatic_release: false
+  - id: SHADOW-EV-CHALLENGER
+    priority: medium
+    status: ACCUMULATING_SHADOW_ONLY
+    objective: Compare the preregistered EV challenger with the current divergence gate without changing DecisionTier, pick, lock, ANALYSIS_PICK, or RECOMMEND.
+    implemented_by: 256
+    review_thresholds:
+      - 35 settled challenger samples per league and market: REVIEW_ELIGIBLE
+      - 100 settled challenger samples per league and market: MATURE
   - id: LEAGUE-WHITELIST-BOOKMAKER-REMEDIATION
     priority: backlog
     status: offline_only_not_started
@@ -426,11 +460,11 @@ active_decisions:
     status: active
 
 allowed_next_work:
-  - Inject the verified sanitized TeamXgMatch and rolling snapshots into staging after explicit approval.
-  - Rebuild DayView cards and verify R4_1_CALIBRATED provenance on real CSL and Allsvenskan fixtures.
+  - Continue the daily read-only evidence patrol; report validation total, settled, pending, outcomes, and L2 audit counts separately.
+  - Run an independent R1.1 evidence review only after the pre-registered threshold is actually reached; do not lower its threshold.
+  - Prepare a separate per-league and per-market direction_allowed review only after all prereg evidence passes.
+  - Review the shadow EV challenger only at its 35/100 settled-sample milestones; it remains non-decisioning.
   - Request separate approval before any provider probe, scheduler reconfiguration, staging deployment, league enablement, or account cost.
-  - Prepare a staging-only per-league and per-market direction_allowed review only after all prereg evidence passes.
-  - Continue periodic R1.1 and monthly-eval read-only checks while status is ACCUMULATING.
   - Keep formal RECOMMEND closed until the registered real-pick evidence gate passes.
 
 prohibited:
@@ -448,6 +482,75 @@ prohibited:
   - adding Stage 16
 
 latest_merged_prs:
+  - number: 276
+    title: Clarify validation recommendation denominator
+    merge_sha: 78af0dbba98164de233b0959498fe56c95f83878
+  - number: 275
+    title: Show validation settlements in Boss View
+    merge_sha: e205caae5f9d76e481e458b3e05d6ef672361481
+  - number: 274
+    title: Fix validation outcome settlement chain
+    merge_sha: 7d1b6de8c7b8f2567cc607b270eadbcef4b6b01f
+  - number: 273
+    title: W2 activate reviewed Eliteserien R4 champion
+    merge_sha: a4f1c798ab86448c4250af11bfd4ab269592bd54
+  - number: 272
+    title: W2 restore Eliteserien artifact and simplify Boss View
+    merge_sha: 9c05039bff54d55738506b44edf4be6f73a56471
+  - number: 271
+    title: W2 fail closed incomplete FME provenance
+    merge_sha: e204c076f1af7e670916f549508f29001a9c92a7
+  - number: 270
+    title: W2 bind runtime artifact paths to the staging API
+    merge_sha: a98218b68920dc4498b6e4dad3b287fc02393382
+  - number: 269
+    title: W2 preserve rollback tags when container commit is unavailable
+    merge_sha: 8a0b81ba2279529cfa4467443720eb14977b55a6
+  - number: 268
+    title: W2 snapshot rollback images from running containers
+    merge_sha: b02a2e816b5937868dc8b8f0537fe6874ce89d9b
+  - number: 267
+    title: W2 bind runtime artifacts and tag rollback images
+    merge_sha: 4f21682aebc2bbecc3086a3987b0cf7bf9f92368
+  - number: 266
+    title: W2 enforce authoritative fixture identity and pinned rollback
+    merge_sha: 1a8258fec5e9b8d22e5302e1542a286722a50de1
+  - number: 265
+    title: W2 canonicalize future fixture competitions for R4 serving
+    merge_sha: 58bbe0b6288d0e5bdbe4b3b03ef244d9b32a33ef
+  - number: 264
+    title: W2 package staging release gate scripts
+    merge_sha: e76f9fa07eb7d3f36fd1f1150a563694ea9542f2
+  - number: 263
+    title: W2 gate staging releases on FME business readiness
+    merge_sha: 768211161d10e2b94ac6214b63d1370bed509a34
+  - number: 262
+    title: W2 add zero-provider staging feature materialization
+    merge_sha: 713971813544ce50831b0e1423c4226a6a5ad4c2
+  - number: 261
+    title: W2 preserve FME diagnostics and future fixture identity
+    merge_sha: bbb977aa7aaeff9684261a83afc78971c1c0d347
+  - number: 260
+    title: W2 harden staging project and disk preflight
+    merge_sha: e1913202f2597d87d308f689ca768be27b261dc8
+  - number: 259
+    title: W2 target existing staging compose project
+    merge_sha: f16c8a3abedaefb51befd893ab6b3bf771f06b33
+  - number: 258
+    title: W2 harden staging release switching
+    merge_sha: 07e0285aaf63057fb66352e20a4fb8cbe84db315
+  - number: 257
+    title: W2 govern legacy decision compatibility
+    merge_sha: 1ff4e38b000e7b73344de0cb258e7033f5dbe3dc
+  - number: 256
+    title: W2 add shadow EV challenger
+    merge_sha: e8eb407820cd3a1db12ebee18f70de665f011868
+  - number: 255
+    title: W2 add immutable fair estimate audit chain
+    merge_sha: 153b47d2dd31c4c300ee3e5ac4455e6aaa172bb0
+  - number: 254
+    title: W2 align scoreline explanations with picks
+    merge_sha: 3f52499a392d74e8afd05926cced200c21a7b23d
   - number: 224
     title: W2 project context and recommendation-path unlock audit
     merge_sha: 663b64d
