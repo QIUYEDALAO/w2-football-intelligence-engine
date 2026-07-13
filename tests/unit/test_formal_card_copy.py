@@ -119,7 +119,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "验证结算" in boss_view
     assert "outcomes_validation" in boss_view
     assert "验证推荐 {validationTotal} 场" in boss_view
-    assert "等待赛果 {pending} 场" in boss_view
+    assert "待结算 {pending} 场" in boss_view
+    assert "已有赛果待结算" in boss_view
     assert "前向比赛 {forwardLedger?.fixture_count" not in boss_view
     assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view

@@ -381,7 +381,8 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
     # The all-window index remains compact even as the response adds release metadata.
-    assert len(encoded) < 7000
+    # Pending validation status is compact response metadata, not card payload.
+    assert len(encoded) < 7300
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",

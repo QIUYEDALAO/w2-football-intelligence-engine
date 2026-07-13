@@ -1093,12 +1093,23 @@ function TrustStrip({ performance }: { performance?: DashboardPerformance }) {
   const settled = validation?.settled_sample_count ?? 0;
   const validationTotal = forwardLedger?.validation_fixture_count ?? 0;
   const pending = forwardLedger?.validation_pending_fixture_count ?? 0;
+  const pendingStatus = forwardLedger?.validation_pending_status;
+  const pendingLabel = pendingStatus
+    ? [
+        `未到结算窗口 ${pendingStatus.pre_settlement_window_fixture_count}`,
+        `等官方赛果 ${pendingStatus.awaiting_official_result_fixture_count}`,
+        `已有赛果待结算 ${pendingStatus.result_available_unsettled_fixture_count}`,
+        pendingStatus.result_source_unavailable_fixture_count
+          ? `赛果库不可读 ${pendingStatus.result_source_unavailable_fixture_count}`
+          : "",
+      ].filter(Boolean).join(" · ")
+    : `待分类 ${pending}`;
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>近 30 天</strong>
       <span>验证推荐 {validationTotal} 场</span>
       <span>已结算 {settled} 场</span>
-      <span>等待赛果 {pending} 场</span>
+      <span title={pendingLabel}>待结算 {pending} 场（{pendingLabel}）</span>
       <span>
         结算结果 {settled
           ? `${validation?.hit_count ?? 0} 中 · ${validation?.miss_count ?? 0} 未中 · ${validation?.push_count ?? 0} 走水`
@@ -1117,7 +1128,11 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
           <span>赛后验证</span>
-          <strong>{settled ? `验证结算 ${settled} 条` : `已记录 ${forwardLedger.fixture_count} 场 · 验证积累中`}</strong>
+          <strong>
+            {settled
+              ? `验证结算 ${settled} 条`
+              : `已记录 ${forwardLedger.validation_fixture_count} 场验证推荐 · 待结算 ${forwardLedger.validation_pending_fixture_count} 场`}
+          </strong>
         </header>
         {settled ? (
           <div className="verification-list">

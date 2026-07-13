@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from statistics import median
@@ -45,6 +45,8 @@ def forward_ledger_performance(
     runtime_root: Path,
     *,
     sample_target: int = SAMPLE_TARGET,
+    result_events: Sequence[Mapping[str, Any]] | None = (),
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     records = _normalize_outcome_records(list(load_forward_ledger_records(root)))
@@ -81,6 +83,13 @@ def forward_ledger_performance(
         and SETTLED_OUTCOMES.get(_outcome(record)) is not None
         and _text(record.get("fixture_id"))
     }
+    validation_pending_status = _validation_pending_status(
+        records,
+        validation_fixture_ids=validation_fixture_ids,
+        validation_settled_fixture_ids=validation_settled_fixture_ids,
+        result_events=result_events,
+        now=now or datetime.now(UTC),
+    )
     double_snapshot_fixture_ids = {
         _text(row.get("fixture_id"))
         for row in clv_shadow_rows
@@ -98,6 +107,7 @@ def forward_ledger_performance(
         "validation_pending_fixture_count": len(
             validation_fixture_ids - validation_settled_fixture_ids
         ),
+        "validation_pending_status": validation_pending_status,
         "settled_sample_count": sum(outcome_counts.values()),
         "hit_count": outcome_counts["hit"],
         "miss_count": outcome_counts["miss"],
@@ -139,6 +149,66 @@ def forward_ledger_performance(
         "db_writes": 0,
         "mock_data": False,
     }
+
+
+def _validation_pending_status(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    validation_fixture_ids: set[str],
+    validation_settled_fixture_ids: set[str],
+    result_events: Sequence[Mapping[str, Any]] | None,
+    now: datetime,
+) -> dict[str, Any]:
+    """Classify pending validation fixtures without treating audit coverage as picks."""
+    pending_fixture_ids = validation_fixture_ids - validation_settled_fixture_ids
+    kickoff_by_fixture: dict[str, datetime] = {}
+    for record in records:
+        if _record_type(record) != "capture":
+            continue
+        if _recommendation_scope(record) != VALIDATION_SCOPE:
+            continue
+        fixture_id = _text(record.get("fixture_id"))
+        kickoff = _parse_time(record.get("kickoff_utc"))
+        if fixture_id in pending_fixture_ids and kickoff is not None:
+            kickoff_by_fixture.setdefault(fixture_id, kickoff)
+
+    final_result_fixture_ids = {
+        _text(event.get("fixture_id"))
+        for event in result_events or ()
+        if _has_final_result(event)
+    }
+    source_available = result_events is not None
+    counts = {
+        "pre_settlement_window_fixture_count": 0,
+        "awaiting_official_result_fixture_count": 0,
+        "result_available_unsettled_fixture_count": 0,
+        "result_source_unavailable_fixture_count": 0,
+    }
+    for fixture_id in pending_fixture_ids:
+        kickoff = kickoff_by_fixture.get(fixture_id)
+        if kickoff is None or now < kickoff + timedelta(hours=3):
+            counts["pre_settlement_window_fixture_count"] += 1
+        elif not source_available:
+            counts["result_source_unavailable_fixture_count"] += 1
+        elif fixture_id in final_result_fixture_ids:
+            counts["result_available_unsettled_fixture_count"] += 1
+        else:
+            counts["awaiting_official_result_fixture_count"] += 1
+    return {
+        **counts,
+        "result_source_available": source_available,
+        "pending_fixture_count": len(pending_fixture_ids),
+    }
+
+
+def _has_final_result(event: Mapping[str, Any]) -> bool:
+    if _text(event.get("status")).upper() not in {"FT", "AET", "PEN"}:
+        return False
+    score = event.get("score")
+    fulltime = score.get("fulltime") if isinstance(score, Mapping) else None
+    if not isinstance(fulltime, Mapping):
+        return False
+    return isinstance(fulltime.get("home"), int) and isinstance(fulltime.get("away"), int)
 
 
 def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:

@@ -142,6 +142,7 @@ from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
+from w2.tracking.forward_outcome_ledger import ledger_fixture_ids
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -1133,8 +1134,24 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
+        runtime_root = get_settings().resolved_runtime_root
+        result_events: list[dict[str, Any]] | None = []
+        result_repository = self._future_refresh_repository()
+        result_reader = (
+            getattr(result_repository, "result_events_for_fixture_ids", None)
+            if result_repository is not None
+            else None
+        )
+        if not callable(result_reader):
+            result_events = None
+        else:
+            try:
+                result_events = result_reader(ledger_fixture_ids(runtime_root))
+            except SQLAlchemyError:
+                result_events = None
         performance["forward_ledger"] = forward_ledger_performance(
-            get_settings().resolved_runtime_root
+            runtime_root,
+            result_events=result_events,
         )
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))

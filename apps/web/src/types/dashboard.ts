@@ -585,6 +585,14 @@ export interface ForwardLedgerPerformance {
   validation_fixture_count: number;
   validation_settled_fixture_count: number;
   validation_pending_fixture_count: number;
+  validation_pending_status: {
+    pre_settlement_window_fixture_count: number;
+    awaiting_official_result_fixture_count: number;
+    result_available_unsettled_fixture_count: number;
+    result_source_unavailable_fixture_count: number;
+    result_source_available: boolean;
+    pending_fixture_count: number;
+  };
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;
