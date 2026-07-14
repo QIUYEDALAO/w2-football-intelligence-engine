@@ -612,3 +612,10 @@
 - scheduler 容器 `7e3dc0913f2a...` 与 worker 容器 `0019f0a8d961...` 的 ID、created、started、`unless-stopped` policy 均未变化且健康。
 - 部署前后 `provider_request_logs=381`、`future_refresh_run_audit=1423`、Celery queue=`0`，确认 provider 调用、刷新任务与队列均无增量；未写业务数据库。
 - 未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler 配置。
+
+### V3 进展续46 · 专家交接上下文与部署接缝补充(2026-07-12)
+
+- 新增 `W2_EXPERT_HANDOFF_20260712.md`，集中给出当前 main/staging 真相、#247–#252、A–D 不变量、验证证据、非授权边界与专家评审问题。
+- 真实 fixture `1494207` 暴露“OVER 3.25 却只显示全局小球众数比分”的解释语义缺口；确认数据同源，问题是未区分全局 Top3 与方向内代表比分。
+- 补充部署后瞬时接缝：API 因 `uv run` 冷同步依赖共重启 2 次，Web nginx 缓存旧 API 地址短暂返回 502；API 稳定后重建 Web 恢复，最终 health/ready/API/Web SHA PASS。
+- 最终观测 provider logs=`381`、refresh audit=`1423`、queue=`0`，scheduler/worker 身份未变；未新增 provider 调用、DB 写、production、enable、EV/RECOMMEND/lock 或 scheduler 变更。
