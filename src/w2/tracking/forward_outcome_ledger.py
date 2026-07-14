@@ -14,6 +14,7 @@ from w2.models.fair_market_estimate import (
     verify_estimate_semantics,
     verify_estimate_snapshot,
 )
+from w2.models.market_quote import MarketQuote
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
@@ -85,6 +86,11 @@ def build_forward_outcome_records(
         if not fixture_id:
             continue
         shadow_picks = _shadow_picks(card)
+        evidence_identity = _capture_evidence_identity(
+            card,
+            shadow_picks=shadow_picks,
+            captured_at=captured,
+        )
         record = {
             "schema_version": SCHEMA_VERSION,
             "record_type": "capture",
@@ -131,9 +137,11 @@ def build_forward_outcome_records(
             "source": _optional_text(card.get("source")),
             "posthoc_only": True,
             "not_a_lock": True,
+            **evidence_identity,
         }
         record["capture_checkpoint"] = _capture_checkpoint(record, captured_at)
-        record["evidence_hash"] = _evidence_hash(record)
+        record["capture_hash"] = _evidence_hash(record)
+        record["evidence_hash"] = record["capture_hash"]
         rows.append(record)
     return rows
 
@@ -710,6 +718,7 @@ def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
                 derived_from="fair_market_estimate_snapshot",
             )
             payload["estimate_id"] = _optional_text(estimate.get("estimate_id"))
+            payload["model_basis_id"] = _optional_text(estimate.get("model_basis_id"))
             semantic_status = _text(
                 estimate.get("semantic_status")
                 or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
@@ -798,6 +807,68 @@ def _shadow_pick_payload(
     }
 
 
+def _capture_evidence_identity(
+    card: Mapping[str, Any],
+    *,
+    shadow_picks: Sequence[Mapping[str, Any]],
+    captured_at: str,
+) -> dict[str, Any]:
+    pick = _mapping(card.get("pick"))
+    selected = pick or (shadow_picks[0] if shadow_picks else {})
+    market = _text(selected.get("market"))
+    selection = _text(selected.get("selection"))
+    estimate_id = _optional_text(
+        selected.get("estimate_id") or _mapping(card.get("analysis_gate")).get("estimate_id")
+    )
+    estimate = next(
+        (
+            item
+            for item in estimate_snapshots(card)
+            if estimate_id and item.get("estimate_id") == estimate_id
+        ),
+        {},
+    )
+    base = {
+        "estimate_id": estimate_id,
+        "model_basis_id": _optional_text(estimate.get("model_basis_id")),
+        "quote_id": None,
+        "market_quote": None,
+        "selection_line": None,
+        "selection_price": None,
+        "quote_captured_at": None,
+    }
+    odds = _mapping(card.get("current_odds"))
+    quote_odds = _mapping(
+        odds.get("ah" if market == "ASIAN_HANDICAP" else "ou" if market == "TOTALS" else "")
+    )
+    if not market or not selection or not quote_odds:
+        return base
+    quote_captured_at = _optional_text(
+        quote_odds.get("as_of")
+        or card.get("generated_at")
+        or card.get("as_of")
+        or captured_at
+    )
+    try:
+        quote = MarketQuote.create(
+            fixture_id=_text(card.get("fixture_id")),
+            market=market,
+            selection=selection,
+            odds=quote_odds,
+            captured_at=quote_captured_at or captured_at,
+        ).as_dict()
+    except ValueError:
+        return base
+    return {
+        **base,
+        "quote_id": quote["quote_id"],
+        "market_quote": quote,
+        "selection_line": quote["selection_line"],
+        "selection_price": quote["selection_price"],
+        "quote_captured_at": quote["captured_at"],
+    }
+
+
 def _capture_checkpoint(record: Mapping[str, Any], captured_at: datetime) -> str:
     kickoff = _parse_time(record.get("kickoff_utc"))
     if kickoff is None:
@@ -826,6 +897,12 @@ def _evidence_hash(record: Mapping[str, Any]) -> str:
         "non_pick": record.get("non_pick"),
         "current_odds": record.get("current_odds"),
         "analysis_gate": record.get("analysis_gate"),
+        "estimate_id": record.get("estimate_id"),
+        "model_basis_id": record.get("model_basis_id"),
+        "quote_id": record.get("quote_id"),
+        "selection_line": record.get("selection_line"),
+        "selection_price": record.get("selection_price"),
+        "quote_captured_at": record.get("quote_captured_at"),
     }
     canonical = json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return sha256(canonical.encode("utf-8")).hexdigest()

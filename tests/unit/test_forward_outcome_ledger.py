@@ -42,6 +42,8 @@ def _day_view() -> dict[str, object]:
                         "home_price": "1.91",
                         "away_price": "1.93",
                         "bookmaker_count": 4,
+                        "as_of": "2026-07-07T11:55:00Z",
+                        "source": "read_model",
                     }
                 },
                 "card_hash": "hash-1",
@@ -115,6 +117,10 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert rows[0]["model_market_divergence"]["model_family"] == "R4_1_CALIBRATED"
     assert rows[0]["capture_checkpoint"] == "EVIDENCE_CHANGE"
     assert len(rows[0]["evidence_hash"]) == 64
+    assert rows[0]["capture_hash"] == rows[0]["evidence_hash"]
+    assert rows[0]["quote_id"].startswith("mq_")
+    assert rows[0]["selection_line"] == -1.25
+    assert rows[0]["selection_price"] == 1.91
 
 
 def test_forward_outcome_ledger_records_distinct_t24_and_t1_checkpoints(
@@ -177,6 +183,7 @@ def test_forward_outcome_ledger_records_ah_and_totals_shadow_picks(tmp_path: Pat
         "line": "2.5",
         "over_price": "1.95",
         "under_price": "1.91",
+        "as_of": "2026-07-07T11:59:00Z",
     }
     card["fair_market_estimates"] = [  # type: ignore[index]
         {
@@ -276,6 +283,7 @@ def test_forward_outcome_backfill_settles_two_shadow_markets_from_one_capture(
         "line": "2.5",
         "over_price": "1.95",
         "under_price": "1.91",
+        "as_of": "2026-07-07T11:59:00Z",
     }
     card["fair_market_estimates"] = [  # type: ignore[index]
         {"market": "ASIAN_HANDICAP", "status": "READY", "fair_line": -1.5},
@@ -338,6 +346,7 @@ def test_estimate_id_survives_capture_and_settlement(tmp_path: Path) -> None:
         "line": "2.5",
         "over_price": "1.95",
         "under_price": "1.91",
+        "as_of": "2026-07-07T11:59:00Z",
     }
     card["pick"] = {  # type: ignore[index]
         "market": "TOTALS",
@@ -381,6 +390,13 @@ def test_estimate_id_survives_capture_and_settlement(tmp_path: Path) -> None:
     assert capture["estimate_integrity"] == [
         {"estimate_id": snapshot["estimate_id"], "valid": True}
     ]
+    assert capture["estimate_id"] == snapshot["estimate_id"]
+    assert capture["model_basis_id"] == snapshot["model_basis_id"]
+    assert capture["quote_id"].startswith("mq_")
+    assert capture["selection_line"] == 2.5
+    assert capture["selection_price"] == 1.95
+    assert capture["quote_captured_at"] == "2026-07-07T11:59:00Z"
+    assert len(capture["capture_hash"]) == 64
     assert outcome["estimate_id"] == snapshot["estimate_id"]
 
 
@@ -391,7 +407,9 @@ def test_validation_settlement_uses_last_valid_prematch_snapshot(tmp_path: Path)
     card["kickoff_utc"] = "2026-07-11T18:00:00Z"  # type: ignore[index]
     card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
     card["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}  # type: ignore[index]
-    card["current_odds"]["ah"].update({"away_line": "+1", "away_price": 1.60})  # type: ignore[index]
+    card["current_odds"]["ah"].update(  # type: ignore[index]
+        {"home_line": "-1", "away_line": "+1", "away_price": 1.60}
+    )
     run_forward_outcome_ledger(
         day_view,
         dry_run=False,
@@ -399,7 +417,9 @@ def test_validation_settlement_uses_last_valid_prematch_snapshot(tmp_path: Path)
         runtime_root=tmp_path / "forward_outcome_ledger",
         captured_at=datetime(2026, 7, 11, 12, 0, tzinfo=UTC),
     )
-    card["current_odds"]["ah"].update({"away_line": "+0.75", "away_price": 1.92})  # type: ignore[index]
+    card["current_odds"]["ah"].update(  # type: ignore[index]
+        {"home_line": "-0.75", "away_line": "+0.75", "away_price": 1.92}
+    )
     run_forward_outcome_ledger(
         day_view,
         dry_run=False,
@@ -416,6 +436,16 @@ def test_validation_settlement_uses_last_valid_prematch_snapshot(tmp_path: Path)
     )
 
     outcome = next(row for row in payload["records"] if row["settled_side"] == "pick")
+    captures = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    final_capture = max(captures, key=lambda row: row["captured_at"])
+    assert final_capture["market_quote"]["home_centric_market_line"] == -0.75
+    assert final_capture["selection_line"] == 0.75
+    assert final_capture["selection_price"] == 1.92
     assert outcome["recommendation_scope"] == "VALIDATION"
     assert outcome["entry_line"] == "+0.75"
     assert outcome["entry_price"] == 1.92

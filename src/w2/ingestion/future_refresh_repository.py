@@ -301,6 +301,29 @@ class FutureRefreshDbRepository:
             )
         return self._latest_observation_dicts(rows)
 
+    def market_observation_history_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return []
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(FutureMarketObservationModel)
+                    .where(FutureMarketObservationModel.fixture_id.in_(ids))
+                    .order_by(
+                        FutureMarketObservationModel.fixture_id,
+                        FutureMarketObservationModel.captured_at,
+                        FutureMarketObservationModel.canonical_market,
+                        FutureMarketObservationModel.bookmaker_id,
+                        FutureMarketObservationModel.selection,
+                    )
+                )
+            )
+        return [self._observation_dict(row) for row in rows]
+
     def _latest_observation_dicts(
         self,
         rows: list[FutureMarketObservationModel],

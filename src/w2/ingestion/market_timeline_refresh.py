@@ -21,7 +21,7 @@ class MarketTimelineRepository(Protocol):
 
     def future_market_observations(self) -> list[dict[str, Any]]: ...
 
-    def future_market_observations_for_fixtures(
+    def market_observation_history_for_fixtures(
         self,
         fixture_ids: list[str],
     ) -> list[dict[str, Any]]: ...
@@ -81,7 +81,7 @@ def run_market_timeline_refresh(
         fixtures = fixtures[: max(max_fixtures, 0)]
     fixture_ids = [str(item["fixture_id"]) for item in fixtures]
     observations = (
-        repo.future_market_observations_for_fixtures(fixture_ids) if fixture_ids else []
+        repo.market_observation_history_for_fixtures(fixture_ids) if fixture_ids else []
     )
     results: list[dict[str, Any]] = []
     written = 0
