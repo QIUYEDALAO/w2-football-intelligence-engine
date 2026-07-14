@@ -135,8 +135,13 @@ def test_ev_challenger_rejects_tampered_estimate_snapshot() -> None:
 
 
 def test_v1_snapshot_is_not_evidence_eligible() -> None:
+    snapshot = _snapshot()
+    legacy = {
+        "market": snapshot["market"],
+        "score_matrix": snapshot["score_matrix"],
+    }
     result = build_analysis_gate_v2_shadow(
-        estimate=_snapshot(),
+        estimate=legacy,
         gate={
             "market": "TOTALS",
             "selection": "OVER",

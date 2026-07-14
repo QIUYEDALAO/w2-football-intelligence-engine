@@ -3987,6 +3987,7 @@ class ReadModelService:
         )
         home_mu = _float_or_none(r4_1_payload.get("home_mu"))
         away_mu = _float_or_none(r4_1_payload.get("away_mu"))
+        dixon_coles_rho = _float_or_none(r4_1_payload.get("rho")) or 0.0
         if model_family != "R4_1_CALIBRATED":
             home_mu = _float_or_none(simulation_payload.get("lambda_home"))
             away_mu = _float_or_none(simulation_payload.get("lambda_away"))
@@ -4078,6 +4079,7 @@ class ReadModelService:
                 artifact_hash=artifact_hash,
                 artifact_version=artifact_version,
                 fallback_reason=str(fallback_reason) if fallback_reason else None,
+                dixon_coles_rho=dixon_coles_rho,
             )
             snapshot = FairMarketEstimateSnapshot.create(
                 fixture_id=fixture_id,
@@ -4091,6 +4093,29 @@ class ReadModelService:
         card["fair_market_estimate_ids"] = [item["estimate_id"] for item in snapshots]
         # Compatibility view only. New decision consumers resolve the immutable snapshots by ID.
         card["fair_market_estimates"] = snapshots
+        snapshots_by_market = {str(item["market"]): item for item in snapshots}
+        canonical_ah = _float_or_none(
+            snapshots_by_market.get("ASIAN_HANDICAP", {}).get("model_fair_ah")
+        )
+        canonical_ou = _float_or_none(
+            snapshots_by_market.get("TOTALS", {}).get("model_fair_ou")
+        )
+        if canonical_ah is not None:
+            pricing_shadow["fair_ah"] = canonical_ah
+            pricing_shadow["edge_ah"] = (
+                None
+                if pricing_shadow.get("mainline_materialization_status") == "STALE"
+                else edge(
+                    canonical_ah,
+                    _float_or_none(pricing_shadow.get("market_ah")),
+                )
+            )
+        if canonical_ou is not None:
+            pricing_shadow["fair_ou"] = canonical_ou
+            pricing_shadow["edge_ou"] = edge(
+                canonical_ou,
+                _float_or_none(pricing_shadow.get("market_ou")),
+            )
 
     def _r4_1_payload_for_card(
         self,

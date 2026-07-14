@@ -6,7 +6,11 @@ from typing import Any
 
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.models.fair_market_estimate import snapshot_score_matrix, verify_estimate_snapshot
+from w2.models.fair_market_estimate import (
+    snapshot_score_matrix,
+    verify_estimate_semantics,
+    verify_estimate_snapshot,
+)
 
 SCHEMA_VERSION = "w2.analysis_gate_v2_shadow.v1"
 MIN_NET_EV = 0.02
@@ -25,9 +29,10 @@ def build_analysis_gate_v2_shadow(
     )
     evidence_eligible = (
         estimate.get("schema_version") == "w2.fme_snapshot.v2"
-        and semantic_status == "PASS"
+        and semantic_status == "VERIFIED"
         and estimate.get("evidence_eligible") is True
         and verify_estimate_snapshot(estimate)
+        and verify_estimate_semantics(estimate)
     )
     base = {
         "schema_version": SCHEMA_VERSION,

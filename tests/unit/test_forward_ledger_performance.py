@@ -507,6 +507,7 @@ def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
             "market": "TOTALS",
             "candidate_pass": True,
             "evidence_eligible": True,
+            "semantic_status": "VERIFIED",
             "net_ev": 0.04,
             "shadow_only": True,
             "affects_decision": False,

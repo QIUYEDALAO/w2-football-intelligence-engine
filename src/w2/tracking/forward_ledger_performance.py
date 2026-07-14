@@ -656,7 +656,10 @@ def _league_market_rows(
         for row in rows:
             if not isinstance(row, Mapping):
                 continue
-            if row.get("evidence_eligible") is not True:
+            if (
+                row.get("evidence_eligible") is not True
+                or row.get("semantic_status") != "VERIFIED"
+            ):
                 continue
             market = _text(row.get("market"))
             fixture_id = _text(record.get("fixture_id"))
@@ -674,6 +677,7 @@ def _league_market_rows(
             not isinstance(shadow, Mapping)
             or shadow.get("candidate_pass") is not True
             or shadow.get("evidence_eligible") is not True
+            or shadow.get("semantic_status") != "VERIFIED"
         ):
             continue
         market = _text(record.get("market"))
