@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -13,18 +14,50 @@ from w2.domain.decision_policy import (
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
 from w2.domain.legacy_decision_shim import legacy_decision_view
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
+
+
+def _snapshot(*, home_mu: float | None = 1.6) -> dict[str, object]:
+    return FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-1",
+        estimate=FairMarketEstimate(
+            market="ASIAN_HANDICAP",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=-0.5,
+            probabilities={},
+            home_mu=home_mu,
+            away_mu=1.0,
+            feature_as_of="2026-07-05T00:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={
+            "ah": {
+                "home_line": -0.25,
+                "away_line": 0.25,
+                "home_price": 1.95,
+                "away_price": 1.95,
+            }
+        },
+        feature_snapshot={"home_xg": home_mu, "away_xg": 1.0},
+        created_at="2026-07-05T00:00:00Z",
+    ).as_dict()
 
 
 def _pick(disclaimer: str | None = None) -> DecisionPick:
+    snapshot = _snapshot()
     kwargs = {"disclaimer": disclaimer} if disclaimer is not None else {}
     return DecisionPick(
         market="ASIAN_HANDICAP",
-        selection="HOME",
+        selection="HOME_AH",
         line="-0.25",
         odds="1.95",
-        fair_line="-0.5",
+        fair_line=str(snapshot["fair_line"]),
         market_line="-0.25",
         value_edge=0.04,
+        estimate_id=str(snapshot["estimate_id"]),
         key_factors=("xg", "market"),
         risks=("lineup",),
         invalidation="line moved past fair",
@@ -48,6 +81,20 @@ def _card(
     non_pick: DecisionNonPick | None = None,
 ) -> DecisionCard:
     now = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
+    snapshot = _snapshot()
+    source = (
+        {
+            "analysis_gate": {
+                "market": "ASIAN_HANDICAP",
+                "estimate_id": snapshot["estimate_id"],
+                "market_line": -0.25,
+            },
+            "fair_market_estimate_ids": (str(snapshot["estimate_id"]),),
+            "fair_market_estimate_snapshots": (snapshot,),
+        }
+        if pick is not None
+        else {}
+    )
     return DecisionCard(
         fixture_id="fixture-1",
         competition_id="world_cup_2026",
@@ -62,6 +109,7 @@ def _card(
         model_version="dc-v2-test",
         provenance={"source": "unit"},
         environment="staging",
+        **source,
         pick=pick,
         non_pick=non_pick,
         one_liner="Home pressure creates a small edge.",
@@ -142,6 +190,47 @@ def test_decision_card_accepts_valid_pick_and_non_pick_tier_shapes() -> None:
     assert analysis.non_pick is None
     assert watch.pick is None
     assert watch.non_pick is not None
+
+
+def test_new_pick_rejects_missing_or_v1_estimate_snapshot() -> None:
+    card = _pick_card(DecisionTier.ANALYSIS_PICK)
+    with pytest.raises(ValueError, match="requires immutable v2"):
+        replace(card, fair_market_estimate_ids=(), fair_market_estimate_snapshots=())
+
+    legacy = deepcopy(card.fair_market_estimate_snapshots[0])
+    legacy["schema_version"] = "w2.fme_snapshot.v1"
+    with pytest.raises(ValueError, match="v2 integrity and semantics"):
+        replace(card, fair_market_estimate_snapshots=(legacy,))
+
+
+def test_new_pick_rejects_integrity_market_gate_and_quote_mismatch() -> None:
+    card = _pick_card(DecisionTier.ANALYSIS_PICK)
+    tampered = deepcopy(card.fair_market_estimate_snapshots[0])
+    tampered["fair_line"] = 99
+    with pytest.raises(ValueError, match="v2 integrity and semantics"):
+        replace(card, fair_market_estimate_snapshots=(tampered,))
+
+    assert card.pick is not None
+    with pytest.raises(ValueError, match="market must match estimate"):
+        replace(card, pick=replace(card.pick, market="TOTALS"))
+    with pytest.raises(ValueError, match="match analysis gate estimate"):
+        replace(card, analysis_gate={**card.analysis_gate, "estimate_id": "fme_other"})
+    with pytest.raises(ValueError, match="quote must match"):
+        replace(card, pick=replace(card.pick, odds="2.01"))
+
+
+def test_new_pick_rejects_semantic_failure() -> None:
+    card = _pick_card(DecisionTier.ANALYSIS_PICK)
+    insufficient = _snapshot(home_mu=None)
+    assert card.pick is not None
+    with pytest.raises(ValueError, match="v2 integrity and semantics"):
+        replace(
+            card,
+            pick=replace(card.pick, estimate_id=str(insufficient["estimate_id"])),
+            analysis_gate={**card.analysis_gate, "estimate_id": insufficient["estimate_id"]},
+            fair_market_estimate_ids=(str(insufficient["estimate_id"]),),
+            fair_market_estimate_snapshots=(insufficient,),
+        )
 
 
 def test_analysis_pick_default_disclaimer_is_staging_safe() -> None:
