@@ -22,6 +22,7 @@ from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.models.fair_market_estimate import (
     estimate_snapshot_by_id,
     estimate_snapshots,
+    verify_estimate_semantics,
     verify_estimate_snapshot,
 )
 from w2.models.player_impact import unsupported_player_impact
@@ -301,6 +302,12 @@ def _market_anchor_display_tier(
 ) -> DecisionTier:
     if data_status is DataStatus.BLOCKED:
         return DecisionTier.NOT_READY
+    if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND} and not (
+        analysis_gate
+        and analysis_gate.get("estimate_id")
+        and analysis_gate.get("decision_source_consistent") is True
+    ):
+        return DecisionTier.WATCH
     if (
         str(analysis_gate.get("market")) == "ASIAN_HANDICAP"
         and analysis_gate.get("direction_allowed") is not True
@@ -802,8 +809,8 @@ def _analysis_gates(
     as_of: datetime,
     environment: str,
 ) -> list[dict[str, Any]]:
-    estimates = _fair_market_estimates(card)
-    if "fair_market_estimates" not in card:
+    estimates = _fair_market_estimate_snapshots(card)
+    if not estimates:
         return []
     odds = _as_mapping(_get(card, "current_odds"))
     estimate_set_consistent = _estimate_set_provenance_consistent(estimates)
@@ -915,10 +922,11 @@ def _estimate_source_consistent(
         and away_mu > 0
         and bool(str(estimate.get("model_family") or "").strip())
         and provenance_consistent
-        and (
-            not estimate.get("estimate_id")
-            or verify_estimate_snapshot(estimate)
-        )
+        and estimate.get("schema_version") == "w2.fme_snapshot.v2"
+        and bool(str(estimate.get("estimate_id") or "").strip())
+        and bool(str(estimate.get("model_basis_id") or "").strip())
+        and verify_estimate_snapshot(estimate)
+        and verify_estimate_semantics(estimate)
     )
 
 

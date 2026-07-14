@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(hours=4)
@@ -17,8 +18,14 @@ def _fields(
     readiness: dict[str, object] | None = None,
     environment: str = "staging",
 ) -> dict[str, object]:
+    source_card = card or {"source": "unit"}
+    if not any(
+        key in source_card
+        for key in ("fair_market_estimates", "fair_market_estimate_snapshots")
+    ):
+        source_card = _with_valid_source(source_card, market)
     return build_decision_contract_fields(
-        card=card or {"source": "unit"},
+        card=source_card,
         market=market,
         recommendation=recommendation,
         readiness=readiness or {"status": "PARTIAL", "blockers": []},
@@ -28,6 +35,84 @@ def _fields(
         competition_id="world_cup_2026",
         fixture_id="fixture-1",
     )
+
+
+def _with_valid_source(
+    card: dict[str, object], market: dict[str, object] | None
+) -> dict[str, object]:
+    result = dict(card)
+    requested_market = str((market or {}).get("market") or "ASIAN_HANDICAP")
+    default_line = -0.25 if requested_market == "ASIAN_HANDICAP" else 2.5
+    requested_line = float((market or {}).get("line") or default_line)
+    requested_price = float((market or {}).get("odds") or 1.95)
+    selection = str((market or {}).get("tendency") or (market or {}).get("selection") or "HOME_AH")
+    placeholder_odds = {
+        "ah": {"home_line": -0.25, "away_line": 0.25, "home_price": 1.95, "away_price": 1.95},
+        "ou": {"line": 2.5, "over_price": 1.95, "under_price": 1.95},
+    }
+
+    def build(odds: dict[str, object]) -> list[dict[str, object]]:
+        return [
+            FairMarketEstimateSnapshot.create(
+                fixture_id="fixture-1",
+                estimate=FairMarketEstimate(
+                    market=estimate_market,
+                    status="READY",
+                    model_family="R4_1_CALIBRATED",
+                    fair_line=0.0,
+                    probabilities={},
+                    home_mu=1.6,
+                    away_mu=1.0,
+                    feature_as_of="2026-07-05T00:00:00Z",
+                    train_cutoff="2026-06-01T00:00:00Z",
+                    artifact_hash="artifact",
+                    artifact_version="v1",
+                ),
+                odds_snapshot=odds,
+                feature_snapshot={"home_xg": 1.6, "away_xg": 1.0},
+                created_at="2026-07-05T00:00:00Z",
+            ).as_dict()
+            for estimate_market in ("ASIAN_HANDICAP", "TOTALS")
+        ]
+
+    baseline = build(placeholder_odds)
+    odds = {
+        "ah": {
+            "home_line": baseline[0]["fair_line"],
+            "away_line": -float(baseline[0]["fair_line"]),
+            "home_price": 1.95,
+            "away_price": 1.95,
+        },
+        "ou": {
+            "line": baseline[1]["fair_line"],
+            "over_price": 1.95,
+            "under_price": 1.95,
+        },
+    }
+    if requested_market == "ASIAN_HANDICAP":
+        away_selected = selection in {"AWAY", "AWAY_AH"}
+        home_line = -requested_line if away_selected else requested_line
+        odds["ah"] = {
+            "home_line": home_line,
+            "away_line": -home_line,
+            "home_price": 1.95 if away_selected else requested_price,
+            "away_price": requested_price if away_selected else 1.95,
+        }
+    else:
+        odds["ou"] = {
+            "line": requested_line,
+            "over_price": requested_price if selection != "UNDER" else 1.95,
+            "under_price": requested_price if selection == "UNDER" else 1.95,
+        }
+    snapshots = build(odds)
+    result.setdefault("source", "unit")
+    result.setdefault("probability_source", "MARKET_DEVIG")
+    result.setdefault("direction_allowed_by_market", {"ASIAN_HANDICAP": True, "TOTALS": True})
+    result["current_odds"] = odds
+    result["fair_market_estimates"] = snapshots
+    result["fair_market_estimate_snapshots"] = snapshots
+    result["fair_market_estimate_ids"] = [item["estimate_id"] for item in snapshots]
+    return result
 
 
 def test_missing_lineups_soft_gate_keeps_staging_analysis_pick() -> None:
@@ -129,7 +214,7 @@ def test_totals_pick_uses_totals_pricing_shadow_not_ah_lines() -> None:
     assert isinstance(pick, dict)
     assert pick["market"] == "TOTALS"
     assert pick["line"] == "2.25"
-    assert pick["fair_line"] == "2.75"
+    assert pick["fair_line"] == "2.5"
     assert pick["market_line"] == "2.25"
     assert pick["value_edge"] == -0.5
     divergence = fields["model_market_divergence"]
@@ -318,7 +403,7 @@ def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
             "market": "TOTALS",
             "decision": "PICK",
             "tendency": "OVER",
-            "line": "2.5",
+            "line": "2.0",
             "odds": "1.90",
             "confidence": 0.49,
         },
@@ -414,7 +499,7 @@ def test_market_anchor_display_requires_market_probability(monkeypatch) -> None:
     assert fields["non_pick"] is not None
 
 
-def test_market_anchor_display_requires_actionable_divergence(monkeypatch) -> None:
+def test_legacy_divergence_cannot_override_snapshot_gate(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
 
     fields = _fields(
@@ -437,9 +522,8 @@ def test_market_anchor_display_requires_actionable_divergence(monkeypatch) -> No
         readiness={"status": "READY", "blockers": []},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
-    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
-    assert fields["pick"] is None
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["analysis_gate"]["decision_source"] == "FAIR_MARKET_ESTIMATE"  # type: ignore[index]
 
 
 def test_market_anchor_display_allows_significant_market_divergence(monkeypatch) -> None:
@@ -471,7 +555,7 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
     assert fields["non_pick"] is None
 
 
-def test_market_anchor_display_blocks_below_ah_line_threshold(monkeypatch) -> None:
+def test_legacy_magnitude_cannot_override_snapshot_divergence(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
 
     fields = _fields(
@@ -495,9 +579,8 @@ def test_market_anchor_display_blocks_below_ah_line_threshold(monkeypatch) -> No
         readiness={"status": "READY", "blockers": []},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
-    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
-    assert fields["pick"] is None
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["analysis_gate"]["divergence_line_units"] != 0.2  # type: ignore[index]
 
 
 def test_staging_lock_requires_market_line_and_odds() -> None:
@@ -720,8 +803,12 @@ def test_analysis_gate_model_missing_beats_lineup_reason(monkeypatch) -> None:
 
 def test_staging_ah_direction_not_allowed_is_watch(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
-    no_edge = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
-    no_edge["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
+    seed = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
+    fair_ah = seed["fair_market_estimates"][0]["fair_line"]  # type: ignore[index]
+    no_edge = _selective_card(
+        direction_allowed={"ASIAN_HANDICAP": True},
+        market={"market": "ASIAN_HANDICAP", "line": fair_ah, "odds": "1.95"},
+    )
     accumulating = _selective_card(direction_allowed={"ASIAN_HANDICAP": False})
     market = {"market": "ASIAN_HANDICAP", "decision": "PICK", "line": "-0.25", "odds": "1.95"}
 
@@ -809,12 +896,13 @@ def test_legacy_formal_cannot_bypass_current_ah_gate(monkeypatch) -> None:
 
 def test_totals_staging_advisory_is_unchanged(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
-    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True, "TOTALS": False})
-    card["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
-    card["fair_market_estimates"][1]["fair_line"] = 3.0  # type: ignore[index]
+    card = _selective_card(
+        direction_allowed={"ASIAN_HANDICAP": True, "TOTALS": False},
+        market={"market": "TOTALS", "line": "2.0", "odds": "1.95", "tendency": "OVER"},
+    )
     fields = _fields(
         card=card,
-        market={"market": "TOTALS", "decision": "PICK", "line": "2.5", "odds": "1.95"},
+        market={"market": "TOTALS", "decision": "PICK", "line": "2.0", "odds": "1.95"},
         readiness={"status": "READY", "blockers": []},
     )
 
@@ -830,8 +918,8 @@ def test_analysis_gate_evidence_maturity_is_isolated_but_strongest_market_wins(m
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     card = _selective_card(
         direction_allowed={"ASIAN_HANDICAP": False, "TOTALS": True},
+        market={"market": "TOTALS", "line": "2.0", "odds": "1.95", "tendency": "OVER"},
     )
-    card["fair_market_estimates"][1]["fair_line"] = 3.0  # type: ignore[index]
 
     fields = _fields(
         card=card,
@@ -843,50 +931,32 @@ def test_analysis_gate_evidence_maturity_is_isolated_but_strongest_market_wins(m
     assert fields["analysis_gate"]["market"] == "TOTALS"  # type: ignore[index]
     assert fields["analysis_gate"]["evidence_ready"] is True  # type: ignore[index]
     assert fields["pick"]["selection"] == "OVER"  # type: ignore[index]
-    assert fields["pick"]["line"] == "2.5"  # type: ignore[index]
+    assert fields["pick"]["line"] == "2.0"  # type: ignore[index]
     assert fields["pick"]["odds"] == "1.95"  # type: ignore[index]
 
 
-def _selective_card(*, direction_allowed: dict[str, bool]) -> dict[str, object]:
-    return {
-        "source": "unit",
-        "probability_source": "MARKET_DEVIG",
-        "data_readiness": {"lineups": False},
-        "direction_allowed_by_market": direction_allowed,
-        "current_odds": {
-            "ah": {
-                "home_line": "-0.25",
-                "away_line": "+0.25",
-                "home_price": "1.95",
-                "away_price": "1.95",
-            },
-            "ou": {"line": "2.5", "over_price": "1.95", "under_price": "1.95"},
+def _selective_card(
+    *,
+    direction_allowed: dict[str, bool],
+    market: dict[str, object] | None = None,
+) -> dict[str, object]:
+    return _with_valid_source(
+        {
+            "source": "unit",
+            "probability_source": "MARKET_DEVIG",
+            "data_readiness": {"lineups": False},
+            "direction_allowed_by_market": direction_allowed,
         },
-        "fair_market_estimates": [
-            {
-                "market": "ASIAN_HANDICAP",
-                "status": "READY",
-                "model_family": "R4_1_CALIBRATED",
-                "fair_line": -0.75,
-                "home_mu": 1.6,
-                "away_mu": 1.0,
-            },
-            {
-                "market": "TOTALS",
-                "status": "READY",
-                "model_family": "R4_1_CALIBRATED",
-                "fair_line": 2.5,
-                "home_mu": 1.6,
-                "away_mu": 1.0,
-            },
-        ],
-    }
+        market or {"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
+    )
 
 
 def test_analysis_gate_missing_fair_market_estimate_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
     card["fair_market_estimates"] = []
+    card["fair_market_estimate_snapshots"] = []
+    card["fair_market_estimate_ids"] = []
     card["pricing_shadow"] = {
         "simulation": {
             "status": "READY",
@@ -909,9 +979,7 @@ def test_analysis_gate_missing_fair_market_estimate_fails_closed(monkeypatch) ->
 
     assert fields["decision_tier"] == DecisionTier.WATCH.value
     assert fields["pick"] is None
-    assert fields["analysis_gate"]["status"] == "BLOCKED"  # type: ignore[index]
-    assert fields["analysis_gate"]["decision_source"] == "FAIR_MARKET_ESTIMATE"  # type: ignore[index]
-    assert fields["analysis_gate"]["decision_source_consistent"] is False  # type: ignore[index]
+    assert fields["analysis_gate"] == {}
 
 
 def test_analysis_gate_inconsistent_fair_market_provenance_fails_closed(monkeypatch) -> None:

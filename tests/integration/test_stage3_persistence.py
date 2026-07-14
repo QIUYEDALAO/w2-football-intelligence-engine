@@ -28,6 +28,7 @@ from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     SNAPSHOT_SCHEMA_VERSION,
     build_recommendation_lock_snapshot,
 )
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 from w2.tracking.formal_results import capture_formal_locks
 
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
@@ -405,6 +406,32 @@ def test_settlement_is_append_only(session: Session) -> None:
 
 
 def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id=str(fixture_id),
+        estimate=FairMarketEstimate(
+            market="ASIAN_HANDICAP",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=-0.5,
+            probabilities={},
+            home_mu=1.6,
+            away_mu=1.0,
+            feature_as_of="2026-06-22T00:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={
+            "ah": {
+                "home_line": -0.25,
+                "away_line": 0.25,
+                "home_price": 1.91,
+                "away_price": 1.93,
+            }
+        },
+        feature_snapshot={"home_xg": 1.6, "away_xg": 1.0},
+        created_at=NOW.isoformat().replace("+00:00", "Z"),
+    ).as_dict()
     return {
         "fixture_id": fixture_id,
         "generated_at": NOW.isoformat().replace("+00:00", "Z"),
@@ -416,6 +443,7 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         "recommendation": {
             "tier": "FORMAL",
             "market": "ASIAN_HANDICAP",
+            "estimate_id": snapshot["estimate_id"],
             "selection": "HOME_AH",
             "selection_label_cn": "Synthetic Home 让球",
             "line": "-0.25",
@@ -431,6 +459,8 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         },
         "current_odds": {
             "ah": {
+                "home_line": "-0.25",
+                "away_line": "0.25",
                 "home_price": "1.91",
                 "away_price": "1.93",
             },
@@ -464,4 +494,6 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
             "xg_status": "READY",
         },
         "data_profile": "real-db",
+        "fair_market_estimate_ids": [snapshot["estimate_id"]],
+        "fair_market_estimate_snapshots": [snapshot],
     }
