@@ -234,6 +234,50 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
     ]
 
 
+def test_market_observation_history_preserves_all_capture_times(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    rows = []
+    for index, captured_at in enumerate(
+        ("2026-06-23T08:00:00Z", "2026-06-23T09:00:00Z"),
+        start=1,
+    ):
+        rows.append(
+            {
+                "observation_id": f"observation-{index}",
+                "fixture_id": "fixture-history",
+                "provider": "api_football",
+                "bookmaker_id": "book-1",
+                "bookmaker_name": "Book 1",
+                "provider_bet_id": "bet-1",
+                "raw_market_label": "Asian Handicap",
+                "canonical_market": "ASIAN_HANDICAP",
+                "selection": "HOME",
+                "line": "-0.75",
+                "decimal_odds": "1.92",
+                "suspended": False,
+                "live": False,
+                "provider_last_update": captured_at,
+                "captured_at": captured_at,
+                "ingested_at": captured_at,
+                "raw_payload_sha256": str(index) * 64,
+                "source_revision": "test",
+            }
+        )
+    assert repository.append_observations(rows) == 2
+
+    history = repository.market_observation_history_for_fixtures(["fixture-history"])
+    latest = repository.latest_market_observations_for_fixtures(["fixture-history"])
+
+    assert len(history) == 2
+    assert history[0]["captured_at"] < history[1]["captured_at"]
+    assert len(latest) == 1
+    assert latest[0]["captured_at"] == history[-1]["captured_at"]
+
+
 def test_api_repository_reads_future_refresh_projection_from_db(
     tmp_path: Path,
     monkeypatch: Any,

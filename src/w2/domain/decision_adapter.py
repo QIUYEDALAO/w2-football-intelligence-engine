@@ -1013,6 +1013,7 @@ def _analysis_gate_v2_shadows(
                 estimate=estimate,
                 gate=gate,
                 odds=quote.get("odds"),
+                selection_line=quote.get("line"),
             )
         )
     return rows

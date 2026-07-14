@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -638,6 +639,20 @@ class ReadModelRepository:
                 return []
         return []
 
+    def market_observation_history_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        db_repository = future_refresh_db_repository()
+        if db_repository is not None:
+            try:
+                reader = getattr(db_repository, "market_observation_history_for_fixtures", None)
+                if callable(reader):
+                    return cast(list[dict[str, Any]], reader(fixture_ids))
+            except Exception:
+                return []
+        return []
+
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
 
@@ -934,7 +949,7 @@ class ReadModelService:
         return self._observations_by_fixture_cache.get(fixture_id, [])
 
     def _prime_observations_for_rows(self, rows: list[dict[str, Any]]) -> None:
-        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        reader = getattr(self.repository, "market_observation_history_for_fixtures", None)
         if not callable(reader):
             return
         fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
@@ -3517,6 +3532,33 @@ class ReadModelService:
         ):
             if key in selection and selection.get(key) is not None:
                 entry[key] = selection.get(key)
+        observations = selection.get("observations")
+        if isinstance(observations, list):
+            rows = [item for item in observations if isinstance(item, Mapping)]
+            captured = sorted(
+                str(item.get("captured_at") or "") for item in rows if item.get("captured_at")
+            )
+            if captured:
+                entry["as_of"] = captured[-1]
+            providers = sorted({str(item.get("provider")) for item in rows if item.get("provider")})
+            bookmakers = sorted(
+                {
+                    str(item.get("bookmaker_name") or item.get("bookmaker_id"))
+                    for item in rows
+                    if item.get("bookmaker_name") or item.get("bookmaker_id")
+                }
+            )
+            entry["source"] = providers[0] if len(providers) == 1 else "consensus"
+            entry["bookmaker"] = bookmakers[0] if len(bookmakers) == 1 else "consensus"
+            source_hashes = sorted(
+                str(item.get("raw_payload_sha256"))
+                for item in rows
+                if item.get("raw_payload_sha256")
+            )
+            if source_hashes:
+                entry["source_hash"] = hashlib.sha256(
+                    "|".join(source_hashes).encode("utf-8")
+                ).hexdigest()
         return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:

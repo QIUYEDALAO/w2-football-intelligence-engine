@@ -108,10 +108,50 @@ def test_ev_challenger_supports_quarter_asian_handicap_without_crossing_markets(
 
     probabilities = result["settlement_probabilities"]
     assert result["market"] == "ASIAN_HANDICAP"
+    assert result["home_centric_market_line"] == -0.75
+    assert result["selection_line"] == -0.75
     assert result["line"] == -0.75
     assert probabilities["HALF_WIN"] > 0
     assert probabilities["PUSH"] == 0
     assert round(sum(probabilities.values()), 8) == 1.0
+
+
+def test_away_ah_shadow_ev_uses_positive_selection_line() -> None:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-ah-away",
+        estimate=FairMarketEstimate(
+            market="ASIAN_HANDICAP",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=-0.5,
+            probabilities={},
+            home_mu=1.4,
+            away_mu=1.1,
+            feature_as_of="2026-07-12T00:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ah": {"line": -0.75, "away_price": 1.92}},
+        feature_snapshot={"home_xg": 1.4, "away_xg": 1.1},
+        created_at="2026-07-12T00:00:00Z",
+    ).as_dict()
+
+    result = build_analysis_gate_v2_shadow(
+        estimate=snapshot,
+        gate={
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY_AH",
+            "market_line": -0.75,
+            "status": "ELIGIBLE",
+        },
+        odds=1.92,
+    )
+
+    assert result["home_centric_market_line"] == -0.75
+    assert result["selection_line"] == 0.75
+    assert result["line"] == 0.75
+    assert round(sum(result["settlement_probabilities"].values()), 8) == 1.0
 
 
 def test_ev_challenger_rejects_tampered_estimate_snapshot() -> None:

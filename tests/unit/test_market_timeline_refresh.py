@@ -78,7 +78,7 @@ def test_market_timeline_refresh_service_respects_max_fixtures_and_does_not_back
                 {"fixture": {"id": "fx2", "date": "2026-06-28T19:00:00Z"}},
             ]
 
-        def future_market_observations_for_fixtures(
+        def market_observation_history_for_fixtures(
             self,
             fixture_ids: list[str],
         ) -> list[dict[str, object]]:
@@ -132,7 +132,7 @@ def test_market_timeline_refresh_does_not_fallback_to_all_observations_when_scop
         def fixture_payloads(self) -> list[dict[str, object]]:
             return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
 
-        def future_market_observations_for_fixtures(
+        def market_observation_history_for_fixtures(
             self,
             fixture_ids: list[str],
         ) -> list[dict[str, object]]:
@@ -167,7 +167,7 @@ def test_market_timeline_refresh_enforces_quota_guard_before_write(
         def fixture_payloads(self) -> list[dict[str, object]]:
             raise AssertionError("blocked refresh must not load fixtures")
 
-        def future_market_observations_for_fixtures(
+        def market_observation_history_for_fixtures(
             self,
             fixture_ids: list[str],
         ) -> list[dict[str, object]]:
@@ -204,7 +204,7 @@ def test_market_timeline_refresh_local_materialization_ignores_low_network_quota
         def fixture_payloads(self) -> list[dict[str, object]]:
             return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
 
-        def future_market_observations_for_fixtures(
+        def market_observation_history_for_fixtures(
             self,
             fixture_ids: list[str],
         ) -> list[dict[str, object]]:
@@ -259,7 +259,7 @@ def test_market_timeline_refresh_reports_stale_lock_reason_without_lock_artifact
         def fixture_payloads(self) -> list[dict[str, object]]:
             return [{"fixture": {"id": "fx1", "date": "2026-06-28T19:00:00Z"}}]
 
-        def future_market_observations_for_fixtures(
+        def market_observation_history_for_fixtures(
             self,
             fixture_ids: list[str],
         ) -> list[dict[str, object]]:

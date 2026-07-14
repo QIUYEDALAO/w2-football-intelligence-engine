@@ -23,6 +23,7 @@ def build_analysis_gate_v2_shadow(
     estimate: Mapping[str, Any],
     gate: Mapping[str, Any],
     odds: object,
+    selection_line: object | None = None,
 ) -> dict[str, Any]:
     semantic_status = str(
         estimate.get("semantic_status") or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
@@ -37,9 +38,12 @@ def build_analysis_gate_v2_shadow(
     base = {
         "schema_version": SCHEMA_VERSION,
         "estimate_id": estimate.get("estimate_id"),
+        "model_basis_id": estimate.get("model_basis_id"),
         "market": gate.get("market"),
         "selection": gate.get("selection"),
-        "line": gate.get("market_line"),
+        "home_centric_market_line": gate.get("market_line"),
+        "selection_line": _number(selection_line),
+        "line": _number(selection_line),
         "odds": _number(odds),
         "current_gate_status": gate.get("status"),
         "current_gate_pass": gate.get("status") == "ELIGIBLE",
@@ -63,7 +67,16 @@ def build_analysis_gate_v2_shadow(
     matrix = snapshot_score_matrix(estimate)
     market = str(gate.get("market") or "")
     selection = str(gate.get("selection") or "")
-    line = _number(gate.get("market_line"))
+    home_centric_line = _number(gate.get("market_line"))
+    line = _number(selection_line)
+    if line is None and home_centric_line is not None:
+        line = (
+            -home_centric_line
+            if market == "ASIAN_HANDICAP" and selection == "AWAY_AH"
+            else home_centric_line
+        )
+        base["selection_line"] = line
+        base["line"] = line
     decimal_odds = _number(odds)
     settlement_side = _settlement_side(market, selection)
     if matrix is None or line is None or decimal_odds is None or decimal_odds <= 1:
@@ -92,6 +105,7 @@ def build_analysis_gate_v2_shadow(
         and loss_probability <= MAX_LOSS_PROBABILITY
         and downside_probability <= MAX_DOWNSIDE_PROBABILITY
     )
+    settlement_probabilities = _rounded_probabilities(buckets)
     return {
         **base,
         "status": "PASS" if candidate_pass else "FAIL",
@@ -100,9 +114,7 @@ def build_analysis_gate_v2_shadow(
         "net_ev": round(net_ev, 8),
         "loss_probability": round(loss_probability, 8),
         "downside_probability": round(downside_probability, 8),
-        "settlement_probabilities": {
-            key: round(value, 8) for key, value in buckets.items()
-        },
+        "settlement_probabilities": settlement_probabilities,
     }
 
 
@@ -112,6 +124,15 @@ def _settlement_side(market: str, selection: str) -> str | None:
     if market == "TOTALS" and selection in {"OVER", "UNDER"}:
         return selection
     return None
+
+
+def _rounded_probabilities(values: Mapping[str, float]) -> dict[str, float]:
+    rounded = {key: round(value, 8) for key, value in values.items()}
+    residual = round(1.0 - sum(rounded.values()), 8)
+    if residual:
+        largest = min(rounded, key=lambda key: (-rounded[key], key))
+        rounded[largest] = round(rounded[largest] + residual, 8)
+    return rounded
 
 
 def _number(value: object) -> float | None:
