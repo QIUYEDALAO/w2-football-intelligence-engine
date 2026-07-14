@@ -106,6 +106,10 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
         "shadow": True,
         "not_a_recommendation": True,
         "not_displayed": True,
+        "raw_shadow_capture": True,
+        "diagnostic_only": True,
+        "evidence_eligible": False,
+        "semantic_status": "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED",
     }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
     assert rows[0]["model_market_divergence"]["model_family"] == "R4_1_CALIBRATED"
@@ -201,6 +205,66 @@ def test_forward_outcome_ledger_records_ah_and_totals_shadow_picks(tmp_path: Pat
         "TOTALS",
     ]
     assert payload["records"][0]["shadow_picks"][1]["selection"] == "OVER"
+
+
+def test_watch_ah_keeps_raw_shadow_capture(tmp_path: Path) -> None:
+    payload = run_forward_outcome_ledger(
+        _day_view(),
+        dry_run=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    record = payload["records"][0]
+    assert record["decision_tier"] == "WATCH"
+    assert record["recommendation_scope"] is None
+    assert record["shadow_pick"]["raw_shadow_capture"] is True
+    assert record["shadow_pick"]["diagnostic_only"] is True
+    assert record["shadow_pick"]["evidence_eligible"] is False
+
+
+def test_shadow_capture_does_not_enter_validation(tmp_path: Path) -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    outcomes = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 0)]},
+        dry_run=True,
+    )
+
+    assert payload["written"] == 1
+    assert outcomes["record_count"] == 1
+    assert outcomes["records"][0]["settled_side"] == "shadow_pick"
+    assert outcomes["records"][0]["recommendation_scope"] == "SHADOW"
+
+
+def test_shadow_capture_does_not_enter_official(tmp_path: Path) -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["decision_tier"] = "RECOMMEND"  # type: ignore[index]
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    outcomes = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 0)]},
+        dry_run=True,
+    )
+
+    assert payload["written"] == 1
+    assert outcomes["record_count"] == 1
+    assert outcomes["records"][0]["settled_side"] == "shadow_pick"
+    assert outcomes["records"][0]["recommendation_scope"] == "SHADOW"
 
 
 def test_forward_outcome_backfill_settles_two_shadow_markets_from_one_capture(

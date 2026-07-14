@@ -109,6 +109,33 @@ def test_boss_5s_required_text_only_in_details_fails(monkeypatch) -> None:  # ty
     assert "MISSING_REASON_SUMMARY" in result["blockers"]
 
 
+def test_zero_analysis_picks_passes_acceptance(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import scripts.check_w2_acceptance as acceptance
+
+    monkeypatch.setattr(
+        acceptance,
+        "render_boss_dashboard_l1_html",
+        lambda _day_view: (
+            "<main><header>正式可锁 分析推荐 未就绪 MODEL_FAIR_LINE_UNAVAILABLE "
+            "MARKET_UNAVAILABLE 下一次刷新 2026-07-05T01:30:00Z RECOMMEND-only "
+            "主要未出原因</header></main>"
+        ),
+    )
+    monkeypatch.setattr(
+        acceptance,
+        "build_boss_dashboard_l1",
+        lambda _day_view: {
+            "counts": {"lock_eligible": 0, "analysis_pick": 0, "not_ready": 1},
+            "freshness": {"next_refresh_tick": "2026-07-05T01:30:00Z"},
+        },
+    )
+
+    result = acceptance._boss_5s_test({})
+
+    assert result["status"] == "PASS"
+    assert result["analysis_pick"] == 0
+
+
 def test_forbidden_raw_debug_fails(tmp_path: Path) -> None:
     payload = _fixture_payload()
     payload["cards"][0]["one_liner"] = "raw_payload should stay out of boss first screen"
