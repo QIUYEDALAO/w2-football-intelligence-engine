@@ -718,7 +718,7 @@ def test_analysis_gate_model_missing_beats_lineup_reason(monkeypatch) -> None:
     assert fields["analysis_gate"]["status"] == "BLOCKED"  # type: ignore[index]
 
 
-def test_analysis_gate_no_edge_and_staging_evidence_accumulation_are_distinct(monkeypatch) -> None:
+def test_staging_ah_direction_not_allowed_is_watch(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     no_edge = _selective_card(direction_allowed={"ASIAN_HANDICAP": True})
     no_edge["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
@@ -735,19 +735,19 @@ def test_analysis_gate_no_edge_and_staging_evidence_accumulation_are_distinct(mo
     )
 
     assert no_edge_fields["reason_code"] == DecisionReasonCode.NO_EDGE.value
-    assert accumulating_fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert accumulating_fields["outcome_tracked"] is True
+    assert accumulating_fields["decision_tier"] == DecisionTier.WATCH.value
+    assert accumulating_fields["outcome_tracked"] is False
     assert accumulating_fields["lock_eligible"] is False
-    assert accumulating_fields["analysis_gate"]["status"] == "ELIGIBLE"  # type: ignore[index]
+    assert accumulating_fields["analysis_gate"]["status"] == "ACCUMULATING"  # type: ignore[index]
     assert accumulating_fields["analysis_gate"]["evidence_ready"] is False  # type: ignore[index]
     assert accumulating_fields["analysis_gate"]["direction_allowed"] is False  # type: ignore[index]
     assert DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value in (  # type: ignore[index]
-        accumulating_fields["analysis_gate"]["advisories"]
+        accumulating_fields["analysis_gate"]["blockers"]
     )
     assert accumulating_fields["analysis_gate"]["market"] == "ASIAN_HANDICAP"  # type: ignore[index]
 
 
-def test_analysis_gate_production_still_requires_forward_evidence(monkeypatch) -> None:
+def test_production_ah_direction_not_allowed_is_watch(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     fields = _fields(
         card=_selective_card(direction_allowed={"ASIAN_HANDICAP": False}),
@@ -766,6 +766,66 @@ def test_analysis_gate_production_still_requires_forward_evidence(monkeypatch) -
     assert fields["reason_code"] == DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value
 
 
+def test_explicit_ah_analysis_pick_cannot_bypass_gate(monkeypatch) -> None:
+    monkeypatch.delenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", raising=False)
+    fields = _fields(
+        card=_selective_card(direction_allowed={"ASIAN_HANDICAP": False}),
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision_tier": "ANALYSIS_PICK",
+            "decision": "PICK",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+        environment="staging",
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["pick"] is None
+
+
+def test_legacy_formal_cannot_bypass_current_ah_gate(monkeypatch) -> None:
+    monkeypatch.delenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", raising=False)
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": False})
+    card["formal_recommendation"] = True
+    fields = _fields(
+        card=card,
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "FORMAL",
+            "formal_recommendation": True,
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        recommendation={"tier": "FORMAL", "formal_recommendation": True},
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["pick"] is None
+    assert fields["legacy_formal"] is True
+
+
+def test_totals_staging_advisory_is_unchanged(monkeypatch) -> None:
+    monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
+    card = _selective_card(direction_allowed={"ASIAN_HANDICAP": True, "TOTALS": False})
+    card["fair_market_estimates"][0]["fair_line"] = -0.25  # type: ignore[index]
+    card["fair_market_estimates"][1]["fair_line"] = 3.0  # type: ignore[index]
+    fields = _fields(
+        card=card,
+        market={"market": "TOTALS", "decision": "PICK", "line": "2.5", "odds": "1.95"},
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["analysis_gate"]["market"] == "TOTALS"  # type: ignore[index]
+    assert fields["analysis_gate"]["status"] == "ELIGIBLE"  # type: ignore[index]
+    assert DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING.value in fields[
+        "analysis_gate"
+    ]["advisories"]  # type: ignore[index]
+
+
 def test_analysis_gate_evidence_maturity_is_isolated_but_strongest_market_wins(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
     card = _selective_card(
@@ -780,10 +840,10 @@ def test_analysis_gate_evidence_maturity_is_isolated_but_strongest_market_wins(m
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert fields["analysis_gate"]["market"] == "ASIAN_HANDICAP"  # type: ignore[index]
-    assert fields["analysis_gate"]["evidence_ready"] is False  # type: ignore[index]
-    assert fields["pick"]["selection"] == "HOME_AH"  # type: ignore[index]
-    assert fields["pick"]["line"] == "-0.25"  # type: ignore[index]
+    assert fields["analysis_gate"]["market"] == "TOTALS"  # type: ignore[index]
+    assert fields["analysis_gate"]["evidence_ready"] is True  # type: ignore[index]
+    assert fields["pick"]["selection"] == "OVER"  # type: ignore[index]
+    assert fields["pick"]["line"] == "2.5"  # type: ignore[index]
     assert fields["pick"]["odds"] == "1.95"  # type: ignore[index]
 
 

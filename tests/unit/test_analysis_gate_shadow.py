@@ -132,3 +132,22 @@ def test_ev_challenger_rejects_tampered_estimate_snapshot() -> None:
     assert result["status"] == "INSUFFICIENT"
     assert result["reason"] == "INVALID_ESTIMATE_INTEGRITY"
     assert result["affects_decision"] is False
+
+
+def test_v1_snapshot_is_not_evidence_eligible() -> None:
+    result = build_analysis_gate_v2_shadow(
+        estimate=_snapshot(),
+        gate={
+            "market": "TOTALS",
+            "selection": "OVER",
+            "market_line": 2.5,
+            "status": "ELIGIBLE",
+        },
+        odds=1.95,
+    )
+
+    assert result["raw_shadow_capture"] is True
+    assert result["diagnostic_only"] is True
+    assert result["evidence_eligible"] is False
+    assert result["not_a_recommendation"] is True
+    assert result["semantic_status"] == "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"

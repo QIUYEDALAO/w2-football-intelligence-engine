@@ -299,10 +299,15 @@ def _market_anchor_display_tier(
     model_market_divergence: Mapping[str, Any],
     analysis_gate: Mapping[str, Any],
 ) -> DecisionTier:
-    if not _market_anchor_display_enabled():
-        return tier
     if data_status is DataStatus.BLOCKED:
         return DecisionTier.NOT_READY
+    if (
+        str(analysis_gate.get("market")) == "ASIAN_HANDICAP"
+        and analysis_gate.get("direction_allowed") is not True
+    ):
+        return DecisionTier.WATCH
+    if not _market_anchor_display_enabled():
+        return tier
     if analysis_gate:
         if str(analysis_gate.get("status")) != "ELIGIBLE":
             return DecisionTier.WATCH
@@ -837,8 +842,11 @@ def _analysis_gates(
             blockers.append("DECISION_SOURCE_INCONSISTENT")
         if market_ready and model_ready and delta is not None and abs(delta) < threshold:
             blockers.append("NO_EDGE")
+        direction_blocked = not direction_allowed and (
+            market == "ASIAN_HANDICAP" or not staging_analysis_visible
+        )
         if market_ready and model_ready and delta is not None and abs(delta) >= threshold:
-            if not direction_allowed and not staging_analysis_visible:
+            if direction_blocked:
                 blockers.append("FORWARD_EVIDENCE_ACCUMULATING")
             elif not direction_allowed:
                 advisories.append("FORWARD_EVIDENCE_ACCUMULATING")
@@ -846,7 +854,7 @@ def _analysis_gates(
             status = "BLOCKED"
         elif delta is None or abs(delta) < threshold:
             status = "NO_EDGE"
-        elif not direction_allowed and not staging_analysis_visible:
+        elif direction_blocked:
             status = "ACCUMULATING"
         else:
             status = "ELIGIBLE"

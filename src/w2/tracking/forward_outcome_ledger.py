@@ -706,6 +706,24 @@ def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
                 derived_from="fair_market_estimate_snapshot",
             )
             payload["estimate_id"] = _optional_text(estimate.get("estimate_id"))
+            semantic_status = _text(
+                estimate.get("semantic_status")
+                or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
+            )
+            evidence_eligible = (
+                estimate.get("schema_version") == "w2.fme_snapshot.v2"
+                and semantic_status == "PASS"
+                and estimate.get("evidence_eligible") is True
+                and verify_estimate_snapshot(estimate)
+            )
+            payload.update(
+                {
+                    "raw_shadow_capture": True,
+                    "diagnostic_only": not evidence_eligible,
+                    "evidence_eligible": evidence_eligible,
+                    "semantic_status": semantic_status,
+                }
+            )
             for field in (
                 "model_family",
                 "artifact_hash",
@@ -768,6 +786,10 @@ def _shadow_pick_payload(
         "shadow": True,
         "not_a_recommendation": True,
         "not_displayed": True,
+        "raw_shadow_capture": True,
+        "diagnostic_only": True,
+        "evidence_eligible": False,
+        "semantic_status": "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED",
     }
 
 

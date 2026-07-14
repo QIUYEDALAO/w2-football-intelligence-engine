@@ -20,6 +20,15 @@ def build_analysis_gate_v2_shadow(
     gate: Mapping[str, Any],
     odds: object,
 ) -> dict[str, Any]:
+    semantic_status = str(
+        estimate.get("semantic_status") or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
+    )
+    evidence_eligible = (
+        estimate.get("schema_version") == "w2.fme_snapshot.v2"
+        and semantic_status == "PASS"
+        and estimate.get("evidence_eligible") is True
+        and verify_estimate_snapshot(estimate)
+    )
     base = {
         "schema_version": SCHEMA_VERSION,
         "estimate_id": estimate.get("estimate_id"),
@@ -38,6 +47,11 @@ def build_analysis_gate_v2_shadow(
         "affects_pick": False,
         "affects_tier": False,
         "shadow_only": True,
+        "raw_shadow_capture": True,
+        "diagnostic_only": not evidence_eligible,
+        "evidence_eligible": evidence_eligible,
+        "not_a_recommendation": True,
+        "semantic_status": semantic_status,
     }
     if estimate.get("estimate_id") and not verify_estimate_snapshot(estimate):
         return {**base, "status": "INSUFFICIENT", "reason": "INVALID_ESTIMATE_INTEGRITY"}

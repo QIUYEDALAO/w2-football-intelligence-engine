@@ -656,6 +656,8 @@ def _league_market_rows(
         for row in rows:
             if not isinstance(row, Mapping):
                 continue
+            if row.get("evidence_eligible") is not True:
+                continue
             market = _text(row.get("market"))
             fixture_id = _text(record.get("fixture_id"))
             if market and fixture_id:
@@ -668,7 +670,11 @@ def _league_market_rows(
         if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
             continue
         shadow = record.get("analysis_gate_v2_shadow")
-        if not isinstance(shadow, Mapping) or shadow.get("candidate_pass") is not True:
+        if (
+            not isinstance(shadow, Mapping)
+            or shadow.get("candidate_pass") is not True
+            or shadow.get("evidence_eligible") is not True
+        ):
             continue
         market = _text(record.get("market"))
         fixture_id = _text(record.get("fixture_id"))
