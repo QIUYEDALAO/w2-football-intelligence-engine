@@ -195,6 +195,7 @@ def predict_r4_1_from_artifact(
         "ou_probabilities": prediction.ou_probabilities,
         "home_mu": prediction.home_mu,
         "away_mu": prediction.away_mu,
+        "rho": artifact.rho,
         "artifact_hash": artifact.artifact_hash,
         "artifact_version": artifact.artifact_version,
         "train_cutoff": _iso_utc(artifact.train_cutoff_utc),

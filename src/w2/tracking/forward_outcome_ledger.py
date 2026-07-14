@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
+from w2.models.fair_market_estimate import (
+    estimate_snapshots,
+    verify_estimate_semantics,
+    verify_estimate_snapshot,
+)
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
@@ -712,9 +716,10 @@ def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
             )
             evidence_eligible = (
                 estimate.get("schema_version") == "w2.fme_snapshot.v2"
-                and semantic_status == "PASS"
+                and semantic_status == "VERIFIED"
                 and estimate.get("evidence_eligible") is True
                 and verify_estimate_snapshot(estimate)
+                and verify_estimate_semantics(estimate)
             )
             payload.update(
                 {

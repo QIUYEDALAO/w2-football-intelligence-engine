@@ -11,6 +11,7 @@ from w2.models.divergence_champion import (
     divergence_model_family_for,
     select_divergence_champion_probabilities,
 )
+from w2.models.fair_market_estimate import verify_estimate_semantics
 from w2.models.r4_1_artifacts import build_r4_1_artifact_payload
 
 
@@ -154,6 +155,11 @@ def test_repository_divergence_loads_r4_1_artifact_when_feature_rows_available(
     assert divergence["artifact_hash"] == shadow["artifact_hash"]
     assert divergence["model_family"] == "R4_1_CALIBRATED"
     assert divergence["direction_allowed"] is False
+    snapshots = card["fair_market_estimate_snapshots"]
+    assert all(item["schema_version"] == "w2.fme_snapshot.v2" for item in snapshots)
+    assert all(item["dixon_coles_rho"] == -0.03 for item in snapshots)
+    assert all(verify_estimate_semantics(item) for item in snapshots)
+    assert shadow["fair_ah"] == snapshots[0]["model_fair_ah"]
 
 
 def test_repository_divergence_falls_back_when_r4_1_history_is_insufficient(
