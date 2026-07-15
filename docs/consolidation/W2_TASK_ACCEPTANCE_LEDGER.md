@@ -708,3 +708,11 @@
 - 当前分支 `codex/w2-ah-evidence-review` 实施 AH-4：新增只读 35/100 证据报告生成器，比较 Wide/Strict、HOME/AWAY，并按联赛、artifact、盘口档位拆分 ROI、CLV、五态校准、最大回撤和 full-loss rate。
 - 当前未部署代码的本地 runtime 没有 corrected settled AH，报告为 `ACCUMULATING`、0/35、0/100；样本不足不阻塞代码交付，也不伪造命中率。
 - 达到成熟样本也只进入人工质量评审；未预注册质量通过门前维持 `KEEP_SHADOW_ONLY`，不得自动开启方向、推荐或 lock。未调用 provider、未写业务数据库、未部署或重启服务。
+
+### V3 进展续60 · Whole-System 批次完成与上下文重基线(2026-07-15)
+
+- #292 已合入 main `4c70fd9a9051a3870fe27d9c0bb9b0af44b06f1a`，三项 CI 全绿；AH 35/100 只读证据评审工具已落地，当前本地 corrected settled evidence 为 0，状态 `ACCUMULATING`。
+- #278 至 #292 的 correctness、identity、storage、readiness、ops 与 AH shadow/governance 工程阶段全部完成；最终代码测试为 `1316 passed, 4 skipped`，Ruff/Mypy/TypeScript/Web/acceptance 均通过。
+- 历史 Draft #277 基于计划前旧状态并会重写当前 `PROJECT_STATE`，已关闭并由本次 docs-only 最终重基线替代；#203 继续保持历史 Draft，不在当前队列。
+- 仓库状态进入 `READY_FOR_STAGING_DEPLOY_REVIEW`，并不表示已部署。staging 仍运行旧 SHA `493b4b6...`，production 未部署；后续部署必须单独批准并执行完整 release/readiness/business gate。
+- 本批次累计 provider calls=0、业务 DB writes=0、staging/production deploy=false、scheduler/worker restart=false、历史 snapshot/outcome rewrite=0；RECOMMEND、lock、production、联赛 enable 与模型 artifact 均未改变。
