@@ -58,7 +58,7 @@ export function DashboardPage() {
       if (cached) {
         setView(cached);
         setUpdatedAt(updatedAtShanghai());
-        setState(cached.all.length ? "ok" : "empty");
+        setState((cached.day_view?.cards.length ?? cached.all.length) ? "ok" : "empty");
       } else {
         setState("loading");
       }
@@ -96,6 +96,12 @@ export function DashboardPage() {
 
   return (
     <main className="app-shell dashboard-v2">
+      {view?.cache_status === "STALE_CACHE" ? (
+        <aside className="soft-errors">
+          <strong>缓存快照 · STALE_CACHE</strong>
+          <p>网络读取失败前先保留最近一次 DayView；不会冒充当前 release。</p>
+        </aside>
+      ) : null}
       {view?.day_view ? null : view ? <ReleaseSyncBadge release={view.release} /> : null}
       {view?.day_view ? null : (
         <div className="dashboard-controls">

@@ -1235,6 +1235,22 @@ button {
   margin-top: 10px;
 }
 
+.l2-load-error {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+}
+
+.l2-raw-audit pre {
+  max-height: 480px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
 .l2-diagnostics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

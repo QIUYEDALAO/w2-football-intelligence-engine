@@ -832,8 +832,13 @@ export interface DashboardDayViewCard {
     selection?: string | null;
     line?: string | number | null;
     odds?: string | number | null;
-    disclaimer?: string | null;
+    fair_line?: string | number | null;
+    estimate_id?: string | null;
+    model_basis_id?: string | null;
   } | null;
+  compact_provenance?: Record<string, unknown>;
+  audit_available?: boolean;
+  audit_links?: Record<string, string>;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;
@@ -886,4 +891,17 @@ export interface DashboardView {
   finished: DashboardMatchCard[];
   all: DashboardMatchCard[];
   errors: string[];
+  cache_status?: "FRESH" | "STALE_CACHE";
+}
+
+export interface FixtureAuditDetails {
+  fixture_id: string;
+  estimate_id: string | null;
+  api_release_sha: string;
+  match: DashboardMatchCard;
+  analysis_card: Record<string, unknown>;
+  integrity: Record<string, unknown>;
+  market_probabilities: Record<string, unknown>;
+  model_probabilities: Record<string, unknown>;
+  odds_timeline: Record<string, unknown>;
 }

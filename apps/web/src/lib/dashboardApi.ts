@@ -13,6 +13,7 @@ import type {
   FormalTrackingSummary,
   LockedPreMatchRecommendation,
   DashboardView,
+  FixtureAuditDetails,
   MatchResult,
   MatchStatus,
   PricingShadow,
@@ -32,6 +33,9 @@ interface DashboardCacheEntry {
   stored_at: string;
   view: DashboardView;
 }
+
+const fixtureAuditInflight = new Map<string, Promise<FixtureAuditDetails>>();
+const fixtureAuditCache = new Map<string, FixtureAuditDetails>();
 
 interface FetchDashboardArgs {
   date: string;
@@ -794,7 +798,7 @@ export function getCachedDashboardView(date: string, mode: DashboardMode): Dashb
     if (entry.version !== DASHBOARD_CACHE_VERSION || !entry.stored_at || !entry.view) return null;
     if (Date.now() - Date.parse(entry.stored_at) > DASHBOARD_CACHE_TTL_MS) return null;
     if (!entry.view.day_view) return null;
-    return entry.view;
+    return { ...entry.view, cache_status: "STALE_CACHE" };
   } catch {
     return null;
   }
@@ -825,16 +829,6 @@ function storeCachedDashboardView(date: string, mode: DashboardMode, view: Dashb
   } catch {
     // Cache is best-effort; private browsing or quota limits should not break the dashboard.
   }
-}
-
-async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
-  const params = new URLSearchParams({
-    date,
-    window: mode,
-    timezone: "Asia/Shanghai",
-    include_debug: includeDebug ? "true" : "false",
-  });
-  return getJSON(`${API_BASE}/dashboard?${params.toString()}`, timeoutMs);
 }
 
 async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): Promise<unknown> {
@@ -959,9 +953,14 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
           selection: textValue(pick.selection) || null,
           line: textValue(pick.line) || null,
           odds: textValue(pick.odds) || null,
-          disclaimer: textValue(pick.disclaimer) || null,
+          fair_line: textValue(pick.fair_line) || null,
+          estimate_id: textValue(pick.estimate_id) || null,
+          model_basis_id: textValue(pick.model_basis_id) || null,
         }
       : null,
+    compact_provenance: asRecord(record.compact_provenance),
+    audit_available: record.audit_available === true,
+    audit_links: asRecord(record.audit_links) as Record<string, string>,
     non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
@@ -1010,7 +1009,7 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
   };
 }
 
-export async function fetchDashboardView({ date, mode, includeDebug = false }: FetchDashboardArgs): Promise<DashboardView> {
+export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {
   const metaPromise = getJSON("/meta.json");
   if (explicitDemoMode()) {
     const meta = normalizeMeta(await metaPromise);
@@ -1023,21 +1022,7 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     fetchDashboardDayViewPayloadRequired(date, mode),
   ]);
   const dayView = dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null;
-  let dashboardPayload: unknown | null = null;
-  let dashboardError: unknown = null;
-  if (!dayView) {
-    dashboardPayload = await fetchDashboardPayload(date, mode, includeDebug, REQUEST_TIMEOUT_MS);
-  }
-  let dashboard = asRecord(dashboardPayload);
-  if (!includeDebug && !dayView && asArray(dashboard.all).length === 0) {
-    try {
-      dashboardPayload = await fetchDashboardPayload(date, mode, true, REQUEST_TIMEOUT_MS);
-      dashboard = asRecord(dashboardPayload);
-    } catch (error) {
-      dashboardError = dashboardError ?? error;
-      throw error;
-    }
-  }
+  const dashboard = {} as Record<string, unknown>;
   const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
@@ -1052,13 +1037,13 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
       textValue(dashboard.date) ||
       dayView?.selected_football_day ||
       date,
-    selected_date_has_data: dashboardPayload ? Boolean(dashboard.selected_date_has_data) : Boolean(dayView?.cards.length),
+    selected_date_has_data: Boolean(dayView?.cards.length),
     next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date || dayView?.selected_football_day || null,
     football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
     football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
     football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
     football_day_end_utc: textValue(dashboard.football_day_end_utc) || undefined,
-    generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
+    generated_at: dayView?.generated_at ?? new Date().toISOString(),
     data_profile: release.data_profile,
     data_source: release.data_source,
     release,
@@ -1070,8 +1055,50 @@ export async function fetchDashboardView({ date, mode, includeDebug = false }: F
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
     all,
-    errors: dashboardError ? ["legacy dashboard payload timed out; Boss View rendered from DayView"] : [],
+    errors: [],
+    cache_status: "FRESH" as const,
   };
   storeCachedDashboardView(date, mode, view);
   return view;
+}
+
+export function fetchFixtureAuditDetails(
+  fixtureId: string,
+  estimateId: string | null,
+  apiReleaseSha: string,
+): Promise<FixtureAuditDetails> {
+  const key = [fixtureId, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
+  const cached = fixtureAuditCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  const inflight = fixtureAuditInflight.get(key);
+  if (inflight) return inflight;
+
+  const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
+  const request = Promise.all([
+    getJSON(`${base}/analysis-card`),
+    getJSON(`${base}/integrity`),
+    getJSON(`${base}/market-probabilities`).catch(() => ({})),
+    getJSON(`${base}/model-probabilities`).catch(() => ({})),
+    getJSON(`${base}/odds-timeline`).catch(() => ({})),
+  ]).then(([analysisPayload, integrityPayload, marketPayload, modelPayload, oddsPayload]) => {
+    const analysis = asRecord(analysisPayload);
+    const card = asRecord(analysis.card);
+    const detail: FixtureAuditDetails = {
+      fixture_id: fixtureId,
+      estimate_id: estimateId,
+      api_release_sha: apiReleaseSha,
+      match: normalizeCard(card),
+      analysis_card: card,
+      integrity: asRecord(asRecord(integrityPayload).integrity),
+      market_probabilities: asRecord(marketPayload),
+      model_probabilities: asRecord(modelPayload),
+      odds_timeline: asRecord(oddsPayload),
+    };
+    fixtureAuditCache.set(key, detail);
+    return detail;
+  }).finally(() => {
+    fixtureAuditInflight.delete(key);
+  });
+  fixtureAuditInflight.set(key, request);
+  return request;
 }
