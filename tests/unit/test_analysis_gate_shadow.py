@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 
 from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
-from w2.strategy.analysis_gate_shadow import build_analysis_gate_v2_shadow
+from w2.strategy.analysis_gate_shadow import (
+    STRICT_GATE_HASH,
+    STRICT_POLICY,
+    build_analysis_gate_v2_shadow,
+)
 
 
 def _snapshot() -> dict[str, object]:
@@ -54,6 +58,48 @@ def test_ev_challenger_uses_frozen_settlement_distribution_and_never_affects_dec
     assert result["affects_pick"] is False
     assert result["affects_tier"] is False
     assert result["shadow_only"] is True
+    assert result["confirmation_required"] is False
+    assert result["confirmation_status"] == "NOT_REQUIRED"
+
+
+def test_ah_strict_policy_is_versioned_hashed_and_never_visible() -> None:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-ah",
+        estimate=FairMarketEstimate(
+            market="ASIAN_HANDICAP",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=-1.0,
+            probabilities={},
+            home_mu=1.9,
+            away_mu=0.9,
+            feature_as_of="2026-07-12T00:00:00Z",
+            train_cutoff="2026-06-01T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ah": {"line": -0.75, "home_price": 1.92}},
+        feature_snapshot={"home_xg": 1.9, "away_xg": 0.9},
+        created_at="2026-07-12T00:00:00Z",
+    ).as_dict()
+
+    result = build_analysis_gate_v2_shadow(
+        estimate=snapshot,
+        gate={
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "market_line": -0.75,
+            "status": "ELIGIBLE",
+        },
+        odds=1.92,
+    )
+
+    assert STRICT_POLICY["strategy_version"] == "W2_AH_STRICT_SHADOW_V1"
+    assert len(STRICT_GATE_HASH) == 64
+    assert result["strict_gate_hash"] == STRICT_GATE_HASH
+    assert result["confirmation_required"] is True
+    assert result["visible_eligible"] is False
+    assert result["affects_decision"] is False
 
 
 def test_ev_challenger_is_insufficient_without_odds_and_does_not_change_current_gate() -> None:

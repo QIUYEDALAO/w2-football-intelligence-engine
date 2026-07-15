@@ -141,13 +141,9 @@ def test_forward_ledger_performance_reports_validation_fixture_denominator(
 ) -> None:
     root = tmp_path / "forward_outcome_ledger"
     root.mkdir()
-    settled_capture = _record(
-        "2026-07-07T01:00:00Z", fixture_id="validation-settled", pick=True
-    )
+    settled_capture = _record("2026-07-07T01:00:00Z", fixture_id="validation-settled", pick=True)
     settled_capture["decision_tier"] = "ANALYSIS_PICK"
-    pending_capture = _record(
-        "2026-07-07T02:00:00Z", fixture_id="validation-pending", pick=True
-    )
+    pending_capture = _record("2026-07-07T02:00:00Z", fixture_id="validation-pending", pick=True)
     pending_capture["decision_tier"] = "ANALYSIS_PICK"
     outcome = _outcome_record("validation-settled", "WIN", side="pick")
     outcome["recommendation_scope"] = "VALIDATION"
@@ -548,6 +544,60 @@ def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
     assert challenger["review_threshold"] == 35
     assert challenger["maturity_threshold"] == 100
     assert challenger["affects_decision"] is False
+
+
+def test_strict_ah_challenger_counts_only_dual_confirmed_fixture(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+
+    def capture(fixture_id: str, quote_id: str, captured_at: str) -> dict[str, object]:
+        return {
+            "record_type": "capture",
+            "fixture_id": fixture_id,
+            "competition_id": "39",
+            "captured_at": captured_at,
+            "kickoff_utc": "2026-08-02T12:00:00Z",
+            "analysis_gate_v2_shadows": [
+                {
+                    "fixture_id": fixture_id,
+                    "kickoff_utc": "2026-08-02T12:00:00Z",
+                    "market": "ASIAN_HANDICAP",
+                    "selection": "HOME_AH",
+                    "model_basis_id": "fmb-1",
+                    "estimate_id": f"estimate-{quote_id}",
+                    "quote_id": quote_id,
+                    "quote_captured_at": captured_at,
+                    "candidate_pass": True,
+                    "confirmation_required": True,
+                    "strategy_version": "W2_AH_STRICT_SHADOW_V1",
+                    "evidence_eligible": True,
+                    "semantic_status": "VERIFIED",
+                    "net_ev": 0.04,
+                }
+            ],
+        }
+
+    _write_jsonl(
+        root / "2026-08-02_staging.jsonl",
+        [
+            capture("pending", "mq-pending", "2026-08-02T10:00:00Z"),
+            capture("confirmed", "mq-1", "2026-08-02T10:00:00Z"),
+            capture("confirmed", "mq-2", "2026-08-02T10:20:00Z"),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    row = next(
+        item
+        for item in payload["by_league_market"]
+        if item["league"] == "premier_league" and item["market"] == "ASIAN_HANDICAP"
+    )
+    challenger = row["ev_shadow_challenger"]
+    assert challenger["evaluated_fixture_count"] == 1
+    assert challenger["candidate_pass_count"] == 1
 
 
 def test_forward_ledger_performance_marks_late_entry_window(

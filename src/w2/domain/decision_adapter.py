@@ -79,7 +79,11 @@ def build_decision_contract_fields(
         environment=environment,
     )
     analysis_gate = _primary_analysis_gate(analysis_gates)
-    analysis_gate_v2_shadows = _analysis_gate_v2_shadows(card, analysis_gates)
+    analysis_gate_v2_shadows = _analysis_gate_v2_shadows(
+        card,
+        analysis_gates,
+        kickoff_utc=kickoff_utc,
+    )
     analysis_gate_v2_shadow = next(
         (
             item
@@ -1040,6 +1044,8 @@ def _primary_analysis_gate(gates: Sequence[Mapping[str, Any]]) -> Mapping[str, A
 def _analysis_gate_v2_shadows(
     card: Mapping[str, Any],
     gates: Sequence[Mapping[str, Any]],
+    *,
+    kickoff_utc: datetime,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for gate in gates:
@@ -1053,6 +1059,10 @@ def _analysis_gate_v2_shadows(
                 gate=gate,
                 odds=quote.get("odds"),
                 selection_line=quote.get("line"),
+                fixture_id=card.get("fixture_id"),
+                kickoff_utc=kickoff_utc.isoformat().replace("+00:00", "Z"),
+                quote_id=gate.get("quote_id"),
+                quote_captured_at=gate.get("quote_captured_at"),
             )
         )
     return rows

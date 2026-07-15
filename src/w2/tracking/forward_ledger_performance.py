@@ -9,6 +9,7 @@ from statistics import median
 from typing import Any
 
 from w2.infrastructure.atomic_files import read_jsonl
+from w2.strategy.analysis_gate_shadow import confirm_strict_ah_shadow
 from w2.tracking.canonical_identity import (
     candidate_for_outcome,
     canonical_capture_candidates,
@@ -788,6 +789,9 @@ def _league_market_rows(
     records: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     challenger_captures: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
+    confirmation_candidates: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(
+        list
+    )
     for record in records:
         if _record_type(record) != "capture":
             continue
@@ -801,11 +805,36 @@ def _league_market_rows(
                 continue
             market = _text(row.get("market"))
             fixture_id = _text(record.get("fixture_id"))
+            if row.get("confirmation_required") is True and market and fixture_id:
+                confirmation_candidates[
+                    (
+                        _league_key(record),
+                        market,
+                        fixture_id,
+                        _text(row.get("strategy_version")),
+                    )
+                ].append(
+                    {
+                        **dict(row),
+                        "fixture_id": row.get("fixture_id") or fixture_id,
+                        "kickoff_utc": row.get("kickoff_utc") or record.get("kickoff_utc"),
+                    }
+                )
+                continue
             if market and fixture_id:
                 challenger_captures[(_league_key(record), market)][fixture_id] = {
                     **dict(row),
                     "captured_at": record.get("captured_at"),
                 }
+    for (
+        league,
+        market,
+        fixture_id,
+        _strategy_version,
+    ), candidates in confirmation_candidates.items():
+        confirmed = confirm_strict_ah_shadow(candidates)
+        if confirmed.get("status") == "PASS":
+            challenger_captures[(league, market)][fixture_id] = confirmed
     challenger_outcomes: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
     for record in records:
         if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
@@ -816,6 +845,10 @@ def _league_market_rows(
             or shadow.get("candidate_pass") is not True
             or shadow.get("evidence_eligible") is not True
             or shadow.get("semantic_status") != "VERIFIED"
+            or (
+                shadow.get("confirmation_required") is True
+                and shadow.get("confirmation_status") != "CONFIRMED"
+            )
         ):
             continue
         market = _text(record.get("market"))
