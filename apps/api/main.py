@@ -9,7 +9,12 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from w2.api.routers import error_handler, ops_router, public_router, service
 from w2.config import Environment, get_settings
-from w2.monitoring.health import HealthPayload, build_health_payload
+from w2.monitoring.health import (
+    HealthPayload,
+    ReadinessPayload,
+    build_health_payload,
+    build_readiness_payload,
+)
 from w2.operations.observability import default_metric_registry
 
 
@@ -46,9 +51,11 @@ def health() -> HealthPayload:
     return build_health_payload()
 
 
-@app.get("/ready", response_model=HealthPayload)
-def ready() -> HealthPayload:
-    return build_health_payload()
+@app.get("/ready", response_model=ReadinessPayload)
+def ready(response: Response) -> ReadinessPayload:
+    payload = build_readiness_payload()
+    response.status_code = 200 if payload.ready else 503
+    return payload
 
 
 @app.get("/metrics")

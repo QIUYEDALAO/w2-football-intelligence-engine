@@ -6,6 +6,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "infra/compose/compose.staging.yml"
+LITE_COMPOSE = ROOT / "infra/compose/staging-lite.override.yml"
+LOCAL_COMPOSE = ROOT / "docker-compose.yml"
 NGINX = ROOT / "apps/web/nginx.conf"
 DEPLOY = ROOT / "scripts/deploy_stage7h_staging.sh"
 SYSTEMD_UNIT = ROOT / "infra/systemd/w2-staging.service"
@@ -34,6 +36,20 @@ def test_runtime_commands_use_built_virtualenv_without_uv_run() -> None:
         healthcheck = service.get("healthcheck")
         if healthcheck:
             assert "uv" not in healthcheck["test"]
+
+
+def test_api_container_healthchecks_use_readiness_not_liveness() -> None:
+    for path in (COMPOSE, LITE_COMPOSE, LOCAL_COMPOSE):
+        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
+        healthcheck = " ".join(
+            str(item) for item in compose["services"]["api"]["healthcheck"]["test"]
+        )
+        assert "/ready" in healthcheck
+        assert "/health" not in healthcheck
+    dockerfile = (ROOT / "Dockerfile.api").read_text(encoding="utf-8")
+    assert "HEALTHCHECK" in dockerfile
+    assert "/ready" in dockerfile
+    assert "COPY pyproject.toml uv.lock README.md alembic.ini ./" in dockerfile
 
 
 def test_web_uses_short_ttl_docker_dns_and_waits_for_healthy_api() -> None:

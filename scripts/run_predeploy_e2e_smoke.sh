@@ -19,6 +19,7 @@ fi
 TMP_DIR="$(mktemp -d)"
 ENV_FILE="${TMP_DIR}/predeploy-e2e.env"
 OVERRIDE_FILE="${TMP_DIR}/predeploy-e2e.override.yml"
+PREDEPLOY_ARTIFACT="${ROOT}/runtime/model_artifacts/r4_1/predeploy_readiness.v1.json"
 RUNTIME_MODE_BEFORE=""
 if [ -e "${ROOT}/runtime" ]; then
   RUNTIME_MODE_BEFORE="$(stat -c '%a' "${ROOT}/runtime" 2>/dev/null || stat -f '%Lp' "${ROOT}/runtime" 2>/dev/null || true)"
@@ -26,6 +27,7 @@ fi
 cleanup() {
   cd "${ROOT}"
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" down -v --remove-orphans >/dev/null 2>&1 || true
+  rm -f "${PREDEPLOY_ARTIFACT}"
   if [ -n "${RUNTIME_MODE_BEFORE}" ] && [ -e "${ROOT}/runtime" ]; then
     chmod "${RUNTIME_MODE_BEFORE}" "${ROOT}/runtime" >/dev/null 2>&1 || true
   elif [ -e "${ROOT}/runtime" ]; then
@@ -76,7 +78,32 @@ services:
 EOF
 
 cd "${ROOT}"
-mkdir -p runtime
+mkdir -p "$(dirname "${PREDEPLOY_ARTIFACT}")"
+PREDEPLOY_ARTIFACT="${PREDEPLOY_ARTIFACT}" uv run --python 3.12 python - <<'PY'
+from __future__ import annotations
+
+import json
+import os
+from datetime import UTC, datetime
+from pathlib import Path
+
+from w2.models.r4_1_artifacts import build_r4_1_artifact_payload
+
+payload = build_r4_1_artifact_payload(
+    competition_id="predeploy_readiness",
+    coefficients=[0.0],
+    feature_names=["home_field__predeploy"],
+    temperature=1.0,
+    rho=0.0,
+    train_cutoff_utc=datetime(2026, 1, 1, tzinfo=UTC),
+    fit_sample_count=1,
+    protocol_identity_check="PREDEPLOY_FIXTURE_ONLY",
+)
+Path(os.environ["PREDEPLOY_ARTIFACT"]).write_text(
+    json.dumps(payload, sort_keys=True),
+    encoding="utf-8",
+)
+PY
 chmod 0555 runtime || true
 
 uv run --python 3.12 python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
