@@ -1413,11 +1413,17 @@ export function BossDecisionView({
   legacyMatches,
   performance,
   release,
+  onLoadMore,
+  loadingMore = false,
+  pageNotice,
 }: {
   dayView: DashboardDayView;
   legacyMatches: DashboardMatchCard[];
   performance?: DashboardPerformance;
   release?: ReleaseSyncState;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  pageNotice?: string | null;
 }) {
   const now = useMemo(() => referenceTime(dayView), [dayView]);
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
@@ -1513,7 +1519,7 @@ export function BossDecisionView({
               <ScheduleSection
                 title="未来赛程"
                 hint="明天及以后先折叠看摘要，临近窗口再进入今日赛程"
-                cards={filteredFutureSchedule.slice(0, 8)}
+                cards={filteredFutureSchedule}
                 empty="未来窗口暂无待赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
                 now={now}
@@ -1522,6 +1528,15 @@ export function BossDecisionView({
                 collapsed
               />
               <CoverageFoldout dayView={dayView} />
+              <div className="dayview-pagination" aria-live="polite">
+                <span>已显示 {dayView.cards.length} / {dayView.pagination.total_count} 场</span>
+                {dayView.pagination.has_more ? (
+                  <button type="button" className="toolbar-button" disabled={loadingMore} onClick={onLoadMore}>
+                    {loadingMore ? "加载中…" : "加载更多比赛"}
+                  </button>
+                ) : null}
+                {pageNotice ? <span>{pageNotice}</span> : null}
+              </div>
             </>
           ) : (
             <div className="decision-empty">
