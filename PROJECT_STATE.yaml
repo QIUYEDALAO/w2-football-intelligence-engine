@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-15T04:05:00Z"
+last_updated_utc: "2026-07-15T06:30:00Z"
 current_phase: whole-system correctness and AH validation program
 current_status: IN_PROGRESS
 
@@ -20,13 +20,13 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 007abdd9f7440217d92db4a8f6f8650b4d95ac59
+  main_sha: 4de27442940d530ec9b93caec7e0cf5ec926320b
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-15T04:05:00Z"
+  observed_at_utc: "2026-07-15T06:30:00Z"
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
@@ -82,9 +82,16 @@ current_execution_queue:
       merged_pr: 288
     - id: CORE-6E
       name: operations access control
+      status: COMPLETE
+      merged_pr: 289
+    - id: AH-2
+      name: strict AH shadow challenger with dual confirmation
       status: IN_PROGRESS
-    - id: AH-2-4
-      name: selective AH validation program
+    - id: AH-3
+      name: AH direction bias governance
+      status: PENDING
+    - id: AH-4
+      name: AH evidence review tooling
       status: PENDING
   external_actions:
     provider_calls: 0

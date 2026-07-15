@@ -400,9 +400,7 @@ def test_estimate_id_survives_capture_and_settlement(tmp_path: Path) -> None:
     ]
     capture = next(row for row in rows if row["record_type"] == "capture")
     outcome = next(
-        row
-        for row in rows
-        if row["record_type"] == "outcome" and row["settled_side"] == "pick"
+        row for row in rows if row["record_type"] == "outcome" and row["settled_side"] == "pick"
     )
     assert capture["fair_market_estimate_ids"] == [snapshot["estimate_id"]]
     assert capture["estimate_integrity"] == [
@@ -683,6 +681,58 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
     assert shadow["selection"] == "AWAY_AH"
 
 
+def test_strict_ah_shadow_does_not_settle_before_dual_confirmation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-strict", "hash-1", home_line="-0.75", home_price="1.92")
+    capture["pick"] = None
+    capture["captured_at"] = "2026-07-08T00:00:00Z"
+    capture["analysis_gate_v2_shadows"] = [_strict_shadow("mq-1", "2026-07-08T00:00:00Z")]
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-strict", 2, 0)]},
+        dry_run=True,
+    )
+
+    assert payload["record_count"] == 0
+
+
+def test_strict_ah_shadow_settles_once_after_dual_confirmation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _capture("fixture-strict", "hash-1", home_line="-0.75", home_price="1.92")
+    first["pick"] = None
+    first["captured_at"] = "2026-07-08T00:00:00Z"
+    first["analysis_gate_v2_shadows"] = [_strict_shadow("mq-1", "2026-07-08T00:00:00Z")]
+    second = _capture("fixture-strict", "hash-2", home_line="-0.75", home_price="1.92")
+    second["pick"] = None
+    second["captured_at"] = "2026-07-08T00:20:00Z"
+    second["analysis_gate_v2_shadows"] = [_strict_shadow("mq-2", "2026-07-08T00:20:00Z")]
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [first, second])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-strict", 2, 0)]},
+        dry_run=True,
+    )
+
+    assert payload["record_count"] == 1
+    outcome = payload["records"][0]
+    assert outcome["settled_side"] == "shadow_pick"
+    assert outcome["strategy_version"] == "W2_AH_STRICT_SHADOW_V1"
+    assert outcome["analysis_gate_v2_shadow"]["confirmation_status"] == "CONFIRMED"
+    assert outcome["analysis_gate_v2_shadow"]["evidence_bindings"] == [
+        {"estimate_id": "estimate-mq-1", "quote_id": "mq-1"},
+        {"estimate_id": "estimate-mq-2", "quote_id": "mq-2"},
+    ]
+
+
 def test_validation_recommendation_scope_is_frozen_and_settled_separately(
     tmp_path: Path,
 ) -> None:
@@ -824,6 +874,29 @@ def _result(
         "status": status,
         "home_score": home,
         "away_score": away,
+    }
+
+
+def _strict_shadow(quote_id: str, captured_at: str) -> dict[str, object]:
+    return {
+        "fixture_id": "fixture-strict",
+        "kickoff_utc": "2026-07-08T02:00:00Z",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "model_basis_id": "fmb-1",
+        "estimate_id": f"estimate-{quote_id}",
+        "quote_id": quote_id,
+        "quote_captured_at": captured_at,
+        "candidate_pass": True,
+        "confirmation_required": True,
+        "strategy_version": "W2_AH_STRICT_SHADOW_V1",
+        "evidence_eligible": True,
+        "semantic_status": "VERIFIED",
+        "selection_line": -0.75,
+        "odds": 1.92,
+        "net_ev": 0.04,
+        "loss_probability": 0.30,
+        "downside_probability": 0.45,
     }
 
 

@@ -16,6 +16,7 @@ from w2.models.fair_market_estimate import (
     verify_estimate_snapshot,
 )
 from w2.models.market_quote import MarketQuote
+from w2.strategy.analysis_gate_shadow import confirm_strict_ah_shadow
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
@@ -337,6 +338,7 @@ def _settlement_entries(
                 )
                 for item in strict_rows
                 if isinstance(item, Mapping)
+                and item.get("confirmation_required") is not True
                 and item.get("candidate_pass") is True
                 and item.get("evidence_eligible") is True
             )
@@ -355,6 +357,46 @@ def _settlement_entries(
                 [],
             ).append((record, {**item, "strategy_version": strategy_version}))
 
+    confirmation_groups: dict[
+        tuple[str, str, str], list[tuple[Mapping[str, Any], Mapping[str, Any]]]
+    ] = {}
+    for record in records:
+        if _text(record.get("record_type") or "capture") != "capture":
+            continue
+        fixture_id = _text(record.get("fixture_id"))
+        if fixture_id not in results:
+            continue
+        rows = record.get("analysis_gate_v2_shadows")
+        if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping) or row.get("confirmation_required") is not True:
+                continue
+            enriched = {
+                **dict(row),
+                "fixture_id": row.get("fixture_id") or fixture_id,
+                "kickoff_utc": row.get("kickoff_utc") or record.get("kickoff_utc"),
+            }
+            key = (
+                fixture_id,
+                _text(row.get("market")),
+                _text(row.get("strategy_version")),
+            )
+            confirmation_groups.setdefault(key, []).append((record, enriched))
+    for (fixture_id, market, strategy_version), pairs in confirmation_groups.items():
+        confirmed = confirm_strict_ah_shadow([item for _, item in pairs])
+        if confirmed.get("status") != "PASS":
+            continue
+        latest_quote_id = confirmed.get("quote_id")
+        entry = next(
+            record for record, item in reversed(pairs) if item.get("quote_id") == latest_quote_id
+        )
+        selection = _text(confirmed.get("selection"))
+        grouped.setdefault(
+            (fixture_id, "shadow_pick", SHADOW_SCOPE, strategy_version, market, selection),
+            [],
+        ).append((entry, confirmed))
+
     entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
     for (_, side, _, _, _, _), items in grouped.items():
         ordered = sorted(
@@ -363,11 +405,11 @@ def _settlement_entries(
                 _parse_time(pair[0].get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        entry = _final_prematch_record([pair[0] for pair in ordered])
-        if entry is None:
+        selected_entry = _final_prematch_record([pair[0] for pair in ordered])
+        if selected_entry is None:
             continue
-        pick_item = next(item for record, item in ordered if record is entry)
-        entries.append((entry, side, pick_item))
+        pick_item = next(item for record, item in ordered if record is selected_entry)
+        entries.append((selected_entry, side, pick_item))
     return entries
 
 
@@ -405,9 +447,15 @@ def _outcome_record(
         "market": market,
         "selection": selection,
         "estimate_id": _optional_text(identity.get("estimate_id") or item.get("estimate_id")),
-        "quote_id": _optional_text(identity.get("quote_id")),
-        "strategy_version": _optional_text(identity.get("strategy_version")),
-        "analysis_gate_v2_shadow": _shadow_gate_for_item(entry, item),
+        "quote_id": _optional_text(identity.get("quote_id") or item.get("quote_id")),
+        "strategy_version": _optional_text(
+            identity.get("strategy_version") or item.get("strategy_version")
+        ),
+        "analysis_gate_v2_shadow": (
+            dict(item)
+            if item.get("confirmation_status") == "CONFIRMED"
+            else _shadow_gate_for_item(entry, item)
+        ),
         "settled_side": side,
         "recommendation_scope": (
             SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(entry)
@@ -891,9 +939,7 @@ def _capture_evidence_identity(
     )
     if not market or not selection or not quote_odds:
         return base
-    quote_captured_at = _optional_text(
-        quote_odds.get("captured_at") or quote_odds.get("as_of")
-    )
+    quote_captured_at = _optional_text(quote_odds.get("captured_at") or quote_odds.get("as_of"))
     if quote_captured_at is None:
         return base
     try:
@@ -975,9 +1021,7 @@ def _market_quote_for_candidate(
     )
     if not quote_odds:
         return None
-    quote_captured_at = _optional_text(
-        quote_odds.get("captured_at") or quote_odds.get("as_of")
-    )
+    quote_captured_at = _optional_text(quote_odds.get("captured_at") or quote_odds.get("as_of"))
     if quote_captured_at is None:
         return None
     try:

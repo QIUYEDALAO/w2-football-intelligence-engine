@@ -686,3 +686,11 @@
 - 当前分支 `codex/w2-ops-access-control` 实施 CORE-6E：整个 `/ops` router 在 staging 统一要求 Bearer service credential，未配置返回 503、缺失/错误返回 401，使用常量时间凭据比较。
 - 可选 `W2_OPS_ALLOWED_CIDRS` 使用请求对端 IP 限制，配置错误返回 503、不匹配返回 403；production 继续关闭，local/test 按显式环境保留测试访问，public `/v1` 不受影响。
 - staging compose 仅透传外部敏感凭据/CIDR 配置，不提交凭据；安全保持 provider calls=0、DB writes=0、未部署或重启服务，推荐与模型链不变。
+
+### V3 进展续57 · AH Strict Shadow 双快照确认(2026-07-15)
+
+- #289 已合入 main `4de27442940d530ec9b93caec7e0cf5ec926320b`，三项 CI 全绿；staging `/ops` 已统一 fail closed，public API 不受影响。
+- 当前分支 `codex/w2-ah-strict-shadow-challenger` 实施 AH-2：固定版本化阈值 policy 与 `strict_gate_hash`，AH 单次阈值通过只产生 `CONFIRMATION_PENDING`。
+- Strict PASS 要求同 fixture/market/model basis/方向的两个不同 MarketQuote，至少间隔 15 分钟且均在 T-24h 至 T-30m；方向反转 FAIL，basis 变化重置，并冻结两组 `estimate_id + quote_id`。
+- ledger 与 performance 只结算、累计完成双确认的 Strict AH fixture；单快照不得进入 corrected settled evidence。TOTALS challenger 保持原有单快照研究语义。
+- Strict PASS 仍为不可见 shadow，不改变 WATCH、pick、tier、ANALYSIS_PICK、RECOMMEND、EV、lock 或三轨；未部署、未调用 provider、未写业务数据库、未重启服务。
