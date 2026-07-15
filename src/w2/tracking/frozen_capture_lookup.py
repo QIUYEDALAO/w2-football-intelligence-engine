@@ -45,6 +45,11 @@ def clear_frozen_capture_cache() -> None:
         _inflight.clear()
 
 
+def frozen_ledger_fingerprint(runtime_root: Path) -> str:
+    """Return a content-change fingerprint without reading ledger payloads."""
+    return _ledger_fingerprint(_ledger_files(runtime_root.resolve()))
+
+
 def find_frozen_capture(
     runtime_root: Path,
     *,

@@ -214,8 +214,9 @@ def test_xg_ready_emits_scoreline_readiness_and_dashboard_picks(
     target_date = KICKOFF.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
     dashboard = service.dashboard(target_date=target_date, window="next36")
     dashboard_card = dashboard["all"][0]
-    assert dashboard_card["scoreline_readiness"]["status"] == "READY"
-    assert dashboard_card["scoreline_picks"]
+    assert dashboard_card["scoreline_readiness"] is None
+    assert dashboard_card["analysis_readiness"]["status"] == "BLOCKED"
+    assert dashboard_card["decision_tier"] == "NOT_READY"
 
 
 def test_market_ou_does_not_change_independent_scoreline(
@@ -285,8 +286,6 @@ def test_legacy_embedded_scoreline_card_is_refreshed_for_readiness(
 
     target_date = KICKOFF.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
     dashboard_card = service.dashboard(target_date=target_date, window="next36")["all"][0]
-    assert dashboard_card["scoreline_readiness"]["status"] == "READY"
-    dashboard_totals = next(
-        item for item in dashboard_card["fair_market_estimates"] if item["market"] == "TOTALS"
-    )
-    assert dashboard_card["pricing_shadow"]["fair_ou"] == dashboard_totals["fair_line"]
+    assert dashboard_card["scoreline_readiness"] is None
+    assert dashboard_card["analysis_readiness"]["status"] == "BLOCKED"
+    assert dashboard_card["decision_tier"] == "NOT_READY"

@@ -256,6 +256,13 @@ class AnalysisCardResponse(BaseModel):
     performance: dict[str, float] = Field(default_factory=dict)
 
 
+class FrozenAuditDetailResponse(BaseModel):
+    request_id: str
+    fixture_id: str
+    audit: dict[str, Any]
+    performance: dict[str, int | float] = Field(default_factory=dict)
+
+
 class MarketRankingResponse(BaseModel):
     request_id: str
     fixture_id: str
