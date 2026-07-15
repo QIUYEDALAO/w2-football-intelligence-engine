@@ -93,15 +93,6 @@ class FutureRefreshDbRepository:
             .where(fixture_filter)
             .scalar_subquery()
             .label("fixture_source_hash"),
-            select(func.count(FutureMarketObservationModel.observation_id))
-            .scalar_subquery()
-            .label("observation_count"),
-            select(func.max(FutureMarketObservationModel.captured_at))
-            .scalar_subquery()
-            .label("observation_max_captured_at"),
-            select(func.max(FutureMarketObservationModel.observation_id))
-            .scalar_subquery()
-            .label("observation_source_hash"),
             select(func.count(ForwardResultEventModel.id))
             .scalar_subquery()
             .label("result_event_count"),
@@ -114,17 +105,33 @@ class FutureRefreshDbRepository:
         )
         with Session(self.engine) as session:
             row = session.execute(statement).one()
+            latest_observation = session.execute(
+                select(
+                    FutureMarketObservationModel.captured_at,
+                    FutureMarketObservationModel.observation_id,
+                )
+                .order_by(
+                    desc(FutureMarketObservationModel.captured_at),
+                    desc(FutureMarketObservationModel.observation_id),
+                )
+                .limit(1)
+            ).one_or_none()
+        observation_captured_at = latest_observation[0] if latest_observation else None
+        observation_source_hash = latest_observation[1] if latest_observation else None
         return {
             "fixture_count": int(row.fixture_count or 0),
             "fixture_max_captured_at": iso_z(row.fixture_max_captured_at)
             if row.fixture_max_captured_at
             else None,
             "fixture_source_hash": row.fixture_source_hash,
-            "observation_count": int(row.observation_count or 0),
-            "observation_max_captured_at": iso_z(row.observation_max_captured_at)
-            if row.observation_max_captured_at
+            # Counting the multi-million-row observation history made every cache
+            # lookup scan the full table. This source is append-only, so its indexed
+            # latest row is the bounded invalidation watermark.
+            "observation_count": None,
+            "observation_max_captured_at": iso_z(observation_captured_at)
+            if observation_captured_at
             else None,
-            "observation_source_hash": row.observation_source_hash,
+            "observation_source_hash": observation_source_hash,
             "result_event_count": int(row.result_event_count or 0),
             "result_event_max_confirmed_at": iso_z(row.result_event_max_confirmed_at)
             if row.result_event_max_confirmed_at

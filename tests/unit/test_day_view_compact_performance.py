@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from inspect import getsource
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -8,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from w2.api.repository import ReadModelService
 from w2.config import Environment
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.tracking.forward_ledger_performance_cache import ForwardLedgerPerformanceCache
 
 
@@ -41,6 +43,21 @@ def test_dayview_hot_path_never_calls_ledger_fixture_ids() -> None:
     )[0]
 
     assert "ledger_fixture_ids" not in method
+
+
+def test_source_watermark_does_not_count_full_observation_history() -> None:
+    source = getsource(FutureRefreshDbRepository.day_view_source_watermarks)
+
+    assert "count(FutureMarketObservationModel.observation_id)" not in source
+    assert "desc(FutureMarketObservationModel.captured_at)" in source
+    assert ".limit(1)" in source
+
+
+def test_dashboard_startup_warms_the_same_result_snapshot_as_dayview() -> None:
+    source = getsource(ReadModelService._build_dashboard_payload)
+
+    assert "result_events_snapshot" in source
+    assert "ledger_fixture_ids" not in source
 
 
 def test_result_raw_payloads_load_once_per_source_fingerprint(
