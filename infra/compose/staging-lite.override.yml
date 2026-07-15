@@ -106,6 +106,8 @@ services:
       W2_R4_1_ARTIFACT_DIR: /app/runtime/model_artifacts/r4_1
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
+      W2_OPS_SERVICE_TOKEN: ${W2_OPS_SERVICE_TOKEN:-}  # secrets via environment
+      W2_OPS_ALLOWED_CIDRS: ${W2_OPS_ALLOWED_CIDRS:-}
       W2_CELERY_BROKER_URL: redis://redis:6379/1
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_PROVIDER_CALLS_DISABLED: "true"

@@ -116,6 +116,8 @@ services:
       W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
+      W2_OPS_SERVICE_TOKEN: ${W2_OPS_SERVICE_TOKEN:-}  # secrets via environment
+      W2_OPS_ALLOWED_CIDRS: ${W2_OPS_ALLOWED_CIDRS:-}
       W2_CELERY_BROKER_URL: redis://redis:6379/1
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_PROVIDER_CALLS_DISABLED: "true"

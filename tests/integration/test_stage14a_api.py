@@ -19,6 +19,8 @@ def test_league_list_and_readiness_endpoints() -> None:
 
 
 def test_ops_league_onboarding_and_production_reject(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    get_settings.cache_clear()
     client = TestClient(app)
     response = client.get("/ops/league-onboarding")
     assert response.status_code == 200

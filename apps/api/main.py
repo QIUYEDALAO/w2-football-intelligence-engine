@@ -38,7 +38,7 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["GET"],
-    allow_headers=["x-request-id", "if-none-match"],
+    allow_headers=["x-request-id", "if-none-match", "authorization"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1_024, compresslevel=5)
 app.add_exception_handler(Exception, error_handler)
