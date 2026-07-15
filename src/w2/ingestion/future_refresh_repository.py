@@ -281,6 +281,42 @@ class FutureRefreshDbRepository:
                     latest[fixture_id] = (confirmed_at, dict(event["result_payload"]))
         return [latest[fixture_id][1] for fixture_id in ids if fixture_id in latest]
 
+    def result_events_snapshot(self) -> list[dict[str, Any]]:
+        latest: dict[str, tuple[datetime, dict[str, Any]]] = {}
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(ForwardResultEventModel).order_by(
+                        ForwardResultEventModel.confirmed_at
+                    )
+                )
+            )
+            raw_rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == "fixtures")
+                    .order_by(RawPayloadModel.captured_at)
+                )
+            )
+        for row in rows:
+            latest[row.fixture_id] = (
+                parse_db_datetime(row.confirmed_at),
+                dict(row.result_payload),
+            )
+        for raw in raw_rows:
+            for event in normalized_finished_results(
+                raw.payload,
+                provider="api_football",
+                confirmed_at=raw.captured_at,
+                raw_payload_hash=raw.sha256,
+            ):
+                fixture_id = str(event["fixture_id"])
+                confirmed_at = parse_db_datetime(event["confirmed_at"])
+                current = latest.get(fixture_id)
+                if current is None or confirmed_at > current[0]:
+                    latest[fixture_id] = (confirmed_at, dict(event["result_payload"]))
+        return [latest[fixture_id][1] for fixture_id in sorted(latest)]
+
     def append_observations(self, observations: list[dict[str, Any]]) -> int:
         appended = 0
         with Session(self.engine) as session:

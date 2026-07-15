@@ -607,7 +607,7 @@ def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) ->
             AssertionError("non-pick card must not build full analysis")
         ),
     )
-    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
 
     view = service._build_dashboard_day_view_payload(
         requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
@@ -690,7 +690,7 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
             },
         )(),
     )
-    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
 
     view = service._build_dashboard_day_view_payload(
         requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
@@ -728,7 +728,7 @@ def test_future_dayview_is_cursor_paged_and_does_not_prime_all_rows(monkeypatch)
     monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: rows)
     monkeypatch.setattr(service, "_prime_observations_for_rows", lambda page: primed.append(page))
     monkeypatch.setattr(service, "_observations_for_fixture", lambda _: [])
-    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         "w2.api.repository.build_day_view_capture_index",
         lambda _: type(
