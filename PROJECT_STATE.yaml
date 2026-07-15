@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-15T06:05:51Z"
-current_phase: post-deploy staging validation
-current_status: STAGING_DEPLOYED_VALIDATION_PENDING
+last_updated_utc: "2026-07-15T09:31:46Z"
+current_phase: validation correctness recovery predeploy gate
+current_status: READY_FOR_STAGING_VALIDATION_RECOVERY_DEPLOY
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,14 +20,14 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha_at_rebaseline: 3d67a769704e544fb544979c96cf3162328d090c
+  main_sha_at_rebaseline: 51baa80fc4a8878b6a76e3782ff6586f1f39f269
   deployed_code_sha: 3d67a769704e544fb544979c96cf3162328d090c
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-15T06:05:51Z"
+  observed_at_utc: "2026-07-15T09:31:46Z"
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
@@ -97,6 +97,22 @@ current_execution_queue:
       name: AH evidence review tooling
       status: COMPLETE
       merged_pr: 292
+    - id: O1
+      name: canonical outcome denominator correctness
+      status: COMPLETE
+      merged_pr: 295
+    - id: P1
+      name: dashboard single-flight and ledger projection cache
+      status: COMPLETE
+      merged_pr: 296
+    - id: D1
+      name: FME blocker precedence and feature visibility
+      status: COMPLETE
+      merged_pr: 297
+    - id: C1
+      name: corrected Strict AH canary checker
+      status: COMPLETE
+      merged_pr: 298
   external_actions:
     provider_calls: 0
     staging_deploy: true
@@ -107,13 +123,75 @@ deployment_review:
   replacement_for_closed_pr: 277
   staging_code_deployed: true
   production_code_deployed: false
-  next_action: complete read-only post-deploy staging validation
+  next_action: deploy the merged validation recovery batch once to staging, then run frozen and live acceptance gates
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
   ah_maturity_100_remaining: 100
   recommend_enabled: false
   production_release_enabled: false
+
+validation_correctness_recovery:
+  status: CODE_AND_PREDEPLOY_CONTEXT_COMPLETE_STAGING_NOT_REDEPLOYED
+  merged_main_sha: 51baa80fc4a8878b6a76e3782ff6586f1f39f269
+  deployed_staging_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  merged_prs:
+    outcome_canonical_denominator: 295
+    dashboard_singleflight_cache: 296
+    fme_blocker_precedence: 297
+    strict_ah_canary: 298
+  frozen_ledger_baseline:
+    remote_path: /opt/w2/shared/validation-baselines/denominator-20260715-20260715-071647Z
+    local_verified_copy: /tmp/w2-denominator-baseline-20260715
+    manifest_sha256: a7b92f76197c30008b78a4cfaa7efc508b15087f34217003f79595f37c21e5f4
+    raw_record_count: 10937
+    raw_outcome_count: 103
+    validation_raw_outcomes: 43
+    validation_canonical_outcomes: 16
+    validation_audit_only_outcomes: 27
+    wide_shadow_raw_outcomes: 60
+    wide_shadow_canonical_outcomes: 22
+    wide_shadow_audit_only_outcomes: 38
+    canonical_duplicate_count: 0
+    outcome_conflict_count: 0
+    cross_track_contamination_count: 0
+  denominator_contract:
+    key: fixture_id + market + recommendation_scope + strategy_version
+    selection_rule: last valid prematch capture per key
+    raw_and_duplicate_rows: audit_only
+    historical_legacy_role: compatibility_only_not_corrected_evidence
+  performance_recovery:
+    dashboard_singleflight: implemented
+    ledger_projection_cache: implemented
+    nginx_timeout_changed: false
+  fme_diagnostics:
+    blocker_precedence: implemented
+    market_readiness_decoupled_from_feature_readiness: true
+    recommendation_gate_changed: false
+  strict_canary:
+    schema: w2.strict_ah_canary_checker.v1
+    status_on_frozen_baseline: NO_CORRECTED_STRICT_CANDIDATE_YET
+    corrected_candidate_count: 0
+    policy_version: W2_AH_STRICT_SHADOW_V1
+    review_35_status: ACCUMULATING
+    maturity_100_status: ACCUMULATING
+  integrated_acceptance:
+    pytest: 1370 passed, 4 skipped
+    ruff: PASS
+    mypy: PASS
+    typescript: PASS
+    web_build: PASS
+    offline_acceptance: PASS
+    tracked_output_guard: PASS
+  safety:
+    provider_calls: 0
+    db_writes: 0
+    historical_ledger_rewrites: 0
+    staging_deploy: false
+    production_deploy: false
+    recommend_enabled: false
+    lock_created: false
+    official_writes: 0
 
 staging_state:
   environment: staging
@@ -537,6 +615,18 @@ prohibited:
   - adding Stage 16
 
 latest_merged_prs:
+  - number: 298
+    title: W2 add Strict AH canary checker
+    merge_sha: 51baa80fc4a8878b6a76e3782ff6586f1f39f269
+  - number: 297
+    title: W2 fix FME blocker precedence and feature visibility
+    merge_sha: 38b9b3dd37f3e35e43f736e12f1253e0b80e1490
+  - number: 296
+    title: W2 add Dashboard single-flight and ledger cache
+    merge_sha: 5d230f19ab9d205da65cd1bcc5070401ba1db31b
+  - number: 295
+    title: W2 fix canonical outcome denominator correctness
+    merge_sha: 83fa3912b57999a8442db7ee5ad727bdaa76787a
   - number: 224
     title: W2 project context and recommendation-path unlock audit
     merge_sha: 663b64d
