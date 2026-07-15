@@ -6,7 +6,6 @@ import math
 import os
 from collections.abc import Mapping
 from contextlib import contextmanager, suppress
-from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -25,6 +24,7 @@ from w2.analysis.market_movement import (
     build_market_movement,
     build_market_timeline_reference,
 )
+from w2.api.singleflight_cache import SingleFlightCache
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.date_window import (
@@ -144,7 +144,9 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
-from w2.tracking.forward_ledger_performance import forward_ledger_performance
+from w2.tracking.forward_ledger_performance_cache import (
+    ForwardLedgerPerformanceCache,
+)
 from w2.tracking.forward_outcome_ledger import ledger_fixture_ids
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -926,6 +928,7 @@ class ReadModelService:
         repository: ReadModelRepository | None = None,
         *,
         r4_1_artifact_root: Path | None = None,
+        forward_ledger_cache: ForwardLedgerPerformanceCache | None = None,
     ) -> None:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
@@ -944,10 +947,14 @@ class ReadModelService:
         self._raw_payloads_by_endpoint_cache: dict[str, list[dict[str, Any]]] = {}
         self._formal_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
         self._formal_settlements_by_snapshot_cache: dict[str, dict[str, Any]] | None = None
-        self._dashboard_response_cache: dict[
-            tuple[str, str, str, bool], tuple[float, dict[str, Any]]
-        ] = {}
-        self._dashboard_response_cache_lock = RLock()
+        self._dashboard_singleflight: SingleFlightCache[
+            tuple[str, str, str, bool], dict[str, Any]
+        ] = SingleFlightCache(max_entries=32)
+        self._dashboard_metrics_lock = RLock()
+        self._dashboard_build_seconds = 0.0
+        self._forward_ledger_performance_cache = (
+            forward_ledger_cache or ForwardLedgerPerformanceCache()
+        )
 
     def _request_read_cache(self) -> _RequestReadCache:
         state = getattr(self._request_cache_local, "state", None)
@@ -1217,13 +1224,53 @@ class ReadModelService:
             else default_football_day(datetime.now(UTC))
         )
         cache_key = (requested_date.isoformat(), window, timezone, include_debug)
-        with self._dashboard_response_cache_lock:
-            cached = self._dashboard_response_cache.get(cache_key)
-        now = monotonic()
-        if cached is not None:
-            cached_at, cached_payload = cached
-            if now - cached_at <= self._dashboard_cache_ttl(window, include_debug):
-                return deepcopy(cached_payload)
+
+        def compute() -> dict[str, Any]:
+            started = monotonic()
+            try:
+                return self._build_dashboard_payload(
+                    requested_date=requested_date,
+                    window=window,
+                    timezone=timezone,
+                    include_debug=include_debug,
+                )
+            finally:
+                with self._dashboard_metrics_lock:
+                    self._dashboard_build_seconds += monotonic() - started
+
+        payload = self._dashboard_singleflight.get_or_compute(
+            cache_key,
+            ttl_seconds=self._dashboard_cache_ttl(window, include_debug),
+            compute=compute,
+        )
+        cache_metrics = self._dashboard_singleflight.metrics()
+        with self._dashboard_metrics_lock:
+            build_seconds = self._dashboard_build_seconds
+        performance = payload.setdefault("performance", {})
+        if isinstance(performance, dict):
+            dashboard_metrics = {
+                "dashboard_cache_hit": cache_metrics["cache_hit"],
+                "dashboard_cache_miss": cache_metrics["cache_miss"],
+                "dashboard_singleflight_owner": cache_metrics["singleflight_owner"],
+                "dashboard_singleflight_waiter": cache_metrics["singleflight_waiter"],
+                "dashboard_build_seconds": round(build_seconds, 6),
+                "dashboard_build_inflight": cache_metrics["build_inflight"],
+                "response_payload_bytes": 0,
+            }
+            performance["dashboard_cache_metrics"] = dashboard_metrics
+            dashboard_metrics["response_payload_bytes"] = len(
+                json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+            )
+        return payload
+
+    def _build_dashboard_payload(
+        self,
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+        include_debug: bool,
+    ) -> dict[str, Any]:
 
         self._reset_read_caches()
         version = self.version()
@@ -1345,10 +1392,17 @@ class ReadModelService:
                 result_events = result_reader(ledger_fixture_ids(runtime_root))
             except SQLAlchemyError:
                 result_events = None
-        performance["forward_ledger"] = forward_ledger_performance(
+        performance["forward_ledger"] = self._forward_ledger_performance_cache.get(
             runtime_root,
             result_events=result_events,
         )
+        ledger_cache_metrics = self._forward_ledger_performance_cache.metrics()
+        performance["ledger_cache_metrics"] = {
+            "ledger_cache_hit": ledger_cache_metrics["ledger_cache_hit"],
+            "ledger_cache_miss": ledger_cache_metrics["ledger_cache_miss"],
+            "ledger_build_seconds": ledger_cache_metrics["ledger_build_seconds"],
+            "ledger_record_count": ledger_cache_metrics["ledger_record_count"],
+        }
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         payload = {
@@ -1379,14 +1433,16 @@ class ReadModelService:
         }
         if self._fixture_read_status_cache.get("failed_source"):
             payload["read_degradation"] = dict(self._fixture_read_status_cache)
-        with self._dashboard_response_cache_lock:
-            self._dashboard_response_cache[cache_key] = (now, deepcopy(payload))
         return payload
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
             return 300.0 if window in {"today", "next36", "future"} else 600.0
         return 900.0 if window in {"today", "next36", "future"} else 1800.0
+
+    def clear_dashboard_caches(self) -> None:
+        self._dashboard_singleflight.clear()
+        self._forward_ledger_performance_cache.clear()
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:
