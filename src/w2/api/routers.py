@@ -206,7 +206,7 @@ def dashboard_day_view(
     cursor: str | None = Query(default=None, max_length=2048),
     sort: str = Query(default="BOSS_PRIORITY_KICKOFF"),
 ) -> dict[str, Any]:
-    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=300"
+    response.headers["Cache-Control"] = "public, max-age=30"
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     from w2.dashboard.day_view_pagination import (
         DayViewPageTooLarge,
@@ -214,6 +214,7 @@ def dashboard_day_view(
         StaleDayViewCursor,
     )
 
+    route_started = monotonic()
     try:
         day_view = service.dashboard_day_view(
             target_date=date,
@@ -231,6 +232,31 @@ def dashboard_day_view(
         raise HTTPException(status_code=413, detail={"reason": str(error)}) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
+    route_seconds = monotonic() - route_started
+    performance = day_view.get("performance")
+    performance = performance if isinstance(performance, dict) else {}
+    timing = performance.get("dayview_cache_metrics")
+    timing = timing if isinstance(timing, dict) else {}
+    pagination = day_view.get("pagination")
+    pagination = pagination if isinstance(pagination, dict) else {}
+    response.headers["X-W2-DayView-Cache"] = str(
+        timing.get("dayview_cache_status") or "MISS"
+    )
+    response.headers["X-W2-DayView-Snapshot"] = str(
+        pagination.get("snapshot_id") or "UNKNOWN"
+    )
+    server_timing = {
+        "route": route_seconds,
+        "fixture": float(timing.get("fixture_window_read_seconds") or 0.0),
+        "capture": float(timing.get("capture_index_build_seconds") or 0.0),
+        "market": float(timing.get("market_observation_read_seconds") or 0.0),
+        "performance": float(timing.get("ledger_summary_seconds") or 0.0),
+        "projection": float(timing.get("page_projection_seconds") or 0.0),
+        "serialization": float(timing.get("dayview_serialization_seconds") or 0.0),
+    }
+    response.headers["Server-Timing"] = ", ".join(
+        f"{name};dur={seconds * 1000:.3f}" for name, seconds in server_timing.items()
+    )
     return {
         "request_id": request_id(request),
         **day_view,

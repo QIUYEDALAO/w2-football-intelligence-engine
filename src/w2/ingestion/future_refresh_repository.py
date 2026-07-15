@@ -78,6 +78,64 @@ class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
 
+    def day_view_source_watermarks(self) -> dict[str, Any]:
+        fixture_filter = RawPayloadModel.endpoint == "fixtures"
+        statement = select(
+            select(func.count(RawPayloadModel.sha256))
+            .where(fixture_filter)
+            .scalar_subquery()
+            .label("fixture_count"),
+            select(func.max(RawPayloadModel.captured_at))
+            .where(fixture_filter)
+            .scalar_subquery()
+            .label("fixture_max_captured_at"),
+            select(func.max(RawPayloadModel.sha256))
+            .where(fixture_filter)
+            .scalar_subquery()
+            .label("fixture_source_hash"),
+            select(func.count(FutureMarketObservationModel.observation_id))
+            .scalar_subquery()
+            .label("observation_count"),
+            select(func.max(FutureMarketObservationModel.captured_at))
+            .scalar_subquery()
+            .label("observation_max_captured_at"),
+            select(func.max(FutureMarketObservationModel.observation_id))
+            .scalar_subquery()
+            .label("observation_source_hash"),
+            select(func.count(ForwardResultEventModel.id))
+            .scalar_subquery()
+            .label("result_event_count"),
+            select(func.max(ForwardResultEventModel.confirmed_at))
+            .scalar_subquery()
+            .label("result_event_max_confirmed_at"),
+            select(func.max(ForwardResultEventModel.raw_payload_hash))
+            .scalar_subquery()
+            .label("result_event_source_hash"),
+        )
+        with Session(self.engine) as session:
+            row = session.execute(statement).one()
+        return {
+            "fixture_count": int(row.fixture_count or 0),
+            "fixture_max_captured_at": iso_z(row.fixture_max_captured_at)
+            if row.fixture_max_captured_at
+            else None,
+            "fixture_source_hash": row.fixture_source_hash,
+            "observation_count": int(row.observation_count or 0),
+            "observation_max_captured_at": iso_z(row.observation_max_captured_at)
+            if row.observation_max_captured_at
+            else None,
+            "observation_source_hash": row.observation_source_hash,
+            "result_event_count": int(row.result_event_count or 0),
+            "result_event_max_confirmed_at": iso_z(row.result_event_max_confirmed_at)
+            if row.result_event_max_confirmed_at
+            else None,
+            "result_event_source_hash": row.result_event_source_hash,
+            "raw_result_count": int(row.fixture_count or 0),
+            "raw_result_max_captured_at": (
+                iso_z(row.fixture_max_captured_at) if row.fixture_max_captured_at else None
+            ),
+        }
+
     def save_raw_payload(
         self,
         *,

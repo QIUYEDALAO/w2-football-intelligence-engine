@@ -6,6 +6,7 @@ import math
 import os
 from collections.abc import Mapping
 from contextlib import contextmanager, suppress
+from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -14,7 +15,7 @@ from time import monotonic
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -51,6 +52,11 @@ from w2.dashboard.day_view_pagination import (
     window_counts,
 )
 from w2.dashboard.day_view_projection import project_day_view_card
+from w2.dashboard.day_view_window_snapshot import (
+    DAY_VIEW_WINDOW_SNAPSHOT_SCHEMA_VERSION,
+    DayViewWindowSnapshot,
+    make_day_view_source_fingerprint,
+)
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
     build_analysis_readiness,
@@ -153,7 +159,10 @@ from w2.strategy.formal_recommendation import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
-from w2.tracking.day_view_capture_index import build_day_view_capture_index
+from w2.tracking.day_view_capture_index import (
+    DAY_VIEW_CAPTURE_PROJECTION_VERSION,
+    build_day_view_capture_index,
+)
 from w2.tracking.formal_results import (
     endpoint_summary as formal_tracking_endpoint_summary,
 )
@@ -494,6 +503,44 @@ def _formal_payload_blocker(formal_result: Any) -> str:
 
 
 class ReadModelRepository:
+    def day_view_source_watermarks(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "schema_version": "w2.day_view_source_watermarks.v1",
+            "source_status": "PASS",
+        }
+        try:
+            engine = create_engine()
+            with Session(engine) as session:
+                row = session.execute(
+                    select(
+                        func.count(ReadModelCheckpointModel.id),
+                        func.max(ReadModelCheckpointModel.created_at),
+                        func.max(ReadModelCheckpointModel.source_hash),
+                    ).where(
+                        ReadModelCheckpointModel.checkpoint_key.like(
+                            "dashboard:fixture_latest:%"
+                        )
+                    )
+                ).one()
+            payload.update(
+                {
+                    "read_model_fixture_count": int(row[0] or 0),
+                    "read_model_max_created_at": row[1].isoformat() if row[1] else None,
+                    "read_model_source_hash": row[2],
+                }
+            )
+            refresh_repository = future_refresh_db_repository()
+            if refresh_repository is not None:
+                payload.update(refresh_repository.day_view_source_watermarks())
+        except SQLAlchemyError as error:
+            payload.update(
+                {
+                    "source_status": "DEGRADED",
+                    "source_error": type(error).__name__,
+                }
+            )
+        return payload
+
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()
@@ -981,8 +1028,11 @@ class ReadModelService:
             tuple[str, str, str, bool], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
         self._day_view_singleflight: SingleFlightCache[
-            tuple[str, str, str, str, int, str, str], dict[str, Any]
+            tuple[str, int, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
+        self._day_view_window_singleflight: SingleFlightCache[
+            tuple[str, str, str, str, str, str], DayViewWindowSnapshot
+        ] = SingleFlightCache(max_entries=16, copier=lambda snapshot: snapshot)
         self._frozen_audit_singleflight: SingleFlightCache[
             tuple[str, str, str, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=64)
@@ -1227,6 +1277,15 @@ class ReadModelService:
             "generated_at": generated_at,
         }
 
+    def release_identity(self) -> dict[str, str]:
+        settings = get_settings()
+        release_sha = str(release_env("W2_GIT_SHA") or "UNKNOWN")
+        return {
+            "api_git_sha": release_sha,
+            "release_id": str(os.getenv("W2_RELEASE_ID") or release_sha),
+            "environment": settings.environment.value,
+        }
+
     def dashboard(
         self,
         *,
@@ -1313,28 +1372,56 @@ class ReadModelService:
                 if target_date
                 else default_football_day(datetime.now(UTC))
             )
-            cache_key = (
+            identity = self.release_identity()
+            watermark_started = monotonic()
+            source_watermarks = self._day_view_source_watermarks()
+            source_watermark_seconds = monotonic() - watermark_started
+            fingerprint_started = monotonic()
+            ledger_fingerprint = frozen_ledger_fingerprint(
+                get_settings().resolved_runtime_root
+            )
+            source_fingerprint = make_day_view_source_fingerprint(
+                release_sha=identity["api_git_sha"],
+                source_watermarks=source_watermarks,
+                ledger_fingerprint=ledger_fingerprint,
+                capture_projection_version=DAY_VIEW_CAPTURE_PROJECTION_VERSION,
+            )
+            source_fingerprint_seconds = monotonic() - fingerprint_started
+            window_key = (
                 requested_date.isoformat(),
                 window,
                 timezone,
-                release_env("W2_GIT_SHA"),
-                page_size,
-                cursor or "",
                 sort,
+                identity["api_git_sha"],
+                source_fingerprint,
             )
-            payload = self._day_view_singleflight.get_or_compute(
-                cache_key,
-                ttl_seconds=self._dashboard_cache_ttl(window, include_debug=False),
-                compute=lambda: self._build_dashboard_day_view_payload(
+            snapshot, window_cache_status = (
+                self._day_view_window_singleflight.get_or_compute_with_status(
+                window_key,
+                ttl_seconds=30.0,
+                compute=lambda: self._build_day_view_window_snapshot(
                     requested_date=requested_date,
                     window=window,
                     timezone=timezone,
+                    sort=sort,
+                    identity=identity,
+                    source_watermarks=source_watermarks,
+                    source_fingerprint=source_fingerprint,
+                ),
+                )
+            )
+            cache_key = (snapshot.snapshot_id, page_size, cursor or "", sort)
+            payload, page_cache_status = self._day_view_singleflight.get_or_compute_with_status(
+                cache_key,
+                ttl_seconds=30.0,
+                compute=lambda: self._project_day_view_page(
+                    snapshot,
                     page_size=page_size,
                     cursor=cursor,
-                    sort=sort,
                 ),
             )
             cache_metrics = self._day_view_singleflight.metrics()
+            window_cache_metrics = self._day_view_window_singleflight.metrics()
             performance = payload.setdefault("performance", {})
             if isinstance(performance, dict):
                 dayview_metrics = performance.setdefault("dayview_cache_metrics", {})
@@ -1347,9 +1434,53 @@ class ReadModelService:
                             "dayview_singleflight_waiter": cache_metrics["singleflight_waiter"],
                             "dayview_build_inflight": cache_metrics["build_inflight"],
                             "dayview_cache_entry_count": cache_metrics["cache_entry_count"],
+                            "window_snapshot_cache_hit": window_cache_metrics["cache_hit"],
+                            "window_snapshot_cache_miss": window_cache_metrics["cache_miss"],
+                            "window_snapshot_singleflight_owner": window_cache_metrics[
+                                "singleflight_owner"
+                            ],
+                            "window_snapshot_singleflight_waiter": window_cache_metrics[
+                                "singleflight_waiter"
+                            ],
+                            "window_snapshot_build_inflight": window_cache_metrics[
+                                "build_inflight"
+                            ],
+                            "source_watermark_seconds": round(
+                                source_watermark_seconds, 6
+                            ),
+                            "capture_index_fingerprint_seconds": round(
+                                source_fingerprint_seconds, 6
+                            ),
+                            "source_fingerprint": source_fingerprint,
+                            "window_snapshot_id": snapshot.snapshot_id,
+                            "server_cache_ttl_seconds": 30,
+                            "dayview_cache_status": page_cache_status,
+                            "window_snapshot_cache_status": window_cache_status,
                         }
                     )
             return payload
+
+    def _day_view_source_watermarks(self) -> dict[str, Any]:
+        reader = getattr(self.repository, "day_view_source_watermarks", None)
+        if not callable(reader):
+            return {
+                "schema_version": "w2.day_view_source_watermarks.v1",
+                "source_status": "DEGRADED",
+                "reason": "SOURCE_WATERMARK_READER_UNAVAILABLE",
+            }
+        try:
+            value = reader()
+        except SQLAlchemyError as error:
+            return {
+                "schema_version": "w2.day_view_source_watermarks.v1",
+                "source_status": "DEGRADED",
+                "reason": type(error).__name__,
+            }
+        return dict(value) if isinstance(value, Mapping) else {
+            "schema_version": "w2.day_view_source_watermarks.v1",
+            "source_status": "DEGRADED",
+            "reason": "INVALID_SOURCE_WATERMARK",
+        }
 
     def _build_dashboard_day_view_payload(
         self,
@@ -1361,40 +1492,126 @@ class ReadModelService:
         cursor: str | None = None,
         sort: str = "BOSS_PRIORITY_KICKOFF",
     ) -> dict[str, Any]:
+        identity = self.release_identity()
+        source_watermarks = self._day_view_source_watermarks()
+        source_fingerprint = make_day_view_source_fingerprint(
+            release_sha=identity["api_git_sha"],
+            source_watermarks=source_watermarks,
+            ledger_fingerprint=frozen_ledger_fingerprint(
+                get_settings().resolved_runtime_root
+            ),
+            capture_projection_version=DAY_VIEW_CAPTURE_PROJECTION_VERSION,
+        )
+        snapshot = self._build_day_view_window_snapshot(
+            requested_date=requested_date,
+            window=window,
+            timezone=timezone,
+            sort=sort,
+            identity=identity,
+            source_watermarks=source_watermarks,
+            source_fingerprint=source_fingerprint,
+        )
+        return self._project_day_view_page(
+            snapshot,
+            page_size=page_size,
+            cursor=cursor,
+        )
+
+    def _build_day_view_window_snapshot(
+        self,
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+        sort: str,
+        identity: Mapping[str, str],
+        source_watermarks: Mapping[str, Any],
+        source_fingerprint: str,
+    ) -> DayViewWindowSnapshot:
         self._reset_read_caches()
-        version = self.version()
         fixture_started = monotonic()
         selected_rows = self._dashboard_rows_for_window(
             requested_date=requested_date,
             window=window,
         )
         fixture_read_seconds = monotonic() - fixture_started
+        capture_started = monotonic()
         capture_index = build_day_view_capture_index(get_settings().resolved_runtime_root)
+        capture_index_build_seconds = monotonic() - capture_started
         frozen_captures = capture_index.summaries
+        index_started = monotonic()
         entries = sort_entries(build_index_entries(selected_rows, frozen_captures), sort)
         full_counts = window_counts(entries)
+        window_index_build_seconds = monotonic() - index_started
+        snapshot_started = monotonic()
         snapshot_id = make_snapshot_id(
-            api_release_sha=str(version["api_git_sha"]),
+            api_release_sha=str(identity["api_git_sha"]),
             requested_date=requested_date.isoformat(),
             window=window,
             timezone=timezone,
             sort=sort,
             fixture_rows=selected_rows,
-            ledger_fingerprint=capture_index.ledger_fingerprint,
+            ledger_fingerprint=source_fingerprint,
             capture_projection_version=capture_index.schema_version,
         )
+        snapshot_hash_seconds = monotonic() - snapshot_started
+        ledger_started = monotonic()
+        performance = self._day_view_performance([])
+        ledger_summary_seconds = monotonic() - ledger_started
+        metrics = performance.setdefault("dayview_cache_metrics", {})
+        metrics.update(
+            {
+                "fixture_window_read_seconds": round(fixture_read_seconds, 6),
+                "fixture_read_seconds": round(fixture_read_seconds, 6),
+                "capture_index_build_seconds": round(capture_index_build_seconds, 6),
+                "window_index_build_seconds": round(window_index_build_seconds, 6),
+                "snapshot_hash_seconds": round(snapshot_hash_seconds, 6),
+                "ledger_summary_seconds": round(ledger_summary_seconds, 6),
+                "window_snapshot_build_count": 1,
+            }
+        )
+        return DayViewWindowSnapshot(
+            schema_version=DAY_VIEW_WINDOW_SNAPSHOT_SCHEMA_VERSION,
+            snapshot_id=snapshot_id,
+            requested_date=requested_date.isoformat(),
+            window=window,
+            timezone=timezone,
+            sort=sort,
+            release_sha=str(identity["api_git_sha"]),
+            source_fingerprint=source_fingerprint,
+            fixture_rows=tuple(selected_rows),
+            sorted_entries=tuple(entries),
+            counts=full_counts,
+            capture_index=capture_index,
+            market_availability={},
+            performance_summary=performance,
+            generated_at=datetime.now(UTC).isoformat(),
+            source_status=str(source_watermarks.get("source_status") or "PASS"),
+        )
+
+    def _project_day_view_page(
+        self,
+        snapshot: DayViewWindowSnapshot,
+        *,
+        page_size: int,
+        cursor: str | None,
+    ) -> dict[str, Any]:
+        entries = list(snapshot.sorted_entries)
         page_entries, page_start = select_page(
             entries,
-            snapshot_id=snapshot_id,
-            sort=sort,
+            snapshot_id=snapshot.snapshot_id,
+            sort=snapshot.sort,
             page_size=page_size,
             cursor=cursor,
         )
-        row_by_fixture = {str(row.get("fixture_id") or ""): row for row in selected_rows}
-        page_rows = [row_by_fixture[item.fixture_id] for item in page_entries]
+        row_by_fixture = {
+            str(row.get("fixture_id") or ""): row for row in snapshot.fixture_rows
+        }
+        page_rows = [dict(row_by_fixture[item.fixture_id]) for item in page_entries]
         market_started = monotonic()
         self._prime_observations_for_rows(page_rows)
         market_observation_read_seconds = monotonic() - market_started
+        frozen_captures = snapshot.capture_index.summaries
         projection_started = monotonic()
         cards = [
             project_day_view_card(row, frozen_captures[fixture_id])
@@ -1408,19 +1625,16 @@ class ReadModelService:
         ]
         cards = [self._bounded_day_view_card(card) for card in cards]
         compact_card_projection_seconds = monotonic() - projection_started
-        generated_at = datetime.now(UTC)
-        ledger_started = monotonic()
-        performance = self._day_view_performance(cards)
-        ledger_summary_seconds = monotonic() - ledger_started
+        performance = deepcopy(dict(snapshot.performance_summary))
         payload = {
-            "generated_at": generated_at,
-            "date": requested_date.isoformat(),
-            "selected_football_day": requested_date.isoformat(),
-            "timezone": timezone,
-            "window": window,
+            "generated_at": snapshot.generated_at,
+            "date": snapshot.requested_date,
+            "selected_football_day": snapshot.requested_date,
+            "timezone": snapshot.timezone,
+            "window": snapshot.window,
             "version": {
-                "api_git_sha": version["api_git_sha"],
-                "release_id": version["release_id"],
+                "api_git_sha": snapshot.release_sha,
+                "release_id": os.getenv("W2_RELEASE_ID") or snapshot.release_sha,
             },
             "all": cards,
             "performance": performance,
@@ -1433,7 +1647,7 @@ class ReadModelService:
         view["source"] = "direct_day_view_projection"
         view["performance"] = payload["performance"]
         view["page_counts"] = view["counts"]
-        view["counts"] = full_counts
+        view["counts"] = dict(snapshot.counts)
         truncated = False
         while (
             cards
@@ -1452,12 +1666,12 @@ class ReadModelService:
             view["source"] = "direct_day_view_projection"
             view["performance"] = payload["performance"]
             view["page_counts"] = view["counts"]
-            view["counts"] = full_counts
+            view["counts"] = dict(snapshot.counts)
         if not cards and entries:
             raise DayViewPageTooLarge("DAYVIEW_PAGE_TOO_LARGE")
         view["pagination"] = pagination_envelope(
-            snapshot_id=snapshot_id,
-            sort=sort,
+            snapshot_id=snapshot.snapshot_id,
+            sort=snapshot.sort,
             total_count=len(entries),
             page_size=page_size,
             returned=page_entries,
@@ -1467,7 +1681,6 @@ class ReadModelService:
         dayview_metrics = view["performance"].setdefault("dayview_cache_metrics", {})
         dayview_metrics.update(
             {
-                "fixture_read_seconds": round(fixture_read_seconds, 6),
                 "market_observation_read_seconds": round(
                     market_observation_read_seconds,
                     6,
@@ -1476,7 +1689,8 @@ class ReadModelService:
                     compact_card_projection_seconds,
                     6,
                 ),
-                "ledger_summary_seconds": round(ledger_summary_seconds, 6),
+                "page_projection_seconds": round(compact_card_projection_seconds, 6),
+                "page_projection_count": 1,
             }
         )
         serialization_started = monotonic()
@@ -1883,6 +2097,7 @@ class ReadModelService:
     def clear_dashboard_caches(self) -> None:
         self._dashboard_singleflight.clear()
         self._day_view_singleflight.clear()
+        self._day_view_window_singleflight.clear()
         self._forward_ledger_performance_cache.clear()
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:

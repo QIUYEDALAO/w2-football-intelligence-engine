@@ -82,14 +82,18 @@ def test_cold_dayview_concurrency_does_not_multiply_build() -> None:
     lock = threading.Lock()
     calls = 0
 
-    def build(**_: object) -> dict[str, Any]:
+    def build(**_: object) -> SimpleNamespace:
         nonlocal calls
         with lock:
             calls += 1
         sleep(0.05)
-        return {"performance": {}, "cards": []}
+        return SimpleNamespace(snapshot_id="dv-test")
 
-    service._build_dashboard_day_view_payload = build  # type: ignore[method-assign]
+    service._build_day_view_window_snapshot = build  # type: ignore[method-assign]
+    service._project_day_view_page = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        "performance": {},
+        "cards": [],
+    }
 
     def task(_: int) -> dict[str, Any]:
         barrier.wait()
@@ -103,6 +107,12 @@ def test_cold_dayview_concurrency_does_not_multiply_build() -> None:
     assert max(
         row["performance"]["dayview_cache_metrics"]["dayview_singleflight_waiter"]
         for row in results
+    ) == 0
+    assert max(
+        row["performance"]["dayview_cache_metrics"][
+            "window_snapshot_singleflight_waiter"
+        ]
+        for row in results
     ) == 7
 
 
@@ -110,12 +120,16 @@ def test_dayview_cache_identity_includes_release_sha(monkeypatch) -> None:  # ty
     service = ReadModelService(repository=cast(Any, _EmptyRepository()))
     calls = 0
 
-    def build(**_: object) -> dict[str, Any]:
+    def build(**_: object) -> SimpleNamespace:
         nonlocal calls
         calls += 1
-        return {"performance": {}, "cards": []}
+        return SimpleNamespace(snapshot_id=f"dv-{calls}")
 
-    service._build_dashboard_day_view_payload = build  # type: ignore[method-assign]
+    service._build_day_view_window_snapshot = build  # type: ignore[method-assign]
+    service._project_day_view_page = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        "performance": {},
+        "cards": [],
+    }
     monkeypatch.setenv("W2_GIT_SHA", "release-a")
     service.dashboard_day_view(target_date="2026-07-15", window="future")
     monkeypatch.setenv("W2_GIT_SHA", "release-b")
