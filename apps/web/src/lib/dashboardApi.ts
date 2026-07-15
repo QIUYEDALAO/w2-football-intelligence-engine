@@ -27,6 +27,7 @@ import type {
 const REQUEST_TIMEOUT_MS = 12_000;
 const DASHBOARD_CACHE_VERSION = "dashboard-v13-cache-first";
 const DASHBOARD_CACHE_TTL_MS = 15 * 60_000;
+const DASHBOARD_FIRST_PAGE_CACHE_MAX_BYTES = 1024 * 1024;
 
 interface DashboardCacheEntry {
   version: string;
@@ -38,6 +39,7 @@ const fixtureAuditInflight = new Map<string, Promise<FixtureAuditDetails>>();
 const fixtureAuditCache = new Map<string, { expiresAt: number; detail: FixtureAuditDetails }>();
 const fixtureTimelineInflight = new Map<string, Promise<Record<string, unknown>>>();
 const fixtureTimelineCache = new Map<string, { expiresAt: number; detail: Record<string, unknown> }>();
+const dayViewPageInflight = new Map<string, Promise<DashboardDayView>>();
 const FIXTURE_AUDIT_CACHE_MAX_ENTRIES = 64;
 const FIXTURE_AUDIT_CACHE_TTL_MS = 15 * 60_000;
 let activeFixtureAuditRelease = "";
@@ -798,13 +800,15 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
   };
 }
 
-function cacheKey(date: string, mode: DashboardMode): string {
-  return `${DASHBOARD_CACHE_VERSION}:${date}:${mode}`;
+function cachePointerKey(date: string, mode: DashboardMode): string {
+  return `${DASHBOARD_CACHE_VERSION}:${date}:${mode}:first-page`;
 }
 
 export function getCachedDashboardView(date: string, mode: DashboardMode): DashboardView | null {
   try {
-    const raw = window.localStorage.getItem(cacheKey(date, mode));
+    const storedKey = window.localStorage.getItem(cachePointerKey(date, mode));
+    if (!storedKey) return null;
+    const raw = window.localStorage.getItem(storedKey);
     if (!raw) return null;
     const entry = JSON.parse(raw) as Partial<DashboardCacheEntry>;
     if (entry.version !== DASHBOARD_CACHE_VERSION || !entry.stored_at || !entry.view) return null;
@@ -818,7 +822,10 @@ export function getCachedDashboardView(date: string, mode: DashboardMode): Dashb
 
 export function clearCachedDashboardView(date: string, mode: DashboardMode): void {
   try {
-    window.localStorage.removeItem(cacheKey(date, mode));
+    const pointer = cachePointerKey(date, mode);
+    const storedKey = window.localStorage.getItem(pointer);
+    window.localStorage.removeItem(pointer);
+    if (storedKey) window.localStorage.removeItem(storedKey);
     for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
       const key = window.localStorage.key(index);
       if (key?.startsWith("dashboard-v")) {
@@ -837,7 +844,13 @@ function storeCachedDashboardView(date: string, mode: DashboardMode, view: Dashb
       stored_at: new Date().toISOString(),
       view,
     };
-    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(entry));
+    const snapshotId = view.day_view?.pagination.snapshot_id;
+    if (!snapshotId || !view.day_view || view.day_view.pagination.returned_count !== view.day_view.cards.length) return;
+    const key = `${DASHBOARD_CACHE_VERSION}:${date}:${mode}:${view.release.api_git_sha}:${snapshotId}`;
+    const encoded = JSON.stringify(entry);
+    if (new Blob([encoded]).size > DASHBOARD_FIRST_PAGE_CACHE_MAX_BYTES) return;
+    window.localStorage.setItem(key, encoded);
+    window.localStorage.setItem(cachePointerKey(date, mode), key);
   } catch {
     // Cache is best-effort; private browsing or quota limits should not break the dashboard.
   }
@@ -848,6 +861,7 @@ async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): 
     date,
     window: mode,
     timezone: "Asia/Shanghai",
+    page_size: "20",
   });
   return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
 }
@@ -987,6 +1001,7 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
   const record = asRecord(payload);
   const freshness = asRecord(record.freshness);
   const staleness = asRecord(freshness.staleness);
+  const pagination = asRecord(record.pagination);
   return {
     request_id: textValue(record.request_id) || undefined,
     generated_at: textValue(record.generated_at, new Date().toISOString()),
@@ -1004,6 +1019,18 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     provider_calls: numberValue(record.provider_calls),
     db_writes: numberValue(record.db_writes),
     counts: normalizeCounts(record.counts),
+    page_counts: normalizeCounts(record.page_counts),
+    pagination: {
+      schema_version: "w2.day_view_page.v1",
+      snapshot_id: textValue(pagination.snapshot_id),
+      sort: textValue(pagination.sort, "BOSS_PRIORITY_KICKOFF") as DashboardDayView["pagination"]["sort"],
+      total_count: numberValue(pagination.total_count),
+      returned_count: numberValue(pagination.returned_count),
+      page_size: numberValue(pagination.page_size),
+      has_more: Boolean(pagination.has_more),
+      next_cursor: textValue(pagination.next_cursor) || null,
+      truncated_by_byte_budget: Boolean(pagination.truncated_by_byte_budget),
+    },
     freshness: {
       last_refresh: textValue(freshness.last_refresh) || null,
       next_refresh_tick: textValue(freshness.next_refresh_tick) || null,
@@ -1022,6 +1049,28 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     degradation: asRecord(record.degradation),
     cards: asArray(record.cards).map(normalizeDayViewCard),
   };
+}
+
+export function fetchDashboardDayViewPage(
+  date: string,
+  mode: DashboardMode,
+  cursor: string,
+): Promise<DashboardDayView> {
+  const key = `${date}:${mode}:${cursor}`;
+  const existing = dayViewPageInflight.get(key);
+  if (existing) return existing;
+  const params = new URLSearchParams({
+    date,
+    window: mode,
+    timezone: "Asia/Shanghai",
+    page_size: "20",
+    cursor,
+  });
+  const request = getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`)
+    .then(normalizeDashboardDayView)
+    .finally(() => dayViewPageInflight.delete(key));
+  dayViewPageInflight.set(key, request);
+  return request;
 }
 
 export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {

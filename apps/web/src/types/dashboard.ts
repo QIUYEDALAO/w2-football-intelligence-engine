@@ -865,6 +865,18 @@ export interface DashboardDayView {
   provider_calls: number;
   db_writes: number;
   counts: DashboardDayViewCounts;
+  page_counts: DashboardDayViewCounts;
+  pagination: {
+    schema_version: "w2.day_view_page.v1";
+    snapshot_id: string;
+    sort: "BOSS_PRIORITY_KICKOFF" | "KICKOFF_ONLY";
+    total_count: number;
+    returned_count: number;
+    page_size: number;
+    has_more: boolean;
+    next_cursor?: string | null;
+    truncated_by_byte_budget: boolean;
+  };
   freshness: DashboardDayViewFreshness;
   navigation?: Record<string, unknown>;
   degradation?: Record<string, unknown>;
