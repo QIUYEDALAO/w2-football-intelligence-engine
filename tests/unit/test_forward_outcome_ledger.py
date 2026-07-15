@@ -123,6 +123,24 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert rows[0]["selection_price"] == 1.91
 
 
+def test_forward_capture_never_uses_capture_time_for_missing_quote_time() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["generated_at"] = "2026-07-07T11:59:00Z"  # type: ignore[index]
+    card["current_odds"]["ah"].pop("as_of")  # type: ignore[index,union-attr]
+
+    result = run_forward_outcome_ledger(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    record = result["records"][0]
+    assert record["quote_id"] is None
+    assert record["quote_captured_at"] is None
+    assert record["quote_status"] == "BLOCKED"
+    assert record["quote_blocker"] == "QUOTE_CAPTURE_TIME_MISSING"
+
+
 def test_forward_outcome_ledger_records_distinct_t24_and_t1_checkpoints(
     tmp_path: Path,
 ) -> None:

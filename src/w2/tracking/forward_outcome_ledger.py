@@ -94,7 +94,6 @@ def build_forward_outcome_records(
         evidence_identity = _capture_evidence_identity(
             card,
             shadow_picks=shadow_picks,
-            captured_at=captured,
         )
         record = {
             "schema_version": SCHEMA_VERSION,
@@ -859,7 +858,6 @@ def _capture_evidence_identity(
     card: Mapping[str, Any],
     *,
     shadow_picks: Sequence[Mapping[str, Any]],
-    captured_at: str,
 ) -> dict[str, Any]:
     pick = _mapping(card.get("pick"))
     selected = pick or (shadow_picks[0] if shadow_picks else {})
@@ -884,6 +882,8 @@ def _capture_evidence_identity(
         "selection_line": None,
         "selection_price": None,
         "quote_captured_at": None,
+        "quote_status": "BLOCKED",
+        "quote_blocker": "QUOTE_CAPTURE_TIME_MISSING",
     }
     odds = _mapping(card.get("current_odds"))
     quote_odds = _mapping(
@@ -892,15 +892,17 @@ def _capture_evidence_identity(
     if not market or not selection or not quote_odds:
         return base
     quote_captured_at = _optional_text(
-        quote_odds.get("as_of") or card.get("generated_at") or card.get("as_of") or captured_at
+        quote_odds.get("captured_at") or quote_odds.get("as_of")
     )
+    if quote_captured_at is None:
+        return base
     try:
         quote = MarketQuote.create(
             fixture_id=_text(card.get("fixture_id")),
             market=market,
             selection=selection,
             odds=quote_odds,
-            captured_at=quote_captured_at or captured_at,
+            captured_at=quote_captured_at,
         ).as_dict()
     except ValueError:
         return base
@@ -911,6 +913,8 @@ def _capture_evidence_identity(
         "selection_line": quote["selection_line"],
         "selection_price": quote["selection_price"],
         "quote_captured_at": quote["captured_at"],
+        "quote_status": "READY",
+        "quote_blocker": None,
     }
 
 
@@ -971,13 +975,18 @@ def _market_quote_for_candidate(
     )
     if not quote_odds:
         return None
+    quote_captured_at = _optional_text(
+        quote_odds.get("captured_at") or quote_odds.get("as_of")
+    )
+    if quote_captured_at is None:
+        return None
     try:
         return MarketQuote.create(
             fixture_id=_text(record.get("fixture_id")),
             market=market,
             selection=selection,
             odds=quote_odds,
-            captured_at=_text(record.get("captured_at")),
+            captured_at=quote_captured_at,
         ).as_dict()
     except ValueError:
         return None

@@ -658,3 +658,10 @@
 - 当前分支 `codex/w2-readiness-contract` 实施 CORE-6A：`/health` 仅表示进程 liveness；`/ready` 检查 DB、Redis、必需 artifact、核心 read model 与 migration/schema compatibility，关键依赖失败返回 HTTP 503。
 - Dockerfile、local/staging compose 的 API 健康检查切换为 `/ready`；Web 继续通过 `service_healthy` 等待真正 ready 的 API。
 - 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐/EV/RECOMMEND/lock/league/artifact。
+
+### V3 进展续53 · Selected Quote Freshness(2026-07-15)
+
+- #285 已合入 main `c4a733a5a90058d3b91a8dd6fe1ce89e65fef9bf`，三项 CI 全绿；liveness/readiness 分离及容器业务依赖门已落地。
+- 当前分支 `codex/w2-quote-freshness` 实施 CORE-6B：AH/TOTALS freshness 分别绑定所选 quote 的原始 `captured_at/as_of + source_hash`，禁止卡片/看板生成时间、evaluation time 和 ledger capture time 回退。
+- 缺少所选 quote 原始时间时显式 `QUOTE_CAPTURE_TIME_MISSING` 并 fail closed；forward capture 不再伪造 MarketQuote 时间。
+- 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐阈值/EV/RECOMMEND/lock/league/artifact。

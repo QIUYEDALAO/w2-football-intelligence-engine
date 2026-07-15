@@ -150,10 +150,11 @@ def evaluate_data_readiness(
             provider_budget_status,
         )
     if "odds" in stale:
+        odds_field = next(field for field in fields if field.field == "odds")
         return _result(
             DataStatus.STALE,
             fields,
-            DecisionReasonCode.DATA_STALE_ODDS,
+            odds_field.reason_code or DecisionReasonCode.DATA_STALE_ODDS,
             next_tick,
             provider_budget_status,
         )
@@ -200,7 +201,6 @@ def build_data_readiness_from_legacy_payload(
     available_inputs = _as_mapping(_get(analysis_readiness, "available_inputs"))
     pricing = _as_mapping(card.get("pricing_shadow"))
     current_odds = _as_mapping(card.get("current_odds"))
-    line_movement = _as_mapping(card.get("line_movement"))
     provider = provider_status or _as_mapping(card.get("provider_status"))
     provider_budget_status = _first_text(
         _get(provider, "provider_budget_status"),
@@ -232,13 +232,15 @@ def build_data_readiness_from_legacy_payload(
         or _has_market_odds(market)
         or _has_market_odds(recommendation)
     )
+    selected_market = _first_text(
+        _get(recommendation, "market"),
+        _get(market, "market"),
+        _get(_as_mapping(card.get("pick")), "market"),
+        _get(_as_mapping(card.get("analysis_gate")), "market"),
+    )
+    selected_quote = _selected_quote(current_odds, selected_market)
     odds_captured_at = _parse_utc(
-        _first_text(
-            _get(current_odds, "captured_at"),
-            _get(line_movement, "captured_at"),
-            _get(raw_data_readiness, "odds_captured_at"),
-            _get(card, "generated_at"),
-        ),
+        _first_text(_get(selected_quote, "captured_at"), _get(selected_quote, "as_of"))
     )
     lineups_available = _truthy(_get(available_inputs, "lineups")) or _truthy(
         _get(raw_data_readiness, "lineups"),
@@ -359,6 +361,7 @@ def _field_statuses(
             data.as_of,
             DecisionReasonCode.MARKET_UNAVAILABLE,
             DecisionReasonCode.DATA_STALE_ODDS,
+            missing_capture_reason=DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING,
         ),
         _timed_field(
             "lineups",
@@ -407,15 +410,30 @@ def _timed_field(
     as_of: datetime,
     missing_reason: DecisionReasonCode,
     stale_reason: DecisionReasonCode,
+    *,
+    missing_capture_reason: DecisionReasonCode | None = None,
 ) -> DataFieldReadiness:
     captured = captured_at.astimezone(UTC) if captured_at is not None else None
     stale = (
         present
-        and captured is not None
         and max_age_seconds is not None
-        and as_of.astimezone(UTC) - captured > timedelta(seconds=max_age_seconds)
+        and (
+            (captured is None and missing_capture_reason is not None)
+            or (
+                captured is not None
+                and as_of.astimezone(UTC) - captured > timedelta(seconds=max_age_seconds)
+            )
+        )
     )
-    reason = missing_reason if not present else stale_reason if stale else None
+    reason = (
+        missing_reason
+        if not present
+        else missing_capture_reason
+        if stale and captured is None
+        else stale_reason
+        if stale
+        else None
+    )
     return DataFieldReadiness(field, present, stale, captured, max_age_seconds, reason)
 
 
@@ -522,6 +540,8 @@ def _reason_text(reason: DecisionReasonCode | None) -> tuple[str, str]:
         return "盘口未就绪", "等盘口开出或刷新"
     if reason is DecisionReasonCode.DATA_STALE_ODDS:
         return "盘口数据陈旧", "触发盘口刷新或等下一 tick"
+    if reason is DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING:
+        return "盘口缺少原始捕获时间", "等待带原始时间的盘口快照"
     if reason is DecisionReasonCode.LINEUPS_PENDING:
         return "首发未出", "等官方首发"
     if reason is DecisionReasonCode.DATA_MISSING_XG:
@@ -639,6 +659,17 @@ def _legacy_blockers(
 
 def _has_market_odds(payload: Mapping[str, Any] | None) -> bool:
     return payload is not None and _get(payload, "odds") is not None
+
+
+def _selected_quote(
+    current_odds: Mapping[str, Any], selected_market: str | None
+) -> Mapping[str, Any]:
+    market = str(selected_market or "").upper()
+    if market == "ASIAN_HANDICAP":
+        return _as_mapping(current_odds.get("ah"))
+    if market == "TOTALS":
+        return _as_mapping(current_odds.get("ou"))
+    return {}
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:

@@ -25,6 +25,7 @@ from w2.models.fair_market_estimate import (
     verify_estimate_semantics,
     verify_estimate_snapshot,
 )
+from w2.models.market_quote import MarketQuote
 from w2.models.player_impact import unsupported_player_impact
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
@@ -837,12 +838,35 @@ def _analysis_gates(
             fair_line - market_line if fair_line is not None and market_line is not None else None
         )
         threshold = MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE
+        selection = _selection_for_delta(market, delta)
+        quote_odds = _as_mapping(odds.get("ah" if market == "ASIAN_HANDICAP" else "ou"))
+        quote_captured_at = _first_text(
+            quote_odds.get("captured_at"),
+            quote_odds.get("as_of"),
+        )
+        quote = _analysis_market_quote(
+            card=card,
+            market=market,
+            selection=selection,
+            quote_odds=quote_odds,
+            quote_captured_at=quote_captured_at,
+        )
+        quote_time = _parse_utc(quote_captured_at)
+        quote_stale = quote_time is not None and as_of.astimezone(UTC) - quote_time > timedelta(
+            minutes=DataFreshnessPolicy().odds_max_age_minutes
+        )
         direction_allowed = _direction_allowed(card, estimate, market)
         staging_analysis_visible = environment.strip().lower() == "staging"
         blockers: list[str] = []
         advisories: list[str] = []
         if not market_ready:
             blockers.append("MARKET_UNAVAILABLE")
+        if market_ready and quote_captured_at is None:
+            blockers.append("QUOTE_CAPTURE_TIME_MISSING")
+        elif market_ready and quote_stale:
+            blockers.append("DATA_STALE_ODDS")
+        elif market_ready and quote is None:
+            blockers.append("MARKET_QUOTE_INVALID")
         if not model_ready:
             blockers.append("MODEL_FAIR_LINE_UNAVAILABLE")
         if estimate and not source_consistent:
@@ -857,7 +881,10 @@ def _analysis_gates(
                 blockers.append("FORWARD_EVIDENCE_ACCUMULATING")
             elif not direction_allowed:
                 advisories.append("FORWARD_EVIDENCE_ACCUMULATING")
-        if not market_ready or not model_ready:
+        if not market_ready or not model_ready or any(
+            item in blockers
+            for item in ("QUOTE_CAPTURE_TIME_MISSING", "DATA_STALE_ODDS", "MARKET_QUOTE_INVALID")
+        ):
             status = "BLOCKED"
         elif delta is None or abs(delta) < threshold:
             status = "NO_EDGE"
@@ -878,7 +905,19 @@ def _analysis_gates(
                 "direction_allowed": direction_allowed,
                 "fair_line": fair_line,
                 "market_line": market_line,
-                "selection": _selection_for_delta(market, delta),
+                "selection": selection,
+                "quote_id": quote.get("quote_id") if quote else None,
+                "quote_captured_at": quote.get("captured_at") if quote else quote_captured_at,
+                "quote_source_hash": quote.get("source_hash") if quote else None,
+                "quote_freshness_status": (
+                    "MISSING_CAPTURE_TIME"
+                    if quote_captured_at is None
+                    else "STALE"
+                    if quote_stale
+                    else "READY"
+                    if quote is not None
+                    else "INVALID"
+                ),
                 "divergence_line_units": round(delta, 6) if delta is not None else None,
                 "threshold_line_units": threshold,
                 "strength_quarter_lines": round(abs(delta) / threshold, 6)
@@ -1058,6 +1097,28 @@ def _market_odds_ready(odds: Mapping[str, Any], market: str) -> bool:
         )
     item = _as_mapping(odds.get("ou"))
     return all(_non_empty(item.get(key)) for key in ("line", "over_price", "under_price"))
+
+
+def _analysis_market_quote(
+    *,
+    card: Mapping[str, Any],
+    market: str,
+    selection: str | None,
+    quote_odds: Mapping[str, Any],
+    quote_captured_at: str | None,
+) -> dict[str, Any] | None:
+    if selection is None or quote_captured_at is None:
+        return None
+    try:
+        return MarketQuote.create(
+            fixture_id=str(card.get("fixture_id") or ""),
+            market=market,
+            selection=selection,
+            odds=quote_odds,
+            captured_at=quote_captured_at,
+        ).as_dict()
+    except ValueError:
+        return None
 
 
 def _direction_allowed(
