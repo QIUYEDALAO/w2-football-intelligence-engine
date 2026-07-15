@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -9,6 +8,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from w2.infrastructure.atomic_files import read_jsonl
 from w2.tracking.canonical_identity import (
     candidate_for_outcome,
     canonical_capture_candidates,
@@ -54,7 +54,10 @@ def forward_ledger_performance(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
-    records = _normalize_outcome_records(list(load_forward_ledger_records(root)))
+    raw_records, source_read_status, corruption_count = load_forward_ledger_records_with_status(
+        root
+    )
+    records = _normalize_outcome_records(raw_records)
     canonical_candidates = canonical_capture_candidates(records)
     records = _canonical_evidence_records(records, canonical_candidates)
     outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
@@ -104,6 +107,8 @@ def forward_ledger_performance(
     return {
         "schema_version": "w2.forward_ledger_performance.v1",
         "source": "runtime/forward_outcome_ledger",
+        "source_read_status": source_read_status,
+        "source_corruption_count": corruption_count,
         "sample_target": sample_target,
         "record_count": len(records),
         "fixture_count": len(fixture_ids),
@@ -313,19 +318,25 @@ def _has_final_result(event: Mapping[str, Any]) -> bool:
 
 
 def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
-    if not root.exists():
-        return []
-    records: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*.jsonl")):
-        with path.open(encoding="utf-8") as handle:
-            for line in handle:
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(payload, dict):
-                    records.append(payload)
+    records, _, _ = load_forward_ledger_records_with_status(root)
     return records
+
+
+def load_forward_ledger_records_with_status(
+    root: Path,
+) -> tuple[list[dict[str, Any]], str, int]:
+    if not root.exists():
+        return [], "MISSING", 0
+    records: list[dict[str, Any]] = []
+    corruption_count = 0
+    error = False
+    for path in sorted(root.glob("*.jsonl")):
+        result = read_jsonl(path)
+        records.extend(result.records)
+        corruption_count += result.corruption_count
+        error = error or result.status == "ERROR"
+    status = "ERROR" if error else "DEGRADED" if corruption_count else "PASS"
+    return records, status, corruption_count
 
 
 def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:

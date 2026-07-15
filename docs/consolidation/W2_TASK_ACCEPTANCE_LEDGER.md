@@ -643,3 +643,11 @@
 - 回放不再允许仅按 fixture_id 匹配 outcome；必须使用 market、selection、scope、strategy、estimate、quote 与 source capture hash 完整身份。
 - OFFICIAL、VALIDATION、Wide Shadow、Strict Shadow v1 及未来版本分别统计；审计 manifest 增加 export/integrity/semantic 状态及无效 snapshot/quote 计数。
 - 当前专项测试通过，完整 CI 与 PR 尚待完成；未部署、未调用 provider、未写业务数据库、未重启服务。
+
+### V3 进展续51 · Evidence Storage Atomicity(2026-07-15)
+
+- #283 已合入 main `3cd7bbca177361bd33c0a634fdbc08e3162466c5`，三项 CI 全绿；规范 performance identity、完整 replay identity、strategy/scope 分账及 audit manifest 状态已落地。
+- 当前分支 `codex/w2-evidence-storage-atomicity` 实施 CORE-5：capture/outcome 的跨进程 read/dedupe/append 进入同一 flock 临界区并 flush/fsync；timeline 使用 fixture 锁、临时文件、fsync 与 atomic replace。
+- JSONL reader 在截断尾行时保留完整记录并返回 `DEGRADED + corruption_count`；timeline 损坏返回 `CORRUPT/ERROR`，不再伪装成空 timeline 或覆盖损坏证据。
+- 已增加多进程重复 capture/outcome、截断尾行、replace 前崩溃和 old-or-new 完整 JSON 回归；当前专项测试通过，完整 CI 与 PR 尚待完成。
+- 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐/EV/RECOMMEND/lock/league/artifact。
