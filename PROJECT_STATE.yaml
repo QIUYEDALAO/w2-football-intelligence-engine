@@ -20,7 +20,7 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 7216c3fef9553ddc4c58f578a21f34c3b714c845
+  main_sha: 3cd7bbca177361bd33c0a634fdbc08e3162466c5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
@@ -58,9 +58,13 @@ current_execution_queue:
       merged_pr: 282
     - id: CORE-4
       name: replay audit and performance canonical identity
+      status: COMPLETE
+      merged_pr: 283
+    - id: CORE-5
+      name: evidence storage atomicity
       status: IN_PROGRESS
-    - id: CORE-5-6E
-      name: remaining correctness and evidence stages
+    - id: CORE-6A-6E
+      name: remaining runtime correctness stages
       status: PENDING
     - id: AH-2-4
       name: selective AH validation program

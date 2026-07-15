@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.infrastructure.atomic_files import append_jsonl_once, read_jsonl
 from w2.models.fair_market_estimate import (
     estimate_snapshots,
     verify_estimate_semantics,
@@ -41,22 +42,26 @@ def run_forward_outcome_ledger(
     )
     written = 0
     skipped_existing = 0
+    corruption_count = 0
     output_file = _ledger_path(root, day_view)
     if write_artifacts and not dry_run:
-        existing_keys = _existing_keys(output_file)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        with output_file.open("a", encoding="utf-8") as handle:
-            for record in records:
-                key = _record_key(record)
-                if key in existing_keys:
-                    skipped_existing += 1
-                    continue
-                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-                existing_keys.add(key)
+        for record in records:
+            appended, read_result = append_jsonl_once(
+                output_file,
+                record,
+                key=_record_key(record),
+                key_fn=_record_key,
+            )
+            corruption_count = max(corruption_count, read_result.corruption_count)
+            if appended:
                 written += 1
+            else:
+                skipped_existing += 1
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "PASS",
+        "status": "DEGRADED" if corruption_count else "PASS",
+        "source_read_status": "DEGRADED" if corruption_count else "PASS",
+        "corruption_count": corruption_count,
         "dry_run": bool(dry_run),
         "write_artifacts": bool(write_artifacts),
         "provider_calls": 0,
@@ -158,7 +163,7 @@ def backfill_outcomes(
     root = runtime_root / "forward_outcome_ledger"
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
     results, unsettled_missing_fulltime = _finished_results(day_view_or_results_source)
-    ledger_rows = _ledger_rows_by_file(root)
+    ledger_rows, source_read_status, corruption_count = _ledger_rows_by_file_with_status(root)
     outcome_records: list[tuple[Path, dict[str, Any]]] = []
     for path, records in ledger_rows.items():
         for entry, side, item in _settlement_entries(records, results):
@@ -178,21 +183,24 @@ def backfill_outcomes(
     written = 0
     skipped_existing = 0
     if write_artifacts and not dry_run:
-        existing_by_path = {path: _existing_keys(path) for path in ledger_rows}
         for path, record in outcome_records:
-            existing_keys = existing_by_path.setdefault(path, _existing_keys(path))
-            key = _record_key(record)
-            if key in existing_keys:
+            appended, read_result = append_jsonl_once(
+                path,
+                record,
+                key=_record_key(record),
+                key_fn=_record_key,
+            )
+            corruption_count = max(corruption_count, read_result.corruption_count)
+            if appended:
+                written += 1
+            else:
                 skipped_existing += 1
-                continue
-            path.parent.mkdir(parents=True, exist_ok=True)
-            _append_jsonl_record(path, record)
-            existing_keys.add(key)
-            written += 1
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "PASS",
+        "status": "DEGRADED" if corruption_count else "PASS",
+        "source_read_status": source_read_status,
+        "corruption_count": corruption_count,
         "dry_run": bool(dry_run),
         "write_artifacts": bool(write_artifacts),
         "provider_calls": 0,
@@ -231,20 +239,6 @@ def _ledger_path(root: Path, day_view: Mapping[str, Any]) -> Path:
     return root / f"{football_day}_{environment}.jsonl"
 
 
-def _existing_keys(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    keys: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(record, Mapping):
-            keys.add(_record_key(record))
-    return keys
-
-
 def _record_key(record: Mapping[str, Any]) -> str:
     record_type = _text(record.get("record_type") or "capture")
     capture_identity = _text(record.get("card_hash") or record.get("captured_at"))
@@ -279,33 +273,25 @@ def _record_key(record: Mapping[str, Any]) -> str:
 
 
 def _ledger_rows_by_file(root: Path) -> dict[Path, list[dict[str, Any]]]:
-    if not root.exists():
-        return {}
-    rows: dict[Path, list[dict[str, Any]]] = {}
-    for path in sorted(root.glob("*.jsonl")):
-        items: list[dict[str, Any]] = []
-        with path.open(encoding="utf-8") as handle:
-            for line in handle:
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(record, dict):
-                    items.append(record)
-        rows[path] = items
+    rows, _, _ = _ledger_rows_by_file_with_status(root)
     return rows
 
 
-def _append_jsonl_record(path: Path, record: Mapping[str, Any]) -> None:
-    needs_newline = path.exists() and path.stat().st_size > 0
-    if needs_newline:
-        with path.open("rb") as handle:
-            handle.seek(-1, 2)
-            needs_newline = handle.read(1) != b"\n"
-    with path.open("a", encoding="utf-8") as handle:
-        if needs_newline:
-            handle.write("\n")
-        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+def _ledger_rows_by_file_with_status(
+    root: Path,
+) -> tuple[dict[Path, list[dict[str, Any]]], str, int]:
+    if not root.exists():
+        return {}, "MISSING", 0
+    rows: dict[Path, list[dict[str, Any]]] = {}
+    corruption_count = 0
+    error = False
+    for path in sorted(root.glob("*.jsonl")):
+        result = read_jsonl(path)
+        rows[path] = result.records
+        corruption_count += result.corruption_count
+        error = error or result.status == "ERROR"
+    status = "ERROR" if error else "DEGRADED" if corruption_count else "PASS"
+    return rows, status, corruption_count
 
 
 def _settlement_entries(
