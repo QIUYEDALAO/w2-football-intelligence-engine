@@ -230,6 +230,12 @@ AH shadow evidence，并按 distinct fixture 去重。分别统计 HOME_AH/AWAY_
 9 场或以上同方向为 `BLOCKED`；恰好 8 场为不阻断的 `WARNING`。该状态只作安全治理，
 不得自动改模型、改变 decision/pick/tier 或断言模型已被证明存在方向偏差。
 
+AH evidence review 只读复用上述 corrected canonical outcome，提供 35 场人工评审和 100 场
+成熟度计数，并分别输出 Wide/Strict、HOME/AWAY、联赛、artifact、盘口档位的 ROI、CLV、
+五态 Brier 校准、最大回撤与 full-loss rate。样本不足必须为 `ACCUMULATING`；达到 35/100
+只代表报告门槛，不构成方向放行。工具不得自动打开 direction_allowed、ANALYSIS_PICK、
+RECOMMEND 或 lock；没有另行预注册并人工验收质量门时，结论保持 `KEEP_SHADOW_ONLY`。
+
 ### 可选首发与球员价值增强（2026-07-11）
 
 `lineups` 与 `team_value` 不属于 `missing_fields` 硬缺失，不得降低

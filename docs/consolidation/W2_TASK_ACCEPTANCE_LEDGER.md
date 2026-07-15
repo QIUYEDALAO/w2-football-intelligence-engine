@@ -701,3 +701,10 @@
 - 当前分支 `codex/w2-ah-direction-bias-governance` 实施 AH-3：只读取完整 canonical identity、Snapshot v2 语义通过、quote 通过且已完成 Strict 确认的 corrected AH outcome，并按 distinct fixture 去重。
 - 方向、主客让/受让、0 盘、盘口档位、联赛、artifact 与 strategy version 分组统计；不足 8、8 连同向、10 中 8、10 中 9+ 分别输出预注册状态。
 - 集中度状态只作安全预警，不自动修改模型或推荐；安全保持 provider calls=0、DB writes=0、未部署或重启服务，RECOMMEND/lock/production/league 均不变。
+
+### V3 进展续59 · AH Evidence Review Tooling(2026-07-15)
+
+- #291 已合入 main `c326f9de63516d27811a6f1f1ddaee0f4cb6f986`，三项 CI 全绿；corrected canonical AH 集中度按 distinct fixture 与预注册 8/10 规则治理。
+- 当前分支 `codex/w2-ah-evidence-review` 实施 AH-4：新增只读 35/100 证据报告生成器，比较 Wide/Strict、HOME/AWAY，并按联赛、artifact、盘口档位拆分 ROI、CLV、五态校准、最大回撤和 full-loss rate。
+- 当前未部署代码的本地 runtime 没有 corrected settled AH，报告为 `ACCUMULATING`、0/35、0/100；样本不足不阻塞代码交付，也不伪造命中率。
+- 达到成熟样本也只进入人工质量评审；未预注册质量通过门前维持 `KEEP_SHADOW_ONLY`，不得自动开启方向、推荐或 lock。未调用 provider、未写业务数据库、未部署或重启服务。
