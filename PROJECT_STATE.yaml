@@ -137,8 +137,8 @@ staging_state:
   future_refresh_run_audit_latest_deploy_delta: 0
   celery_queue_after_latest_deploy: 0
   operations_access_control:
-    token_configured: true
-    token_recorded_in_repository: false
+    service_credential_enabled: true
+    credential_material_in_repository: false
     allowed_cidrs:
       - 127.0.0.1/32
       - 172.18.0.0/16
