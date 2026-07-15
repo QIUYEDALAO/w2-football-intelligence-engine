@@ -92,3 +92,10 @@ Rules:
 - Deployment order remains scheduler stop, safety baselines and rollback images, builds/revision check, migration smoke/migration, API readiness, worker, Web and scheduler. L1 public pagination gates must pass before any L2 stress request.
 - Immediate rollback triggers include page/card limit violation, page union mismatch, duplicate fixture, snapshot mixing, timeout/502/504, API OOM/restart/exit137, L2 regression, identity mismatch, denominator/track change, historical rewrite, RECOMMEND/lock/OFFICIAL activation or credential exposure.
 - Production, provider calls, timeout changes, model/gate/threshold/artifact changes and league enablement are not authorized.
+
+## Rolled-back bounded future DayView pagination release · 2026-07-16
+
+- Attempted release: `22d1357bba6fc4b761c8cafae98dd917ea0caf25`; rollback target: `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`. All four services were aligned before acceptance and all four were restored after the gate failed.
+- The payload fix worked: future returned 40 fixtures over two pages of about 41 KiB each, maximum card size about 1.8 KiB, union 40, duplicates 0 and stale cursor HTTP 409. There were no 502, 504, browser timeout, API restart, exit 137 or cgroup OOM event.
+- The release still failed the latency gate. Warm public requests were about 1.6–2.0 seconds versus the 1.5-second p95 target, and the second page took 3.87 seconds versus the 3-second target. Frozen L2 staging stress was therefore not run.
+- Rollback readiness and API/Web release sync passed with restart count 0. Provider count remained 485, queue remained 0 and the before/after ledger manifest hash was identical. Production, recommendations, locks and OFFICIAL writes remain excluded.

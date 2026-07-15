@@ -780,3 +780,11 @@
 - DayView HTTP 路径不再调用全 ledger loader，不在分页前 prime 全部盘口或构造全部卡片；L1保留 `audit_capture_hash/audit_estimate_id`，L2继续使用exact frozen `audit-detail`，没有回退旧无界Dashboard，也没有提高12秒客户端或nginx timeout。
 - 合并后全量验收：`1422 passed, 4 skipped`；Ruff、Mypy（245源文件）、TypeScript、Web build、offline acceptance、tracked-output guard全部PASS。三个代码PR的verify、staging-parity、predeploy-e2e均PASS。
 - canonical基线必须保持 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/identity-aware unmatched/cross-track contamination=0，Strict=0、RECOMMEND=0、lock=0、OFFICIAL=0。staging仍运行回滚版本`c4bcceb5...`，下一步才是单次批准的批量部署与L1→L2硬门验收。
+
+### V3 进展续68 · Bounded Future DayView Pagination staging 回滚(2026-07-16)
+
+- docs gate #313 合并后的目标 `main@22d1357bba6fc4b761c8cafae98dd917ea0caf25` 曾按 migration→API→worker→Web→scheduler 顺序完整切换；四服务revision一致、restart=0，artifact v1、migration head和`/ready`均通过。
+- L1内容正确性显著恢复：future 40场分2页，page union=40、duplicate=0；页面约41 KiB、最大单卡约1.8 KiB、stale cursor=409，所有请求HTTP 200且无502/504/browser timeout。future首屏冷请求5.95秒，满足4/8/12秒冷门。
+- 延迟硬门仍未全过：暖请求约1.6–2.0秒，高于p95<=1.5秒；第二页3.87秒，高于next-page p95<=3秒。按L1前置门规则未执行原OOM fixture及Frozen L2压力矩阵，也未宣称staging L2恢复。
+- 回滚前API RSS约254.4 MiB，cgroup oom/oom_kill=0、exit137=0、restart=0。已恢复四服务到`c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`，`/ready`、API/Web release sync和watchdog均通过，restart=0。
+- provider保持485（delta=0）、Celery queue保持0；部署前后ledger manifest hash均为`cacf1af56e3b5983b13214f7cae446f6f55e7e48fda4f2f0c6e9bebc0ca0a4f4`。因此canonical denominator与三轨证据未改变，RECOMMEND/lock/OFFICIAL/production仍关闭。
