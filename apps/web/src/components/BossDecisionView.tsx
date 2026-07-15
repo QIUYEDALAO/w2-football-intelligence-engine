@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   fmtTime,
   formatLine,
@@ -8,11 +8,13 @@ import {
   translateCompetition,
 } from "../lib/formatters";
 import { asArray, asRecord, textValue } from "../lib/normalize";
+import { fetchFixtureAuditDetails } from "../lib/dashboardApi";
 import type {
   DashboardDayView,
   DashboardDayViewCard,
   DashboardMatchCard,
   DashboardPerformance,
+  FixtureAuditDetails,
   ReleaseSyncState,
 } from "../types/dashboard";
 import { RecommendationCard } from "./RecommendationCard";
@@ -528,10 +530,6 @@ function competitionLabel(card: DashboardDayViewCard): string {
   return translateCompetition(card.competition_name || card.competition_id || "比赛");
 }
 
-function byFixtureId(matches: DashboardMatchCard[]): Map<string, DashboardMatchCard> {
-  return new Map(matches.map((match) => [String(match.fixture_id), match]));
-}
-
 function referenceTime(dayView: DashboardDayView): Date {
   const raw = dayView.generated_at || dayView.freshness.last_refresh;
   const parsed = raw ? new Date(raw) : new Date();
@@ -909,19 +907,38 @@ export function EvidencePanel({
 export function DecisionRow({
   card,
   selected,
-  legacyMatch,
   now,
   onSelect,
+  apiReleaseSha,
 }: {
   card: DashboardDayViewCard;
   selected: boolean;
-  legacyMatch?: DashboardMatchCard;
   now: Date;
   onSelect: () => void;
+  apiReleaseSha: string;
 }) {
   const tierClass = `tier-${card.decision_tier.toLowerCase().replace("_", "-")}`;
   const muted = card.decision_tier === "NOT_READY" || card.decision_tier === "SKIP" || card.data_status === "BLOCKED";
   const scoreline = scorelineStatusText(card);
+  const estimateId = card.pick?.estimate_id
+    ?? textValue(card.compact_provenance?.estimate_id)
+    ?? null;
+  const [audit, setAudit] = useState<FixtureAuditDetails | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState(false);
+  useEffect(() => {
+    setAudit(null);
+    setAuditError(false);
+  }, [card.fixture_id, estimateId, apiReleaseSha]);
+  function loadAudit(): void {
+    if (auditLoading || audit) return;
+    setAuditLoading(true);
+    setAuditError(false);
+    fetchFixtureAuditDetails(card.fixture_id, estimateId, apiReleaseSha)
+      .then(setAudit)
+      .catch(() => setAuditError(true))
+      .finally(() => setAuditLoading(false));
+  }
   return (
     <article className={`decision-row ${tierClass}${selected ? " is-selected" : ""}${muted ? " is-muted" : ""}`}>
       <button className="decision-row-button" type="button" onClick={onSelect} aria-pressed={selected}>
@@ -954,10 +971,35 @@ export function DecisionRow({
           <span>{nextEvalLabel(card)}</span>
         </div>
       </button>
-      <details className="l2-diagnostics-drawer">
+      <details className="l2-diagnostics-drawer" onToggle={(event) => {
+        if (event.currentTarget.open) loadAudit();
+      }}>
         <summary>L2 技术诊断</summary>
         <div className="l2-diagnostics-body">
-          {legacyMatch ? <RecommendationCard match={legacyMatch} /> : null}
+          {auditLoading ? <p>正在按需加载完整审计信息…</p> : null}
+          {auditError ? (
+            <div className="l2-load-error">
+              <strong>L2 技术诊断加载失败</strong>
+              <span>L1 决策摘要仍然有效；这不代表没有审计数据。</span>
+              <button type="button" onClick={() => {
+                setAudit(null);
+                loadAudit();
+              }}>重试</button>
+            </div>
+          ) : null}
+          {audit ? <RecommendationCard match={audit.match} /> : null}
+          {audit ? (
+            <details className="l2-raw-audit">
+              <summary>完整 provenance / FME / Strict 审计</summary>
+              <pre>{JSON.stringify({
+                analysis_card: audit.analysis_card,
+                integrity: audit.integrity,
+                market_probabilities: audit.market_probabilities,
+                model_probabilities: audit.model_probabilities,
+                odds_timeline: audit.odds_timeline,
+              }, null, 2)}</pre>
+            </details>
+          ) : null}
           <dl className="l2-diagnostics-grid">
             {diagnosticRows(card).map(([label, value]) => (
               <div key={label}>
@@ -1034,9 +1076,9 @@ function ScheduleSection({
   cards,
   empty,
   selectedFixtureId,
-  legacyById,
   now,
   onSelect,
+  apiReleaseSha,
   collapsed,
 }: {
   title: string;
@@ -1044,9 +1086,9 @@ function ScheduleSection({
   cards: DashboardDayViewCard[];
   empty: string;
   selectedFixtureId?: string | null;
-  legacyById: Map<string, DashboardMatchCard>;
   now: Date;
   onSelect: (fixtureId: string) => void;
+  apiReleaseSha: string;
   collapsed?: boolean;
 }) {
   return (
@@ -1074,9 +1116,9 @@ function ScheduleSection({
               key={card.fixture_id}
               card={card}
               selected={card.fixture_id === selectedFixtureId}
-              legacyMatch={legacyById.get(card.fixture_id)}
               now={now}
               onSelect={() => onSelect(card.fixture_id)}
+              apiReleaseSha={apiReleaseSha}
             />
           ))}
         </div>
@@ -1320,7 +1362,6 @@ export function BossDecisionView({
   performance?: DashboardPerformance;
   release?: ReleaseSyncState;
 }) {
-  const legacyById = byFixtureId(legacyMatches);
   const now = useMemo(() => referenceTime(dayView), [dayView]);
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
   const scheduleDay = dayView.selected_football_day || dayView.football_day || dayView.generated_at;
@@ -1388,9 +1429,9 @@ export function BossDecisionView({
                 cards={worthWatching}
                 empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
                 selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
                 now={now}
                 onSelect={setSelectedFixtureId}
+                apiReleaseSha={release?.api_git_sha ?? "UNKNOWN"}
               />
               <ScheduleSection
                 title="赛中 / 刚开赛"
@@ -1398,9 +1439,9 @@ export function BossDecisionView({
                 cards={liveCards}
                 empty="当前没有赛中或刚开赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
                 now={now}
                 onSelect={setSelectedFixtureId}
+                apiReleaseSha={release?.api_git_sha ?? "UNKNOWN"}
               />
               <ScheduleSection
                 title="今日赛程"
@@ -1408,9 +1449,9 @@ export function BossDecisionView({
                 cards={filteredTodaySchedule}
                 empty="今日没有符合筛选条件的待赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
                 now={now}
                 onSelect={setSelectedFixtureId}
+                apiReleaseSha={release?.api_git_sha ?? "UNKNOWN"}
               />
               <ScheduleSection
                 title="未来赛程"
@@ -1418,9 +1459,9 @@ export function BossDecisionView({
                 cards={filteredFutureSchedule.slice(0, 8)}
                 empty="未来窗口暂无待赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
                 now={now}
                 onSelect={setSelectedFixtureId}
+                apiReleaseSha={release?.api_git_sha ?? "UNKNOWN"}
                 collapsed
               />
               <CoverageFoldout dayView={dayView} />

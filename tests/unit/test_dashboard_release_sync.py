@@ -454,8 +454,8 @@ def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
 
     assert 'getJSON("/meta.json")' in body
     assert "getJSON(`${API_BASE}/version`)" in body
-    assert "`${API_BASE}/dashboard?" in body
-    assert 'include_debug: includeDebug ? "true" : "false"' in body
+    assert "`${API_BASE}/dashboard/day-view?" in body
+    assert "`${API_BASE}/dashboard?" not in body
     assert "getCachedDashboardView" in body
     assert 'params.get("demo") === "1"' in body
     assert 'VITE_DASHBOARD_DATA_MODE === "demo"' in body
