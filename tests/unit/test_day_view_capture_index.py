@@ -29,7 +29,7 @@ def test_index_keeps_latest_prematch_capture_and_omits_full_payloads(tmp_path: P
             {"estimate_id": "fme-1", "market": "TOTALS", "score_matrix": [[1] * 50] * 50}
         ],
         "pricing_shadow": {"huge": "x" * 10000},
-        "raw_provider_payload": {"secret": "no"},
+        "raw_provider_payload": {"sensitive": "omitted"},
     }
     _write(
         tmp_path,
