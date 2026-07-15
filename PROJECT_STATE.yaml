@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-11T16:18:00Z"
-current_phase: optional lineup enrichment and validation recommendation
-current_status: COMPLETE
+last_updated_utc: "2026-07-15T01:15:00Z"
+current_phase: whole-system correctness and AH validation program
+current_status: IN_PROGRESS
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,37 +20,54 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
+  main_sha: 7216c3fef9553ddc4c58f578a21f34c3b714c845
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-11T16:18:00Z"
+  observed_at_utc: "2026-07-15T01:15:00Z"
 
 current_execution_queue:
-  name: W2 optional lineup enrichment and validation recommendation
+  name: W2 whole-system correctness and AH validation program
   invariant:
-    - Lineups and player value are optional enrichment, never analysis hard gates.
-    - FairMarketEstimate remains the only L1 decision probability and score-distribution source.
-    - ANALYSIS_PICK is a tracked validation recommendation and is never lock eligible.
-    - RECOMMEND, EV, lock, production, league enablement, and provider budgets remain unchanged.
+    - FairMarketEstimate Snapshot v2 and MarketQuote are the only eligible decision evidence.
+    - Canonical performance counts one last valid prematch candidate per fixture, market, scope, and strategy version.
+    - OFFICIAL, VALIDATION, Wide Shadow, and each Strict Shadow version never cross-count.
+    - ANALYSIS_PICK, RECOMMEND, EV, lock, production, league enablement, model artifacts, and provider budgets remain unchanged.
   stages:
-    - id: A
-      name: optional enrichment contract
+    - id: baseline
+      name: whole-system baseline and contract freeze
       status: COMPLETE
-    - id: B
-      name: FairMarketEstimate authority and legacy isolation
+      merged_pr: 278
+    - id: AH-S0
+      name: AH sign and settlement invariant freeze
       status: COMPLETE
-    - id: C
-      name: validation recommendation freeze settlement and statistics
+      merged_pr: 279
+    - id: CORE-1
+      name: FairMarketEstimate Snapshot v2 semantic closure
       status: COMPLETE
-    - id: D
-      name: dashboard wording and enrichment status
+      merged_pr: 280
+    - id: CORE-2
+      name: new-pick and lock fail-closed enforcement
       status: COMPLETE
+      merged_pr: 281
+    - id: CORE-3
+      name: immutable MarketQuote and capture identity
+      status: COMPLETE
+      merged_pr: 282
+    - id: CORE-4
+      name: replay audit and performance canonical identity
+      status: IN_PROGRESS
+    - id: CORE-5-6E
+      name: remaining correctness and evidence stages
+      status: PENDING
+    - id: AH-2-4
+      name: selective AH validation program
+      status: PENDING
   external_actions:
     provider_calls: 0
-    staging_deploy: true
+    staging_deploy: false
     production_deploy: false
 
 staging_state:

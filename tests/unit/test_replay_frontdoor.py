@@ -85,14 +85,33 @@ def test_replay_frontdoor_resolves_immutable_estimate_by_id() -> None:
     ]
 
 
-def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -> None:
+def test_replay_frontdoor_matches_outcomes_by_full_audit_identity() -> None:
+    card = _card("fixture-1")
+    card.update(
+        {
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+                "estimate_id": "fme-1",
+                "quote_id": "mq-1",
+            },
+            "capture_hash": "capture-1",
+        }
+    )
     replay = build_replay_front_door(
         football_day="2026-07-05",
         environment="staging",
-        day_view=_day_view(cards=[_card("fixture-1"), _card("fixture-2", card_hash=None)]),
+        day_view=_day_view(cards=[card, _card("fixture-2", card_hash=None)]),
         outcomes=[
             {
                 "fixture_id": "fixture-1",
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+                "recommendation_scope": "VALIDATION",
+                "strategy_version": "DECISION_CONTRACT_V2",
+                "estimate_id": "fme-1",
+                "quote_id": "mq-1",
+                "source_capture_hash": "capture-1",
                 "result_status": "FINAL",
                 "settlement_status": "SETTLED",
                 "score": "2-1",
@@ -105,10 +124,23 @@ def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -
     assert replay["replay_status"] == "READY"
     assert replay["cards"][0]["outcome_status"] == "MATCHED"
     assert replay["cards"][0]["outcome"]["score"] == "2-1"
-    assert replay["cards"][1]["outcome_status"] == "MISSING_OUTCOME"
+    assert replay["cards"][1]["outcome_status"] == "INCOMPLETE_AUDIT_IDENTITY"
     assert replay["outcome_tracking_summary"]["matched_fixture_ids"] == ["fixture-1"]
     assert replay["outcome_tracking_summary"]["missing_outcome_fixture_ids"] == ["fixture-2"]
     assert replay["card_hash_checks"][1]["hash_status"] == "MISSING"
+
+
+def test_replay_frontdoor_does_not_match_outcome_by_fixture_only() -> None:
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=_day_view(),
+        outcomes=[{"fixture_id": "fixture-1", "score": "2-1"}],
+        as_of="2026-07-06T00:00:00Z",
+    )
+
+    assert replay["cards"][0]["outcome"] is None
+    assert replay["cards"][0]["outcome_status"] == "INCOMPLETE_AUDIT_IDENTITY"
 
 
 def test_replay_card_hash_verification_skeleton() -> None:

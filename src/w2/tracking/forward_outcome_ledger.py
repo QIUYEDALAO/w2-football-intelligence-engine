@@ -139,6 +139,7 @@ def build_forward_outcome_records(
             "not_a_lock": True,
             **evidence_identity,
         }
+        record["audit_capture_identities"] = _audit_capture_identities(record)
         record["capture_checkpoint"] = _capture_checkpoint(record, captured_at)
         record["capture_hash"] = _evidence_hash(record)
         record["evidence_hash"] = record["capture_hash"]
@@ -268,6 +269,10 @@ def _record_key(record: Mapping[str, Any]) -> str:
                 _text(record.get("recommendation_scope")),
                 _text(record.get("market")),
                 _text(record.get("selection")),
+                _text(record.get("strategy_version") or "LEGACY_UNVERSIONED"),
+                _text(record.get("estimate_id") or "LEGACY_ESTIMATE"),
+                _text(record.get("quote_id") or "LEGACY_QUOTE"),
+                _text(record.get("source_capture_hash") or "LEGACY_CAPTURE"),
             ]
         )
     return "|".join(parts)
@@ -308,7 +313,7 @@ def _settlement_entries(
     results: Mapping[str, Mapping[str, Any]],
 ) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
     grouped: dict[
-        tuple[str, str, str, str, str],
+        tuple[str, str, str, str, str, str],
         list[tuple[Mapping[str, Any], Mapping[str, Any]]],
     ] = {}
     for record in records:
@@ -317,15 +322,40 @@ def _settlement_entries(
         fixture_id = _text(record.get("fixture_id"))
         if fixture_id not in results:
             continue
-        settlement_items: list[tuple[str, Any]] = [("pick", record.get("pick"))]
+        settlement_items: list[tuple[str, Any, str]] = [
+            ("pick", record.get("pick"), "DECISION_CONTRACT_V2")
+        ]
         shadow_picks = record.get("shadow_picks")
         if isinstance(shadow_picks, Sequence) and not isinstance(
             shadow_picks, str | bytes | bytearray
         ):
-            settlement_items.extend(("shadow_pick", item) for item in shadow_picks)
+            settlement_items.extend(
+                ("shadow_pick", item, _text(item.get("strategy_version") or "WIDE_SHADOW_V1"))
+                for item in shadow_picks
+                if isinstance(item, Mapping)
+            )
         else:
-            settlement_items.append(("shadow_pick", record.get("shadow_pick")))
-        for side, item in settlement_items:
+            settlement_items.append(("shadow_pick", record.get("shadow_pick"), "WIDE_SHADOW_V1"))
+        strict_rows = record.get("analysis_gate_v2_shadows")
+        if isinstance(strict_rows, Sequence) and not isinstance(
+            strict_rows, str | bytes | bytearray
+        ):
+            settlement_items.extend(
+                (
+                    "shadow_pick",
+                    item,
+                    _text(
+                        item.get("strategy_version")
+                        or item.get("schema_version")
+                        or "STRICT_SHADOW_V1"
+                    ),
+                )
+                for item in strict_rows
+                if isinstance(item, Mapping)
+                and item.get("candidate_pass") is True
+                and item.get("evidence_eligible") is True
+            )
+        for side, item, strategy_version in settlement_items:
             if not isinstance(item, Mapping):
                 continue
             market = _text(item.get("market"))
@@ -335,23 +365,20 @@ def _settlement_entries(
             scope = SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(record)
             if side == "pick" and scope is None:
                 continue
-            grouped.setdefault((fixture_id, side, _text(scope), market, selection), []).append(
-                (record, item)
-            )
+            grouped.setdefault(
+                (fixture_id, side, _text(scope), strategy_version, market, selection),
+                [],
+            ).append((record, {**item, "strategy_version": strategy_version}))
 
     entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
-    for (_, side, _, _, _), items in grouped.items():
+    for (_, side, _, _, _, _), items in grouped.items():
         ordered = sorted(
             items,
             key=lambda pair: (
                 _parse_time(pair[0].get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        entry = (
-            _final_prematch_record([pair[0] for pair in ordered])
-            if side == "pick"
-            else _entry_record([pair[0] for pair in ordered])
-        )
+        entry = _final_prematch_record([pair[0] for pair in ordered])
         if entry is None:
             continue
         pick_item = next(item for record, item in ordered if record is entry)
@@ -377,6 +404,7 @@ def _outcome_record(
         "away": away_goals,
         "status": _text(result.get("status") or "FT"),
     }
+    identity = _audit_identity_for_item(entry, item=item, side=side)
     base = {
         "schema_version": SCHEMA_VERSION,
         "record_type": "outcome",
@@ -387,13 +415,13 @@ def _outcome_record(
         "competition_id": _optional_text(entry.get("competition_id")),
         "competition_name": _optional_text(entry.get("competition_name")),
         "card_hash": _optional_text(entry.get("card_hash")),
-        "source_capture_hash": _optional_text(
-            entry.get("evidence_hash") or entry.get("card_hash")
-        ),
+        "source_capture_hash": _optional_text(entry.get("evidence_hash") or entry.get("card_hash")),
         "source_captured_at": _optional_text(entry.get("captured_at")),
         "market": market,
         "selection": selection,
-        "estimate_id": _optional_text(item.get("estimate_id")),
+        "estimate_id": _optional_text(identity.get("estimate_id") or item.get("estimate_id")),
+        "quote_id": _optional_text(identity.get("quote_id")),
+        "strategy_version": _optional_text(identity.get("strategy_version")),
         "analysis_gate_v2_shadow": _shadow_gate_for_item(entry, item),
         "settled_side": side,
         "recommendation_scope": (
@@ -449,6 +477,40 @@ def _outcome_record(
         "entry_price": _price,
         "settlement_outcome": outcome.value,
     }
+
+
+def _audit_identity_for_item(
+    entry: Mapping[str, Any], *, item: Mapping[str, Any], side: str
+) -> Mapping[str, Any]:
+    identities = entry.get("audit_capture_identities")
+    if not isinstance(identities, Sequence) or isinstance(identities, str | bytes | bytearray):
+        return {}
+    scope = SHADOW_SCOPE if side == "shadow_pick" else _text(_recommendation_scope(entry))
+    matches = [
+        identity
+        for identity in identities
+        if isinstance(identity, Mapping)
+        and _text(identity.get("market")) == _text(item.get("market"))
+        and _text(identity.get("selection")) == _text(item.get("selection"))
+        and _text(identity.get("recommendation_scope")) == scope
+    ]
+    if side == "shadow_pick":
+        requested_strategy = _text(item.get("strategy_version"))
+        if requested_strategy == "WIDE_SHADOW_V1":
+            wide = [
+                row for row in matches if _text(row.get("strategy_version")) == requested_strategy
+            ]
+            return wide[0] if wide else {}
+        strict_schema = requested_strategy or _text(
+            _shadow_gate_for_item(entry, item).get("schema_version")
+        )
+        strict = [row for row in matches if _text(row.get("strategy_version")) == strict_schema]
+        if strict:
+            return strict[0]
+        wide = [row for row in matches if _text(row.get("strategy_version")) == "WIDE_SHADOW_V1"]
+        if wide:
+            return wide[0]
+    return matches[0] if matches else {}
 
 
 def _shadow_gate_for_item(
@@ -635,8 +697,9 @@ def _final_prematch_record(
     if prematch:
         return max(
             prematch,
-            key=lambda record: _parse_time(record.get("captured_at"))
-            or datetime.min.replace(tzinfo=UTC),
+            key=lambda record: (
+                _parse_time(record.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
+            ),
         )
     return None
 
@@ -720,8 +783,7 @@ def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
             payload["estimate_id"] = _optional_text(estimate.get("estimate_id"))
             payload["model_basis_id"] = _optional_text(estimate.get("model_basis_id"))
             semantic_status = _text(
-                estimate.get("semantic_status")
-                or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
+                estimate.get("semantic_status") or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
             )
             evidence_eligible = (
                 estimate.get("schema_version") == "w2.fme_snapshot.v2"
@@ -844,10 +906,7 @@ def _capture_evidence_identity(
     if not market or not selection or not quote_odds:
         return base
     quote_captured_at = _optional_text(
-        quote_odds.get("as_of")
-        or card.get("generated_at")
-        or card.get("as_of")
-        or captured_at
+        quote_odds.get("as_of") or card.get("generated_at") or card.get("as_of") or captured_at
     )
     try:
         quote = MarketQuote.create(
@@ -867,6 +926,75 @@ def _capture_evidence_identity(
         "selection_price": quote["selection_price"],
         "quote_captured_at": quote["captured_at"],
     }
+
+
+def _audit_capture_identities(record: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Freeze each decision/shadow strategy identity without creating another truth source."""
+    candidates: list[tuple[Mapping[str, Any], str, str]] = []
+    pick = record.get("pick")
+    if isinstance(pick, Mapping):
+        candidates.append((pick, _text(_recommendation_scope(record)), "DECISION_CONTRACT_V2"))
+    shadow_picks = record.get("shadow_picks")
+    if isinstance(shadow_picks, Sequence) and not isinstance(shadow_picks, str | bytes | bytearray):
+        candidates.extend(
+            (item, SHADOW_SCOPE, _text(item.get("strategy_version") or "WIDE_SHADOW_V1"))
+            for item in shadow_picks
+            if isinstance(item, Mapping)
+        )
+    strict_rows = record.get("analysis_gate_v2_shadows")
+    if isinstance(strict_rows, Sequence) and not isinstance(strict_rows, str | bytes | bytearray):
+        candidates.extend(
+            (
+                item,
+                SHADOW_SCOPE,
+                _text(
+                    item.get("strategy_version") or item.get("schema_version") or "STRICT_SHADOW_V1"
+                ),
+            )
+            for item in strict_rows
+            if isinstance(item, Mapping)
+        )
+
+    identities: list[dict[str, Any]] = []
+    for item, scope, strategy_version in candidates:
+        market = _text(item.get("market"))
+        selection = _text(item.get("selection"))
+        estimate_id = _optional_text(item.get("estimate_id") or record.get("estimate_id"))
+        quote = _market_quote_for_candidate(record, market=market, selection=selection)
+        identities.append(
+            {
+                "market": market,
+                "selection": selection,
+                "recommendation_scope": scope,
+                "strategy_version": strategy_version,
+                "estimate_id": estimate_id,
+                "quote_id": quote.get("quote_id") if quote else None,
+                "market_quote": quote,
+                "evidence_eligible": item.get("evidence_eligible", True),
+            }
+        )
+    return identities
+
+
+def _market_quote_for_candidate(
+    record: Mapping[str, Any], *, market: str, selection: str
+) -> dict[str, Any] | None:
+    odds = _mapping(record.get("current_odds"))
+    quote_odds = _mapping(
+        odds.get("ah" if market == "ASIAN_HANDICAP" else "ou" if market == "TOTALS" else "")
+    )
+    if not quote_odds:
+        return None
+    try:
+        return MarketQuote.create(
+            fixture_id=_text(record.get("fixture_id")),
+            market=market,
+            selection=selection,
+            odds=quote_odds,
+            captured_at=_text(record.get("captured_at")),
+        ).as_dict()
+    except ValueError:
+        return None
 
 
 def _capture_checkpoint(record: Mapping[str, Any], captured_at: datetime) -> str:
