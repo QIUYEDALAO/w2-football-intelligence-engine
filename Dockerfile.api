@@ -9,7 +9,7 @@ ENV PATH=/app/.venv/bin:$PATH \
     W2_RELEASE_ID=${W2_RELEASE_ID}
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md alembic.ini ./
 COPY apps ./apps
 COPY src ./src
 COPY config ./config

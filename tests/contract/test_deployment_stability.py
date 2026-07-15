@@ -49,6 +49,7 @@ def test_api_container_healthchecks_use_readiness_not_liveness() -> None:
     dockerfile = (ROOT / "Dockerfile.api").read_text(encoding="utf-8")
     assert "HEALTHCHECK" in dockerfile
     assert "/ready" in dockerfile
+    assert "COPY pyproject.toml uv.lock README.md alembic.ini ./" in dockerfile
 
 
 def test_web_uses_short_ttl_docker_dns_and_waits_for_healthy_api() -> None:
