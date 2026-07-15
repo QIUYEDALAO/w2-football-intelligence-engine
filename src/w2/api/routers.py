@@ -49,9 +49,7 @@ from w2.api.schemas import (
     VersionResponse,
     WorldCupReadinessResponse,
 )
-from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
-from w2.dashboard.day_view import build_dashboard_day_view
 from w2.monitoring.health import (
     HealthPayload,
     ReadinessPayload,
@@ -206,18 +204,11 @@ def dashboard_day_view(
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=300"
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    payload = service.dashboard(
+    day_view = service.dashboard_day_view(
         target_date=date,
         window=normalized_window,
         timezone=timezone,
-        include_debug=False,
     )
-    day_view = build_dashboard_day_view(
-        payload,
-        environment=get_settings().environment.value,
-        active_whitelist_count=len(CompetitionRegistry().entries()),
-    )
-    day_view["performance"] = payload.get("performance")
     return {
         "request_id": request_id(request),
         **day_view,

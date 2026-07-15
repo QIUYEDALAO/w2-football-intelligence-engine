@@ -73,6 +73,76 @@ class RecordingDashboardService:
             ],
         }
 
+    def dashboard_day_view(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = "Asia/Shanghai",
+    ) -> dict[str, Any]:
+        from w2.dashboard.day_view import build_dashboard_day_view
+
+        payload = self.dashboard(
+            target_date=target_date,
+            window=window,
+            timezone=timezone,
+            include_debug=False,
+        )
+        view = build_dashboard_day_view(
+            payload,
+            environment="staging",
+            active_whitelist_count=13,
+        )
+        view["performance"] = payload["performance"]
+        return view
+
+
+class DirectOnlyDashboardService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def dashboard(self, **_: Any) -> dict[str, Any]:
+        raise AssertionError("DayView must not call the full Dashboard builder")
+
+    def dashboard_day_view(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = "Asia/Shanghai",
+    ) -> dict[str, Any]:
+        self.calls.append(
+            {
+                "target_date": target_date,
+                "window": window,
+                "timezone": timezone,
+            }
+        )
+        football_day = target_date or "2026-07-05"
+        return {
+            "generated_at": "2026-07-05T00:00:00Z",
+            "date": football_day,
+            "football_day": football_day,
+            "selected_football_day": football_day,
+            "environment": "staging",
+            "active_whitelist_count": 13,
+            "environment_policy": {},
+            "timezone": timezone,
+            "window": window,
+            "source": "direct_day_view_projection",
+            "version": {"api_git_sha": "sha"},
+            "checkpoint_key": f"dashboard:day_view:{football_day}",
+            "would_write_checkpoint": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "counts": {"total": 0},
+            "freshness": {},
+            "navigation": {},
+            "degradation": {},
+            "performance": {},
+            "cards": [],
+        }
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,
@@ -105,7 +175,7 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["active_whitelist_count"] == 13
     assert payload["navigation"]["current_date"] == "2026-07-05"
     assert payload["navigation"]["fallback_mode"] == "read_model"
-    assert payload["cards"][0]["scoreline_picks"][0]["scoreline"] == "1-0"
+    assert payload["cards"][0]["scoreline_picks"] == []
     assert payload["cards"][0]["scoreline_readiness"]["status"] == "READY"
     assert payload["degradation"]["state"] == "BLOCKED_DAY"
     assert payload["counts"]["total"] == 1
@@ -119,3 +189,25 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_write_checkpoint"] is False
+
+
+def test_dashboard_day_view_endpoint_does_not_call_full_dashboard(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = DirectOnlyDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "direct_day_view_projection"
+    assert service.calls == [
+        {
+            "target_date": "2026-07-05",
+            "window": "future",
+            "timezone": "UTC",
+        }
+    ]
