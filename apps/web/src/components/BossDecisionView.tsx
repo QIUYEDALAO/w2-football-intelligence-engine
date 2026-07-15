@@ -1090,6 +1090,15 @@ function ScheduleSection({
 function TrustStrip({ performance }: { performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   const validation = forwardLedger?.outcomes_validation;
+  const performanceIntegrity = forwardLedger?.performance_integrity;
+  if (performanceIntegrity?.status === "BLOCKED") {
+    return (
+      <section className="trust-strip" aria-label="赛后信任摘要">
+        <strong>近 30 天</strong>
+        <span>验证口径校验中，暂不用于决策</span>
+      </section>
+    );
+  }
   const settled = validation?.settled_sample_count ?? 0;
   const validationTotal = forwardLedger?.validation_fixture_count ?? 0;
   const pending = forwardLedger?.validation_pending_fixture_count ?? 0;
@@ -1123,6 +1132,18 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
     const validation = forwardLedger.outcomes_validation;
+    const performanceIntegrity = forwardLedger.performance_integrity;
+    if (performanceIntegrity.status === "BLOCKED") {
+      return (
+        <section className="verification-preview" aria-label="赛后验证预览">
+          <header><span>赛后验证</span><strong>验证口径校验中，暂不用于决策</strong></header>
+          <details>
+            <summary>L2 完整性阻断</summary>
+            <p>冲突 {performanceIntegrity.outcome_conflict_count} · canonical 重复 {performanceIntegrity.canonical_duplicate_count} · candidate 不唯一 {performanceIntegrity.canonical_candidate_nonunique_count} · 身份未匹配 {performanceIntegrity.identity_aware_unmatched_count} · 跨轨 {performanceIntegrity.cross_track_contamination_count}</p>
+          </details>
+        </section>
+      );
+    }
     const settled = validation.settled_sample_count;
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
@@ -1150,6 +1171,18 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
         <small>
           L2 审计：前向比赛 {forwardLedger.fixture_count} 场 · 有效双快照 {forwardLedger.double_snapshot_fixture_count} 场
         </small>
+        {performanceIntegrity.historical_compatibility_outcome_count > 0 ? (
+          <small>历史兼容口径，不属于 corrected evidence</small>
+        ) : null}
+        <details>
+          <summary>L2 outcome 审计</summary>
+          <p>原始 outcome 行 {forwardLedger.outcomes_raw_audit.raw_outcome_row_count} · canonical {forwardLedger.outcomes_raw_audit.canonical_outcome_count} · audit-only {forwardLedger.outcomes_raw_audit.audit_only_outcome_count} · 重复审计 {forwardLedger.outcomes_raw_audit.duplicate_audit_row_count} · 身份未匹配 {forwardLedger.outcomes_raw_audit.identity_aware_unmatched_count} · 冲突 {forwardLedger.outcomes_raw_audit.outcome_conflict_count}</p>
+          {(forwardLedger.outcomes_by_strategy ?? []).map((row) => (
+            <p key={`${row.recommendation_scope}:${row.strategy_version}`}>
+              {row.recommendation_scope} · {row.strategy_version} · canonical {row.settled_sample_count}
+            </p>
+          ))}
+        </details>
       </section>
     );
   }

@@ -47,6 +47,7 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
         [
+            *[_official_capture(f"fixture-{index}") for index in range(1, 4)],
             _outcome_record("fixture-1", "WIN", side="pick"),
             _outcome_record("fixture-2", "LOSS", side="pick"),
             _outcome_record("fixture-3", "PUSH", side="pick"),
@@ -89,6 +90,8 @@ def test_forward_ledger_performance_splits_shadow_outcomes_from_real_hit_rate(
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
         [
+            _shadow_capture("fixture-1"),
+            _shadow_capture("fixture-2"),
             _outcome_record("fixture-1", "WIN", side="shadow_pick"),
             _outcome_record("fixture-2", "LOSS", side="shadow_pick"),
             _record("2026-07-07T03:00:00Z", fixture_id="fixture-3"),
@@ -118,9 +121,19 @@ def test_forward_ledger_performance_isolates_validation_from_official_outcomes(
     validation_win["recommendation_scope"] = "VALIDATION"
     validation_loss = _outcome_record("fixture-validation-loss", "LOSS", side="pick")
     validation_loss["recommendation_scope"] = "VALIDATION"
+    official_capture = _official_capture("fixture-official")
+    validation_win_capture = _validation_capture("fixture-validation-win")
+    validation_loss_capture = _validation_capture("fixture-validation-loss")
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
-        [official, validation_win, validation_loss],
+        [
+            official_capture,
+            validation_win_capture,
+            validation_loss_capture,
+            official,
+            validation_win,
+            validation_loss,
+        ],
     )
 
     payload = forward_ledger_performance(tmp_path)
@@ -229,6 +242,90 @@ def test_validation_pending_status_reports_unavailable_result_source(
     assert payload["validation_pending_status"]["result_source_unavailable_fixture_count"] == 1
 
 
+def test_forward_performance_uses_one_canonical_legacy_outcome_per_denominator(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _record(
+        "2026-07-07T01:00:00Z",
+        fixture_id="fixture-legacy",
+        pick=True,
+    )
+    capture["decision_tier"] = "ANALYSIS_PICK"
+    capture["card_hash"] = "capture-final"
+    first = _outcome_record("fixture-legacy", "WIN", side="pick")
+    first["recommendation_scope"] = "VALIDATION"
+    first["source_capture_hash"] = "capture-a"
+    second = dict(first)
+    second["source_capture_hash"] = "capture-b"
+    second["settled_at"] = "2026-07-08T03:05:00Z"
+    _write_jsonl(root / "ledger.jsonl", [capture, first, second])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["schema_version"] == "w2.forward_ledger_performance.v2"
+    assert payload["outcomes_validation"]["settled_sample_count"] == 1
+    assert payload["outcomes_validation"]["hit_count"] == 1
+    assert payload["validation_settled_fixture_count"] == 1
+    assert payload["by_league"][0]["validation_settled_sample_count"] == 1
+    assert payload["outcomes_by_strategy"] == [
+        {
+            "recommendation_scope": "VALIDATION",
+            "strategy_version": "LEGACY_VALIDATION_V1",
+            "settled_sample_count": 1,
+            "hit_count": 1,
+            "miss_count": 0,
+            "push_count": 0,
+            "void_count": 0,
+            "hit_rate": 1.0,
+        }
+    ]
+    assert payload["outcomes_raw_audit"]["raw_outcome_row_count"] == 2
+    assert payload["outcomes_raw_audit"]["canonical_outcome_count"] == 1
+    assert payload["performance_integrity"] == {
+        "status": "PASS_WITH_LEGACY_AUDIT",
+        "raw_outcome_row_count": 2,
+        "canonical_outcome_count": 1,
+        "audit_only_outcome_count": 1,
+        "duplicate_audit_row_count": 1,
+        "raw_exact_duplicate_count": 0,
+        "outcome_conflict_count": 0,
+        "identity_aware_matched_count": 0,
+        "identity_aware_unmatched_count": 0,
+        "historical_incomplete_identity_count": 0,
+        "canonical_duplicate_count": 0,
+        "canonical_candidate_nonunique_count": 0,
+        "cross_track_contamination_count": 0,
+        "historical_compatibility_outcome_count": 1,
+        "corrected_outcome_count": 0,
+    }
+
+
+def test_forward_performance_hides_rates_when_identity_outcome_is_unmatched(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    outcome = _outcome_record("fixture-unmatched", "WIN", side="pick")
+    outcome.update(
+        recommendation_scope="VALIDATION",
+        strategy_version="DECISION_CONTRACT_V2",
+        estimate_id="fme-missing",
+        quote_id="quote-missing",
+        source_capture_hash="capture-missing",
+    )
+    _write_jsonl(root / "ledger.jsonl", [outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["performance_integrity"]["status"] == "BLOCKED"
+    assert payload["performance_integrity"]["identity_aware_unmatched_count"] == 1
+    assert payload["outcomes_validation"]["settled_sample_count"] == 0
+    assert payload["outcomes_validation"]["hit_rate"] is None
+    assert payload["hit_rate"] is None
+
+
 def test_legacy_unscoped_outcome_inherits_validation_capture_and_deduplicates(
     tmp_path: Path,
 ) -> None:
@@ -269,6 +366,8 @@ def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
         [
             legacy,
             _record("2026-07-07T01:00:00Z", fixture_id="fixture-v2"),
+            _official_capture("fixture-outcome"),
+            _shadow_capture("fixture-shadow"),
             _outcome_record("fixture-outcome", "PUSH", side="pick"),
             _outcome_record("fixture-shadow", "VOID", side="shadow_pick"),
         ],
@@ -276,7 +375,7 @@ def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
 
     payload = forward_ledger_performance(tmp_path)
 
-    assert payload["record_count"] == 4
+    assert payload["record_count"] == 6
     assert payload["settled_sample_count"] == 1
     assert payload["push_count"] == 1
     assert payload["outcomes_shadow"]["void_count"] == 1
@@ -501,6 +600,8 @@ def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
         fixture_id = f"fixture-ev-{index}"
         shadow = {
             "market": "TOTALS",
+            "selection": "OVER",
+            "strategy_version": "w2.analysis_gate_v2_shadow.v1",
             "candidate_pass": True,
             "evidence_eligible": True,
             "semantic_status": "VERIFIED",
@@ -515,6 +616,8 @@ def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
                     "fixture_id": fixture_id,
                     "competition_id": "39",
                     "captured_at": f"2026-08-{index % 28 + 1:02d}T10:00:00Z",
+                    "kickoff_utc": f"2026-08-{index % 28 + 1:02d}T12:00:00Z",
+                    "shadow_picks": [shadow],
                     "analysis_gate_v2_shadows": [shadow],
                 },
                 {
@@ -522,6 +625,8 @@ def test_ev_shadow_challenger_uses_35_and_100_sample_evidence_levels(
                     "fixture_id": fixture_id,
                     "competition_id": "39",
                     "market": "TOTALS",
+                    "selection": "OVER",
+                    "recommendation_scope": "SHADOW",
                     "settled_side": "shadow_pick",
                     "settlement_outcome": "WIN" if index % 2 == 0 else "LOSS",
                     "entry_price": "1.95",
@@ -766,6 +871,30 @@ def _outcome_record(
         "settled_side": side,
         "settlement_outcome": settlement_outcome,
     }
+
+
+def _official_capture(fixture_id: str) -> dict[str, object]:
+    capture = _record(
+        "2026-07-07T01:00:00Z",
+        fixture_id=fixture_id,
+        pick=True,
+    )
+    capture["card_hash"] = f"hash-{fixture_id}"
+    return capture
+
+
+def _validation_capture(fixture_id: str) -> dict[str, object]:
+    capture = _official_capture(fixture_id)
+    capture["decision_tier"] = "ANALYSIS_PICK"
+    return capture
+
+
+def _shadow_capture(fixture_id: str) -> dict[str, object]:
+    return _record(
+        "2026-07-07T01:00:00Z",
+        fixture_id=fixture_id,
+        shadow_pick=True,
+    )
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
