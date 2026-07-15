@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     celery_result_backend: SecretStr | None = None
     minio_endpoint: str | None = None
     runtime_root: Path = Path("runtime")
+    ops_service_token: SecretStr | None = None
+    ops_allowed_cidrs: str | None = None
 
     @field_validator("database_url", "redis_url", "celery_broker_url", "celery_result_backend")
     @classmethod

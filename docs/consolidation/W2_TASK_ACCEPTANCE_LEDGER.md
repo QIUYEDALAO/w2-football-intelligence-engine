@@ -679,3 +679,10 @@
 - 当前分支 `codex/w2-degraded-read-preservation` 实施 CORE-6D：future DB fixture reader 失败时保留已加载的 dashboard checkpoint fallback，不再执行 `fixtures = {}`。
 - 读取故障贯穿 `degraded_source/failed_source/error_class/fallback_source/data_completeness`；DayView 优先报告 `DEGRADED_READ/READ_MODEL_SOURCE_FAILURE`，不再把来源异常伪装成空比赛日。
 - 新捕获仅限 `SQLAlchemyError`，未新增广泛 `except Exception: return []`；安全保持 provider calls=0、DB writes=0、未部署或重启服务，推荐规则与生产边界不变。
+
+### V3 进展续56 · Ops Access Control(2026-07-15)
+
+- #288 已合入 main `007abdd9f7440217d92db4a8f6f8650b4d95ac59`，三项 CI 全绿；DB reader 故障保留 checkpoint fallback 并显式输出 degradation provenance。
+- 当前分支 `codex/w2-ops-access-control` 实施 CORE-6E：整个 `/ops` router 在 staging 统一要求 Bearer service credential，未配置返回 503、缺失/错误返回 401，使用常量时间凭据比较。
+- 可选 `W2_OPS_ALLOWED_CIDRS` 使用请求对端 IP 限制，配置错误返回 503、不匹配返回 403；production 继续关闭，local/test 按显式环境保留测试访问，public `/v1` 不受影响。
+- staging compose 仅透传外部敏感凭据/CIDR 配置，不提交凭据；安全保持 provider calls=0、DB writes=0、未部署或重启服务，推荐与模型链不变。

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from hmac import compare_digest
+from ipaddress import ip_address, ip_network
 from time import monotonic
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -57,8 +59,57 @@ from w2.monitoring.health import (
     build_readiness_payload,
 )
 
+
+def authorize_ops_access(
+    request: Request,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+) -> None:
+    settings = get_settings()
+    if settings.environment == Environment.PRODUCTION:
+        raise HTTPException(status_code=403, detail="operations API disabled in production")
+    if settings.environment in {Environment.LOCAL, Environment.TEST}:
+        return
+
+    configured = settings.ops_service_token  # without_secrets
+    expected = configured.get_secret_value().strip() if configured is not None else ""
+    if not expected:
+        raise HTTPException(status_code=503, detail="operations API credentials not configured")
+    scheme, separator, supplied = (authorization or "").partition(" ")
+    if not separator or scheme.casefold() != "bearer" or not compare_digest(supplied, expected):
+        raise HTTPException(
+            status_code=401,
+            detail="invalid operations API credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    allowed_cidrs = settings.ops_allowed_cidrs
+    if allowed_cidrs:
+        try:
+            networks = [
+                ip_network(value.strip(), strict=False)
+                for value in allowed_cidrs.split(",")
+                if value.strip()
+            ]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="operations API CIDR configuration invalid",
+            ) from exc
+        host = request.client.host if request.client is not None else ""
+        try:
+            client_ip = ip_address(host)
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="operations API network denied") from exc
+        if not networks or not any(client_ip in network for network in networks):
+            raise HTTPException(status_code=403, detail="operations API network denied")
+
+
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
-ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
+ops_router = APIRouter(
+    prefix="/ops",
+    tags=["operations-read"],
+    dependencies=[Depends(authorize_ops_access)],
+)
 service = ReadModelService()
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 

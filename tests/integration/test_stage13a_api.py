@@ -16,6 +16,8 @@ def test_world_cup_operations_profile_endpoint() -> None:
 
 
 def test_world_cup_readiness_ops_endpoint_and_production_reject(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    get_settings.cache_clear()
     client = TestClient(app)
     response = client.get("/ops/world-cup-readiness")
     assert response.status_code == 200
