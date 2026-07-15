@@ -359,6 +359,23 @@ class FutureRefreshDbRepository:
             )
         return self._latest_observation_dicts(rows)
 
+    def market_availability_for_fixture_ids(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, bool]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return {}
+        with Session(self.engine) as session:
+            available = set(
+                session.scalars(
+                    select(FutureMarketObservationModel.fixture_id)
+                    .where(FutureMarketObservationModel.fixture_id.in_(ids))
+                    .distinct()
+                )
+            )
+        return {fixture_id: fixture_id in available for fixture_id in ids}
+
     def market_observation_history_for_fixtures(
         self,
         fixture_ids: list[str],
