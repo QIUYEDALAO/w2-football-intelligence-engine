@@ -839,6 +839,9 @@ export interface DashboardDayViewCard {
   compact_provenance?: Record<string, unknown>;
   audit_available?: boolean;
   audit_links?: Record<string, string>;
+  audit_capture_hash?: string | null;
+  audit_estimate_id?: string | null;
+  audit_detail_url?: string | null;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;
@@ -897,12 +900,10 @@ export interface DashboardView {
 export interface FixtureAuditDetails {
   fixture_id: string;
   estimate_id: string | null;
+  audit_capture_hash: string;
   api_release_sha: string;
   match: DashboardMatchCard;
-  analysis_card: Record<string, unknown>;
+  audit: Record<string, unknown>;
   integrity: Record<string, unknown>;
-  market_probabilities: Record<string, unknown>;
-  model_probabilities: Record<string, unknown>;
-  odds_timeline: Record<string, unknown>;
   performance: Record<string, unknown>;
 }
