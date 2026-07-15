@@ -581,7 +581,11 @@ def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) ->
     )
     monkeypatch.setattr(
         "w2.api.repository.build_day_view_capture_index",
-        lambda _: type("Index", (), {"summaries": {}})(),
+        lambda _: type(
+            "Index",
+            (),
+            {"summaries": {}, "ledger_fingerprint": "test", "schema_version": "v1"},
+        )(),
     )
     monkeypatch.setattr(
         service,
@@ -663,7 +667,15 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
     assert summary is not None
     monkeypatch.setattr(
         "w2.api.repository.build_day_view_capture_index",
-        lambda _: type("Index", (), {"summaries": {"frozen-pick": summary}})(),
+        lambda _: type(
+            "Index",
+            (),
+            {
+                "summaries": {"frozen-pick": summary},
+                "ledger_fingerprint": "test",
+                "schema_version": "v1",
+            },
+        )(),
     )
     monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
 
@@ -681,6 +693,51 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
         {"scoreline": "2-1"},
         {"scoreline": "3-1"},
     ]
+
+
+def test_future_dayview_is_cursor_paged_and_does_not_prime_all_rows(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    service = ReadModelService(repository=cast(Any, object()))
+    rows = [
+        {
+            "fixture_id": str(index),
+            "kickoff_utc": f"2026-07-{16 + index // 24:02d}T{index % 24:02d}:00:00Z",
+            "competition_id": "chinese_super_league",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "status": "NS",
+        }
+        for index in range(500)
+    ]
+    primed: list[list[dict[str, Any]]] = []
+    monkeypatch.setattr(service, "version", lambda: {"api_git_sha": "sha", "release_id": "sha"})
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: rows)
+    monkeypatch.setattr(service, "_prime_observations_for_rows", lambda page: primed.append(page))
+    monkeypatch.setattr(service, "_observations_for_fixture", lambda _: [])
+    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: type(
+            "Index",
+            (),
+            {"summaries": {}, "ledger_fingerprint": "test", "schema_version": "v1"},
+        )(),
+    )
+
+    first = service._build_dashboard_day_view_payload(
+        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        window="future",
+        timezone="UTC",
+    )
+
+    assert first["counts"]["total"] == 500
+    assert first["page_counts"]["total"] == 20
+    assert first["pagination"]["returned_count"] == 20
+    assert first["pagination"]["has_more"] is True
+    assert len(primed[0]) == 20
+    assert len(json.dumps(first).encode()) <= 512 * 1024
+    assert all(len(json.dumps(card).encode()) <= 24 * 1024 for card in first["cards"])
 
 
 def test_dayview_preserves_compact_canonical_performance_summary() -> None:
