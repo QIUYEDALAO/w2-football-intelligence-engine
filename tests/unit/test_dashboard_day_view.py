@@ -579,7 +579,10 @@ def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) ->
         "_observations_for_fixture",
         lambda _: [{"canonical_market": "TOTALS"}],
     )
-    monkeypatch.setattr(service, "_latest_day_view_captures", lambda _: {})
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: type("Index", (), {"summaries": {}})(),
+    )
     monkeypatch.setattr(
         service,
         "_dashboard_card_from_matchday",
@@ -654,7 +657,14 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
     )
     monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [row])
     monkeypatch.setattr(service, "_prime_observations_for_rows", lambda _: None)
-    monkeypatch.setattr(service, "_latest_day_view_captures", lambda _: {"frozen-pick": capture})
+    from w2.tracking.day_view_capture_index import _summary_from_capture
+
+    summary = _summary_from_capture({**capture, "capture_hash": "capture-1"})
+    assert summary is not None
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: type("Index", (), {"summaries": {"frozen-pick": summary}})(),
+    )
     monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
 
     view = service._build_dashboard_day_view_payload(

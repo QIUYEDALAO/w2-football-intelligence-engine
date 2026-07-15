@@ -264,8 +264,9 @@ def _analysis_context_fields(
         for item in scoreline_picks
         if (scoreline := _optional_text(item.get("scoreline")))
     ]
+    explicit_provenance = _mapping_copy(card.get("compact_provenance"))
     return {
-        "compact_provenance": _compact_provenance(card),
+        "compact_provenance": explicit_provenance or _compact_provenance(card),
         "scoreline_picks": compact_scorelines,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
         "audit_available": bool(_optional_text(card.get("audit_capture_hash"))),

@@ -38,6 +38,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view_projection import project_day_view_card
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
     build_analysis_readiness,
@@ -140,6 +141,7 @@ from w2.strategy.formal_recommendation import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
+from w2.tracking.day_view_capture_index import build_day_view_capture_index
 from w2.tracking.formal_results import (
     endpoint_summary as formal_tracking_endpoint_summary,
 )
@@ -149,7 +151,6 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
-from w2.tracking.forward_ledger_performance import load_forward_ledger_records
 from w2.tracking.forward_ledger_performance_cache import (
     ForwardLedgerPerformanceCache,
 )
@@ -1356,9 +1357,10 @@ class ReadModelService:
         self._prime_observations_for_rows(selected_rows)
         market_observation_read_seconds = monotonic() - market_started
         projection_started = monotonic()
-        frozen_captures = self._latest_day_view_captures(selected_rows)
+        capture_index = build_day_view_capture_index(get_settings().resolved_runtime_root)
+        frozen_captures = capture_index.summaries
         cards = [
-            self._day_view_card_from_frozen_capture(row, frozen_captures[fixture_id])
+            project_day_view_card(row, frozen_captures[fixture_id])
             if fixture_id in frozen_captures
             else self._day_view_unavailable_card(
                 row,
@@ -1460,56 +1462,6 @@ class ReadModelService:
                 [*today_rows, *next36_rows, *result_rows, *future_rows]
             )
         return today_rows
-
-    def _latest_day_view_captures(
-        self,
-        rows: list[dict[str, Any]],
-    ) -> dict[str, dict[str, Any]]:
-        requested = {str(row.get("fixture_id") or "") for row in rows}
-        requested.discard("")
-        if not requested:
-            return {}
-        latest: dict[str, dict[str, Any]] = {}
-        root = get_settings().resolved_runtime_root / "forward_outcome_ledger"
-        for record in load_forward_ledger_records(root):
-            if str(record.get("record_type") or "capture") != "capture":
-                continue
-            fixture_id = str(record.get("fixture_id") or "")
-            if fixture_id not in requested:
-                continue
-            captured_at = _parse_utc_text(record.get("captured_at"))
-            kickoff = _parse_utc_text(record.get("kickoff_utc"))
-            if captured_at is None or (kickoff is not None and captured_at >= kickoff):
-                continue
-            previous = latest.get(fixture_id)
-            if previous is None or str(record.get("captured_at") or "") > str(
-                previous.get("captured_at") or ""
-            ):
-                latest[fixture_id] = dict(record)
-        return latest
-
-    def _day_view_card_from_frozen_capture(
-        self,
-        row: Mapping[str, Any],
-        capture: Mapping[str, Any],
-    ) -> dict[str, Any]:
-        return {
-            **dict(capture),
-            "fixture_id": row.get("fixture_id"),
-            "kickoff_utc": row.get("kickoff_utc"),
-            "kickoff_beijing": row.get("kickoff_beijing"),
-            "competition_id": row.get("competition_id"),
-            "competition_name": row.get("competition_name"),
-            "home_team_id": row.get("home_team_id"),
-            "away_team_id": row.get("away_team_id"),
-            "home_team_name": row.get("home_team_name"),
-            "away_team_name": row.get("away_team_name"),
-            "status": normalize_match_status(row.get("status")),
-            "lifecycle_status": capture.get("lifecycle_status") or "DRAFT",
-            "lock_eligible": capture.get("lock_eligible") is True,
-            "outcome_tracked": capture.get("outcome_tracked") is True,
-            "source": "frozen_forward_capture",
-        }
 
     def _day_view_unavailable_card(
         self,

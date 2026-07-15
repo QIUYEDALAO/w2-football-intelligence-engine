@@ -9,6 +9,17 @@ from pytest import MonkeyPatch
 from w2.api import routers
 
 
+def test_dayview_repository_path_does_not_use_full_ledger_loader() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/w2/api/repository.py").read_text()
+    dayview = source.split("def _build_dashboard_day_view_payload", 1)[1].split(
+        "def _day_view_unavailable_card", 1
+    )[0]
+    assert "load_forward_ledger_records" not in dayview
+    assert "**dict(capture)" not in dayview
+
+
 class RecordingDashboardService:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -38,9 +49,7 @@ class RecordingDashboardService:
             "version": {"api_git_sha": "sha"},
             "debug": {},
             "performance": {},
-            "recommendations": [
-                {"fixture_id": "not-counted", "decision_tier": "RECOMMEND"}
-            ],
+            "recommendations": [{"fixture_id": "not-counted", "decision_tier": "RECOMMEND"}],
             "all": [
                 {
                     "fixture_id": "fixture-1",
@@ -151,14 +160,10 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app)
 
-    response = client.get(
-        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
-    )
+    response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 200
-    assert response.headers["cache-control"] == (
-        "public, max-age=30, stale-while-revalidate=300"
-    )
+    assert response.headers["cache-control"] == ("public, max-age=30, stale-while-revalidate=300")
     assert response.headers["content-encoding"] == "gzip"
     payload = response.json()
     assert service.calls == [
@@ -198,9 +203,7 @@ def test_dashboard_day_view_endpoint_does_not_call_full_dashboard(
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app)
 
-    response = client.get(
-        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
-    )
+    response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 200
     assert response.json()["source"] == "direct_day_view_projection"
