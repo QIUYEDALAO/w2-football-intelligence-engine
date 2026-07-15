@@ -2358,22 +2358,19 @@ class ReadModelService:
             "formal_recommendation": False,
         }
 
-    @staticmethod
     def _frozen_analysis_unavailable(
+        self,
         fixture_id: str,
         *,
         reason: str = "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE",
     ) -> dict[str, Any]:
-        return {
-            "fixture_id": fixture_id,
-            "decision": "SKIP",
-            "source": "frozen_analysis_fail_closed",
-            "reason_code": reason,
-            "data_status": "BLOCKED",
-            "markets": [],
-            "candidate": False,
-            "formal_recommendation": False,
-        }
+        fallback = self._fallback_analysis_card(
+            fixture_id=fixture_id,
+            market_coverage={},
+            source="frozen_analysis_fail_closed",
+        )
+        fallback.update({"reason_code": reason, "data_status": "BLOCKED"})
+        return fallback
 
     def _analysis_card_in_request(self, fixture_id: str) -> dict[str, Any] | None:
         for card in self.repository.matchday_cards():

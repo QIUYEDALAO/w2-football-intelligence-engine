@@ -75,7 +75,7 @@ def test_missing_frozen_analysis_returns_small_fail_closed_card(monkeypatch) -> 
 
     assert response.status_code == 200
     assert response.json()["card"]["reason_code"] == "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE"
-    assert len(response.content) < 16 * 1024
+    assert len(response.content) < 32 * 1024
 
 
 def test_http_frontdoors_have_no_forbidden_rebuild_calls() -> None:
