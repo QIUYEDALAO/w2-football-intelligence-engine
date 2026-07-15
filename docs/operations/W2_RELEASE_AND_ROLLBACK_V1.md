@@ -82,3 +82,13 @@ Rules:
 - The attempted release had no API OOM, cgroup `oom_kill`, exit 137 or restart. Observed API RSS rose from about 223.6 MiB to 328.9 MiB. Because L1 is a prerequisite, the historical OOM fixture and broader L2 stress matrix were not executed and L2 recovery was not claimed.
 - The rollback manifest and four frozen service images restored `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`. All four services are running with restart count 0; readiness and watchdog are healthy. Provider and queue deltas are zero. Historical ledger hashes are unchanged through 2026-07-14 and the active 2026-07-15 file preserves the complete predeploy byte prefix.
 - Canonical evidence remains VALIDATION `43/16/27` and Wide `60/22/38`, with duplicate/conflict/identity-unmatched/cross-track contamination zero and Strict at zero. The required next change is a separate bounded/paginated L1 `future` projection; raising timeouts or changing recommendation, model, threshold, artifact or league policy is not an acceptable fix.
+
+## Pending bounded future DayView and frozen L2 recovery release · 2026-07-16
+
+- Code target: `main@b72005b6364dfbf3adaea4de98c448157d9dcab0`; staging remains on rollback target `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b` until the approved batch deployment begins.
+- PRs #310–#312 replace full-ledger/raw-capture L1 projection with a bounded capture index, stable cursor pagination and explicit Boss View load-more. Page/card limits are 512 KiB/24 KiB; page size is 20 by default and 50 maximum.
+- Full-window counts remain separate from page counts. Cursor identity includes release, requested window, fixture and ledger fingerprints; stale cursors return 409 and cannot merge snapshots. Frozen L2 identity remains unchanged.
+- Predeploy verification is `1422 passed, 4 skipped`, with Ruff, Mypy, TypeScript, Web build, acceptance and tracked-output checks passing. Each code PR passed verify, staging-parity and predeploy-e2e.
+- Deployment order remains scheduler stop, safety baselines and rollback images, builds/revision check, migration smoke/migration, API readiness, worker, Web and scheduler. L1 public pagination gates must pass before any L2 stress request.
+- Immediate rollback triggers include page/card limit violation, page union mismatch, duplicate fixture, snapshot mixing, timeout/502/504, API OOM/restart/exit137, L2 regression, identity mismatch, denominator/track change, historical rewrite, RECOMMEND/lock/OFFICIAL activation or credential exposure.
+- Production, provider calls, timeout changes, model/gate/threshold/artifact changes and league enablement are not authorized.

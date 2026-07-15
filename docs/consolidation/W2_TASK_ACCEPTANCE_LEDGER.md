@@ -772,3 +772,11 @@
 - 因前置 L1 硬门失败，未继续执行原 OOM fixture 的 L2 串行/并发压力矩阵，不能宣称 staging L2 已恢复。新 release 在回滚前 API RSS 从约 223.6 MiB升至观察峰值 328.9 MiB，delta约105.3 MiB；cgroup oom/oom_kill=0、exit137=0、restart=0。
 - 已用四服务冻结镜像回滚到 `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`；API/Web/worker/scheduler 均 running、restart=0，`/ready` PASS，watchdog active。provider总数保持485（delta=0）、队列保持0；历史 ledger 2026-07-07至07-14逐文件 hash完全一致，07-15部署前字节前缀 hash一致，仅允许后续 append。
 - 回滚后 canonical 口径仍为 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/identity-unmatched/contamination=0，Strict=0，RECOMMEND=0、lock=0、OFFICIAL=0。最终结果为 `STAGING_ROLLED_BACK_L2_BLOCKED`；下一修复必须先缩小/分页 `future` L1 payload并满足公网延迟门，不得通过提高 timeout、降低业务门或移除审计字段掩盖。
+
+### V3 进展续67 · Bounded Future DayView Pagination 部署前门(2026-07-16)
+
+- #310–#312 已依次合并到 `main@b72005b6364dfbf3adaea4de98c448157d9dcab0`：L1 capture 改为流式、显式 allowlist 的 latest prematch summary index；DayView 改为 snapshot-bound cursor 分页；Boss View 首屏只取20场并由用户显式加载更多。
+- `future` 旧响应约4,039,702 bytes，属于多卡与原 capture 字段共同造成的 `MIXED` 膨胀。新契约限制单页512 KiB、单卡24 KiB、page size默认20且最大50；整窗 `counts` 与当前页 `page_counts` 分离，cursor stale返回409且禁止跨snapshot合并。
+- DayView HTTP 路径不再调用全 ledger loader，不在分页前 prime 全部盘口或构造全部卡片；L1保留 `audit_capture_hash/audit_estimate_id`，L2继续使用exact frozen `audit-detail`，没有回退旧无界Dashboard，也没有提高12秒客户端或nginx timeout。
+- 合并后全量验收：`1422 passed, 4 skipped`；Ruff、Mypy（245源文件）、TypeScript、Web build、offline acceptance、tracked-output guard全部PASS。三个代码PR的verify、staging-parity、predeploy-e2e均PASS。
+- canonical基线必须保持 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/identity-aware unmatched/cross-track contamination=0，Strict=0、RECOMMEND=0、lock=0、OFFICIAL=0。staging仍运行回滚版本`c4bcceb5...`，下一步才是单次批准的批量部署与L1→L2硬门验收。
