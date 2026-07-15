@@ -651,3 +651,10 @@
 - JSONL reader 在截断尾行时保留完整记录并返回 `DEGRADED + corruption_count`；timeline 损坏返回 `CORRUPT/ERROR`，不再伪装成空 timeline 或覆盖损坏证据。
 - 已增加多进程重复 capture/outcome、截断尾行、replace 前崩溃和 old-or-new 完整 JSON 回归；当前专项测试通过，完整 CI 与 PR 尚待完成。
 - 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐/EV/RECOMMEND/lock/league/artifact。
+
+### V3 进展续52 · Readiness Contract(2026-07-15)
+
+- #284 已合入 main `eaea4ec2bc1a60468cdbb436ebdfb62dc5d10950`，三项 CI 全绿；capture/outcome/timeline 的跨进程原子写与损坏证据保留已落地。
+- 当前分支 `codex/w2-readiness-contract` 实施 CORE-6A：`/health` 仅表示进程 liveness；`/ready` 检查 DB、Redis、必需 artifact、核心 read model 与 migration/schema compatibility，关键依赖失败返回 HTTP 503。
+- Dockerfile、local/staging compose 的 API 健康检查切换为 `/ready`；Web 继续通过 `service_healthy` 等待真正 ready 的 API。
+- 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐/EV/RECOMMEND/lock/league/artifact。
