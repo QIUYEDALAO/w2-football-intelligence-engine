@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-15T08:15:00Z"
-current_phase: staging deployment review
-current_status: READY_FOR_STAGING_DEPLOY_REVIEW
+last_updated_utc: "2026-07-15T06:05:51Z"
+current_phase: post-deploy staging validation
+current_status: STAGING_DEPLOYED_VALIDATION_PENDING
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,13 +20,14 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha: 4c70fd9a9051a3870fe27d9c0bb9b0af44b06f1a
+  main_sha_at_rebaseline: 3d67a769704e544fb544979c96cf3162328d090c
+  deployed_code_sha: 3d67a769704e544fb544979c96cf3162328d090c
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-15T08:15:00Z"
+  observed_at_utc: "2026-07-15T06:05:51Z"
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
@@ -98,15 +99,15 @@ current_execution_queue:
       merged_pr: 292
   external_actions:
     provider_calls: 0
-    staging_deploy: false
+    staging_deploy: true
     production_deploy: false
 
 deployment_review:
   repository_program_complete: true
   replacement_for_closed_pr: 277
-  staging_code_deployed: false
+  staging_code_deployed: true
   production_code_deployed: false
-  next_action: separately approved staging deployment review
+  next_action: complete read-only post-deploy staging validation
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
@@ -116,11 +117,13 @@ deployment_review:
 
 staging_state:
   environment: staging
-  api_git_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
-  web_git_sha: 493b4b6baf1fb42183a86183622aa3d65ec2cf39
-  release_id: 493b4b6
+  api_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  web_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  worker_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  scheduler_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  release_id: staging-3d67a769704e544fb544979c96cf3162328d090c
   source_branch: main
-  source_note: Optional lineup enrichment and validation recommendation A-D deployed scheduler-safe; API/Web only, worker and scheduler were not recreated or restarted.
+  source_note: Whole-system correctness batch deployed to staging with API, Web, worker and scheduler aligned to one release SHA.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -128,10 +131,35 @@ staging_state:
   provider_calls_during_latest_deploy: 0
   db_writes_during_latest_deploy: 0
   production_deploy: false
-  scheduler_restart_during_latest_deploy: false
+  scheduler_restart_during_latest_deploy: true
+  worker_restart_during_latest_deploy: true
   provider_request_logs_latest_deploy_delta: 0
   future_refresh_run_audit_latest_deploy_delta: 0
   celery_queue_after_latest_deploy: 0
+  operations_access_control:
+    token_configured: true
+    token_recorded_in_repository: false
+    allowed_cidrs:
+      - 127.0.0.1/32
+      - 172.18.0.0/16
+    missing_credential_http_status: 401
+    wrong_credential_http_status: 401
+    correct_credential_http_status: 200
+  fme_v2_acceptance:
+    status: PASS
+    audited_fixture_count: 40
+    snapshot_count: 80
+    integrity_invalid_count: 0
+    ready_count: 2
+    insufficient_count: 78
+  corrected_strict_evidence:
+    settled_count: 0
+    review_35_status: ACCUMULATING
+    maturity_100_status: ACCUMULATING
+  open_warnings:
+    - code: COLD_CACHE_CONCURRENT_504
+      observation: Initial ten-request cold-cache acceptance produced seven transient proxy 504 responses; subsequent concurrent retry and six-sample stable window produced no new 5xx.
+      disposition: Read-only post-deploy performance diagnosis required; do not raise proxy timeout without root-cause evidence.
   latest_feature_snapshot_injection:
     status: PASS
     approved_scope: STAGING_FEATURE_SNAPSHOT_INJECTION
