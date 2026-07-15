@@ -10,6 +10,7 @@ from typing import Any
 
 from w2.infrastructure.atomic_files import read_jsonl
 from w2.strategy.analysis_gate_shadow import confirm_strict_ah_shadow
+from w2.tracking.ah_direction_bias import build_ah_direction_bias
 from w2.tracking.canonical_identity import (
     candidate_for_outcome,
     canonical_capture_candidates,
@@ -102,6 +103,7 @@ def forward_ledger_performance(
         result_events=result_events,
         now=now or datetime.now(UTC),
     )
+    ah_direction_bias = build_ah_direction_bias(records)
     double_snapshot_fixture_ids = {
         _text(row.get("fixture_id")) for row in clv_shadow_rows if _text(row.get("fixture_id"))
     }
@@ -195,6 +197,12 @@ def forward_ledger_performance(
             shadow_capture_records,
             clv_shadow_rows,
             records,
+        ),
+        **(
+            {"ah_direction_bias": ah_direction_bias}
+            if ah_direction_bias["overall"]["distinct_fixture_count"]
+            or ah_direction_bias["excluded_record_count"]
+            else {}
         ),
         "provider_calls": 0,
         "db_reads": 0,

@@ -223,6 +223,13 @@ AH Strict Shadow v1 的策略阈值由随 wheel 发布的版本化 policy 固定
 窗口。Strict PASS 始终 `shadow_only=true`、`visible_eligible=false` 且不得影响 decision、
 pick 或 tier；AH 可见层继续 WATCH。该双确认不改变 TOTALS challenger 的既有语义。
 
+AH 方向集中度治理只读取具有完整 canonical performance identity 的 corrected、已结算
+AH shadow evidence，并按 distinct fixture 去重。分别统计 HOME_AH/AWAY_AH、主让/客让、
+主受让/客受让/0 盘、0.25/0.75/0.5/整数盘口、联赛、artifact 与 strategy version。
+不足 8 场为 `INSUFFICIENT_SAMPLE`；最近 8 场全部同方向为 `EARLY_WARNING`；最近 10 场
+9 场或以上同方向为 `BLOCKED`；恰好 8 场为不阻断的 `WARNING`。该状态只作安全治理，
+不得自动改模型、改变 decision/pick/tier 或断言模型已被证明存在方向偏差。
+
 ### 可选首发与球员价值增强（2026-07-11）
 
 `lineups` 与 `team_value` 不属于 `missing_fields` 硬缺失，不得降低
