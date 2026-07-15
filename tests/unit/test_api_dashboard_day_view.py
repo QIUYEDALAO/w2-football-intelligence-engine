@@ -241,6 +241,11 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_write_checkpoint"] is False
+    timing = payload["performance"]["dayview_cache_metrics"]
+    assert timing["route_total_seconds"] >= timing["route_build_seconds"]
+    assert timing["response_model_validation_seconds"] >= 0
+    assert timing["response_serialization_seconds"] >= 0
+    assert "validation;dur=" in response.headers["server-timing"]
 
 
 def test_dashboard_day_view_endpoint_does_not_call_full_dashboard(

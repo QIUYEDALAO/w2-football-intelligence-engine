@@ -1048,6 +1048,9 @@ class ReadModelService:
         self._frozen_audit_singleflight: SingleFlightCache[
             tuple[str, str, str, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=64)
+        self._result_event_singleflight: SingleFlightCache[
+            tuple[Any, ...], tuple[Mapping[str, Any], ...]
+        ] = SingleFlightCache(max_entries=4, copier=lambda events: events)
         self._dashboard_metrics_lock = RLock()
         self._dashboard_build_seconds = 0.0
         self._frozen_audit_blocked_count = 0
@@ -1384,7 +1387,9 @@ class ReadModelService:
                 if target_date
                 else default_football_day(datetime.now(UTC))
             )
+            identity_started = monotonic()
             identity = self.release_identity()
+            version_identity_seconds = monotonic() - identity_started
             watermark_started = monotonic()
             source_watermarks = self._day_view_source_watermarks()
             source_watermark_seconds = monotonic() - watermark_started
@@ -1407,6 +1412,7 @@ class ReadModelService:
                 identity["api_git_sha"],
                 source_fingerprint,
             )
+            cache_lookup_started = monotonic()
             snapshot, window_cache_status = (
                 self._day_view_window_singleflight.get_or_compute_with_status(
                 window_key,
@@ -1432,6 +1438,7 @@ class ReadModelService:
                     cursor=cursor,
                 ),
             )
+            server_cache_lookup_seconds = monotonic() - cache_lookup_started
             cache_metrics = self._day_view_singleflight.metrics()
             window_cache_metrics = self._day_view_window_singleflight.metrics()
             performance = payload.setdefault("performance", {})
@@ -1459,6 +1466,15 @@ class ReadModelService:
                             ],
                             "source_watermark_seconds": round(
                                 source_watermark_seconds, 6
+                            ),
+                            "result_event_watermark_seconds": round(
+                                source_watermark_seconds, 6
+                            ),
+                            "version_identity_seconds": round(
+                                version_identity_seconds, 6
+                            ),
+                            "server_cache_lookup_seconds": round(
+                                server_cache_lookup_seconds, 6
                             ),
                             "capture_index_fingerprint_seconds": round(
                                 source_fingerprint_seconds, 6
@@ -1585,7 +1601,10 @@ class ReadModelService:
         )
         snapshot_hash_seconds = monotonic() - snapshot_started
         ledger_started = monotonic()
-        performance = self._day_view_performance([])
+        performance = self._day_view_performance(
+            [],
+            source_watermarks=source_watermarks,
+        )
         ledger_summary_seconds = monotonic() - ledger_started
         metrics = performance.setdefault("dayview_cache_metrics", {})
         metrics.update(
@@ -1872,30 +1891,76 @@ class ReadModelService:
             ),
         }
 
-    def _day_view_performance(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
+    def _day_view_performance(
+        self,
+        cards: list[dict[str, Any]],
+        *,
+        source_watermarks: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         runtime_root = get_settings().resolved_runtime_root
-        result_events: list[dict[str, Any]] | None = []
+        result_events: list[Mapping[str, Any]] | None = []
         result_repository = self._future_refresh_repository()
         result_reader = (
-            getattr(result_repository, "result_events_for_fixture_ids", None)
+            getattr(result_repository, "result_events_snapshot", None)
             if result_repository is not None
             else None
         )
+        result_load_started = monotonic()
         if not callable(result_reader):
             result_events = None
         else:
             try:
-                result_events = result_reader(ledger_fixture_ids(runtime_root))
+                watermarks = source_watermarks or self._day_view_source_watermarks()
+                result_key = (
+                    "w2.day_view_result_snapshot.v1",
+                    watermarks.get("result_event_count"),
+                    watermarks.get("result_event_max_confirmed_at"),
+                    watermarks.get("result_event_source_hash"),
+                    watermarks.get("raw_result_count"),
+                    watermarks.get("raw_result_max_captured_at"),
+                    watermarks.get("fixture_source_hash"),
+                )
+                frozen_events = self._result_event_singleflight.get_or_compute(
+                    result_key,
+                    ttl_seconds=30.0,
+                    compute=lambda: tuple(result_reader()),
+                )
+                result_events = list(frozen_events)
             except SQLAlchemyError:
                 result_events = None
-        return {
-            "forward_ledger": self._compact_forward_ledger_summary(
-                self._forward_ledger_performance_cache.get(
-                    runtime_root,
-                    result_events=result_events,
-                )
+        result_event_load_seconds = monotonic() - result_load_started
+        ledger_performance_started = monotonic()
+        forward_ledger = self._compact_forward_ledger_summary(
+            self._forward_ledger_performance_cache.get(
+                runtime_root,
+                result_events=result_events,
             )
+        )
+        result_source_status = "PASS" if result_events is not None else "DEGRADED"
+        forward_ledger["result_source_status"] = result_source_status
+        integrity = forward_ledger.setdefault("performance_integrity", {})
+        if isinstance(integrity, dict):
+            integrity["result_source_status"] = result_source_status
+            if result_events is None:
+                integrity["result_source_reason"] = "RESULT_SOURCE_UNAVAILABLE"
+        result = {"forward_ledger": forward_ledger}
+        ledger_performance_seconds = monotonic() - ledger_performance_started
+        result_cache_metrics = self._result_event_singleflight.metrics()
+        result["dayview_cache_metrics"] = {
+            "result_event_load_seconds": round(result_event_load_seconds, 6),
+            "ledger_fixture_scan_seconds": 0.0,
+            "ledger_performance_seconds": round(ledger_performance_seconds, 6),
+            "market_observation_history_seconds": 0.0,
+            "result_event_cache_hit": result_cache_metrics["cache_hit"],
+            "result_event_cache_miss": result_cache_metrics["cache_miss"],
+            "result_event_singleflight_owner": result_cache_metrics[
+                "singleflight_owner"
+            ],
+            "result_event_singleflight_waiter": result_cache_metrics[
+                "singleflight_waiter"
+            ],
         }
+        return result
 
     def _compact_forward_ledger_summary(
         self,
@@ -2133,6 +2198,7 @@ class ReadModelService:
         self._dashboard_singleflight.clear()
         self._day_view_singleflight.clear()
         self._day_view_window_singleflight.clear()
+        self._result_event_singleflight.clear()
         self._forward_ledger_performance_cache.clear()
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:

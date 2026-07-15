@@ -232,11 +232,40 @@ def dashboard_day_view(
         raise HTTPException(status_code=413, detail={"reason": str(error)}) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
-    route_seconds = monotonic() - route_started
+    route_build_seconds = monotonic() - route_started
     performance = day_view.get("performance")
     performance = performance if isinstance(performance, dict) else {}
     timing = performance.get("dayview_cache_metrics")
     timing = timing if isinstance(timing, dict) else {}
+    response_payload = {
+        "request_id": request_id(request),
+        **day_view,
+    }
+    validation_started = monotonic()
+    validated_response = DashboardDayViewResponse.model_validate(response_payload)
+    response_model_validation_seconds = monotonic() - validation_started
+    serialization_started = monotonic()
+    validated_response.model_dump_json()
+    response_serialization_seconds = monotonic() - serialization_started
+    route_seconds = monotonic() - route_started
+    if isinstance(validated_response.performance, dict):
+        validated_timing = validated_response.performance.setdefault(
+            "dayview_cache_metrics", {}
+        )
+        if isinstance(validated_timing, dict):
+            validated_timing.update(
+                {
+                    "response_model_validation_seconds": round(
+                        response_model_validation_seconds, 6
+                    ),
+                    "response_serialization_seconds": round(
+                        response_serialization_seconds, 6
+                    ),
+                    "route_build_seconds": round(route_build_seconds, 6),
+                    "route_total_seconds": round(route_seconds, 6),
+                }
+            )
+            timing = validated_timing
     pagination = day_view.get("pagination")
     pagination = pagination if isinstance(pagination, dict) else {}
     response.headers["X-W2-DayView-Cache"] = str(
@@ -252,15 +281,13 @@ def dashboard_day_view(
         "market": float(timing.get("market_observation_read_seconds") or 0.0),
         "performance": float(timing.get("ledger_summary_seconds") or 0.0),
         "projection": float(timing.get("page_projection_seconds") or 0.0),
-        "serialization": float(timing.get("dayview_serialization_seconds") or 0.0),
+        "validation": float(timing.get("response_model_validation_seconds") or 0.0),
+        "serialization": float(timing.get("response_serialization_seconds") or 0.0),
     }
     response.headers["Server-Timing"] = ", ".join(
         f"{name};dur={seconds * 1000:.3f}" for name, seconds in server_timing.items()
     )
-    return {
-        "request_id": request_id(request),
-        **day_view,
-    }
+    return validated_response.model_dump(mode="python")
 
 
 @public_router.get("/dashboard/summary", response_model=DashboardSummaryResponse)
