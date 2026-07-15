@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T04:20:00Z"
-current_phase: Bounded future DayView pagination staging gate
-current_status: READY_FOR_PAGINATION_STAGING_DEPLOY
+last_updated_utc: "2026-07-16T04:33:00Z"
+current_phase: Bounded future DayView pagination latency follow-up
+current_status: STAGING_ROLLED_BACK_PAGINATION_BLOCKED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -123,7 +123,7 @@ deployment_review:
   replacement_for_closed_pr: 277
   staging_code_deployed: true
   production_code_deployed: false
-  next_action: deploy bounded future DayView pagination to staging, pass L1, then resume frozen L2 stress acceptance
+  next_action: isolate the remaining 1.6-2.0s warm and 3.87s next-page latency without raising timeouts; L2 staging stress remains blocked
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
