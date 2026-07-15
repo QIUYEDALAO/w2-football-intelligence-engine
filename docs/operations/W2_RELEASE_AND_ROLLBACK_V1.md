@@ -65,3 +65,12 @@ Rules:
 - Lightweight DayView passed the public nginx cold/warm latency and single-flight checks with no L1 5xx. A lazy L2 `analysis-card` request returned 502; kernel evidence confirmed a memory-cgroup OOM kill at roughly 1022048 KiB anonymous RSS, followed by Docker exit-137 restart. The release therefore failed its L2 isolation gate.
 - Staging was restored to `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`; API, Web, worker and scheduler are healthy and aligned on that revision. Provider and queue deltas were zero, and canonical denominator evidence was unchanged.
 - The performance commits remain merged on `main` for follow-up correction, but are not deployed. Production remains unchanged; no timeout, recommendation, lock, threshold, artifact or league setting was changed.
+
+## Pending frozen L2 audit recovery release · 2026-07-16
+
+- Code target: `main@5005df4e4873e618399bedaf4f32c9e5bbb2ef8f`; deployed staging remains the known-good rollback release `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b` until this docs-only gate merges and the single approved batch deployment begins.
+- Recovery PRs #305–#307 replace public live analysis reconstruction with an exact, bounded frozen-capture projection, make `analysis-card` fail closed, and change Boss View's first L2 expansion from five requests to one identity-bound request. Odds timeline is a separate secondary lazy request.
+- The projection is capped at 512 KiB, two estimates and 169 score cells per estimate. The client and server caches are capped at 64 entries with 15-minute TTL and per-key single-flight.
+- The sanitized OOM regression fixture is `1576804`. Predeploy verification is `1406 passed, 4 skipped`; Ruff, Mypy, TypeScript, Web build, acceptance and tracked-output guards pass. Frozen denominator evidence remains VALIDATION `43/16/27`, Wide `60/22/38`, with duplicate/conflict/identity-unmatched/cross-track contamination all zero and Strict at zero.
+- Deployment must preserve rollback images and manifest before switching services. Any API OOM, exit 137, restart or cgroup `oom_kill` increase, regression-fixture 5xx, response over 512 KiB, L1/L2 identity mismatch, denominator change, track contamination, RECOMMEND/lock/OFFICIAL activation, historical rewrite or secret leak requires immediate rollback to `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`.
+- Production remains excluded. Provider calls, timeout increases, model/gate/threshold/artifact changes and league enablement are not authorized by this release record.
