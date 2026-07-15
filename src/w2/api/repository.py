@@ -581,24 +581,54 @@ class ReadModelRepository:
     def stage8_summary(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE8_REPLAY_SUMMARY.json", {}))
 
-    def fixture_payloads(self) -> list[dict[str, Any]]:
+    def fixture_payloads_with_status(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         for item in self.dashboard_latest_fixtures():
             fixture_id = str(item.get("fixture_id"))
             if fixture_id and fixture_id != "None":
                 fixtures[fixture_id] = self._dashboard_fixture_to_provider_payload(item)
+        fallback_loaded = bool(fixtures)
+        status: dict[str, Any] = {
+            "degraded_source": None,
+            "failed_source": None,
+            "error_class": None,
+            "fallback_source": "dashboard_checkpoint" if fallback_loaded else None,
+            "data_completeness": "FALLBACK_ONLY" if fallback_loaded else "EMPTY",
+        }
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
+                database_fixture_count = 0
                 for item in db_repository.fixture_payloads():
                     fixture_id = str(item.get("fixture", {}).get("id"))
                     if fixture_id and fixture_id != "None":
                         fixtures[fixture_id] = item
-            except Exception:
-                fixtures = {}
+                        database_fixture_count += 1
+                if database_fixture_count:
+                    status["data_completeness"] = "COMPLETE"
+            except SQLAlchemyError as exc:
+                status.update(
+                    {
+                        "degraded_source": "fixture_payloads",
+                        "failed_source": "future_refresh_db.fixture_payloads",
+                        "error_class": type(exc).__name__,
+                        "data_completeness": (
+                            "FALLBACK_ONLY" if fallback_loaded else "EMPTY_AFTER_SOURCE_FAILURE"
+                        ),
+                    }
+                )
         if not fixtures and get_settings().environment in {Environment.LOCAL, Environment.TEST}:
             fixtures["stage10a-contract-fixture"] = self._contract_fixture_payload()
-        return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
+            status["fallback_source"] = "local_contract_fixture"
+            status["data_completeness"] = "LOCAL_CONTRACT_ONLY"
+        return (
+            sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", "")),
+            status,
+        )
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        payloads, _status = self.fixture_payloads_with_status()
+        return payloads
 
     def forward_locks(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
@@ -879,6 +909,7 @@ class _RequestReadCache:
 
     def __init__(self) -> None:
         self.fixture_payloads: list[dict[str, Any]] | None = None
+        self.fixture_read_status: dict[str, Any] = {}
         self.fixture_payload_index: dict[str, dict[str, Any]] | None = None
         self.future_market_observations: list[dict[str, Any]] | None = None
         self.observations_by_fixture: dict[str, list[dict[str, Any]]] | None = None
@@ -956,6 +987,14 @@ class ReadModelService:
         self._request_read_cache().fixture_payload_index = value
 
     @property
+    def _fixture_read_status_cache(self) -> dict[str, Any]:
+        return self._request_read_cache().fixture_read_status
+
+    @_fixture_read_status_cache.setter
+    def _fixture_read_status_cache(self, value: dict[str, Any]) -> None:
+        self._request_read_cache().fixture_read_status = value
+
+    @property
     def _future_market_observations_cache(self) -> list[dict[str, Any]] | None:
         return self._request_read_cache().future_market_observations
 
@@ -1029,8 +1068,21 @@ class ReadModelService:
 
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
+            status_reader = getattr(self.repository, "fixture_payloads_with_status", None)
             fixture_reader = getattr(self.repository, "fixture_payloads", None)
-            self._fixture_payloads_cache = fixture_reader() if callable(fixture_reader) else []
+            if callable(status_reader):
+                payloads, status = status_reader()
+                self._fixture_payloads_cache = payloads
+                self._fixture_read_status_cache = status
+            else:
+                self._fixture_payloads_cache = fixture_reader() if callable(fixture_reader) else []
+                self._fixture_read_status_cache = {
+                    "degraded_source": None,
+                    "failed_source": None,
+                    "error_class": None,
+                    "fallback_source": None,
+                    "data_completeness": "COMPLETE",
+                }
         return self._fixture_payloads_cache
 
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
@@ -1325,6 +1377,8 @@ class ReadModelService:
             "finished": finished_payload,
             "all": response_cards,
         }
+        if self._fixture_read_status_cache.get("failed_source"):
+            payload["read_degradation"] = dict(self._fixture_read_status_cache)
         with self._dashboard_response_cache_lock:
             self._dashboard_response_cache[cache_key] = (now, deepcopy(payload))
         return payload

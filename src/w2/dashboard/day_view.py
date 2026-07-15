@@ -50,6 +50,7 @@ def build_dashboard_day_view(
         "window": _text(dashboard_payload.get("window"), "today"),
         "source": "dashboard_read_model",
         "version": _mapping_copy(dashboard_payload.get("version")),
+        "read_degradation": _mapping_copy(dashboard_payload.get("read_degradation")),
         "checkpoint_key": f"dashboard:day_view:{football_day}",
         "would_write_checkpoint": False,
         "provider_calls": 0,

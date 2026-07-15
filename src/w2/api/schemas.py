@@ -147,6 +147,7 @@ class DashboardResponse(BaseModel):
     window: str
     data_profile: str
     data_source: str
+    read_degradation: dict[str, Any] = Field(default_factory=dict)
     version: dict[str, Any]
     debug: dict[str, Any]
     performance: dict[str, Any]

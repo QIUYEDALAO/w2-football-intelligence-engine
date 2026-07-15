@@ -672,3 +672,10 @@
 - 当前分支 `codex/w2-readmodel-concurrency` 实施 CORE-6C：全局 ReadModelService 的 fixture、observation、xG、formal snapshot 与 raw payload 请求期缓存改为线程隔离，避免并发 today/next36/future/results/all 互相清空或覆盖。
 - 共享 Dashboard 响应缓存增加显式锁，并通过深拷贝隔离缓存对象与调用方；新增确定性双线程回归复现旧实现的跨请求污染。
 - 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐阈值/EV/RECOMMEND/lock/league/artifact。
+
+### V3 进展续55 · Degraded Read Preservation(2026-07-15)
+
+- #287 已合入 main `d1aab2835a37c7ae51e686fc518252a395281e54`，三项 CI 全绿；请求期 read-model cache 隔离及共享 Dashboard cache 锁已落地。
+- 当前分支 `codex/w2-degraded-read-preservation` 实施 CORE-6D：future DB fixture reader 失败时保留已加载的 dashboard checkpoint fallback，不再执行 `fixtures = {}`。
+- 读取故障贯穿 `degraded_source/failed_source/error_class/fallback_source/data_completeness`；DayView 优先报告 `DEGRADED_READ/READ_MODEL_SOURCE_FAILURE`，不再把来源异常伪装成空比赛日。
+- 新捕获仅限 `SQLAlchemyError`，未新增广泛 `except Exception: return []`；安全保持 provider calls=0、DB writes=0、未部署或重启服务，推荐规则与生产边界不变。

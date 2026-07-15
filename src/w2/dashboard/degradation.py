@@ -10,6 +10,7 @@ SOURCE = "w2.dashboard.degradation.v1"
 def build_dashboard_degradation(day_view: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     freshness = _mapping(day_view.get("freshness"))
+    read_degradation = _mapping(day_view.get("read_degradation"))
     total = _int(counts.get("total"))
     stale = _int(counts.get("stale"))
     blocked = _int(counts.get("blocked"))
@@ -21,6 +22,32 @@ def build_dashboard_degradation(day_view: Mapping[str, Any]) -> dict[str, Any]:
     )
     provider_budget_status = _optional_text(freshness.get("provider_budget_status"))
     stale_or_blocked_count = stale + blocked
+
+    if read_degradation.get("failed_source"):
+        state = _state(
+            "DEGRADED_READ",
+            "warning" if read_degradation.get("fallback_source") else "blocked",
+            "读取链路降级",
+            "部分 read-model 来源读取失败，页面保留可验证的 fallback 数据。",
+            "查看失败来源与完整度，等待 read-model 恢复。",
+            next_eval_at=next_eval_at,
+            reason_code="READ_MODEL_SOURCE_FAILURE",
+            provider_budget_status=provider_budget_status,
+            stale_or_blocked_count=stale_or_blocked_count,
+        )
+        state.update(
+            {
+                key: read_degradation.get(key)
+                for key in (
+                    "degraded_source",
+                    "failed_source",
+                    "error_class",
+                    "fallback_source",
+                    "data_completeness",
+                )
+            }
+        )
+        return state
 
     if total == 0:
         return _state(
