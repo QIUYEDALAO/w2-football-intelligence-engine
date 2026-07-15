@@ -798,9 +798,13 @@ export interface DashboardDayViewCard {
   action?: string | null;
   next_eval_at?: string | null;
   provider_budget_status?: string | null;
+  primary_blocker?: string | null;
+  primary_blocker_layer?: string | null;
+  all_blockers?: string[];
   missing_fields: string[];
   stale_fields: string[];
   data_readiness?: Record<string, unknown>;
+  feature_readiness?: Record<string, unknown>;
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
