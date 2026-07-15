@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -14,7 +15,12 @@ from sqlalchemy.orm import Session
 from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
-from w2.models.fair_market_estimate import estimate_snapshots, verify_estimate_snapshot
+from w2.models.fair_market_estimate import (
+    estimate_snapshots,
+    verify_estimate_semantics,
+    verify_estimate_snapshot,
+)
+from w2.models.market_quote import verify_market_quote
 from w2.reporting.match_decision import MatchDecisionState, decide_match
 from w2.tracking.calibration_report import build_calibration_report
 
@@ -32,6 +38,7 @@ AUDIT_TABLE_COLUMNS = {
         "estimate_id",
         "estimate_hash",
         "integrity_valid",
+        "semantic_valid",
         "fixture_id",
         "market",
         "status",
@@ -233,8 +240,43 @@ def build_audit_export(
         generated_at=exported_at,
     )
     tables = _normalize_tables(tables)
+    estimate_rows = tables["fair_market_estimate_snapshots"]
+    invalid_snapshot_count = len(
+        [row for row in estimate_rows if row.get("integrity_valid") is not True]
+    )
+    semantic_fail_count = len(
+        [
+            row
+            for row in estimate_rows
+            if _dict(row.get("snapshot_json")).get("schema_version") == "w2.fme_snapshot.v2"
+            and row.get("semantic_valid") is not True
+        ]
+    )
+    quotes = _audit_market_quotes(matches)
+    invalid_quote_count = len([quote for quote in quotes if not verify_market_quote(quote)])
+    legacy_snapshot_count = len(
+        [
+            row
+            for row in estimate_rows
+            if _dict(row.get("snapshot_json")).get("schema_version") != "w2.fme_snapshot.v2"
+        ]
+    )
+    warning_count = int(not estimate_rows) + int(not quotes) + legacy_snapshot_count
+    integrity_status = "PASS" if invalid_snapshot_count == 0 else "FAIL"
+    semantic_status = "PASS" if semantic_fail_count == 0 else "FAIL"
+    export_status = (
+        "FAIL"
+        if invalid_snapshot_count or semantic_fail_count or invalid_quote_count
+        else "PASS_WITH_WARNINGS" if warning_count else "PASS"
+    )
     manifest = {
-        "status": "PASS",
+        "status": "PASS" if export_status != "FAIL" else "FAIL",
+        "export_status": export_status,
+        "integrity_status": integrity_status,
+        "semantic_status": semantic_status,
+        "invalid_snapshot_count": invalid_snapshot_count,
+        "invalid_quote_count": invalid_quote_count,
+        "warning_count": warning_count,
         "schema_version": "w2.audit_export.v1",
         "environment": environment_policy["environment"],
         "policy_version": environment_policy["policy_version"],
@@ -277,6 +319,7 @@ def _fair_market_estimate_snapshots(
                     "estimate_id": estimate_id,
                     "estimate_hash": integrity.get("estimate_hash"),
                     "integrity_valid": verify_estimate_snapshot(snapshot),
+                    "semantic_valid": verify_estimate_semantics(snapshot),
                     "fixture_id": snapshot.get("fixture_id"),
                     "market": snapshot.get("market"),
                     "status": snapshot.get("status"),
@@ -295,6 +338,25 @@ def _fair_market_estimate_snapshots(
                 }
             )
     return rows
+
+
+def _audit_market_quotes(matches: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    quotes: list[Mapping[str, Any]] = []
+    for match in matches:
+        direct = match.get("market_quote")
+        if isinstance(direct, Mapping):
+            quotes.append(direct)
+        identities = match.get("audit_capture_identities")
+        if isinstance(identities, Sequence) and not isinstance(
+            identities, str | bytes | bytearray
+        ):
+            quotes.extend(
+                quote
+                for item in identities
+                if isinstance(item, Mapping)
+                and isinstance((quote := item.get("market_quote")), Mapping)
+            )
+    return quotes
 
 
 def write_audit_export(

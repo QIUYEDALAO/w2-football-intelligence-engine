@@ -116,7 +116,8 @@ def _replay_card(
     *,
     outcomes: Sequence[Mapping[str, Any]] | None,
 ) -> dict[str, Any]:
-    outcome = _outcome_for(card, outcomes)
+    identity = _card_audit_identity(card)
+    outcome = _outcome_for(identity, outcomes)
     output = {
         "fixture_id": _text(card.get("fixture_id")),
         "kickoff_utc": _optional_text(card.get("kickoff_utc")),
@@ -130,6 +131,7 @@ def _replay_card(
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
         "expected_card_hash": _optional_text(card.get("expected_card_hash")),
+        "audit_capture_identity": identity,
         "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
         "fair_market_estimate_snapshots": [dict(item) for item in estimate_snapshots(card)],
         "estimate_replay": [
@@ -141,7 +143,7 @@ def _replay_card(
             if item.get("estimate_id")
         ],
         "outcome": outcome,
-        "outcome_status": _outcome_status(card, outcome, outcomes),
+        "outcome_status": _outcome_status(card, identity, outcome, outcomes),
         "replay_source": _optional_text(card.get("source")) or "day_view",
     }
     output["hash_status"] = verify_replay_card_hash(output)["hash_status"]
@@ -149,16 +151,27 @@ def _replay_card(
 
 
 def _outcome_for(
-    card: Mapping[str, Any],
+    identity: Mapping[str, Any],
     outcomes: Sequence[Mapping[str, Any]] | None,
 ) -> dict[str, Any] | None:
     if outcomes is None:
         return None
-    fixture_id = _text(card.get("fixture_id"))
+    required = (
+        "fixture_id",
+        "market",
+        "selection",
+        "recommendation_scope",
+        "strategy_version",
+        "estimate_id",
+        "quote_id",
+        "source_capture_hash",
+    )
+    if not all(_optional_text(identity.get(field)) for field in required):
+        return None
     for outcome in outcomes:
-        if _text(outcome.get("fixture_id")) == fixture_id:
+        if all(_text(outcome.get(field)) == _text(identity.get(field)) for field in required):
             return {
-                "fixture_id": fixture_id,
+                "fixture_id": _text(identity.get("fixture_id")),
                 "result_status": _optional_text(outcome.get("result_status")),
                 "settlement_status": _optional_text(outcome.get("settlement_status")),
                 "score": _optional_text(outcome.get("score")),
@@ -168,8 +181,33 @@ def _outcome_for(
     return None
 
 
+def _card_audit_identity(card: Mapping[str, Any]) -> dict[str, Any]:
+    pick = _mapping(card.get("pick"))
+    gate = _mapping(card.get("analysis_gate"))
+    tier = _text(card.get("decision_tier")).upper()
+    scope = _optional_text(card.get("recommendation_scope")) or (
+        "VALIDATION" if tier == "ANALYSIS_PICK" else "OFFICIAL"
+    )
+    return {
+        "fixture_id": _optional_text(card.get("fixture_id")),
+        "market": _optional_text(pick.get("market")),
+        "selection": _optional_text(pick.get("selection")),
+        "recommendation_scope": scope,
+        "strategy_version": _optional_text(card.get("strategy_version"))
+        or "DECISION_CONTRACT_V2",
+        "estimate_id": _optional_text(pick.get("estimate_id") or gate.get("estimate_id")),
+        "quote_id": _optional_text(pick.get("quote_id") or card.get("quote_id")),
+        "source_capture_hash": _optional_text(
+            card.get("source_capture_hash")
+            or card.get("capture_hash")
+            or card.get("evidence_hash")
+        ),
+    }
+
+
 def _outcome_status(
     card: Mapping[str, Any],
+    identity: Mapping[str, Any],
     outcome: Mapping[str, Any] | None,
     outcomes: Sequence[Mapping[str, Any]] | None,
 ) -> str:
@@ -177,6 +215,8 @@ def _outcome_status(
         return "OUTCOMES_NOT_PROVIDED"
     if outcome is not None:
         return "MATCHED"
+    if card.get("outcome_tracked") is True and not all(identity.values()):
+        return "INCOMPLETE_AUDIT_IDENTITY"
     if card.get("outcome_tracked") is True:
         return "MISSING_OUTCOME"
     return "NOT_TRACKED"
@@ -187,7 +227,7 @@ def _outcome_tracking_summary(cards: Sequence[Mapping[str, Any]]) -> dict[str, A
     missing = [
         _text(card.get("fixture_id"))
         for card in tracked
-        if card.get("outcome_status") == "MISSING_OUTCOME"
+        if card.get("outcome_status") in {"MISSING_OUTCOME", "INCOMPLETE_AUDIT_IDENTITY"}
     ]
     matched = [
         _text(card.get("fixture_id")) for card in tracked if card.get("outcome_status") == "MATCHED"
@@ -196,6 +236,9 @@ def _outcome_tracking_summary(cards: Sequence[Mapping[str, Any]]) -> dict[str, A
         "tracked_count": len(tracked),
         "matched_outcome_count": len(matched),
         "missing_outcome_count": len(missing),
+        "incomplete_audit_identity_count": len(
+            [card for card in tracked if card.get("outcome_status") == "INCOMPLETE_AUDIT_IDENTITY"]
+        ),
         "tracked_fixture_ids": [_text(card.get("fixture_id")) for card in tracked],
         "matched_fixture_ids": matched,
         "missing_outcome_fixture_ids": missing,

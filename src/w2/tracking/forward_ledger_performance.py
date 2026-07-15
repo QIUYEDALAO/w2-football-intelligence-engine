@@ -9,6 +9,11 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from w2.tracking.canonical_identity import (
+    candidate_for_outcome,
+    canonical_capture_candidates,
+)
+
 SAMPLE_TARGET = 200
 OFFICIAL_SCOPE = "OFFICIAL"
 VALIDATION_SCOPE = "VALIDATION"
@@ -50,6 +55,8 @@ def forward_ledger_performance(
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     records = _normalize_outcome_records(list(load_forward_ledger_records(root)))
+    canonical_candidates = canonical_capture_candidates(records)
+    records = _canonical_evidence_records(records, canonical_candidates)
     outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
     outcome_validation_counts = _outcome_counts(
         records,
@@ -65,6 +72,7 @@ def forward_ledger_performance(
     clv_shadow_rows = _clv_rows(shadow_capture_records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
     clv_shadow_values = _clv_values(clv_shadow_rows)
+    outcomes_by_strategy = _outcomes_by_strategy(records)
     fixture_ids = {
         _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
@@ -91,9 +99,7 @@ def forward_ledger_performance(
         now=now or datetime.now(UTC),
     )
     double_snapshot_fixture_ids = {
-        _text(row.get("fixture_id"))
-        for row in clv_shadow_rows
-        if _text(row.get("fixture_id"))
+        _text(row.get("fixture_id")) for row in clv_shadow_rows if _text(row.get("fixture_id"))
     }
     return {
         "schema_version": "w2.forward_ledger_performance.v1",
@@ -117,6 +123,46 @@ def forward_ledger_performance(
         "outcomes": _outcome_summary(outcome_counts),
         "outcomes_validation": _outcome_summary(outcome_validation_counts),
         "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
+        **({"outcomes_by_strategy": outcomes_by_strategy} if outcomes_by_strategy else {}),
+        **(
+            {
+                "canonical_identity": {
+                    "eligible_candidate_count": len(
+                        [
+                            row
+                            for row in canonical_candidates
+                            if row.get("canonical_candidate") is True
+                        ]
+                    ),
+                    "audit_only_candidate_count": len(
+                        [row for row in canonical_candidates if row.get("audit_only") is True]
+                    ),
+                    "invalid_snapshot_count": len(
+                        [
+                            row
+                            for row in canonical_candidates
+                            if row.get("exclusion_reason") == "INVALID_SNAPSHOT"
+                        ]
+                    ),
+                    "invalid_quote_count": len(
+                        [
+                            row
+                            for row in canonical_candidates
+                            if row.get("exclusion_reason") == "INVALID_QUOTE"
+                        ]
+                    ),
+                    "semantic_fail_count": len(
+                        [
+                            row
+                            for row in canonical_candidates
+                            if row.get("exclusion_reason") == "SEMANTIC_FAIL"
+                        ]
+                    ),
+                }
+            }
+            if canonical_candidates
+            else {}
+        ),
         "accumulation_label": _accumulation_label(len(fixture_ids), sample_target),
         "clv": _clv_summary(
             clv_values,
@@ -151,6 +197,63 @@ def forward_ledger_performance(
     }
 
 
+def _canonical_evidence_records(
+    records: Sequence[Mapping[str, Any]],
+    candidates: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Require exact canonical identity for new outcomes; retain legacy audit compatibility."""
+    output: list[dict[str, Any]] = []
+    for record in records:
+        item = dict(record)
+        if _record_type(item) != "outcome":
+            output.append(item)
+            continue
+        is_identity_aware = bool(
+            _text(item.get("strategy_version"))
+            or _text(item.get("quote_id"))
+            or _text(item.get("estimate_id"))
+        )
+        if not is_identity_aware:
+            output.append(item)
+            continue
+        source = candidate_for_outcome(candidates, item)
+        if source is None:
+            continue
+        item["canonical_performance_key"] = list(
+            (
+                source.get("fixture_id"),
+                source.get("market"),
+                source.get("recommendation_scope"),
+                source.get("strategy_version"),
+            )
+        )
+        output.append(item)
+    return output
+
+
+def _outcomes_by_strategy(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    counts: dict[tuple[str, str], defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for record in records:
+        if _record_type(record) != "outcome":
+            continue
+        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        if bucket is None:
+            continue
+        scope = (
+            "SHADOW" if _outcome_side(record) == "shadow_pick" else _recommendation_scope(record)
+        )
+        strategy = _text(record.get("strategy_version") or "LEGACY_UNVERSIONED")
+        counts[(scope, strategy)][bucket] += 1
+    return [
+        {
+            "recommendation_scope": scope,
+            "strategy_version": strategy,
+            **_outcome_summary(values),
+        }
+        for (scope, strategy), values in sorted(counts.items())
+    ]
+
+
 def _validation_pending_status(
     records: Sequence[Mapping[str, Any]],
     *,
@@ -173,9 +276,7 @@ def _validation_pending_status(
             kickoff_by_fixture.setdefault(fixture_id, kickoff)
 
     final_result_fixture_ids = {
-        _text(event.get("fixture_id"))
-        for event in result_events or ()
-        if _has_final_result(event)
+        _text(event.get("fixture_id")) for event in result_events or () if _has_final_result(event)
     }
     source_available = result_events is not None
     counts = {
@@ -247,7 +348,7 @@ def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, 
             captures_by_pick[key].append(record)
 
     normalized: list[dict[str, Any]] = []
-    outcomes: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    outcomes: dict[tuple[str, ...], dict[str, Any]] = {}
     for record in records:
         if _record_type(record) != "outcome":
             normalized.append(record)
@@ -267,8 +368,9 @@ def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, 
                 candidates = captures_by_pick.get(key, [])
                 source = max(
                     candidates,
-                    key=lambda row: _parse_time(row.get("captured_at"))
-                    or datetime.min.replace(tzinfo=UTC),
+                    key=lambda row: (
+                        _parse_time(row.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
+                    ),
                     default=None,
                 )
             if source is not None:
@@ -281,6 +383,10 @@ def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, 
             _recommendation_scope(item),
             _text(item.get("market")),
             _text(item.get("selection")),
+            _text(item.get("strategy_version") or "LEGACY_UNVERSIONED"),
+            _text(item.get("estimate_id") or "LEGACY_ESTIMATE"),
+            _text(item.get("quote_id") or "LEGACY_QUOTE"),
+            _text(item.get("source_capture_hash") or "LEGACY_UNSCOPED"),
         )
         existing = outcomes.get(identity)
         if existing is None or (
@@ -288,7 +394,31 @@ def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, 
             and not _text(existing.get("recommendation_scope"))
         ):
             outcomes[identity] = item
-    normalized.extend(outcomes.values())
+    values = list(outcomes.values())
+    canonical_bases = {
+        (
+            _text(item.get("fixture_id")),
+            _text(item.get("settled_side")),
+            _recommendation_scope(item),
+            _text(item.get("market")),
+            _text(item.get("selection")),
+        )
+        for item in values
+        if _text(item.get("source_capture_hash"))
+    }
+    normalized.extend(
+        item
+        for item in values
+        if _text(item.get("source_capture_hash"))
+        or (
+            _text(item.get("fixture_id")),
+            _text(item.get("settled_side")),
+            _recommendation_scope(item),
+            _text(item.get("market")),
+            _text(item.get("selection")),
+        )
+        not in canonical_bases
+    )
     return normalized
 
 
@@ -656,10 +786,7 @@ def _league_market_rows(
         for row in rows:
             if not isinstance(row, Mapping):
                 continue
-            if (
-                row.get("evidence_eligible") is not True
-                or row.get("semantic_status") != "VERIFIED"
-            ):
+            if row.get("evidence_eligible") is not True or row.get("semantic_status") != "VERIFIED":
                 continue
             market = _text(row.get("market"))
             fixture_id = _text(record.get("fixture_id"))
@@ -753,7 +880,9 @@ def _league_market_rows(
         evidence_status = (
             "MATURE"
             if settled_count >= 100
-            else "REVIEW_ELIGIBLE" if settled_count >= 35 else "ACCUMULATING"
+            else "REVIEW_ELIGIBLE"
+            if settled_count >= 35
+            else "ACCUMULATING"
         )
         captured_times = sorted(
             _text(row.get("captured_at"))

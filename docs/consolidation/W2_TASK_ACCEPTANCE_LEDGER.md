@@ -612,3 +612,34 @@
 - scheduler 容器 `7e3dc0913f2a...` 与 worker 容器 `0019f0a8d961...` 的 ID、created、started、`unless-stopped` policy 均未变化且健康。
 - 部署前后 `provider_request_logs=381`、`future_refresh_run_audit=1423`、Celery queue=`0`，确认 provider 调用、刷新任务与队列均无增量；未写业务数据库。
 - 未改 RECOMMEND、EV、lock、production、联赛 enable 或 scheduler 配置。
+
+### V3 进展续46 · Whole-System Correctness 基线冻结(2026-07-14)
+
+- #278 合入 main `86e8200a9df2dfffa15535652e0e9cd58e4e5c2c`，冻结全系统正确性与 AH 验证计划的执行边界、术语和验收门。
+- 本批次严格按独立 PR 串行交付；每项从前一项合并后的 main 开始，不堆叠未合并分支。
+- 安全边界保持：不部署、不调用 provider、不写业务数据库、不重启服务，不改推荐门、RECOMMEND、lock、production、联赛 enable 或模型 artifact。
+
+### V3 进展续47 · AH-S0 符号与结算不变量(2026-07-14)
+
+- #279 合入 main `b236e1e6cc01fb6078abc165d60d287869275358`，固化主客让球、选择方向、四分之一盘和五态结算的符号合同。
+- 合同作为后续 AH 收紧研究的先决条件；本阶段只消除符号歧义，不改变任何验证推荐门槛。
+
+### V3 进展续48 · Snapshot v2 与 fail-closed 收口(2026-07-14)
+
+- #280 合入 main `ad151b6c65495fb003795145a015de9ffec10f66`：FairMarketEstimate Snapshot v2 冻结完整模型比分分布、公平盘、结算分布与语义校验。
+- #281 合入 main `e5d16c4534b68c2744d75cd80fd1e8349199f39f`：新 pick 和 lock 必须通过 Snapshot v2、estimate/model identity、完整性、语义、market/gate/quote 一致性；缺失或冲突一律 fail closed。
+- 推荐规则、三轨、EV、lock policy 与 production 开关均未改变。
+
+### V3 进展续49 · MarketQuote 与赛前 capture 身份(2026-07-14)
+
+- #282 合入 main `7216c3fef9553ddc4c58f578a21f34c3b714c845`，新增内容寻址 `MarketQuote (mq_<hash>)`，冻结盘口、选择线、价格、来源与时间。
+- AH divergence 统一使用主队中心线，selection settlement 使用选择线；修复 AWAY_AH shadow EV 符号。
+- 市场时间线读取完整 observation 历史，不再用 latest projection 伪装开盘/临盘；capture 冻结 estimate/model/quote identity 与 capture hash。
+
+### V3 进展续50 · Replay/Audit/Performance Canonical Identity(2026-07-15)
+
+- 当前分支 `codex/w2-replay-audit-performance-identity` 正在实施 CORE-4。
+- 规范表现键固定为 `fixture_id + market + recommendation_scope + strategy_version`，同键只选择最后一个有效赛前证据；同时间用 capture hash 确定性排序，其余仅审计、不计表现。
+- 回放不再允许仅按 fixture_id 匹配 outcome；必须使用 market、selection、scope、strategy、estimate、quote 与 source capture hash 完整身份。
+- OFFICIAL、VALIDATION、Wide Shadow、Strict Shadow v1 及未来版本分别统计；审计 manifest 增加 export/integrity/semantic 状态及无效 snapshot/quote 计数。
+- 当前专项测试通过，完整 CI 与 PR 尚待完成；未部署、未调用 provider、未写业务数据库、未重启服务。
