@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-15T09:31:46Z"
-current_phase: validation correctness recovery predeploy gate
-current_status: READY_FOR_STAGING_VALIDATION_RECOVERY_DEPLOY
+last_updated_utc: "2026-07-15T11:03:46Z"
+current_phase: validation correctness recovery staging observation
+current_status: STAGING_VALIDATION_RECOVERED_WITH_WARNINGS
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,14 +20,14 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha_at_rebaseline: 51baa80fc4a8878b6a76e3782ff6586f1f39f269
-  deployed_code_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  main_sha_at_rebaseline: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  deployed_code_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-15T09:31:46Z"
+  observed_at_utc: "2026-07-15T11:03:46Z"
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
@@ -123,7 +123,7 @@ deployment_review:
   replacement_for_closed_pr: 277
   staging_code_deployed: true
   production_code_deployed: false
-  next_action: deploy the merged validation recovery batch once to staging, then run frozen and live acceptance gates
+  next_action: observe cold-path latency and accumulate corrected Strict evidence; do not open production or RECOMMEND
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
@@ -132,9 +132,9 @@ deployment_review:
   production_release_enabled: false
 
 validation_correctness_recovery:
-  status: CODE_AND_PREDEPLOY_CONTEXT_COMPLETE_STAGING_NOT_REDEPLOYED
-  merged_main_sha: 51baa80fc4a8878b6a76e3782ff6586f1f39f269
-  deployed_staging_sha: 3d67a769704e544fb544979c96cf3162328d090c
+  status: STAGING_VALIDATION_RECOVERED_WITH_WARNINGS
+  merged_main_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  deployed_staging_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
   merged_prs:
     outcome_canonical_denominator: 295
     dashboard_singleflight_cache: 296
@@ -164,10 +164,33 @@ validation_correctness_recovery:
     dashboard_singleflight: implemented
     ledger_projection_cache: implemented
     nginx_timeout_changed: false
+    cold_request_count: 15
+    cold_http_200_count: 15
+    cold_502_504_count: 0
+    cold_p50_seconds: 93.7203
+    cold_p95_seconds: 109.6345
+    cold_max_seconds: 110.398
+    singleflight_waiters_by_concurrency: "1:0,2:1,4:3,8:7"
+    warm_request_count: 225
+    warm_http_200_count: 225
+    warm_p50_seconds: 2.4401
+    warm_p95_seconds: 18.4901
+    warm_max_seconds: 61.5158
   fme_diagnostics:
     blocker_precedence: implemented
     market_readiness_decoupled_from_feature_readiness: true
     recommendation_gate_changed: false
+    audited_fixture_count: 40
+    snapshot_count: 80
+    ready_count: 38
+    insufficient_count: 42
+    primary_market_unavailable: 34
+    primary_quote_capture_time_missing: 6
+    xg_ready_with_market_unavailable: 19
+    artifact_unavailable_fixture_count: 12
+    integrity_invalid_count: 0
+    semantics_invalid_count: 0
+    accidental_promotion_count: 0
   strict_canary:
     schema: w2.strict_ah_canary_checker.v1
     status_on_frozen_baseline: NO_CORRECTED_STRICT_CANDIDATE_YET
@@ -187,7 +210,7 @@ validation_correctness_recovery:
     provider_calls: 0
     db_writes: 0
     historical_ledger_rewrites: 0
-    staging_deploy: false
+    staging_deploy: true
     production_deploy: false
     recommend_enabled: false
     lock_created: false
@@ -195,11 +218,11 @@ validation_correctness_recovery:
 
 staging_state:
   environment: staging
-  api_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
-  web_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
-  worker_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
-  scheduler_git_sha: 3d67a769704e544fb544979c96cf3162328d090c
-  release_id: staging-3d67a769704e544fb544979c96cf3162328d090c
+  api_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  web_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  worker_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  scheduler_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  release_id: staging-c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
   source_branch: main
   source_note: Whole-system correctness batch deployed to staging with API, Web, worker and scheduler aligned to one release SHA.
   health: PASS
@@ -228,16 +251,16 @@ staging_state:
     audited_fixture_count: 40
     snapshot_count: 80
     integrity_invalid_count: 0
-    ready_count: 2
-    insufficient_count: 78
+    ready_count: 38
+    insufficient_count: 42
   corrected_strict_evidence:
     settled_count: 0
     review_35_status: ACCUMULATING
     maturity_100_status: ACCUMULATING
   open_warnings:
-    - code: COLD_CACHE_CONCURRENT_504
-      observation: Initial ten-request cold-cache acceptance produced seven transient proxy 504 responses; subsequent concurrent retry and six-sample stable window produced no new 5xx.
-      disposition: Read-only post-deploy performance diagnosis required; do not raise proxy timeout without root-cause evidence.
+    - code: COLD_CACHE_HIGH_LATENCY
+      observation: Correctness-recovery cold concurrency produced 15/15 HTTP 200 and no 502/504, but p95 remained 109.6345 seconds; warm 225-request matrix produced 225/225 HTTP 200 with p95 18.4901 seconds.
+      disposition: Keep as a performance warning; do not raise proxy timeout or alter decision gates without a separate evidence-backed PR.
   latest_feature_snapshot_injection:
     status: PASS
     approved_scope: STAGING_FEATURE_SNAPSHOT_INJECTION
@@ -252,41 +275,42 @@ staging_state:
     provider_calls: 0
 
 current_product_observation:
-  observed_at_utc: "2026-07-11T01:25:00Z"
-  source: staging /v1/dashboard/day-view?window=next36&timezone=Asia/Shanghai
-  cards_total: 16
+  observed_at_utc: "2026-07-15T11:03:46Z"
+  source: staging /v1/dashboard/day-view?window=future and /v1/dashboard?window=future&include_debug=true
+  cards_total: 40
   decision_counts:
-    NOT_READY: 1
+    NOT_READY: 34
     SKIP: 0
-    WATCH: 8
-    ANALYSIS_PICK: 7
+    WATCH: 6
+    ANALYSIS_PICK: 0
     RECOMMEND: 0
   data_status_counts:
     READY: 0
-    PARTIAL: 15
-    STALE: 0
-    BLOCKED: 1
+    PARTIAL: 0
+    STALE: 6
+    BLOCKED: 34
   lock_eligible_count: 0
-  outcome_tracked_count: 7
+  outcome_tracked_count: 0
   active_whitelist_count: 13
-  distinct_forward_fixture_count: 46
-  double_snapshot_fixture_count: 10
-  settled_fixture_count: 0
-  shadow_clv_sample_count: 14
-  formal_tracking_status: OBSERVING
+  validation_fixture_count: 25
+  validation_settled_fixture_count: 16
+  validation_pending_fixture_count: 9
+  validation_hit_count: 10
+  validation_miss_count: 4
+  validation_push_count: 2
+  validation_decisive_hit_rate: 0.7142857142857143
+  formal_tracking_status: ACCUMULATING
   formal_tracking_sample_count: 0
-  conclusion: Staging now exposes seven non-locking ANALYSIS_PICK cards from validated fair-line divergence while forward evidence continues to accumulate.
+  conclusion: Current future cards fail closed to WATCH or NOT_READY while canonical historical validation reports 16 settled fixtures; no current ANALYSIS_PICK, RECOMMEND or lock is exposed.
   primary_data_blockers:
-    - Missing or insufficient xG history.
-    - Missing model probabilities.
-    - Missing score probability matrix.
-    - Missing ratings and team-value inputs on current cards.
-    - Lineups are missing, but they are not the only or primary blocker.
+    - MARKET_UNAVAILABLE on 34 fixtures.
+    - QUOTE_CAPTURE_TIME_MISSING on 6 fixtures.
+    - Feature diagnostics remain independently visible; 19 market-unavailable fixtures still report xG READY.
   policy_blockers:
-    - direction_allowed remains false as evidence maturity; it no longer blocks staging ANALYSIS_PICK display.
-    - EV and RECOMMEND legs remain default off.
-    - formal_recommendation policy remains false.
-  ui_accuracy_risk: Current LINEUPS_PENDING wording is narrower than the real blocker set and can mislead operators.
+    - Corrected Strict evidence remains 0/35 and 0/100.
+    - EV, RECOMMEND and formal recommendation remain default off.
+    - Production and recommendation locks remain blocked.
+  ui_accuracy_risk: none observed in the final DayView decision counts; cold-path latency remains an L2 operational warning.
 
 d0_forward_evidence_closure:
   status: deployed_and_staging_accepted

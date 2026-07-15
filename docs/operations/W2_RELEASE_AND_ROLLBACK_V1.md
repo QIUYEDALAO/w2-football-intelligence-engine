@@ -48,3 +48,13 @@ Rules:
 - Deployment order remains scheduler stop, safety/watermark capture, image build and revision verification, migration smoke/migration, API readiness, worker, Web, scheduler, and final SHA alignment. A rollback manifest must be created before service replacement.
 - Postdeploy cold-key acceptance must produce HTTP 200 at concurrency 1/2/4/8, one owner per key, no repeated ledger parse per fingerprint, no 502/504 and no timeout increase. The warm 225-request matrix must have no 5xx, provider calls or queue growth.
 - Production remains excluded. The release must not change thresholds, artifacts, league enablement, `RECOMMEND`, locks or OFFICIAL data.
+
+## Completed staging validation-recovery release · 2026-07-15
+
+- Release: `staging-c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`; API, Web, worker and scheduler are healthy on the same revision with restart count 0 and no OOM event.
+- The pre-switch rollback manifest is `/opt/w2/shared/rollback-manifest-c4bcceb5cb777639251e0db91a9c1f54f5b9c87b.json` with mode 600. Previous images and release metadata remain available; rollback was not required.
+- Migration stayed at `0023_create_checkpoint_refresh_schedule (head)`. Deployment and acceptance performed no business-database write, provider request, historical ledger rewrite, OFFICIAL write or lock creation; scheduler provider delta and Celery queue delta were both 0.
+- Frozen and live denominator acceptance both produced VALIDATION `43/16/27` and Wide Shadow `60/22/38` for raw/canonical/audit-only rows, with zero canonical duplicates, conflicts, identity-aware unmatched outcomes or cross-track contamination.
+- Cold concurrency 1/2/4/8 produced 15/15 HTTP 200, one owner per key, expected waiters and no 502/504. The warm matrix produced 225/225 HTTP 200. Cold p95 remained 109.6345 seconds and warm p95 18.4901 seconds, so latency remains a separate performance warning; nginx timeout was not increased.
+- FME acceptance observed 40 fixtures and 80 snapshots: READY=38, INSUFFICIENT=42, integrity/semantic invalid=0 and accidental promotion=0. Corrected Strict remains `NO_CORRECTED_STRICT_CANDIDATE_YET` at 0/35 and 0/100.
+- Production remains unchanged and blocked. `RECOMMEND`, locks, thresholds, artifacts and league enablement remain unchanged.
