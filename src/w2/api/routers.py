@@ -202,14 +202,35 @@ def dashboard_day_view(
     date: str | None = None,
     window: str = "today",
     timezone: str = "Asia/Shanghai",
+    page_size: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
+    sort: str = Query(default="BOSS_PRIORITY_KICKOFF"),
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=300"
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    day_view = service.dashboard_day_view(
-        target_date=date,
-        window=normalized_window,
-        timezone=timezone,
+    from w2.dashboard.day_view_pagination import (
+        DayViewPageTooLarge,
+        InvalidDayViewCursor,
+        StaleDayViewCursor,
     )
+
+    try:
+        day_view = service.dashboard_day_view(
+            target_date=date,
+            window=normalized_window,
+            timezone=timezone,
+            page_size=page_size,
+            cursor=cursor,
+            sort=sort,
+        )
+    except StaleDayViewCursor as error:
+        raise HTTPException(status_code=409, detail={"reason": str(error)}) from error
+    except InvalidDayViewCursor as error:
+        raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
+    except DayViewPageTooLarge as error:
+        raise HTTPException(status_code=413, detail={"reason": str(error)}) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
     return {
         "request_id": request_id(request),
         **day_view,

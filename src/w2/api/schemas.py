@@ -175,6 +175,8 @@ class DashboardDayViewResponse(BaseModel):
     provider_calls: int
     db_writes: int
     counts: dict[str, Any]
+    page_counts: dict[str, Any]
+    pagination: dict[str, Any]
     freshness: dict[str, Any]
     navigation: dict[str, Any]
     degradation: dict[str, Any]

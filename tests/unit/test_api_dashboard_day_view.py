@@ -88,6 +88,9 @@ class RecordingDashboardService:
         target_date: str | None = None,
         window: str = "today",
         timezone: str = "Asia/Shanghai",
+        page_size: int = 20,
+        cursor: str | None = None,
+        sort: str = "BOSS_PRIORITY_KICKOFF",
     ) -> dict[str, Any]:
         from w2.dashboard.day_view import build_dashboard_day_view
 
@@ -103,6 +106,18 @@ class RecordingDashboardService:
             active_whitelist_count=13,
         )
         view["performance"] = payload["performance"]
+        view["page_counts"] = view["counts"]
+        view["pagination"] = {
+            "schema_version": "w2.day_view_page.v1",
+            "snapshot_id": "dv_test",
+            "sort": sort,
+            "total_count": len(view["cards"]),
+            "returned_count": len(view["cards"]),
+            "page_size": page_size,
+            "has_more": False,
+            "next_cursor": None,
+            "truncated_by_byte_budget": False,
+        }
         return view
 
 
@@ -119,12 +134,18 @@ class DirectOnlyDashboardService:
         target_date: str | None = None,
         window: str = "today",
         timezone: str = "Asia/Shanghai",
+        page_size: int = 20,
+        cursor: str | None = None,
+        sort: str = "BOSS_PRIORITY_KICKOFF",
     ) -> dict[str, Any]:
         self.calls.append(
             {
                 "target_date": target_date,
                 "window": window,
                 "timezone": timezone,
+                "page_size": page_size,
+                "cursor": cursor,
+                "sort": sort,
             }
         )
         football_day = target_date or "2026-07-05"
@@ -145,6 +166,18 @@ class DirectOnlyDashboardService:
             "provider_calls": 0,
             "db_writes": 0,
             "counts": {"total": 0},
+            "page_counts": {"total": 0},
+            "pagination": {
+                "schema_version": "w2.day_view_page.v1",
+                "snapshot_id": "dv_test",
+                "sort": sort,
+                "total_count": 0,
+                "returned_count": 0,
+                "page_size": page_size,
+                "has_more": False,
+                "next_cursor": None,
+                "truncated_by_byte_budget": False,
+            },
             "freshness": {},
             "navigation": {},
             "degradation": {},
@@ -212,8 +245,22 @@ def test_dashboard_day_view_endpoint_does_not_call_full_dashboard(
             "target_date": "2026-07-05",
             "window": "future",
             "timezone": "UTC",
+            "page_size": 20,
+            "cursor": None,
+            "sort": "BOSS_PRIORITY_KICKOFF",
         }
     ]
+
+
+def test_default_page_size_is_twenty_and_above_fifty_is_rejected(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = DirectOnlyDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+    assert client.get("/v1/dashboard/day-view").status_code == 200
+    assert service.calls[-1]["page_size"] == 20
+    assert client.get("/v1/dashboard/day-view?page_size=51").status_code == 422
 
 
 def test_analysis_card_endpoint_reports_l2_build_seconds(

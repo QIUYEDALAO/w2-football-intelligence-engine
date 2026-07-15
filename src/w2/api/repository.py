@@ -38,6 +38,18 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view_pagination import (
+    DEFAULT_DAY_VIEW_PAGE_SIZE,
+    MAX_DAY_VIEW_CARD_BYTES,
+    MAX_DAY_VIEW_PAGE_BYTES,
+    DayViewPageTooLarge,
+    build_index_entries,
+    make_snapshot_id,
+    pagination_envelope,
+    select_page,
+    sort_entries,
+    window_counts,
+)
 from w2.dashboard.day_view_projection import project_day_view_card
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
@@ -969,7 +981,7 @@ class ReadModelService:
             tuple[str, str, str, bool], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
         self._day_view_singleflight: SingleFlightCache[
-            tuple[str, str, str, str], dict[str, Any]
+            tuple[str, str, str, str, int, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
         self._frozen_audit_singleflight: SingleFlightCache[
             tuple[str, str, str, str, str], dict[str, Any]
@@ -1039,9 +1051,7 @@ class ReadModelService:
         return self._request_read_cache().observations_by_fixture
 
     @_observations_by_fixture_cache.setter
-    def _observations_by_fixture_cache(
-        self, value: dict[str, list[dict[str, Any]]] | None
-    ) -> None:
+    def _observations_by_fixture_cache(self, value: dict[str, list[dict[str, Any]]] | None) -> None:
         self._request_read_cache().observations_by_fixture = value
 
     @property
@@ -1049,9 +1059,7 @@ class ReadModelService:
         return self._request_read_cache().team_xg_snapshots_by_fixture
 
     @_team_xg_snapshots_by_fixture_cache.setter
-    def _team_xg_snapshots_by_fixture_cache(
-        self, value: dict[str, list[dict[str, Any]]]
-    ) -> None:
+    def _team_xg_snapshots_by_fixture_cache(self, value: dict[str, list[dict[str, Any]]]) -> None:
         self._request_read_cache().team_xg_snapshots_by_fixture = value
 
     @property
@@ -1294,6 +1302,9 @@ class ReadModelService:
         target_date: str | None = None,
         window: str = "today",
         timezone: str = BEIJING_TZ,
+        page_size: int = DEFAULT_DAY_VIEW_PAGE_SIZE,
+        cursor: str | None = None,
+        sort: str = "BOSS_PRIORITY_KICKOFF",
     ) -> dict[str, Any]:
         """Build the Boss View projection without constructing the full Dashboard."""
         with self._read_request_scope():
@@ -1307,6 +1318,9 @@ class ReadModelService:
                 window,
                 timezone,
                 release_env("W2_GIT_SHA"),
+                page_size,
+                cursor or "",
+                sort,
             )
             payload = self._day_view_singleflight.get_or_compute(
                 cache_key,
@@ -1315,6 +1329,9 @@ class ReadModelService:
                     requested_date=requested_date,
                     window=window,
                     timezone=timezone,
+                    page_size=page_size,
+                    cursor=cursor,
+                    sort=sort,
                 ),
             )
             cache_metrics = self._day_view_singleflight.metrics()
@@ -1326,12 +1343,8 @@ class ReadModelService:
                         {
                             "dayview_cache_hit": cache_metrics["cache_hit"],
                             "dayview_cache_miss": cache_metrics["cache_miss"],
-                            "dayview_singleflight_owner": cache_metrics[
-                                "singleflight_owner"
-                            ],
-                            "dayview_singleflight_waiter": cache_metrics[
-                                "singleflight_waiter"
-                            ],
+                            "dayview_singleflight_owner": cache_metrics["singleflight_owner"],
+                            "dayview_singleflight_waiter": cache_metrics["singleflight_waiter"],
                             "dayview_build_inflight": cache_metrics["build_inflight"],
                             "dayview_cache_entry_count": cache_metrics["cache_entry_count"],
                         }
@@ -1344,6 +1357,9 @@ class ReadModelService:
         requested_date: date,
         window: str,
         timezone: str,
+        page_size: int = DEFAULT_DAY_VIEW_PAGE_SIZE,
+        cursor: str | None = None,
+        sort: str = "BOSS_PRIORITY_KICKOFF",
     ) -> dict[str, Any]:
         self._reset_read_caches()
         version = self.version()
@@ -1353,12 +1369,33 @@ class ReadModelService:
             window=window,
         )
         fixture_read_seconds = monotonic() - fixture_started
-        market_started = monotonic()
-        self._prime_observations_for_rows(selected_rows)
-        market_observation_read_seconds = monotonic() - market_started
-        projection_started = monotonic()
         capture_index = build_day_view_capture_index(get_settings().resolved_runtime_root)
         frozen_captures = capture_index.summaries
+        entries = sort_entries(build_index_entries(selected_rows, frozen_captures), sort)
+        full_counts = window_counts(entries)
+        snapshot_id = make_snapshot_id(
+            api_release_sha=str(version["api_git_sha"]),
+            requested_date=requested_date.isoformat(),
+            window=window,
+            timezone=timezone,
+            sort=sort,
+            fixture_rows=selected_rows,
+            ledger_fingerprint=capture_index.ledger_fingerprint,
+            capture_projection_version=capture_index.schema_version,
+        )
+        page_entries, page_start = select_page(
+            entries,
+            snapshot_id=snapshot_id,
+            sort=sort,
+            page_size=page_size,
+            cursor=cursor,
+        )
+        row_by_fixture = {str(row.get("fixture_id") or ""): row for row in selected_rows}
+        page_rows = [row_by_fixture[item.fixture_id] for item in page_entries]
+        market_started = monotonic()
+        self._prime_observations_for_rows(page_rows)
+        market_observation_read_seconds = monotonic() - market_started
+        projection_started = monotonic()
         cards = [
             project_day_view_card(row, frozen_captures[fixture_id])
             if fixture_id in frozen_captures
@@ -1366,9 +1403,10 @@ class ReadModelService:
                 row,
                 has_market=bool(self._observations_for_fixture(fixture_id)),
             )
-            for row in selected_rows
+            for row in page_rows
             if (fixture_id := str(row.get("fixture_id") or ""))
         ]
+        cards = [self._bounded_day_view_card(card) for card in cards]
         compact_card_projection_seconds = monotonic() - projection_started
         generated_at = datetime.now(UTC)
         ledger_started = monotonic()
@@ -1394,6 +1432,38 @@ class ReadModelService:
         )
         view["source"] = "direct_day_view_projection"
         view["performance"] = payload["performance"]
+        view["page_counts"] = view["counts"]
+        view["counts"] = full_counts
+        truncated = False
+        while (
+            cards
+            and len(json.dumps(view, ensure_ascii=False, default=str).encode("utf-8"))
+            > MAX_DAY_VIEW_PAGE_BYTES
+        ):
+            cards.pop()
+            page_entries.pop()
+            payload["all"] = cards
+            truncated = True
+            view = build_dashboard_day_view(
+                payload,
+                environment=get_settings().environment.value,
+                active_whitelist_count=len(CompetitionRegistry().entries()),
+            )
+            view["source"] = "direct_day_view_projection"
+            view["performance"] = payload["performance"]
+            view["page_counts"] = view["counts"]
+            view["counts"] = full_counts
+        if not cards and entries:
+            raise DayViewPageTooLarge("DAYVIEW_PAGE_TOO_LARGE")
+        view["pagination"] = pagination_envelope(
+            snapshot_id=snapshot_id,
+            sort=sort,
+            total_count=len(entries),
+            page_size=page_size,
+            returned=page_entries,
+            start=page_start,
+            truncated_by_byte_budget=truncated,
+        )
         dayview_metrics = view["performance"].setdefault("dayview_cache_metrics", {})
         dayview_metrics.update(
             {
@@ -1417,6 +1487,40 @@ class ReadModelService:
         )
         dayview_metrics["response_bytes"] = len(serialized_view)
         return view
+
+    def _bounded_day_view_card(self, card: dict[str, Any]) -> dict[str, Any]:
+        encoded = json.dumps(card, ensure_ascii=False, default=str).encode("utf-8")
+        if len(encoded) <= MAX_DAY_VIEW_CARD_BYTES:
+            return card
+        fixture_fields = {
+            key: card.get(key)
+            for key in (
+                "fixture_id",
+                "kickoff_utc",
+                "kickoff_beijing",
+                "competition_id",
+                "competition_name",
+                "home_team_id",
+                "away_team_id",
+                "home_team_name",
+                "away_team_name",
+                "status",
+                "lifecycle_status",
+                "audit_capture_hash",
+                "audit_estimate_id",
+                "audit_detail_url",
+            )
+        }
+        return fixture_fields | {
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "lock_eligible": False,
+            "outcome_tracked": False,
+            "reason_code": "L1_CARD_TOO_LARGE",
+            "primary_blocker": "L1_CARD_TOO_LARGE",
+            "primary_blocker_layer": "DAY_VIEW_PROJECTION",
+            "source": "bounded_fail_closed_projection",
+        }
 
     def _dashboard_rows_for_window(
         self,
@@ -1515,9 +1619,7 @@ class ReadModelService:
                 "next_eval_at": None,
             },
             "one_liner": (
-                "盘口已就绪，等待冻结决策摘要。"
-                if has_market
-                else "盘口缺失，不能产出分析推荐。"
+                "盘口已就绪，等待冻结决策摘要。" if has_market else "盘口缺失，不能产出分析推荐。"
             ),
         }
 
@@ -1575,17 +1677,13 @@ class ReadModelService:
             "outcomes_official": dict(ledger.get("outcomes_official") or {}),
             "outcomes_raw_audit": dict(ledger.get("outcomes_raw_audit") or {}),
             "performance_integrity": dict(ledger.get("performance_integrity") or {}),
-            "pending_result_classification": dict(
-                ledger.get("validation_pending_status") or {}
-            ),
+            "pending_result_classification": dict(ledger.get("validation_pending_status") or {}),
             "r1_1": {
                 "valid_pair_count": double_snapshot_count,
                 "sample_target": sample_target,
                 "remaining": max(sample_target - double_snapshot_count, 0),
                 "status": (
-                    "THRESHOLD_REACHED"
-                    if double_snapshot_count >= sample_target
-                    else "PENDING"
+                    "THRESHOLD_REACHED" if double_snapshot_count >= sample_target else "PENDING"
                 ),
             },
             "strict_evidence": {
@@ -2084,9 +2182,7 @@ class ReadModelService:
             if self._is_active_competition_row(row)
         ]
         cards = [
-            card
-            for card in cards
-            if self._is_active_competition_row(self._matchday_item(card))
+            card for card in cards if self._is_active_competition_row(self._matchday_item(card))
         ]
         authoritative = [
             {
@@ -2200,9 +2296,7 @@ class ReadModelService:
             if audit.get("integrity", {}).get("reason") == "AUDIT_PROJECTION_TOO_LARGE":
                 raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
             serialization_started = monotonic()
-            response_bytes = len(
-                json.dumps(audit, ensure_ascii=False, default=str).encode("utf-8")
-            )
+            response_bytes = len(json.dumps(audit, ensure_ascii=False, default=str).encode("utf-8"))
             serialization_seconds = monotonic() - serialization_started
             if response_bytes > MAX_AUDIT_RESPONSE_BYTES - 4096:
                 raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
@@ -2715,10 +2809,7 @@ class ReadModelService:
             payload["r4_1_feature_rows"] = r4_1_rows
             payload["league_feature_snapshots"] = r4_1_rows["snapshots"]
         self._apply_mainline_market_selection(payload, mainline_selection)
-        if not any(
-            selection.get("status") == "READY"
-            for selection in mainline_selection.values()
-        ):
+        if not any(selection.get("status") == "READY" for selection in mainline_selection.values()):
             for market_payload in payload.get("markets", []):
                 if not isinstance(market_payload, dict):
                     continue
@@ -2757,9 +2848,7 @@ class ReadModelService:
             if competition_id in self._r4_1_artifact_invalid_reasons
             else "UNAVAILABLE",
             "artifact_reason": self._r4_1_artifact_invalid_reasons.get(competition_id),
-            "feature_as_of": r4_1_rows.get("feature_as_of")
-            if r4_1_rows is not None
-            else None,
+            "feature_as_of": r4_1_rows.get("feature_as_of") if r4_1_rows is not None else None,
         }
         self._attach_xg_reason_values(
             payload,
@@ -2863,8 +2952,9 @@ class ReadModelService:
         rows = [row for row in snapshots if str(row.get("team_id") or "") == team_id]
         return max(
             rows,
-            key=lambda row: parse_provider_time(row.get("as_of_time"))
-            or datetime.min.replace(tzinfo=UTC),
+            key=lambda row: (
+                parse_provider_time(row.get("as_of_time")) or datetime.min.replace(tzinfo=UTC)
+            ),
             default={},
         )
 
@@ -4885,11 +4975,14 @@ class ReadModelService:
                 else "legacy_fitted_model_inputs"
             ),
         }
-        created_at = self._first_text(
-            card.get("generated_at"),
-            feature_as_of,
-            pricing_shadow.get("as_of"),
-        ) or "UNKNOWN"
+        created_at = (
+            self._first_text(
+                card.get("generated_at"),
+                feature_as_of,
+                pricing_shadow.get("as_of"),
+            )
+            or "UNKNOWN"
+        )
         for market, fair_key in (("ASIAN_HANDICAP", "fair_ah"), ("TOTALS", "fair_ou")):
             fair_line = derived_lines.get(fair_key, _float_or_none(pricing_shadow.get(fair_key)))
             fallback_reason = pricing_shadow.get("model_family_fallback_reason")
@@ -4946,9 +5039,7 @@ class ReadModelService:
         canonical_ah = _float_or_none(
             snapshots_by_market.get("ASIAN_HANDICAP", {}).get("model_fair_ah")
         )
-        canonical_ou = _float_or_none(
-            snapshots_by_market.get("TOTALS", {}).get("model_fair_ou")
-        )
+        canonical_ou = _float_or_none(snapshots_by_market.get("TOTALS", {}).get("model_fair_ou"))
         if canonical_ah is not None:
             pricing_shadow["fair_ah"] = canonical_ah
             pricing_shadow["edge_ah"] = (
