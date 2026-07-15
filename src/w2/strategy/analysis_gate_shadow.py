@@ -56,6 +56,8 @@ def build_analysis_gate_v2_shadow(
         "schema_version": SCHEMA_VERSION,
         "estimate_id": estimate.get("estimate_id"),
         "model_basis_id": estimate.get("model_basis_id"),
+        "artifact_hash": estimate.get("artifact_hash"),
+        "artifact_version": estimate.get("artifact_version"),
         "fixture_id": str(fixture_id or estimate.get("fixture_id") or ""),
         "kickoff_utc": kickoff_utc,
         "quote_id": quote_id,

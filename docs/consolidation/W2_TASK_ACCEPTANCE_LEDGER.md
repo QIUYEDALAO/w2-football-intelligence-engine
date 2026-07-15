@@ -694,3 +694,10 @@
 - Strict PASS 要求同 fixture/market/model basis/方向的两个不同 MarketQuote，至少间隔 15 分钟且均在 T-24h 至 T-30m；方向反转 FAIL，basis 变化重置，并冻结两组 `estimate_id + quote_id`。
 - ledger 与 performance 只结算、累计完成双确认的 Strict AH fixture；单快照不得进入 corrected settled evidence。TOTALS challenger 保持原有单快照研究语义。
 - Strict PASS 仍为不可见 shadow，不改变 WATCH、pick、tier、ANALYSIS_PICK、RECOMMEND、EV、lock 或三轨；未部署、未调用 provider、未写业务数据库、未重启服务。
+
+### V3 进展续58 · AH 方向集中度治理(2026-07-15)
+
+- #290 已合入 main `1b94602f0cc514140f1da0f12fff562ea19d73f0`，三项 CI 全绿；AH Strict Shadow 双报价确认、版本化 policy 和 confirmed-only 结算/统计已落地。
+- 当前分支 `codex/w2-ah-direction-bias-governance` 实施 AH-3：只读取完整 canonical identity、Snapshot v2 语义通过、quote 通过且已完成 Strict 确认的 corrected AH outcome，并按 distinct fixture 去重。
+- 方向、主客让/受让、0 盘、盘口档位、联赛、artifact 与 strategy version 分组统计；不足 8、8 连同向、10 中 8、10 中 9+ 分别输出预注册状态。
+- 集中度状态只作安全预警，不自动修改模型或推荐；安全保持 provider calls=0、DB writes=0、未部署或重启服务，RECOMMEND/lock/production/league 均不变。
