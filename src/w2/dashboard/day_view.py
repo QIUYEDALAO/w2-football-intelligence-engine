@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import quote
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
@@ -146,6 +147,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         else None,
         "one_liner": _optional_text(_field(card, contract, "one_liner")),
         "card_hash": _optional_text(_field(card, contract, "card_hash")),
+        **_audit_identity_fields(card, pick),
     }
 
 
@@ -175,6 +177,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         else None,
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
+        **_audit_identity_fields(card, None),
     }
 
 
@@ -237,7 +240,7 @@ def _analysis_context_fields(
             "compact_provenance": {},
             "scoreline_picks": [],
             "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
-            "audit_available": bool(_optional_text(card.get("fixture_id"))),
+            "audit_available": bool(_optional_text(card.get("audit_capture_hash"))),
             "audit_links": _audit_links(card),
         }
     card_dict = dict(card)
@@ -265,7 +268,7 @@ def _analysis_context_fields(
         "compact_provenance": _compact_provenance(card),
         "scoreline_picks": compact_scorelines,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
-        "audit_available": bool(_optional_text(card.get("fixture_id"))),
+        "audit_available": bool(_optional_text(card.get("audit_capture_hash"))),
         "audit_links": _audit_links(card),
     }
 
@@ -339,12 +342,42 @@ def _compact_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def _audit_links(card: Mapping[str, Any]) -> dict[str, str]:
     fixture_id = _optional_text(card.get("fixture_id"))
-    if not fixture_id:
+    capture_hash = _optional_text(card.get("audit_capture_hash"))
+    estimate_id = _optional_text(card.get("audit_estimate_id"))
+    if not fixture_id or not capture_hash:
         return {}
+    query = f"capture_hash={quote(capture_hash, safe='')}"
+    if estimate_id:
+        query += f"&estimate_id={quote(estimate_id, safe='')}"
+    return {"audit_detail_url": f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"}
+
+
+def _audit_identity_fields(
+    card: Mapping[str, Any],
+    pick: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    capture_hash = _optional_text(
+        card.get("audit_capture_hash")
+        or card.get("capture_hash")
+        or card.get("evidence_hash")
+        or card.get("card_hash")
+    )
+    estimate_id = _optional_text(
+        card.get("audit_estimate_id")
+        or (pick.get("estimate_id") if isinstance(pick, Mapping) else None)
+    )
+    fixture_id = _optional_text(card.get("fixture_id"))
+    detail_url = None
+    if fixture_id and capture_hash:
+        query = f"capture_hash={quote(capture_hash, safe='')}"
+        if estimate_id:
+            query += f"&estimate_id={quote(estimate_id, safe='')}"
+        detail_url = f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"
     return {
-        "analysis_card_url": f"/v1/fixtures/{fixture_id}/analysis-card",
-        "integrity_url": f"/v1/fixtures/{fixture_id}/integrity",
-        "odds_timeline_url": f"/v1/fixtures/{fixture_id}/odds-timeline",
+        "audit_capture_hash": capture_hash,
+        "audit_estimate_id": estimate_id,
+        "audit_available": bool(capture_hash),
+        "audit_detail_url": detail_url,
     }
 
 

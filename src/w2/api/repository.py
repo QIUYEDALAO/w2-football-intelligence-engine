@@ -25,6 +25,10 @@ from w2.analysis.market_movement import (
     build_market_timeline_reference,
 )
 from w2.api.singleflight_cache import SingleFlightCache
+from w2.audit.frozen_fixture_audit import (
+    MAX_AUDIT_RESPONSE_BYTES,
+    build_frozen_fixture_audit,
+)
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.date_window import (
@@ -150,6 +154,10 @@ from w2.tracking.forward_ledger_performance_cache import (
     ForwardLedgerPerformanceCache,
 )
 from w2.tracking.forward_outcome_ledger import ledger_fixture_ids
+from w2.tracking.frozen_capture_lookup import (
+    find_frozen_capture,
+    frozen_ledger_fingerprint,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -176,6 +184,13 @@ INTENT_LABELS_CN = {
 }
 
 LOCKED_PREMATCH_STATUSES = {"LIVE", "FINISHED"}
+
+
+class FrozenAuditRequestError(RuntimeError):
+    def __init__(self, reason: str, status_code: int) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.status_code = status_code
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -955,8 +970,12 @@ class ReadModelService:
         self._day_view_singleflight: SingleFlightCache[
             tuple[str, str, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
+        self._frozen_audit_singleflight: SingleFlightCache[
+            tuple[str, str, str, str, str], dict[str, Any]
+        ] = SingleFlightCache(max_entries=64)
         self._dashboard_metrics_lock = RLock()
         self._dashboard_build_seconds = 0.0
+        self._frozen_audit_blocked_count = 0
         self._forward_ledger_performance_cache = (
             forward_ledger_cache or ForwardLedgerPerformanceCache()
         )
@@ -2158,8 +2177,200 @@ class ReadModelService:
         }
 
     def analysis_card(self, fixture_id: str) -> dict[str, Any] | None:
+        """Compatibility alias for explicit offline/test callers; never route HTTP here."""
+        return self.build_analysis_card_offline(fixture_id)
+
+    def build_analysis_card_offline(self, fixture_id: str) -> dict[str, Any] | None:
+        """Expensive full analysis reconstruction for scheduled/offline use only, never HTTP."""
         with self._read_request_scope():
             return self._analysis_card_in_request(fixture_id)
+
+    def frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
+        """Return embedded/frozen evidence or a small fail-closed card; never rebuild models."""
+        with self._read_request_scope():
+            for card in self.repository.matchday_cards():
+                fixture = card.get("fixture", {})
+                if str(fixture.get("fixture_id")) != fixture_id:
+                    continue
+                embedded = card.get("analysis_card")
+                if isinstance(embedded, dict):
+                    return self._bounded_embedded_analysis_card(embedded, fixture_id=fixture_id)
+                projected = self._frozen_analysis_compatibility(card, fixture_id=fixture_id)
+                return projected or self._frozen_analysis_unavailable(fixture_id)
+            dashboard_reader = getattr(self.repository, "dashboard_fixture", None)
+            dashboard = dashboard_reader(fixture_id) if callable(dashboard_reader) else None
+            if isinstance(dashboard, Mapping):
+                embedded = dashboard.get("analysis_card")
+                if isinstance(embedded, dict):
+                    return self._bounded_embedded_analysis_card(embedded, fixture_id=fixture_id)
+                projected = self._frozen_analysis_compatibility(
+                    dashboard,
+                    fixture_id=fixture_id,
+                )
+                if projected is not None:
+                    return projected
+            return self._frozen_analysis_unavailable(fixture_id)
+
+    def audit_detail(
+        self,
+        fixture_id: str,
+        *,
+        capture_hash: str,
+        estimate_id: str | None = None,
+    ) -> dict[str, Any]:
+        runtime_root = get_settings().resolved_runtime_root
+        fingerprint = frozen_ledger_fingerprint(runtime_root)
+        cache_key = (
+            str(runtime_root.resolve()),
+            str(fixture_id),
+            str(capture_hash),
+            str(estimate_id or ""),
+            fingerprint,
+        )
+
+        def compute() -> dict[str, Any]:
+            lookup_started = monotonic()
+            lookup = find_frozen_capture(
+                runtime_root,
+                fixture_id=fixture_id,
+                capture_hash=capture_hash,
+                estimate_id=estimate_id,
+            )
+            lookup_seconds = monotonic() - lookup_started
+            if lookup.source_status != "PASS":
+                raise self._frozen_audit_error(lookup.reason, bool(lookup.fixture_records))
+            projection_started = monotonic()
+            audit = build_frozen_fixture_audit(
+                lookup,
+                requested_estimate_id=estimate_id,
+            )
+            projection_seconds = monotonic() - projection_started
+            if audit.get("integrity", {}).get("reason") == "AUDIT_PROJECTION_TOO_LARGE":
+                raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
+            serialization_started = monotonic()
+            response_bytes = len(
+                json.dumps(audit, ensure_ascii=False, default=str).encode("utf-8")
+            )
+            serialization_seconds = monotonic() - serialization_started
+            if response_bytes > MAX_AUDIT_RESPONSE_BYTES - 4096:
+                raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
+            return {
+                "audit": audit,
+                "performance": {
+                    "frozen_audit_lookup_seconds": round(lookup_seconds, 6),
+                    "frozen_audit_projection_seconds": round(projection_seconds, 6),
+                    "frozen_audit_serialization_seconds": round(serialization_seconds, 6),
+                    "frozen_audit_response_bytes": response_bytes,
+                    "frozen_audit_fixture_record_count": len(lookup.fixture_records),
+                },
+            }
+
+        try:
+            payload = self._frozen_audit_singleflight.get_or_compute(
+                cache_key,
+                ttl_seconds=15 * 60,
+                compute=compute,
+            )
+        except FrozenAuditRequestError:
+            with self._dashboard_metrics_lock:
+                self._frozen_audit_blocked_count += 1
+            raise
+        cache_metrics = self._frozen_audit_singleflight.metrics()
+        performance = payload.setdefault("performance", {})
+        performance.update(
+            {
+                "frozen_audit_cache_hit": cache_metrics["cache_hit"],
+                "frozen_audit_cache_miss": cache_metrics["cache_miss"],
+                "frozen_audit_singleflight_owner": cache_metrics["singleflight_owner"],
+                "frozen_audit_singleflight_waiter": cache_metrics["singleflight_waiter"],
+                "frozen_audit_blocked_count": self._frozen_audit_blocked_count,
+            }
+        )
+        return payload
+
+    @staticmethod
+    def _frozen_audit_error(reason: str | None, fixture_exists: bool) -> FrozenAuditRequestError:
+        code = str(reason or "FROZEN_AUDIT_SOURCE_UNAVAILABLE")
+        if code in {"LEDGER_NOT_FOUND"}:
+            return FrozenAuditRequestError(code, 404)
+        if code == "CAPTURE_NOT_FOUND":
+            return FrozenAuditRequestError(
+                "CAPTURE_IDENTITY_MISMATCH" if fixture_exists else code,
+                409 if fixture_exists else 404,
+            )
+        if code in {
+            "ESTIMATE_IDENTITY_MISMATCH",
+            "AMBIGUOUS_LEGACY_CAPTURE",
+            "AMBIGUOUS_CAPTURE",
+        }:
+            return FrozenAuditRequestError(code, 409)
+        if code == "AUDIT_PROJECTION_TOO_LARGE":
+            return FrozenAuditRequestError(code, 413)
+        return FrozenAuditRequestError(code, 503)
+
+    def _bounded_embedded_analysis_card(
+        self,
+        embedded: dict[str, Any],
+        *,
+        fixture_id: str,
+    ) -> dict[str, Any]:
+        normalized = self._normalize_analysis_card(embedded, fixture_id=fixture_id)
+        if len(json.dumps(normalized, ensure_ascii=False, default=str).encode("utf-8")) < (
+            MAX_AUDIT_RESPONSE_BYTES - 16 * 1024
+        ):
+            return normalized
+        return self._frozen_analysis_unavailable(
+            fixture_id,
+            reason="FROZEN_ANALYSIS_CAPTURE_TOO_LARGE",
+        )
+
+    def _frozen_analysis_compatibility(
+        self,
+        capture: Mapping[str, Any],
+        *,
+        fixture_id: str,
+    ) -> dict[str, Any] | None:
+        capture_hash = str(
+            capture.get("capture_hash")
+            or capture.get("evidence_hash")
+            or capture.get("card_hash")
+            or ""
+        )
+        if not capture_hash:
+            return None
+        pick = capture.get("pick")
+        estimate_id = str(pick.get("estimate_id") or "") if isinstance(pick, Mapping) else ""
+        try:
+            payload = self.audit_detail(
+                fixture_id,
+                capture_hash=capture_hash,
+                estimate_id=estimate_id or None,
+            )
+        except FrozenAuditRequestError:
+            return None
+        return {
+            "fixture_id": fixture_id,
+            "decision": "SKIP",
+            "source": "frozen_audit_compatibility",
+            "reason_code": "FROZEN_AUDIT_COMPATIBILITY_ONLY",
+            "audit": payload["audit"],
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+
+    def _frozen_analysis_unavailable(
+        self,
+        fixture_id: str,
+        *,
+        reason: str = "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE",
+    ) -> dict[str, Any]:
+        fallback = self._fallback_analysis_card(
+            fixture_id=fixture_id,
+            market_coverage={},
+            source="frozen_analysis_fail_closed",
+        )
+        fallback.update({"reason_code": reason, "data_status": "BLOCKED"})
+        return fallback
 
     def _analysis_card_in_request(self, fixture_id: str) -> dict[str, Any] | None:
         for card in self.repository.matchday_cards():
@@ -4346,7 +4557,7 @@ class ReadModelService:
                     ),
                     "temporal_status": dashboard.get("temporal_status"),
                     "integrity_status": dashboard.get("integrity_status"),
-                    "analysis_card": self.analysis_card(fixture_id),
+                    "analysis_card": self.frozen_analysis_card(fixture_id),
                 }
             )
             return row
@@ -4397,7 +4608,7 @@ class ReadModelService:
                             "probability_source": "stage7e_forward_holdout",
                         },
                         "risk_notes": [] if snapshots else ["market_not_comparable"],
-                        "analysis_card": self.analysis_card(fixture_id),
+                        "analysis_card": self.frozen_analysis_card(fixture_id),
                     }
                 )
                 return row
@@ -5804,13 +6015,7 @@ class ReadModelService:
 
     def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
-        analysis: dict[str, Any] | None = None
-        if fixture_id and row.get("_dashboard_source") == "future_fixture_payload":
-            item = self._fixture_payload_by_id(fixture_id)
-            if item is not None:
-                analysis = self._analysis_card_from_provider_payload(fixture_id, item)
-        elif fixture_id:
-            analysis = self.analysis_card(fixture_id)
+        analysis = self.frozen_analysis_card(fixture_id) if fixture_id else None
         card = analysis or self._fallback_analysis_card(
             fixture_id=fixture_id or "unknown-fixture",
             market_coverage={},

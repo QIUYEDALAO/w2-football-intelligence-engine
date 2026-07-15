@@ -217,7 +217,7 @@ def test_analysis_card_endpoint_reports_l2_build_seconds(
     monkeypatch: MonkeyPatch,
 ) -> None:
     class AnalysisService:
-        def analysis_card(self, fixture_id: str) -> dict[str, Any]:
+        def frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
             return {"fixture_id": fixture_id, "decision": "SKIP"}
 
     monkeypatch.setattr(routers, "service", AnalysisService())

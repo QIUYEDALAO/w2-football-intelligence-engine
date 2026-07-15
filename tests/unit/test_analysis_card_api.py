@@ -341,6 +341,7 @@ def test_fixture_detail_includes_analysis_card() -> None:
     assert detail is not None
     assert detail["analysis_card"]["fixture_id"] == "1489404"
     assert len(detail["analysis_card"]["markets"]) == 4
+    assert detail["analysis_card"]["reason_code"] == "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE"
 
 
 class MixedFixtureRepository:

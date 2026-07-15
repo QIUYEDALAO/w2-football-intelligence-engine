@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from w2.api.cache import read_cache
 from w2.api.metrics import metrics
-from w2.api.repository import ReadModelService
+from w2.api.repository import FrozenAuditRequestError, ReadModelService
 from w2.api.schemas import (
     AnalysisCardResponse,
     BacktestLatestResponse,
@@ -27,6 +27,7 @@ from w2.api.schemas import (
     FixtureListResponse,
     FormalTrackingSummaryResponse,
     ForwardHoldoutStatusResponse,
+    FrozenAuditDetailResponse,
     IntegrityResponse,
     LeagueListResponse,
     LeagueOnboardingResponse,
@@ -414,15 +415,46 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
 
 
 @public_router.get(
+    "/fixtures/{fixture_id}/audit-detail",
+    response_model=FrozenAuditDetailResponse,
+)
+def audit_detail(
+    fixture_id: str,
+    request: Request,
+    capture_hash: Annotated[str, Query(min_length=1)],
+    estimate_id: str | None = None,
+) -> dict[str, Any] | JSONResponse:
+    started = monotonic()
+    endpoint = "/v1/fixtures/{fixture_id}/audit-detail"
+    try:
+        payload = service.audit_detail(
+            fixture_id,
+            capture_hash=capture_hash,
+            estimate_id=estimate_id,
+        )
+    except FrozenAuditRequestError as exc:
+        metrics.record(endpoint, exc.status_code, started)
+        error = ErrorPayload(
+            request_id=request_id(request),
+            code=exc.reason,
+            message=exc.reason,
+        )
+        return JSONResponse(status_code=exc.status_code, content=error.model_dump())
+    metrics.record(endpoint, 200, started)
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        **payload,
+    }
+
+
+@public_router.get(
     "/fixtures/{fixture_id}/analysis-card",
     response_model=AnalysisCardResponse,
 )
 def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
     started = monotonic()
-    card = service.analysis_card(fixture_id)
-    if card is None:
-        metrics.record("/v1/fixtures/{fixture_id}/analysis-card", 404, started)
-        raise HTTPException(status_code=404, detail="analysis card not found")
+    card = service.frozen_analysis_card(fixture_id)
     elapsed = monotonic() - started
     metrics.record("/v1/fixtures/{fixture_id}/analysis-card", 200, started)
     return {
