@@ -1,0 +1,24 @@
+{
+  "api_container_id": "028c7ac90a346bcffe1fdfcab2a00e85fb68bfec7d4ac558c7a0947d02a8492b",
+  "cgroup_limit_mib": 1024,
+  "cgroup_memory_events": {
+    "oom_kill_delta": 1,
+    "source": "kernel_journal"
+  },
+  "evidence_sha256": {
+    "docker_restart_events": "faf709a184b2b5d13bc8478bf9e79787bf92247fe78b187b4c1d62e4009dc9da",
+    "kernel_oom_lines": "f18869ca32ea67743354663c39f20180149151965a403adaf93856d8ffec4e43",
+    "source_ledger_line": "d9f6a496fa3b214d4ec9a7fff5415816eed45fd2a9004cc9e2ed8d3ccdee1758"
+  },
+  "exit_code": 137,
+  "fixture_id": "1576804",
+  "oom_peak_anon_rss_kib": 1022048,
+  "original_pre_request_rss_mib": null,
+  "original_pre_request_rss_reason": "NOT_PRESERVED_IN_ORIGINAL_RELEASE_EVIDENCE",
+  "request_time_utc": "2026-07-15T14:31:35Z",
+  "request_url": "/v1/fixtures/1576804/analysis-card",
+  "restart_time_utc": "2026-07-15T14:31:36Z",
+  "source_ledger_file": "2026-07-07_staging.jsonl",
+  "stable_postrollback_rss_mib": 313.3,
+  "total_vm_kib": 2665100
+}
