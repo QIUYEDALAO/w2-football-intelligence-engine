@@ -383,7 +383,7 @@ class MixedFixtureRepository:
         ]
 
 
-def test_analysis_card_reads_feature_readiness_when_market_rows_are_incomplete() -> None:
+def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None:
     service = ReadModelService(repository=cast(Any, MixedFixtureRepository()))
 
     card = service.analysis_card("db-world-cup-fixture")
