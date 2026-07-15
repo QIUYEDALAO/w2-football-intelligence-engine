@@ -764,3 +764,11 @@
 - 原 OOM fixture `1576804` 已形成脱敏回归 fixture；原事故为 API 在约 1 GiB cgroup 上限触发 OOM kill、exit 137 和重启。新契约要求响应不超过 512 KiB、单请求新增峰值不超过 192 MiB，并禁止 HTTP live rebuild。
 - 合并后全量验收为 `1406 passed, 4 skipped`；Ruff、Mypy、TypeScript、Web build、offline acceptance、tracked-output guard 全部 PASS。冻结 denominator 继续为 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/unmatched/contamination=0，Strict=0。
 - staging 仍运行 rollback release `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`。下一步仅允许一次 staging 批量重部署；任一 OOM、exit 137、restart/oom_kill 增量、5xx、超大响应、身份不一致或 denominator/三轨边界变化都必须自动回滚。production、RECOMMEND、lock、OFFICIAL、threshold、artifact 与联赛 enablement 均未改变。
+
+### V3 进展续66 · Frozen L2 Audit Recovery staging 回滚(2026-07-16)
+
+- docs gate #308 合并后尝试部署 `main@2658d37f8ec7e69de5b5737ff37fb8e9cd822c35`；四服务镜像、artifact v1、migration head、API readiness 和 DayView business gate 均通过，API/Web/worker/scheduler 曾短暂同 SHA、restart=0。
+- L1 公网验收先于 L2 压力测试失败：`today` 15/15 HTTP 200，但暖请求约 1.70–1.84 秒；`next36` 15/15 HTTP 200、p95 约 4.99 秒、max 5.10 秒；`future` 声明响应约 4,039,702 bytes，12 秒仅传输约 0.99–1.14 MB并触发 client timeout。该结果违反 L1 timeout=0、cold max<12 秒、warm p95<=1.5 秒硬门。
+- 因前置 L1 硬门失败，未继续执行原 OOM fixture 的 L2 串行/并发压力矩阵，不能宣称 staging L2 已恢复。新 release 在回滚前 API RSS 从约 223.6 MiB升至观察峰值 328.9 MiB，delta约105.3 MiB；cgroup oom/oom_kill=0、exit137=0、restart=0。
+- 已用四服务冻结镜像回滚到 `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`；API/Web/worker/scheduler 均 running、restart=0，`/ready` PASS，watchdog active。provider总数保持485（delta=0）、队列保持0；历史 ledger 2026-07-07至07-14逐文件 hash完全一致，07-15部署前字节前缀 hash一致，仅允许后续 append。
+- 回滚后 canonical 口径仍为 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/identity-unmatched/contamination=0，Strict=0，RECOMMEND=0、lock=0、OFFICIAL=0。最终结果为 `STAGING_ROLLED_BACK_L2_BLOCKED`；下一修复必须先缩小/分页 `future` L1 payload并满足公网延迟门，不得通过提高 timeout、降低业务门或移除审计字段掩盖。

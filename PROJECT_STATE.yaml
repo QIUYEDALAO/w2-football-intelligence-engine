@@ -683,8 +683,9 @@ boss_view_performance_recovery:
     official_count: 0
 
 frozen_l2_audit_recovery:
-  status: READY_FOR_SINGLE_STAGING_REDEPLOY
+  status: STAGING_ROLLED_BACK_L2_BLOCKED
   code_target_sha: 5005df4e4873e618399bedaf4f32c9e5bbb2ef8f
+  attempted_release_sha: 2658d37f8ec7e69de5b5737ff37fb8e9cd822c35
   deployed_staging_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
   recovery_prs:
     - 305
@@ -699,6 +700,21 @@ frozen_l2_audit_recovery:
   cache_ttl_seconds: 900
   oom_regression_fixture_id: "1576804"
   rollback_release: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  staging_result:
+    l1_today_http_200: true
+    l1_next36_http_200: true
+    l1_future_timeout: true
+    future_response_bytes_declared: 4039702
+    client_timeout_seconds: 12
+    l2_stress_executed: false
+    rollback_completed: true
+    api_oom_count: 0
+    api_oom_kill_count: 0
+    api_restart_count: 0
+    provider_delta: 0
+    queue_delta: 0
+    historical_ledger_prefix_match: true
+    blocker: L1_FUTURE_RESPONSE_EXCEEDS_BROWSER_LATENCY_GATE
   rollback_conditions:
     - API OOM, exit 137, restart increase, or cgroup oom_kill increase
     - public audit-detail or analysis-card returns 5xx for the regression fixture
