@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "scripts/check_w2_future_refresh_staging_contract.py"
 STAGING_COMPOSE = ROOT / "infra/compose/compose.staging.yml"
+PREDEPLOY_SMOKE = ROOT / "scripts/run_predeploy_e2e_smoke.sh"
 
 
 def load_checker() -> ModuleType:
@@ -68,3 +69,12 @@ def test_predeploy_contract_rejects_public_api_port() -> None:
 
     with pytest.raises(SystemExit):
         checker.assert_public_ports_allowlisted(compose, STAGING_COMPOSE)
+
+
+def test_predeploy_smoke_seeds_and_removes_a_valid_readiness_artifact() -> None:
+    script = PREDEPLOY_SMOKE.read_text(encoding="utf-8")
+
+    assert "build_r4_1_artifact_payload" in script
+    assert "predeploy_readiness.v1.json" in script
+    assert 'rm -f "${PREDEPLOY_ARTIFACT}"' in script
+    assert script.index("build_r4_1_artifact_payload") < script.index("chmod 0555 runtime")
