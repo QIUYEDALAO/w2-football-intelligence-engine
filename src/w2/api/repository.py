@@ -953,7 +953,7 @@ class ReadModelService:
             tuple[str, str, str, bool], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
         self._day_view_singleflight: SingleFlightCache[
-            tuple[str, str, str], dict[str, Any]
+            tuple[str, str, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
         self._dashboard_metrics_lock = RLock()
         self._dashboard_build_seconds = 0.0
@@ -1282,8 +1282,13 @@ class ReadModelService:
                 if target_date
                 else default_football_day(datetime.now(UTC))
             )
-            cache_key = (requested_date.isoformat(), window, timezone)
-            return self._day_view_singleflight.get_or_compute(
+            cache_key = (
+                requested_date.isoformat(),
+                window,
+                timezone,
+                release_env("W2_GIT_SHA"),
+            )
+            payload = self._day_view_singleflight.get_or_compute(
                 cache_key,
                 ttl_seconds=self._dashboard_cache_ttl(window, include_debug=False),
                 compute=lambda: self._build_dashboard_day_view_payload(
@@ -1292,6 +1297,26 @@ class ReadModelService:
                     timezone=timezone,
                 ),
             )
+            cache_metrics = self._day_view_singleflight.metrics()
+            performance = payload.setdefault("performance", {})
+            if isinstance(performance, dict):
+                dayview_metrics = performance.setdefault("dayview_cache_metrics", {})
+                if isinstance(dayview_metrics, dict):
+                    dayview_metrics.update(
+                        {
+                            "dayview_cache_hit": cache_metrics["cache_hit"],
+                            "dayview_cache_miss": cache_metrics["cache_miss"],
+                            "dayview_singleflight_owner": cache_metrics[
+                                "singleflight_owner"
+                            ],
+                            "dayview_singleflight_waiter": cache_metrics[
+                                "singleflight_waiter"
+                            ],
+                            "dayview_build_inflight": cache_metrics["build_inflight"],
+                            "dayview_cache_entry_count": cache_metrics["cache_entry_count"],
+                        }
+                    )
+            return payload
 
     def _build_dashboard_day_view_payload(
         self,
@@ -1302,11 +1327,16 @@ class ReadModelService:
     ) -> dict[str, Any]:
         self._reset_read_caches()
         version = self.version()
+        fixture_started = monotonic()
         selected_rows = self._dashboard_rows_for_window(
             requested_date=requested_date,
             window=window,
         )
+        fixture_read_seconds = monotonic() - fixture_started
+        market_started = monotonic()
         self._prime_observations_for_rows(selected_rows)
+        market_observation_read_seconds = monotonic() - market_started
+        projection_started = monotonic()
         frozen_captures = self._latest_day_view_captures(selected_rows)
         cards = [
             self._day_view_card_from_frozen_capture(row, frozen_captures[fixture_id])
@@ -1318,7 +1348,11 @@ class ReadModelService:
             for row in selected_rows
             if (fixture_id := str(row.get("fixture_id") or ""))
         ]
+        compact_card_projection_seconds = monotonic() - projection_started
         generated_at = datetime.now(UTC)
+        ledger_started = monotonic()
+        performance = self._day_view_performance(cards)
+        ledger_summary_seconds = monotonic() - ledger_started
         payload = {
             "generated_at": generated_at,
             "date": requested_date.isoformat(),
@@ -1330,7 +1364,7 @@ class ReadModelService:
                 "release_id": version["release_id"],
             },
             "all": cards,
-            "performance": self._day_view_performance(cards),
+            "performance": performance,
         }
         view = build_dashboard_day_view(
             payload,
@@ -1339,6 +1373,28 @@ class ReadModelService:
         )
         view["source"] = "direct_day_view_projection"
         view["performance"] = payload["performance"]
+        dayview_metrics = view["performance"].setdefault("dayview_cache_metrics", {})
+        dayview_metrics.update(
+            {
+                "fixture_read_seconds": round(fixture_read_seconds, 6),
+                "market_observation_read_seconds": round(
+                    market_observation_read_seconds,
+                    6,
+                ),
+                "compact_card_projection_seconds": round(
+                    compact_card_projection_seconds,
+                    6,
+                ),
+                "ledger_summary_seconds": round(ledger_summary_seconds, 6),
+            }
+        )
+        serialization_started = monotonic()
+        serialized_view = json.dumps(view, ensure_ascii=False, default=str).encode("utf-8")
+        dayview_metrics["dayview_serialization_seconds"] = round(
+            monotonic() - serialization_started,
+            6,
+        )
+        dayview_metrics["response_bytes"] = len(serialized_view)
         return view
 
     def _dashboard_rows_for_window(

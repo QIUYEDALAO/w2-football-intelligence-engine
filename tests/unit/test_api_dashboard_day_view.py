@@ -211,3 +211,17 @@ def test_dashboard_day_view_endpoint_does_not_call_full_dashboard(
             "timezone": "UTC",
         }
     ]
+
+
+def test_analysis_card_endpoint_reports_l2_build_seconds(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    class AnalysisService:
+        def analysis_card(self, fixture_id: str) -> dict[str, Any]:
+            return {"fixture_id": fixture_id, "decision": "SKIP"}
+
+    monkeypatch.setattr(routers, "service", AnalysisService())
+    response = TestClient(app).get("/v1/fixtures/fixture-1/analysis-card")
+
+    assert response.status_code == 200
+    assert response.json()["performance"]["l2_analysis_build_seconds"] >= 0

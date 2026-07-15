@@ -76,6 +76,78 @@ def test_cold_dashboard_concurrency_does_not_multiply_build() -> None:
     assert results[1]["all"] == []
 
 
+def test_cold_dayview_concurrency_does_not_multiply_build() -> None:
+    service = ReadModelService(repository=cast(Any, _EmptyRepository()))
+    barrier = threading.Barrier(8)
+    lock = threading.Lock()
+    calls = 0
+
+    def build(**_: object) -> dict[str, Any]:
+        nonlocal calls
+        with lock:
+            calls += 1
+        sleep(0.05)
+        return {"performance": {}, "cards": []}
+
+    service._build_dashboard_day_view_payload = build  # type: ignore[method-assign]
+
+    def task(_: int) -> dict[str, Any]:
+        barrier.wait()
+        return service.dashboard_day_view(target_date="2026-07-15", window="future")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(task, range(8)))
+
+    assert calls == 1
+    assert all("dayview_cache_metrics" in row["performance"] for row in results)
+    assert max(
+        row["performance"]["dayview_cache_metrics"]["dayview_singleflight_waiter"]
+        for row in results
+    ) == 7
+
+
+def test_dayview_cache_identity_includes_release_sha(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    service = ReadModelService(repository=cast(Any, _EmptyRepository()))
+    calls = 0
+
+    def build(**_: object) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        return {"performance": {}, "cards": []}
+
+    service._build_dashboard_day_view_payload = build  # type: ignore[method-assign]
+    monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    service.dashboard_day_view(target_date="2026-07-15", window="future")
+    monkeypatch.setenv("W2_GIT_SHA", "release-b")
+    service.dashboard_day_view(target_date="2026-07-15", window="future")
+
+    assert calls == 2
+
+
+def test_dayview_reports_critical_path_metrics(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    service = ReadModelService(repository=cast(Any, _EmptyRepository()))
+    monkeypatch.setattr(
+        "w2.api.repository.get_settings",
+        lambda: SimpleNamespace(
+            resolved_runtime_root=tmp_path,
+            environment=Environment.TEST,
+        ),
+    )
+
+    payload = service.dashboard_day_view(target_date="2026-07-15", window="future")
+    metrics = payload["performance"]["dayview_cache_metrics"]
+
+    for field in (
+        "fixture_read_seconds",
+        "market_observation_read_seconds",
+        "compact_card_projection_seconds",
+        "ledger_summary_seconds",
+        "dayview_serialization_seconds",
+        "response_bytes",
+    ):
+        assert field in metrics
+
+
 def test_today_and_future_share_ledger_projection(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     calls = 0
 

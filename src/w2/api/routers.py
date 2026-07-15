@@ -418,10 +418,19 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
     response_model=AnalysisCardResponse,
 )
 def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
+    started = monotonic()
     card = service.analysis_card(fixture_id)
     if card is None:
+        metrics.record("/v1/fixtures/{fixture_id}/analysis-card", 404, started)
         raise HTTPException(status_code=404, detail="analysis card not found")
-    return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
+    elapsed = monotonic() - started
+    metrics.record("/v1/fixtures/{fixture_id}/analysis-card", 200, started)
+    return {
+        "request_id": request_id(request),
+        "fixture_id": fixture_id,
+        "card": card,
+        "performance": {"l2_analysis_build_seconds": round(elapsed, 6)},
+    }
 
 
 @public_router.get(

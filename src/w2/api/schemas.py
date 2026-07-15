@@ -253,6 +253,7 @@ class AnalysisCardResponse(BaseModel):
     request_id: str
     fixture_id: str
     card: dict[str, Any]
+    performance: dict[str, float] = Field(default_factory=dict)
 
 
 class MarketRankingResponse(BaseModel):

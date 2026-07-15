@@ -904,4 +904,5 @@ export interface FixtureAuditDetails {
   market_probabilities: Record<string, unknown>;
   model_probabilities: Record<string, unknown>;
   odds_timeline: Record<string, unknown>;
+  performance: Record<string, unknown>;
 }

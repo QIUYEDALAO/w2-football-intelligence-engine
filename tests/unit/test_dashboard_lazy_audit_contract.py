@@ -20,6 +20,9 @@ def test_l2_is_lazy_singleflight_and_release_scoped() -> None:
 
     assert "fixtureAuditInflight" in api
     assert "fixtureAuditCache" in api
+    assert "FIXTURE_AUDIT_CACHE_MAX_ENTRIES = 64" in api
+    assert "FIXTURE_AUDIT_CACHE_TTL_MS" in api
+    assert "activeFixtureAuditRelease" in api
     assert "fetchFixtureAuditDetails" in api
     assert 'const key = [fixtureId, estimateId ?? "NO_ESTIMATE", apiReleaseSha]' in api
     for endpoint in (
