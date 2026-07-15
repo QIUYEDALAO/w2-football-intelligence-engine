@@ -11,6 +11,7 @@ from typing import Any
 from w2.tracking.canonical_identity import performance_key
 
 _SCOPES = {"VALIDATION", "OFFICIAL", "SHADOW"}
+CANONICAL_OUTCOME_PROJECTION_VERSION = "w2.canonical_outcome_projection.v1"
 _MARKETS = {"ASIAN_HANDICAP", "TOTALS"}
 _SELECTIONS = {
     "ASIAN_HANDICAP": {"HOME_AH", "AWAY_AH"},
