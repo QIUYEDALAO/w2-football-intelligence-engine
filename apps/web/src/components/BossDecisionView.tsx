@@ -997,6 +997,7 @@ export function DecisionRow({
                 market_probabilities: audit.market_probabilities,
                 model_probabilities: audit.model_probabilities,
                 odds_timeline: audit.odds_timeline,
+                performance: audit.performance,
               }, null, 2)}</pre>
             </details>
           ) : null}

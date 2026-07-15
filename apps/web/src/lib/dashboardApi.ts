@@ -35,7 +35,10 @@ interface DashboardCacheEntry {
 }
 
 const fixtureAuditInflight = new Map<string, Promise<FixtureAuditDetails>>();
-const fixtureAuditCache = new Map<string, FixtureAuditDetails>();
+const fixtureAuditCache = new Map<string, { expiresAt: number; detail: FixtureAuditDetails }>();
+const FIXTURE_AUDIT_CACHE_MAX_ENTRIES = 64;
+const FIXTURE_AUDIT_CACHE_TTL_MS = 15 * 60_000;
+let activeFixtureAuditRelease = "";
 
 interface FetchDashboardArgs {
   date: string;
@@ -1067,9 +1070,15 @@ export function fetchFixtureAuditDetails(
   estimateId: string | null,
   apiReleaseSha: string,
 ): Promise<FixtureAuditDetails> {
+  if (activeFixtureAuditRelease && activeFixtureAuditRelease !== apiReleaseSha) {
+    fixtureAuditCache.clear();
+    fixtureAuditInflight.clear();
+  }
+  activeFixtureAuditRelease = apiReleaseSha;
   const key = [fixtureId, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
   const cached = fixtureAuditCache.get(key);
-  if (cached) return Promise.resolve(cached);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
+  if (cached) fixtureAuditCache.delete(key);
   const inflight = fixtureAuditInflight.get(key);
   if (inflight) return inflight;
 
@@ -1093,8 +1102,17 @@ export function fetchFixtureAuditDetails(
       market_probabilities: asRecord(marketPayload),
       model_probabilities: asRecord(modelPayload),
       odds_timeline: asRecord(oddsPayload),
+      performance: asRecord(analysis.performance),
     };
-    fixtureAuditCache.set(key, detail);
+    fixtureAuditCache.set(key, {
+      expiresAt: Date.now() + FIXTURE_AUDIT_CACHE_TTL_MS,
+      detail,
+    });
+    while (fixtureAuditCache.size > FIXTURE_AUDIT_CACHE_MAX_ENTRIES) {
+      const oldest = fixtureAuditCache.keys().next().value;
+      if (oldest === undefined) break;
+      fixtureAuditCache.delete(oldest);
+    }
     return detail;
   }).finally(() => {
     fixtureAuditInflight.delete(key);
