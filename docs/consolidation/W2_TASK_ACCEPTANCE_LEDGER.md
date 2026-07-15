@@ -755,3 +755,12 @@
 - 已按 `/opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json` 回滚，并从已知良好 release 源精确重建；staging API/Web/worker/scheduler 全部恢复 `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`、healthy、restart=0。
 - 回滚后 VALIDATION=`43/16/27`、Wide=`60/22/38`，duplicate/conflict/unmatched/contamination 均为 0，Strict=0、provider delta=0、queue=0。production、RECOMMEND、lock、OFFICIAL、threshold、artifact 和联赛 enablement 均未改变。
 - 最终结论：`STAGING_ROLLED_BACK_PERFORMANCE_BLOCKED`。下一项只能是独立 L2 critical-path 修复 PR，以 bounded per-fixture projection 取代完整 Dashboard 重建，并证明内存低于 API cgroup 上限后再申请 staging 重部署。
+
+### V3 进展续65 · Frozen L2 Audit OOM Recovery 部署前收口(2026-07-16)
+
+- #305、#306、#307 已依次合并，代码目标 `main@5005df4e4873e618399bedaf4f32c9e5bbb2ef8f`。冻结 forward capture 现在通过逐行、有界、exact capture identity 查询生成 per-fixture 审计投影；不得装载全 ledger 或重建 FeatureSet、Simulation、FME、完整 Dashboard。
+- 公共 `/v1/fixtures/{fixture_id}/audit-detail` 只读取冻结 capture，响应上限 512 KiB；公共 `/analysis-card` 只返回冻结兼容投影或小型 fail-closed 响应，完整分析重建仅保留给显式离线入口。
+- Boss View 首次展开 L2 只请求一次 exact `audit-detail`，缓存键绑定 fixture/capture/estimate/API SHA；盘口时间线为二级独立懒加载。404/409/413/503 不影响 L1，迟到响应不能覆盖新 capture。
+- 原 OOM fixture `1576804` 已形成脱敏回归 fixture；原事故为 API 在约 1 GiB cgroup 上限触发 OOM kill、exit 137 和重启。新契约要求响应不超过 512 KiB、单请求新增峰值不超过 192 MiB，并禁止 HTTP live rebuild。
+- 合并后全量验收为 `1406 passed, 4 skipped`；Ruff、Mypy、TypeScript、Web build、offline acceptance、tracked-output guard 全部 PASS。冻结 denominator 继续为 VALIDATION `43/16/27`、Wide `60/22/38`，duplicate/conflict/unmatched/contamination=0，Strict=0。
+- staging 仍运行 rollback release `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`。下一步仅允许一次 staging 批量重部署；任一 OOM、exit 137、restart/oom_kill 增量、5xx、超大响应、身份不一致或 denominator/三轨边界变化都必须自动回滚。production、RECOMMEND、lock、OFFICIAL、threshold、artifact 与联赛 enablement 均未改变。

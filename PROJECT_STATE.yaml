@@ -682,7 +682,51 @@ boss_view_performance_recovery:
     lock_count: 0
     official_count: 0
 
+frozen_l2_audit_recovery:
+  status: READY_FOR_SINGLE_STAGING_REDEPLOY
+  code_target_sha: 5005df4e4873e618399bedaf4f32c9e5bbb2ef8f
+  deployed_staging_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  recovery_prs:
+    - 305
+    - 306
+    - 307
+  source: FROZEN_FORWARD_CAPTURE
+  public_http_live_rebuild: false
+  analysis_card_live_rebuild: false
+  max_audit_response_bytes: 524288
+  max_estimates: 2
+  cache_entries: 64
+  cache_ttl_seconds: 900
+  oom_regression_fixture_id: "1576804"
+  rollback_release: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  rollback_conditions:
+    - API OOM, exit 137, restart increase, or cgroup oom_kill increase
+    - public audit-detail or analysis-card returns 5xx for the regression fixture
+    - audit payload exceeds 512 KiB or L1/L2 capture identity diverges
+    - canonical denominator, track isolation, RECOMMEND, lock, or OFFICIAL changes
+  predeploy_acceptance:
+    pytest: 1406 passed, 4 skipped
+    validation_raw_canonical_audit_only: "43/16/27"
+    wide_raw_canonical_audit_only: "60/22/38"
+    canonical_duplicate_count: 0
+    outcome_conflict_count: 0
+    identity_aware_unmatched_count: 0
+    cross_track_contamination_count: 0
+    strict_candidate_count: 0
+    recommend_count: 0
+    lock_count: 0
+    official_count: 0
+
 latest_merged_prs:
+  - number: 307
+    title: W2 bounded Boss View L2 audit client
+    merge_sha: 5005df4e4873e618399bedaf4f32c9e5bbb2ef8f
+  - number: 306
+    title: W2 safe frozen audit HTTP front door
+    merge_sha: 0784819bed194dc6d924d3c14cbd81658e0988a5
+  - number: 305
+    title: W2 bounded frozen fixture audit projection
+    merge_sha: 9b90ed22384087e210ed17378a30b62cb582a2c0
   - number: 303
     title: W2 instrument Boss View critical path
     merge_sha: 4dbaf517f62af47fbfbc11acfb21092e8b1380f2
