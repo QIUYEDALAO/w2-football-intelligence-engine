@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-15T11:03:46Z"
-current_phase: validation correctness recovery staging observation
-current_status: STAGING_VALIDATION_RECOVERED_WITH_WARNINGS
+last_updated_utc: "2026-07-15T14:38:57Z"
+current_phase: Boss View critical-path recovery follow-up
+current_status: STAGING_ROLLED_BACK_PERFORMANCE_BLOCKED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -20,7 +20,7 @@ context_contract:
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 repository_state:
-  main_sha_at_rebaseline: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  main_sha_at_rebaseline: 4dbaf517f62af47fbfbc11acfb21092e8b1380f2
   deployed_code_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
   main_ci: SUCCESS
   main_ci_checks:
@@ -123,7 +123,7 @@ deployment_review:
   replacement_for_closed_pr: 277
   staging_code_deployed: true
   production_code_deployed: false
-  next_action: observe cold-path latency and accumulate corrected Strict evidence; do not open production or RECOMMEND
+  next_action: isolate the lazy L2 analysis-card stall and prove it cannot block readiness before attempting another staging deployment
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
@@ -638,7 +638,60 @@ prohibited:
   - committing runtime artifacts, reports, dist output, logs, cache, .env, keys, headers, raw provider payloads, or .learnings
   - adding Stage 16
 
+boss_view_performance_recovery:
+  status: STAGING_ROLLED_BACK_PERFORMANCE_BLOCKED
+  merged_main_sha: 4dbaf517f62af47fbfbc11acfb21092e8b1380f2
+  deployed_staging_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  merged_prs:
+    direct_lightweight_dayview: 301
+    lazy_l2_audit_details: 302
+    critical_path_observability: 303
+  l1_external_acceptance:
+    request_count: 45
+    http_200_count: 45
+    timeout_count: 0
+    http_502_504_count: 0
+    cold_p50_seconds: 1.7903
+    cold_p95_seconds: 3.0731
+    cold_max_seconds: 10.1041
+    warm_p50_seconds: 0.0072
+    warm_p95_seconds: 0.0179
+    warm_max_seconds: 0.0183
+    singleflight_owner_per_cold_key: 1
+    singleflight_waiters: "1:0,2:1,4:3,8:7"
+  blocker:
+    endpoint: /v1/fixtures/{fixture_id}/analysis-card
+    evidence: historical fixture L2 request returned 502; kernel OOM killed uvicorn at about 1022048 KiB anonymous RSS and Docker restarted it with exit 137
+    required_follow_up: replace full-dashboard L2 reconstruction with bounded per-fixture projection and prove memory stays below the API cgroup limit before redeployment
+  rollback:
+    manifest: /opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json
+    restored_release: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+    service_alignment: PASS
+    health_ready: PASS
+    provider_delta: 0
+    queue_length: 0
+  correctness_after_rollback:
+    validation_raw_canonical_audit_only: "43/16/27"
+    wide_raw_canonical_audit_only: "60/22/38"
+    canonical_duplicate_count: 0
+    outcome_conflict_count: 0
+    identity_aware_unmatched_count: 0
+    cross_track_contamination_count: 0
+    strict_candidate_count: 0
+    recommend_count: 0
+    lock_count: 0
+    official_count: 0
+
 latest_merged_prs:
+  - number: 303
+    title: W2 instrument Boss View critical path
+    merge_sha: 4dbaf517f62af47fbfbc11acfb21092e8b1380f2
+  - number: 302
+    title: W2 lazy-load Dashboard audit details
+    merge_sha: 5cf1d8d93851b5591506e7054ebd039cb622ecaf
+  - number: 301
+    title: W2 direct lightweight DayView projection
+    merge_sha: 8392a1d8ad96d7aca5edf763cf62cb40ed02b8b4
   - number: 298
     title: W2 add Strict AH canary checker
     merge_sha: 51baa80fc4a8878b6a76e3782ff6586f1f39f269

@@ -58,3 +58,10 @@ Rules:
 - Cold concurrency 1/2/4/8 produced 15/15 HTTP 200, one owner per key, expected waiters and no 502/504. The warm matrix produced 225/225 HTTP 200. Cold p95 remained 109.6345 seconds and warm p95 18.4901 seconds, so latency remains a separate performance warning; nginx timeout was not increased.
 - FME acceptance observed 40 fixtures and 80 snapshots: READY=38, INSUFFICIENT=42, integrity/semantic invalid=0 and accidental promotion=0. Corrected Strict remains `NO_CORRECTED_STRICT_CANDIDATE_YET` at 0/35 and 0/100.
 - Production remains unchanged and blocked. `RECOMMEND`, locks, thresholds, artifacts and league enablement remain unchanged.
+
+## Rolled-back Boss View performance release · 2026-07-15
+
+- Attempted release: `4dbaf517f62af47fbfbc11acfb21092e8b1380f2`; rollback manifest: `/opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json` (mode 600).
+- Lightweight DayView passed the public nginx cold/warm latency and single-flight checks with no L1 5xx. A lazy L2 `analysis-card` request returned 502; kernel evidence confirmed a memory-cgroup OOM kill at roughly 1022048 KiB anonymous RSS, followed by Docker exit-137 restart. The release therefore failed its L2 isolation gate.
+- Staging was restored to `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`; API, Web, worker and scheduler are healthy and aligned on that revision. Provider and queue deltas were zero, and canonical denominator evidence was unchanged.
+- The performance commits remain merged on `main` for follow-up correction, but are not deployed. Production remains unchanged; no timeout, recommendation, lock, threshold, artifact or league setting was changed.
