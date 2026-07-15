@@ -555,7 +555,20 @@ def test_dayview_payload_size_is_bounded_for_forty_cards() -> None:
 
 
 def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    service = ReadModelService(repository=cast(Any, object()))
+    service = ReadModelService(
+        repository=cast(
+            Any,
+            type(
+                "AvailabilityRepository",
+                (),
+                {
+                    "market_availability_for_fixture_ids": lambda _self, ids: {
+                        fixture_id: True for fixture_id in ids
+                    }
+                },
+            )(),
+        )
+    )
     row = {
         "fixture_id": "no-market",
         "kickoff_utc": "2026-07-16T10:00:00Z",
@@ -735,7 +748,7 @@ def test_future_dayview_is_cursor_paged_and_does_not_prime_all_rows(monkeypatch)
     assert first["page_counts"]["total"] == 20
     assert first["pagination"]["returned_count"] == 20
     assert first["pagination"]["has_more"] is True
-    assert len(primed[0]) == 20
+    assert primed == []
     assert len(json.dumps(first).encode()) <= 512 * 1024
     assert all(len(json.dumps(card).encode()) <= 24 * 1024 for card in first["cards"])
 

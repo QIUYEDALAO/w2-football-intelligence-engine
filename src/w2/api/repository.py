@@ -750,6 +750,18 @@ class ReadModelRepository:
                 return []
         return []
 
+    def market_availability_for_fixture_ids(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, bool]:
+        db_repository = future_refresh_db_repository()
+        if db_repository is None:
+            return {fixture_id: False for fixture_id in fixture_ids}
+        try:
+            return db_repository.market_availability_for_fixture_ids(fixture_ids)
+        except SQLAlchemyError:
+            return {fixture_id: False for fixture_id in fixture_ids}
+
     def market_observation_history_for_fixtures(
         self,
         fixture_ids: list[str],
@@ -1539,6 +1551,23 @@ class ReadModelService:
         capture_index = build_day_view_capture_index(get_settings().resolved_runtime_root)
         capture_index_build_seconds = monotonic() - capture_started
         frozen_captures = capture_index.summaries
+        availability_started = monotonic()
+        missing_capture_ids = [
+            str(row.get("fixture_id") or "")
+            for row in selected_rows
+            if str(row.get("fixture_id") or "") not in frozen_captures
+        ]
+        availability_reader = getattr(
+            self.repository,
+            "market_availability_for_fixture_ids",
+            None,
+        )
+        market_availability = (
+            availability_reader(missing_capture_ids)
+            if callable(availability_reader) and missing_capture_ids
+            else {fixture_id: False for fixture_id in missing_capture_ids}
+        )
+        market_availability_read_seconds = monotonic() - availability_started
         index_started = monotonic()
         entries = sort_entries(build_index_entries(selected_rows, frozen_captures), sort)
         full_counts = window_counts(entries)
@@ -1564,6 +1593,9 @@ class ReadModelService:
                 "fixture_window_read_seconds": round(fixture_read_seconds, 6),
                 "fixture_read_seconds": round(fixture_read_seconds, 6),
                 "capture_index_build_seconds": round(capture_index_build_seconds, 6),
+                "market_availability_read_seconds": round(
+                    market_availability_read_seconds, 6
+                ),
                 "window_index_build_seconds": round(window_index_build_seconds, 6),
                 "snapshot_hash_seconds": round(snapshot_hash_seconds, 6),
                 "ledger_summary_seconds": round(ledger_summary_seconds, 6),
@@ -1583,7 +1615,7 @@ class ReadModelService:
             sorted_entries=tuple(entries),
             counts=full_counts,
             capture_index=capture_index,
-            market_availability={},
+            market_availability=market_availability,
             performance_summary=performance,
             generated_at=datetime.now(UTC).isoformat(),
             source_status=str(source_watermarks.get("source_status") or "PASS"),
@@ -1608,9 +1640,6 @@ class ReadModelService:
             str(row.get("fixture_id") or ""): row for row in snapshot.fixture_rows
         }
         page_rows = [dict(row_by_fixture[item.fixture_id]) for item in page_entries]
-        market_started = monotonic()
-        self._prime_observations_for_rows(page_rows)
-        market_observation_read_seconds = monotonic() - market_started
         frozen_captures = snapshot.capture_index.summaries
         projection_started = monotonic()
         cards = [
@@ -1618,7 +1647,7 @@ class ReadModelService:
             if fixture_id in frozen_captures
             else self._day_view_unavailable_card(
                 row,
-                has_market=bool(self._observations_for_fixture(fixture_id)),
+                has_market=bool(snapshot.market_availability.get(fixture_id)),
             )
             for row in page_rows
             if (fixture_id := str(row.get("fixture_id") or ""))
@@ -1681,10 +1710,7 @@ class ReadModelService:
         dayview_metrics = view["performance"].setdefault("dayview_cache_metrics", {})
         dayview_metrics.update(
             {
-                "market_observation_read_seconds": round(
-                    market_observation_read_seconds,
-                    6,
-                ),
+                "market_observation_read_seconds": 0.0,
                 "compact_card_projection_seconds": round(
                     compact_card_projection_seconds,
                     6,
@@ -1742,15 +1768,30 @@ class ReadModelService:
         requested_date: date,
         window: str,
     ) -> list[dict[str, Any]]:
-        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
-        next36_rows = self.matchday_next_36_hours().get("items", [])
-        all_matchday_rows = self._all_matchday_rows()
-        result_rows = [row for row in all_matchday_rows if self._is_finished_row(row)]
-        result_rows = self._filter_rows_for_operational_date(
-            result_rows,
-            requested_date=requested_date,
-        )
+        if window == "future":
+            future_rows, _ = self._future_fixture_rows_with_errors()
+            return self._filter_rows_for_future_horizon(
+                future_rows,
+                requested_date=requested_date,
+            )
+        if window == "results":
+            result_rows = [
+                row for row in self._all_matchday_rows() if self._is_finished_row(row)
+            ]
+            return self._filter_rows_for_operational_date(
+                result_rows,
+                requested_date=requested_date,
+            )
         future_rows, _ = self._future_fixture_rows_with_errors()
+        if window == "next36":
+            next36_rows = self.matchday_next_36_hours().get("items", [])
+            return self._dedupe_dashboard_rows(
+                [
+                    *cast(list[dict[str, Any]], next36_rows),
+                    *self._filter_rows_for_next36(future_rows),
+                ]
+            )
+        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
         today_rows = self._dedupe_dashboard_rows(
             [
                 *cast(list[dict[str, Any]], today_rows),
@@ -1760,24 +1801,18 @@ class ReadModelService:
                 ),
             ]
         )
-        next36_rows = self._dedupe_dashboard_rows(
-            [
-                *cast(list[dict[str, Any]], next36_rows),
-                *self._filter_rows_for_next36(future_rows),
-            ]
-        )
-        if window == "next36":
-            return next36_rows
-        if window == "future":
-            return self._filter_rows_for_future_horizon(
-                future_rows,
-                requested_date=requested_date,
-            )
-        if window == "results":
-            return result_rows
         if window == "all":
+            next36_rows = self.matchday_next_36_hours().get("items", [])
+            result_rows = [
+                row for row in self._all_matchday_rows() if self._is_finished_row(row)
+            ]
             return self._dedupe_dashboard_rows(
-                [*today_rows, *next36_rows, *result_rows, *future_rows]
+                [
+                    *today_rows,
+                    *cast(list[dict[str, Any]], next36_rows),
+                    *result_rows,
+                    *future_rows,
+                ]
             )
         return today_rows
 
