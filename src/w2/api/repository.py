@@ -5,10 +5,12 @@ import json
 import math
 import os
 from collections.abc import Mapping
-from contextlib import suppress
+from contextlib import contextmanager, suppress
+from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from threading import RLock, local
 from time import monotonic
 from typing import Any, cast
 from zoneinfo import ZoneInfo
@@ -872,6 +874,21 @@ class ReadModelRepository:
         }
 
 
+class _RequestReadCache:
+    """Mutable read cache owned by exactly one request worker thread."""
+
+    def __init__(self) -> None:
+        self.fixture_payloads: list[dict[str, Any]] | None = None
+        self.fixture_payload_index: dict[str, dict[str, Any]] | None = None
+        self.future_market_observations: list[dict[str, Any]] | None = None
+        self.observations_by_fixture: dict[str, list[dict[str, Any]]] | None = None
+        self.team_xg_snapshots_by_fixture: dict[str, list[dict[str, Any]]] = {}
+        self.team_xg_matches: list[dict[str, Any]] | None = None
+        self.raw_payloads_by_endpoint: dict[str, list[dict[str, Any]]] = {}
+        self.formal_snapshots_by_fixture: dict[str, list[dict[str, Any]]] | None = None
+        self.formal_settlements_by_snapshot: dict[str, dict[str, Any]] | None = None
+
+
 class ReadModelService:
     def __init__(
         self,
@@ -885,6 +902,7 @@ class ReadModelService:
         artifact_result = load_r4_1_artifacts(r4_1_artifact_root or r4_1_artifact_dir(ROOT))
         self._r4_1_artifacts: dict[str, R4_1Artifact] = artifact_result.artifacts
         self._r4_1_artifact_invalid_reasons: dict[str, str] = artifact_result.invalid_reasons
+        self._request_cache_local = local()
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
         self._fixture_payload_index_cache: dict[str, dict[str, Any]] | None = None
         self._future_market_observations_cache: list[dict[str, Any]] | None = None
@@ -898,17 +916,111 @@ class ReadModelService:
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
         ] = {}
+        self._dashboard_response_cache_lock = RLock()
+
+    def _request_read_cache(self) -> _RequestReadCache:
+        state = getattr(self._request_cache_local, "state", None)
+        if state is None:
+            state = _RequestReadCache()
+            self._request_cache_local.state = state
+        return cast(_RequestReadCache, state)
+
+    @contextmanager
+    def _read_request_scope(self) -> Any:
+        depth = int(getattr(self._request_cache_local, "depth", 0))
+        previous = getattr(self._request_cache_local, "state", None)
+        if depth == 0:
+            self._request_cache_local.state = _RequestReadCache()
+        self._request_cache_local.depth = depth + 1
+        try:
+            yield
+        finally:
+            self._request_cache_local.depth = depth
+            if depth == 0:
+                self._request_cache_local.state = previous
+
+    @property
+    def _fixture_payloads_cache(self) -> list[dict[str, Any]] | None:
+        return self._request_read_cache().fixture_payloads
+
+    @_fixture_payloads_cache.setter
+    def _fixture_payloads_cache(self, value: list[dict[str, Any]] | None) -> None:
+        self._request_read_cache().fixture_payloads = value
+
+    @property
+    def _fixture_payload_index_cache(self) -> dict[str, dict[str, Any]] | None:
+        return self._request_read_cache().fixture_payload_index
+
+    @_fixture_payload_index_cache.setter
+    def _fixture_payload_index_cache(self, value: dict[str, dict[str, Any]] | None) -> None:
+        self._request_read_cache().fixture_payload_index = value
+
+    @property
+    def _future_market_observations_cache(self) -> list[dict[str, Any]] | None:
+        return self._request_read_cache().future_market_observations
+
+    @_future_market_observations_cache.setter
+    def _future_market_observations_cache(self, value: list[dict[str, Any]] | None) -> None:
+        self._request_read_cache().future_market_observations = value
+
+    @property
+    def _observations_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]] | None:
+        return self._request_read_cache().observations_by_fixture
+
+    @_observations_by_fixture_cache.setter
+    def _observations_by_fixture_cache(
+        self, value: dict[str, list[dict[str, Any]]] | None
+    ) -> None:
+        self._request_read_cache().observations_by_fixture = value
+
+    @property
+    def _team_xg_snapshots_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]]:
+        return self._request_read_cache().team_xg_snapshots_by_fixture
+
+    @_team_xg_snapshots_by_fixture_cache.setter
+    def _team_xg_snapshots_by_fixture_cache(
+        self, value: dict[str, list[dict[str, Any]]]
+    ) -> None:
+        self._request_read_cache().team_xg_snapshots_by_fixture = value
+
+    @property
+    def _team_xg_matches_cache(self) -> list[dict[str, Any]] | None:
+        return self._request_read_cache().team_xg_matches
+
+    @_team_xg_matches_cache.setter
+    def _team_xg_matches_cache(self, value: list[dict[str, Any]] | None) -> None:
+        self._request_read_cache().team_xg_matches = value
+
+    @property
+    def _raw_payloads_by_endpoint_cache(self) -> dict[str, list[dict[str, Any]]]:
+        return self._request_read_cache().raw_payloads_by_endpoint
+
+    @_raw_payloads_by_endpoint_cache.setter
+    def _raw_payloads_by_endpoint_cache(self, value: dict[str, list[dict[str, Any]]]) -> None:
+        self._request_read_cache().raw_payloads_by_endpoint = value
+
+    @property
+    def _formal_snapshots_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]] | None:
+        return self._request_read_cache().formal_snapshots_by_fixture
+
+    @_formal_snapshots_by_fixture_cache.setter
+    def _formal_snapshots_by_fixture_cache(
+        self, value: dict[str, list[dict[str, Any]]] | None
+    ) -> None:
+        self._request_read_cache().formal_snapshots_by_fixture = value
+
+    @property
+    def _formal_settlements_by_snapshot_cache(self) -> dict[str, dict[str, Any]] | None:
+        return self._request_read_cache().formal_settlements_by_snapshot
+
+    @_formal_settlements_by_snapshot_cache.setter
+    def _formal_settlements_by_snapshot_cache(
+        self, value: dict[str, dict[str, Any]] | None
+    ) -> None:
+        self._request_read_cache().formal_settlements_by_snapshot = value
 
     def _reset_read_caches(self) -> None:
-        self._fixture_payloads_cache = None
-        self._fixture_payload_index_cache = None
-        self._future_market_observations_cache = None
-        self._observations_by_fixture_cache = None
-        self._team_xg_snapshots_by_fixture_cache = {}
-        self._team_xg_matches_cache = None
-        self._raw_payloads_by_endpoint_cache = {}
-        self._formal_snapshots_by_fixture_cache = None
-        self._formal_settlements_by_snapshot_cache = None
+        self._request_cache_local.state = _RequestReadCache()
 
     def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
         if self._future_refresh_repository_cache is None:
@@ -1031,18 +1143,35 @@ class ReadModelService:
         timezone: str = BEIJING_TZ,
         include_debug: bool = True,
     ) -> dict[str, Any]:
+        with self._read_request_scope():
+            return self._dashboard_in_request(
+                target_date=target_date,
+                window=window,
+                timezone=timezone,
+                include_debug=include_debug,
+            )
+
+    def _dashboard_in_request(
+        self,
+        *,
+        target_date: str | None,
+        window: str,
+        timezone: str,
+        include_debug: bool,
+    ) -> dict[str, Any]:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
             else default_football_day(datetime.now(UTC))
         )
         cache_key = (requested_date.isoformat(), window, timezone, include_debug)
-        cached = self._dashboard_response_cache.get(cache_key)
+        with self._dashboard_response_cache_lock:
+            cached = self._dashboard_response_cache.get(cache_key)
         now = monotonic()
         if cached is not None:
             cached_at, cached_payload = cached
             if now - cached_at <= self._dashboard_cache_ttl(window, include_debug):
-                return cached_payload
+                return deepcopy(cached_payload)
 
         self._reset_read_caches()
         version = self.version()
@@ -1196,7 +1325,8 @@ class ReadModelService:
             "finished": finished_payload,
             "all": response_cards,
         }
-        self._dashboard_response_cache[cache_key] = (now, payload)
+        with self._dashboard_response_cache_lock:
+            self._dashboard_response_cache[cache_key] = (now, deepcopy(payload))
         return payload
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
@@ -1546,6 +1676,10 @@ class ReadModelService:
         }
 
     def analysis_card(self, fixture_id: str) -> dict[str, Any] | None:
+        with self._read_request_scope():
+            return self._analysis_card_in_request(fixture_id)
+
+    def _analysis_card_in_request(self, fixture_id: str) -> dict[str, Any] | None:
         for card in self.repository.matchday_cards():
             fixture = card.get("fixture", {})
             if str(fixture.get("fixture_id")) != fixture_id:

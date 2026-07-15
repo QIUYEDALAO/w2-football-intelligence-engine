@@ -441,10 +441,11 @@ def test_dashboard_reuses_short_lived_cache_for_same_window() -> None:
     service = ReadModelService(repository=cast(Any, repository))
 
     first = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    first["all"].clear()
     second = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
 
-    assert len(first["all"]) == 1
-    assert second == first
+    assert first["all"] == []
+    assert len(second["all"]) == 1
     assert repository.fixture_payload_calls == 1
 
 

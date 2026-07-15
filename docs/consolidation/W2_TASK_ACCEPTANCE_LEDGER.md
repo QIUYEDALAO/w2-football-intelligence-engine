@@ -665,3 +665,10 @@
 - 当前分支 `codex/w2-quote-freshness` 实施 CORE-6B：AH/TOTALS freshness 分别绑定所选 quote 的原始 `captured_at/as_of + source_hash`，禁止卡片/看板生成时间、evaluation time 和 ledger capture time 回退。
 - 缺少所选 quote 原始时间时显式 `QUOTE_CAPTURE_TIME_MISSING` 并 fail closed；forward capture 不再伪造 MarketQuote 时间。
 - 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐阈值/EV/RECOMMEND/lock/league/artifact。
+
+### V3 进展续54 · ReadModel Concurrency(2026-07-15)
+
+- #286 已合入 main `3c5c9243ebbb7f105b27eddb0a05a6d7aae84bb7`，三项 CI 全绿；AH/TOTALS 所选报价 freshness 已严格绑定原始 MarketQuote 时间与来源。
+- 当前分支 `codex/w2-readmodel-concurrency` 实施 CORE-6C：全局 ReadModelService 的 fixture、observation、xG、formal snapshot 与 raw payload 请求期缓存改为线程隔离，避免并发 today/next36/future/results/all 互相清空或覆盖。
+- 共享 Dashboard 响应缓存增加显式锁，并通过深拷贝隔离缓存对象与调用方；新增确定性双线程回归复现旧实现的跨请求污染。
+- 安全保持：provider calls=0、DB writes=0、未部署 staging/production、未重启 scheduler/worker、未改推荐阈值/EV/RECOMMEND/lock/league/artifact。
