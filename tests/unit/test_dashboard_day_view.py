@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -179,17 +180,11 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
     assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
-    assert contract_card["market_probabilities"]["ah"]["method"] == "POWER"
-    assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
-    assert contract_card["market_probabilities"]["ou"]["method"] == "POWER"
-    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502767
-    assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
-    assert contract_card["probability_source"] == "MARKET_DEVIG"
-    assert contract_card["model_market_divergence"]["magnitude"] == 0.12
-    assert contract_card["pick"]["disclaimer"] == (
-        "分析参考·非稳赢；production 动作需 RECOMMEND"
-    )
+    assert "market_probabilities" not in contract_card
+    assert "market_strip" not in contract_card
+    assert "model_market_divergence" not in contract_card
+    assert "disclaimer" not in contract_card["pick"]
 
     legacy_card = view["cards"][1]
     assert legacy_card["source"] == "legacy_fallback"
@@ -320,7 +315,7 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
     assert view["counts"]["watch"] == 1
 
 
-def test_day_view_preserves_shadow_and_scoreline_context_for_boss_view() -> None:
+def test_day_view_does_not_surface_legacy_scorelines_without_visible_pick() -> None:
     payload = {
         "generated_at": "2026-07-05T08:00:00Z",
         "date": "2026-07-05",
@@ -355,14 +350,10 @@ def test_day_view_preserves_shadow_and_scoreline_context_for_boss_view() -> None
     view = build_dashboard_day_view(payload, environment="staging")
     card = view["cards"][0]
 
-    assert card["pricing_shadow"]["status"] == "SIMULATION_READY"
+    assert "pricing_shadow" not in card
     assert card["scoreline_readiness"]["status"] == "READY"
-    assert card["scoreline_picks"][0]["scoreline"] == "1-1"
-    assert card["scoreline_reference"]["source"] == "legacy_baseline_simulation"
-    assert card["scoreline_reference"]["source_status"] == (
-        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
-    )
-    assert card["scoreline_reference"]["top_scorelines"][1]["scoreline"] == "2-1"
+    assert card["scoreline_picks"] == []
+    assert "scoreline_reference" not in card
 
 
 def test_day_view_production_includes_production_environment_policy() -> None:
@@ -380,7 +371,7 @@ def test_day_view_production_includes_production_environment_policy() -> None:
     assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
-def test_day_view_recomputes_same_source_settlement_after_decision_contract_pick() -> None:
+def test_day_view_keeps_direction_scoreline_without_full_settlement_distribution() -> None:
     payload = {
         "generated_at": "2026-07-11T00:00:00Z",
         "date": "2026-07-11",
@@ -424,12 +415,12 @@ def test_day_view_recomputes_same_source_settlement_after_decision_contract_pick
     }
 
     view = build_dashboard_day_view(payload, environment="staging")
-    reference = view["cards"][0]["scoreline_reference"]
+    card = view["cards"][0]
 
-    assert reference["source"] == "fair_market_estimate"
-    assert reference["market_settlement"]["selection"] == "OVER"
-    assert reference["market_settlement"]["line"] == 3.25
-    assert reference["market_settlement"]["probabilities"]["WIN"] > 0.65
+    assert card["scoreline_picks"][0] == {"scoreline": "3-1"}
+    assert all(set(item) == {"scoreline"} for item in card["scoreline_picks"])
+    assert "scoreline_reference" not in card
+    assert "market_settlement" not in json.dumps(card)
 
 
 def test_day_view_degradation_reflects_refreshing_payload() -> None:
@@ -458,3 +449,283 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:
     assert "decide_match" not in day_view.__dict__
+
+
+def test_dayview_omits_full_l2_audit_payloads() -> None:
+    matrix = {f"{home}-{away}": 0.001 for home in range(13) for away in range(13)}
+    snapshot = {
+        "schema_version": "w2.fme_snapshot.v2",
+        "estimate_id": "fme-1",
+        "model_basis_id": "basis-1",
+        "market": "TOTALS",
+        "artifact_version": "v1",
+        "semantic_status": "VERIFIED",
+        "feature_as_of": "2026-07-05T00:00:00Z",
+        "score_matrix": matrix,
+        "input_context": {"feature_snapshot": {"huge": "x" * 20_000}},
+    }
+    view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-07-05T00:00:00Z",
+            "date": "2026-07-05",
+            "selected_football_day": "2026-07-05",
+            "all": [
+                {
+                    "fixture_id": "fixture-1",
+                    "kickoff_utc": "2026-07-05T10:00:00Z",
+                    "status": "NS",
+                    "decision_tier": "ANALYSIS_PICK",
+                    "data_status": "READY",
+                    "lifecycle_status": "DRAFT",
+                    "pick": {
+                        "market": "TOTALS",
+                        "selection": "OVER",
+                        "line": 2.5,
+                        "odds": 1.9,
+                        "estimate_id": "fme-1",
+                    },
+                    "fair_market_estimate_snapshots": [snapshot],
+                    "pricing_shadow": {"full": "y" * 20_000},
+                    "analysis_gate_v2_shadows": [{"full": "z" * 20_000}],
+                    "scoreline_reference": {
+                        "probability_type": "UNCONDITIONAL_FILTERED_BY_SETTLEMENT",
+                        "top_scorelines": [
+                            {"scoreline": "2-1", "probability": 0.1},
+                            {"scoreline": "3-1", "probability": 0.08},
+                        ],
+                    },
+                }
+            ],
+        },
+        environment="staging",
+    )
+
+    card = view["cards"][0]
+    assert "fair_market_estimate_snapshots" not in card
+    assert "pricing_shadow" not in card
+    assert "analysis_gate_v2_shadows" not in card
+    assert "score_matrix" not in json.dumps(card)
+    assert card["compact_provenance"]["estimate_id"] == "fme-1"
+    assert card["compact_provenance"]["model_basis_id"] == "basis-1"
+    assert card["scoreline_picks"] == [
+        {"scoreline": "2-1"},
+        {"scoreline": "3-1"},
+    ]
+
+
+def test_dayview_payload_size_is_bounded_for_forty_cards() -> None:
+    matrix = {f"{home}-{away}": 0.001 for home in range(13) for away in range(13)}
+    cards = []
+    for index in range(40):
+        cards.append(
+            {
+                "fixture_id": f"fixture-{index}",
+                "kickoff_utc": "2026-07-05T10:00:00Z",
+                "status": "NS",
+                "decision_tier": "NOT_READY",
+                "data_status": "BLOCKED",
+                "lifecycle_status": "DRAFT",
+                "fair_market_estimate_snapshots": [
+                    {
+                        "schema_version": "w2.fme_snapshot.v2",
+                        "estimate_id": f"fme-{index}",
+                        "model_basis_id": f"basis-{index}",
+                        "score_matrix": matrix,
+                    }
+                ],
+                "pricing_shadow": {"full": "x" * 50_000},
+            }
+        )
+    view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-07-05T00:00:00Z",
+            "date": "2026-07-05",
+            "selected_football_day": "2026-07-05",
+            "all": cards,
+        },
+        environment="staging",
+    )
+
+    encoded = json.dumps(view, ensure_ascii=False).encode()
+    assert len(encoded) <= 1_500_000
+    max_card_bytes = max(
+        len(json.dumps(card, ensure_ascii=False).encode()) for card in view["cards"]
+    )
+    assert max_card_bytes <= 20_000
+
+
+def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    service = ReadModelService(repository=cast(Any, object()))
+    row = {
+        "fixture_id": "no-market",
+        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "competition_id": "chinese_super_league",
+        "competition_name": "中超",
+        "home_team_id": "1",
+        "away_team_id": "2",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
+        "status": "NS",
+    }
+    monkeypatch.setattr(
+        service,
+        "version",
+        lambda: {"api_git_sha": "sha", "release_id": "sha"},
+    )
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [row])
+    monkeypatch.setattr(service, "_prime_observations_for_rows", lambda _: None)
+    monkeypatch.setattr(
+        service,
+        "_observations_for_fixture",
+        lambda _: [{"canonical_market": "TOTALS"}],
+    )
+    monkeypatch.setattr(service, "_latest_day_view_captures", lambda _: {})
+    monkeypatch.setattr(
+        service,
+        "_dashboard_card_from_matchday",
+        lambda _: (_ for _ in ()).throw(
+            AssertionError("non-pick card must not build full analysis")
+        ),
+    )
+    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+
+    view = service._build_dashboard_day_view_payload(
+        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        window="future",
+        timezone="Asia/Shanghai",
+    )
+
+    assert view["counts"]["total"] == 1
+    assert view["counts"]["not_ready"] == 1
+    assert view["cards"][0]["reason_code"] == "DECISION_SUMMARY_UNAVAILABLE"
+
+
+def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    service = ReadModelService(repository=cast(Any, object()))
+    row = {
+        "fixture_id": "frozen-pick",
+        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "competition_id": "chinese_super_league",
+        "competition_name": "中超",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
+        "status": "NS",
+    }
+    capture = {
+        "fixture_id": "frozen-pick",
+        "captured_at": "2026-07-16T08:00:00Z",
+        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "decision_tier": "ANALYSIS_PICK",
+        "data_status": "READY",
+        "outcome_tracked": True,
+        "pick": {
+            "market": "TOTALS",
+            "selection": "OVER",
+            "line": "2.75",
+            "odds": "1.91",
+            "fair_line": "3.25",
+            "estimate_id": "fme-1",
+            "model_basis_id": "basis-1",
+        },
+        "fair_market_estimate_snapshots": [
+            {
+                "schema_version": "w2.fme_snapshot.v2",
+                "estimate_id": "fme-1",
+                "model_basis_id": "basis-1",
+                "market": "TOTALS",
+                "artifact_version": "r4.1",
+                "integrity_status": "PASS",
+                "semantic_status": "PASS",
+                "feature_as_of": "2026-07-16T07:00:00Z",
+            }
+        ],
+        "scoreline_reference": {
+            "source": "fair_market_estimate",
+            "top_scorelines": [
+                {"scoreline": "2-1", "probability": 0.1},
+                {"scoreline": "3-1", "probability": 0.08},
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        service,
+        "version",
+        lambda: {"api_git_sha": "sha", "release_id": "sha"},
+    )
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [row])
+    monkeypatch.setattr(service, "_prime_observations_for_rows", lambda _: None)
+    monkeypatch.setattr(service, "_latest_day_view_captures", lambda _: {"frozen-pick": capture})
+    monkeypatch.setattr(service, "_day_view_performance", lambda _: {})
+
+    view = service._build_dashboard_day_view_payload(
+        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        window="future",
+        timezone="Asia/Shanghai",
+    )
+
+    card = view["cards"][0]
+    assert card["decision_tier"] == "ANALYSIS_PICK"
+    assert card["pick"] == capture["pick"]
+    assert card["compact_provenance"]["estimate_id"] == "fme-1"
+    assert card["scoreline_picks"] == [
+        {"scoreline": "2-1"},
+        {"scoreline": "3-1"},
+    ]
+
+
+def test_dayview_preserves_compact_canonical_performance_summary() -> None:
+    service = ReadModelService(repository=cast(Any, object()))
+    bucket = {
+        "settled_sample_count": 2,
+        "hit_count": 1,
+        "miss_count": 1,
+        "push_count": 0,
+        "void_count": 0,
+        "hit_rate": 0.5,
+    }
+    compact = service._compact_forward_ledger_summary(
+        {
+            "schema_version": "w2.forward_ledger_performance.v2",
+            "source": "runtime/forward_outcome_ledger",
+            "sample_target": 100,
+            "fixture_count": 53,
+            "double_snapshot_fixture_count": 35,
+            "validation_fixture_count": 16,
+            "validation_settled_fixture_count": 16,
+            "validation_pending_fixture_count": 0,
+            "validation_pending_status": {"pending_fixture_count": 0},
+            "outcomes_validation": bucket,
+            "outcomes_shadow_wide": bucket,
+            "outcomes_shadow_strict": {**bucket, "settled_sample_count": 0},
+            "outcomes_official": {**bucket, "settled_sample_count": 0},
+            "outcomes_raw_audit": {
+                "raw_outcome_row_count": 103,
+                "canonical_outcome_count": 38,
+                "audit_only_outcome_count": 65,
+            },
+            "performance_integrity": {
+                "status": "PASS",
+                "canonical_duplicate_count": 0,
+                "cross_track_contamination_count": 0,
+            },
+            "clv_shadow": {"sample_count": 35, "median_decimal": 0.0},
+            "by_league": [{"league": "must-not-be-in-l1"}],
+            "by_league_market": [{"league": "must-not-be-in-l1"}],
+        }
+    )
+
+    assert compact["validation_fixture_count"] == 16
+    assert compact["outcomes_validation"]["settled_sample_count"] == 2
+    assert compact["outcomes_shadow_wide"]["settled_sample_count"] == 2
+    assert compact["outcomes_shadow_strict"]["settled_sample_count"] == 0
+    assert compact["outcomes_official"]["settled_sample_count"] == 0
+    assert compact["performance_integrity"]["status"] == "PASS"
+    assert compact["r1_1"] == {
+        "valid_pair_count": 35,
+        "sample_target": 100,
+        "remaining": 65,
+        "status": "PENDING",
+    }
+    assert compact["strict_evidence"]["status"] == "ACCUMULATING"
+    assert "by_league" not in compact
+    assert "by_league_market" not in compact

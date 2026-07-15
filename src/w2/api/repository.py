@@ -33,6 +33,7 @@ from w2.dashboard.date_window import (
     default_football_day,
     football_day_window,
 )
+from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
     build_analysis_readiness,
@@ -144,6 +145,7 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
+from w2.tracking.forward_ledger_performance import load_forward_ledger_records
 from w2.tracking.forward_ledger_performance_cache import (
     ForwardLedgerPerformanceCache,
 )
@@ -950,6 +952,9 @@ class ReadModelService:
         self._dashboard_singleflight: SingleFlightCache[
             tuple[str, str, str, bool], dict[str, Any]
         ] = SingleFlightCache(max_entries=32)
+        self._day_view_singleflight: SingleFlightCache[
+            tuple[str, str, str], dict[str, Any]
+        ] = SingleFlightCache(max_entries=32)
         self._dashboard_metrics_lock = RLock()
         self._dashboard_build_seconds = 0.0
         self._forward_ledger_performance_cache = (
@@ -1263,6 +1268,316 @@ class ReadModelService:
             )
         return payload
 
+    def dashboard_day_view(
+        self,
+        *,
+        target_date: str | None = None,
+        window: str = "today",
+        timezone: str = BEIJING_TZ,
+    ) -> dict[str, Any]:
+        """Build the Boss View projection without constructing the full Dashboard."""
+        with self._read_request_scope():
+            requested_date = (
+                date.fromisoformat(target_date)
+                if target_date
+                else default_football_day(datetime.now(UTC))
+            )
+            cache_key = (requested_date.isoformat(), window, timezone)
+            return self._day_view_singleflight.get_or_compute(
+                cache_key,
+                ttl_seconds=self._dashboard_cache_ttl(window, include_debug=False),
+                compute=lambda: self._build_dashboard_day_view_payload(
+                    requested_date=requested_date,
+                    window=window,
+                    timezone=timezone,
+                ),
+            )
+
+    def _build_dashboard_day_view_payload(
+        self,
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+    ) -> dict[str, Any]:
+        self._reset_read_caches()
+        version = self.version()
+        selected_rows = self._dashboard_rows_for_window(
+            requested_date=requested_date,
+            window=window,
+        )
+        self._prime_observations_for_rows(selected_rows)
+        frozen_captures = self._latest_day_view_captures(selected_rows)
+        cards = [
+            self._day_view_card_from_frozen_capture(row, frozen_captures[fixture_id])
+            if fixture_id in frozen_captures
+            else self._day_view_unavailable_card(
+                row,
+                has_market=bool(self._observations_for_fixture(fixture_id)),
+            )
+            for row in selected_rows
+            if (fixture_id := str(row.get("fixture_id") or ""))
+        ]
+        generated_at = datetime.now(UTC)
+        payload = {
+            "generated_at": generated_at,
+            "date": requested_date.isoformat(),
+            "selected_football_day": requested_date.isoformat(),
+            "timezone": timezone,
+            "window": window,
+            "version": {
+                "api_git_sha": version["api_git_sha"],
+                "release_id": version["release_id"],
+            },
+            "all": cards,
+            "performance": self._day_view_performance(cards),
+        }
+        view = build_dashboard_day_view(
+            payload,
+            environment=get_settings().environment.value,
+            active_whitelist_count=len(CompetitionRegistry().entries()),
+        )
+        view["source"] = "direct_day_view_projection"
+        view["performance"] = payload["performance"]
+        return view
+
+    def _dashboard_rows_for_window(
+        self,
+        *,
+        requested_date: date,
+        window: str,
+    ) -> list[dict[str, Any]]:
+        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
+        next36_rows = self.matchday_next_36_hours().get("items", [])
+        all_matchday_rows = self._all_matchday_rows()
+        result_rows = [row for row in all_matchday_rows if self._is_finished_row(row)]
+        result_rows = self._filter_rows_for_operational_date(
+            result_rows,
+            requested_date=requested_date,
+        )
+        future_rows, _ = self._future_fixture_rows_with_errors()
+        today_rows = self._dedupe_dashboard_rows(
+            [
+                *cast(list[dict[str, Any]], today_rows),
+                *self._filter_rows_for_operational_date(
+                    future_rows,
+                    requested_date=requested_date,
+                ),
+            ]
+        )
+        next36_rows = self._dedupe_dashboard_rows(
+            [
+                *cast(list[dict[str, Any]], next36_rows),
+                *self._filter_rows_for_next36(future_rows),
+            ]
+        )
+        if window == "next36":
+            return next36_rows
+        if window == "future":
+            return self._filter_rows_for_future_horizon(
+                future_rows,
+                requested_date=requested_date,
+            )
+        if window == "results":
+            return result_rows
+        if window == "all":
+            return self._dedupe_dashboard_rows(
+                [*today_rows, *next36_rows, *result_rows, *future_rows]
+            )
+        return today_rows
+
+    def _latest_day_view_captures(
+        self,
+        rows: list[dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        requested = {str(row.get("fixture_id") or "") for row in rows}
+        requested.discard("")
+        if not requested:
+            return {}
+        latest: dict[str, dict[str, Any]] = {}
+        root = get_settings().resolved_runtime_root / "forward_outcome_ledger"
+        for record in load_forward_ledger_records(root):
+            if str(record.get("record_type") or "capture") != "capture":
+                continue
+            fixture_id = str(record.get("fixture_id") or "")
+            if fixture_id not in requested:
+                continue
+            captured_at = _parse_utc_text(record.get("captured_at"))
+            kickoff = _parse_utc_text(record.get("kickoff_utc"))
+            if captured_at is None or (kickoff is not None and captured_at >= kickoff):
+                continue
+            previous = latest.get(fixture_id)
+            if previous is None or str(record.get("captured_at") or "") > str(
+                previous.get("captured_at") or ""
+            ):
+                latest[fixture_id] = dict(record)
+        return latest
+
+    def _day_view_card_from_frozen_capture(
+        self,
+        row: Mapping[str, Any],
+        capture: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            **dict(capture),
+            "fixture_id": row.get("fixture_id"),
+            "kickoff_utc": row.get("kickoff_utc"),
+            "kickoff_beijing": row.get("kickoff_beijing"),
+            "competition_id": row.get("competition_id"),
+            "competition_name": row.get("competition_name"),
+            "home_team_id": row.get("home_team_id"),
+            "away_team_id": row.get("away_team_id"),
+            "home_team_name": row.get("home_team_name"),
+            "away_team_name": row.get("away_team_name"),
+            "status": normalize_match_status(row.get("status")),
+            "lifecycle_status": capture.get("lifecycle_status") or "DRAFT",
+            "lock_eligible": capture.get("lock_eligible") is True,
+            "outcome_tracked": capture.get("outcome_tracked") is True,
+            "source": "frozen_forward_capture",
+        }
+
+    def _day_view_unavailable_card(
+        self,
+        row: Mapping[str, Any],
+        *,
+        has_market: bool,
+    ) -> dict[str, Any]:
+        fixture_id = str(row.get("fixture_id") or "")
+        reason_code = "DECISION_SUMMARY_UNAVAILABLE" if has_market else "MARKET_UNAVAILABLE"
+        action = "等待冻结决策摘要" if has_market else "等待盘口"
+        return {
+            "fixture_id": fixture_id,
+            "kickoff_utc": row.get("kickoff_utc"),
+            "kickoff_beijing": row.get("kickoff_beijing"),
+            "competition_id": row.get("competition_id"),
+            "competition_name": row.get("competition_name"),
+            "home_team_id": row.get("home_team_id"),
+            "away_team_id": row.get("away_team_id"),
+            "home_team_name": row.get("home_team_name"),
+            "away_team_name": row.get("away_team_name"),
+            "status": normalize_match_status(row.get("status")),
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "lifecycle_status": "DRAFT",
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "reason_code": reason_code,
+            "primary_blocker": reason_code,
+            "primary_blocker_layer": "DECISION_CAPTURE" if has_market else "MARKET_QUOTE",
+            "action": action,
+            "provider_budget_status": "OK",
+            "probability_source": None,
+            "analysis_readiness": {
+                "status": "BLOCKED",
+                "blockers": [reason_code],
+            },
+            "data_refresh": {
+                "status": "WAITING",
+                "odds_status": "WAITING",
+                "lineups_status": "NOT_REQUESTED",
+                "xg_status": "UNKNOWN",
+            },
+            "current_odds": {},
+            "market_strip": [],
+            "missing_inputs": ["盘口快照"],
+            "non_pick": {
+                "reason_code": reason_code,
+                "reason_human": "冻结决策摘要尚未就绪" if has_market else "盘口尚未就绪",
+                "action": action,
+                "next_eval_at": None,
+            },
+            "one_liner": (
+                "盘口已就绪，等待冻结决策摘要。"
+                if has_market
+                else "盘口缺失，不能产出分析推荐。"
+            ),
+        }
+
+    def _day_view_performance(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
+        runtime_root = get_settings().resolved_runtime_root
+        result_events: list[dict[str, Any]] | None = []
+        result_repository = self._future_refresh_repository()
+        result_reader = (
+            getattr(result_repository, "result_events_for_fixture_ids", None)
+            if result_repository is not None
+            else None
+        )
+        if not callable(result_reader):
+            result_events = None
+        else:
+            try:
+                result_events = result_reader(ledger_fixture_ids(runtime_root))
+            except SQLAlchemyError:
+                result_events = None
+        return {
+            "forward_ledger": self._compact_forward_ledger_summary(
+                self._forward_ledger_performance_cache.get(
+                    runtime_root,
+                    result_events=result_events,
+                )
+            )
+        }
+
+    def _compact_forward_ledger_summary(
+        self,
+        ledger: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        sample_target = int(ledger.get("sample_target") or 100)
+        double_snapshot_count = int(ledger.get("double_snapshot_fixture_count") or 0)
+        strict = ledger.get("outcomes_shadow_strict")
+        strict = dict(strict) if isinstance(strict, Mapping) else {}
+        strict_settled = int(strict.get("settled_sample_count") or 0)
+        return {
+            "schema_version": ledger.get("schema_version"),
+            "source": ledger.get("source"),
+            "sample_target": sample_target,
+            "fixture_count": int(ledger.get("fixture_count") or 0),
+            "double_snapshot_fixture_count": double_snapshot_count,
+            "validation_fixture_count": int(ledger.get("validation_fixture_count") or 0),
+            "validation_settled_fixture_count": int(
+                ledger.get("validation_settled_fixture_count") or 0
+            ),
+            "validation_pending_fixture_count": int(
+                ledger.get("validation_pending_fixture_count") or 0
+            ),
+            "validation_pending_status": dict(ledger.get("validation_pending_status") or {}),
+            "outcomes_validation": dict(ledger.get("outcomes_validation") or {}),
+            "outcomes_shadow_wide": dict(ledger.get("outcomes_shadow_wide") or {}),
+            "outcomes_shadow_strict": strict,
+            "outcomes_official": dict(ledger.get("outcomes_official") or {}),
+            "outcomes_raw_audit": dict(ledger.get("outcomes_raw_audit") or {}),
+            "performance_integrity": dict(ledger.get("performance_integrity") or {}),
+            "pending_result_classification": dict(
+                ledger.get("validation_pending_status") or {}
+            ),
+            "r1_1": {
+                "valid_pair_count": double_snapshot_count,
+                "sample_target": sample_target,
+                "remaining": max(sample_target - double_snapshot_count, 0),
+                "status": (
+                    "THRESHOLD_REACHED"
+                    if double_snapshot_count >= sample_target
+                    else "PENDING"
+                ),
+            },
+            "strict_evidence": {
+                "settled_sample_count": strict_settled,
+                "review_threshold": 35,
+                "maturity_threshold": 100,
+                "status": (
+                    "MATURE"
+                    if strict_settled >= 100
+                    else "REVIEW_ELIGIBLE"
+                    if strict_settled >= 35
+                    else "ACCUMULATING"
+                ),
+            },
+            "clv_shadow": dict(ledger.get("clv_shadow") or {}),
+            "accumulation_label": ledger.get("accumulation_label"),
+            "mock_data": bool(ledger.get("mock_data")),
+        }
+
     def _build_dashboard_payload(
         self,
         *,
@@ -1442,6 +1757,7 @@ class ReadModelService:
 
     def clear_dashboard_caches(self) -> None:
         self._dashboard_singleflight.clear()
+        self._day_view_singleflight.clear()
         self._forward_ledger_performance_cache.clear()
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:

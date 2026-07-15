@@ -114,6 +114,8 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         _field(card, contract, "lifecycle_status"),
         LifecycleStatus.DRAFT.value,
     )
+    raw_pick = _field(card, contract, "pick")
+    pick = _compact_pick(raw_pick) if isinstance(raw_pick, Mapping) else None
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
@@ -129,21 +131,16 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "lock_eligible": _bool_or_default(_field(card, contract, "lock_eligible"), False),
         "recommendation_id": _optional_text(_field(card, contract, "recommendation_id")),
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
+        "primary_blocker": _optional_text(_field(card, contract, "primary_blocker")),
+        "primary_blocker_layer": _optional_text(
+            _field(card, contract, "primary_blocker_layer")
+        ),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
         "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
-        "probability_source": _optional_text(_field(card, contract, "probability_source")),
-        "model_market_divergence": _mapping_copy(_field(card, contract, "model_market_divergence")),
-        "analysis_gate": _mapping_copy(_field(card, contract, "analysis_gate")),
-        "analysis_gates": _mapping_list(_field(card, contract, "analysis_gates")),
-        "missing_fields": _string_list(_field(card, contract, "missing_fields")),
-        "stale_fields": _string_list(_field(card, contract, "stale_fields")),
-        "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
         **_market_context_fields(card),
-        **_analysis_context_fields(card),
-        "pick": _mapping_copy(_field(card, contract, "pick"))
-        if isinstance(_field(card, contract, "pick"), Mapping)
-        else None,
+        **_analysis_context_fields(card, pick=pick),
+        "pick": pick,
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
         else None,
@@ -165,18 +162,13 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "lock_eligible": legacy.lock_eligible,
         "recommendation_id": legacy.recommendation_id,
         "reason_code": _optional_text(card.get("reason_code")),
+        "primary_blocker": _optional_text(card.get("primary_blocker")),
+        "primary_blocker_layer": _optional_text(card.get("primary_blocker_layer")),
         "action": _optional_text(card.get("action")),
         "next_eval_at": _format_time(card.get("next_eval_at")),
         "provider_budget_status": _optional_text(card.get("provider_budget_status")),
-        "probability_source": _optional_text(card.get("probability_source")),
-        "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-        "analysis_gate": _mapping_copy(card.get("analysis_gate")),
-        "analysis_gates": _mapping_list(card.get("analysis_gates")),
-        "missing_fields": _string_list(card.get("missing_fields")),
-        "stale_fields": _string_list(card.get("stale_fields")),
-        "data_readiness": _mapping_copy(card.get("data_readiness")),
         **_market_context_fields(card),
-        **_analysis_context_fields(card),
+        **_analysis_context_fields(card, pick=None),
         "pick": None,
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
@@ -229,17 +221,27 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
-        "market_probabilities": _market_probabilities(card),
-        "odds_movement": _mapping_copy(card.get("odds_movement")),
-        "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
     }
 
 
-def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
+def _analysis_context_fields(
+    card: Mapping[str, Any],
+    *,
+    pick: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not pick:
+        return {
+            "compact_provenance": {},
+            "scoreline_picks": [],
+            "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
+            "audit_available": bool(_optional_text(card.get("fixture_id"))),
+            "audit_links": _audit_links(card),
+        }
     card_dict = dict(card)
+    card_dict["pick"] = dict(pick)
     derived_reference = scoreline_reference_from_card(
         card_dict,
         recommendation=dict(_mapping(card.get("recommendation"))) or None,
@@ -254,19 +256,95 @@ def _analysis_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         scoreline_picks = scoreline_picks_from_card(card_dict)
     if not scoreline_picks:
         scoreline_picks = _mapping_list(card.get("scoreline_picks"))
+    compact_scorelines = [
+        {"scoreline": scoreline}
+        for item in scoreline_picks
+        if (scoreline := _optional_text(item.get("scoreline")))
+    ]
     return {
-        "pricing_shadow": _mapping_copy(card.get("pricing_shadow")),
-        "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
-        "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
-        "fair_market_estimate_snapshots": _mapping_list(
-            card.get("fair_market_estimate_snapshots")
-        ),
-        "analysis_gate_v2_shadow": _mapping_copy(card.get("analysis_gate_v2_shadow")),
-        "analysis_gate_v2_shadows": _mapping_list(card.get("analysis_gate_v2_shadows")),
-        "scoreline_picks": scoreline_picks,
-        "scoreline_reference": scoreline_reference or None,
+        "compact_provenance": _compact_provenance(card),
+        "scoreline_picks": compact_scorelines,
         "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
-        "diagnostics": _mapping_copy(card.get("diagnostics")),
+        "audit_available": bool(_optional_text(card.get("fixture_id"))),
+        "audit_links": _audit_links(card),
+    }
+
+
+def _compact_pick(value: Mapping[str, Any]) -> dict[str, Any]:
+    allowed = (
+        "market",
+        "selection",
+        "line",
+        "odds",
+        "fair_line",
+        "estimate_id",
+        "model_basis_id",
+    )
+    return {key: value[key] for key in allowed if value.get(key) is not None}
+
+
+def _compact_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
+    snapshots = _mapping_list(card.get("fair_market_estimate_snapshots"))
+    pick = _mapping(card.get("pick"))
+    estimate_id = _optional_text(pick.get("estimate_id"))
+    market = _optional_text(pick.get("market"))
+    selected = next(
+        (
+            snapshot
+            for snapshot in snapshots
+            if estimate_id and _optional_text(snapshot.get("estimate_id")) == estimate_id
+        ),
+        None,
+    )
+    if selected is None:
+        selected = next(
+            (
+                snapshot
+                for snapshot in snapshots
+                if market and _optional_text(snapshot.get("market")) == market
+            ),
+            snapshots[0] if len(snapshots) == 1 else None,
+        )
+    if not selected:
+        return {}
+    integrity = _mapping(selected.get("integrity"))
+    model_context = _mapping(selected.get("model_context"))
+    return {
+        key: value
+        for key, value in {
+            "estimate_id": _optional_text(selected.get("estimate_id")),
+            "model_basis_id": _optional_text(selected.get("model_basis_id")),
+            "market": _optional_text(selected.get("market")),
+            "schema_version": _optional_text(
+                selected.get("schema_version") or selected.get("schema")
+            ),
+            "status": _optional_text(selected.get("status")),
+            "integrity_status": _optional_text(
+                selected.get("integrity_status") or integrity.get("status")
+            ),
+            "semantic_status": _optional_text(selected.get("semantic_status")),
+            "artifact_hash": _optional_text(
+                selected.get("artifact_hash") or model_context.get("artifact_hash")
+            ),
+            "artifact_version": _optional_text(
+                selected.get("artifact_version") or model_context.get("artifact_version")
+            ),
+            "feature_as_of": _format_time(
+                selected.get("feature_as_of") or model_context.get("feature_as_of")
+            ),
+        }.items()
+        if value is not None
+    }
+
+
+def _audit_links(card: Mapping[str, Any]) -> dict[str, str]:
+    fixture_id = _optional_text(card.get("fixture_id"))
+    if not fixture_id:
+        return {}
+    return {
+        "analysis_card_url": f"/v1/fixtures/{fixture_id}/analysis-card",
+        "integrity_url": f"/v1/fixtures/{fixture_id}/integrity",
+        "odds_timeline_url": f"/v1/fixtures/{fixture_id}/odds-timeline",
     }
 
 
