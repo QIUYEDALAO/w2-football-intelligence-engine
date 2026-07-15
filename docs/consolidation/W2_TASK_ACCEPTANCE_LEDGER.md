@@ -716,3 +716,12 @@
 - 历史 Draft #277 基于计划前旧状态并会重写当前 `PROJECT_STATE`，已关闭并由本次 docs-only 最终重基线替代；#203 继续保持历史 Draft，不在当前队列。
 - 仓库状态进入 `READY_FOR_STAGING_DEPLOY_REVIEW`，并不表示已部署。staging 仍运行旧 SHA `493b4b6...`，production 未部署；后续部署必须单独批准并执行完整 release/readiness/business gate。
 - 本批次累计 provider calls=0、业务 DB writes=0、staging/production deploy=false、scheduler/worker restart=false、历史 snapshot/outcome rewrite=0；RECOMMEND、lock、production、联赛 enable 与模型 artifact 均未改变。
+
+### V3 进展续61 · Whole-System Correctness staging 部署与验证重基线(2026-07-15)
+
+- `main@3d67a769704e544fb544979c96cf3162328d090c` 已部署到 staging；API、Web、worker、scheduler 的 OCI revision 全部对齐该 SHA，migration 保持 `0023_create_checkpoint_refresh_schedule (head)`。
+- `/health`、`/ready`、数据库、Redis、worker、scheduler 与 Web/API release sync 通过；四个目标容器 restart count 均为 0。production 未部署。
+- staging `/ops` service credential 与基于实际 Compose bridge 的 `127.0.0.1/32,172.18.0.0/16` allowlist 已生效；缺失/错误/正确凭据分别返回 `401/401/200`。凭据明文不进入仓库、日志、响应或本台账。
+- 40 场审计共 80 个 FME Snapshot v2，integrity invalid=0；READY=2、INSUFFICIENT=78。corrected Strict AH 仍为 0/35、0/100，`RECOMMEND=0`、lock=0。
+- 初次十请求冷缓存并发验收出现 7 次瞬时 nginx 504；后续规定并发复测和连续六次稳定窗口无新增 5xx/502。该项保持开放 WARN，必须先完成只读根因诊断，不得直接增加 timeout 或降低业务门。
+- 部署验收主动 provider calls=0，scheduler 恢复后的 provider delta=0，关键业务表计数与部署前一致，历史 ledger 前缀未改写。rollback manifest 已保留，未执行 rollback。
