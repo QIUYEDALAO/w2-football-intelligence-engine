@@ -24,18 +24,36 @@ def test_l2_is_lazy_singleflight_and_release_scoped() -> None:
     assert "FIXTURE_AUDIT_CACHE_TTL_MS" in api
     assert "activeFixtureAuditRelease" in api
     assert "fetchFixtureAuditDetails" in api
-    assert 'const key = [fixtureId, estimateId ?? "NO_ESTIMATE", apiReleaseSha]' in api
-    for endpoint in (
+    fetch_body = api.split("export function fetchFixtureAuditDetails", 1)[1].split(
+        "export function fetchFixtureOddsTimeline", 1
+    )[0]
+    assert (
+        'const key = [fixtureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha]'
+        in fetch_body
+    )
+    assert "Promise.all" not in fetch_body
+    assert "/audit-detail" in fetch_body
+    assert "capture_hash" in fetch_body
+    for forbidden in (
         "/analysis-card",
         "/integrity",
         "/market-probabilities",
         "/model-probabilities",
         "/odds-timeline",
     ):
-        assert endpoint in api
+        assert forbidden not in fetch_body
+    timeline_body = api.split("export function fetchFixtureOddsTimeline", 1)[1]
+    assert "/odds-timeline" in timeline_body
+    assert "fixtureTimelineInflight" in timeline_body
+    assert "fixtureTimelineCache" in timeline_body
     assert "onToggle" in view
     assert "fetchFixtureAuditDetails" in view
+    assert "fetchFixtureOddsTimeline" in view
+    assert "card.audit_capture_hash" in view
+    assert "card.audit_estimate_id" in view
+    assert "auditIdentityRef.current === requestedIdentity" in view
     assert "L2 技术诊断加载失败" in view
+    assert "盘口时间线" in view
 
 
 def test_cached_dayview_is_explicitly_stale() -> None:

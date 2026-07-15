@@ -36,9 +36,18 @@ interface DashboardCacheEntry {
 
 const fixtureAuditInflight = new Map<string, Promise<FixtureAuditDetails>>();
 const fixtureAuditCache = new Map<string, { expiresAt: number; detail: FixtureAuditDetails }>();
+const fixtureTimelineInflight = new Map<string, Promise<Record<string, unknown>>>();
+const fixtureTimelineCache = new Map<string, { expiresAt: number; detail: Record<string, unknown> }>();
 const FIXTURE_AUDIT_CACHE_MAX_ENTRIES = 64;
 const FIXTURE_AUDIT_CACHE_TTL_MS = 15 * 60_000;
 let activeFixtureAuditRelease = "";
+let activeFixtureTimelineRelease = "";
+
+export class DashboardHttpError extends Error {
+  constructor(public readonly status: number, url: string) {
+    super(`${url} -> HTTP ${status}`);
+  }
+}
 
 interface FetchDashboardArgs {
   date: string;
@@ -53,7 +62,7 @@ async function getJSON(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unk
     window.clearTimeout(timeout);
   });
   if (!response.ok) {
-    throw new Error(`${url} -> HTTP ${response.status}`);
+    throw new DashboardHttpError(response.status, url);
   }
   return response.json() as Promise<unknown>;
 }
@@ -964,6 +973,9 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     compact_provenance: asRecord(record.compact_provenance),
     audit_available: record.audit_available === true,
     audit_links: asRecord(record.audit_links) as Record<string, string>,
+    audit_capture_hash: textValue(record.audit_capture_hash) || null,
+    audit_estimate_id: textValue(record.audit_estimate_id) || null,
+    audit_detail_url: textValue(record.audit_detail_url) || null,
     non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
@@ -1067,6 +1079,7 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
 
 export function fetchFixtureAuditDetails(
   fixtureId: string,
+  captureHash: string,
   estimateId: string | null,
   apiReleaseSha: string,
 ): Promise<FixtureAuditDetails> {
@@ -1075,7 +1088,7 @@ export function fetchFixtureAuditDetails(
     fixtureAuditInflight.clear();
   }
   activeFixtureAuditRelease = apiReleaseSha;
-  const key = [fixtureId, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
+  const key = [fixtureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
   const cached = fixtureAuditCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
   if (cached) fixtureAuditCache.delete(key);
@@ -1083,26 +1096,35 @@ export function fetchFixtureAuditDetails(
   if (inflight) return inflight;
 
   const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
-  const request = Promise.all([
-    getJSON(`${base}/analysis-card`),
-    getJSON(`${base}/integrity`),
-    getJSON(`${base}/market-probabilities`).catch(() => ({})),
-    getJSON(`${base}/model-probabilities`).catch(() => ({})),
-    getJSON(`${base}/odds-timeline`).catch(() => ({})),
-  ]).then(([analysisPayload, integrityPayload, marketPayload, modelPayload, oddsPayload]) => {
-    const analysis = asRecord(analysisPayload);
-    const card = asRecord(analysis.card);
+  const query = new URLSearchParams({ capture_hash: captureHash });
+  if (estimateId) query.set("estimate_id", estimateId);
+  const request = getJSON(`${base}/audit-detail?${query.toString()}`).then((payload) => {
+    const envelope = asRecord(payload);
+    const audit = asRecord(envelope.audit);
+    const decision = asRecord(audit.decision);
+    const scorelines = asRecord(audit.scoreline_explanation);
+    const card = {
+      fixture_id: fixtureId,
+      ...decision,
+      fair_market_estimate_snapshots: asArray(audit.estimate_summaries),
+      analysis_gate: asRecord(audit.analysis_gate),
+      scoreline_reference: {
+        source: "FROZEN_FORWARD_CAPTURE",
+        estimate_id: estimateId,
+        top_scorelines: asArray(scorelines.global_scorelines),
+        direction_scorelines: asArray(scorelines.direction_scorelines),
+        market_settlement: asRecord(audit.settlement_distribution),
+      },
+    };
     const detail: FixtureAuditDetails = {
       fixture_id: fixtureId,
       estimate_id: estimateId,
+      audit_capture_hash: captureHash,
       api_release_sha: apiReleaseSha,
       match: normalizeCard(card),
-      analysis_card: card,
-      integrity: asRecord(asRecord(integrityPayload).integrity),
-      market_probabilities: asRecord(marketPayload),
-      model_probabilities: asRecord(modelPayload),
-      odds_timeline: asRecord(oddsPayload),
-      performance: asRecord(analysis.performance),
+      audit,
+      integrity: asRecord(audit.integrity),
+      performance: asRecord(envelope.performance),
     };
     fixtureAuditCache.set(key, {
       expiresAt: Date.now() + FIXTURE_AUDIT_CACHE_TTL_MS,
@@ -1118,5 +1140,38 @@ export function fetchFixtureAuditDetails(
     fixtureAuditInflight.delete(key);
   });
   fixtureAuditInflight.set(key, request);
+  return request;
+}
+
+export function fetchFixtureOddsTimeline(
+  fixtureId: string,
+  apiReleaseSha: string,
+): Promise<Record<string, unknown>> {
+  if (activeFixtureTimelineRelease && activeFixtureTimelineRelease !== apiReleaseSha) {
+    fixtureTimelineCache.clear();
+    fixtureTimelineInflight.clear();
+  }
+  activeFixtureTimelineRelease = apiReleaseSha;
+  const key = [fixtureId, apiReleaseSha].join(":");
+  const cached = fixtureTimelineCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
+  if (cached) fixtureTimelineCache.delete(key);
+  const inflight = fixtureTimelineInflight.get(key);
+  if (inflight) return inflight;
+  const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
+  const request = getJSON(`${base}/odds-timeline`).then((payload) => {
+    const detail = asRecord(payload);
+    fixtureTimelineCache.set(key, {
+      expiresAt: Date.now() + FIXTURE_AUDIT_CACHE_TTL_MS,
+      detail,
+    });
+    while (fixtureTimelineCache.size > FIXTURE_AUDIT_CACHE_MAX_ENTRIES) {
+      const oldest = fixtureTimelineCache.keys().next().value;
+      if (oldest === undefined) break;
+      fixtureTimelineCache.delete(oldest);
+    }
+    return detail;
+  }).finally(() => fixtureTimelineInflight.delete(key));
+  fixtureTimelineInflight.set(key, request);
   return request;
 }

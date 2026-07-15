@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fmtTime,
   formatLine,
@@ -8,7 +8,11 @@ import {
   translateCompetition,
 } from "../lib/formatters";
 import { asArray, asRecord, textValue } from "../lib/normalize";
-import { fetchFixtureAuditDetails } from "../lib/dashboardApi";
+import {
+  DashboardHttpError,
+  fetchFixtureAuditDetails,
+  fetchFixtureOddsTimeline,
+} from "../lib/dashboardApi";
 import type {
   DashboardDayView,
   DashboardDayViewCard,
@@ -920,24 +924,69 @@ export function DecisionRow({
   const tierClass = `tier-${card.decision_tier.toLowerCase().replace("_", "-")}`;
   const muted = card.decision_tier === "NOT_READY" || card.decision_tier === "SKIP" || card.data_status === "BLOCKED";
   const scoreline = scorelineStatusText(card);
-  const estimateId = card.pick?.estimate_id
+  const estimateId = card.audit_estimate_id
+    ?? card.pick?.estimate_id
     ?? textValue(card.compact_provenance?.estimate_id)
     ?? null;
+  const captureHash = card.audit_capture_hash ?? null;
+  const auditIdentity = [card.fixture_id, captureHash ?? "NO_CAPTURE", estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
+  const auditIdentityRef = useRef(auditIdentity);
   const [audit, setAudit] = useState<FixtureAuditDetails | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
-  const [auditError, setAuditError] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<Record<string, unknown> | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState(false);
   useEffect(() => {
+    auditIdentityRef.current = auditIdentity;
     setAudit(null);
-    setAuditError(false);
-  }, [card.fixture_id, estimateId, apiReleaseSha]);
+    setAuditError(null);
+    setTimeline(null);
+    setTimelineError(false);
+  }, [auditIdentity]);
   function loadAudit(): void {
     if (auditLoading || audit) return;
+    if (!captureHash) {
+      setAuditError("该卡尚无冻结审计快照");
+      return;
+    }
+    const requestedIdentity = auditIdentity;
     setAuditLoading(true);
-    setAuditError(false);
-    fetchFixtureAuditDetails(card.fixture_id, estimateId, apiReleaseSha)
-      .then(setAudit)
-      .catch(() => setAuditError(true))
-      .finally(() => setAuditLoading(false));
+    setAuditError(null);
+    fetchFixtureAuditDetails(card.fixture_id, captureHash, estimateId, apiReleaseSha)
+      .then((detail) => {
+        if (auditIdentityRef.current === requestedIdentity) setAudit(detail);
+      })
+      .catch((error: unknown) => {
+        if (auditIdentityRef.current !== requestedIdentity) return;
+        const status = error instanceof DashboardHttpError ? error.status : 0;
+        setAuditError(
+          status === 404 ? "该卡尚无冻结审计快照"
+            : status === 409 ? "L1/L2 快照身份不一致，请刷新页面"
+              : status === 413 ? "审计投影超出安全限制"
+                : status === 503 ? "审计源暂不可用"
+                  : "L2 技术诊断加载失败",
+        );
+      })
+      .finally(() => {
+        if (auditIdentityRef.current === requestedIdentity) setAuditLoading(false);
+      });
+  }
+  function loadTimeline(): void {
+    if (timelineLoading || timeline) return;
+    const requestedIdentity = auditIdentity;
+    setTimelineLoading(true);
+    setTimelineError(false);
+    fetchFixtureOddsTimeline(card.fixture_id, apiReleaseSha)
+      .then((detail) => {
+        if (auditIdentityRef.current === requestedIdentity) setTimeline(detail);
+      })
+      .catch(() => {
+        if (auditIdentityRef.current === requestedIdentity) setTimelineError(true);
+      })
+      .finally(() => {
+        if (auditIdentityRef.current === requestedIdentity) setTimelineLoading(false);
+      });
   }
   return (
     <article className={`decision-row ${tierClass}${selected ? " is-selected" : ""}${muted ? " is-muted" : ""}`}>
@@ -979,7 +1028,7 @@ export function DecisionRow({
           {auditLoading ? <p>正在按需加载完整审计信息…</p> : null}
           {auditError ? (
             <div className="l2-load-error">
-              <strong>L2 技术诊断加载失败</strong>
+              <strong>{auditError}</strong>
               <span>L1 决策摘要仍然有效；这不代表没有审计数据。</span>
               <button type="button" onClick={() => {
                 setAudit(null);
@@ -992,13 +1041,20 @@ export function DecisionRow({
             <details className="l2-raw-audit">
               <summary>完整 provenance / FME / Strict 审计</summary>
               <pre>{JSON.stringify({
-                analysis_card: audit.analysis_card,
+                audit: audit.audit,
                 integrity: audit.integrity,
-                market_probabilities: audit.market_probabilities,
-                model_probabilities: audit.model_probabilities,
-                odds_timeline: audit.odds_timeline,
                 performance: audit.performance,
               }, null, 2)}</pre>
+            </details>
+          ) : null}
+          {audit ? (
+            <details className="l2-raw-audit" onToggle={(event) => {
+              if (event.currentTarget.open) loadTimeline();
+            }}>
+              <summary>盘口时间线</summary>
+              {timelineLoading ? <p>正在加载盘口时间线…</p> : null}
+              {timelineError ? <p>盘口时间线暂不可用；冻结审计不受影响。</p> : null}
+              {timeline ? <pre>{JSON.stringify(timeline, null, 2)}</pre> : null}
             </details>
           ) : null}
           <dl className="l2-diagnostics-grid">
