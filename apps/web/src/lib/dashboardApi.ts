@@ -118,6 +118,8 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
   const forwardShadowClv = asRecord(forwardLedger.clv_shadow);
+  const performanceIntegrity = asRecord(forwardLedger.performance_integrity);
+  const outcomesRawAudit = asRecord(forwardLedger.outcomes_raw_audit);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
     hit_count: numberValue(row.hit_count),
@@ -211,7 +213,60 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       void_count: numberValue(forwardLedger.void_count),
       hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
       outcomes_validation: outcomeSummary(forwardLedger.outcomes_validation),
+      outcomes_official: outcomeSummary(forwardLedger.outcomes_official),
+      outcomes_shadow_wide: outcomeSummary(forwardLedger.outcomes_shadow_wide),
+      outcomes_shadow_strict: outcomeSummary(forwardLedger.outcomes_shadow_strict),
       outcomes_shadow: outcomeSummary(forwardLedger.outcomes_shadow),
+      outcomes_shadow_compatibility_view:
+        forwardLedger.outcomes_shadow_compatibility_view === true,
+      outcomes_by_strategy: asArray(forwardLedger.outcomes_by_strategy).map((item) => {
+        const row = asRecord(item);
+        return {
+          recommendation_scope: textValue(row.recommendation_scope, "UNKNOWN"),
+          strategy_version: textValue(row.strategy_version, "UNKNOWN"),
+          ...outcomeSummary(row),
+        };
+      }),
+      outcomes_raw_audit: {
+        raw_outcome_row_count: numberValue(outcomesRawAudit.raw_outcome_row_count),
+        canonical_outcome_count: numberValue(outcomesRawAudit.canonical_outcome_count),
+        audit_only_outcome_count: numberValue(outcomesRawAudit.audit_only_outcome_count),
+        duplicate_audit_row_count: numberValue(outcomesRawAudit.duplicate_audit_row_count),
+        raw_exact_duplicate_count: numberValue(outcomesRawAudit.raw_exact_duplicate_count),
+        outcome_conflict_count: numberValue(outcomesRawAudit.outcome_conflict_count),
+        identity_aware_unmatched_count: numberValue(
+          outcomesRawAudit.identity_aware_unmatched_count,
+        ),
+      },
+      performance_integrity: {
+        status: textValue(performanceIntegrity.status, "BLOCKED"),
+        raw_outcome_row_count: numberValue(performanceIntegrity.raw_outcome_row_count),
+        canonical_outcome_count: numberValue(performanceIntegrity.canonical_outcome_count),
+        audit_only_outcome_count: numberValue(performanceIntegrity.audit_only_outcome_count),
+        duplicate_audit_row_count: numberValue(performanceIntegrity.duplicate_audit_row_count),
+        raw_exact_duplicate_count: numberValue(performanceIntegrity.raw_exact_duplicate_count),
+        outcome_conflict_count: numberValue(performanceIntegrity.outcome_conflict_count),
+        identity_aware_matched_count: numberValue(
+          performanceIntegrity.identity_aware_matched_count,
+        ),
+        identity_aware_unmatched_count: numberValue(
+          performanceIntegrity.identity_aware_unmatched_count,
+        ),
+        historical_incomplete_identity_count: numberValue(
+          performanceIntegrity.historical_incomplete_identity_count,
+        ),
+        canonical_duplicate_count: numberValue(performanceIntegrity.canonical_duplicate_count),
+        canonical_candidate_nonunique_count: numberValue(
+          performanceIntegrity.canonical_candidate_nonunique_count,
+        ),
+        cross_track_contamination_count: numberValue(
+          performanceIntegrity.cross_track_contamination_count,
+        ),
+        historical_compatibility_outcome_count: numberValue(
+          performanceIntegrity.historical_compatibility_outcome_count,
+        ),
+        corrected_outcome_count: numberValue(performanceIntegrity.corrected_outcome_count),
+      },
       accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
       clv: {
         sample_count: numberValue(forwardClv.sample_count),

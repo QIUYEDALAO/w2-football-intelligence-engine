@@ -16,6 +16,7 @@ from w2.tracking.canonical_identity import (
     candidate_for_outcome,
     canonical_capture_candidates,
 )
+from w2.tracking.canonical_outcomes import project_canonical_outcomes
 
 SAMPLE_TARGET = 200
 OFFICIAL_SCOPE = "OFFICIAL"
@@ -60,9 +61,14 @@ def forward_ledger_performance(
     raw_records, source_read_status, corruption_count = load_forward_ledger_records_with_status(
         root
     )
-    records = _normalize_outcome_records(raw_records)
-    canonical_candidates = canonical_capture_candidates(records)
-    records = _canonical_evidence_records(records, canonical_candidates)
+    canonical_candidates = canonical_capture_candidates(raw_records)
+    outcome_projection = project_canonical_outcomes(raw_records, canonical_candidates)
+    records = [
+        dict(record)
+        for record in raw_records
+        if _record_type(record) != "outcome"
+    ]
+    records.extend(dict(record) for record in outcome_projection.canonical_outcomes)
     outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
     outcome_validation_counts = _outcome_counts(
         records,
@@ -70,6 +76,18 @@ def forward_ledger_performance(
         scope=VALIDATION_SCOPE,
     )
     outcome_shadow_counts = _outcome_counts(records, side="shadow_pick")
+    wide_shadow_records = [
+        record
+        for record in records
+        if _outcome_side(record) == "shadow_pick" and not _strict_shadow_strategy(record)
+    ]
+    strict_shadow_records = [
+        record
+        for record in records
+        if _outcome_side(record) == "shadow_pick" and _strict_shadow_strategy(record)
+    ]
+    outcome_shadow_wide_counts = _outcome_counts(wide_shadow_records, side="shadow_pick")
+    outcome_shadow_strict_counts = _outcome_counts(strict_shadow_records, side="shadow_pick")
     official_records = [
         record for record in records if _recommendation_scope(record) == OFFICIAL_SCOPE
     ]
@@ -80,7 +98,9 @@ def forward_ledger_performance(
     clv_shadow_values = _clv_values(clv_shadow_rows)
     outcomes_by_strategy = _outcomes_by_strategy(records)
     fixture_ids = {
-        _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
+        _text(record.get("fixture_id"))
+        for record in raw_records
+        if _text(record.get("fixture_id"))
     }
     validation_fixture_ids = {
         _text(record.get("fixture_id"))
@@ -109,13 +129,13 @@ def forward_ledger_performance(
     double_snapshot_fixture_ids = {
         _text(row.get("fixture_id")) for row in clv_shadow_rows if _text(row.get("fixture_id"))
     }
-    return {
-        "schema_version": "w2.forward_ledger_performance.v1",
+    payload = {
+        "schema_version": "w2.forward_ledger_performance.v2",
         "source": "runtime/forward_outcome_ledger",
         "source_read_status": source_read_status,
         "source_corruption_count": corruption_count,
         "sample_target": sample_target,
-        "record_count": len(records),
+        "record_count": len(raw_records),
         "fixture_count": len(fixture_ids),
         "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
         "validation_fixture_count": len(validation_fixture_ids),
@@ -131,8 +151,14 @@ def forward_ledger_performance(
         "void_count": outcome_counts["void"],
         "hit_rate": _hit_rate(outcome_counts),
         "outcomes": _outcome_summary(outcome_counts),
+        "outcomes_official": _outcome_summary(outcome_counts),
         "outcomes_validation": _outcome_summary(outcome_validation_counts),
+        "outcomes_shadow_wide": _outcome_summary(outcome_shadow_wide_counts),
+        "outcomes_shadow_strict": _outcome_summary(outcome_shadow_strict_counts),
         "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
+        "outcomes_shadow_compatibility_view": True,
+        "outcomes_raw_audit": _raw_outcome_audit(outcome_projection),
+        "performance_integrity": dict(outcome_projection.metrics),
         **({"outcomes_by_strategy": outcomes_by_strategy} if outcomes_by_strategy else {}),
         **(
             {
@@ -216,6 +242,9 @@ def forward_ledger_performance(
         "db_writes": 0,
         "mock_data": False,
     }
+    if outcome_projection.metrics.get("status") == "BLOCKED":
+        _hide_hit_rates(payload)
+    return payload
 
 
 def _canonical_evidence_records(
@@ -494,6 +523,56 @@ def _outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
         "void_count": int(counts.get("void", 0)),
         "hit_rate": _hit_rate(counts),
     }
+
+
+def _raw_outcome_audit(projection: Any) -> dict[str, Any]:
+    by_track: defaultdict[str, int] = defaultdict(int)
+    by_strategy: defaultdict[str, int] = defaultdict(int)
+    by_market: defaultdict[str, int] = defaultdict(int)
+    for record in projection.raw_outcomes:
+        track = (
+            "SHADOW"
+            if _outcome_side(record) == "shadow_pick"
+            else _recommendation_scope(record)
+        )
+        by_track[track] += 1
+        by_strategy[_text(record.get("strategy_version") or "LEGACY_UNVERSIONED")] += 1
+        by_market[_text(record.get("market") or "UNKNOWN")] += 1
+    return {
+        "raw_outcome_row_count": len(projection.raw_outcomes),
+        "canonical_outcome_count": len(projection.canonical_outcomes),
+        "audit_only_outcome_count": len(projection.audit_only_outcomes),
+        "duplicate_audit_row_count": len(projection.duplicate_outcomes),
+        "raw_exact_duplicate_count": int(
+            projection.metrics.get("raw_exact_duplicate_count", 0)
+        ),
+        "identity_aware_unmatched_count": len(projection.unmatched_identity_outcomes),
+        "outcome_conflict_count": int(
+            projection.metrics.get("outcome_conflict_count", 0)
+        ),
+        "conflicting_outcome_row_count": len(projection.conflicting_outcomes),
+        "by_track": dict(sorted(by_track.items())),
+        "by_strategy": dict(sorted(by_strategy.items())),
+        "by_market": dict(sorted(by_market.items())),
+        "raw_rows_are_not_fixture_denominators": True,
+    }
+
+
+def _strict_shadow_strategy(record: Mapping[str, Any]) -> bool:
+    strategy = _text(record.get("strategy_version")).upper()
+    return "STRICT" in strategy and "SHADOW" in strategy
+
+
+def _hide_hit_rates(value: Any) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "hit_rate":
+                value[key] = None
+            else:
+                _hide_hit_rates(item)
+    elif isinstance(value, list):
+        for item in value:
+            _hide_hit_rates(item)
 
 
 def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:

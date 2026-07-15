@@ -600,7 +600,42 @@ export interface ForwardLedgerPerformance {
   void_count: number;
   hit_rate?: number | null;
   outcomes_validation: ForwardLedgerOutcomeSummary;
+  outcomes_official: ForwardLedgerOutcomeSummary;
+  outcomes_shadow_wide: ForwardLedgerOutcomeSummary;
+  outcomes_shadow_strict: ForwardLedgerOutcomeSummary;
   outcomes_shadow: ForwardLedgerOutcomeSummary;
+  outcomes_shadow_compatibility_view?: boolean;
+  outcomes_by_strategy?: Array<{
+    recommendation_scope: string;
+    strategy_version: string;
+    settled_sample_count: number;
+  } & ForwardLedgerOutcomeSummary>;
+  outcomes_raw_audit: {
+    raw_outcome_row_count: number;
+    canonical_outcome_count: number;
+    audit_only_outcome_count: number;
+    duplicate_audit_row_count: number;
+    raw_exact_duplicate_count: number;
+    outcome_conflict_count: number;
+    identity_aware_unmatched_count: number;
+  };
+  performance_integrity: {
+    status: "PASS" | "PASS_WITH_LEGACY_AUDIT" | "BLOCKED" | string;
+    raw_outcome_row_count: number;
+    canonical_outcome_count: number;
+    audit_only_outcome_count: number;
+    duplicate_audit_row_count: number;
+    raw_exact_duplicate_count: number;
+    outcome_conflict_count: number;
+    identity_aware_matched_count: number;
+    identity_aware_unmatched_count: number;
+    historical_incomplete_identity_count: number;
+    canonical_duplicate_count: number;
+    canonical_candidate_nonunique_count: number;
+    cross_track_contamination_count: number;
+    historical_compatibility_outcome_count: number;
+    corrected_outcome_count: number;
+  };
   accumulation_label: string;
   clv: {
     sample_count: number;
