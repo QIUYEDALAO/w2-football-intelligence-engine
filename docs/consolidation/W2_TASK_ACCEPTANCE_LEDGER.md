@@ -746,3 +746,12 @@
 - Strict canary 在冻结与实时源均为 `NO_CORRECTED_STRICT_CANDIDATE_YET`、candidate=0、source PASS、contamination=0。Corrected Strict 仍从 0/35、0/100 累积，历史兼容战绩不得进入 corrected evidence。
 - 运行安全：主动 provider calls=0、scheduler provider delta=0、业务 DB writes=0、历史 rewrite=0、queue=0、lock=0、OFFICIAL canonical=0、Web 5xx=0；ops 401/401/200。production、RECOMMEND、threshold、artifact、league enablement 均未改变。
 - 最终结论：`STAGING_VALIDATION_RECOVERED_WITH_WARNINGS`。WARN 仅为冷路径高延迟；production 和 RECOMMEND 继续 BLOCKED。
+
+### V3 进展续64 · Boss View 性能恢复验收与 staging 回滚(2026-07-15)
+
+- #301、#302、#303 已依次合并，`main@4dbaf517f62af47fbfbc11acfb21092e8b1380f2` 完成 direct lightweight DayView、L2 按 fixture 懒加载和关键路径指标；合并后 `1383 passed, 4 skipped`，Ruff/Mypy/TypeScript/Web/offline acceptance 全部 PASS。
+- 新 L1 经真实公网 nginx 路径测试 45/45 HTTP 200、0 timeout、0 502/504；VPS 到公网地址的 cold p50/p95/max=`1.7903/3.0731/10.1041s`，warm=`0.0072/0.0179/0.0183s`，每个 cold key owner=1、waiter=0/1/3/7。
+- L2 历史 fixture `analysis-card` 验收返回 502，并造成 API 健康检查重启 1 次；违反“L2 不影响首屏、0 5xx、0 restart”硬门，未通过发布验收。未提高 nginx/Web timeout。
+- 已按 `/opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json` 回滚，并从已知良好 release 源精确重建；staging API/Web/worker/scheduler 全部恢复 `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`、healthy、restart=0。
+- 回滚后 VALIDATION=`43/16/27`、Wide=`60/22/38`，duplicate/conflict/unmatched/contamination 均为 0，Strict=0、provider delta=0、queue=0。production、RECOMMEND、lock、OFFICIAL、threshold、artifact 和联赛 enablement 均未改变。
+- 最终结论：`STAGING_ROLLED_BACK_PERFORMANCE_BLOCKED`。下一项只能是独立 L2 critical-path 修复 PR，证明 analysis-card 不阻塞 readiness 后再申请 staging 重部署。
