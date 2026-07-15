@@ -175,7 +175,6 @@ from w2.tracking.formal_results import (
 from w2.tracking.forward_ledger_performance_cache import (
     ForwardLedgerPerformanceCache,
 )
-from w2.tracking.forward_outcome_ledger import ledger_fixture_ids
 from w2.tracking.frozen_capture_lookup import (
     find_frozen_capture,
     frozen_ledger_fingerprint,
@@ -2135,7 +2134,7 @@ class ReadModelService:
         result_events: list[dict[str, Any]] | None = []
         result_repository = self._future_refresh_repository()
         result_reader = (
-            getattr(result_repository, "result_events_for_fixture_ids", None)
+            getattr(result_repository, "result_events_snapshot", None)
             if result_repository is not None
             else None
         )
@@ -2143,7 +2142,7 @@ class ReadModelService:
             result_events = None
         else:
             try:
-                result_events = result_reader(ledger_fixture_ids(runtime_root))
+                result_events = result_reader()
             except SQLAlchemyError:
                 result_events = None
         performance["forward_ledger"] = self._forward_ledger_performance_cache.get(
