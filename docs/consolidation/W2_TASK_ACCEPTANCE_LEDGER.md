@@ -725,3 +725,14 @@
 - 40 场审计共 80 个 FME Snapshot v2，integrity invalid=0；READY=2、INSUFFICIENT=78。corrected Strict AH 仍为 0/35、0/100，`RECOMMEND=0`、lock=0。
 - 初次十请求冷缓存并发验收出现 7 次瞬时 nginx 504；后续规定并发复测和连续六次稳定窗口无新增 5xx/502。该项保持开放 WARN，必须先完成只读根因诊断，不得直接增加 timeout 或降低业务门。
 - 部署验收主动 provider calls=0，scheduler 恢复后的 provider delta=0，关键业务表计数与部署前一致，历史 ledger 前缀未改写。rollback manifest 已保留，未执行 rollback。
+
+### V3 进展续62 · Validation Correctness Recovery 部署前收口(2026-07-15)
+
+- 只读冻结 staging ledger 到 `/opt/w2/shared/validation-baselines/denominator-20260715-20260715-071647Z`；manifest SHA-256=`a7b92f76197c30008b78a4cfaa7efc508b15087f34217003f79595f37c21e5f4`，10937 条记录、103 条 raw outcome、corruption=0，原 ledger 未修改。
+- #295 修复 canonical outcome denominator：VALIDATION raw/canonical/audit-only=`43/16/27`，Wide Shadow=`60/22/38`；历史兼容 outcome 留在 audit/compatibility 层，不能成为 corrected evidence。
+- #296 增加 Dashboard 同 key single-flight 与 ledger projection cache，消除冷缓存并发重复构建；未增加 nginx timeout，未修改业务门。
+- #297 固定 FME blocker precedence，并把 feature/xG readiness 与 market readiness 解耦；无盘口仍以 `MARKET_UNAVAILABLE` 为第一 blocker，已有 xG 不再被写成 UNKNOWN，且不会生成 pick。
+- #298 增加只读 Strict AH canary checker，复用 canonical capture/outcome、Strict policy、FME semantics 与 MarketQuote verifier；冻结基线返回 `NO_CORRECTED_STRICT_CANDIDATE_YET`、candidate=0、exit=0。
+- 四 PR 合并后的 `main@51baa80fc4a8878b6a76e3782ff6586f1f39f269` 集成验收为 `1370 passed, 4 skipped`，Ruff/Mypy/TypeScript/Web/offline acceptance/tracked-output guard 全部 PASS。canonical duplicate/conflict/cross-track contamination 均为 0。
+- staging 尚未重部署，仍为 `3d67a769704e544fb544979c96cf3162328d090c`；下一步是一次性 staging 部署及冻结/实时 denominator、冷并发、FME 和稳定窗口验收。production、RECOMMEND、lock、OFFICIAL、threshold、artifact、league enablement 均未改变。
+- 安全：provider calls=0、业务 DB writes=0、历史 ledger/snapshot/outcome rewrite=0、staging deploy=false、production deploy=false、scheduler/worker restart=false。
