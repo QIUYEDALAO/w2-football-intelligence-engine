@@ -736,3 +736,13 @@
 - 四 PR 合并后的 `main@51baa80fc4a8878b6a76e3782ff6586f1f39f269` 集成验收为 `1370 passed, 4 skipped`，Ruff/Mypy/TypeScript/Web/offline acceptance/tracked-output guard 全部 PASS。canonical duplicate/conflict/cross-track contamination 均为 0。
 - staging 尚未重部署，仍为 `3d67a769704e544fb544979c96cf3162328d090c`；下一步是一次性 staging 部署及冻结/实时 denominator、冷并发、FME 和稳定窗口验收。production、RECOMMEND、lock、OFFICIAL、threshold、artifact、league enablement 均未改变。
 - 安全：provider calls=0、业务 DB writes=0、历史 ledger/snapshot/outcome rewrite=0、staging deploy=false、production deploy=false、scheduler/worker restart=false。
+
+### V3 进展续63 · Validation Correctness Recovery staging 验收(2026-07-15)
+
+- staging 单次部署完成，目标 `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`；API、Web、worker、scheduler 同 SHA、healthy、restart=0、OOM=false，migration 保持 `0023_create_checkpoint_refresh_schedule (head)`，rollback manifest 已在服务切换前创建且未执行回滚。
+- 冻结与实时 ledger 口径一致：VALIDATION raw/canonical/audit-only=`43/16/27`，Wide Shadow=`60/22/38`；canonical duplicate、conflict、identity-aware unmatched、cross-track contamination 均为 0。Dashboard canonical validation denominator 为总推荐 25、已结算 16、pending 9，10 HIT、4 MISS、2 PUSH、0 VOID，decisive hit rate 71.43%。
+- 冷并发 1/2/4/8 共 15 请求全部 200、无 502/504，每 key owner=1、waiter=0/1/3/7；暖 225 请求全部 200。冷 p50/p95/max=`93.7203/109.6345/110.398s`，暖 p50/p95/max=`2.4401/18.4901/61.5158s`。原 504 已消除，但冷路径和大响应序列化仍为性能 WARN，不授权提高 timeout。
+- future 40 场/80 Snapshot：READY=38、INSUFFICIENT=42；fallback 为 `FME_PROVENANCE_INCOMPLETE` 24、`R4_1_FEATURE_HISTORY_INSUFFICIENT` 18；integrity/semantic invalid=0。第一 blocker 为 `MARKET_UNAVAILABLE` 34、`QUOTE_CAPTURE_TIME_MISSING` 6；19 场 no-market 仍显示 xG READY，accidental promotion=0。
+- Strict canary 在冻结与实时源均为 `NO_CORRECTED_STRICT_CANDIDATE_YET`、candidate=0、source PASS、contamination=0。Corrected Strict 仍从 0/35、0/100 累积，历史兼容战绩不得进入 corrected evidence。
+- 运行安全：主动 provider calls=0、scheduler provider delta=0、业务 DB writes=0、历史 rewrite=0、queue=0、lock=0、OFFICIAL canonical=0、Web 5xx=0；ops 401/401/200。production、RECOMMEND、threshold、artifact、league enablement 均未改变。
+- 最终结论：`STAGING_VALIDATION_RECOVERED_WITH_WARNINGS`。WARN 仅为冷路径高延迟；production 和 RECOMMEND 继续 BLOCKED。
