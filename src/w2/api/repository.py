@@ -1903,8 +1903,6 @@ class ReadModelService:
         item: dict[str, Any],
         observations: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        if not observations:
-            return None
         fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
         teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
         home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
@@ -1997,8 +1995,6 @@ class ReadModelService:
         feature_observations = mainline_observations or observations
         market_snapshots = self._market_snapshots_from_observations(feature_observations)
         bookmaker_quotes = self._bookmaker_quotes_from_observations(feature_observations)
-        if not market_snapshots and not home_xg and not away_xg:
-            return None
         registry = CompetitionRegistry()
         registry_entry = registry.all_entries().get(competition_id)
         if registry_entry is None:
@@ -2184,6 +2180,19 @@ class ReadModelService:
             payload["r4_1_feature_rows"] = r4_1_rows
             payload["league_feature_snapshots"] = r4_1_rows["snapshots"]
         self._apply_mainline_market_selection(payload, mainline_selection)
+        if not any(
+            selection.get("status") == "READY"
+            for selection in mainline_selection.values()
+        ):
+            for market_payload in payload.get("markets", []):
+                if not isinstance(market_payload, dict):
+                    continue
+                market_payload["decision"] = "SKIP"
+                market_payload["tendency"] = None
+                market_payload["confidence"] = 0.0
+                market_payload["candidate"] = False
+                market_payload["formal_recommendation"] = False
+            payload["decision"] = "SKIP"
         payload.update(
             self._analysis_input_summary(
                 fixture_id=fixture_id,
@@ -2198,6 +2207,25 @@ class ReadModelService:
                 score_matrix=score_matrix,
             )
         )
+        artifact = self._r4_1_artifacts.get(competition_id)
+        payload["feature_readiness"] = {
+            "xg_status": xg_readiness["status"],
+            "xg_home_match_count": xg_readiness["home_match_count"],
+            "xg_away_match_count": xg_readiness["away_match_count"],
+            "xg_snapshot_count": xg_readiness["snapshot_count"],
+            "ratings_status": "READY"
+            if latest_home_rating is not None and latest_away_rating is not None
+            else "UNAVAILABLE",
+            "artifact_status": "READY"
+            if artifact is not None
+            else "INVALID"
+            if competition_id in self._r4_1_artifact_invalid_reasons
+            else "UNAVAILABLE",
+            "artifact_reason": self._r4_1_artifact_invalid_reasons.get(competition_id),
+            "feature_as_of": r4_1_rows.get("feature_as_of")
+            if r4_1_rows is not None
+            else None,
+        }
         self._attach_xg_reason_values(
             payload,
             home_xg=latest_home_xg,
@@ -5558,6 +5586,7 @@ class ReadModelService:
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
+            "feature_readiness": card.get("feature_readiness", {}),
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,

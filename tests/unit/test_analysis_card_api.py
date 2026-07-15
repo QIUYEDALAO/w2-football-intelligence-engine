@@ -383,16 +383,18 @@ class MixedFixtureRepository:
         ]
 
 
-def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None:
+def test_analysis_card_reads_feature_readiness_when_market_rows_are_incomplete() -> None:
     service = ReadModelService(repository=cast(Any, MixedFixtureRepository()))
 
     card = service.analysis_card("db-world-cup-fixture")
 
     assert card is not None
     assert card["fixture_id"] == "db-world-cup-fixture"
-    assert card["source"] == "future_refresh_without_analysis_payload"
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["decision"] == "SKIP"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+    assert card["feature_readiness"]["xg_status"] == "PROVIDER_EMPTY_OR_UNAVAILABLE"
     assert card["competition_cn"] == "World Cup · Group Stage - 3"
     assert card["competition_name"] == "World Cup"
     assert card["home_cn"] == "Home"
@@ -405,8 +407,8 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
         "FIRST_HALF_GOALS",
         "SCORE",
     }
-    assert card["markets"][0]["reasons"] == ["AH_ANALYSIS_INPUT_UNAVAILABLE"]
-    assert card["markets"][1]["reasons"] == ["OU_ANALYSIS_INPUT_UNAVAILABLE"]
+    assert card["markets"][0]["reasons"] == ["无有效主盘"]
+    assert card["markets"][1]["reasons"] == ["无有效主盘"]
 
 
 def test_fixture_list_includes_team_names_for_loading_cards() -> None:

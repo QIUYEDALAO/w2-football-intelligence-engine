@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
+from w2.dashboard.blocker_priority import prioritize_blockers
 from w2.domain.decision_card import DecisionCard, DecisionNonPick, DecisionPick
 from w2.domain.decision_policy import (
     DecisionPolicyConfig,
@@ -79,6 +80,27 @@ def build_decision_contract_fields(
         environment=environment,
     )
     analysis_gate = _primary_analysis_gate(analysis_gates)
+    blocker_diagnostics = prioritize_blockers(
+        [
+            data_readiness.reason_code.value if data_readiness.reason_code is not None else None,
+            *(
+                field.reason_code.value
+                for field in data_readiness.field_statuses
+                if field.reason_code is not None
+            ),
+            *_blockers(
+                readiness,
+                card=card,
+                market=market,
+                recommendation=recommendation,
+            ),
+            *(
+                blocker
+                for gate in analysis_gates
+                for blocker in _string_list(gate.get("blockers"))
+            ),
+        ]
+    )
     analysis_gate_v2_shadows = _analysis_gate_v2_shadows(
         card,
         analysis_gates,
@@ -166,6 +188,9 @@ def build_decision_contract_fields(
         "model_market_divergence": model_market_divergence,
         "analysis_gate": analysis_gate,
         "analysis_gates": analysis_gates,
+        "primary_blocker": blocker_diagnostics["primary_blocker"],
+        "primary_blocker_layer": blocker_diagnostics["primary_blocker_layer"],
+        "all_blockers": blocker_diagnostics["all_blockers"],
         "analysis_gate_v2_shadow": analysis_gate_v2_shadow,
         "analysis_gate_v2_shadows": analysis_gate_v2_shadows,
         "fair_market_estimates": [dict(item) for item in _fair_market_estimates(card)],
@@ -634,6 +659,21 @@ def _reason_text(reason_code: DecisionReasonCode) -> tuple[str, str]:
 def _gate_reason_code(
     analysis_gate: Mapping[str, Any] | None,
 ) -> DecisionReasonCode | None:
+    primary = str(_get(analysis_gate, "primary_blocker") or "").upper()
+    if primary == "MARKET_UNAVAILABLE":
+        return DecisionReasonCode.MARKET_UNAVAILABLE
+    if primary == "FME_PROVENANCE_INCOMPLETE":
+        return DecisionReasonCode.MODEL_FAIR_LINE_UNAVAILABLE
+    if primary == "FEATURE_HISTORY_INSUFFICIENT":
+        return DecisionReasonCode.DATA_MISSING_XG
+    if primary == "STRICT_GATE_EDGE_OR_EVIDENCE":
+        blockers = {
+            str(value).upper()
+            for value in _string_list(_get(analysis_gate, "blockers"))
+        }
+        if "FORWARD_EVIDENCE_ACCUMULATING" in blockers:
+            return DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING
+        return DecisionReasonCode.NO_EDGE
     blockers = {str(value).upper() for value in _string_list(_get(analysis_gate, "blockers"))}
     if "MARKET_UNAVAILABLE" in blockers:
         return DecisionReasonCode.MARKET_UNAVAILABLE
@@ -898,6 +938,7 @@ def _analysis_gates(
             status = "ELIGIBLE"
         if _lineups_pending(card):
             advisories.append("LINEUPS_PENDING")
+        blocker_diagnostics = prioritize_blockers(blockers)
         gates.append(
             {
                 "market": market,
@@ -928,6 +969,11 @@ def _analysis_gates(
                 if delta is not None
                 else None,
                 "blockers": blockers,
+                "primary_blocker": blocker_diagnostics["primary_blocker"],
+                "primary_blocker_layer": blocker_diagnostics[
+                    "primary_blocker_layer"
+                ],
+                "all_blockers": blocker_diagnostics["all_blockers"],
                 "advisories": advisories,
                 "next_eval_at": _analysis_next_eval(
                     kickoff_utc=kickoff_utc,
