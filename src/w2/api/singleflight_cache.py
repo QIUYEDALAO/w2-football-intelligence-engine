@@ -27,12 +27,14 @@ class SingleFlightCache[K, T]:
         max_entries: int = 32,
         max_wait_seconds: float = 60.0,
         clock: Callable[[], float] = monotonic,
+        copier: Callable[[T], T] = deepcopy,
     ) -> None:
         if max_entries < 1:
             raise ValueError("max_entries must be positive")
         self._max_entries = max_entries
         self._max_wait_seconds = max_wait_seconds
         self._clock = clock
+        self._copier = copier
         self._lock = RLock()
         self._cache: OrderedDict[K, tuple[float, T]] = OrderedDict()
         self._flights: dict[K, _Flight[T]] = {}
@@ -50,6 +52,20 @@ class SingleFlightCache[K, T]:
         ttl_seconds: float,
         compute: Callable[[], T],
     ) -> T:
+        value, _status = self.get_or_compute_with_status(
+            key,
+            ttl_seconds=ttl_seconds,
+            compute=compute,
+        )
+        return value
+
+    def get_or_compute_with_status(
+        self,
+        key: K,
+        *,
+        ttl_seconds: float,
+        compute: Callable[[], T],
+    ) -> tuple[T, str]:
         thread_id = get_ident()
         with self._lock:
             now = self._clock()
@@ -58,7 +74,7 @@ class SingleFlightCache[K, T]:
             if cached is not None:
                 self._cache.move_to_end(key)
                 self._counters["cache_hit"] += 1
-                return deepcopy(cached[1])
+                return self._copier(cached[1]), "HIT"
             self._counters["cache_miss"] += 1
             flight = self._flights.get(key)
             if flight is not None:
@@ -77,7 +93,7 @@ class SingleFlightCache[K, T]:
                 raise TimeoutError("single-flight owner did not complete before timeout")
             if flight.error is not None:
                 raise flight.error
-            return deepcopy(cast(T, flight.result))
+            return self._copier(cast(T, flight.result)), "WAITER"
 
         try:
             result = compute()
@@ -88,13 +104,16 @@ class SingleFlightCache[K, T]:
                 self._flights.pop(key, None)
             raise
         with self._lock:
-            flight.result = deepcopy(result)
-            self._cache[key] = (self._clock() + max(ttl_seconds, 0.0), deepcopy(result))
+            flight.result = self._copier(result)
+            self._cache[key] = (
+                self._clock() + max(ttl_seconds, 0.0),
+                self._copier(result),
+            )
             self._cache.move_to_end(key)
             self._enforce_max_entries()
             flight.event.set()
             self._flights.pop(key, None)
-        return deepcopy(result)
+        return self._copier(result), "MISS"
 
     def clear(self) -> None:
         with self._lock:

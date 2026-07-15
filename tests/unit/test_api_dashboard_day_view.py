@@ -48,7 +48,17 @@ class RecordingDashboardService:
             "window": window,
             "version": {"api_git_sha": "sha"},
             "debug": {},
-            "performance": {},
+            "performance": {
+                "dayview_cache_metrics": {
+                    "dayview_cache_status": "HIT",
+                    "fixture_window_read_seconds": 0.01,
+                    "capture_index_build_seconds": 0.02,
+                    "market_observation_read_seconds": 0.03,
+                    "ledger_summary_seconds": 0.04,
+                    "page_projection_seconds": 0.05,
+                    "dayview_serialization_seconds": 0.006,
+                }
+            },
             "recommendations": [{"fixture_id": "not-counted", "decision_tier": "RECOMMEND"}],
             "all": [
                 {
@@ -196,7 +206,11 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 200
-    assert response.headers["cache-control"] == ("public, max-age=30, stale-while-revalidate=300")
+    assert response.headers["cache-control"] == "public, max-age=30"
+    assert response.headers["x-w2-dayview-cache"] == "HIT"
+    assert response.headers["x-w2-dayview-snapshot"] == "dv_test"
+    assert "route;dur=" in response.headers["server-timing"]
+    assert "fixture;dur=10.000" in response.headers["server-timing"]
     assert response.headers["content-encoding"] == "gzip"
     payload = response.json()
     assert service.calls == [

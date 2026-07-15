@@ -123,3 +123,35 @@ def test_cache_max_size_is_enforced() -> None:
 
     assert cache.metrics()["cache_entry_count"] == 2
     assert cache.get_or_compute("0", ttl_seconds=10, compute=lambda: 9) == 9
+
+
+def test_cache_reports_miss_then_hit_status() -> None:
+    cache: SingleFlightCache[str, int] = SingleFlightCache()
+
+    first, first_status = cache.get_or_compute_with_status(
+        "key", ttl_seconds=10, compute=lambda: 1
+    )
+    second, second_status = cache.get_or_compute_with_status(
+        "key", ttl_seconds=10, compute=lambda: 2
+    )
+
+    assert (first, first_status) == (1, "MISS")
+    assert (second, second_status) == (1, "HIT")
+
+
+def test_cache_reports_waiter_status() -> None:
+    cache: SingleFlightCache[str, int] = SingleFlightCache()
+    barrier = threading.Barrier(2)
+
+    def task() -> tuple[int, str]:
+        barrier.wait()
+        return cache.get_or_compute_with_status(
+            "key",
+            ttl_seconds=10,
+            compute=lambda: (sleep(0.05), 1)[1],
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: task(), range(2)))
+
+    assert sorted(status for _, status in results) == ["MISS", "WAITER"]
