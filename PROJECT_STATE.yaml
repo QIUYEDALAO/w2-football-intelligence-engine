@@ -661,8 +661,8 @@ boss_view_performance_recovery:
     singleflight_waiters: "1:0,2:1,4:3,8:7"
   blocker:
     endpoint: /v1/fixtures/{fixture_id}/analysis-card
-    evidence: historical fixture L2 request returned 502 and caused one API health restart
-    required_follow_up: isolate full analysis-card construction from readiness and add a bounded L2 projection/cache before redeployment
+    evidence: historical fixture L2 request returned 502; kernel OOM killed uvicorn at about 1022048 KiB anonymous RSS and Docker restarted it with exit 137
+    required_follow_up: replace full-dashboard L2 reconstruction with bounded per-fixture projection and prove memory stays below the API cgroup limit before redeployment
   rollback:
     manifest: /opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json
     restored_release: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b

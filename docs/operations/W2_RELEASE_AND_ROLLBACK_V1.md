@@ -62,6 +62,6 @@ Rules:
 ## Rolled-back Boss View performance release · 2026-07-15
 
 - Attempted release: `4dbaf517f62af47fbfbc11acfb21092e8b1380f2`; rollback manifest: `/opt/w2/shared/rollback-manifest-4dbaf517f62af47fbfbc11acfb21092e8b1380f2.json` (mode 600).
-- Lightweight DayView passed the public nginx cold/warm latency and single-flight checks with no L1 5xx. A lazy L2 `analysis-card` request returned 502 and caused one API health restart, so the release failed its L2 isolation gate.
+- Lightweight DayView passed the public nginx cold/warm latency and single-flight checks with no L1 5xx. A lazy L2 `analysis-card` request returned 502; kernel evidence confirmed a memory-cgroup OOM kill at roughly 1022048 KiB anonymous RSS, followed by Docker exit-137 restart. The release therefore failed its L2 isolation gate.
 - Staging was restored to `c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`; API, Web, worker and scheduler are healthy and aligned on that revision. Provider and queue deltas were zero, and canonical denominator evidence was unchanged.
 - The performance commits remain merged on `main` for follow-up correction, but are not deployed. Production remains unchanged; no timeout, recommendation, lock, threshold, artifact or league setting was changed.
