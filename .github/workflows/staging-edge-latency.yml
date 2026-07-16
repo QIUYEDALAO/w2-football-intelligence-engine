@@ -49,14 +49,20 @@ jobs:
               --connection-mode REUSED --requests "$SAMPLE_COUNT" \
               --output "edge-latency/$name-warm-reused.json" >/dev/null
             python scripts/check_w2_public_edge_latency.py \
+              --validate-report "edge-latency/$name-warm-reused.json"
+            python scripts/check_w2_public_edge_latency.py \
               --url "${urls[$name]}" "${common_args[@]}" \
               --connection-mode FRESH --requests 10 \
               --output "edge-latency/$name-cold-fresh.json" >/dev/null
+            python scripts/check_w2_public_edge_latency.py \
+              --validate-report "edge-latency/$name-cold-fresh.json"
             for concurrency in 1 2 4 8; do
               python scripts/check_w2_public_edge_latency.py \
                 --url "${urls[$name]}" "${common_args[@]}" \
                 --connection-mode FRESH --requests 8 --concurrency "$concurrency" \
                 --output "edge-latency/$name-c$concurrency.json" >/dev/null
+              python scripts/check_w2_public_edge_latency.py \
+                --validate-report "edge-latency/$name-c$concurrency.json"
             done
           done
       - uses: actions/upload-artifact@v4

@@ -798,3 +798,13 @@
 - 当前正式分类为 `OBSERVER_COVERAGE_INSUFFICIENT`，尚未进入 staging 部署、L1 或 Frozen L2。本轮没有 provider call、业务 DB write、历史 rewrite、服务切换或回滚；稳定 staging 保持 `c89555b...`。
 - 下一步仅修复 observer 证据采集：保留同一 curl 进程的 keep-alive 语义，为每个响应使用独立临时 body，只提取 `request_id`，并记录 UTC timestamp 与 Server-Timing；不得修改 Dashboard、FME、分页、denominator、阈值或 12 秒 timeout。旧 artifacts 不得追认为正式 PASS。
 - VALIDATION `43/16/27`、Wide Shadow `60/22/38`、Strict `0/35` 与 `0/100` 的冻结边界未被本轮改动；RECOMMEND=0、lock=0、OFFICIAL canonical=0、production=false。
+
+### V3 进展续70 · Public Edge Observer Evidence V2 部署前门(2026-07-16)
+
+- context PR #326 已合并为 `main@c33a5ff35f94de767cc0e4d308a41fb76157fc6c`；active workstream、完整已知问题、GitHub context read order、冻结规格和 terminal condition 已进入 main。
+- Observer V2 报告/样本/collector 固定为 `w2.public_edge_latency.v2`、`w2.public_edge_latency.sample.v2`、`w2.public_edge_observer.v2`；V1 或缺字段 evidence 不得形成正式 PASS。
+- collector 在权限受限临时目录中逐 transfer 保存独立 body/header metadata，只提取合法唯一 request ID 与 allowlisted Server-Timing map；body、raw header、query 与环境内容不进入报告或 artifact，成功/失败均清理。
+- DIRECT 的 no-proxy 从实际 curl command 与清理后的环境推导；IPv4/IPv6 由 curl flag 与 `ipaddress` 双重验证。FRESH 一进程一 transfer；REUSED 仅按 `num_connects==0` 标记，服务端 reconnect 不按请求位置伪装 reuse。
+- curl transport failure、HTTP 502/504 保留 status、exit code、可用 timing 与 bytes，标记为 failure evidence 并使 observer 失败；metadata/配对/能力/临时路径错误才属于 collector hard error。
+- unit 与本地真实 HTTP/1.1 curl integration 共 31 项 PASS，覆盖 keep-alive、fresh、reconnect、malformed/empty/oversized、502 HTML、timeout 与临时目录清理；真实 staging smoke 同时保留一个12秒 transport failure与一个 correlated HTTP 200，证明失败事实不会消失。
+- 本实现未修改 Dashboard、nginx timeout、FME、denominator、pagination、Frozen L2、threshold、recommendation、lock 或 OFFICIAL；未部署 staging/production，provider calls=0、业务 DB writes=0、历史 rewrite=0。

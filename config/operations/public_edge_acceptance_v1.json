@@ -1,5 +1,8 @@
 {
   "schema": "w2.public_edge_acceptance.v1",
+  "required_evidence_schema": "w2.public_edge_latency.v2",
+  "required_sample_schema": "w2.public_edge_latency.sample.v2",
+  "required_collector_version": "w2.public_edge_observer.v2",
   "minimum_independent_public_observers": 2,
   "target_route": {
     "status": "UNDECLARED",
