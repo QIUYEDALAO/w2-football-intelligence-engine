@@ -10,6 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from w2.tracking.frozen_capture_identity import (
+    audit_capture_id,
+    capture_content_hash,
+    capture_estimate_identity,
+)
+
 _CACHE_MAX_ENTRIES = 64
 _CACHE_TTL_SECONDS = 15 * 60
 
@@ -26,6 +32,7 @@ class FrozenCaptureLookup:
     scanned_file_count: int
     scanned_record_count: int
     reason: str | None
+    requested_capture_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +61,7 @@ def find_frozen_capture(
     runtime_root: Path,
     *,
     fixture_id: str,
+    capture_id: str | None = None,
     capture_hash: str,
     estimate_id: str | None = None,
     max_fixture_records: int = 512,
@@ -65,6 +73,7 @@ def find_frozen_capture(
     key: tuple[object, ...] = (
         str(root),
         str(fixture_id),
+        str(capture_id or ""),
         str(capture_hash),
         str(estimate_id or ""),
         fingerprint,
@@ -93,6 +102,7 @@ def find_frozen_capture(
         result = _scan_frozen_capture(
             files,
             fixture_id=str(fixture_id),
+            capture_id=str(capture_id) if capture_id else None,
             capture_hash=str(capture_hash),
             estimate_id=str(estimate_id) if estimate_id else None,
             max_fixture_records=max_fixture_records,
@@ -137,6 +147,7 @@ def _scan_frozen_capture(
     files: tuple[Path, ...],
     *,
     fixture_id: str,
+    capture_id: str | None,
     capture_hash: str,
     estimate_id: str | None,
     max_fixture_records: int,
@@ -182,14 +193,14 @@ def _scan_frozen_capture(
                         continue
                     if not exact_mode:
                         target.append((value, path.name))
-                    elif _relevant_to_exact_capture(value, capture_hash):
+                    elif _relevant_to_exact_capture(value, capture_hash, capture_id):
                         target.append((value, path.name))
                     if len(target) > max_fixture_records:
                         exact_mode = True
                         target = [
                             item
                             for item in target
-                            if _relevant_to_exact_capture(item[0], capture_hash)
+                            if _relevant_to_exact_capture(item[0], capture_hash, capture_id)
                         ]
                         if len(target) > max_fixture_records:
                             return _result(
@@ -219,31 +230,73 @@ def _scan_frozen_capture(
         if str(row.get("record_type") or "capture") == "capture"
     ]
     selected: tuple[dict[str, Any], str] | None = None
-    for field in ("capture_hash", "evidence_hash", "card_hash"):
-        matches = [item for item in captures if str(item[0].get(field) or "") == capture_hash]
-        if not matches:
-            continue
-        if len(matches) > 1:
-            reason = (
-                "AMBIGUOUS_LEGACY_CAPTURE" if field == "card_hash" else "AMBIGUOUS_CAPTURE"
-            )
+    hash_matched_without_estimate = False
+    if capture_id:
+        identity_matches = [item for item in captures if audit_capture_id(item[0]) == capture_id]
+        if len(identity_matches) != 1:
             return _result(
                 fixture_id,
                 capture_hash,
+                requested_capture_id=capture_id,
                 fixture_records=records,
                 source_status="BLOCKED",
-                reason=reason,
+                reason=(
+                    "AMBIGUOUS_CAPTURE_ID"
+                    if len(identity_matches) > 1
+                    else "CAPTURE_IDENTITY_MISMATCH"
+                ),
                 corruption_count=corruption_count,
                 scanned_file_count=len(files),
                 scanned_record_count=scanned_records,
             )
-        selected = matches[0]
-        break
+        selected = identity_matches[0]
+        if capture_content_hash(selected[0]) != capture_hash:
+            return _result(
+                fixture_id,
+                capture_hash,
+                requested_capture_id=capture_id,
+                fixture_records=records,
+                source_status="BLOCKED",
+                reason="CAPTURE_IDENTITY_MISMATCH",
+                matched_file=selected[1],
+                corruption_count=corruption_count,
+                scanned_file_count=len(files),
+                scanned_record_count=scanned_records,
+            )
+    else:
+        for field in ("capture_hash", "evidence_hash", "card_hash"):
+            matches = [
+                item for item in captures if str(item[0].get(field) or "") == capture_hash
+            ]
+            if estimate_id:
+                hash_matched_without_estimate = hash_matched_without_estimate or bool(matches)
+                matches = [item for item in matches if estimate_id in _estimate_ids(item[0])]
+            if not matches:
+                continue
+            if len(matches) > 1:
+                reason = (
+                    "AMBIGUOUS_LEGACY_CAPTURE"
+                    if field == "card_hash"
+                    else "AMBIGUOUS_CAPTURE"
+                )
+                return _result(
+                    fixture_id,
+                    capture_hash,
+                    fixture_records=records,
+                    source_status="BLOCKED",
+                    reason=reason,
+                    corruption_count=corruption_count,
+                    scanned_file_count=len(files),
+                    scanned_record_count=scanned_records,
+                )
+            selected = matches[0]
+            break
 
     if corruption_count:
         return _result(
             fixture_id,
             capture_hash,
+            requested_capture_id=capture_id,
             capture=selected[0] if selected else None,
             fixture_records=records,
             source_status="DEGRADED",
@@ -257,16 +310,26 @@ def _scan_frozen_capture(
         return _result(
             fixture_id,
             capture_hash,
+            requested_capture_id=capture_id,
             fixture_records=records,
-            source_status="MISSING",
-            reason="CAPTURE_NOT_FOUND",
+            source_status="BLOCKED" if hash_matched_without_estimate else "MISSING",
+            reason=(
+                "ESTIMATE_IDENTITY_MISMATCH"
+                if hash_matched_without_estimate
+                else "CAPTURE_NOT_FOUND"
+            ),
             scanned_file_count=len(files),
             scanned_record_count=scanned_records,
         )
-    if estimate_id and estimate_id not in _estimate_ids(selected[0]):
+    identity = capture_estimate_identity(selected[0])
+    if estimate_id and (
+        estimate_id not in _estimate_ids(selected[0])
+        or (capture_id is not None and identity.estimate_id != estimate_id)
+    ):
         return _result(
             fixture_id,
             capture_hash,
+            requested_capture_id=capture_id,
             fixture_records=records,
             source_status="BLOCKED",
             reason="ESTIMATE_IDENTITY_MISMATCH",
@@ -277,6 +340,7 @@ def _scan_frozen_capture(
     return _result(
         fixture_id,
         capture_hash,
+        requested_capture_id=capture_id,
         capture=selected[0],
         fixture_records=records,
         source_status="PASS",
@@ -286,7 +350,9 @@ def _scan_frozen_capture(
     )
 
 
-def _relevant_to_exact_capture(record: Mapping[str, Any], capture_hash: str) -> bool:
+def _relevant_to_exact_capture(
+    record: Mapping[str, Any], capture_hash: str, capture_id: str | None
+) -> bool:
     if str(record.get("record_type") or "capture") != "capture":
         # Old outcomes may not carry a source hash. Retaining bounded non-capture
         # records preserves historical audit visibility without keeping unrelated
@@ -296,6 +362,8 @@ def _relevant_to_exact_capture(record: Mapping[str, Any], capture_hash: str) -> 
             str(record.get(field) or "") == capture_hash
             for field in ("capture_hash", "evidence_hash", "card_hash")
         )
+    if capture_id is not None:
+        return audit_capture_id(record) == capture_id
     return any(
         str(record.get(field) or "") == capture_hash
         for field in ("capture_hash", "evidence_hash", "card_hash")
@@ -324,6 +392,7 @@ def _result(
     fixture_id: str,
     capture_hash: str,
     *,
+    requested_capture_id: str | None = None,
     capture: Mapping[str, Any] | None = None,
     fixture_records: tuple[Mapping[str, Any], ...] = (),
     source_status: str,
@@ -335,6 +404,7 @@ def _result(
 ) -> FrozenCaptureLookup:
     return FrozenCaptureLookup(
         fixture_id=fixture_id,
+        requested_capture_id=requested_capture_id,
         requested_capture_hash=capture_hash,
         capture=capture,
         fixture_records=fixture_records,

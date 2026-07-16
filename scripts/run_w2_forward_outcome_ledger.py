@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from w2.api.repository import ReadModelService  # noqa: E402
 from w2.config import get_settings  # noqa: E402
-from w2.dashboard.day_view import build_dashboard_day_view  # noqa: E402
+from w2.dashboard.day_view import build_forward_capture_day_view  # noqa: E402
 from w2.tracking.forward_outcome_ledger import run_forward_outcome_ledger  # noqa: E402
 
 
@@ -36,7 +36,7 @@ def main() -> int:
             window=args.window,
             include_debug=False,
         )
-        day_view = build_dashboard_day_view(
+        day_view = build_forward_capture_day_view(
             dashboard,
             environment=get_settings().environment.value,
         )

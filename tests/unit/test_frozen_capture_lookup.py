@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
+from w2.tracking.frozen_capture_identity import audit_capture_id
 from w2.tracking.frozen_capture_lookup import clear_frozen_capture_cache, find_frozen_capture
 
 
@@ -23,6 +25,104 @@ def _capture(hash_value: str, *, estimate_id: str = "fme-1") -> dict[str, object
         "fair_market_estimate_ids": [estimate_id],
         "fair_market_estimate_snapshots": [{"estimate_id": estimate_id}],
     }
+
+
+def _eligible_capture(captured_at: str) -> dict[str, object]:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="fixture-1",
+        estimate=FairMarketEstimate(
+            market="TOTALS",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=2.5,
+            probabilities={"OVER": 0.52, "UNDER": 0.48},
+            home_mu=1.5,
+            away_mu=1.0,
+            feature_as_of="2026-07-17T00:00:00Z",
+            train_cutoff="2026-06-30T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ou": {"line": 2.5, "over_price": 1.9}},
+        feature_snapshot={"home_xg": 1.5, "away_xg": 1.0},
+        created_at=captured_at,
+    ).as_dict()
+    return {
+        "fixture_id": "fixture-1",
+        "football_day": "2026-07-17",
+        "environment": "staging",
+        "captured_at": captured_at,
+        "capture_hash": "shared-hash",
+        "pick": {"market": "TOTALS", "estimate_id": snapshot["estimate_id"]},
+        "fair_market_estimate_ids": [snapshot["estimate_id"]],
+        "fair_market_estimate_snapshots": [snapshot],
+    }
+
+
+def test_exact_capture_id_resolves_duplicate_content_hash(tmp_path: Path) -> None:
+    first = _eligible_capture("2026-07-17T00:00:00Z")
+    second = _eligible_capture("2026-07-17T00:01:00Z")
+    _write(tmp_path, first, second)
+    capture_id = audit_capture_id(second)
+    estimate_id = str(second["fair_market_estimate_ids"][0])  # type: ignore[index]
+
+    ambiguous = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_hash="shared-hash",
+        estimate_id=estimate_id,
+    )
+    exact = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_id=capture_id,
+        capture_hash="shared-hash",
+        estimate_id=estimate_id,
+    )
+
+    assert ambiguous.reason == "AMBIGUOUS_CAPTURE"
+    assert exact.source_status == "PASS"
+    assert exact.capture == second
+    assert exact.requested_capture_id == capture_id
+
+
+def test_exact_capture_id_cross_validates_hash_and_estimate(tmp_path: Path) -> None:
+    capture = _eligible_capture("2026-07-17T00:00:00Z")
+    _write(tmp_path, capture)
+    capture_id = audit_capture_id(capture)
+
+    wrong_hash = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_id=capture_id,
+        capture_hash="wrong",
+    )
+    wrong_estimate = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_id=capture_id,
+        capture_hash="shared-hash",
+        estimate_id="fme_wrong",
+    )
+
+    assert wrong_hash.reason == "CAPTURE_IDENTITY_MISMATCH"
+    assert wrong_estimate.reason == "ESTIMATE_IDENTITY_MISMATCH"
+
+
+def test_hash_and_estimate_resolve_one_of_duplicate_hash_records(tmp_path: Path) -> None:
+    first = _capture("shared", estimate_id="fme-first")
+    second = _capture("shared", estimate_id="fme-second")
+    _write(tmp_path, first, second)
+
+    result = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_hash="shared",
+        estimate_id="fme-second",
+    )
+
+    assert result.source_status == "PASS"
+    assert result.capture == second
 
 
 def test_streaming_lookup_uses_exact_hash_and_keeps_only_target_fixture(tmp_path: Path) -> None:

@@ -27,12 +27,16 @@ def test_l2_is_lazy_singleflight_and_release_scoped() -> None:
     fetch_body = api.split("export function fetchFixtureAuditDetails", 1)[1].split(
         "export function fetchFixtureOddsTimeline", 1
     )[0]
+    expected_cache_key = (
+        'const key = [fixtureId, captureId, captureHash, estimateId ?? "NO_ESTIMATE", '
+        "apiReleaseSha]"
+    )
     assert (
-        'const key = [fixtureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha]'
-        in fetch_body
+        expected_cache_key in fetch_body
     )
     assert "Promise.all" not in fetch_body
     assert "/audit-detail" in fetch_body
+    assert "capture_id" in fetch_body
     assert "capture_hash" in fetch_body
     for forbidden in (
         "/analysis-card",
@@ -49,6 +53,7 @@ def test_l2_is_lazy_singleflight_and_release_scoped() -> None:
     assert "onToggle" in view
     assert "fetchFixtureAuditDetails" in view
     assert "fetchFixtureOddsTimeline" in view
+    assert "card.audit_capture_id" in view
     assert "card.audit_capture_hash" in view
     assert "card.audit_estimate_id" in view
     assert "auditIdentityRef.current === requestedIdentity" in view

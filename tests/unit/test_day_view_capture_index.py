@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 from w2.tracking.day_view_capture_index import (
     MAX_DAY_VIEW_CAPTURE_SUMMARY_BYTES,
     build_day_view_capture_index,
@@ -16,6 +17,48 @@ def _write(root: Path, rows: list[dict[str, object]]) -> None:
     (ledger / "records.jsonl").write_text(
         "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
     )
+
+
+def test_index_exposes_same_record_capture_hash_and_estimate_identity(tmp_path: Path) -> None:
+    snapshot = FairMarketEstimateSnapshot.create(
+        fixture_id="7",
+        estimate=FairMarketEstimate(
+            market="TOTALS",
+            status="READY",
+            model_family="R4_1_CALIBRATED",
+            fair_line=2.5,
+            probabilities={"OVER": 0.52, "UNDER": 0.48},
+            home_mu=1.5,
+            away_mu=1.0,
+            feature_as_of="2026-07-17T00:00:00Z",
+            train_cutoff="2026-06-30T00:00:00Z",
+            artifact_hash="artifact",
+            artifact_version="v1",
+        ),
+        odds_snapshot={"ou": {"line": 2.5, "over_price": 1.9}},
+        feature_snapshot={"home_xg": 1.5, "away_xg": 1.0},
+        created_at="2026-07-17T00:00:00Z",
+    ).as_dict()
+    capture = {
+        "fixture_id": "7",
+        "football_day": "2026-07-17",
+        "environment": "staging",
+        "captured_at": "2026-07-17T00:00:00Z",
+        "kickoff_utc": "2026-07-17T12:00:00Z",
+        "capture_hash": "content-hash",
+        "pick": {"market": "TOTALS", "estimate_id": snapshot["estimate_id"]},
+        "fair_market_estimate_ids": [snapshot["estimate_id"]],
+        "fair_market_estimate_snapshots": [snapshot],
+    }
+    _write(tmp_path, [capture])
+
+    card = build_day_view_capture_index(tmp_path).summaries["7"].as_card_fields()
+
+    assert card["audit_capture_id"].startswith("aci_")
+    assert card["audit_capture_hash"] == "content-hash"
+    assert card["audit_estimate_id"] == snapshot["estimate_id"]
+    assert card["audit_identity_status"] == "PASS"
+    assert card["audit_available"] is True
 
 
 def test_index_keeps_latest_prematch_capture_and_omits_full_payloads(tmp_path: Path) -> None:

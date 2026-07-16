@@ -928,8 +928,9 @@ export function DecisionRow({
     ?? card.pick?.estimate_id
     ?? textValue(card.compact_provenance?.estimate_id)
     ?? null;
+  const captureId = card.audit_capture_id ?? null;
   const captureHash = card.audit_capture_hash ?? null;
-  const auditIdentity = [card.fixture_id, captureHash ?? "NO_CAPTURE", estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
+  const auditIdentity = [card.fixture_id, captureId ?? "NO_CAPTURE_ID", captureHash ?? "NO_CAPTURE", estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
   const auditIdentityRef = useRef(auditIdentity);
   const [audit, setAudit] = useState<FixtureAuditDetails | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -946,14 +947,14 @@ export function DecisionRow({
   }, [auditIdentity]);
   function loadAudit(): void {
     if (auditLoading || audit) return;
-    if (!captureHash) {
-      setAuditError("该卡尚无冻结审计快照");
+    if (!card.audit_available || !captureId || !captureHash || !estimateId) {
+      setAuditError(card.audit_blocker ?? "该卡尚无完整冻结审计身份");
       return;
     }
     const requestedIdentity = auditIdentity;
     setAuditLoading(true);
     setAuditError(null);
-    fetchFixtureAuditDetails(card.fixture_id, captureHash, estimateId, apiReleaseSha)
+    fetchFixtureAuditDetails(card.fixture_id, captureId, captureHash, estimateId, apiReleaseSha)
       .then((detail) => {
         if (auditIdentityRef.current === requestedIdentity) setAudit(detail);
       })

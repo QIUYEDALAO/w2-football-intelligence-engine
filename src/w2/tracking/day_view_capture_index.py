@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 from w2.api.singleflight_cache import SingleFlightCache
+from w2.models.fair_market_estimate import SNAPSHOT_SCHEMA_V2, verify_estimate_snapshot
+from w2.tracking.frozen_capture_identity import (
+    audit_capture_id,
+    capture_content_hash,
+    capture_estimate_identity,
+)
 from w2.tracking.frozen_capture_lookup import frozen_ledger_fingerprint
 
-DAY_VIEW_CAPTURE_PROJECTION_VERSION = "w2.day_view_capture_summary.v1"
+DAY_VIEW_CAPTURE_PROJECTION_VERSION = "w2.day_view_capture_summary.v2"
 MAX_DAY_VIEW_CAPTURE_SUMMARY_BYTES = 24 * 1024
 
 
@@ -41,6 +47,11 @@ class DayViewCaptureSummary:
     scoreline_readiness: Mapping[str, Any]
     audit_estimate_id: str | None
     source: str
+    audit_capture_id: str | None = None
+    audit_identity_status: str = "BLOCKED"
+    audit_blocker: str | None = None
+    audit_available: bool = False
+    historical_compatibility: bool = False
 
     def as_card_fields(self) -> dict[str, Any]:
         value = asdict(self)
@@ -177,17 +188,34 @@ def _summary_from_capture(capture: Mapping[str, Any]) -> DayViewCaptureSummary |
     status = _text(capture.get("status")).upper()
     if status in {"LIVE", "1H", "HT", "2H", "ET", "FT", "AET", "PEN"}:
         return None
-    capture_hash = _optional_text(
-        capture.get("capture_hash") or capture.get("evidence_hash") or capture.get("card_hash")
-    )
+    capture_hash = capture_content_hash(capture)
     if not capture_hash:
         return None
     pick = _allow_mapping(
         capture.get("pick"),
         ("market", "selection", "line", "odds", "fair_line", "estimate_id", "model_basis_id"),
     )
-    estimate_id = _optional_text(capture.get("audit_estimate_id")) or _optional_text(
-        pick.get("estimate_id") if pick else None
+    estimate_identity = capture_estimate_identity(capture)
+    estimate_id = estimate_identity.estimate_id
+    capture_id = audit_capture_id(capture)
+    audit_available = bool(
+        capture_id
+        and capture_hash
+        and estimate_id
+        and estimate_identity.status == "PASS"
+    )
+    raw_snapshots = capture.get("fair_market_estimate_snapshots")
+    snapshots = (
+        raw_snapshots
+        if isinstance(raw_snapshots, Sequence)
+        and not isinstance(raw_snapshots, str | bytes | bytearray)
+        else ()
+    )
+    historical_compatibility = any(
+        isinstance(snapshot, Mapping)
+        and snapshot.get("schema_version") != SNAPSHOT_SCHEMA_V2
+        and verify_estimate_snapshot(snapshot)
+        for snapshot in snapshots
     )
     provenance = _compact_provenance(capture, estimate_id=estimate_id, pick=pick)
     scorelines = _direction_scorelines(capture)
@@ -238,6 +266,11 @@ def _summary_from_capture(capture: Mapping[str, Any]) -> DayViewCaptureSummary |
         ),
         audit_estimate_id=estimate_id,
         source="frozen_forward_capture",
+        audit_capture_id=capture_id,
+        audit_identity_status="PASS" if audit_available else "BLOCKED",
+        audit_blocker=None if audit_available else estimate_identity.blocker,
+        audit_available=audit_available,
+        historical_compatibility=historical_compatibility,
     )
     if _json_size(summary.as_card_fields()) <= MAX_DAY_VIEW_CAPTURE_SUMMARY_BYTES:
         return summary
@@ -268,6 +301,10 @@ def _summary_from_capture(capture: Mapping[str, Any]) -> DayViewCaptureSummary |
         scoreline_readiness={"status": "BLOCKED"},
         audit_estimate_id=estimate_id,
         source="frozen_forward_capture",
+        audit_capture_id=capture_id,
+        audit_identity_status="BLOCKED",
+        audit_blocker="L1_CAPTURE_SUMMARY_TOO_LARGE",
+        audit_available=False,
     )
 
 

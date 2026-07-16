@@ -826,3 +826,12 @@
 - HTTP 409 的直接根因分类为 `SAME_HASH_MULTI_OCCURRENCE`，不是 estimate extraction loss，也不是同 hash 的业务内容冲突。新增 occurrence ID 可以消除 hash 多义性，但不能凭空生成当前 record 不具备的 eligible estimate，因而无法满足 `audit_available=true` 与 corrected-evidence 硬门。
 - 本批次按 `HARD_BLOCKER_CURRENT_SCOPE` 停止：未修改代码、FME、Snapshot schema、阈值、分页、denominator 或三轨；未创建回归 fixture、未部署、未调用 provider、未写业务 DB、未改历史 ledger。staging 无需回滚且保持 `c89555b...`。
 - 最终状态提升为 `BLOCKED_EXACT_IDENTITY`。下一动作不再是本范围内的 lookup/UI 修复；必须另行授权修复“当前 capture 本身缺少 Snapshot v2 evidence”的上游生成问题，产生新的同-record 权威证据后，再重新读取 GitHub 上下文并重做 exact-identity 诊断。
+
+### V3 进展续73 · L2-02 Exact Identity 实现完成、staging 待验收(2026-07-17)
+
+- 以 GitHub `main@68cc49f50262d506fae99cf90b1edea7adaa1f23` 为唯一上下文启动；staging 继续运行 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`。L2-02 在 staging 验收前保持 blocking，production、RECOMMEND、lock、OFFICIAL 继续禁止。
+- 根因已定位为前向账本 CLI 将含完整 Snapshot v2 的权威 Dashboard 再经过公开 L1 有损投影，导致账本捕获丢失 Snapshot 与 estimate identity。新增内部 evidence adapter 保留同请求、同记录的不可变证据，公开 L1 仍保持 bounded，不暴露完整快照。
+- 新增确定性 `audit_capture_id=aci_<sha256>` 区分 occurrence identity 与原有 content `capture_hash`；DayView index 只从同一 capture 内的 integrity/semantics/evidence-eligible Snapshot v2 提取 estimate。Boss View 与 Frozen L2 绑定并交叉校验 capture ID、hash、estimate 三元组，旧 hash-only 客户端继续兼容但遇多义即 409。
+- 提交 fixture 1492140 最小脱敏双 occurrence 回归，证明 controlled append-only v2 recapture 可被精确寻址；fixture 1576804 的 historical compatibility 与 no-live-rebuild 边界保持不变。未硬编码生产 fixture 逻辑，未修改 FME 数学、Snapshot schema、estimate/model ID、quote、score matrix、settlement、pagination、denominator 或三轨。
+- 本地全量 `1481 passed, 4 skipped`；Ruff、Mypy（247 source files）、TypeScript、Web build、offline acceptance、tracked-output guard 与 diff check 全 PASS。provider calls=0、业务 DB writes=0、历史 rewrite=0、staging/production deployment=false。
+- 唯一代码 PR 为 #330，当前状态为 `IMPLEMENTATION_COMPLETE_STAGING_PENDING`。下一步仅允许该 PR 通过 verify/staging-parity/predeploy-e2e 后合并，部署最新 main，并在真实 kickoff 前执行一次不回填时间的 append-only controlled capture，再完成 L1/L2 与 denominator/三轨安全验收。

@@ -496,6 +496,7 @@ def audit_detail(
     fixture_id: str,
     request: Request,
     capture_hash: Annotated[str, Query(min_length=1)],
+    capture_id: str | None = None,
     estimate_id: str | None = None,
 ) -> dict[str, Any] | JSONResponse:
     started = monotonic()
@@ -503,6 +504,7 @@ def audit_detail(
     try:
         payload = service.audit_detail(
             fixture_id,
+            capture_id=capture_id,
             capture_hash=capture_hash,
             estimate_id=estimate_id,
         )
