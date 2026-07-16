@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.models.fair_market_estimate import (
+    canonical_estimate_hash,
     verify_estimate_semantics,
     verify_estimate_snapshot,
 )
@@ -17,7 +18,15 @@ def canonical_capture_candidates(
     records: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     """Return one last, valid, prematch evidence candidate per performance key."""
-    candidates = [item for record in records for item in _capture_candidates(record)]
+    snapshot_verifications: dict[str, tuple[bool, bool]] = {}
+    candidates = [
+        item
+        for record in records
+        for item in _capture_candidates(
+            record,
+            snapshot_verifications=snapshot_verifications,
+        )
+    ]
     valid = [item for item in candidates if item["exclusion_reason"] is None]
     winners: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for item in valid:
@@ -81,13 +90,21 @@ def candidate_for_outcome(
     return exact[0] if len(exact) == 1 else None
 
 
-def _capture_candidates(record: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _capture_candidates(
+    record: Mapping[str, Any],
+    *,
+    snapshot_verifications: dict[str, tuple[bool, bool]],
+) -> list[dict[str, Any]]:
     if str(record.get("record_type") or "capture") != "capture":
         return []
     declared = record.get("audit_capture_identities")
     if isinstance(declared, Sequence) and not isinstance(declared, (str, bytes, bytearray)):
         return [
-            _candidate(record, item)
+            _candidate(
+                record,
+                item,
+                snapshot_verifications=snapshot_verifications,
+            )
             for item in declared
             if isinstance(item, Mapping)
         ]
@@ -127,10 +144,22 @@ def _capture_candidates(record: Mapping[str, Any]) -> list[dict[str, Any]]:
             for item in gates
             if isinstance(item, Mapping)
         )
-    return [_candidate(record, item) for item in items]
+    return [
+        _candidate(
+            record,
+            item,
+            snapshot_verifications=snapshot_verifications,
+        )
+        for item in items
+    ]
 
 
-def _candidate(record: Mapping[str, Any], item: Mapping[str, Any]) -> dict[str, Any]:
+def _candidate(
+    record: Mapping[str, Any],
+    item: Mapping[str, Any],
+    *,
+    snapshot_verifications: dict[str, tuple[bool, bool]],
+) -> dict[str, Any]:
     estimate_id = str(item.get("estimate_id") or record.get("estimate_id") or "")
     quote_id = str(item.get("quote_id") or record.get("quote_id") or "")
     estimates = record.get("fair_market_estimate_snapshots")
@@ -154,7 +183,12 @@ def _candidate(record: Mapping[str, Any], item: Mapping[str, Any]) -> dict[str, 
         "capture_hash": str(record.get("capture_hash") or record.get("evidence_hash") or ""),
         "evidence_eligible": item.get("evidence_eligible", record.get("evidence_eligible", True)),
     }
-    output["exclusion_reason"] = _exclusion_reason(output, snapshot, quote)
+    output["exclusion_reason"] = _exclusion_reason(
+        output,
+        snapshot,
+        quote,
+        snapshot_verifications=snapshot_verifications,
+    )
     return output
 
 
@@ -162,6 +196,8 @@ def _exclusion_reason(
     candidate: Mapping[str, Any],
     snapshot: Mapping[str, Any] | None,
     quote: Any,
+    *,
+    snapshot_verifications: dict[str, tuple[bool, bool]],
 ) -> str | None:
     captured = _parse_time(candidate.get("captured_at"))
     kickoff = _parse_time(candidate.get("kickoff_utc"))
@@ -171,9 +207,18 @@ def _exclusion_reason(
         "LIVE", "1H", "HT", "2H", "ET", "P", "BT",
     }:
         return "LIVE_CAPTURE"
-    if snapshot is None or not verify_estimate_snapshot(snapshot):
+    if snapshot is None:
         return "INVALID_SNAPSHOT"
-    if not verify_estimate_semantics(snapshot):
+    snapshot_key = canonical_estimate_hash(dict(snapshot))
+    verification = snapshot_verifications.get(snapshot_key)
+    if verification is None:
+        integrity_valid = verify_estimate_snapshot(snapshot)
+        semantics_valid = integrity_valid and verify_estimate_semantics(snapshot)
+        verification = (integrity_valid, semantics_valid)
+        snapshot_verifications[snapshot_key] = verification
+    if not verification[0]:
+        return "INVALID_SNAPSHOT"
+    if not verification[1]:
         return "SEMANTIC_FAIL"
     if not isinstance(quote, Mapping) or not verify_market_quote(quote):
         return "INVALID_QUOTE"
