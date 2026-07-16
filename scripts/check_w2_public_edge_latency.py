@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import statistics
@@ -15,8 +16,10 @@ _WRITE_OUT = (
     '{"status":"%{http_code}","remote_ip":"%{remote_ip}",'
     '"http_version":"%{http_version}","dns_seconds":%{time_namelookup},'
     '"connect_seconds":%{time_connect},"tls_seconds":%{time_appconnect},'
+    '"pretransfer_seconds":%{time_pretransfer},'
     '"starttransfer_seconds":%{time_starttransfer},"total_seconds":%{time_total},'
-    '"response_bytes":%{size_download},"num_connects":%{num_connects}}\n'
+    '"response_bytes":%{size_download},"num_connects":%{num_connects},'
+    '"request_id":"%header{x-request-id}"}\n'
 )
 
 _PROXY_ENVIRONMENT_NAMES = {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"}
@@ -45,14 +48,21 @@ def curl_command(
     path_kind: str,
     requests: int = 1,
     max_time_seconds: int = 12,
+    connection_mode: str = "REUSED",
 ) -> list[str]:
     if path_kind not in {"DIRECT", "PROXY"}:
         raise ValueError("path_kind must be DIRECT or PROXY")
     if requests < 1:
         raise ValueError("requests must be positive")
+    if connection_mode not in {"FRESH", "REUSED"}:
+        raise ValueError("connection_mode must be FRESH or REUSED")
+    if connection_mode == "FRESH" and requests != 1:
+        raise ValueError("FRESH mode requires one request per process")
     command = ["curl"]
     if path_kind == "DIRECT":
         command.extend(["--noproxy", "*"])
+    if connection_mode == "FRESH":
+        command.append("--no-keepalive")
     command.extend(
         [
             "--silent",
@@ -106,6 +116,9 @@ def build_report(
     samples: list[dict[str, Any]],
     requested_url: str,
     expected_remote_ip: str,
+    observer: Mapping[str, Any] | None = None,
+    connection_mode: str = "REUSED",
+    concurrency: int = 1,
 ) -> dict[str, Any]:
     for sample in samples:
         validate_sample(sample, expected_remote_ip=expected_remote_ip)
@@ -114,6 +127,9 @@ def build_report(
         "schema": "w2.public_edge_latency.v1",
         "endpoint": endpoint,
         "expected_remote_ip": expected_remote_ip,
+        "observer": dict(observer or {"observer_id": "UNDECLARED"}),
+        "connection_mode": connection_mode,
+        "concurrency": concurrency,
         "summary": summarize_samples(samples),
         "samples": samples,
     }
@@ -125,16 +141,39 @@ def collect_samples(
     path_kind: str,
     requests: int,
     expected_remote_ip: str,
+    connection_mode: str = "REUSED",
+    concurrency: int = 1,
 ) -> list[dict[str, Any]]:
-    completed = subprocess.run(  # noqa: S603
-        curl_command(url, path_kind=path_kind, requests=requests),
-        check=True,
-        capture_output=True,
-        env=curl_environment(path_kind=path_kind),
-        text=True,
-    )
+    if concurrency < 1 or concurrency > requests:
+        raise ValueError("concurrency must be between 1 and requests")
+
+    def run_curl(sample_count: int) -> str:
+        completed = subprocess.run(  # noqa: S603
+            curl_command(
+                url,
+                path_kind=path_kind,
+                requests=sample_count,
+                connection_mode=connection_mode,
+            ),
+            check=True,
+            capture_output=True,
+            env=curl_environment(path_kind=path_kind),
+            text=True,
+        )
+        return completed.stdout
+
+    if connection_mode == "FRESH":
+        counts = [1] * requests
+    else:
+        base, remainder = divmod(requests, concurrency)
+        counts = [base + (index < remainder) for index in range(concurrency)]
+    if concurrency == 1:
+        rendered_outputs = [run_curl(counts[0])]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+            rendered_outputs = list(pool.map(run_curl, counts))
     samples: list[dict[str, Any]] = []
-    for line in completed.stdout.splitlines():
+    for line in "".join(rendered_outputs).splitlines():
         if not line.strip():
             continue
         sample = json.loads(line)
@@ -149,12 +188,118 @@ def collect_samples(
     return samples
 
 
+def adjudicate_public_observers(
+    observers: list[Mapping[str, Any]],
+    *,
+    target_route_status: str,
+    minimum_independent_observers: int,
+    server_diagnostics_passed: bool,
+) -> dict[str, Any]:
+    blocking = [
+        item for item in observers if item.get("observer_kind") == "PUBLIC_BLOCKING"
+    ]
+    independence_groups = {str(item.get("independence_group")) for item in blocking}
+    passed_groups = {
+        str(item.get("independence_group"))
+        for item in blocking
+        if item.get("passed") is True
+    }
+    failed_groups = {
+        str(item.get("independence_group"))
+        for item in blocking
+        if item.get("passed") is not True
+    }
+    target_failed = any(
+        item.get("target_route") is True and item.get("passed") is not True
+        for item in blocking
+    )
+    if len(independence_groups) < minimum_independent_observers:
+        classification = "OBSERVER_COVERAGE_INSUFFICIENT"
+        is_blocking = True
+    elif target_route_status == "DECLARED" and target_failed:
+        classification = "TARGET_ROUTE_BLOCKED"
+        is_blocking = True
+    elif len(failed_groups) >= 2:
+        classification = "GLOBAL_PUBLIC_EDGE_BLOCKED"
+        is_blocking = True
+    elif not failed_groups and len(passed_groups) >= minimum_independent_observers:
+        classification = "ALL_BLOCKING_OBSERVERS_PASS"
+        is_blocking = False
+    elif (
+        server_diagnostics_passed
+        and len(passed_groups) >= minimum_independent_observers
+        and len(failed_groups) == 1
+        and not target_failed
+    ):
+        classification = "ROUTE_SPECIFIC_WARNING"
+        is_blocking = False
+    else:
+        classification = "OBSERVER_COVERAGE_INSUFFICIENT"
+        is_blocking = True
+    return {
+        "schema": "w2.public_edge_adjudication.v1",
+        "classification": classification,
+        "blocking": is_blocking,
+        "target_route_status": target_route_status,
+        "independent_observer_count": len(independence_groups),
+        "passed_independence_groups": sorted(passed_groups),
+        "failed_independence_groups": sorted(failed_groups),
+        "server_diagnostics_passed": server_diagnostics_passed,
+    }
+
+
+def evaluate_observer_evidence(
+    *,
+    warm: Mapping[str, Any],
+    next_page: Mapping[str, Any],
+    cold: Mapping[str, Any],
+    thresholds: Mapping[str, Any],
+) -> dict[str, Any]:
+    failed: list[str] = []
+    if float(warm["p95_seconds"]) > float(
+        thresholds["warm_keepalive_p95_seconds"]
+    ):
+        failed.append("WARM_KEEPALIVE_P95")
+    if float(next_page["p95_seconds"]) > float(
+        thresholds["next_page_p95_seconds"]
+    ):
+        failed.append("NEXT_PAGE_P95")
+    if float(cold["p50_seconds"]) > float(thresholds["cold_p50_seconds"]):
+        failed.append("COLD_P50")
+    if float(cold["p95_seconds"]) > float(thresholds["cold_p95_seconds"]):
+        failed.append("COLD_P95")
+    if float(cold["max_seconds"]) >= float(
+        thresholds["cold_max_seconds_exclusive"]
+    ):
+        failed.append("COLD_MAX")
+    error_count = sum(
+        int(summary.get("http_status_counts", {}).get(status, 0))
+        for summary in (warm, next_page, cold)
+        for status in ("0", "502", "504")
+    )
+    if error_count > int(thresholds["max_502_504_timeout_count"]):
+        failed.append("HTTP_502_504_TIMEOUT")
+    return {
+        "schema": "w2.public_edge_observer_evaluation.v1",
+        "passed": not failed,
+        "failed_checks": failed,
+        "error_count": error_count,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Measure one sanitized W2 public edge path")
     parser.add_argument("--url", required=True)
     parser.add_argument("--expected-remote-ip", required=True)
     parser.add_argument("--path-kind", choices=("DIRECT", "PROXY"), required=True)
     parser.add_argument("--requests", type=int, default=20)
+    parser.add_argument("--connection-mode", choices=("FRESH", "REUSED"), default="REUSED")
+    parser.add_argument("--concurrency", type=int, default=1)
+    parser.add_argument("--observer-id", default="UNDECLARED")
+    parser.add_argument("--observer-environment", default="UNDECLARED")
+    parser.add_argument("--network-provider", default="UNDECLARED")
+    parser.add_argument("--target-user-region", action="store_true")
+    parser.add_argument("--ip-protocol", choices=("IPv4", "IPv6"), default="IPv4")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     samples = collect_samples(
@@ -162,11 +307,23 @@ def main() -> int:
         path_kind=args.path_kind,
         requests=args.requests,
         expected_remote_ip=args.expected_remote_ip,
+        connection_mode=args.connection_mode,
+        concurrency=args.concurrency,
     )
     report = build_report(
         samples=samples,
         requested_url=args.url,
         expected_remote_ip=args.expected_remote_ip,
+        observer={
+            "observer_id": args.observer_id,
+            "environment": args.observer_environment,
+            "network_provider": args.network_provider,
+            "target_user_region": args.target_user_region,
+            "ip_protocol": args.ip_protocol,
+            "proxy_used": args.path_kind == "PROXY",
+        },
+        connection_mode=args.connection_mode,
+        concurrency=args.concurrency,
     )
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
