@@ -58,3 +58,15 @@ IPv6 and `--resolve` are recorded as `NOT_APPLICABLE` where no such layer exists
 Runtime reports omit query strings, request/response headers, cookies, authorization
 and credentials. Only the sanitized request ID is retained for correlation with nginx
 and API timing. No provider request or business write is part of this check.
+
+## Current evidence status · 2026-07-16
+
+PRs #324 and #325 are merged at `main@b303588d6a3a2e7288c46877206f7f5ef31eeb87`.
+The first post-merge GitHub-hosted and current-external-host artifacts are
+non-qualifying because every retained `request_id` is empty and samples omit their
+timestamp. Workflow completion or a preliminary latency result does not override
+the evidence schema. The formal classification remains
+`OBSERVER_COVERAGE_INSUFFICIENT` until the observer-only collector fix merges and
+two independent complete matrices are rerun. Stable staging remains
+`c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`; this status does not authorize a
+deployment, timeout change, or product/model gate change.

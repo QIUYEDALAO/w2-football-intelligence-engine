@@ -99,3 +99,11 @@ Rules:
 - The payload fix worked: future returned 40 fixtures over two pages of about 41 KiB each, maximum card size about 1.8 KiB, union 40, duplicates 0 and stale cursor HTTP 409. There were no 502, 504, browser timeout, API restart, exit 137 or cgroup OOM event.
 - The release still failed the latency gate. Warm public requests were about 1.6–2.0 seconds versus the 1.5-second p95 target, and the second page took 3.87 seconds versus the 3-second target. Frozen L2 staging stress was therefore not run.
 - Rollback readiness and API/Web release sync passed with restart count 0. Provider count remained 485, queue remained 0 and the before/after ledger manifest hash was identical. Production, recommendations, locks and OFFICIAL writes remain excluded.
+
+## Public edge observer evidence gate · 2026-07-16
+
+- Repository target is `main@b303588d6a3a2e7288c46877206f7f5ef31eeb87` after PRs #324 and #325. Stable staging remains `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`; API, Web, worker and scheduler were read-only verified healthy and aligned with restart count 0.
+- GitHub-hosted run `29492624556` produced a preliminary latency PASS, while the current external host exceeded the future page 1 warm reused p95 gate at `2.086251s`. Neither artifact is formal evidence because every retained request ID is empty and per-sample timestamps are absent.
+- The current formal classification is `OBSERVER_COVERAGE_INSUFFICIENT`. No release, migration, service replacement or rollback occurred, so the known stable staging release remains active.
+- The next change is observer-only evidence collection. It must preserve no-proxy IPv4, actual fresh/reused connection behavior, all original thresholds and the 12-second timeout. Existing non-qualifying artifacts must not be reused after the fix.
+- Production, provider calls, business database writes, historical rewrites, `RECOMMEND`, locks and OFFICIAL writes remain excluded.

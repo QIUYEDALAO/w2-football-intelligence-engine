@@ -571,7 +571,7 @@ def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) ->
     )
     row = {
         "fixture_id": "no-market",
-        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "kickoff_utc": "2030-07-16T10:00:00Z",
         "competition_id": "chinese_super_league",
         "competition_name": "中超",
         "home_team_id": "1",
@@ -610,7 +610,7 @@ def test_dayview_does_not_materialize_full_analysis_for_non_pick(monkeypatch) ->
     monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
 
     view = service._build_dashboard_day_view_payload(
-        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        requested_date=datetime(2030, 7, 16, tzinfo=UTC).date(),
         window="future",
         timezone="Asia/Shanghai",
     )
@@ -624,7 +624,7 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
     service = ReadModelService(repository=cast(Any, object()))
     row = {
         "fixture_id": "frozen-pick",
-        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "kickoff_utc": "2030-07-16T10:00:00Z",
         "competition_id": "chinese_super_league",
         "competition_name": "中超",
         "home_team_name": "Home",
@@ -633,8 +633,8 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
     }
     capture = {
         "fixture_id": "frozen-pick",
-        "captured_at": "2026-07-16T08:00:00Z",
-        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "captured_at": "2030-07-16T08:00:00Z",
+        "kickoff_utc": "2030-07-16T10:00:00Z",
         "decision_tier": "ANALYSIS_PICK",
         "data_status": "READY",
         "outcome_tracked": True,
@@ -656,7 +656,7 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
                 "artifact_version": "r4.1",
                 "integrity_status": "PASS",
                 "semantic_status": "PASS",
-                "feature_as_of": "2026-07-16T07:00:00Z",
+                "feature_as_of": "2030-07-16T07:00:00Z",
             }
         ],
         "scoreline_reference": {
@@ -693,7 +693,7 @@ def test_dayview_projects_visible_pick_from_frozen_capture(monkeypatch) -> None:
     monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
 
     view = service._build_dashboard_day_view_payload(
-        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        requested_date=datetime(2030, 7, 16, tzinfo=UTC).date(),
         window="future",
         timezone="Asia/Shanghai",
     )

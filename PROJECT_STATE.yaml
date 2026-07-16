@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T04:33:00Z"
-current_phase: Bounded future DayView pagination latency follow-up
-current_status: STAGING_ROLLED_BACK_PAGINATION_BLOCKED
+last_updated_utc: "2026-07-16T11:20:00Z"
+current_phase: Public edge observer evidence correction
+current_status: OBSERVER_EVIDENCE_NON_QUALIFYING
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -19,18 +19,169 @@ context_contract:
   update_rule: Update this file in every stage-changing PR and after every merge or deployment acceptance.
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
+context_read_order:
+  - PROJECT_STATE.yaml
+  - docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+  - docs/consolidation/W2_DECISION_CONTRACT_V2.md
+  - docs/operations/W2_PUBLIC_EDGE_ACCEPTANCE_V1.md
+  - docs/operations/W2_RELEASE_AND_ROLLBACK_V1.md
+  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+
 repository_state:
-  main_sha_at_rebaseline: b72005b6364dfbf3adaea4de98c448157d9dcab0
-  deployed_code_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  main_sha_at_rebaseline: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-16T04:20:00Z"
+  observed_at_utc: "2026-07-16T11:02:41Z"
+
+public_edge_recovery:
+  status: OBSERVER_EVIDENCE_NON_QUALIFYING
+  target_route: UNDECLARED
+  merged_prs:
+    observer_contract: 324
+    fresh_sampling_fix: 325
+  merged_main_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  observer_a:
+    observer_id: github-hosted-run-29492624556
+    observer_kind: PUBLIC_BLOCKING
+    network_path: DIRECT_NO_PROXY_IPV4
+    expected_remote_ip: 43.155.208.138
+    preliminary_latency_result: PASS
+    formal_result: NON_QUALIFYING
+    reason: request_id empty and timestamp absent from every retained sample
+  observer_b:
+    observer_id: current-external-host
+    observer_kind: PUBLIC_BLOCKING
+    network_path: DIRECT_NO_PROXY_IPV4
+    expected_remote_ip: 43.155.208.138
+    preliminary_latency_result: FAIL
+    preliminary_failed_gate: future page 1 warm reused p95 2.086251s > 1.5s
+    formal_result: NON_QUALIFYING
+    reason: request_id empty and timestamp absent from every retained sample
+  formal_classification: OBSERVER_COVERAGE_INSUFFICIENT
+  evidence_root_cause: observer discarded the response body containing the nginx request_id and read a response header that nginx does not emit
+  next_action: merge a minimal observer-only evidence fix, then rerun complete independent public matrices
+  staging_deploy_performed: false
+  rollback_performed: false
+  provider_calls: 0
+  db_writes: 0
+  historical_rewrites: 0
+  production_deploy: false
+
+active_workstream:
+  id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
+  status: CONTEXT_AND_SPEC_GATE
+  repository_main_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  specification:
+    path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+    status: APPROVED_FOR_IMPLEMENTATION
+  completed_tasks:
+    - core FME and MarketQuote semantic closure
+    - canonical outcome denominator
+    - three-track isolation
+    - bounded L1 cards and cursor pagination
+    - immutable DayView WindowSnapshot
+    - public HTTP live-model rebuild removal
+    - bounded Frozen L2 projection
+    - observer governance contract PR 324
+    - fresh sampling correction PR 325
+  known_issues:
+    - CTX-01
+    - CTX-02
+    - CTX-03
+    - CTX-04
+    - CI-01
+    - OBS-01
+    - OBS-02
+    - OBS-03
+    - OBS-04
+    - OBS-05
+    - OBS-06
+    - OBS-07
+    - OBS-08
+    - OBS-09
+    - EDGE-01
+    - EDGE-02
+    - DEP-01
+    - L1-01
+    - L2-01
+    - FINAL-01
+  remaining_tasks:
+    - merge context and frozen specification
+    - implement observer evidence v2
+    - rerun independent public matrices
+    - adjudicate public route
+    - deploy latest main if permitted
+    - complete L1 staging acceptance
+    - complete Frozen L2 staging acceptance
+    - complete correctness reconciliation
+    - merge final context rebaseline
+  deferred_findings:
+    - id: PROD-01
+      status: BLOCKS_PRODUCTION_ONLY
+      reason: target user route remains undeclared
+    - id: AH-EVIDENCE-01
+      status: ACCUMULATING
+      progress: 0/35 and 0/100
+  closed_invariants_do_not_reopen:
+    - FME Snapshot v2 mathematical semantics
+    - estimate/model/quote/capture identity
+    - AWAY_AH selection-line semantics
+    - canonical denominator
+    - OFFICIAL/VALIDATION/Wide/Strict isolation
+    - storage atomicity
+    - readiness and ops access control
+    - bounded L1 payload
+    - cursor pagination
+    - WindowSnapshot
+    - Frozen L2 no-live-rebuild boundary
+  terminal_condition:
+    - observer evidence v2 merged
+    - public route formally adjudicated
+    - latest main deployed when contract permits
+    - L1 staging acceptance evaluated
+    - Frozen L2 staging acceptance evaluated
+    - denominator and three-track invariants reconciled
+    - final context PR merged
+  next_allowed_action:
+    - merge PR 326 and implement observer evidence v2
+  forbidden_actions:
+    - production deployment
+    - RECOMMEND enablement
+    - lock enablement
+    - OFFICIAL writes
+    - model or threshold changes
+    - historical evidence rewrites
+
+known_issue_catalog:
+  CTX-01: GitHub main context predates PRs 314 through 325
+  CTX-02: active workstream and terminal condition were absent
+  CTX-03: mandatory GitHub context read order was absent
+  CTX-04: completed historical program appeared to remain active
+  CI-01: PR 326 has one sensitive-pattern wording false positive and three time-dependent DayView tests
+  OBS-01: V1 evidence lacks mandatory V2 schema and collector identifiers
+  OBS-02: V1 discards response bodies that contain request IDs
+  OBS-03: V1 omits per-sample collection timestamps
+  OBS-04: V1 does not validate and parse Server-Timing safely
+  OBS-05: V1 declares but does not enforce the curl IP protocol
+  OBS-06: V1 no-proxy sample state is not derived from command and environment
+  OBS-07: V1 drops num_connects after deriving reuse state
+  OBS-08: V1 check-true subprocess behavior loses failed-transfer evidence
+  OBS-09: V1 lacks strict pairing, size, uniqueness, and success-evidence validation
+  EDGE-01: Observer A V1 artifact is non-qualifying despite preliminary latency PASS
+  EDGE-02: Observer B V1 artifact is non-qualifying and preliminarily failed future page 1 warm p95
+  DEP-01: current GitHub main is not deployed to staging
+  L1-01: current GitHub main has no final L1 staging acceptance
+  L2-01: current GitHub main has no final Frozen L2 staging acceptance
+  FINAL-01: final GitHub context rebaseline is pending
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
+  status: COMPLETE_DO_NOT_REOPEN
   invariant:
     - FairMarketEstimate Snapshot v2 and MarketQuote are the only eligible decision evidence.
     - Canonical performance counts one last valid prematch candidate per fixture, market, scope, and strategy version.
@@ -123,7 +274,7 @@ deployment_review:
   replacement_for_closed_pr: 277
   staging_code_deployed: true
   production_code_deployed: false
-  next_action: isolate the remaining 1.6-2.0s warm and 3.87s next-page latency without raising timeouts; L2 staging stress remains blocked
+  next_action: repair observer request-id and timestamp capture without changing thresholds or staging, then rerun the complete public matrix
   ah_corrected_settled_status: ACCUMULATING
   ah_corrected_settled_count_local_runtime: 0
   ah_review_35_remaining: 35
@@ -218,13 +369,13 @@ validation_correctness_recovery:
 
 staging_state:
   environment: staging
-  api_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
-  web_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
-  worker_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
-  scheduler_git_sha: c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
-  release_id: staging-c4bcceb5cb777639251e0db91a9c1f54f5b9c87b
+  api_git_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  web_git_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  worker_git_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  scheduler_git_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  release_id: staging-c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   source_branch: main
-  source_note: Whole-system correctness batch deployed to staging with API, Web, worker and scheduler aligned to one release SHA.
+  source_note: Stable public-edge benchmark release; API, Web, worker and scheduler were read-only verified on one revision before observer sampling.
   health: PASS
   ready: PASS
   data_profile: real-db
@@ -259,8 +410,12 @@ staging_state:
     maturity_100_status: ACCUMULATING
   open_warnings:
     - code: COLD_CACHE_HIGH_LATENCY
+      status: SUPERSEDED
       observation: Correctness-recovery cold concurrency produced 15/15 HTTP 200 and no 502/504, but p95 remained 109.6345 seconds; warm 225-request matrix produced 225/225 HTTP 200 with p95 18.4901 seconds.
-      disposition: Keep as a performance warning; do not raise proxy timeout or alter decision gates without a separate evidence-backed PR.
+      disposition: Superseded by bounded WindowSnapshot, pagination, and public-edge benchmark work; retain as history only.
+    - code: PUBLIC_OBSERVER_EVIDENCE_NON_QUALIFYING
+      observation: PR 325 fixed fresh sample collection, but retained public samples still have empty request_id values and no timestamp; Observer B also exceeded the future page 1 warm p95 threshold in preliminary data.
+      disposition: Do not count the current artifacts as formal PASS evidence; repair only the observer evidence collector and rerun the full matrix.
   latest_feature_snapshot_injection:
     status: PASS
     approved_scope: STAGING_FEATURE_SNAPSHOT_INJECTION
@@ -734,6 +889,24 @@ frozen_l2_audit_recovery:
     official_count: 0
 
 latest_merged_prs:
+  - number: 325
+    title: W2 fix fresh public edge sampling
+    merge_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  - number: 324
+    title: W2 formalize public edge observer adjudication
+    merge_sha: c9a19eae4d472097174bf4c37cbceae3bbb8de53
+  - number: 323
+    title: W2 bound frozen capture lookup by identity
+    merge_sha: 1cbc8ebbefcca331775cec3a9c88a9f164bdc34f
+  - number: 322
+    title: W2 retain immutable estimate verification cache
+    merge_sha: fc38533c451538e15d4d8451820418a3f9068597
+  - number: 321
+    title: W2 deduplicate immutable estimate verification
+    merge_sha: 8dcfb93aecc3b978db21262f8dac63ca825b32f5
+  - number: 320
+    title: W2 enforce direct staging edge latency checks
+    merge_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   - number: 307
     title: W2 bounded Boss View L2 audit client
     merge_sha: 5005df4e4873e618399bedaf4f32c9e5bbb2ef8f
