@@ -15,6 +15,7 @@ from w2.api import routers
 from w2.api.repository import ReadModelService
 from w2.config import Environment
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.tracking.frozen_capture_identity import audit_capture_id
 
 
 class _EmptyRepository:
@@ -143,15 +144,18 @@ def test_audit_detail_does_not_call_live_rebuild_functions(monkeypatch) -> None:
     assert response.status_code == 200
 
 
-def test_l1_exposes_exact_audit_capture_hash() -> None:
+def test_l1_requires_exact_audit_identity_triple() -> None:
     capture = {
         "fixture_id": "fixture-1",
+        "captured_at": "2099-07-01T09:00:00Z",
         "kickoff_utc": "2099-07-01T10:00:00Z",
         "capture_hash": "capture-exact",
         "decision_tier": "WATCH",
         "data_status": "READY",
         "pick": {"estimate_id": "fme-exact"},
     }
+    capture["audit_capture_id"] = audit_capture_id(capture)
+    capture["audit_identity_status"] = "PASS"
     view = build_dashboard_day_view(
         {
             "date": "2099-07-01",
@@ -165,10 +169,39 @@ def test_l1_exposes_exact_audit_capture_hash() -> None:
     )
     card = view["cards"][0]
 
+    assert card["audit_capture_id"] == capture["audit_capture_id"]
     assert card["audit_capture_hash"] == "capture-exact"
     assert card["audit_estimate_id"] == "fme-exact"
     assert card["audit_available"] is True
+    assert f"capture_id={capture['audit_capture_id']}" in card["audit_detail_url"]
     assert "capture_hash=capture-exact" in card["audit_detail_url"]
+    assert "estimate_id=fme-exact" in card["audit_detail_url"]
+
+
+def test_l1_hash_only_identity_is_not_audit_available() -> None:
+    view = build_dashboard_day_view(
+        {
+            "date": "2099-07-01",
+            "selected_football_day": "2099-07-01",
+            "generated_at": "2099-07-01T00:00:00Z",
+            "timezone": "UTC",
+            "window": "today",
+            "all": [
+                {
+                    "fixture_id": "fixture-1",
+                    "kickoff_utc": "2099-07-01T10:00:00Z",
+                    "capture_hash": "capture-only",
+                    "decision_tier": "WATCH",
+                    "data_status": "READY",
+                }
+            ],
+        },
+        environment="staging",
+    )
+
+    card = view["cards"][0]
+    assert card["audit_available"] is False
+    assert card["audit_detail_url"] is None
 
 
 def test_same_key_concurrency_builds_projection_once(

@@ -70,6 +70,56 @@ def build_dashboard_day_view(
     return view
 
 
+def build_forward_capture_day_view(
+    dashboard_payload: Mapping[str, Any],
+    *,
+    environment: str,
+) -> dict[str, Any]:
+    """Build the internal ledger view without exposing full evidence through public L1."""
+    view = build_dashboard_day_view(dashboard_payload, environment=environment)
+    source_by_fixture = {
+        _text(row.get("fixture_id")): row for row in _dashboard_cards(dashboard_payload)
+    }
+    evidence_fields = (
+        "fair_market_estimate_snapshots",
+        "fair_market_estimate_ids",
+        "fair_market_estimates",
+        "analysis_gate",
+        "analysis_gates",
+        "analysis_gate_v2_shadow",
+        "analysis_gate_v2_shadows",
+        "model_market_divergence",
+        "estimate_id",
+        "model_basis_id",
+    )
+    for card in view["cards"]:
+        source = source_by_fixture.get(_text(card.get("fixture_id")))
+        if source is None:
+            continue
+        contract = _mapping(source.get("decision_contract"))
+        for field in evidence_fields:
+            value = _field(source, contract, field)
+            if field in {
+                "fair_market_estimate_snapshots",
+                "fair_market_estimates",
+                "analysis_gates",
+                "analysis_gate_v2_shadows",
+            }:
+                card[field] = _mapping_list(value)
+            elif field == "fair_market_estimate_ids":
+                card[field] = _string_list(value)
+            elif field in {
+                "analysis_gate",
+                "analysis_gate_v2_shadow",
+                "model_market_divergence",
+            }:
+                card[field] = _mapping_copy(value)
+            else:
+                card[field] = value
+    view["source"] = "internal_forward_capture_projection"
+    return view
+
+
 def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     rows = payload.get("all")
     if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
@@ -343,13 +393,22 @@ def _compact_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def _audit_links(card: Mapping[str, Any]) -> dict[str, str]:
     fixture_id = _optional_text(card.get("fixture_id"))
+    capture_id = _optional_text(card.get("audit_capture_id"))
     capture_hash = _optional_text(card.get("audit_capture_hash"))
     estimate_id = _optional_text(card.get("audit_estimate_id"))
-    if not fixture_id or not capture_hash:
+    if (
+        not fixture_id
+        or not capture_id
+        or not capture_hash
+        or not estimate_id
+        or _optional_text(card.get("audit_identity_status")) != "PASS"
+    ):
         return {}
-    query = f"capture_hash={quote(capture_hash, safe='')}"
-    if estimate_id:
-        query += f"&estimate_id={quote(estimate_id, safe='')}"
+    query = (
+        f"capture_id={quote(capture_id, safe='')}&"
+        f"capture_hash={quote(capture_hash, safe='')}&"
+        f"estimate_id={quote(estimate_id, safe='')}"
+    )
     return {"audit_detail_url": f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"}
 
 
@@ -357,6 +416,7 @@ def _audit_identity_fields(
     card: Mapping[str, Any],
     pick: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
+    capture_id = _optional_text(card.get("audit_capture_id"))
     capture_hash = _optional_text(
         card.get("audit_capture_hash")
         or card.get("capture_hash")
@@ -368,16 +428,30 @@ def _audit_identity_fields(
         or (pick.get("estimate_id") if isinstance(pick, Mapping) else None)
     )
     fixture_id = _optional_text(card.get("fixture_id"))
+    identity_status = _optional_text(card.get("audit_identity_status"))
+    blocker = _optional_text(card.get("audit_blocker"))
+    available = bool(
+        capture_id
+        and capture_hash
+        and estimate_id
+        and identity_status == "PASS"
+        and not blocker
+    )
     detail_url = None
-    if fixture_id and capture_hash:
-        query = f"capture_hash={quote(capture_hash, safe='')}"
-        if estimate_id:
-            query += f"&estimate_id={quote(estimate_id, safe='')}"
+    if fixture_id and capture_id and capture_hash and estimate_id and available:
+        query = (
+            f"capture_id={quote(capture_id, safe='')}&"
+            f"capture_hash={quote(capture_hash, safe='')}&"
+            f"estimate_id={quote(estimate_id, safe='')}"
+        )
         detail_url = f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"
     return {
+        "audit_capture_id": capture_id,
         "audit_capture_hash": capture_hash,
         "audit_estimate_id": estimate_id,
-        "audit_available": bool(capture_hash),
+        "audit_identity_status": identity_status,
+        "audit_blocker": blocker,
+        "audit_available": available,
         "audit_detail_url": detail_url,
     }
 

@@ -1045,7 +1045,7 @@ class ReadModelService:
             tuple[str, str, str, str, str, str], DayViewWindowSnapshot
         ] = SingleFlightCache(max_entries=16, copier=lambda snapshot: snapshot)
         self._frozen_audit_singleflight: SingleFlightCache[
-            tuple[str, str, str, str, str], dict[str, Any]
+            tuple[str, str, str, str, str, str], dict[str, Any]
         ] = SingleFlightCache(max_entries=64)
         self._result_event_singleflight: SingleFlightCache[
             tuple[Any, ...], tuple[Mapping[str, Any], ...]
@@ -1764,8 +1764,12 @@ class ReadModelService:
                 "away_team_name",
                 "status",
                 "lifecycle_status",
+                "audit_capture_id",
                 "audit_capture_hash",
                 "audit_estimate_id",
+                "audit_identity_status",
+                "audit_blocker",
+                "audit_available",
                 "audit_detail_url",
             )
         }
@@ -2578,6 +2582,7 @@ class ReadModelService:
         self,
         fixture_id: str,
         *,
+        capture_id: str | None = None,
         capture_hash: str,
         estimate_id: str | None = None,
     ) -> dict[str, Any]:
@@ -2586,6 +2591,7 @@ class ReadModelService:
         cache_key = (
             str(runtime_root.resolve()),
             str(fixture_id),
+            str(capture_id or ""),
             str(capture_hash),
             str(estimate_id or ""),
             fingerprint,
@@ -2596,6 +2602,7 @@ class ReadModelService:
             lookup = find_frozen_capture(
                 runtime_root,
                 fixture_id=fixture_id,
+                capture_id=capture_id,
                 capture_hash=capture_hash,
                 estimate_id=estimate_id,
             )
@@ -2663,6 +2670,8 @@ class ReadModelService:
             "ESTIMATE_IDENTITY_MISMATCH",
             "AMBIGUOUS_LEGACY_CAPTURE",
             "AMBIGUOUS_CAPTURE",
+            "AMBIGUOUS_CAPTURE_ID",
+            "CAPTURE_IDENTITY_MISMATCH",
         }:
             return FrozenAuditRequestError(code, 409)
         if code == "AUDIT_PROJECTION_TOO_LARGE":

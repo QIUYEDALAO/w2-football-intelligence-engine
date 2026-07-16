@@ -987,8 +987,11 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     compact_provenance: asRecord(record.compact_provenance),
     audit_available: record.audit_available === true,
     audit_links: asRecord(record.audit_links) as Record<string, string>,
+    audit_capture_id: textValue(record.audit_capture_id) || null,
     audit_capture_hash: textValue(record.audit_capture_hash) || null,
     audit_estimate_id: textValue(record.audit_estimate_id) || null,
+    audit_identity_status: textValue(record.audit_identity_status) || null,
+    audit_blocker: textValue(record.audit_blocker) || null,
     audit_detail_url: textValue(record.audit_detail_url) || null,
     non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
     one_liner: textValue(record.one_liner) || null,
@@ -1128,6 +1131,7 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
 
 export function fetchFixtureAuditDetails(
   fixtureId: string,
+  captureId: string,
   captureHash: string,
   estimateId: string | null,
   apiReleaseSha: string,
@@ -1137,7 +1141,7 @@ export function fetchFixtureAuditDetails(
     fixtureAuditInflight.clear();
   }
   activeFixtureAuditRelease = apiReleaseSha;
-  const key = [fixtureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
+  const key = [fixtureId, captureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
   const cached = fixtureAuditCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
   if (cached) fixtureAuditCache.delete(key);
@@ -1145,7 +1149,7 @@ export function fetchFixtureAuditDetails(
   if (inflight) return inflight;
 
   const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
-  const query = new URLSearchParams({ capture_hash: captureHash });
+  const query = new URLSearchParams({ capture_id: captureId, capture_hash: captureHash });
   if (estimateId) query.set("estimate_id", estimateId);
   const request = getJSON(`${base}/audit-detail?${query.toString()}`).then((payload) => {
     const envelope = asRecord(payload);
@@ -1167,6 +1171,7 @@ export function fetchFixtureAuditDetails(
     };
     const detail: FixtureAuditDetails = {
       fixture_id: fixtureId,
+      audit_capture_id: captureId,
       estimate_id: estimateId,
       audit_capture_hash: captureHash,
       api_release_sha: apiReleaseSha,

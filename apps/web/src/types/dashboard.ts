@@ -839,8 +839,11 @@ export interface DashboardDayViewCard {
   compact_provenance?: Record<string, unknown>;
   audit_available?: boolean;
   audit_links?: Record<string, string>;
+  audit_capture_id?: string | null;
   audit_capture_hash?: string | null;
   audit_estimate_id?: string | null;
+  audit_identity_status?: string | null;
+  audit_blocker?: string | null;
   audit_detail_url?: string | null;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
@@ -911,6 +914,7 @@ export interface DashboardView {
 
 export interface FixtureAuditDetails {
   fixture_id: string;
+  audit_capture_id: string;
   estimate_id: string | null;
   audit_capture_hash: string;
   api_release_sha: string;

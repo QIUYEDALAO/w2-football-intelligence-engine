@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T18:49:18Z"
-current_phase: Frozen L2 exact-identity evidence blocker
-current_status: BLOCKED_EXACT_IDENTITY
+last_updated_utc: "2026-07-16T20:58:58Z"
+current_phase: Frozen L2 exact-identity implementation complete, staging pending
+current_status: IMPLEMENTATION_COMPLETE_STAGING_PENDING
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -28,14 +28,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: 47be9b09b3a6dc830de4765d7f20306f6f6f38c6
+  main_sha_at_rebaseline: 68cc49f50262d506fae99cf90b1edea7adaa1f23
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-16T18:49:18Z"
+  observed_at_utc: "2026-07-16T20:58:58Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -86,11 +86,11 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: BLOCKED_EXACT_IDENTITY
-  repository_main_sha: 47be9b09b3a6dc830de4765d7f20306f6f6f38c6
+  status: IMPLEMENTATION_COMPLETE_STAGING_PENDING
+  repository_main_sha: 68cc49f50262d506fae99cf90b1edea7adaa1f23
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
-    path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+    path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
   completed_tasks:
     - core FME and MarketQuote semantic closure
@@ -110,6 +110,10 @@ active_workstream:
     - L1 pagination, union, stale-cursor, concurrency and inner-route latency acceptance
     - automatic four-service rollback after Frozen L2 exact-identity failure
     - read-only exact-identity diagnosis for fixture 1492140
+    - internal full-evidence forward-capture adapter with public L1 still bounded
+    - deterministic audit_capture_id and same-record eligible-v2 estimate identity
+    - exact L1/L2 capture_id/hash/estimate binding with hash-only compatibility fail-closed
+    - local full-suite, static, frontend and offline acceptance validation
   known_issues:
     - CTX-01
     - CTX-02
@@ -133,9 +137,10 @@ active_workstream:
     - FINAL-01
     - L2-02
   remaining_tasks:
-    - obtain separately authorized upstream repair so the current L1 capture itself contains one authoritative eligible Snapshot v2 estimate
-    - after new same-record evidence exists, rerun exact-identity diagnosis before any code or staging deployment
-    - only then rerun staging deployment, Frozen L2 matrix and final correctness reconciliation
+    - merge the single exact-identity code PR after all three GitHub CI checks pass
+    - deploy merged main to staging and perform one append-only controlled current capture before kickoff
+    - rerun L1, Frozen L2, denominator, three-track and safety acceptance
+    - merge the final docs-only GitHub context rebaseline
   deferred_findings:
     - id: PROD-01
       status: BLOCKS_PRODUCTION_ONLY
@@ -167,7 +172,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - stop this implementation scope and request separate authorization for the upstream current-capture Snapshot v2 evidence-generation defect
+    - publish the single code PR, pass CI, merge, then deploy staging and run the controlled append-only recapture and acceptance matrix
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -349,6 +354,33 @@ exact_identity_diagnosis_20260716:
     business_db_writes: 0
     deployment: false
     production_deploy: false
+
+exact_identity_implementation_20260716:
+  status: IMPLEMENTATION_COMPLETE_STAGING_PENDING
+  base_main_sha: 68cc49f50262d506fae99cf90b1edea7adaa1f23
+  branch: codex/w2-frozen-l2-exact-capture-identity
+  code_pr: PENDING
+  blocker_status: L2-02_REMAINS_BLOCKING_UNTIL_STAGING_ACCEPTANCE
+  root_cause: PUBLIC_L1_BOUNDED_PROJECTION_WAS_REUSED_AS_FORWARD_EVIDENCE_SOURCE
+  implementation:
+    - internal forward-capture adapter preserves immutable Snapshot v2 evidence
+    - audit_capture_id derives occurrence identity without changing capture_hash
+    - audit_estimate_id requires an eligible Snapshot v2 in the same capture record
+    - L1 and Boss View bind capture_id, capture_hash and estimate_id
+    - Frozen L2 selects capture_id before hash ambiguity and cross-validates the triple
+  local_validation:
+    pytest: 1481 passed, 4 skipped
+    ruff: PASS
+    mypy: PASS_247_SOURCE_FILES
+    typescript: PASS
+    web_build: PASS
+    offline_acceptance: PASS
+    tracked_outputs: PASS
+    provider_calls: 0
+    db_writes: 0
+    historical_rewrites: 0
+  staging_deploy_performed: false
+  production_deploy: false
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program

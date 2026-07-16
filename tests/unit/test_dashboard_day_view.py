@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from w2.api.repository import ReadModelService
 from w2.dashboard import day_view
-from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view import build_dashboard_day_view, build_forward_capture_day_view
 
 
 class _ActiveAndArchivedMatchdayRepository:
@@ -15,6 +15,35 @@ class _ActiveAndArchivedMatchdayRepository:
             _matchday_payload("active", "chinese_super_league"),
             _matchday_payload("archived", "world_cup_2026"),
         ]
+
+
+def test_internal_forward_capture_preserves_evidence_while_public_l1_omits_it() -> None:
+    snapshot = {"estimate_id": "fme-1", "score_matrix": {"0-0": 1.0}}
+    payload = {
+        "date": "2099-07-01",
+        "selected_football_day": "2099-07-01",
+        "generated_at": "2099-07-01T00:00:00Z",
+        "timezone": "UTC",
+        "window": "today",
+        "all": [
+            {
+                "fixture_id": "fixture-1",
+                "kickoff_utc": "2099-07-01T10:00:00Z",
+                "decision_tier": "WATCH",
+                "data_status": "READY",
+                "fair_market_estimate_snapshots": [snapshot],
+                "fair_market_estimate_ids": ["fme-1"],
+                "analysis_gate": {"estimate_id": "fme-1"},
+            }
+        ],
+    }
+
+    public = build_dashboard_day_view(payload, environment="staging")
+    internal = build_forward_capture_day_view(payload, environment="staging")
+
+    assert "fair_market_estimate_snapshots" not in public["cards"][0]
+    assert internal["cards"][0]["fair_market_estimate_snapshots"] == [snapshot]
+    assert internal["cards"][0]["analysis_gate"] == {"estimate_id": "fme-1"}
 
 
 def _matchday_payload(fixture_id: str, competition_id: str) -> dict[str, Any]:

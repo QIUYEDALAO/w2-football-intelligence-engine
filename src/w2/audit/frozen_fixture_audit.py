@@ -16,6 +16,7 @@ from w2.models.fair_market_estimate import (
 )
 from w2.tracking.canonical_identity import canonical_capture_candidates
 from w2.tracking.canonical_outcomes import project_canonical_outcomes
+from w2.tracking.frozen_capture_identity import audit_capture_id, capture_estimate_identity
 from w2.tracking.frozen_capture_lookup import FrozenCaptureLookup
 
 FROZEN_AUDIT_SCHEMA_VERSION = "w2.frozen_fixture_audit.v1"
@@ -91,12 +92,16 @@ def build_frozen_fixture_audit(
         canonical_capture_candidates(lookup.fixture_records),
     )
     source_hash = _capture_hash(capture)
+    source_capture_id = audit_capture_id(capture)
+    source_estimate_id = capture_estimate_identity(capture).estimate_id
     source_status = "BLOCKED" if invalid_snapshot else lookup.source_status
     projection: dict[str, Any] = {
         "schema_version": FROZEN_AUDIT_SCHEMA_VERSION,
         "fixture_id": lookup.fixture_id,
         "source": "FROZEN_FORWARD_CAPTURE",
         "source_capture_hash": source_hash,
+        "source_capture_id": source_capture_id,
+        "source_estimate_id": source_estimate_id,
         "source_captured_at": capture.get("captured_at"),
         "source_status": source_status,
         "historical_compatibility": historical_compatibility,
@@ -158,7 +163,12 @@ def build_frozen_fixture_audit(
             ),
         },
         "omitted_sections": omitted,
-        "links": {"fixture_id": lookup.fixture_id, "capture_hash": source_hash},
+        "links": {
+            "fixture_id": lookup.fixture_id,
+            "capture_id": source_capture_id,
+            "capture_hash": source_hash,
+            "estimate_id": source_estimate_id,
+        },
     }
     if _size(projection) <= MAX_AUDIT_RESPONSE_BYTES:
         return projection
@@ -314,6 +324,8 @@ def _blocked_projection(lookup: FrozenCaptureLookup, reason: str) -> dict[str, A
         "fixture_id": lookup.fixture_id,
         "source": "FROZEN_FORWARD_CAPTURE",
         "source_capture_hash": lookup.requested_capture_hash,
+        "source_capture_id": lookup.requested_capture_id,
+        "source_estimate_id": None,
         "source_status": "BLOCKED",
         "historical_compatibility": False,
         "corrected_evidence": False,
