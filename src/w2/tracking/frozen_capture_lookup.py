@@ -150,6 +150,7 @@ def _scan_frozen_capture(
             reason="LEDGER_NOT_FOUND",
         )
     target: list[tuple[dict[str, Any], str]] = []
+    exact_mode = False
     corruption_count = 0
     scanned_records = 0
     try:
@@ -179,17 +180,27 @@ def _scan_frozen_capture(
                         continue
                     if str(value.get("fixture_id") or "") != fixture_id:
                         continue
-                    target.append((value, path.name))
+                    if not exact_mode:
+                        target.append((value, path.name))
+                    elif _relevant_to_exact_capture(value, capture_hash):
+                        target.append((value, path.name))
                     if len(target) > max_fixture_records:
-                        return _result(
-                            fixture_id,
-                            capture_hash,
-                            source_status="BLOCKED",
-                            reason="FIXTURE_RECORD_LIMIT_EXCEEDED",
-                            corruption_count=corruption_count,
-                            scanned_file_count=len(files),
-                            scanned_record_count=scanned_records,
-                        )
+                        exact_mode = True
+                        target = [
+                            item
+                            for item in target
+                            if _relevant_to_exact_capture(item[0], capture_hash)
+                        ]
+                        if len(target) > max_fixture_records:
+                            return _result(
+                                fixture_id,
+                                capture_hash,
+                                source_status="BLOCKED",
+                                reason="FIXTURE_RECORD_LIMIT_EXCEEDED",
+                                corruption_count=corruption_count,
+                                scanned_file_count=len(files),
+                                scanned_record_count=scanned_records,
+                            )
     except OSError:
         return _result(
             fixture_id,
@@ -272,6 +283,22 @@ def _scan_frozen_capture(
         matched_file=selected[1],
         scanned_file_count=len(files),
         scanned_record_count=scanned_records,
+    )
+
+
+def _relevant_to_exact_capture(record: Mapping[str, Any], capture_hash: str) -> bool:
+    if str(record.get("record_type") or "capture") != "capture":
+        # Old outcomes may not carry a source hash. Retaining bounded non-capture
+        # records preserves historical audit visibility without keeping unrelated
+        # capture history for the same fixture.
+        source_hash = str(record.get("source_capture_hash") or "")
+        return not source_hash or source_hash == capture_hash or any(
+            str(record.get(field) or "") == capture_hash
+            for field in ("capture_hash", "evidence_hash", "card_hash")
+        )
+    return any(
+        str(record.get(field) or "") == capture_hash
+        for field in ("capture_hash", "evidence_hash", "card_hash")
     )
 
 
