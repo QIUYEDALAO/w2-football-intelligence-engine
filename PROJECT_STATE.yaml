@@ -19,6 +19,14 @@ context_contract:
   update_rule: Update this file in every stage-changing PR and after every merge or deployment acceptance.
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
+context_read_order:
+  - PROJECT_STATE.yaml
+  - docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+  - docs/consolidation/W2_DECISION_CONTRACT_V2.md
+  - docs/operations/W2_PUBLIC_EDGE_ACCEPTANCE_V1.md
+  - docs/operations/W2_RELEASE_AND_ROLLBACK_V1.md
+  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+
 repository_state:
   main_sha_at_rebaseline: b303588d6a3a2e7288c46877206f7f5ef31eeb87
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
@@ -63,8 +71,117 @@ public_edge_recovery:
   historical_rewrites: 0
   production_deploy: false
 
+active_workstream:
+  id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
+  status: CONTEXT_AND_SPEC_GATE
+  repository_main_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  specification:
+    path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+    status: APPROVED_FOR_IMPLEMENTATION
+  completed_tasks:
+    - core FME and MarketQuote semantic closure
+    - canonical outcome denominator
+    - three-track isolation
+    - bounded L1 cards and cursor pagination
+    - immutable DayView WindowSnapshot
+    - public HTTP live-model rebuild removal
+    - bounded Frozen L2 projection
+    - observer governance contract PR 324
+    - fresh sampling correction PR 325
+  known_issues:
+    - CTX-01
+    - CTX-02
+    - CTX-03
+    - CTX-04
+    - CI-01
+    - OBS-01
+    - OBS-02
+    - OBS-03
+    - OBS-04
+    - OBS-05
+    - OBS-06
+    - OBS-07
+    - OBS-08
+    - OBS-09
+    - EDGE-01
+    - EDGE-02
+    - DEP-01
+    - L1-01
+    - L2-01
+    - FINAL-01
+  remaining_tasks:
+    - merge context and frozen specification
+    - implement observer evidence v2
+    - rerun independent public matrices
+    - adjudicate public route
+    - deploy latest main if permitted
+    - complete L1 staging acceptance
+    - complete Frozen L2 staging acceptance
+    - complete correctness reconciliation
+    - merge final context rebaseline
+  deferred_findings:
+    - id: PROD-01
+      status: BLOCKS_PRODUCTION_ONLY
+      reason: target user route remains undeclared
+    - id: AH-EVIDENCE-01
+      status: ACCUMULATING
+      progress: 0/35 and 0/100
+  closed_invariants_do_not_reopen:
+    - FME Snapshot v2 mathematical semantics
+    - estimate/model/quote/capture identity
+    - AWAY_AH selection-line semantics
+    - canonical denominator
+    - OFFICIAL/VALIDATION/Wide/Strict isolation
+    - storage atomicity
+    - readiness and ops access control
+    - bounded L1 payload
+    - cursor pagination
+    - WindowSnapshot
+    - Frozen L2 no-live-rebuild boundary
+  terminal_condition:
+    - observer evidence v2 merged
+    - public route formally adjudicated
+    - latest main deployed when contract permits
+    - L1 staging acceptance evaluated
+    - Frozen L2 staging acceptance evaluated
+    - denominator and three-track invariants reconciled
+    - final context PR merged
+  next_allowed_action:
+    - merge PR 326 and implement observer evidence v2
+  forbidden_actions:
+    - production deployment
+    - RECOMMEND enablement
+    - lock enablement
+    - OFFICIAL writes
+    - model or threshold changes
+    - historical evidence rewrites
+
+known_issue_catalog:
+  CTX-01: GitHub main context predates PRs 314 through 325
+  CTX-02: active workstream and terminal condition were absent
+  CTX-03: mandatory GitHub context read order was absent
+  CTX-04: completed historical program appeared to remain active
+  CI-01: PR 326 has one sensitive-pattern wording false positive and three time-dependent DayView tests
+  OBS-01: V1 evidence lacks mandatory V2 schema and collector identifiers
+  OBS-02: V1 discards response bodies that contain request IDs
+  OBS-03: V1 omits per-sample collection timestamps
+  OBS-04: V1 does not validate and parse Server-Timing safely
+  OBS-05: V1 declares but does not enforce the curl IP protocol
+  OBS-06: V1 no-proxy sample state is not derived from command and environment
+  OBS-07: V1 drops num_connects after deriving reuse state
+  OBS-08: V1 check-true subprocess behavior loses failed-transfer evidence
+  OBS-09: V1 lacks strict pairing, size, uniqueness, and success-evidence validation
+  EDGE-01: Observer A V1 artifact is non-qualifying despite preliminary latency PASS
+  EDGE-02: Observer B V1 artifact is non-qualifying and preliminarily failed future page 1 warm p95
+  DEP-01: current GitHub main is not deployed to staging
+  L1-01: current GitHub main has no final L1 staging acceptance
+  L2-01: current GitHub main has no final Frozen L2 staging acceptance
+  FINAL-01: final GitHub context rebaseline is pending
+
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
+  status: COMPLETE_DO_NOT_REOPEN
   invariant:
     - FairMarketEstimate Snapshot v2 and MarketQuote are the only eligible decision evidence.
     - Canonical performance counts one last valid prematch candidate per fixture, market, scope, and strategy version.
@@ -293,8 +410,9 @@ staging_state:
     maturity_100_status: ACCUMULATING
   open_warnings:
     - code: COLD_CACHE_HIGH_LATENCY
+      status: SUPERSEDED
       observation: Correctness-recovery cold concurrency produced 15/15 HTTP 200 and no 502/504, but p95 remained 109.6345 seconds; warm 225-request matrix produced 225/225 HTTP 200 with p95 18.4901 seconds.
-      disposition: Keep as a performance warning; do not raise proxy timeout or alter decision gates without a separate evidence-backed PR.
+      disposition: Superseded by bounded WindowSnapshot, pagination, and public-edge benchmark work; retain as history only.
     - code: PUBLIC_OBSERVER_EVIDENCE_NON_QUALIFYING
       observation: PR 325 fixed fresh sample collection, but retained public samples still have empty request_id values and no timestamp; Observer B also exceeded the future page 1 warm p95 threshold in preliminary data.
       disposition: Do not count the current artifacts as formal PASS evidence; repair only the observer evidence collector and rerun the full matrix.

@@ -13,7 +13,7 @@ from w2.tracking.day_view_capture_index import _summary_from_capture
 def _row(fixture_id: str) -> dict[str, Any]:
     return {
         "fixture_id": fixture_id,
-        "kickoff_utc": "2026-07-16T10:00:00Z",
+        "kickoff_utc": "2030-07-16T10:00:00Z",
         "competition_id": "chinese_super_league",
         "competition_name": "中超",
         "home_team_name": "Home",
@@ -43,7 +43,7 @@ def test_future_does_not_read_today_next36_or_results(monkeypatch: Any) -> None:
     )
 
     assert service._dashboard_rows_for_window(
-        requested_date=date(2026, 7, 16),
+        requested_date=date(2030, 7, 16),
         window="future",
     ) == future
 
@@ -83,8 +83,8 @@ def test_capture_backed_card_skips_market_read_and_missing_capture_uses_availabi
     summary = _summary_from_capture(
         {
             "fixture_id": "captured",
-            "captured_at": "2026-07-16T08:00:00Z",
-            "kickoff_utc": "2026-07-16T10:00:00Z",
+            "captured_at": "2030-07-16T08:00:00Z",
+            "kickoff_utc": "2030-07-16T10:00:00Z",
             "capture_hash": "capture-a",
             "decision_tier": "WATCH",
             "data_status": "BLOCKED",
@@ -114,7 +114,7 @@ def test_capture_backed_card_skips_market_read_and_missing_capture_uses_availabi
     )
 
     view = service.dashboard_day_view(
-        target_date="2026-07-16",
+        target_date="2030-07-16",
         window="future",
         page_size=20,
     )
