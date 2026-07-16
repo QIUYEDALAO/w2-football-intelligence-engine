@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T11:20:00Z"
-current_phase: Public edge observer evidence correction
-current_status: OBSERVER_EVIDENCE_NON_QUALIFYING
+last_updated_utc: "2026-07-16T13:45:00Z"
+current_phase: Frozen L2 exact-identity staging recovery
+current_status: BLOCKED_STAGING_ACCEPTANCE
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -28,44 +28,57 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  main_sha_at_rebaseline: 461e4973b957981132cfcfd9fc370e0021f8bae2
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-16T11:02:41Z"
+  observed_at_utc: "2026-07-16T13:45:00Z"
 
 public_edge_recovery:
-  status: OBSERVER_EVIDENCE_NON_QUALIFYING
+  status: ROUTE_SPECIFIC_WARNING
   target_route: UNDECLARED
   merged_prs:
     observer_contract: 324
     fresh_sampling_fix: 325
-  merged_main_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+    context_and_specification: 326
+    observer_evidence_v2: 327
+  merged_main_sha: 461e4973b957981132cfcfd9fc370e0021f8bae2
   observer_a:
-    observer_id: github-hosted-run-29492624556
+    observer_id: github-hosted-run-29500925481
     observer_kind: PUBLIC_BLOCKING
     network_path: DIRECT_NO_PROXY_IPV4
     expected_remote_ip: 43.155.208.138
-    preliminary_latency_result: PASS
-    formal_result: NON_QUALIFYING
-    reason: request_id empty and timestamp absent from every retained sample
+    actual_source_egress: 20.55.87.183
+    formal_result: PASS
+    report_count: 24
   observer_b:
     observer_id: current-external-host
     observer_kind: PUBLIC_BLOCKING
     network_path: DIRECT_NO_PROXY_IPV4
     expected_remote_ip: 43.155.208.138
-    preliminary_latency_result: FAIL
-    preliminary_failed_gate: future page 1 warm reused p95 2.086251s > 1.5s
-    formal_result: NON_QUALIFYING
-    reason: request_id empty and timestamp absent from every retained sample
-  formal_classification: OBSERVER_COVERAGE_INSUFFICIENT
-  evidence_root_cause: observer discarded the response body containing the nginx request_id and read a response header that nginx does not emit
-  next_action: merge a minimal observer-only evidence fix, then rerun complete independent public matrices
-  staging_deploy_performed: false
-  rollback_performed: false
+    actual_source_egress: 120.231.34.97
+    formal_result: FAIL
+    failed_gates:
+      - today warm reused p95 1.790940s > 1.5s
+      - next36 warm reused p95 4.349414s > 1.5s
+      - future page 1 warm reused p95 3.788918s > 1.5s
+      - future page 2 warm reused p95 4.261941s > 3.0s
+  observer_c:
+    observer_id: github-hosted-run-29501365248
+    observer_kind: PUBLIC_BLOCKING
+    network_path: DIRECT_NO_PROXY_IPV4
+    expected_remote_ip: 43.155.208.138
+    actual_source_egress: 20.94.54.82
+    formal_result: PASS
+    report_count: 24
+  formal_classification: ROUTE_SPECIFIC_WARNING
+  classification_reason: two independent public observers pass, one undeclared non-target route fails, and server diagnostics pass
+  next_action: repair the Frozen L2 exact capture identity ambiguity before another staging deployment
+  staging_deploy_performed: true
+  rollback_performed: true
   provider_calls: 0
   db_writes: 0
   historical_rewrites: 0
@@ -73,8 +86,8 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: OBSERVER_MATRIX_PENDING
-  repository_main_sha: c33a5ff35f94de767cc0e4d308a41fb76157fc6c
+  status: BLOCKED_STAGING_ACCEPTANCE
+  repository_main_sha: 461e4973b957981132cfcfd9fc370e0021f8bae2
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
     path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
@@ -89,6 +102,13 @@ active_workstream:
     - bounded Frozen L2 projection
     - observer governance contract PR 324
     - fresh sampling correction PR 325
+    - context and frozen specification PR 326
+    - observer evidence V2 PR 327
+    - two independent qualifying public observer PASS matrices
+    - formal ROUTE_SPECIFIC_WARNING adjudication
+    - latest-main image build, migration and four-service staging switch
+    - L1 pagination, union, stale-cursor, concurrency and inner-route latency acceptance
+    - automatic four-service rollback after Frozen L2 exact-identity failure
   known_issues:
     - CTX-01
     - CTX-02
@@ -110,15 +130,11 @@ active_workstream:
     - L1-01
     - L2-01
     - FINAL-01
+    - L2-02
   remaining_tasks:
-    - merge observer evidence v2
-    - rerun independent public matrices
-    - adjudicate public route
-    - deploy latest main if permitted
-    - complete L1 staging acceptance
-    - complete Frozen L2 staging acceptance
-    - complete correctness reconciliation
-    - merge final context rebaseline
+    - repair fixture 1492140 L1 exact capture selection so one unambiguous Snapshot v2 identity is exposed
+    - rerun the approved staging deployment and complete the full Frozen L2 matrix
+    - repeat final correctness reconciliation after the successful L2 gate
   deferred_findings:
     - id: PROD-01
       status: BLOCKS_PRODUCTION_ONLY
@@ -126,6 +142,9 @@ active_workstream:
     - id: AH-EVIDENCE-01
       status: ACCUMULATING
       progress: 0/35 and 0/100
+    - id: PROD-ROUTE-01
+      status: WARN_DEFERRED
+      reason: current external route exceeds warm thresholds while two independent GitHub routes pass
   closed_invariants_do_not_reopen:
     - FME Snapshot v2 mathematical semantics
     - estimate/model/quote/capture identity
@@ -147,7 +166,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - merge observer evidence v2 and rerun independent public matrices
+    - make one minimal L1 frozen-capture identity correction for fixture 1492140 without changing FME semantics, thresholds, pagination or Frozen L2 projection
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -177,9 +196,37 @@ known_issue_catalog:
   L1-01: current GitHub main has no final L1 staging acceptance
   L2-01: current GitHub main has no final Frozen L2 staging acceptance
   FINAL-01: final GitHub context rebaseline is pending
+  L2-02: current L1 exact capture 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 returns AMBIGUOUS_CAPTURE for fixture 1492140 and has no estimate identity
+
+known_issue_status:
+  resolved:
+    - CTX-01
+    - CTX-02
+    - CTX-03
+    - CTX-04
+    - CI-01
+    - OBS-01
+    - OBS-02
+    - OBS-03
+    - OBS-04
+    - OBS-05
+    - OBS-06
+    - OBS-07
+    - OBS-08
+    - OBS-09
+    - EDGE-01
+    - EDGE-02
+    - DEP-01
+    - L1-01
+    - L2-01
+    - FINAL-01
+  blocking:
+    - L2-02
 
 observer_v2_implementation:
-  status: PREMERGE_VERIFIED
+  status: MERGED_AND_FORMALLY_VALIDATED
+  merged_pr: 327
+  merged_sha: 461e4973b957981132cfcfd9fc370e0021f8bae2
   report_schema: w2.public_edge_latency.v2
   sample_schema: w2.public_edge_latency.sample.v2
   collector_version: w2.public_edge_observer.v2
@@ -210,7 +257,45 @@ observer_v2_implementation:
     failure_sample_retained: true
     correlated_success_sample_retained: true
     response_body_retained: false
-  next_action: complete full local and GitHub CI, merge, then run fresh V2 matrices
+  github_ci: PASS
+  formal_route_classification: ROUTE_SPECIFIC_WARNING
+  next_action: retain V2 evidence as the public route baseline; do not rerun unless route or release behavior changes
+
+staging_acceptance_20260716:
+  attempted_sha: 461e4973b957981132cfcfd9fc370e0021f8bae2
+  rollback_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  result: BLOCKED_STAGING_ACCEPTANCE
+  rollback_manifest: /opt/w2/shared/rollback-manifest-461e4973b957981132cfcfd9fc370e0021f8bae2.json
+  migration: 0023_create_checkpoint_refresh_schedule (head)
+  l1:
+    result: PASS
+    today_union: 3/3
+    next36_union: 13/13
+    future_union: 40/40
+    future_pages: 20+20
+    duplicate_count: 0
+    max_page_bytes: 43249
+    max_card_bytes: 1697
+    stale_cursor_http: 409
+    concurrency_1_2_4_8: PASS
+    direct_api_warm_p95_seconds: 0.048960
+    isolated_nginx_warm_p95_seconds: 0.041900
+  l2:
+    result: FAIL
+    legacy_fixture_1576804: PASS_HISTORICAL_COMPATIBILITY
+    current_fixture_1492140_http: 409
+    current_fixture_1492140_reason: AMBIGUOUS_CAPTURE
+    l1_capture_hash: 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12
+    l1_estimate_id: null
+  safety:
+    provider_count_before_after: 508/508
+    active_provider_calls_before_after: 0/0
+    redis_queue_before_after: 0/0
+    ledger_manifest_sha256_before_after: 4cb1568b60ad6c505660524ffb466f09001c88b3022b16288d4de710bb737cee/4cb1568b60ad6c505660524ffb466f09001c88b3022b16288d4de710bb737cee
+    ledger_total_bytes_before_after: 36430067/36430067
+    api_oom_kill_after_rollback: 0
+    service_restarts_after_rollback: 0
+    production_deploy: false
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program

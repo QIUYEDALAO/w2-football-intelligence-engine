@@ -808,3 +808,12 @@
 - curl transport failure、HTTP 502/504 保留 status、exit code、可用 timing 与 bytes，标记为 failure evidence 并使 observer 失败；metadata/配对/能力/临时路径错误才属于 collector hard error。
 - unit 与本地真实 HTTP/1.1 curl integration 共 31 项 PASS，覆盖 keep-alive、fresh、reconnect、malformed/empty/oversized、502 HTML、timeout 与临时目录清理；真实 staging smoke 同时保留一个12秒 transport failure与一个 correlated HTTP 200，证明失败事实不会消失。
 - 本实现未修改 Dashboard、nginx timeout、FME、denominator、pagination、Frozen L2、threshold、recommendation、lock 或 OFFICIAL；未部署 staging/production，provider calls=0、业务 DB writes=0、历史 rewrite=0。
+
+### V3 进展续71 · Known-Issue Closure 最终 staging 验收与 Frozen L2 identity 回滚(2026-07-16)
+
+- #326 已合并上下文与冻结规格，#327 已合并 Observer Evidence V2，代码目标为 `main@461e4973b957981132cfcfd9fc370e0021f8bae2`；local `1470 passed, 4 skipped`，GitHub verify/staging-parity/predeploy-e2e 全 PASS。
+- Observer A run `29500925481`（source `20.55.87.183`）与 Observer C run `29501365248`（source `20.94.54.82`）各 24 份 V2 report 全 PASS；current external source `120.231.34.97` 仅暖 reused 延迟失败。server diagnostics 通过，正式裁决为 `ROUTE_SPECIFIC_WARNING`，staging 可继续而 production 仍 blocked。
+- `461e497...` 的五类镜像 revision 校验、artifact v1、migration head、API business gate及 API→worker→Web→scheduler 切换均 PASS。L1 today/next36/future union 为 `3/3`、`13/13`、`40/40`，future 两页 `20+20`，duplicate=0，最大页/卡 `43249/1697` bytes，stale cursor=409，并发 1/2/4/8 全 200；direct API/isolated nginx 暖 p95=`0.048960/0.041900s`。
+- Frozen L2 legacy fixture `1576804` 正确返回 historical compatibility。fixture `1492140` 的当前 L1 exact identity 为 capture `720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12`、estimate `null`，L2 返回 `409 AMBIGUOUS_CAPTURE`；另一个 v2 capture 虽为 integrity/semantics PASS，不能替代 L1-bound identity。完整串行/并发 L2 stress 因前置硬门失败未执行。
+- 已按 mode-600 四服务 rollback manifest 恢复 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`；四服务 healthy、restart=0、OOM/oom_kill=0、health/ready PASS。provider `508→508`、active calls `0→0`、queue `0→0`、ledger manifest 与 bytes 完全一致，业务 DB/historical rewrite=0。
+- 最终正确性仍为 VALIDATION `43/16/27`、Wide `60/22/38`、duplicate/conflict/identity-unmatched/cross-track contamination=0；Strict candidate/confirmation/canonical=`0/0/0`，RECOMMEND=0、lock=0、OFFICIAL canonical=0、production=false。最终状态 `BLOCKED_STAGING_ACCEPTANCE`，下一步仅允许修复 L1 exact Snapshot-v2 capture/estimate identity 后重跑 staging L2。

@@ -107,3 +107,12 @@ Rules:
 - The current formal classification is `OBSERVER_COVERAGE_INSUFFICIENT`. No release, migration, service replacement or rollback occurred, so the known stable staging release remains active.
 - The next change is observer-only evidence collection. It must preserve no-proxy IPv4, actual fresh/reused connection behavior, all original thresholds and the 12-second timeout. Existing non-qualifying artifacts must not be reused after the fix.
 - Production, provider calls, business database writes, historical rewrites, `RECOMMEND`, locks and OFFICIAL writes remain excluded.
+
+## Rolled-back final observer/L1/Frozen-L2 acceptance release · 2026-07-16
+
+- Attempted release: `461e4973b957981132cfcfd9fc370e0021f8bae2`; rollback target: `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`. The pre-switch four-service rollback manifest is `/opt/w2/shared/rollback-manifest-461e4973b957981132cfcfd9fc370e0021f8bae2.json` with mode 600.
+- All migration/API/Web/worker/scheduler images carried the target revision. Artifact v1 passed, migration remained `0023_create_checkpoint_refresh_schedule (head)`, and the release switched API → worker → Web → scheduler with all four services healthy and restart count 0.
+- L1 passed: today `3/3`, next36 `13/13`, future `40/40` over pages `20+20`, duplicate 0, max page 43,249 bytes, max card 1,697 bytes, stale cursor 409 and concurrency 1/2/4/8 all HTTP 200. Direct API/isolated-nginx warm p95 were `0.048960s/0.041900s`.
+- Frozen L2 legacy fixture `1576804` returned HTTP 200 with `historical_compatibility=true` and `corrected_evidence=false`. Current fixture `1492140` failed before the stress matrix: L1 exact capture `720d570b...`, estimate `null`, returned HTTP 409 `AMBIGUOUS_CAPTURE`. A different v2 capture passed integrity and semantics but cannot replace the L1-bound identity.
+- The exact-identity hard gate triggered immediate rollback. API, Web, worker and scheduler are again healthy on `c89555b...`, restart=0, OOM/oom_kill=0 and `/health`/`/ready` pass. Provider count stayed `508`, active provider calls `0`, Redis queue `0`, ledger manifest stayed `4cb1568b...` with the same 36,430,067 bytes, and no migration or historical rewrite occurred.
+- Final status is `BLOCKED_STAGING_ACCEPTANCE`. The only next release work is a minimal unambiguous Snapshot-v2 identity selection for the L1 card; production, timeout, thresholds, FME, model artifacts, RECOMMEND, lock and OFFICIAL remain unchanged.
