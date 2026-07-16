@@ -168,7 +168,7 @@ def collect_samples(
         base, remainder = divmod(requests, concurrency)
         counts = [base + (index < remainder) for index in range(concurrency)]
     if concurrency == 1:
-        rendered_outputs = [run_curl(counts[0])]
+        rendered_outputs = [run_curl(count) for count in counts]
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
             rendered_outputs = list(pool.map(run_curl, counts))
