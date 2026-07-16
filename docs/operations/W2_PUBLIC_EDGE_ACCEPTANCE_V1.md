@@ -71,6 +71,14 @@ two independent complete matrices are rerun. Stable staging remains
 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`; this status does not authorize a
 deployment, timeout change, or product/model gate change.
 
+## Evidence V2 adjudication · 2026-07-16
+
+- PR #327 merged Observer Evidence V2 at `main@461e4973b957981132cfcfd9fc370e0021f8bae2`. Every retained report passed the V2 schema validator and carried correlated request IDs, UTC timestamps, safe Server-Timing metrics, enforced IPv4 and derived no-proxy evidence.
+- Observer A, GitHub-hosted run `29500925481`, used actual source egress `20.55.87.183` and passed all 24 reports. Observer C, GitHub-hosted run `29501365248`, used independent actual source egress `20.94.54.82` and also passed all 24 reports.
+- Observer B, the current external host at source egress `120.231.34.97`, returned HTTP 200 without transport errors but failed warm reused p95 for today (`1.790940s`), next36 (`4.349414s`), future page 1 (`3.788918s`) and future page 2 (`4.261941s`). Fresh/cold gates passed.
+- Direct API and isolated-nginx server diagnostics passed, and request-ID correlation showed no shared API/OOM/restart/5xx failure layer. The formal classification is therefore `ROUTE_SPECIFIC_WARNING`: staging work may continue, but production remains blocked while the target user route is undeclared.
+- V1 artifacts remain historical `NON_QUALIFYING` and were not promoted. Thresholds, timeout, Dashboard behavior, FME, denominator, pagination, Frozen L2 and recommendation policy were unchanged.
+
 ## Evidence V2 gate
 
 Formal evidence must use report schema `w2.public_edge_latency.v2`, sample schema
