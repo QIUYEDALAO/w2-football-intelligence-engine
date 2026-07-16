@@ -835,3 +835,12 @@
 - 提交 fixture 1492140 最小脱敏双 occurrence 回归，证明 controlled append-only v2 recapture 可被精确寻址；fixture 1576804 的 historical compatibility 与 no-live-rebuild 边界保持不变。未硬编码生产 fixture 逻辑，未修改 FME 数学、Snapshot schema、estimate/model ID、quote、score matrix、settlement、pagination、denominator 或三轨。
 - 本地全量 `1481 passed, 4 skipped`；Ruff、Mypy（247 source files）、TypeScript、Web build、offline acceptance、tracked-output guard 与 diff check 全 PASS。provider calls=0、业务 DB writes=0、历史 rewrite=0、staging/production deployment=false。
 - 唯一代码 PR 为 #330，当前状态为 `IMPLEMENTATION_COMPLETE_STAGING_PENDING`。下一步仅允许该 PR 通过 verify/staging-parity/predeploy-e2e 后合并，部署最新 main，并在真实 kickoff 前执行一次不回填时间的 append-only controlled capture，再完成 L1/L2 与 denominator/三轨安全验收。
+
+### V3 进展续74 · Exact Identity staging 预写硬门失败与自动回滚(2026-07-17)
+
+- 代码 PR #330 的 verify、staging-parity、predeploy-e2e 在 run `29534457496` 全 PASS，合并为 `main@b6909d67450d032d447d7c8a61077aa3ba6837b2`。部署前 active provider calls=0、queue=0、provider ledger=522、migration=`0023_create_checkpoint_refresh_schedule`、API OOM/oom_kill=0，并冻结 mode-600 四服务 rollback manifest。
+- migration/API/Web/Worker/Scheduler 五镜像 OCI revision 均为目标 SHA；artifact v1、migration smoke、migration、API health/ready、DayView business gate 与四服务同 SHA/restart=0/OOM=false 均 PASS。production 未部署。
+- controlled capture dry-run 在真实 kickoff `2026-07-17T22:30:00Z` 前运行且 provider calls=0、business DB writes=0、ledger writes=0。新内部 adapter 正确保留 fixture `1492140` 的 2 个 Snapshot v2，且 integrity 均 PASS；但两个 Snapshot 均为 `semantic_status=INSUFFICIENT`、`evidence_eligible=false`、fallback=`FME_PROVENANCE_INCOMPLETE`。当前 decision reason 为 `MARKET_UNAVAILABLE`，gate 同时阻塞 `MODEL_FAIR_LINE_UNAVAILABLE` 与 `DECISION_SOURCE_INCONSISTENT`，因此不存在可作为审计身份的同记录权威 estimate。
+- 按预写硬门没有追加目标 capture，并立即以四服务冻结镜像回滚到 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`。回滚后四服务 healthy、restart=0、OOM/oom_kill=0，`/health`、`/ready` PASS；provider ledger 仍 522、active calls=0、queue=0、migration 不变。
+- ledger 在 scheduler 的正常运行窗口自动 append 两条其他 fixture 的 `T_MINUS_1H` capture，共 3,790 bytes；重构去除这两条尾部记录后，部署前总字节 `36,450,975` 与 manifest hash `986c13fd...` 完全一致，证明 historical prefix 未改写。fixture 1492140 没有写入。
+- 最终结果为 `WORKSTREAM_ROLLED_BACK`，L2-02 继续 blocking。下一动作不得再改 lookup/UI/FME/threshold/provider scheduling 或部署；只允许只读观察当前 market provenance 是否自然恢复为 evidence-eligible Snapshot v2，预写 gate 通过后才能重新部署和验收。
