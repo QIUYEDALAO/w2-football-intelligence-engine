@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from threading import RLock
 from typing import Any
 
 from w2.models.fair_market_estimate import (
@@ -12,6 +14,14 @@ from w2.models.fair_market_estimate import (
 from w2.models.market_quote import verify_market_quote
 
 SCOPES = {"OFFICIAL", "VALIDATION", "SHADOW"}
+_SNAPSHOT_VERIFICATION_CACHE_MAX_ENTRIES = 2_048
+_snapshot_verification_cache: OrderedDict[str, tuple[bool, bool]] = OrderedDict()
+_snapshot_verification_cache_lock = RLock()
+
+
+def clear_snapshot_verification_cache() -> None:
+    with _snapshot_verification_cache_lock:
+        _snapshot_verification_cache.clear()
 
 
 def canonical_capture_candidates(
@@ -212,9 +222,7 @@ def _exclusion_reason(
     snapshot_key = canonical_estimate_hash(dict(snapshot))
     verification = snapshot_verifications.get(snapshot_key)
     if verification is None:
-        integrity_valid = verify_estimate_snapshot(snapshot)
-        semantics_valid = integrity_valid and verify_estimate_semantics(snapshot)
-        verification = (integrity_valid, semantics_valid)
+        verification = _verify_snapshot_content(snapshot, snapshot_key=snapshot_key)
         snapshot_verifications[snapshot_key] = verification
     if not verification[0]:
         return "INVALID_SNAPSHOT"
@@ -229,6 +237,31 @@ def _exclusion_reason(
     if candidate.get("evidence_eligible") is not True:
         return "EVIDENCE_INELIGIBLE"
     return None
+
+
+def _verify_snapshot_content(
+    snapshot: Mapping[str, Any],
+    *,
+    snapshot_key: str,
+) -> tuple[bool, bool]:
+    with _snapshot_verification_cache_lock:
+        cached = _snapshot_verification_cache.get(snapshot_key)
+        if cached is not None:
+            _snapshot_verification_cache.move_to_end(snapshot_key)
+            return cached
+    integrity_valid = verify_estimate_snapshot(snapshot)
+    semantics_valid = integrity_valid and verify_estimate_semantics(snapshot)
+    verification = (integrity_valid, semantics_valid)
+    with _snapshot_verification_cache_lock:
+        existing = _snapshot_verification_cache.get(snapshot_key)
+        if existing is not None:
+            _snapshot_verification_cache.move_to_end(snapshot_key)
+            return existing
+        _snapshot_verification_cache[snapshot_key] = verification
+        _snapshot_verification_cache.move_to_end(snapshot_key)
+        while len(_snapshot_verification_cache) > _SNAPSHOT_VERIFICATION_CACHE_MAX_ENTRIES:
+            _snapshot_verification_cache.popitem(last=False)
+    return verification
 
 
 def _outcome_matches(candidate: Mapping[str, Any], outcome: Mapping[str, Any]) -> bool:

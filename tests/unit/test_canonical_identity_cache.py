@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from w2.tracking.canonical_identity import canonical_capture_candidates
+from w2.tracking.canonical_identity import (
+    canonical_capture_candidates,
+    clear_snapshot_verification_cache,
+)
 
 
 def test_repeated_immutable_snapshot_semantics_are_verified_once(monkeypatch: Any) -> None:
+    clear_snapshot_verification_cache()
     semantic_calls = 0
 
     monkeypatch.setattr(
@@ -58,12 +62,15 @@ def test_repeated_immutable_snapshot_semantics_are_verified_once(monkeypatch: An
     ]
 
     candidates = canonical_capture_candidates(records)
+    repeated_candidates = canonical_capture_candidates(records)
 
     assert len(candidates) == 2
+    assert len(repeated_candidates) == 2
     assert semantic_calls == 1
 
 
 def test_same_declared_id_with_changed_snapshot_is_verified_again(monkeypatch: Any) -> None:
+    clear_snapshot_verification_cache()
     semantic_calls = 0
 
     monkeypatch.setattr(
