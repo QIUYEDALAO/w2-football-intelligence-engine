@@ -127,6 +127,41 @@ def test_fresh_connection_command_is_one_request_per_process() -> None:
         )
 
 
+def test_fresh_samples_with_single_worker_run_every_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    class Completed:
+        stdout = (
+            '{"status":"200","remote_ip":"43.155.208.138",'
+            '"http_version":"1.1","dns_seconds":0.001,'
+            '"connect_seconds":0.01,"tls_seconds":0.0,'
+            '"pretransfer_seconds":0.01,"starttransfer_seconds":0.02,'
+            '"total_seconds":0.03,"response_bytes":100,'
+            '"num_connects":1,"request_id":"request-id"}\n'
+        )
+
+    def fake_run(command: list[str], **_: object) -> Completed:
+        calls.append(command)
+        return Completed()
+
+    monkeypatch.setattr(MODULE.subprocess, "run", fake_run)
+
+    samples = MODULE.collect_samples(
+        "http://43.155.208.138/ready",
+        path_kind="DIRECT",
+        requests=10,
+        expected_remote_ip="43.155.208.138",
+        connection_mode="FRESH",
+        concurrency=1,
+    )
+
+    assert len(samples) == 10
+    assert len(calls) == 10
+    assert all(command.count("--output") == 1 for command in calls)
+
+
 def test_write_out_captures_layer_timings_and_sanitized_request_id() -> None:
     assert "%{time_pretransfer}" in MODULE._WRITE_OUT
     assert "%header{x-request-id}" in MODULE._WRITE_OUT
