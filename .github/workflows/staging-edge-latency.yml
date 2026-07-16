@@ -1,0 +1,42 @@
+name: W2 Staging Edge Latency Observer
+
+on:
+  workflow_dispatch:
+    inputs:
+      requests:
+        description: Sanitized samples per endpoint
+        required: false
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  direct-ipv4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure direct public IPv4 path
+        env:
+          SAMPLE_COUNT: ${{ inputs.requests }}
+        run: |
+          mkdir -p edge-latency
+          python scripts/check_w2_public_edge_latency.py \
+            --url 'http://43.155.208.138/v1/dashboard/day-view?date=2026-07-16&window=today&timezone=Asia%2FShanghai&page_size=20' \
+            --expected-remote-ip 43.155.208.138 --path-kind DIRECT \
+            --requests "$SAMPLE_COUNT" --output edge-latency/today.json >/dev/null
+          python scripts/check_w2_public_edge_latency.py \
+            --url 'http://43.155.208.138/v1/dashboard/day-view?date=2026-07-16&window=next36&timezone=Asia%2FShanghai&page_size=20' \
+            --expected-remote-ip 43.155.208.138 --path-kind DIRECT \
+            --requests "$SAMPLE_COUNT" --output edge-latency/next36.json >/dev/null
+          python scripts/check_w2_public_edge_latency.py \
+            --url 'http://43.155.208.138/v1/dashboard/day-view?date=2026-07-16&window=future&timezone=Asia%2FShanghai&page_size=20' \
+            --expected-remote-ip 43.155.208.138 --path-kind DIRECT \
+            --requests "$SAMPLE_COUNT" --output edge-latency/future-page1.json >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-edge-latency-direct-ipv4
+          path: edge-latency
+          if-no-files-found: error
+          retention-days: 7

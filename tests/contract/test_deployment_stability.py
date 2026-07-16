@@ -70,6 +70,7 @@ def test_web_access_log_separates_nginx_and_upstream_latency_without_query_data(
     assert "request_time=$request_time" in logging_config
     assert "upstream_response_time=$upstream_response_time" in logging_config
     assert "upstream_connect_time=$upstream_connect_time" in logging_config
+    assert "upstream_header_time=$upstream_header_time" in logging_config
     assert "request_id=$request_id" in logging_config
     assert "$request_uri" not in logging_config
 

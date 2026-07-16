@@ -715,7 +715,7 @@ def test_future_dayview_is_cursor_paged_and_does_not_prime_all_rows(monkeypatch)
     rows = [
         {
             "fixture_id": str(index),
-            "kickoff_utc": f"2026-07-{16 + index // 24:02d}T{index % 24:02d}:00:00Z",
+            "kickoff_utc": f"2030-07-{16 + index // 24:02d}T{index % 24:02d}:00:00Z",
             "competition_id": "chinese_super_league",
             "home_team_name": "Home",
             "away_team_name": "Away",
@@ -739,7 +739,7 @@ def test_future_dayview_is_cursor_paged_and_does_not_prime_all_rows(monkeypatch)
     )
 
     first = service._build_dashboard_day_view_payload(
-        requested_date=datetime(2026, 7, 16, tzinfo=UTC).date(),
+        requested_date=datetime(2030, 7, 16, tzinfo=UTC).date(),
         window="future",
         timezone="UTC",
     )
