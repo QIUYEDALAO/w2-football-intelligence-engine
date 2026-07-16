@@ -73,8 +73,8 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: CONTEXT_AND_SPEC_GATE
-  repository_main_sha: b303588d6a3a2e7288c46877206f7f5ef31eeb87
+  status: OBSERVER_MATRIX_PENDING
+  repository_main_sha: c33a5ff35f94de767cc0e4d308a41fb76157fc6c
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
     path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
@@ -111,8 +111,7 @@ active_workstream:
     - L2-01
     - FINAL-01
   remaining_tasks:
-    - merge context and frozen specification
-    - implement observer evidence v2
+    - merge observer evidence v2
     - rerun independent public matrices
     - adjudicate public route
     - deploy latest main if permitted
@@ -148,7 +147,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - merge PR 326 and implement observer evidence v2
+    - merge observer evidence v2 and rerun independent public matrices
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -178,6 +177,40 @@ known_issue_catalog:
   L1-01: current GitHub main has no final L1 staging acceptance
   L2-01: current GitHub main has no final Frozen L2 staging acceptance
   FINAL-01: final GitHub context rebaseline is pending
+
+observer_v2_implementation:
+  status: PREMERGE_VERIFIED
+  report_schema: w2.public_edge_latency.v2
+  sample_schema: w2.public_edge_latency.sample.v2
+  collector_version: w2.public_edge_observer.v2
+  frozen_specification: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
+  scope_changed:
+    - observer collector
+    - evidence validator and adjudicator
+    - GitHub observer workflow
+    - unit and real-curl integration coverage
+  scope_unchanged:
+    - Dashboard hot path
+    - nginx timeout
+    - FME and denominator
+    - pagination and Frozen L2
+    - thresholds and recommendation gates
+  targeted_test_result: 31 passed
+  full_test_result: 1470 passed, 4 skipped
+  ruff: PASS
+  mypy: PASS
+  typescript: PASS
+  web_build: PASS
+  acceptance: PASS
+  tracked_output_guard: PASS
+  legacy_guard: PASS
+  sensitive_pattern_scan: PASS
+  live_staging_smoke:
+    result: PASS
+    failure_sample_retained: true
+    correlated_success_sample_retained: true
+    response_body_retained: false
+  next_action: complete full local and GitHub CI, merge, then run fresh V2 matrices
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program

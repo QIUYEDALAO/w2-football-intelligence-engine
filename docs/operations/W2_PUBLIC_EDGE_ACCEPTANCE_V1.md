@@ -70,3 +70,13 @@ the evidence schema. The formal classification remains
 two independent complete matrices are rerun. Stable staging remains
 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`; this status does not authorize a
 deployment, timeout change, or product/model gate change.
+
+## Evidence V2 gate
+
+Formal evidence must use report schema `w2.public_edge_latency.v2`, sample schema
+`w2.public_edge_latency.sample.v2`, and collector version
+`w2.public_edge_observer.v2`. The validator rejects V1 reports, missing success
+correlation, duplicate request IDs, unproved no-proxy state, IP-family mismatch,
+invalid connection facts, unsafe Server-Timing metadata, and indeterminate sample
+pairing. Transfer failures remain factual failure samples and fail their observer;
+they are not dropped because correlation did not reach the API.
