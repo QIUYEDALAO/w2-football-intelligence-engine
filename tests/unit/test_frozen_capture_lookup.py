@@ -119,6 +119,34 @@ def test_fixture_record_and_line_limits_fail_closed(tmp_path: Path) -> None:
     assert oversized.reason == "LEDGER_LINE_LIMIT_EXCEEDED"
 
 
+def test_unrelated_fixture_history_does_not_block_exact_capture(tmp_path: Path) -> None:
+    exact = _capture("exact")
+    related_outcome = {
+        "fixture_id": "fixture-1",
+        "record_type": "outcome",
+        "source_capture_hash": "exact",
+    }
+    unrelated = [
+        {
+            "fixture_id": "fixture-1",
+            "capture_hash": f"unrelated-{index}",
+        }
+        for index in range(10)
+    ]
+    _write(tmp_path, *unrelated, exact, related_outcome)
+
+    result = find_frozen_capture(
+        tmp_path,
+        fixture_id="fixture-1",
+        capture_hash="exact",
+        max_fixture_records=2,
+    )
+
+    assert result.source_status == "PASS"
+    assert result.capture == exact
+    assert result.fixture_records == (exact, related_outcome)
+
+
 def test_cache_key_changes_when_ledger_fingerprint_changes(tmp_path: Path) -> None:
     path = _write(tmp_path, _capture("exact"))
     first = find_frozen_capture(tmp_path, fixture_id="fixture-1", capture_hash="exact")
