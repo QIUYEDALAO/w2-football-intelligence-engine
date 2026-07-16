@@ -359,7 +359,9 @@ exact_identity_implementation_20260716:
   status: IMPLEMENTATION_COMPLETE_STAGING_PENDING
   base_main_sha: 68cc49f50262d506fae99cf90b1edea7adaa1f23
   branch: codex/w2-frozen-l2-exact-capture-identity
-  code_pr: PENDING
+  code_pr: 330
+  implementation_commit: 5d511a9933d1ce844574af5e69fbb11346bf4a9c
+  github_ci: PENDING_FINAL_CONTEXT_HEAD
   blocker_status: L2-02_REMAINS_BLOCKING_UNTIL_STAGING_ACCEPTANCE
   root_cause: PUBLIC_L1_BOUNDED_PROJECTION_WAS_REUSED_AS_FORWARD_EVIDENCE_SOURCE
   implementation:
