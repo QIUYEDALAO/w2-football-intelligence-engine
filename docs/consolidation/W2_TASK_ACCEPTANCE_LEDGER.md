@@ -817,3 +817,12 @@
 - Frozen L2 legacy fixture `1576804` 正确返回 historical compatibility。fixture `1492140` 的当前 L1 exact identity 为 capture `720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12`、estimate `null`，L2 返回 `409 AMBIGUOUS_CAPTURE`；另一个 v2 capture 虽为 integrity/semantics PASS，不能替代 L1-bound identity。完整串行/并发 L2 stress 因前置硬门失败未执行。
 - 已按 mode-600 四服务 rollback manifest 恢复 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`；四服务 healthy、restart=0、OOM/oom_kill=0、health/ready PASS。provider `508→508`、active calls `0→0`、queue `0→0`、ledger manifest 与 bytes 完全一致，业务 DB/historical rewrite=0。
 - 最终正确性仍为 VALIDATION `43/16/27`、Wide `60/22/38`、duplicate/conflict/identity-unmatched/cross-track contamination=0；Strict candidate/confirmation/canonical=`0/0/0`，RECOMMEND=0、lock=0、OFFICIAL canonical=0、production=false。最终状态 `BLOCKED_STAGING_ACCEPTANCE`，下一步仅允许修复 L1 exact Snapshot-v2 capture/estimate identity 后重跑 staging L2。
+
+### V3 进展续72 · L2-02 Exact Identity 只读诊断硬阻断(2026-07-17)
+
+- GitHub `main@47be9b09b3a6dc830de4765d7f20306f6f6f38c6` 与 run `29505350840` 三项 CI 全 PASS；staging API、Web、worker、scheduler 继续稳定运行 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`，`/health`、`/ready` PASS。
+- 对 fixture `1492140` 的 staging ledger 只读脱敏扫描确认，content hash `720d570...` 恰有两个 occurrence：captured_at/football_day 不同，checkpoint 均为 `EVIDENCE_CHANGE`；除 occurrence 字段外 ledger 内容等价，但两条都没有顶层、pick、analysis-gate estimate，`fair_market_estimate_ids=[]`，Snapshot v2 数量均为 0。
+- 最新 L1 occurrence 因此不存在唯一权威 estimate。ledger 中另有 3 条 integrity/semantics/evidence-eligible 均通过的 v2 capture，但它们与当前 L1 的 analysis gate、quote、card hash、evidence hash 不完全等价，禁止替换或借用。
+- HTTP 409 的直接根因分类为 `SAME_HASH_MULTI_OCCURRENCE`，不是 estimate extraction loss，也不是同 hash 的业务内容冲突。新增 occurrence ID 可以消除 hash 多义性，但不能凭空生成当前 record 不具备的 eligible estimate，因而无法满足 `audit_available=true` 与 corrected-evidence 硬门。
+- 本批次按 `HARD_BLOCKER_CURRENT_SCOPE` 停止：未修改代码、FME、Snapshot schema、阈值、分页、denominator 或三轨；未创建回归 fixture、未部署、未调用 provider、未写业务 DB、未改历史 ledger。staging 无需回滚且保持 `c89555b...`。
+- 最终状态提升为 `BLOCKED_EXACT_IDENTITY`。下一动作不再是本范围内的 lookup/UI 修复；必须另行授权修复“当前 capture 本身缺少 Snapshot v2 evidence”的上游生成问题，产生新的同-record 权威证据后，再重新读取 GitHub 上下文并重做 exact-identity 诊断。

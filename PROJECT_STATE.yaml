@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T13:45:00Z"
-current_phase: Frozen L2 exact-identity staging recovery
-current_status: BLOCKED_STAGING_ACCEPTANCE
+last_updated_utc: "2026-07-16T18:49:18Z"
+current_phase: Frozen L2 exact-identity evidence blocker
+current_status: BLOCKED_EXACT_IDENTITY
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -28,14 +28,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: 461e4973b957981132cfcfd9fc370e0021f8bae2
+  main_sha_at_rebaseline: 47be9b09b3a6dc830de4765d7f20306f6f6f38c6
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-16T13:45:00Z"
+  observed_at_utc: "2026-07-16T18:49:18Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -76,7 +76,7 @@ public_edge_recovery:
     report_count: 24
   formal_classification: ROUTE_SPECIFIC_WARNING
   classification_reason: two independent public observers pass, one undeclared non-target route fails, and server diagnostics pass
-  next_action: repair the Frozen L2 exact capture identity ambiguity before another staging deployment
+  next_action: no further code or deployment action is allowed in this scope; separately authorize repair of current-capture Snapshot v2 evidence generation before another exact-identity attempt
   staging_deploy_performed: true
   rollback_performed: true
   provider_calls: 0
@@ -86,8 +86,8 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: BLOCKED_STAGING_ACCEPTANCE
-  repository_main_sha: 461e4973b957981132cfcfd9fc370e0021f8bae2
+  status: BLOCKED_EXACT_IDENTITY
+  repository_main_sha: 47be9b09b3a6dc830de4765d7f20306f6f6f38c6
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
     path: docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
@@ -109,6 +109,7 @@ active_workstream:
     - latest-main image build, migration and four-service staging switch
     - L1 pagination, union, stale-cursor, concurrency and inner-route latency acceptance
     - automatic four-service rollback after Frozen L2 exact-identity failure
+    - read-only exact-identity diagnosis for fixture 1492140
   known_issues:
     - CTX-01
     - CTX-02
@@ -132,9 +133,9 @@ active_workstream:
     - FINAL-01
     - L2-02
   remaining_tasks:
-    - repair fixture 1492140 L1 exact capture selection so one unambiguous Snapshot v2 identity is exposed
-    - rerun the approved staging deployment and complete the full Frozen L2 matrix
-    - repeat final correctness reconciliation after the successful L2 gate
+    - obtain separately authorized upstream repair so the current L1 capture itself contains one authoritative eligible Snapshot v2 estimate
+    - after new same-record evidence exists, rerun exact-identity diagnosis before any code or staging deployment
+    - only then rerun staging deployment, Frozen L2 matrix and final correctness reconciliation
   deferred_findings:
     - id: PROD-01
       status: BLOCKS_PRODUCTION_ONLY
@@ -166,7 +167,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - make one minimal L1 frozen-capture identity correction for fixture 1492140 without changing FME semantics, thresholds, pagination or Frozen L2 projection
+    - stop this implementation scope and request separate authorization for the upstream current-capture Snapshot v2 evidence-generation defect
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -196,7 +197,7 @@ known_issue_catalog:
   L1-01: current GitHub main has no final L1 staging acceptance
   L2-01: current GitHub main has no final Frozen L2 staging acceptance
   FINAL-01: final GitHub context rebaseline is pending
-  L2-02: current L1 exact capture 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 returns AMBIGUOUS_CAPTURE for fixture 1492140 and has no estimate identity
+  L2-02: current L1 content hash 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 has two occurrences and the latest occurrence contains zero Snapshot v2 records and no estimate identity; older valid-v2 captures are not decision/quote/card/evidence equivalent and cannot be substituted
 
 known_issue_status:
   resolved:
@@ -295,6 +296,58 @@ staging_acceptance_20260716:
     ledger_total_bytes_before_after: 36430067/36430067
     api_oom_kill_after_rollback: 0
     service_restarts_after_rollback: 0
+    production_deploy: false
+
+exact_identity_diagnosis_20260716:
+  classification: HARD_BLOCKER_CURRENT_SCOPE
+  result: BLOCKED_EXACT_IDENTITY
+  mode: READ_ONLY_SANITIZED_STAGING_LEDGER_SCAN
+  fixture_id: "1492140"
+  requested_content_hash: 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12
+  occurrence_count: 2
+  occurrences:
+    - football_day: "2026-07-15"
+      environment: staging
+      captured_at: "2026-07-15T19:13:36.451204Z"
+      capture_checkpoint: EVIDENCE_CHANGE
+      record_type: capture
+      card_hash: 5876576f042dd6be235c3db03f5068f4bdbf260a55a88d8fb05dd79a92263eb7
+      decision_tier: NOT_READY
+      data_status: BLOCKED
+      estimate_identity_count: 0
+      snapshot_v2_count: 0
+      canonical_content_fingerprint: d01b62fbcc0c79a682dba79dcef7ee1984d4105c0d020c501612de14dcfd93f6
+    - football_day: "2026-07-16"
+      environment: staging
+      captured_at: "2026-07-16T04:04:02.443664Z"
+      capture_checkpoint: EVIDENCE_CHANGE
+      record_type: capture
+      card_hash: 5876576f042dd6be235c3db03f5068f4bdbf260a55a88d8fb05dd79a92263eb7
+      decision_tier: NOT_READY
+      data_status: BLOCKED
+      estimate_identity_count: 0
+      snapshot_v2_count: 0
+      canonical_content_fingerprint: 2abf2c55e55d107f5b759adfee8c3a676ef5ff74f35d159cc70e9800adea6fe4
+  occurrence_difference:
+    captured_at: DIFFERENT
+    football_day: DIFFERENT
+    capture_checkpoint: SAME
+    other_ledger_content: EQUIVALENT
+  current_l1_authoritative_estimate: NONE
+  valid_v2_alternative_capture_count: 3
+  alternative_equivalence:
+    decision_quote_card_evidence_fully_equal: false
+    safe_to_substitute: false
+  http_409_root_cause: SAME_HASH_MULTI_OCCURRENCE
+  estimate_extraction_loss: false
+  actual_conflicting_same_hash_business_content: false
+  blocking_reason: occurrence identity can remove the hash ambiguity, but it cannot create an eligible estimate that is absent from the selected record
+  safety:
+    staging_write: false
+    historical_rewrite: false
+    provider_calls: 0
+    business_db_writes: 0
+    deployment: false
     production_deploy: false
 
 current_execution_queue:
