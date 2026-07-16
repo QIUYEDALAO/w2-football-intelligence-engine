@@ -62,6 +62,18 @@ def test_web_uses_short_ttl_docker_dns_and_waits_for_healthy_api() -> None:
     assert compose["services"]["web"]["depends_on"]["api"]["condition"] == "service_healthy"
 
 
+def test_web_access_log_separates_nginx_and_upstream_latency_without_query_data() -> None:
+    nginx = NGINX.read_text(encoding="utf-8")
+    logging_config = nginx.split("server {", maxsplit=1)[0]
+
+    assert "log_format w2_timing" in logging_config
+    assert "request_time=$request_time" in logging_config
+    assert "upstream_response_time=$upstream_response_time" in logging_config
+    assert "upstream_connect_time=$upstream_connect_time" in logging_config
+    assert "request_id=$request_id" in logging_config
+    assert "$request_uri" not in logging_config
+
+
 def test_release_switches_api_before_web_without_restarting_worker_or_scheduler() -> None:
     deploy = DEPLOY.read_text(encoding="utf-8")
     api_switch = deploy.index("compose up -d --no-deps api")
