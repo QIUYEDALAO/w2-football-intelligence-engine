@@ -788,3 +788,13 @@
 - 延迟硬门仍未全过：暖请求约1.6–2.0秒，高于p95<=1.5秒；第二页3.87秒，高于next-page p95<=3秒。按L1前置门规则未执行原OOM fixture及Frozen L2压力矩阵，也未宣称staging L2恢复。
 - 回滚前API RSS约254.4 MiB，cgroup oom/oom_kill=0、exit137=0、restart=0。已恢复四服务到`c4bcceb5cb777639251e0db91a9c1f54f5b9c87b`，`/ready`、API/Web release sync和watchdog均通过，restart=0。
 - provider保持485（delta=0）、Celery queue保持0；部署前后ledger manifest hash均为`cacf1af56e3b5983b13214f7cae446f6f55e7e48fda4f2f0c6e9bebc0ca0a4f4`。因此canonical denominator与三轨证据未改变，RECOMMEND/lock/OFFICIAL/production仍关闭。
+
+### V3 进展续69 · Public Edge Observer 证据完整性阻断(2026-07-16)
+
+- #314–#325 已合入 GitHub `main@b303588d6a3a2e7288c46877206f7f5ef31eeb87`；#324 固化双独立公网 observer 合同，#325 修复 fresh connection 只保留部分样本的问题。三项 CI 在 #325 合并前均为 SUCCESS。
+- 开始检查确认 staging API、Web、worker、scheduler 稳定运行 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`，四服务 healthy、restart=0，`/health`、`/ready` 与 remote IPv4 `43.155.208.138` 通过；production 未部署。
+- GitHub-hosted Observer A run `29492624556` 在 DIRECT/no-proxy/IPv4 完整延迟矩阵中初步通过所有性能与可靠性阈值。当前外部主机 Observer B 的冷连接、并发与可靠性初步通过，但 future page 1 warm reused p95=`2.086251s`，高于 `1.5s`。
+- 两组 artifacts 均不具备正式资格：所有 `request_id` 为空，且每个样本缺少 `timestamp`。根因是 observer 丢弃了含 nginx request ID 的 DayView JSON body，却读取 staging nginx 未回传的 `x-request-id` header。GitHub workflow success 仅表示命令完成，不构成正式 observer PASS。
+- 当前正式分类为 `OBSERVER_COVERAGE_INSUFFICIENT`，尚未进入 staging 部署、L1 或 Frozen L2。本轮没有 provider call、业务 DB write、历史 rewrite、服务切换或回滚；稳定 staging 保持 `c89555b...`。
+- 下一步仅修复 observer 证据采集：保留同一 curl 进程的 keep-alive 语义，为每个响应使用独立临时 body，只提取 `request_id`，并记录 UTC timestamp 与 Server-Timing；不得修改 Dashboard、FME、分页、denominator、阈值或 12 秒 timeout。旧 artifacts 不得追认为正式 PASS。
+- VALIDATION `43/16/27`、Wide Shadow `60/22/38`、Strict `0/35` 与 `0/100` 的冻结边界未被本轮改动；RECOMMEND=0、lock=0、OFFICIAL canonical=0、production=false。
