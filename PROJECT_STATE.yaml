@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T21:42:00Z"
-current_phase: Football-API billable usage correction validated pending deployment
-current_status: DATA_PIPELINE_BLOCKED
+last_updated_utc: "2026-07-17T21:56:00Z"
+current_phase: Dashboard market data recovered; evidence eligibility remains under acceptance
+current_status: MARKET_DATA_RECOVERED_EVIDENCE_NOT_READY
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -45,13 +45,13 @@ context_read_order:
 
 repository_state:
   main_sha_at_rebaseline: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_code_sha: 0f359149d7524b392d1ac900ded3bd47b78be480
+  deployed_code_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T21:30:00Z"
+  observed_at_utc: "2026-07-17T21:56:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -104,7 +104,7 @@ active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: MA03_PAUSED_DATA_PIPELINE_BLOCKED
   repository_main_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_staging_sha: 0f359149d7524b392d1ac900ded3bd47b78be480
+  deployed_staging_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -215,7 +215,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: BILLABLE_USAGE_FIX_VALIDATED_PENDING_DEPLOYMENT
+  status: DASHBOARD_MARKET_RECOVERY_PASS
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -229,8 +229,8 @@ data08_expired_odds_display_and_refresh_20260717:
     approximate_visible_quote_age_hours: 44
     nearest_kickoff_minutes_at_observation: 197
   failure_boundary: EXPIRED_ODDS_RENDERED_AS_PRIMARY_MARKET_VALUES
-  market_data_health: RED
-  evidence_eligibility: BLOCKED
+  market_data_health: YELLOW
+  evidence_eligibility: NOT_READY
   decision:
     - pause MA-03 natural-cycle acceptance
     - hide odds older than 30 minutes from public current_odds
@@ -346,7 +346,27 @@ data08_expired_odds_display_and_refresh_20260717:
     incorrect_internal_usage: 120
     repair: exclude status health queries from billable daily usage and use Football-API quota headers as the authoritative floor
     safety_budget_changed: false
-  next_gate: deploy the billable-usage correction, confirm the natural scheduler no longer reports DAILY_PROVIDER_HARD_CAP_EXCEEDED at 88/120, then observe three legal cycles
+  billable_usage_fix_staging_acceptance:
+    release_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
+    rollback_manifest: /opt/w2/shared/rollback-manifest-8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac.txt
+    rollback_manifest_mode: 600
+    four_service_health: PASS
+    four_service_alignment: PASS
+    billable_usage_before_refresh: 88
+    natural_refresh_completed_at_utc: "2026-07-17T21:55:42Z"
+    refreshed_fixture_ids:
+      - "1492295"
+      - "1492297"
+    task_status: COMPLETED
+    blockers: []
+    provider_transport_calls_per_fixture: 3
+    billable_usage_after_refresh: 94
+    football_api_remaining_after_refresh: 7406
+    dashboard_current_odds_visible: true
+    dashboard_data_status: PARTIAL
+    dashboard_decision_tier: SKIP
+    recommend_lock_official_enabled: false
+  next_gate: observe remaining legal cycles for evidence eligibility only; Dashboard use is no longer blocked
   identical_quote_capture_blocker:
     observed_release_sha: afac9307006a4451a6a409d58408aa787b4f6726
     affected_fixture_ids:
@@ -360,7 +380,7 @@ data08_expired_odds_display_and_refresh_20260717:
     repair: include captured_at in immutable observation identity while preserving identical raw payload hash and odds values
     recommendation_gates_changed: false
     freshness_threshold_changed: false
-    next_action: code and exact-time dispatch are deployed; wait for the daily Provider ledger reset and verify the next natural capture advances without manual calls
+    next_action: capture identity and exact-time dispatch are accepted; continue evidence-only observation without blocking Dashboard use
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS

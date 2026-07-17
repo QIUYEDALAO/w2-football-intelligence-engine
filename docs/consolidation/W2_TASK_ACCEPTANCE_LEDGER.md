@@ -1002,3 +1002,10 @@
 - 精确失败边界为 `UNBILLED_STATUS_REQUESTS_COUNTED_AGAINST_W2_DAILY_CAP`。W2 的 `request_count_since` 把不扣额度的 `/status` 健康查询计入内部 120 次安全预算，并因 120/120 错误阻塞自然刷新。
 - 定向修复从 billable 日用量中排除 status，并继续以 Football-API quota header 的 used 值作为权威下限；run audit 的 transport request_count 仍完整保留用于运维观察。120 次项目安全预算未改成 7500，避免把错误计数修复与预算策略变更混为一体。
 - 修复验证为定向 `93 passed`、全量 `1510 passed, 4 skipped`，Ruff/Mypy PASS。唯一下一步是部署同一阶段提交，确认自然 preflight 从错误 120 恢复为 88 并继续三个合法周期；不手动调用 Football-API。
+
+### V3 进展续95 · Football-API 计费修正部署与 Dashboard 盘口恢复(2026-07-18)
+
+- release `8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac` 部署后四服务 healthy、SHA 对齐、restart=0、OOM=false；内部 billable usage 与 Football-API header 同步恢复为 88，不再出现 `DAILY_PROVIDER_HARD_CAP_EXCEEDED`。
+- 北京时间 05:55，fixtures `1492295/1492297` 两个自然 active-odds 任务均 `COMPLETED`、`blockers=[]`，各自 transport request_count=3；Football-API 剩余额度依次为 7409/7406，内部 billable usage 正确增至 94。
+- public future DayView 已显示两场新 AH/OU，capture time 分别为 `2026-07-17T21:55:18.239739Z` 与 `21:55:30.664858Z`，来源为 `api_football` 且 source hash 在场。状态为 PARTIAL/SKIP，未进入 WATCH/RECOMMEND/lock/OFFICIAL。
+- 用户页面恢复不再等待三个验收周期。当前裁决从 RED/BLOCKED 调整为 `MARKET_DATA_HEALTH=YELLOW`、`EVIDENCE_ELIGIBILITY=NOT_READY`；后续周期只用于确认 FME/Snapshot/identity 是否达到 GREEN+READY，不影响 Dashboard 展示真实新盘口。

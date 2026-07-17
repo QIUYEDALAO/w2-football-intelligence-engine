@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `DATA_PIPELINE_BLOCKED`
+Status: `MARKET_DATA_RECOVERED_EVIDENCE_NOT_READY`
 
 Version-control contract: GitHub workflow is disabled. Keep one local branch and
 one verified local commit chain per complete stage; retain local Git history and
@@ -23,13 +23,18 @@ queries together with 88 billable requests. Football-API headers confirm
 
 ## Unique next action — DATA-08
 
-1. Deploy the billable-usage correction from the existing local stage branch.
-2. Confirm natural Scheduler preflight reports 88 billable calls rather than
-   120 transport logs and no longer raises `DAILY_PROVIDER_HARD_CAP_EXCEEDED`.
-3. Observe three consecutive legal exact-time cycles. Require fresh quote,
+1. Keep release `8be60bcb` deployed; Dashboard market access is restored.
+2. Observe remaining legal exact-time cycles only for evidence acceptance.
+   Require fresh quote,
    provider/capture/quote/raw-hash identity and Snapshot/FME consistency.
-4. Resume MA-03 only if `MARKET_DATA_HEALTH=GREEN` and
+3. Resume MA-03 only if `MARKET_DATA_HEALTH=GREEN` and
    `EVIDENCE_ELIGIBILITY=READY`; otherwise record the exact blocker.
+
+Immediate recovery evidence: fixtures `1492295/1492297` completed natural
+refresh at 05:55 Beijing with no blockers. Football-API billable usage moved
+from 88 to 94 and reported 7406 remaining. Both cards now expose fresh AH/OU as
+`PARTIAL/SKIP`; recommendation, lock and OFFICIAL remain closed. Page recovery
+does not wait for the remaining evidence cycles.
 
 The required four-service rollback completed at `2026-07-17T10:07:00Z` and all
 services are healthy and aligned on `7ad56cd`, with restart=0 and OOM=false.
