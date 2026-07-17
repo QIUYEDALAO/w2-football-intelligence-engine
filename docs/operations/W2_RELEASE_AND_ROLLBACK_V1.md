@@ -116,3 +116,11 @@ Rules:
 - Frozen L2 legacy fixture `1576804` returned HTTP 200 with `historical_compatibility=true` and `corrected_evidence=false`. Current fixture `1492140` failed before the stress matrix: L1 exact capture `720d570b...`, estimate `null`, returned HTTP 409 `AMBIGUOUS_CAPTURE`. A different v2 capture passed integrity and semantics but cannot replace the L1-bound identity.
 - The exact-identity hard gate triggered immediate rollback. API, Web, worker and scheduler are again healthy on `c89555b...`, restart=0, OOM/oom_kill=0 and `/health`/`/ready` pass. Provider count stayed `508`, active provider calls `0`, Redis queue `0`, ledger manifest stayed `4cb1568b...` with the same 36,430,067 bytes, and no migration or historical rewrite occurred.
 - Final status is `BLOCKED_STAGING_ACCEPTANCE`. The only next release work is a minimal unambiguous Snapshot-v2 identity selection for the L1 card; production, timeout, thresholds, FME, model artifacts, RECOMMEND, lock and OFFICIAL remain unchanged.
+
+## Rolled-back market evidence materializer release · 2026-07-17
+
+- Attempted release: `a9b42a5730f4fea700ec91035874bb67d2e5248c`; rollback target: `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`. A mode-600 manifest and exact frozen images for API, Web, worker and scheduler were created before the switch.
+- Artifact v1, migration, API health/readiness, Web metadata and four-service revision alignment passed with restart count 0. The new worker produced immutable fixture-scoped frozen analysis checkpoints without provider calls and reproduced identical hashes for identical inputs.
+- The market projection recovered selected AH/TOTALS lines, prices, provider source, capture time and source hashes. Decision Contract could build deterministic MarketQuote identities for markets with a selection edge.
+- Acceptance still failed because the sampled quotes were stale and fallback estimates lacked complete artifact, train-cutoff and feature-as-of provenance. Mathematically verified Snapshot v2 distributions were not accepted as decision evidence.
+- All four services were restored to `c89555b...`, healthy with restart count 0. Production, timeouts, thresholds, artifacts, provider policy, recommendations, locks, OFFICIAL data, denominator and track isolation were unchanged.

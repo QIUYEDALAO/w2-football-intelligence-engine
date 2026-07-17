@@ -34,9 +34,9 @@ when the request cache is not fixture-primed. One diagnostic exec process was
 OOM-killed; the API main process stayed healthy with restart count 0. This path
 must not be repeated.
 
-### MA-02 — Smallest upstream repair
+### MA-02 — Smallest upstream repair — COMPLETE
 
-MA-02 is now the active task. Implement a bounded background materializer that:
+PR #333 merged as `main@a9b42a5730f4fea700ec91035874bb67d2e5248c` and implemented a bounded background materializer that:
 
 - reads only the target fixture IDs through the existing fixture-scoped repository API;
 - builds analysis evidence outside the public HTTP request path;
@@ -54,11 +54,29 @@ Repair that boundary without changing:
 - league enablement, provider budget or scheduler policy;
 - canonical denominator or track isolation.
 
-Add regression coverage proving persisted eligible AH/TOTALS observations create
-the correct immutable MarketQuote and same-record FME evidence, while missing or
-stale inputs still fail closed.
+Local and GitHub validation passed. On staging, fixture-scoped materialization for
+`1492291/1492299/1494706` read `6057/6164/3574` observations, generated two
+Snapshot v2 records per fixture, and reproduced the same three content hashes on
+an identical-input rerun. Public HTTP remained frozen/no-live-rebuild.
 
-### MA-03 — Three-cycle staging acceptance
+### MA-03 — Three-cycle staging acceptance — ACTIVE/BLOCKED ON NATURAL CYCLES
+
+The first `a9b42a5` staging attempt passed artifact v1, migration, health and
+four-service SHA alignment. Materialized cards restored AH/OU current odds,
+capture times, provider source and source hashes. Decision Contract construction
+also produced deterministic MarketQuote IDs wherever a selection edge existed.
+
+The attempt was rolled back because sampled observations were stale and all
+three fixtures used fallback estimates without complete artifact, train-cutoff
+and feature-as-of provenance. They remained correctly blocked by
+`DATA_STALE_ODDS`, `MODEL_FAIR_LINE_UNAVAILABLE` and
+`DECISION_SOURCE_INCONSISTENT`. Snapshot mathematical reproducibility alone does
+not satisfy decision evidence eligibility.
+
+Do not force refreshes or bypass the provider interval. The next eligible real
+cycles are naturally due Super League checkpoints beginning at
+`2026-07-17T10:00:00Z`. Redeploy merged main under the existing rollback
+contract, then require three consecutive post-merge cycles.
 
 Require three consecutive real refresh cycles to demonstrate:
 

@@ -864,3 +864,13 @@
 - 同时确认旧 offline per-fixture reconstruction 在 request cache 未预先限定 fixture 时，会回退到全局无界 `latest_market_observations()`；一次诊断 exec 进程因此触发 cgroup `oom_kill=1`。API 主进程保持 running、restart=0，`/health`、`/ready` 均 PASS；该无界路径禁止重复。
 - MA-02 固定为最小修复：新增 fixture-scoped 后台 analysis evidence materializer，先生成 immutable frozen checkpoint 再由 Dashboard/forward ledger 消费；公共 HTTP 继续禁止 live rebuild，并封堵 per-fixture offline 调用的全局 observation fallback。不得改变 freshness、FME、Snapshot、推荐门、provider budget、scheduler policy、denominator 或三轨。
 - 本轮根因定位未修改代码、未主动调用 provider、未写业务数据库、未部署；除上述诊断 OOM 事件外，staging 服务持续健康。
+
+### V3 进展续77 · 后台物化合并、staging 身份门回滚与自然周期等待(2026-07-17)
+
+- context PR #332 与物化修复 PR #333 均已合并，代码目标为 `main@a9b42a5730f4fea700ec91035874bb67d2e5248c`；#333 的 verify、staging-parity、predeploy-e2e 全 PASS，本地 `1486 passed, 4 skipped`，Ruff/Mypy/all-stage/staging-contract/secret scan 均 PASS。
+- 修复新增 fixture-scoped worker materializer、immutable content-addressed analysis checkpoint 与 `dashboard:fixture_latest` 冻结投影，并封堵 offline per-fixture reconstruction 的全局 observation fallback。公共 Dashboard/analysis-card 继续 no-live-rebuild，推荐、阈值、provider budget、scheduler policy、denominator 与三轨均未改变。
+- staging 部署 `a9b42a5` 前冻结四服务 rollback 镜像和 mode-600 manifest；artifact v1、migration、API health/ready、Web meta 与 API/Web/worker/scheduler 同 SHA/restart=0 全 PASS。
+- 对 `1492291/1492299/1494706` 后台物化分别读取 `6057/6164/3574` 条 scoped observation，每场生成 2 个 Snapshot v2；相同输入二次运行得到完全相同的 checkpoint hash `34454d0d.../0bf75980.../a7936208...`，provider calls=0。
+- 冻结卡恢复了 AH/OU line、price、`as_of`、`api_football` source 与 source hash；Decision Contract 对存在 edge 的市场生成确定性 MarketQuote ID。但这些历史样本在验收时已经 stale，且 fallback FME 缺少完整 artifact/train-cutoff/feature-as-of provenance，仍由 `DATA_STALE_ODDS`、`MODEL_FAIR_LINE_UNAVAILABLE`、`DECISION_SOURCE_INCONSISTENT` 正确 fail closed。数学可复算 Snapshot 不等于决策证据 READY。
+- 按身份/新鲜度硬门立即回滚至 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`；四服务 healthy、restart=0。未改历史 ledger、RECOMMEND、lock、OFFICIAL 或 production。
+- 下一动作不是强制 provider refresh，也不是修改 FME/Snapshot/门槛；只允许在现有 rollback 合同下等待并验收下一批自然到期 checkpoint。当前最早为 Super League `T1_LINEUPS/T15M_CLOSE`，从 `2026-07-17T10:00:00Z` 起。三轮 post-merge 真实周期全部满足 current quote、完整 provenance、stable hash 后，方可输出 `GREEN + READY`。
