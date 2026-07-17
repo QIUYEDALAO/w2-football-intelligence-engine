@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T09:51:00Z"
+last_updated_utc: "2026-07-17T10:07:00Z"
 current_phase: Dashboard expired-odds containment and bounded active-window refresh repair
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -33,13 +33,13 @@ context_read_order:
 
 repository_state:
   main_sha_at_rebaseline: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_code_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
+  deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T07:12:00Z"
+  observed_at_utc: "2026-07-17T10:07:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -92,7 +92,7 @@ active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: MA03_PAUSED_DATA_PIPELINE_BLOCKED
   repository_main_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_staging_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
+  deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -194,9 +194,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - merge this RED context rebaseline before deployment or code changes
-    - roll staging back to the aligned safe release that does not display expired odds
-    - implement DATA-08 without manual Provider refresh or weaker evidence gates
+    - implement the API projection containment that removes quotes older than 30 minutes from current_odds
+    - implement DATA-08 active-window refresh without manual Provider refresh or weaker evidence gates
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -206,7 +205,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: RED_DATA_PIPELINE_BLOCKED
+  status: RED_ROLLBACK_ALIGNED_DISPLAY_CONTAINMENT_FAILED
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -236,6 +235,22 @@ data08_expired_odds_display_and_refresh_20260717:
     lock_enabled: false
     official_writes: false
     production_deploy: false
+  rollback_attempt:
+    completed_at_utc: "2026-07-17T10:07:00Z"
+    release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+    four_service_alignment: PASS
+    health_ready: PASS
+    service_restart_count: 0
+    service_oom_killed: false
+    display_containment: FAIL
+    failure_reason: existing forward captures still expose expired current_odds on the older release
+    post_rollback_fixture_state:
+      fixture_1523207: NATURAL_FRESH_QUOTE_AT_2026_07_17T10_00_04Z
+      fixture_1523203: EXPIRED_QUOTE_STILL_VISIBLE
+      fixture_1523204: EXPIRED_QUOTE_STILL_VISIBLE
+      fixture_1523205: EXPIRED_QUOTE_STILL_VISIBLE
+    manual_provider_refresh: false
+    decision: no older SHA is accepted as a display-safety control; proceed with explicit API projection containment
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS

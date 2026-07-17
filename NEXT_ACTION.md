@@ -8,15 +8,20 @@ from kickoff. A STALE label does not make those values appropriate to display.
 
 ## Unique next action — DATA-08
 
-1. Merge this RED context rebaseline.
-2. Roll all four staging services back to the aligned safe release that does not
-   display expired odds.
-3. Hide quotes older than 30 minutes from `current_odds` while preserving their
+1. Hide quotes older than 30 minutes from `current_odds` while preserving their
    immutable observation, quote ID, capture time and source hash.
-4. Add natural odds-only active-window refresh from T6 through T15, with one
+2. Add natural odds-only active-window refresh from T6 through T15, with one
    refresh per fixture per 30 minutes, T1/T15 dedupe, no historical backfill,
    global 30-call tick and 120-call daily caps.
-5. Redeploy and observe three consecutive legal cycles before resuming MA-03.
+3. Redeploy and observe three consecutive legal cycles before resuming MA-03.
+
+The required four-service rollback completed at `2026-07-17T10:07:00Z` and all
+services are healthy and aligned on `7ad56cd`, with restart=0 and OOM=false.
+It did not hide three expired quotes because existing forward captures remain
+visible on that older read path. Therefore no older SHA is accepted as the
+containment mechanism; the API projection fix is the unique next code change.
+Fixture `1523207` received a fresh quote at the natural 18:00 Beijing cycle; no
+manual Provider refresh was invoked.
 
 Do not wait for the old 18:00-only checkpoint and do not manually force Provider
 calls. Recommendation, FME, Snapshot, lock, OFFICIAL and production gates remain
