@@ -911,3 +911,10 @@
 - 首次受限运行只选择 fixtures `1523207/1523203/1523204/1523205`，analysis reconcile 为 `materialized=0/unchanged=4/provider_calls=0`，但 combined auto checkpoint writer 同时从 12,691 条旧 observation 写入四条 `T-6h` 记录，涉及 `1523203/1523204`。输入采集时间为 2026-07-15，不能作为 2026-07-17 当前 T6 身份。
 - 新失败边界为 `STALE_OBSERVATION_WRITTEN_AS_CURRENT_T6`（DATA-06）。STALE 数据只允许展示；当 Provider 未调用且没有合格当前 quote 时，timeline writer 必须拒绝创建当前 T6/T1/T15 checkpoint，bounded analysis reconcile 不得隐式触发这种写入。
 - 已立即将 API/Web/worker/scheduler 回滚至 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；health/ready PASS、restart=0、OOM=false。已生成的 immutable 记录保留作为失败证据，不删除、不改写历史。
+
+### V3 进展续83 · DATA-06 30 分钟 checkpoint 写入门实现(2026-07-17)
+
+- DATA-06 的代码边界确认在 timeline refresh：due-window 只限制任务执行时刻，非 lock checkpoint 未校验所选 observation 相对执行时刻的年龄，因此旧 observation 可被贴上当前 T6 标签。
+- 定向修复对所有非 opening timeline artifact 复用既有 30 分钟 freshness：超过 30 分钟返回 `NO_FRESH_CHECKPOINT_OBSERVATION` 并禁止写入，恰好 30 分钟仍允许；opening 历史基线不变。
+- Worker 增加内部 `write_timeline_artifacts=false` 路径，允许部署即时验收只做 fixture-scoped、最多 10 场、零 Provider reconcile，不产生 timeline artifact。Scheduler 默认自然写入路径、due window、quota 与 reserve 均不变。
+- 定向验证 `41 passed`，Ruff/Mypy PASS；完整测试 `1497 passed, 4 skipped`，GitHub PR 检查仍待完成，staging 保持回滚版本 `7ad56cd`。

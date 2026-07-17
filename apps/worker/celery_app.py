@@ -170,14 +170,15 @@ def market_timeline_refresh(
     checkpoint: str = "auto",
     max_fixtures: int | None = 10,
     capture_forward_ledger: bool = False,
+    write_timeline_artifacts: bool = True,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
     result = run_market_timeline_refresh(
         window=window,
         checkpoint=checkpoint,
-        dry_run=False,
-        write_artifacts=True,
+        dry_run=not write_timeline_artifacts,
+        write_artifacts=write_timeline_artifacts,
         max_fixtures=max_fixtures,
     )
     from w2.api.repository import ReadModelService
