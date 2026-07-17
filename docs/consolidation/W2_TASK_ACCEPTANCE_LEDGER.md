@@ -945,3 +945,10 @@
 - 前端当前固定以 `window=future` 请求 DayView，因此补做了与用户实际页面一致的公开只读验证，而非仅依赖 today 窗口。
 - future 全窗口 total=40，首屏返回 20，STALE=4、BLOCKED=36、NOT_READY=40、WATCH/RECOMMEND/lock=0、`L1_CARD_TOO_LARGE=0`。首屏前四场显示真实 AH/OU；其他尚无 observation 的未来比赛继续真实 BLOCKED。
 - 顶部语义已经区分“盘口过期”和“数据阻塞”，没有把 STALE 计入 BLOCKED，也没有为无 observation 比赛伪造盘口。下一刷新仍为 `2026-07-17T10:00:00Z`，当前裁决保持 YELLOW + NOT_READY。
+
+### V3 进展续88 · DATA-08 旧盘口展示阻塞重定基线(2026-07-17)
+
+- 用户页面确认：四场比赛的主盘位置展示了约 44 小时前采集的 AH/OU，其中最近比赛距开赛约 197 分钟。`STALE` 标签不能使这些数值成为合适的当前盘口。
+- 将该失败边界登记为 `DATA-08 / EXPIRED_ODDS_RENDERED_AS_PRIMARY_MARKET_VALUES`，暂停 MA-03，正式分类改为 `MARKET_DATA_HEALTH=RED` 与 `EVIDENCE_ELIGIBILITY=BLOCKED`。
+- 唯一执行链改为：先合并 RED 上下文，再回滚四服务到不展示过期盘口的安全版本；随后隐藏超过 30 分钟的 `current_odds`，并建立 T6 到 T15 的自然、有界、去重的滚动 odds 刷新。
+- 原始 observation、quote ID、capture time 和 source hash 必须保留；不强制 Provider，不回填历史 checkpoint，不降低 30 分钟 freshness、FME、Snapshot 或推荐门。
