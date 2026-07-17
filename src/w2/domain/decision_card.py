@@ -15,10 +15,6 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.domain.time import require_utc
-from w2.models.fair_market_estimate import (
-    verify_estimate_semantics,
-    verify_estimate_snapshot,
-)
 
 PICK_TIERS = {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
 NON_PICK_TIERS = {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
@@ -35,7 +31,6 @@ class DecisionPick:
     fair_line: str | None
     market_line: str | None
     value_edge: float | None
-    estimate_id: str | None = None
     key_factors: tuple[str, ...] = ()
     risks: tuple[str, ...] = ()
     invalidation: str | None = None
@@ -75,15 +70,6 @@ class DecisionCard:
     environment: str
     probability_source: ProbabilitySource = ProbabilitySource.UNKNOWN
     model_market_divergence: Mapping[str, Any] = field(default_factory=dict)
-    analysis_gate: Mapping[str, Any] = field(default_factory=dict)
-    analysis_gates: tuple[Mapping[str, Any], ...] = ()
-    analysis_gate_v2_shadow: Mapping[str, Any] = field(default_factory=dict)
-    analysis_gate_v2_shadows: tuple[Mapping[str, Any], ...] = ()
-    fair_market_estimates: tuple[Mapping[str, Any], ...] = ()
-    fair_market_estimate_ids: tuple[str, ...] = ()
-    fair_market_estimate_snapshots: tuple[Mapping[str, Any], ...] = ()
-    optional_enrichment: Mapping[str, Any] = field(default_factory=dict)
-    player_impact_estimate: Mapping[str, Any] = field(default_factory=dict)
     pick: DecisionPick | None = None
     non_pick: DecisionNonPick | None = None
     one_liner: str = ""
@@ -94,12 +80,6 @@ class DecisionCard:
         if self.kickoff_beijing.tzinfo is None or self.kickoff_beijing.utcoffset() is None:
             raise ValueError("kickoff_beijing must be timezone-aware")
         _validate_tier_payload(self.decision_tier, self.pick, self.non_pick)
-        _validate_estimate_references(
-            self.fair_market_estimate_ids,
-            self.fair_market_estimate_snapshots,
-            self.pick,
-            self.analysis_gate,
-        )
         object.__setattr__(self, "card_hash", compute_card_hash(self))
 
     def as_dict(self) -> dict[str, Any]:
@@ -134,15 +114,6 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "model_version": card.model_version,
             "probability_source": card.probability_source,
             "model_market_divergence": card.model_market_divergence,
-            "analysis_gate": card.analysis_gate,
-            "analysis_gates": card.analysis_gates,
-            "analysis_gate_v2_shadow": card.analysis_gate_v2_shadow,
-            "analysis_gate_v2_shadows": card.analysis_gate_v2_shadows,
-            "fair_market_estimates": card.fair_market_estimates,
-            "fair_market_estimate_ids": card.fair_market_estimate_ids,
-            "fair_market_estimate_snapshots": card.fair_market_estimate_snapshots,
-            "optional_enrichment": card.optional_enrichment,
-            "player_impact_estimate": card.player_impact_estimate,
             "provenance": card.provenance,
             "pick": card.pick,
             "non_pick": card.non_pick,
@@ -174,95 +145,6 @@ def _validate_tier_payload(
         return
 
     raise ValueError(f"unsupported decision_tier: {decision_tier}")
-
-
-def _validate_estimate_references(
-    estimate_ids: Sequence[str],
-    snapshots: Sequence[Mapping[str, Any]],
-    pick: DecisionPick | None,
-    analysis_gate: Mapping[str, Any],
-) -> None:
-    if pick is None:
-        return
-    if not snapshots:
-        raise ValueError("DecisionCard pick requires immutable v2 estimate snapshots")
-    declared = {str(item) for item in estimate_ids if item}
-    captured = {str(item.get("estimate_id") or "") for item in snapshots}
-    if not declared or "" in captured or declared != captured:
-        raise ValueError("DecisionCard estimate IDs must match immutable snapshots")
-    if any(
-        item.get("schema_version") != "w2.fme_snapshot.v2"
-        or not item.get("model_basis_id")
-        or not verify_estimate_snapshot(item)
-        or not verify_estimate_semantics(item)
-        for item in snapshots
-    ):
-        raise ValueError("DecisionCard snapshots must pass v2 integrity and semantics")
-    if pick is not None and (not pick.estimate_id or pick.estimate_id not in declared):
-        raise ValueError("DecisionCard pick must reference an immutable estimate snapshot")
-    snapshot = next(item for item in snapshots if item.get("estimate_id") == pick.estimate_id)
-    if snapshot.get("market") != pick.market:
-        raise ValueError("DecisionCard pick market must match estimate snapshot market")
-    if analysis_gate.get("estimate_id") != pick.estimate_id:
-        raise ValueError("DecisionCard pick estimate must match analysis gate estimate")
-    if analysis_gate.get("market") != pick.market:
-        raise ValueError("DecisionCard pick market must match analysis gate market")
-    if not _quote_matches_pick(snapshot, pick, analysis_gate):
-        raise ValueError("DecisionCard pick quote must match estimate evaluation quote")
-
-
-def _quote_matches_pick(
-    snapshot: Mapping[str, Any],
-    pick: DecisionPick,
-    analysis_gate: Mapping[str, Any],
-) -> bool:
-    odds = _mapping(_mapping(snapshot.get("input_context")).get("odds_snapshot"))
-    if pick.market == "ASIAN_HANDICAP":
-        quote = _mapping(odds.get("ah"))
-        gate_line = quote.get("home_line")
-        if pick.selection == "HOME_AH":
-            line, price = quote.get("home_line"), quote.get("home_price")
-        elif pick.selection == "AWAY_AH":
-            line, price = quote.get("away_line"), quote.get("away_price")
-        else:
-            return False
-    elif pick.market == "TOTALS":
-        quote = _mapping(odds.get("ou"))
-        gate_line = quote.get("line")
-        line = quote.get("line")
-        price = quote.get("over_price" if pick.selection == "OVER" else "under_price")
-        if pick.selection not in {"OVER", "UNDER"}:
-            return False
-    else:
-        return False
-    if any(
-        value is None
-        for value in (
-            analysis_gate.get("market_line"),
-            gate_line,
-            pick.line,
-            line,
-            pick.odds,
-            price,
-        )
-    ):
-        return False
-    return (
-        _same_number(analysis_gate.get("market_line"), gate_line)
-        and _same_number(pick.line, line)
-        and _same_number(pick.odds, price)
-    )
-
-
-def _mapping(value: Any) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
-
-
-def _same_number(left: Any, right: Any) -> bool:
-    try:
-        return abs(float(left) - float(right)) <= 1e-9
-    except (TypeError, ValueError):
-        return False
 
 
 def _validate_disclaimer(decision_tier: DecisionTier, disclaimer: str) -> None:

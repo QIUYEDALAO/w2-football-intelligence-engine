@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DashboardHttpError, fetchDashboardDayViewPage, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
+import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { todayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionView } from "./BossDecisionView";
@@ -44,50 +44,11 @@ export function DashboardPage() {
   const [date, setDate] = useState(todayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [pageNotice, setPageNotice] = useState<string | null>(null);
 
   function refreshDashboard(): void {
-    // Keep the current snapshot visible while a fresh one is loaded in the background.
-    if (!view) setState("loading");
+    clearCachedDashboardView(date, mode);
+    setState("loading");
     setRefreshKey((value) => value + 1);
-  }
-
-  async function loadMore(): Promise<void> {
-    const current = view?.day_view;
-    const cursor = current?.pagination.next_cursor;
-    if (!view || !current || !cursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const next = await fetchDashboardDayViewPage(date, mode, cursor);
-      if (next.pagination.snapshot_id !== current.pagination.snapshot_id) {
-        throw new DashboardHttpError(409, "DAYVIEW_CURSOR_STALE");
-      }
-      const known = new Set(current.cards.map((card) => card.fixture_id));
-      const appended = next.cards.filter((card) => !known.has(card.fixture_id));
-      setView({
-        ...view,
-        day_view: {
-          ...current,
-          cards: [...current.cards, ...appended],
-          pagination: {
-            ...next.pagination,
-            returned_count: current.cards.length + appended.length,
-          },
-          page_counts: next.page_counts,
-        },
-      });
-    } catch (error) {
-      if (error instanceof DashboardHttpError && error.status === 409) {
-        const fresh = await fetchDashboardView({ date, mode });
-        setView(fresh);
-        setPageNotice("数据已刷新，列表已更新");
-      } else {
-        setPageNotice("加载更多失败，请稍后重试");
-      }
-    } finally {
-      setLoadingMore(false);
-    }
   }
 
   useEffect(() => {
@@ -97,7 +58,7 @@ export function DashboardPage() {
       if (cached) {
         setView(cached);
         setUpdatedAt(updatedAtShanghai());
-        setState((cached.day_view?.cards.length ?? cached.all.length) ? "ok" : "empty");
+        setState(cached.all.length ? "ok" : "empty");
       } else {
         setState("loading");
       }
@@ -135,12 +96,6 @@ export function DashboardPage() {
 
   return (
     <main className="app-shell dashboard-v2">
-      {view?.cache_status === "STALE_CACHE" ? (
-        <aside className="soft-errors">
-          <strong>缓存快照 · STALE_CACHE</strong>
-          <p>网络读取失败前先保留最近一次 DayView；不会冒充当前 release。</p>
-        </aside>
-      ) : null}
       {view?.day_view ? null : view ? <ReleaseSyncBadge release={view.release} /> : null}
       {view?.day_view ? null : (
         <div className="dashboard-controls">
@@ -167,7 +122,7 @@ export function DashboardPage() {
 
       {state === "empty" && view ? (
         view.day_view ? (
-          <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} onLoadMore={loadMore} loadingMore={loadingMore} pageNotice={pageNotice} />
+          <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
         ) : showDiagnostics ? (
           <DataDiagnosticsPanel debug={view.debug} release={view.release} />
         ) : (
@@ -178,7 +133,7 @@ export function DashboardPage() {
       {state === "ok" && view ? (
         <>
           {view.day_view ? (
-            <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} onLoadMore={loadMore} loadingMore={loadingMore} pageNotice={pageNotice} />
+            <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}

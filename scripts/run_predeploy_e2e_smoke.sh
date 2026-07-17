@@ -19,7 +19,6 @@ fi
 TMP_DIR="$(mktemp -d)"
 ENV_FILE="${TMP_DIR}/predeploy-e2e.env"
 OVERRIDE_FILE="${TMP_DIR}/predeploy-e2e.override.yml"
-PREDEPLOY_ARTIFACT="${ROOT}/runtime/model_artifacts/r4_1/predeploy_readiness.v1.json"
 RUNTIME_MODE_BEFORE=""
 if [ -e "${ROOT}/runtime" ]; then
   RUNTIME_MODE_BEFORE="$(stat -c '%a' "${ROOT}/runtime" 2>/dev/null || stat -f '%Lp' "${ROOT}/runtime" 2>/dev/null || true)"
@@ -27,7 +26,6 @@ fi
 cleanup() {
   cd "${ROOT}"
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" down -v --remove-orphans >/dev/null 2>&1 || true
-  rm -f "${PREDEPLOY_ARTIFACT}"
   if [ -n "${RUNTIME_MODE_BEFORE}" ] && [ -e "${ROOT}/runtime" ]; then
     chmod "${RUNTIME_MODE_BEFORE}" "${ROOT}/runtime" >/dev/null 2>&1 || true
   elif [ -e "${ROOT}/runtime" ]; then
@@ -70,7 +68,7 @@ services:
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
     healthcheck:
-      test: ["CMD", "/app/.venv/bin/python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -78,32 +76,7 @@ services:
 EOF
 
 cd "${ROOT}"
-mkdir -p "$(dirname "${PREDEPLOY_ARTIFACT}")"
-PREDEPLOY_ARTIFACT="${PREDEPLOY_ARTIFACT}" uv run --python 3.12 python - <<'PY'
-from __future__ import annotations
-
-import json
-import os
-from datetime import UTC, datetime
-from pathlib import Path
-
-from w2.models.r4_1_artifacts import build_r4_1_artifact_payload
-
-payload = build_r4_1_artifact_payload(
-    competition_id="predeploy_readiness",
-    coefficients=[0.0],
-    feature_names=["home_field__predeploy"],
-    temperature=1.0,
-    rho=0.0,
-    train_cutoff_utc=datetime(2026, 1, 1, tzinfo=UTC),
-    fit_sample_count=1,
-    protocol_identity_check="PREDEPLOY_FIXTURE_ONLY",
-)
-Path(os.environ["PREDEPLOY_ARTIFACT"]).write_text(
-    json.dumps(payload, sort_keys=True),
-    encoding="utf-8",
-)
-PY
+mkdir -p runtime
 chmod 0555 runtime || true
 
 uv run --python 3.12 python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
@@ -112,50 +85,6 @@ uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait postgres redis
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" run --rm migration
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait api worker scheduler
-docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait web
-
-python3 - <<'PY'
-from __future__ import annotations
-
-import time
-import urllib.request
-
-for path in ("health", "ready", "v1/version", "meta.json"):
-    last_error: Exception | None = None
-    for _ in range(20):
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1/{path}", timeout=5) as response:
-                assert response.status == 200
-            break
-        except Exception as exc:
-            last_error = exc
-            time.sleep(1)
-    else:
-        raise SystemExit(f"web proxy did not serve {path}: {last_error}")
-print("predeploy_e2e web proxy initial routing PASS")
-PY
-
-docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --no-deps --force-recreate --wait api
-
-python3 - <<'PY'
-from __future__ import annotations
-
-import time
-import urllib.request
-
-last_error: Exception | None = None
-for _ in range(20):
-    try:
-        with urllib.request.urlopen("http://127.0.0.1/health", timeout=5) as response:
-            assert response.status == 200
-        break
-    except Exception as exc:
-        last_error = exc
-        time.sleep(1)
-else:
-    raise SystemExit(f"web retained a stale API upstream after recreate: {last_error}")
-print("predeploy_e2e web dynamic API resolution PASS")
-PY
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T api /app/.venv/bin/python - <<'PY'
 from __future__ import annotations
@@ -230,7 +159,7 @@ class FakeLiveApiFootballPort:
                             "status": {"short": "NS"},
                             "venue": {"name": "Predeploy Venue"},
                         },
-                        "league": {"id": 71, "name": "Serie A", "round": "Regular Season"},
+                        "league": {"id": 1, "name": "World Cup", "round": "Group Stage - 3"},
                         "teams": {
                             "home": {"id": 10, "name": "Predeploy Home"},
                             "away": {"id": 20, "name": "Predeploy Away"},
@@ -282,7 +211,7 @@ class FakeLiveApiFootballPort:
 
 fake = FakeLiveApiFootballPort()
 key = deterministic_task_key(
-    competition_id="brasileirao_serie_a",
+    competition_id="world_cup_2026",
     season="2026",
     now=NOW,
     interval_seconds=900,
@@ -291,7 +220,7 @@ audit = run_future_refresh_task(
     task_id=f"{key}:predeploy-e2e",
     key=key,
     queued_at=NOW,
-    competition_id="brasileirao_serie_a",
+    competition_id="world_cup_2026",
     runtime_root=Path("/app/runtime/future_refresh"),
     client=fake,
     now=NOW,
@@ -301,13 +230,14 @@ audit = run_future_refresh_task(
 assert audit.status == "COMPLETED", audit
 assert audit.result["fixture_count"] == 1
 assert audit.result["market_snapshot_count"] == 1
-assert audit.result["feature_enrichment_payload_count"] == 0
+assert audit.result["feature_enrichment_payload_count"] == 1
 assert audit.result["candidate"] is False
 assert audit.result["formal_recommendation"] is False
 assert [endpoint for endpoint, _ in fake.calls] == [
     "status",
     "fixtures",
     "odds",
+    "lineups",
 ]
 assert "statistics" not in [endpoint for endpoint, _ in fake.calls]
 assert "injuries" not in [endpoint for endpoint, _ in fake.calls]
@@ -414,14 +344,14 @@ BLOCKED_ENDPOINT_COUNT="$(
 )"
 RUN_AUDIT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
-    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'brasileirao_serie_a' and candidate = false and formal_recommendation = false;"
+    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'world_cup_2026' and candidate = false and formal_recommendation = false;"
 )"
 if [ "${OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing DB market observations" >&2
   exit 1
 fi
-if [ "${RAW_ENDPOINT_COUNT}" -ne 0 ]; then
-  echo "predeploy_e2e FAIL inactive feature enrichment endpoints were persisted" >&2
+if [ "${RAW_ENDPOINT_COUNT}" -ne 1 ]; then
+  echo "predeploy_e2e FAIL missing feature enrichment raw payload endpoints" >&2
   exit 1
 fi
 if [ "${BLOCKED_ENDPOINT_COUNT}" -ne 0 ]; then

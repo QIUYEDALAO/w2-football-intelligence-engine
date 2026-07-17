@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from hmac import compare_digest
-from ipaddress import ip_address, ip_network
 from time import monotonic
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from w2.api.cache import read_cache
 from w2.api.metrics import metrics
-from w2.api.repository import FrozenAuditRequestError, ReadModelService
+from w2.api.repository import ReadModelService
 from w2.api.schemas import (
     AnalysisCardResponse,
     BacktestLatestResponse,
@@ -27,7 +25,6 @@ from w2.api.schemas import (
     FixtureListResponse,
     FormalTrackingSummaryResponse,
     ForwardHoldoutStatusResponse,
-    FrozenAuditDetailResponse,
     IntegrityResponse,
     LeagueListResponse,
     LeagueOnboardingResponse,
@@ -51,64 +48,11 @@ from w2.api.schemas import (
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
-from w2.monitoring.health import (
-    HealthPayload,
-    ReadinessPayload,
-    build_health_payload,
-    build_readiness_payload,
-)
-
-
-def authorize_ops_access(
-    request: Request,
-    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
-) -> None:
-    settings = get_settings()
-    if settings.environment == Environment.PRODUCTION:
-        raise HTTPException(status_code=403, detail="operations API disabled in production")
-    if settings.environment in {Environment.LOCAL, Environment.TEST}:
-        return
-
-    configured = settings.ops_service_token  # without_secrets
-    expected = configured.get_secret_value().strip() if configured is not None else ""
-    if not expected:
-        raise HTTPException(status_code=503, detail="operations API credentials not configured")
-    scheme, separator, supplied = (authorization or "").partition(" ")
-    if not separator or scheme.casefold() != "bearer" or not compare_digest(supplied, expected):
-        raise HTTPException(
-            status_code=401,
-            detail="invalid operations API credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    allowed_cidrs = settings.ops_allowed_cidrs
-    if allowed_cidrs:
-        try:
-            networks = [
-                ip_network(value.strip(), strict=False)
-                for value in allowed_cidrs.split(",")
-                if value.strip()
-            ]
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail="operations API CIDR configuration invalid",
-            ) from exc
-        host = request.client.host if request.client is not None else ""
-        try:
-            client_ip = ip_address(host)
-        except ValueError as exc:
-            raise HTTPException(status_code=403, detail="operations API network denied") from exc
-        if not networks or not any(client_ip in network for network in networks):
-            raise HTTPException(status_code=403, detail="operations API network denied")
-
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.monitoring.health import HealthPayload, build_health_payload
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
-ops_router = APIRouter(
-    prefix="/ops",
-    tags=["operations-read"],
-    dependencies=[Depends(authorize_ops_access)],
-)
+ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
@@ -137,11 +81,9 @@ def public_health() -> HealthPayload:
     return build_health_payload()
 
 
-@public_router.get("/ready", response_model=ReadinessPayload)
-def public_ready(response: Response) -> ReadinessPayload:
-    payload = build_readiness_payload()
-    response.status_code = 200 if payload.ready else 503
-    return payload
+@public_router.get("/ready", response_model=HealthPayload)
+def public_ready() -> HealthPayload:
+    return build_health_payload()
 
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -198,96 +140,26 @@ def dashboard(
 @public_router.get("/dashboard/day-view", response_model=DashboardDayViewResponse)
 def dashboard_day_view(
     request: Request,
-    response: Response,
     date: str | None = None,
     window: str = "today",
     timezone: str = "Asia/Shanghai",
-    page_size: int = Query(default=20, ge=1, le=50),
-    cursor: str | None = Query(default=None, max_length=2048),
-    sort: str = Query(default="BOSS_PRIORITY_KICKOFF"),
 ) -> dict[str, Any]:
-    response.headers["Cache-Control"] = "public, max-age=30"
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    from w2.dashboard.day_view_pagination import (
-        DayViewPageTooLarge,
-        InvalidDayViewCursor,
-        StaleDayViewCursor,
+    payload = service.dashboard(
+        target_date=date,
+        window=normalized_window,
+        timezone=timezone,
+        include_debug=False,
     )
-
-    route_started = monotonic()
-    try:
-        day_view = service.dashboard_day_view(
-            target_date=date,
-            window=normalized_window,
-            timezone=timezone,
-            page_size=page_size,
-            cursor=cursor,
-            sort=sort,
-        )
-    except StaleDayViewCursor as error:
-        raise HTTPException(status_code=409, detail={"reason": str(error)}) from error
-    except InvalidDayViewCursor as error:
-        raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
-    except DayViewPageTooLarge as error:
-        raise HTTPException(status_code=413, detail={"reason": str(error)}) from error
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail={"reason": str(error)}) from error
-    route_build_seconds = monotonic() - route_started
-    performance = day_view.get("performance")
-    performance = performance if isinstance(performance, dict) else {}
-    timing = performance.get("dayview_cache_metrics")
-    timing = timing if isinstance(timing, dict) else {}
-    response_payload = {
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    day_view["performance"] = payload.get("performance")
+    return {
         "request_id": request_id(request),
         **day_view,
     }
-    validation_started = monotonic()
-    validated_response = DashboardDayViewResponse.model_validate(response_payload)
-    response_model_validation_seconds = monotonic() - validation_started
-    serialization_started = monotonic()
-    validated_response.model_dump_json()
-    response_serialization_seconds = monotonic() - serialization_started
-    route_seconds = monotonic() - route_started
-    if isinstance(validated_response.performance, dict):
-        validated_timing = validated_response.performance.setdefault(
-            "dayview_cache_metrics", {}
-        )
-        if isinstance(validated_timing, dict):
-            validated_timing.update(
-                {
-                    "response_model_validation_seconds": round(
-                        response_model_validation_seconds, 6
-                    ),
-                    "response_serialization_seconds": round(
-                        response_serialization_seconds, 6
-                    ),
-                    "route_build_seconds": round(route_build_seconds, 6),
-                    "route_total_seconds": round(route_seconds, 6),
-                }
-            )
-            timing = validated_timing
-    pagination = day_view.get("pagination")
-    pagination = pagination if isinstance(pagination, dict) else {}
-    response.headers["X-W2-DayView-Cache"] = str(
-        timing.get("dayview_cache_status") or "MISS"
-    )
-    response.headers["X-W2-DayView-Snapshot"] = str(
-        pagination.get("snapshot_id") or "UNKNOWN"
-    )
-    server_timing = {
-        "route": route_seconds,
-        "fixture": float(timing.get("fixture_window_read_seconds") or 0.0),
-        "capture": float(timing.get("capture_index_build_seconds") or 0.0),
-        "market": float(timing.get("market_observation_read_seconds") or 0.0),
-        "performance": float(timing.get("ledger_summary_seconds") or 0.0),
-        "projection": float(timing.get("page_projection_seconds") or 0.0),
-        "validation": float(timing.get("response_model_validation_seconds") or 0.0),
-        "serialization": float(timing.get("response_serialization_seconds") or 0.0),
-    }
-    response.headers["Server-Timing"] = ", ".join(
-        f"{name};dur={seconds * 1000:.3f}" for name, seconds in server_timing.items()
-    )
-    return validated_response.model_dump(mode="python")
 
 
 @public_router.get("/dashboard/summary", response_model=DashboardSummaryResponse)
@@ -489,56 +361,14 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
 
 
 @public_router.get(
-    "/fixtures/{fixture_id}/audit-detail",
-    response_model=FrozenAuditDetailResponse,
-)
-def audit_detail(
-    fixture_id: str,
-    request: Request,
-    capture_hash: Annotated[str, Query(min_length=1)],
-    capture_id: str | None = None,
-    estimate_id: str | None = None,
-) -> dict[str, Any] | JSONResponse:
-    started = monotonic()
-    endpoint = "/v1/fixtures/{fixture_id}/audit-detail"
-    try:
-        payload = service.audit_detail(
-            fixture_id,
-            capture_id=capture_id,
-            capture_hash=capture_hash,
-            estimate_id=estimate_id,
-        )
-    except FrozenAuditRequestError as exc:
-        metrics.record(endpoint, exc.status_code, started)
-        error = ErrorPayload(
-            request_id=request_id(request),
-            code=exc.reason,
-            message=exc.reason,
-        )
-        return JSONResponse(status_code=exc.status_code, content=error.model_dump())
-    metrics.record(endpoint, 200, started)
-    return {
-        "request_id": request_id(request),
-        "fixture_id": fixture_id,
-        **payload,
-    }
-
-
-@public_router.get(
     "/fixtures/{fixture_id}/analysis-card",
     response_model=AnalysisCardResponse,
 )
 def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
-    started = monotonic()
-    card = service.frozen_analysis_card(fixture_id)
-    elapsed = monotonic() - started
-    metrics.record("/v1/fixtures/{fixture_id}/analysis-card", 200, started)
-    return {
-        "request_id": request_id(request),
-        "fixture_id": fixture_id,
-        "card": card,
-        "performance": {"l2_analysis_build_seconds": round(elapsed, 6)},
-    }
+    card = service.analysis_card(fixture_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="analysis card not found")
+    return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
 
 
 @public_router.get(

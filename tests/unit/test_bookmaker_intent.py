@@ -28,7 +28,7 @@ def context() -> FeatureContext:
 
 
 def profile():
-    return CompetitionRegistry().require_registered("world_cup_2026").coverage_profile
+    return CompetitionRegistry().require_enabled("world_cup_2026").coverage_profile
 
 
 def snapshot(hours_ago: int, price: str) -> MarketSnapshot:

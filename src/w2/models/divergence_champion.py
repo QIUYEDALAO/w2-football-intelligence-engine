@@ -15,7 +15,6 @@ R4_1_DIVERGENCE_MODEL_COMPETITIONS = frozenset(
         "bundesliga",
         "chinese_super_league",
         "allsvenskan",
-        "eliteserien",
     }
 )
 

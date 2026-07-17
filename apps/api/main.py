@@ -5,16 +5,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 
 from w2.api.routers import error_handler, ops_router, public_router, service
 from w2.config import Environment, get_settings
-from w2.monitoring.health import (
-    HealthPayload,
-    ReadinessPayload,
-    build_health_payload,
-    build_readiness_payload,
-)
+from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.operations.observability import default_metric_registry
 
 
@@ -38,9 +32,8 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["GET"],
-    allow_headers=["x-request-id", "if-none-match", "authorization"],
+    allow_headers=["x-request-id", "if-none-match"],
 )
-app.add_middleware(GZipMiddleware, minimum_size=1_024, compresslevel=5)
 app.add_exception_handler(Exception, error_handler)
 app.include_router(public_router)
 app.include_router(ops_router)
@@ -51,11 +44,9 @@ def health() -> HealthPayload:
     return build_health_payload()
 
 
-@app.get("/ready", response_model=ReadinessPayload)
-def ready(response: Response) -> ReadinessPayload:
-    payload = build_readiness_payload()
-    response.status_code = 200 if payload.ready else 503
-    return payload
+@app.get("/ready", response_model=HealthPayload)
+def ready() -> HealthPayload:
+    return build_health_payload()
 
 
 @app.get("/metrics")

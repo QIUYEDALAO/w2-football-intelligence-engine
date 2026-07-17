@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import fcntl
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -12,19 +11,7 @@ PYTHON = sys.executable
 
 
 def run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
-    env = {
-        **os.environ,
-        "W2_ENVIRONMENT": "staging",
-        "W2_STAGING_ENABLED_COMPETITIONS": "chinese_super_league",
-    }
-    return subprocess.run(
-        args,
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-        env=env,
-    )
+    return subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=False)
 
 
 def write_json(path: Path, payload: dict[str, object]) -> Path:
@@ -36,7 +23,7 @@ def write_json(path: Path, payload: dict[str, object]) -> Path:
 def fixture(fixture_id: str = "200001", kickoff: str = "2026-06-23T22:00:00Z") -> dict[str, object]:
     return {
         "fixture_id": fixture_id,
-        "competition_id": "chinese_super_league",
+        "competition_id": "world_cup_2026",
         "status": "NS",
         "kickoff_utc": kickoff,
     }

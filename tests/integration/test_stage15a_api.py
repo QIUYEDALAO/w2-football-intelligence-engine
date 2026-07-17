@@ -6,9 +6,7 @@ from fastapi.testclient import TestClient
 from w2.config import get_settings
 
 
-def test_operations_governance_endpoints(monkeypatch) -> None:
-    monkeypatch.setenv("W2_ENVIRONMENT", "test")
-    get_settings.cache_clear()
+def test_operations_governance_endpoints() -> None:
     client = TestClient(app)
     assert client.get("/ops/operations/cycles").status_code == 200
     latest = client.get("/ops/operations/latest")

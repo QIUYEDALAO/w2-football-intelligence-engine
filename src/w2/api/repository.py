@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
-from collections.abc import Mapping
-from contextlib import contextmanager, suppress
-from copy import deepcopy
+from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
-from threading import RLock, local
 from time import monotonic
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -25,11 +21,6 @@ from w2.analysis.market_movement import (
     build_market_movement,
     build_market_timeline_reference,
 )
-from w2.api.singleflight_cache import SingleFlightCache
-from w2.audit.frozen_fixture_audit import (
-    MAX_AUDIT_RESPONSE_BYTES,
-    build_frozen_fixture_audit,
-)
 from w2.competitions.registry import CompetitionRegistry
 from w2.config import Environment, get_settings
 from w2.dashboard.date_window import (
@@ -37,25 +28,6 @@ from w2.dashboard.date_window import (
     FOOTBALL_DAY_TZ,
     default_football_day,
     football_day_window,
-)
-from w2.dashboard.day_view import build_dashboard_day_view
-from w2.dashboard.day_view_pagination import (
-    DEFAULT_DAY_VIEW_PAGE_SIZE,
-    MAX_DAY_VIEW_CARD_BYTES,
-    MAX_DAY_VIEW_PAGE_BYTES,
-    DayViewPageTooLarge,
-    build_index_entries,
-    make_snapshot_id,
-    pagination_envelope,
-    select_page,
-    sort_entries,
-    window_counts,
-)
-from w2.dashboard.day_view_projection import project_day_view_card
-from w2.dashboard.day_view_window_snapshot import (
-    DAY_VIEW_WINDOW_SNAPSHOT_SCHEMA_VERSION,
-    DayViewWindowSnapshot,
-    make_day_view_source_fingerprint,
 )
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.readiness import (
@@ -79,7 +51,6 @@ from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
-from w2.features.league_snapshot import build_league_feature_pair
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
@@ -101,7 +72,6 @@ from w2.markets.asian_handicap_scope import (
     is_full_time_asian_handicap_observation,
     is_full_time_totals_observation,
 )
-from w2.markets.devig import DevigMethod, devig
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -115,19 +85,6 @@ from w2.matchday.timezone import (
     FixtureOperationalDateResolver,
     next_36_hours_window,
 )
-from w2.models.divergence_champion import select_divergence_champion_probabilities
-from w2.models.fair_market_estimate import (
-    FairMarketEstimate,
-    FairMarketEstimateSnapshot,
-    fair_lines_from_lambdas,
-)
-from w2.models.r4_1_artifacts import (
-    R4_1Artifact,
-    load_r4_1_artifacts,
-    predict_r4_1_from_artifact,
-    r4_1_artifact_dir,
-)
-from w2.models.r4_1_features import r4_1_feature_rows_from_values
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.tournament import (
     build_operations_plan,
@@ -136,7 +93,6 @@ from w2.operations.tournament import (
     readiness_report,
 )
 from w2.pricing.shadow import build_pricing_shadow
-from w2.pricing.value_vs_market import edge
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
 from w2.strategy.analysis_recommendation import (
@@ -159,10 +115,6 @@ from w2.strategy.formal_recommendation import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
-from w2.tracking.day_view_capture_index import (
-    DAY_VIEW_CAPTURE_PROJECTION_VERSION,
-    build_day_view_capture_index,
-)
 from w2.tracking.formal_results import (
     endpoint_summary as formal_tracking_endpoint_summary,
 )
@@ -172,13 +124,7 @@ from w2.tracking.formal_results import (
 from w2.tracking.formal_results import (
     load_snapshots as load_formal_snapshots,
 )
-from w2.tracking.forward_ledger_performance_cache import (
-    ForwardLedgerPerformanceCache,
-)
-from w2.tracking.frozen_capture_lookup import (
-    find_frozen_capture,
-    frozen_ledger_fingerprint,
-)
+from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
@@ -188,6 +134,7 @@ WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json
 STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
+
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
     "TOTALS": "大小球",
@@ -205,13 +152,6 @@ INTENT_LABELS_CN = {
 }
 
 LOCKED_PREMATCH_STATUSES = {"LIVE", "FINISHED"}
-
-
-class FrozenAuditRequestError(RuntimeError):
-    def __init__(self, reason: str, status_code: int) -> None:
-        super().__init__(reason)
-        self.reason = reason
-        self.status_code = status_code
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -325,7 +265,8 @@ def _is_world_cup_2026_item(
     return (
         competition_id in identifiers
         or (
-            provider_league_id in identifiers and (not provider_season or season == provider_season)
+            provider_league_id in identifiers
+            and (not provider_season or season == provider_season)
         )
         or any("world cup" in name or "世界杯" in name for name in names)
     )
@@ -450,35 +391,6 @@ def _float_or_none(value: Any) -> float | None:
         return None
 
 
-def _one_x_two_probabilities(value: Any) -> dict[str, float] | None:
-    if not isinstance(value, dict):
-        return None
-    payload = value.get("one_x_two") if isinstance(value.get("one_x_two"), dict) else value
-    if not isinstance(payload, dict):
-        return None
-    probabilities: dict[str, float] = {}
-    for key in ("HOME", "DRAW", "AWAY"):
-        parsed = _float_or_none(payload.get(key))
-        if parsed is None:
-            return None
-        probabilities[key] = parsed
-    total = sum(probabilities.values())
-    if total <= 0:
-        return None
-    return {key: probability / total for key, probability in probabilities.items()}
-
-
-def _r4_1_calibrated_payload(
-    card: dict[str, Any],
-    pricing_shadow: dict[str, Any],
-) -> dict[str, Any]:
-    for source in (card, pricing_shadow):
-        value = source.get("r4_1_calibrated")
-        if isinstance(value, dict):
-            return dict(value)
-    return {}
-
-
 def _valid_formal_recommendation_payload(value: Any) -> bool:
     recommendation = value if isinstance(value, dict) else {}
     tier = str(recommendation.get("tier") or "").upper()
@@ -502,114 +414,6 @@ def _formal_payload_blocker(formal_result: Any) -> str:
 
 
 class ReadModelRepository:
-    def frozen_analysis_source_signature(self, fixture_id: str) -> str | None:
-        payload = self.dashboard_fixture(fixture_id)
-        if not isinstance(payload, Mapping):
-            return None
-        materialization = payload.get("analysis_materialization")
-        if not isinstance(materialization, Mapping):
-            return None
-        value = materialization.get("source_signature")
-        return str(value) if value else None
-
-    def persist_frozen_analysis_checkpoint(
-        self,
-        *,
-        fixture_id: str,
-        payload: Mapping[str, Any],
-        created_at: datetime | None = None,
-    ) -> dict[str, str]:
-        normalized = cast(
-            dict[str, Any],
-            json.loads(json.dumps(dict(payload), ensure_ascii=False, default=str)),
-        )
-        encoded = json.dumps(
-            normalized,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        source_hash = hashlib.sha256(encoded).hexdigest()
-        immutable_key = f"dashboard:fixture_analysis:{fixture_id}:{source_hash}"
-        latest_key = f"dashboard:fixture_latest:{fixture_id}"
-        observed_at = created_at or datetime.now(UTC)
-        engine = create_engine()
-        with Session(engine) as session, session.begin():
-            immutable = session.scalar(
-                select(ReadModelCheckpointModel).where(
-                    ReadModelCheckpointModel.checkpoint_key == immutable_key
-                )
-            )
-            if immutable is None:
-                session.add(
-                    ReadModelCheckpointModel(
-                        checkpoint_key=immutable_key,
-                        source_hash=source_hash,
-                        created_at=observed_at,
-                        payload=normalized,
-                    )
-                )
-            latest = session.scalar(
-                select(ReadModelCheckpointModel).where(
-                    ReadModelCheckpointModel.checkpoint_key == latest_key
-                )
-            )
-            if latest is None:
-                session.add(
-                    ReadModelCheckpointModel(
-                        checkpoint_key=latest_key,
-                        source_hash=source_hash,
-                        created_at=observed_at,
-                        payload=normalized,
-                    )
-                )
-            else:
-                latest.source_hash = source_hash
-                latest.created_at = observed_at
-                latest.payload = normalized
-        return {
-            "fixture_id": fixture_id,
-            "source_hash": source_hash,
-            "immutable_checkpoint_key": immutable_key,
-            "latest_checkpoint_key": latest_key,
-        }
-
-    def day_view_source_watermarks(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "schema_version": "w2.day_view_source_watermarks.v1",
-            "source_status": "PASS",
-        }
-        try:
-            engine = create_engine()
-            with Session(engine) as session:
-                row = session.execute(
-                    select(
-                        func.count(ReadModelCheckpointModel.id),
-                        func.max(ReadModelCheckpointModel.created_at),
-                        func.max(ReadModelCheckpointModel.source_hash),
-                    ).where(
-                        ReadModelCheckpointModel.checkpoint_key.like("dashboard:fixture_latest:%")
-                    )
-                ).one()
-            payload.update(
-                {
-                    "read_model_fixture_count": int(row[0] or 0),
-                    "read_model_max_created_at": row[1].isoformat() if row[1] else None,
-                    "read_model_source_hash": row[2],
-                }
-            )
-            refresh_repository = future_refresh_db_repository()
-            if refresh_repository is not None:
-                payload.update(refresh_repository.day_view_source_watermarks())
-        except SQLAlchemyError as error:
-            payload.update(
-                {
-                    "source_status": "DEGRADED",
-                    "source_error": type(error).__name__,
-                }
-            )
-        return payload
-
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()
@@ -645,27 +449,6 @@ class ReadModelRepository:
 
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
         return self.dashboard_checkpoint_payload(f"dashboard:fixture_latest:{fixture_id}")
-
-    def dashboard_fixtures_for_ids(self, fixture_ids: list[str]) -> dict[str, dict[str, Any]]:
-        target_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))
-        if not target_ids:
-            return {}
-        keys = [f"dashboard:fixture_latest:{fixture_id}" for fixture_id in target_ids]
-        try:
-            engine = create_engine()
-            with Session(engine) as session:
-                rows = session.scalars(
-                    select(ReadModelCheckpointModel).where(
-                        ReadModelCheckpointModel.checkpoint_key.in_(keys)
-                    )
-                ).all()
-            return {
-                row.checkpoint_key.rsplit(":", 1)[-1]: row.payload
-                for row in rows
-                if isinstance(row.payload, dict)
-            }
-        except SQLAlchemyError:
-            return {}
 
     def dashboard_provider(self) -> dict[str, Any] | None:
         return self.dashboard_checkpoint_payload("dashboard:provider_status")
@@ -712,7 +495,6 @@ class ReadModelRepository:
                     "temporal_status": item.get("temporal_status", "PREMATCH_LOCKED"),
                 },
                 "market_ranking": item.get("all_market_ranking", []),
-                "analysis_card": item.get("analysis_card"),
                 "temporal": {
                     "source_snapshot_id": item.get("provenance", {}).get("snapshot_id"),
                     "source_captured_at": item.get("captured_at"),
@@ -751,54 +533,24 @@ class ReadModelRepository:
     def stage8_summary(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE8_REPLAY_SUMMARY.json", {}))
 
-    def fixture_payloads_with_status(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    def fixture_payloads(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         for item in self.dashboard_latest_fixtures():
             fixture_id = str(item.get("fixture_id"))
             if fixture_id and fixture_id != "None":
                 fixtures[fixture_id] = self._dashboard_fixture_to_provider_payload(item)
-        fallback_loaded = bool(fixtures)
-        status: dict[str, Any] = {
-            "degraded_source": None,
-            "failed_source": None,
-            "error_class": None,
-            "fallback_source": "dashboard_checkpoint" if fallback_loaded else None,
-            "data_completeness": "FALLBACK_ONLY" if fallback_loaded else "EMPTY",
-        }
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             try:
-                database_fixture_count = 0
                 for item in db_repository.fixture_payloads():
                     fixture_id = str(item.get("fixture", {}).get("id"))
                     if fixture_id and fixture_id != "None":
                         fixtures[fixture_id] = item
-                        database_fixture_count += 1
-                if database_fixture_count:
-                    status["data_completeness"] = "COMPLETE"
-            except SQLAlchemyError as exc:
-                status.update(
-                    {
-                        "degraded_source": "fixture_payloads",
-                        "failed_source": "future_refresh_db.fixture_payloads",
-                        "error_class": type(exc).__name__,
-                        "data_completeness": (
-                            "FALLBACK_ONLY" if fallback_loaded else "EMPTY_AFTER_SOURCE_FAILURE"
-                        ),
-                    }
-                )
+            except Exception:
+                fixtures = {}
         if not fixtures and get_settings().environment in {Environment.LOCAL, Environment.TEST}:
             fixtures["stage10a-contract-fixture"] = self._contract_fixture_payload()
-            status["fallback_source"] = "local_contract_fixture"
-            status["data_completeness"] = "LOCAL_CONTRACT_ONLY"
-        return (
-            sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", "")),
-            status,
-        )
-
-    def fixture_payloads(self) -> list[dict[str, Any]]:
-        payloads, _status = self.fixture_payloads_with_status()
-        return payloads
+        return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
     def forward_locks(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
@@ -835,45 +587,6 @@ class ReadModelRepository:
         if db_repository is not None:
             try:
                 reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
-                if callable(reader):
-                    return cast(list[dict[str, Any]], reader(fixture_ids))
-            except Exception:
-                return []
-        return []
-
-    def market_availability_for_fixture_ids(
-        self,
-        fixture_ids: list[str],
-    ) -> dict[str, bool]:
-        db_repository = future_refresh_db_repository()
-        if db_repository is None:
-            return {fixture_id: False for fixture_id in fixture_ids}
-        try:
-            return db_repository.market_availability_for_fixture_ids(fixture_ids)
-        except SQLAlchemyError:
-            return {fixture_id: False for fixture_id in fixture_ids}
-
-    def next_checkpoint_plans_for_fixture_ids(
-        self,
-        fixture_ids: list[str],
-    ) -> dict[str, dict[str, Any]]:
-        db_repository = future_refresh_db_repository()
-        if db_repository is None:
-            return {}
-        try:
-            reader = getattr(db_repository, "next_checkpoint_plans_for_fixture_ids", None)
-            return cast(dict[str, dict[str, Any]], reader(fixture_ids)) if callable(reader) else {}
-        except SQLAlchemyError:
-            return {}
-
-    def market_observation_history_for_fixtures(
-        self,
-        fixture_ids: list[str],
-    ) -> list[dict[str, Any]]:
-        db_repository = future_refresh_db_repository()
-        if db_repository is not None:
-            try:
-                reader = getattr(db_repository, "market_observation_history_for_fixtures", None)
                 if callable(reader):
                     return cast(list[dict[str, Any]], reader(fixture_ids))
             except Exception:
@@ -982,7 +695,9 @@ class ReadModelRepository:
         locks_count = len(locks)
         run_state = str(replay.get("run_state", "NO_RUN"))
         return {
-            "status": run_state if run_state != "COMPLETED_WITH_RESULTS" else "SHADOW_READY",
+            "status": run_state
+            if run_state != "COMPLETED_WITH_RESULTS"
+            else "SHADOW_READY",
             "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
             "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
             "gate5_status": "PROVISIONAL_BLOCKED_GATE4",
@@ -1099,37 +814,11 @@ class ReadModelRepository:
         }
 
 
-class _RequestReadCache:
-    """Mutable read cache owned by exactly one request worker thread."""
-
-    def __init__(self) -> None:
-        self.fixture_payloads: list[dict[str, Any]] | None = None
-        self.fixture_read_status: dict[str, Any] = {}
-        self.fixture_payload_index: dict[str, dict[str, Any]] | None = None
-        self.future_market_observations: list[dict[str, Any]] | None = None
-        self.observations_by_fixture: dict[str, list[dict[str, Any]]] | None = None
-        self.team_xg_snapshots_by_fixture: dict[str, list[dict[str, Any]]] = {}
-        self.team_xg_matches: list[dict[str, Any]] | None = None
-        self.raw_payloads_by_endpoint: dict[str, list[dict[str, Any]]] = {}
-        self.formal_snapshots_by_fixture: dict[str, list[dict[str, Any]]] | None = None
-        self.formal_settlements_by_snapshot: dict[str, dict[str, Any]] | None = None
-
-
 class ReadModelService:
-    def __init__(
-        self,
-        repository: ReadModelRepository | None = None,
-        *,
-        r4_1_artifact_root: Path | None = None,
-        forward_ledger_cache: ForwardLedgerPerformanceCache | None = None,
-    ) -> None:
+    def __init__(self, repository: ReadModelRepository | None = None) -> None:
         self.repository = repository or ReadModelRepository()
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
-        artifact_result = load_r4_1_artifacts(r4_1_artifact_root or r4_1_artifact_dir(ROOT))
-        self._r4_1_artifacts: dict[str, R4_1Artifact] = artifact_result.artifacts
-        self._r4_1_artifact_invalid_reasons: dict[str, str] = artifact_result.invalid_reasons
-        self._request_cache_local = local()
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
         self._fixture_payload_index_cache: dict[str, dict[str, Any]] | None = None
         self._future_market_observations_cache: list[dict[str, Any]] | None = None
@@ -1140,135 +829,20 @@ class ReadModelService:
         self._raw_payloads_by_endpoint_cache: dict[str, list[dict[str, Any]]] = {}
         self._formal_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
         self._formal_settlements_by_snapshot_cache: dict[str, dict[str, Any]] | None = None
-        self._dashboard_singleflight: SingleFlightCache[
-            tuple[str, str, str, bool], dict[str, Any]
-        ] = SingleFlightCache(max_entries=32)
-        self._day_view_singleflight: SingleFlightCache[
-            tuple[str, int, str, str], dict[str, Any]
-        ] = SingleFlightCache(max_entries=32)
-        self._day_view_window_singleflight: SingleFlightCache[
-            tuple[str, str, str, str, str, str], DayViewWindowSnapshot
-        ] = SingleFlightCache(max_entries=16, copier=lambda snapshot: snapshot)
-        self._frozen_audit_singleflight: SingleFlightCache[
-            tuple[str, str, str, str, str, str], dict[str, Any]
-        ] = SingleFlightCache(max_entries=64)
-        self._result_event_singleflight: SingleFlightCache[
-            tuple[Any, ...], tuple[Mapping[str, Any], ...]
-        ] = SingleFlightCache(max_entries=4, copier=lambda events: events)
-        self._dashboard_metrics_lock = RLock()
-        self._dashboard_build_seconds = 0.0
-        self._frozen_audit_blocked_count = 0
-        self._forward_ledger_performance_cache = (
-            forward_ledger_cache or ForwardLedgerPerformanceCache()
-        )
-
-    def _request_read_cache(self) -> _RequestReadCache:
-        state = getattr(self._request_cache_local, "state", None)
-        if state is None:
-            state = _RequestReadCache()
-            self._request_cache_local.state = state
-        return cast(_RequestReadCache, state)
-
-    @contextmanager
-    def _read_request_scope(self) -> Any:
-        depth = int(getattr(self._request_cache_local, "depth", 0))
-        previous = getattr(self._request_cache_local, "state", None)
-        if depth == 0:
-            self._request_cache_local.state = _RequestReadCache()
-        self._request_cache_local.depth = depth + 1
-        try:
-            yield
-        finally:
-            self._request_cache_local.depth = depth
-            if depth == 0:
-                self._request_cache_local.state = previous
-
-    @property
-    def _fixture_payloads_cache(self) -> list[dict[str, Any]] | None:
-        return self._request_read_cache().fixture_payloads
-
-    @_fixture_payloads_cache.setter
-    def _fixture_payloads_cache(self, value: list[dict[str, Any]] | None) -> None:
-        self._request_read_cache().fixture_payloads = value
-
-    @property
-    def _fixture_payload_index_cache(self) -> dict[str, dict[str, Any]] | None:
-        return self._request_read_cache().fixture_payload_index
-
-    @_fixture_payload_index_cache.setter
-    def _fixture_payload_index_cache(self, value: dict[str, dict[str, Any]] | None) -> None:
-        self._request_read_cache().fixture_payload_index = value
-
-    @property
-    def _fixture_read_status_cache(self) -> dict[str, Any]:
-        return self._request_read_cache().fixture_read_status
-
-    @_fixture_read_status_cache.setter
-    def _fixture_read_status_cache(self, value: dict[str, Any]) -> None:
-        self._request_read_cache().fixture_read_status = value
-
-    @property
-    def _future_market_observations_cache(self) -> list[dict[str, Any]] | None:
-        return self._request_read_cache().future_market_observations
-
-    @_future_market_observations_cache.setter
-    def _future_market_observations_cache(self, value: list[dict[str, Any]] | None) -> None:
-        self._request_read_cache().future_market_observations = value
-
-    @property
-    def _observations_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]] | None:
-        return self._request_read_cache().observations_by_fixture
-
-    @_observations_by_fixture_cache.setter
-    def _observations_by_fixture_cache(self, value: dict[str, list[dict[str, Any]]] | None) -> None:
-        self._request_read_cache().observations_by_fixture = value
-
-    @property
-    def _team_xg_snapshots_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]]:
-        return self._request_read_cache().team_xg_snapshots_by_fixture
-
-    @_team_xg_snapshots_by_fixture_cache.setter
-    def _team_xg_snapshots_by_fixture_cache(self, value: dict[str, list[dict[str, Any]]]) -> None:
-        self._request_read_cache().team_xg_snapshots_by_fixture = value
-
-    @property
-    def _team_xg_matches_cache(self) -> list[dict[str, Any]] | None:
-        return self._request_read_cache().team_xg_matches
-
-    @_team_xg_matches_cache.setter
-    def _team_xg_matches_cache(self, value: list[dict[str, Any]] | None) -> None:
-        self._request_read_cache().team_xg_matches = value
-
-    @property
-    def _raw_payloads_by_endpoint_cache(self) -> dict[str, list[dict[str, Any]]]:
-        return self._request_read_cache().raw_payloads_by_endpoint
-
-    @_raw_payloads_by_endpoint_cache.setter
-    def _raw_payloads_by_endpoint_cache(self, value: dict[str, list[dict[str, Any]]]) -> None:
-        self._request_read_cache().raw_payloads_by_endpoint = value
-
-    @property
-    def _formal_snapshots_by_fixture_cache(self) -> dict[str, list[dict[str, Any]]] | None:
-        return self._request_read_cache().formal_snapshots_by_fixture
-
-    @_formal_snapshots_by_fixture_cache.setter
-    def _formal_snapshots_by_fixture_cache(
-        self, value: dict[str, list[dict[str, Any]]] | None
-    ) -> None:
-        self._request_read_cache().formal_snapshots_by_fixture = value
-
-    @property
-    def _formal_settlements_by_snapshot_cache(self) -> dict[str, dict[str, Any]] | None:
-        return self._request_read_cache().formal_settlements_by_snapshot
-
-    @_formal_settlements_by_snapshot_cache.setter
-    def _formal_settlements_by_snapshot_cache(
-        self, value: dict[str, dict[str, Any]] | None
-    ) -> None:
-        self._request_read_cache().formal_settlements_by_snapshot = value
+        self._dashboard_response_cache: dict[
+            tuple[str, str, str, bool], tuple[float, dict[str, Any]]
+        ] = {}
 
     def _reset_read_caches(self) -> None:
-        self._request_cache_local.state = _RequestReadCache()
+        self._fixture_payloads_cache = None
+        self._fixture_payload_index_cache = None
+        self._future_market_observations_cache = None
+        self._observations_by_fixture_cache = None
+        self._team_xg_snapshots_by_fixture_cache = {}
+        self._team_xg_matches_cache = None
+        self._raw_payloads_by_endpoint_cache = {}
+        self._formal_snapshots_by_fixture_cache = None
+        self._formal_settlements_by_snapshot_cache = None
 
     def _future_refresh_repository(self) -> FutureRefreshDbRepository | None:
         if self._future_refresh_repository_cache is None:
@@ -1277,21 +851,10 @@ class ReadModelService:
 
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
-            status_reader = getattr(self.repository, "fixture_payloads_with_status", None)
             fixture_reader = getattr(self.repository, "fixture_payloads", None)
-            if callable(status_reader):
-                payloads, status = status_reader()
-                self._fixture_payloads_cache = payloads
-                self._fixture_read_status_cache = status
-            else:
-                self._fixture_payloads_cache = fixture_reader() if callable(fixture_reader) else []
-                self._fixture_read_status_cache = {
-                    "degraded_source": None,
-                    "failed_source": None,
-                    "error_class": None,
-                    "fallback_source": None,
-                    "data_completeness": "COMPLETE",
-                }
+            self._fixture_payloads_cache = (
+                fixture_reader() if callable(fixture_reader) else []
+            )
         return self._fixture_payloads_cache
 
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
@@ -1322,7 +885,7 @@ class ReadModelService:
         return self._observations_by_fixture_cache.get(fixture_id, [])
 
     def _prime_observations_for_rows(self, rows: list[dict[str, Any]]) -> None:
-        reader = getattr(self.repository, "market_observation_history_for_fixtures", None)
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
         if not callable(reader):
             return
         fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
@@ -1396,15 +959,6 @@ class ReadModelService:
             "generated_at": generated_at,
         }
 
-    def release_identity(self) -> dict[str, str]:
-        settings = get_settings()
-        release_sha = str(release_env("W2_GIT_SHA") or "UNKNOWN")
-        return {
-            "api_git_sha": release_sha,
-            "release_id": str(os.getenv("W2_RELEASE_ID") or release_sha),
-            "environment": str(os.getenv("W2_ENVIRONMENT") or settings.environment.value),
-        }
-
     def dashboard(
         self,
         *,
@@ -1413,1006 +967,28 @@ class ReadModelService:
         timezone: str = BEIJING_TZ,
         include_debug: bool = True,
     ) -> dict[str, Any]:
-        with self._read_request_scope():
-            return self._dashboard_in_request(
-                target_date=target_date,
-                window=window,
-                timezone=timezone,
-                include_debug=include_debug,
-            )
-
-    def _dashboard_in_request(
-        self,
-        *,
-        target_date: str | None,
-        window: str,
-        timezone: str,
-        include_debug: bool,
-    ) -> dict[str, Any]:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
             else default_football_day(datetime.now(UTC))
         )
         cache_key = (requested_date.isoformat(), window, timezone, include_debug)
-
-        def compute() -> dict[str, Any]:
-            started = monotonic()
-            try:
-                return self._build_dashboard_payload(
-                    requested_date=requested_date,
-                    window=window,
-                    timezone=timezone,
-                    include_debug=include_debug,
-                )
-            finally:
-                with self._dashboard_metrics_lock:
-                    self._dashboard_build_seconds += monotonic() - started
-
-        payload = self._dashboard_singleflight.get_or_compute(
-            cache_key,
-            ttl_seconds=self._dashboard_cache_ttl(window, include_debug),
-            compute=compute,
-        )
-        cache_metrics = self._dashboard_singleflight.metrics()
-        with self._dashboard_metrics_lock:
-            build_seconds = self._dashboard_build_seconds
-        performance = payload.setdefault("performance", {})
-        if isinstance(performance, dict):
-            dashboard_metrics = {
-                "dashboard_cache_hit": cache_metrics["cache_hit"],
-                "dashboard_cache_miss": cache_metrics["cache_miss"],
-                "dashboard_singleflight_owner": cache_metrics["singleflight_owner"],
-                "dashboard_singleflight_waiter": cache_metrics["singleflight_waiter"],
-                "dashboard_build_seconds": round(build_seconds, 6),
-                "dashboard_build_inflight": cache_metrics["build_inflight"],
-                "response_payload_bytes": 0,
-            }
-            performance["dashboard_cache_metrics"] = dashboard_metrics
-            dashboard_metrics["response_payload_bytes"] = len(
-                json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-            )
-        return payload
-
-    def dashboard_day_view(
-        self,
-        *,
-        target_date: str | None = None,
-        window: str = "today",
-        timezone: str = BEIJING_TZ,
-        page_size: int = DEFAULT_DAY_VIEW_PAGE_SIZE,
-        cursor: str | None = None,
-        sort: str = "BOSS_PRIORITY_KICKOFF",
-    ) -> dict[str, Any]:
-        """Build the Boss View projection without constructing the full Dashboard."""
-        with self._read_request_scope():
-            requested_date = (
-                date.fromisoformat(target_date)
-                if target_date
-                else default_football_day(datetime.now(UTC))
-            )
-            identity_started = monotonic()
-            identity = self.release_identity()
-            version_identity_seconds = monotonic() - identity_started
-            watermark_started = monotonic()
-            source_watermarks = self._day_view_source_watermarks()
-            source_watermark_seconds = monotonic() - watermark_started
-            fingerprint_started = monotonic()
-            ledger_fingerprint = frozen_ledger_fingerprint(get_settings().resolved_runtime_root)
-            source_fingerprint = make_day_view_source_fingerprint(
-                release_sha=identity["api_git_sha"],
-                source_watermarks=source_watermarks,
-                ledger_fingerprint=ledger_fingerprint,
-                capture_projection_version=DAY_VIEW_CAPTURE_PROJECTION_VERSION,
-            )
-            source_fingerprint_seconds = monotonic() - fingerprint_started
-            window_key = (
-                requested_date.isoformat(),
-                window,
-                timezone,
-                sort,
-                identity["api_git_sha"],
-                source_fingerprint,
-            )
-            cache_lookup_started = monotonic()
-            snapshot, window_cache_status = (
-                self._day_view_window_singleflight.get_or_compute_with_status(
-                    window_key,
-                    ttl_seconds=30.0,
-                    compute=lambda: self._build_day_view_window_snapshot(
-                        requested_date=requested_date,
-                        window=window,
-                        timezone=timezone,
-                        sort=sort,
-                        identity=identity,
-                        source_watermarks=source_watermarks,
-                        source_fingerprint=source_fingerprint,
-                    ),
-                )
-            )
-            cache_key = (snapshot.snapshot_id, page_size, cursor or "", sort)
-            payload, page_cache_status = self._day_view_singleflight.get_or_compute_with_status(
-                cache_key,
-                ttl_seconds=30.0,
-                compute=lambda: self._project_day_view_page(
-                    snapshot,
-                    page_size=page_size,
-                    cursor=cursor,
-                ),
-            )
-            server_cache_lookup_seconds = monotonic() - cache_lookup_started
-            cache_metrics = self._day_view_singleflight.metrics()
-            window_cache_metrics = self._day_view_window_singleflight.metrics()
-            performance = payload.setdefault("performance", {})
-            if isinstance(performance, dict):
-                dayview_metrics = performance.setdefault("dayview_cache_metrics", {})
-                if isinstance(dayview_metrics, dict):
-                    dayview_metrics.update(
-                        {
-                            "dayview_cache_hit": cache_metrics["cache_hit"],
-                            "dayview_cache_miss": cache_metrics["cache_miss"],
-                            "dayview_singleflight_owner": cache_metrics["singleflight_owner"],
-                            "dayview_singleflight_waiter": cache_metrics["singleflight_waiter"],
-                            "dayview_build_inflight": cache_metrics["build_inflight"],
-                            "dayview_cache_entry_count": cache_metrics["cache_entry_count"],
-                            "window_snapshot_cache_hit": window_cache_metrics["cache_hit"],
-                            "window_snapshot_cache_miss": window_cache_metrics["cache_miss"],
-                            "window_snapshot_singleflight_owner": window_cache_metrics[
-                                "singleflight_owner"
-                            ],
-                            "window_snapshot_singleflight_waiter": window_cache_metrics[
-                                "singleflight_waiter"
-                            ],
-                            "window_snapshot_build_inflight": window_cache_metrics[
-                                "build_inflight"
-                            ],
-                            "source_watermark_seconds": round(source_watermark_seconds, 6),
-                            "result_event_watermark_seconds": round(source_watermark_seconds, 6),
-                            "version_identity_seconds": round(version_identity_seconds, 6),
-                            "server_cache_lookup_seconds": round(server_cache_lookup_seconds, 6),
-                            "capture_index_fingerprint_seconds": round(
-                                source_fingerprint_seconds, 6
-                            ),
-                            "source_fingerprint": source_fingerprint,
-                            "window_snapshot_id": snapshot.snapshot_id,
-                            "server_cache_ttl_seconds": 30,
-                            "dayview_cache_status": page_cache_status,
-                            "window_snapshot_cache_status": window_cache_status,
-                        }
-                    )
-            return payload
-
-    def _day_view_source_watermarks(self) -> dict[str, Any]:
-        reader = getattr(self.repository, "day_view_source_watermarks", None)
-        if not callable(reader):
-            return {
-                "schema_version": "w2.day_view_source_watermarks.v1",
-                "source_status": "DEGRADED",
-                "reason": "SOURCE_WATERMARK_READER_UNAVAILABLE",
-            }
-        try:
-            value = reader()
-        except SQLAlchemyError as error:
-            return {
-                "schema_version": "w2.day_view_source_watermarks.v1",
-                "source_status": "DEGRADED",
-                "reason": type(error).__name__,
-            }
-        return (
-            dict(value)
-            if isinstance(value, Mapping)
-            else {
-                "schema_version": "w2.day_view_source_watermarks.v1",
-                "source_status": "DEGRADED",
-                "reason": "INVALID_SOURCE_WATERMARK",
-            }
-        )
-
-    def _build_dashboard_day_view_payload(
-        self,
-        *,
-        requested_date: date,
-        window: str,
-        timezone: str,
-        page_size: int = DEFAULT_DAY_VIEW_PAGE_SIZE,
-        cursor: str | None = None,
-        sort: str = "BOSS_PRIORITY_KICKOFF",
-    ) -> dict[str, Any]:
-        identity = self.release_identity()
-        source_watermarks = self._day_view_source_watermarks()
-        source_fingerprint = make_day_view_source_fingerprint(
-            release_sha=identity["api_git_sha"],
-            source_watermarks=source_watermarks,
-            ledger_fingerprint=frozen_ledger_fingerprint(get_settings().resolved_runtime_root),
-            capture_projection_version=DAY_VIEW_CAPTURE_PROJECTION_VERSION,
-        )
-        snapshot = self._build_day_view_window_snapshot(
-            requested_date=requested_date,
-            window=window,
-            timezone=timezone,
-            sort=sort,
-            identity=identity,
-            source_watermarks=source_watermarks,
-            source_fingerprint=source_fingerprint,
-        )
-        return self._project_day_view_page(
-            snapshot,
-            page_size=page_size,
-            cursor=cursor,
-        )
-
-    def _build_day_view_window_snapshot(
-        self,
-        *,
-        requested_date: date,
-        window: str,
-        timezone: str,
-        sort: str,
-        identity: Mapping[str, str],
-        source_watermarks: Mapping[str, Any],
-        source_fingerprint: str,
-    ) -> DayViewWindowSnapshot:
-        self._reset_read_caches()
-        fixture_started = monotonic()
-        selected_rows = self._dashboard_rows_for_window(
-            requested_date=requested_date,
-            window=window,
-        )
-        fixture_read_seconds = monotonic() - fixture_started
-        capture_started = monotonic()
-        capture_index = build_day_view_capture_index(get_settings().resolved_runtime_root)
-        capture_index_build_seconds = monotonic() - capture_started
-        frozen_captures = capture_index.summaries
-        availability_started = monotonic()
-        missing_capture_ids = [
-            str(row.get("fixture_id") or "")
-            for row in selected_rows
-            if str(row.get("fixture_id") or "") not in frozen_captures
-        ]
-        selected_fixture_ids = [str(row.get("fixture_id") or "") for row in selected_rows]
-        availability_reader = getattr(
-            self.repository,
-            "market_availability_for_fixture_ids",
-            None,
-        )
-        market_availability = (
-            availability_reader(missing_capture_ids)
-            if callable(availability_reader) and missing_capture_ids
-            else {fixture_id: False for fixture_id in missing_capture_ids}
-        )
-        materialized_reader = getattr(self.repository, "dashboard_fixtures_for_ids", None)
-        materialized_payloads = (
-            materialized_reader(selected_fixture_ids)
-            if callable(materialized_reader) and selected_fixture_ids
-            else {}
-        )
-        materialized_cards = {
-            fixture_id: self._project_materialized_card_freshness(
-                cast(dict[str, Any], payload["analysis_card"]),
-                as_of=datetime.now(UTC),
-            )
-            for fixture_id, payload in materialized_payloads.items()
-            if isinstance(payload, Mapping) and isinstance(payload.get("analysis_card"), Mapping)
-        }
-        next_plan_reader = getattr(self.repository, "next_checkpoint_plans_for_fixture_ids", None)
-        next_plans = (
-            next_plan_reader(selected_fixture_ids)
-            if callable(next_plan_reader)
-            else {}
-        )
-        next_evaluations = {
-            fixture_id: str(plan.get("due_at"))
-            for fixture_id, plan in next_plans.items()
-            if isinstance(plan, Mapping) and plan.get("due_at")
-        }
-        market_availability_read_seconds = monotonic() - availability_started
-        index_started = monotonic()
-        materialized_preferred_fixture_ids = frozenset(
-            fixture_id
-            for fixture_id, card in materialized_cards.items()
-            if fixture_id not in frozen_captures
-            or (
-                self._card_has_current_odds(card)
-                and not self._card_has_complete_current_odds_identity(
-                    frozen_captures[fixture_id]
-                )
-            )
-        )
-        index_summaries = {
-            fixture_id: (
-                materialized_cards[fixture_id]
-                if fixture_id in materialized_preferred_fixture_ids
-                else frozen_captures.get(fixture_id, materialized_cards.get(fixture_id))
-            )
-            for fixture_id in selected_fixture_ids
-        }
-        entries = sort_entries(build_index_entries(selected_rows, index_summaries), sort)
-        full_counts = window_counts(entries)
-        window_index_build_seconds = monotonic() - index_started
-        snapshot_started = monotonic()
-        snapshot_id = make_snapshot_id(
-            api_release_sha=str(identity["api_git_sha"]),
-            requested_date=requested_date.isoformat(),
-            window=window,
-            timezone=timezone,
-            sort=sort,
-            fixture_rows=selected_rows,
-            ledger_fingerprint=source_fingerprint,
-            capture_projection_version=capture_index.schema_version,
-        )
-        snapshot_hash_seconds = monotonic() - snapshot_started
-        ledger_started = monotonic()
-        performance = self._day_view_performance(
-            [],
-            source_watermarks=source_watermarks,
-        )
-        ledger_summary_seconds = monotonic() - ledger_started
-        metrics = performance.setdefault("dayview_cache_metrics", {})
-        metrics.update(
-            {
-                "fixture_window_read_seconds": round(fixture_read_seconds, 6),
-                "fixture_read_seconds": round(fixture_read_seconds, 6),
-                "capture_index_build_seconds": round(capture_index_build_seconds, 6),
-                "market_availability_read_seconds": round(market_availability_read_seconds, 6),
-                "window_index_build_seconds": round(window_index_build_seconds, 6),
-                "snapshot_hash_seconds": round(snapshot_hash_seconds, 6),
-                "ledger_summary_seconds": round(ledger_summary_seconds, 6),
-                "window_snapshot_build_count": 1,
-            }
-        )
-        return DayViewWindowSnapshot(
-            schema_version=DAY_VIEW_WINDOW_SNAPSHOT_SCHEMA_VERSION,
-            snapshot_id=snapshot_id,
-            requested_date=requested_date.isoformat(),
-            window=window,
-            timezone=timezone,
-            sort=sort,
-            release_sha=str(identity["api_git_sha"]),
-            source_fingerprint=source_fingerprint,
-            fixture_rows=tuple(selected_rows),
-            sorted_entries=tuple(entries),
-            counts=full_counts,
-            capture_index=capture_index,
-            materialized_cards=materialized_cards,
-            materialized_preferred_fixture_ids=materialized_preferred_fixture_ids,
-            next_evaluations=next_evaluations,
-            market_availability=market_availability,
-            performance_summary=performance,
-            generated_at=datetime.now(UTC).isoformat(),
-            source_status=str(source_watermarks.get("source_status") or "PASS"),
-        )
-
-    def _project_materialized_card_freshness(
-        self,
-        card: dict[str, Any],
-        *,
-        as_of: datetime,
-    ) -> dict[str, Any]:
-        projected = deepcopy(card)
-        current_odds = projected.get("current_odds")
-        if not isinstance(current_odds, Mapping):
-            return projected
-        captured_at: list[datetime] = []
-        for value in current_odds.values():
-            if not isinstance(value, Mapping):
-                continue
-            raw = value.get("as_of") or value.get("captured_at")
-            if not raw:
-                continue
-            with suppress(ValueError):
-                captured_at.append(
-                    datetime.fromisoformat(str(raw).replace("Z", "+00:00")).astimezone(UTC)
-                )
-        if not captured_at or as_of - max(captured_at) <= timedelta(minutes=30):
-            return projected
-        projected.update(
-            {
-                "decision_tier": "NOT_READY",
-                "data_status": "STALE",
-                "lock_eligible": False,
-                "outcome_tracked": False,
-                "recommendation_id": None,
-                "recommendation": None,
-                "pick": None,
-                "reason_code": "DATA_STALE_ODDS",
-                "primary_blocker": "DATA_STALE_ODDS",
-                "primary_blocker_layer": "MARKET_QUOTE",
-                "action": "等待下一合法刷新",
-            }
-        )
-        contract = projected.get("decision_contract")
-        if isinstance(contract, dict):
-            contract.update(
-                {
-                    "decision_tier": "NOT_READY",
-                    "data_status": "STALE",
-                    "lock_eligible": False,
-                    "outcome_tracked": False,
-                    "recommendation_id": None,
-                    "pick": None,
-                    "reason_code": "DATA_STALE_ODDS",
-                    "primary_blocker": "DATA_STALE_ODDS",
-                    "primary_blocker_layer": "MARKET_QUOTE",
-                    "action": "等待下一合法刷新",
-                }
-            )
-        return projected
-
-    def _project_day_view_page(
-        self,
-        snapshot: DayViewWindowSnapshot,
-        *,
-        page_size: int,
-        cursor: str | None,
-    ) -> dict[str, Any]:
-        entries = list(snapshot.sorted_entries)
-        page_entries, page_start = select_page(
-            entries,
-            snapshot_id=snapshot.snapshot_id,
-            sort=snapshot.sort,
-            page_size=page_size,
-            cursor=cursor,
-        )
-        row_by_fixture = {str(row.get("fixture_id") or ""): row for row in snapshot.fixture_rows}
-        page_rows = [dict(row_by_fixture[item.fixture_id]) for item in page_entries]
-        frozen_captures = snapshot.capture_index.summaries
-        projection_started = monotonic()
-        cards = [
-            self._project_materialized_day_view_card(
-                row,
-                snapshot.materialized_cards[fixture_id],
-            )
-            if fixture_id in snapshot.materialized_preferred_fixture_ids
-            else project_day_view_card(row, frozen_captures[fixture_id])
-            if fixture_id in frozen_captures
-            else self._day_view_unavailable_card(
-                row,
-                has_market=bool(snapshot.market_availability.get(fixture_id)),
-                next_evaluation_at=snapshot.next_evaluations.get(fixture_id),
-            )
-            for row in page_rows
-            if (fixture_id := str(row.get("fixture_id") or ""))
-        ]
-        for card in cards:
-            fixture_id = str(card.get("fixture_id") or "")
-            next_evaluation_at = snapshot.next_evaluations.get(fixture_id)
-            if not next_evaluation_at:
-                continue
-            card["next_eval_at"] = next_evaluation_at
-            contract = card.get("decision_contract")
-            if isinstance(contract, dict):
-                contract["next_eval_at"] = next_evaluation_at
-            non_pick = card.get("non_pick")
-            if isinstance(non_pick, dict):
-                non_pick["next_eval_at"] = next_evaluation_at
-        cards = [self._enforce_stale_display_safety(card) for card in cards]
-        cards = [self._bounded_day_view_card(card) for card in cards]
-        compact_card_projection_seconds = monotonic() - projection_started
-        performance = deepcopy(dict(snapshot.performance_summary))
-        payload = {
-            "generated_at": snapshot.generated_at,
-            "date": snapshot.requested_date,
-            "selected_football_day": snapshot.requested_date,
-            "timezone": snapshot.timezone,
-            "window": snapshot.window,
-            "next_refresh_tick": min(snapshot.next_evaluations.values())
-            if snapshot.next_evaluations
-            else None,
-            "version": {
-                "api_git_sha": snapshot.release_sha,
-                "release_id": os.getenv("W2_RELEASE_ID") or snapshot.release_sha,
-            },
-            "all": cards,
-            "performance": performance,
-        }
-        view = build_dashboard_day_view(
-            payload,
-            environment=get_settings().environment.value,
-            active_whitelist_count=len(CompetitionRegistry().entries()),
-        )
-        view["source"] = "direct_day_view_projection"
-        view["performance"] = payload["performance"]
-        view["page_counts"] = view["counts"]
-        view["counts"] = dict(snapshot.counts)
-        truncated = False
-        while (
-            cards
-            and len(json.dumps(view, ensure_ascii=False, default=str).encode("utf-8"))
-            > MAX_DAY_VIEW_PAGE_BYTES
-        ):
-            cards.pop()
-            page_entries.pop()
-            payload["all"] = cards
-            truncated = True
-            view = build_dashboard_day_view(
-                payload,
-                environment=get_settings().environment.value,
-                active_whitelist_count=len(CompetitionRegistry().entries()),
-            )
-            view["source"] = "direct_day_view_projection"
-            view["performance"] = payload["performance"]
-            view["page_counts"] = view["counts"]
-            view["counts"] = dict(snapshot.counts)
-        if not cards and entries:
-            raise DayViewPageTooLarge("DAYVIEW_PAGE_TOO_LARGE")
-        view["pagination"] = pagination_envelope(
-            snapshot_id=snapshot.snapshot_id,
-            sort=snapshot.sort,
-            total_count=len(entries),
-            page_size=page_size,
-            returned=page_entries,
-            start=page_start,
-            truncated_by_byte_budget=truncated,
-        )
-        dayview_metrics = view["performance"].setdefault("dayview_cache_metrics", {})
-        dayview_metrics.update(
-            {
-                "market_observation_read_seconds": 0.0,
-                "compact_card_projection_seconds": round(
-                    compact_card_projection_seconds,
-                    6,
-                ),
-                "page_projection_seconds": round(compact_card_projection_seconds, 6),
-                "page_projection_count": 1,
-            }
-        )
-        serialization_started = monotonic()
-        serialized_view = json.dumps(view, ensure_ascii=False, default=str).encode("utf-8")
-        dayview_metrics["dayview_serialization_seconds"] = round(
-            monotonic() - serialization_started,
-            6,
-        )
-        dayview_metrics["response_bytes"] = len(serialized_view)
-        return view
-
-    def _project_materialized_day_view_card(
-        self,
-        row: Mapping[str, Any],
-        card: Mapping[str, Any],
-    ) -> dict[str, Any]:
-        projected = {
-            key: deepcopy(card.get(key))
-            for key in (
-                "captured_at",
-                "decision_tier",
-                "data_status",
-                "lifecycle_status",
-                "outcome_tracked",
-                "lock_eligible",
-                "recommendation_id",
-                "reason_code",
-                "primary_blocker",
-                "primary_blocker_layer",
-                "action",
-                "next_eval_at",
-                "provider_budget_status",
-                "pick",
-                "non_pick",
-                "analysis_readiness",
-                "data_refresh",
-                "probability_source",
-                "scoreline_readiness",
-            )
-            if card.get(key) is not None
-        }
-        projected["current_odds"] = self._bounded_display_current_odds(
-            card.get("current_odds")
-        )
-        projected.update(
-            {
-                key: row.get(key)
-                for key in (
-                    "fixture_id",
-                    "kickoff_utc",
-                    "kickoff_beijing",
-                    "competition_id",
-                    "competition_name",
-                    "home_team_id",
-                    "away_team_id",
-                    "home_team_name",
-                    "away_team_name",
-                    "status",
-                )
-            }
-        )
-        projected["source"] = "frozen_analysis_checkpoint"
-        return projected
-
-    def _bounded_display_current_odds(self, value: Any) -> dict[str, Any]:
-        if not isinstance(value, Mapping):
-            return {}
-        market_fields = (
-            "line",
-            "home_line",
-            "away_line",
-            "over_line",
-            "under_line",
-            "home_price",
-            "away_price",
-            "over_price",
-            "under_price",
-            "draw_price",
-            "price",
-            "bookmaker_count",
-            "bookmaker",
-            "selection_policy",
-            "as_of",
-            "captured_at",
-            "source",
-            "provider",
-            "source_hash",
-            "source_payload_id",
-            "quote_id",
-            "capture_id",
-            "display_line_cn",
-            "home_display_line_cn",
-            "away_display_line_cn",
-        )
-        projected: dict[str, Any] = {}
-        for key, item in value.items():
-            if isinstance(item, Mapping):
-                projected[str(key)] = {
-                    field: deepcopy(item.get(field))
-                    for field in market_fields
-                    if item.get(field) is not None
-                }
-            elif key in {
-                "as_of",
-                "captured_at",
-                "source",
-                "source_hash",
-                "quote_id",
-                "capture_id",
-            }:
-                projected[str(key)] = deepcopy(item)
-        return projected
-
-    def _card_has_current_odds(self, card: Any) -> bool:
-        current_odds = (
-            card.get("current_odds")
-            if isinstance(card, Mapping)
-            else getattr(card, "current_odds", None)
-        )
-        return isinstance(current_odds, Mapping) and any(
-            isinstance(value, Mapping) and bool(value) for value in current_odds.values()
-        )
-
-    def _card_has_complete_current_odds_identity(self, card: Any) -> bool:
-        current_odds = (
-            card.get("current_odds")
-            if isinstance(card, Mapping)
-            else getattr(card, "current_odds", None)
-        )
-        markets = (
-            [value for value in current_odds.values() if isinstance(value, Mapping) and value]
-            if isinstance(current_odds, Mapping)
-            else []
-        )
-        return bool(markets) and all(
-            bool(market.get("as_of") or market.get("captured_at"))
-            and bool(market.get("source"))
-            and bool(market.get("source_hash"))
-            for market in markets
-        )
-
-    def _enforce_stale_display_safety(self, card: dict[str, Any]) -> dict[str, Any]:
-        if str(card.get("data_status") or "") != "STALE":
-            return card
-        projected = deepcopy(card)
-        projected.update(
-            {
-                "decision_tier": "NOT_READY",
-                "lock_eligible": False,
-                "outcome_tracked": False,
-                "recommendation_id": None,
-                "recommendation": None,
-                "pick": None,
-                "reason_code": "DATA_STALE_ODDS",
-                "primary_blocker": "DATA_STALE_ODDS",
-                "primary_blocker_layer": "MARKET_QUOTE",
-                "action": "等待下一合法刷新",
-            }
-        )
-        contract = projected.get("decision_contract")
-        if isinstance(contract, dict):
-            contract.update(
-                {
-                    "decision_tier": "NOT_READY",
-                    "data_status": "STALE",
-                    "lock_eligible": False,
-                    "outcome_tracked": False,
-                    "recommendation_id": None,
-                    "pick": None,
-                    "reason_code": "DATA_STALE_ODDS",
-                    "primary_blocker": "DATA_STALE_ODDS",
-                    "primary_blocker_layer": "MARKET_QUOTE",
-                    "action": "等待下一合法刷新",
-                }
-            )
-        return projected
-
-    def _bounded_day_view_card(self, card: dict[str, Any]) -> dict[str, Any]:
-        encoded = json.dumps(card, ensure_ascii=False, default=str).encode("utf-8")
-        if len(encoded) <= MAX_DAY_VIEW_CARD_BYTES:
-            return card
-        fixture_fields = {
-            key: card.get(key)
-            for key in (
-                "fixture_id",
-                "kickoff_utc",
-                "kickoff_beijing",
-                "competition_id",
-                "competition_name",
-                "home_team_id",
-                "away_team_id",
-                "home_team_name",
-                "away_team_name",
-                "status",
-                "lifecycle_status",
-                "audit_capture_id",
-                "audit_capture_hash",
-                "audit_estimate_id",
-                "audit_identity_status",
-                "audit_blocker",
-                "audit_available",
-                "audit_detail_url",
-            )
-        }
-        return fixture_fields | {
-            "decision_tier": "NOT_READY",
-            "data_status": "BLOCKED",
-            "lock_eligible": False,
-            "outcome_tracked": False,
-            "reason_code": "L1_CARD_TOO_LARGE",
-            "primary_blocker": "L1_CARD_TOO_LARGE",
-            "primary_blocker_layer": "DAY_VIEW_PROJECTION",
-            "source": "bounded_fail_closed_projection",
-        }
-
-    def _dashboard_rows_for_window(
-        self,
-        *,
-        requested_date: date,
-        window: str,
-    ) -> list[dict[str, Any]]:
-        if window == "future":
-            future_rows, _ = self._future_fixture_rows_with_errors()
-            return self._filter_rows_for_future_horizon(
-                future_rows,
-                requested_date=requested_date,
-            )
-        if window == "results":
-            result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
-            return self._filter_rows_for_operational_date(
-                result_rows,
-                requested_date=requested_date,
-            )
-        future_rows, _ = self._future_fixture_rows_with_errors()
-        if window == "next36":
-            next36_rows = self.matchday_next_36_hours().get("items", [])
-            return self._dedupe_dashboard_rows(
-                [
-                    *cast(list[dict[str, Any]], next36_rows),
-                    *self._filter_rows_for_next36(future_rows),
-                ]
-            )
-        today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
-        today_rows = self._dedupe_dashboard_rows(
-            [
-                *cast(list[dict[str, Any]], today_rows),
-                *self._filter_rows_for_operational_date(
-                    future_rows,
-                    requested_date=requested_date,
-                ),
-            ]
-        )
-        if window == "all":
-            next36_rows = self.matchday_next_36_hours().get("items", [])
-            result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
-            return self._dedupe_dashboard_rows(
-                [
-                    *today_rows,
-                    *cast(list[dict[str, Any]], next36_rows),
-                    *result_rows,
-                    *future_rows,
-                ]
-            )
-        return today_rows
-
-    def _day_view_unavailable_card(
-        self,
-        row: Mapping[str, Any],
-        *,
-        has_market: bool,
-        next_evaluation_at: str | None = None,
-    ) -> dict[str, Any]:
-        fixture_id = str(row.get("fixture_id") or "")
-        reason_code = "DECISION_SUMMARY_UNAVAILABLE" if has_market else "MARKET_UNAVAILABLE"
-        action = "等待冻结决策摘要" if has_market else "等待盘口"
-        return {
-            "fixture_id": fixture_id,
-            "kickoff_utc": row.get("kickoff_utc"),
-            "kickoff_beijing": row.get("kickoff_beijing"),
-            "competition_id": row.get("competition_id"),
-            "competition_name": row.get("competition_name"),
-            "home_team_id": row.get("home_team_id"),
-            "away_team_id": row.get("away_team_id"),
-            "home_team_name": row.get("home_team_name"),
-            "away_team_name": row.get("away_team_name"),
-            "status": normalize_match_status(row.get("status")),
-            "decision_tier": "NOT_READY",
-            "data_status": "BLOCKED",
-            "lifecycle_status": "DRAFT",
-            "outcome_tracked": False,
-            "lock_eligible": False,
-            "recommendation_id": None,
-            "reason_code": reason_code,
-            "primary_blocker": reason_code,
-            "primary_blocker_layer": "DECISION_CAPTURE" if has_market else "MARKET_QUOTE",
-            "action": action,
-            "provider_budget_status": "OK",
-            "probability_source": None,
-            "analysis_readiness": {
-                "status": "BLOCKED",
-                "blockers": [reason_code],
-            },
-            "data_refresh": {
-                "status": "WAITING",
-                "odds_status": "WAITING",
-                "lineups_status": "NOT_REQUESTED",
-                "xg_status": "UNKNOWN",
-            },
-            "current_odds": {},
-            "market_strip": [],
-            "missing_inputs": ["盘口快照"],
-            "non_pick": {
-                "reason_code": reason_code,
-                "reason_human": "冻结决策摘要尚未就绪" if has_market else "盘口尚未就绪",
-                "action": action,
-                "next_eval_at": next_evaluation_at,
-            },
-            "next_eval_at": next_evaluation_at,
-            "one_liner": (
-                "盘口已就绪，等待冻结决策摘要。" if has_market else "盘口缺失，不能产出分析推荐。"
-            ),
-        }
-
-    def _day_view_performance(
-        self,
-        cards: list[dict[str, Any]],
-        *,
-        source_watermarks: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        runtime_root = get_settings().resolved_runtime_root
-        result_events: list[Mapping[str, Any]] | None = []
-        result_repository = self._future_refresh_repository()
-        result_reader = (
-            getattr(result_repository, "result_events_snapshot", None)
-            if result_repository is not None
-            else None
-        )
-        result_load_started = monotonic()
-        if not callable(result_reader):
-            result_events = None
-        else:
-            try:
-                watermarks = source_watermarks or self._day_view_source_watermarks()
-                result_key = (
-                    "w2.day_view_result_snapshot.v1",
-                    watermarks.get("result_event_count"),
-                    watermarks.get("result_event_max_confirmed_at"),
-                    watermarks.get("result_event_source_hash"),
-                    watermarks.get("raw_result_count"),
-                    watermarks.get("raw_result_max_captured_at"),
-                    watermarks.get("fixture_source_hash"),
-                )
-                frozen_events = self._result_event_singleflight.get_or_compute(
-                    result_key,
-                    ttl_seconds=30.0,
-                    compute=lambda: tuple(result_reader()),
-                )
-                result_events = list(frozen_events)
-            except SQLAlchemyError:
-                result_events = None
-        result_event_load_seconds = monotonic() - result_load_started
-        ledger_performance_started = monotonic()
-        forward_ledger = self._compact_forward_ledger_summary(
-            self._forward_ledger_performance_cache.get(
-                runtime_root,
-                result_events=result_events,
-            )
-        )
-        result_source_status = "PASS" if result_events is not None else "DEGRADED"
-        forward_ledger["result_source_status"] = result_source_status
-        integrity = forward_ledger.setdefault("performance_integrity", {})
-        if isinstance(integrity, dict):
-            integrity["result_source_status"] = result_source_status
-            if result_events is None:
-                integrity["result_source_reason"] = "RESULT_SOURCE_UNAVAILABLE"
-        result = {"forward_ledger": forward_ledger}
-        ledger_performance_seconds = monotonic() - ledger_performance_started
-        result_cache_metrics = self._result_event_singleflight.metrics()
-        result["dayview_cache_metrics"] = {
-            "result_event_load_seconds": round(result_event_load_seconds, 6),
-            "ledger_fixture_scan_seconds": 0.0,
-            "ledger_performance_seconds": round(ledger_performance_seconds, 6),
-            "market_observation_history_seconds": 0.0,
-            "result_event_cache_hit": result_cache_metrics["cache_hit"],
-            "result_event_cache_miss": result_cache_metrics["cache_miss"],
-            "result_event_singleflight_owner": result_cache_metrics["singleflight_owner"],
-            "result_event_singleflight_waiter": result_cache_metrics["singleflight_waiter"],
-        }
-        return result
-
-    def _compact_forward_ledger_summary(
-        self,
-        ledger: Mapping[str, Any],
-    ) -> dict[str, Any]:
-        sample_target = int(ledger.get("sample_target") or 100)
-        double_snapshot_count = int(ledger.get("double_snapshot_fixture_count") or 0)
-        strict = ledger.get("outcomes_shadow_strict")
-        strict = dict(strict) if isinstance(strict, Mapping) else {}
-        strict_settled = int(strict.get("settled_sample_count") or 0)
-        return {
-            "schema_version": ledger.get("schema_version"),
-            "source": ledger.get("source"),
-            "sample_target": sample_target,
-            "fixture_count": int(ledger.get("fixture_count") or 0),
-            "double_snapshot_fixture_count": double_snapshot_count,
-            "validation_fixture_count": int(ledger.get("validation_fixture_count") or 0),
-            "validation_settled_fixture_count": int(
-                ledger.get("validation_settled_fixture_count") or 0
-            ),
-            "validation_pending_fixture_count": int(
-                ledger.get("validation_pending_fixture_count") or 0
-            ),
-            "validation_pending_status": dict(ledger.get("validation_pending_status") or {}),
-            "outcomes_validation": dict(ledger.get("outcomes_validation") or {}),
-            "outcomes_shadow_wide": dict(ledger.get("outcomes_shadow_wide") or {}),
-            "outcomes_shadow_strict": strict,
-            "outcomes_official": dict(ledger.get("outcomes_official") or {}),
-            "outcomes_raw_audit": dict(ledger.get("outcomes_raw_audit") or {}),
-            "performance_integrity": dict(ledger.get("performance_integrity") or {}),
-            "pending_result_classification": dict(ledger.get("validation_pending_status") or {}),
-            "r1_1": {
-                "valid_pair_count": double_snapshot_count,
-                "sample_target": sample_target,
-                "remaining": max(sample_target - double_snapshot_count, 0),
-                "status": (
-                    "THRESHOLD_REACHED" if double_snapshot_count >= sample_target else "PENDING"
-                ),
-            },
-            "strict_evidence": {
-                "settled_sample_count": strict_settled,
-                "review_threshold": 35,
-                "maturity_threshold": 100,
-                "status": (
-                    "MATURE"
-                    if strict_settled >= 100
-                    else "REVIEW_ELIGIBLE"
-                    if strict_settled >= 35
-                    else "ACCUMULATING"
-                ),
-            },
-            "clv_shadow": dict(ledger.get("clv_shadow") or {}),
-            "accumulation_label": ledger.get("accumulation_label"),
-            "mock_data": bool(ledger.get("mock_data")),
-        }
-
-    def _build_dashboard_payload(
-        self,
-        *,
-        requested_date: date,
-        window: str,
-        timezone: str,
-        include_debug: bool,
-    ) -> dict[str, Any]:
+        cached = self._dashboard_response_cache.get(cache_key)
+        now = monotonic()
+        if cached is not None:
+            cached_at, cached_payload = cached
+            if now - cached_at <= self._dashboard_cache_ttl(window, include_debug):
+                return cached_payload
 
         self._reset_read_caches()
         version = self.version()
         counts = self.repository.release_counts()
         seed = self.repository.staging_seed_dashboard()
-        if not counts["read_model_fixture_count"] and not counts["matchday_card_count"] and seed:
+        if (
+            not counts["read_model_fixture_count"]
+            and not counts["matchday_card_count"]
+            and seed
+        ):
             return self._seed_dashboard_response(
                 seed,
                 requested_date=requested_date,
@@ -2425,7 +1001,11 @@ class ReadModelService:
 
         today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
         next36_rows = self.matchday_next_36_hours().get("items", [])
-        result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
+        result_rows = [
+            row
+            for row in self._all_matchday_rows()
+            if self._is_finished_row(row)
+        ]
         result_rows = self._filter_rows_for_operational_date(
             result_rows,
             requested_date=requested_date,
@@ -2466,7 +1046,9 @@ class ReadModelService:
             selected_rows = today_rows
 
         if window == "all":
-            all_cards = [self._dashboard_index_card_from_matchday(row) for row in selected_rows]
+            all_cards = [
+                self._dashboard_index_card_from_matchday(row) for row in selected_rows
+            ]
             response_cards = [self._compact_all_window_card(card) for card in all_cards]
         else:
             self._prime_observations_for_rows(selected_rows)
@@ -2480,10 +1062,14 @@ class ReadModelService:
             in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
         ]
         upcoming = [
-            card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
+            card
+            for card in response_cards
+            if str(card.get("status", "")).upper() != "FINISHED"
         ]
         finished = [
-            card for card in response_cards if str(card.get("status", "")).upper() == "FINISHED"
+            card
+            for card in response_cards
+            if str(card.get("status", "")).upper() == "FINISHED"
         ]
         if window == "all":
             recommendations_payload = [
@@ -2513,32 +1099,7 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
-        runtime_root = get_settings().resolved_runtime_root
-        result_events: list[dict[str, Any]] | None = []
-        result_repository = self._future_refresh_repository()
-        result_reader = (
-            getattr(result_repository, "result_events_snapshot", None)
-            if result_repository is not None
-            else None
-        )
-        if not callable(result_reader):
-            result_events = None
-        else:
-            try:
-                result_events = result_reader()
-            except SQLAlchemyError:
-                result_events = None
-        performance["forward_ledger"] = self._forward_ledger_performance_cache.get(
-            runtime_root,
-            result_events=result_events,
-        )
-        ledger_cache_metrics = self._forward_ledger_performance_cache.metrics()
-        performance["ledger_cache_metrics"] = {
-            "ledger_cache_hit": ledger_cache_metrics["ledger_cache_hit"],
-            "ledger_cache_miss": ledger_cache_metrics["ledger_cache_miss"],
-            "ledger_build_seconds": ledger_cache_metrics["ledger_build_seconds"],
-            "ledger_record_count": ledger_cache_metrics["ledger_record_count"],
-        }
+        performance["forward_ledger"] = forward_ledger_performance(RUNTIME)
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         payload = {
@@ -2567,21 +1128,13 @@ class ReadModelService:
             "finished": finished_payload,
             "all": response_cards,
         }
-        if self._fixture_read_status_cache.get("failed_source"):
-            payload["read_degradation"] = dict(self._fixture_read_status_cache)
+        self._dashboard_response_cache[cache_key] = (now, payload)
         return payload
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
             return 300.0 if window in {"today", "next36", "future"} else 600.0
         return 900.0 if window in {"today", "next36", "future"} else 1800.0
-
-    def clear_dashboard_caches(self) -> None:
-        self._dashboard_singleflight.clear()
-        self._day_view_singleflight.clear()
-        self._day_view_window_singleflight.clear()
-        self._result_event_singleflight.clear()
-        self._forward_ledger_performance_cache.clear()
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:
@@ -2650,19 +1203,17 @@ class ReadModelService:
     def _compact_all_window_card(self, card: dict[str, Any]) -> dict[str, Any]:
         """Return a lightweight index row for large all-window payloads."""
         payload = self._all_window_card_reference(card)
-        for key in (
-            "kickoff_beijing",
-            "operational_date_beijing",
-            "competition_id",
-            "competition_name",
-            "raw_status",
-            "formal_suppressed_reason",
-        ):
-            value = card.get(key)
-            if value:
-                payload[key] = value
-        if card.get("formal_suppressed") is True:
-            payload["formal_suppressed"] = True
+        payload.update(
+            {
+                "kickoff_beijing": card.get("kickoff_beijing"),
+                "operational_date_beijing": card.get("operational_date_beijing"),
+                "competition_id": card.get("competition_id"),
+                "competition_name": card.get("competition_name"),
+                "raw_status": card.get("raw_status"),
+                "formal_suppressed": card.get("formal_suppressed"),
+                "formal_suppressed_reason": card.get("formal_suppressed_reason"),
+            }
+        )
         return payload
 
     def _all_window_card_reference(self, card: dict[str, Any]) -> dict[str, Any]:
@@ -2779,7 +1330,7 @@ class ReadModelService:
             for row, dash in zip(rows, is_dashboard, strict=False)
             if dash or not (row["status"] == "NS" and row["kickoff_utc"] < now)
         ]
-        rows = [row for row in visible if self._is_active_competition_row(row)]
+        rows = visible
         if date_from:
             rows = [row for row in rows if row["kickoff_utc"] >= date_from.astimezone(UTC)]
         if date_to:
@@ -2789,7 +1340,11 @@ class ReadModelService:
         if status:
             rows = [row for row in rows if row["status"] == status]
         if team_id:
-            rows = [row for row in rows if team_id in {row["home_team_id"], row["away_team_id"]}]
+            rows = [
+                row
+                for row in rows
+                if team_id in {row["home_team_id"], row["away_team_id"]}
+            ]
         total = len(rows)
         start = (page - 1) * page_size
         return rows[start : start + page_size], total
@@ -2810,11 +1365,7 @@ class ReadModelService:
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
-        rows = [
-            row
-            for card in cards
-            if self._is_active_competition_row(row := self._matchday_item(card))
-        ]
+        rows = [self._matchday_item(card) for card in cards]
         rows = [
             row
             for row in rows
@@ -2843,18 +1394,14 @@ class ReadModelService:
 
     def matchday_next_36_hours(self, *, now_utc: datetime | None = None) -> dict[str, Any]:
         start, end = next_36_hours_window(now_utc)
-        rows = [
-            row
-            for card in self.repository.matchday_cards()
-            if self._is_active_competition_row(row := self._matchday_item(card))
-        ]
+        rows = [self._matchday_item(card) for card in self.repository.matchday_cards()]
         rows = [
             row
             for row in rows
             if start
-            <= datetime.fromisoformat(str(row["kickoff_utc"]).replace("Z", "+00:00")).astimezone(
-                UTC
-            )
+            <= datetime.fromisoformat(
+                str(row["kickoff_utc"]).replace("Z", "+00:00")
+            ).astimezone(UTC)
             < end
         ]
         return {
@@ -2874,14 +1421,7 @@ class ReadModelService:
         )
         window = self.day_policy.window_for_date(requested_date)
         cards = self.repository.matchday_cards()
-        read_model = [
-            row
-            for row in self.repository.dashboard_latest_fixtures()
-            if self._is_active_competition_row(row)
-        ]
-        cards = [
-            card for card in cards if self._is_active_competition_row(self._matchday_item(card))
-        ]
+        read_model = self.repository.dashboard_latest_fixtures()
         authoritative = [
             {
                 "fixture_id": row["fixture_id"],
@@ -2923,376 +1463,6 @@ class ReadModelService:
         }
 
     def analysis_card(self, fixture_id: str) -> dict[str, Any] | None:
-        """Compatibility alias for explicit offline/test callers; never route HTTP here."""
-        return self.build_analysis_card_offline(fixture_id)
-
-    def build_analysis_card_offline(self, fixture_id: str) -> dict[str, Any] | None:
-        """Expensive full analysis reconstruction for scheduled/offline use only, never HTTP."""
-        with self._read_request_scope():
-            reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
-            if callable(reader):
-                self._future_market_observations_cache = cast(
-                    list[dict[str, Any]],
-                    reader([fixture_id]),
-                )
-            return self._analysis_card_in_request(fixture_id)
-
-    def materialize_frozen_analysis_cards(
-        self,
-        fixture_ids: list[str],
-    ) -> dict[str, Any]:
-        """Build fixture-scoped evidence in the worker and freeze it for HTTP consumers."""
-        target_fixture_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))
-        writer = getattr(self.repository, "persist_frozen_analysis_checkpoint", None)
-        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
-        if not callable(writer) or not callable(reader):
-            return {
-                "status": "BLOCKED",
-                "blockers": ["ANALYSIS_MATERIALIZATION_REPOSITORY_UNAVAILABLE"],
-                "materialized_count": 0,
-                "fixture_count": len(target_fixture_ids),
-                "provider_calls": 0,
-            }
-        results: list[dict[str, Any]] = []
-        blockers: list[str] = []
-        for fixture_id in target_fixture_ids:
-            with self._read_request_scope():
-                observations = cast(list[dict[str, Any]], reader([fixture_id]))
-                self._future_market_observations_cache = observations
-                self._observations_by_fixture_cache = None
-                item = self._fixture_payload_by_id(fixture_id)
-                if item is None:
-                    blockers.append(f"FIXTURE_PAYLOAD_UNAVAILABLE:{fixture_id}")
-                    continue
-                card = self._analysis_card_from_provider_payload(fixture_id, item)
-                fixture = self._fixture_summary(item, BEIJING_TZ)
-                checkpoint = writer(
-                    fixture_id=fixture_id,
-                    payload={**fixture, "analysis_card": card},
-                )
-                results.append(
-                    {
-                        **dict(checkpoint),
-                        "observation_count": len(observations),
-                        "snapshot_count": len(card.get("fair_market_estimate_snapshots", [])),
-                    }
-                )
-        return {
-            "status": "COMPLETED" if not blockers else "BLOCKED",
-            "blockers": blockers,
-            "fixture_count": len(target_fixture_ids),
-            "materialized_count": len(results),
-            "results": results,
-            "provider_calls": 0,
-        }
-
-    def reconcile_frozen_analysis_cards(
-        self,
-        fixture_ids: list[str],
-        *,
-        max_fixtures: int = 10,
-    ) -> dict[str, Any]:
-        """Idempotently freeze existing fixture-scoped observations without Provider I/O."""
-        target_fixture_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))[
-            : max(max_fixtures, 0)
-        ]
-        writer = getattr(self.repository, "persist_frozen_analysis_checkpoint", None)
-        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
-        signature_reader = getattr(self.repository, "frozen_analysis_source_signature", None)
-        if not callable(writer) or not callable(reader):
-            return {
-                "status": "BLOCKED",
-                "blockers": ["ANALYSIS_RECONCILE_REPOSITORY_UNAVAILABLE"],
-                "fixture_count": len(target_fixture_ids),
-                "materialized_count": 0,
-                "unchanged_count": 0,
-                "provider_calls": 0,
-            }
-        results: list[dict[str, Any]] = []
-        blockers: list[str] = []
-        unchanged_count = 0
-        for fixture_id in target_fixture_ids:
-            with self._read_request_scope():
-                observations = cast(list[dict[str, Any]], reader([fixture_id]))
-                if not observations:
-                    blockers.append(f"MARKET_OBSERVATION_UNAVAILABLE:{fixture_id}")
-                    continue
-                self._future_market_observations_cache = observations
-                self._observations_by_fixture_cache = None
-                item = self._fixture_payload_by_id(fixture_id)
-                if item is None:
-                    blockers.append(f"FIXTURE_PAYLOAD_UNAVAILABLE:{fixture_id}")
-                    continue
-                source_signature = self._analysis_materialization_source_signature(
-                    fixture_id=fixture_id,
-                    item=item,
-                    observations=observations,
-                )
-                current_signature = (
-                    signature_reader(fixture_id) if callable(signature_reader) else None
-                )
-                if current_signature == source_signature:
-                    unchanged_count += 1
-                    continue
-                card = self._analysis_card_from_provider_payload(fixture_id, item)
-                fixture = self._fixture_summary(item, BEIJING_TZ)
-                checkpoint = writer(
-                    fixture_id=fixture_id,
-                    payload={
-                        **fixture,
-                        "analysis_materialization": {
-                            "schema_version": "w2.analysis_materialization.v1",
-                            "source_signature": source_signature,
-                            "observation_count": len(observations),
-                            "provider_calls": 0,
-                        },
-                        "analysis_card": card,
-                    },
-                )
-                results.append(
-                    {
-                        **dict(checkpoint),
-                        "source_signature": source_signature,
-                        "observation_count": len(observations),
-                        "snapshot_count": len(card.get("fair_market_estimate_snapshots", [])),
-                    }
-                )
-        return {
-            "status": "COMPLETED" if not blockers else "PARTIAL",
-            "blockers": blockers,
-            "fixture_count": len(target_fixture_ids),
-            "materialized_count": len(results),
-            "unchanged_count": unchanged_count,
-            "results": results,
-            "provider_calls": 0,
-        }
-
-    def _analysis_materialization_source_signature(
-        self,
-        *,
-        fixture_id: str,
-        item: Mapping[str, Any],
-        observations: list[dict[str, Any]],
-    ) -> str:
-        raw_fixture = item.get("fixture")
-        fixture: Mapping[str, Any] = raw_fixture if isinstance(raw_fixture, Mapping) else {}
-        observation_identity = sorted(
-            (
-                str(row.get("captured_at") or ""),
-                str(row.get("provider") or ""),
-                str(row.get("market") or row.get("market_type") or ""),
-                str(row.get("bookmaker_id") or row.get("bookmaker_name") or ""),
-                str(row.get("raw_payload_sha256") or ""),
-            )
-            for row in observations
-        )
-        payload = {
-            "schema_version": "w2.analysis_materialization_source.v1",
-            "fixture_id": fixture_id,
-            "kickoff_utc": fixture.get("date"),
-            "fixture_status": fixture.get("status"),
-            "observations": observation_identity,
-        }
-        encoded = json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-        ).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
-
-    def frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
-        """Return embedded/frozen evidence or a small fail-closed card; never rebuild models."""
-        with self._read_request_scope():
-            for card in self.repository.matchday_cards():
-                fixture = card.get("fixture", {})
-                if str(fixture.get("fixture_id")) != fixture_id:
-                    continue
-                embedded = card.get("analysis_card")
-                if isinstance(embedded, dict):
-                    return self._bounded_embedded_analysis_card(embedded, fixture_id=fixture_id)
-                projected = self._frozen_analysis_compatibility(card, fixture_id=fixture_id)
-                return projected or self._frozen_analysis_unavailable(fixture_id)
-            dashboard_reader = getattr(self.repository, "dashboard_fixture", None)
-            dashboard = dashboard_reader(fixture_id) if callable(dashboard_reader) else None
-            if isinstance(dashboard, Mapping):
-                embedded = dashboard.get("analysis_card")
-                if isinstance(embedded, dict):
-                    return self._bounded_embedded_analysis_card(embedded, fixture_id=fixture_id)
-                projected = self._frozen_analysis_compatibility(
-                    dashboard,
-                    fixture_id=fixture_id,
-                )
-                if projected is not None:
-                    return projected
-            return self._frozen_analysis_unavailable(fixture_id)
-
-    def audit_detail(
-        self,
-        fixture_id: str,
-        *,
-        capture_id: str | None = None,
-        capture_hash: str,
-        estimate_id: str | None = None,
-    ) -> dict[str, Any]:
-        runtime_root = get_settings().resolved_runtime_root
-        fingerprint = frozen_ledger_fingerprint(runtime_root)
-        cache_key = (
-            str(runtime_root.resolve()),
-            str(fixture_id),
-            str(capture_id or ""),
-            str(capture_hash),
-            str(estimate_id or ""),
-            fingerprint,
-        )
-
-        def compute() -> dict[str, Any]:
-            lookup_started = monotonic()
-            lookup = find_frozen_capture(
-                runtime_root,
-                fixture_id=fixture_id,
-                capture_id=capture_id,
-                capture_hash=capture_hash,
-                estimate_id=estimate_id,
-            )
-            lookup_seconds = monotonic() - lookup_started
-            if lookup.source_status != "PASS":
-                raise self._frozen_audit_error(lookup.reason, bool(lookup.fixture_records))
-            projection_started = monotonic()
-            audit = build_frozen_fixture_audit(
-                lookup,
-                requested_estimate_id=estimate_id,
-            )
-            projection_seconds = monotonic() - projection_started
-            if audit.get("integrity", {}).get("reason") == "AUDIT_PROJECTION_TOO_LARGE":
-                raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
-            serialization_started = monotonic()
-            response_bytes = len(json.dumps(audit, ensure_ascii=False, default=str).encode("utf-8"))
-            serialization_seconds = monotonic() - serialization_started
-            if response_bytes > MAX_AUDIT_RESPONSE_BYTES - 4096:
-                raise FrozenAuditRequestError("AUDIT_PROJECTION_TOO_LARGE", 413)
-            return {
-                "audit": audit,
-                "performance": {
-                    "frozen_audit_lookup_seconds": round(lookup_seconds, 6),
-                    "frozen_audit_projection_seconds": round(projection_seconds, 6),
-                    "frozen_audit_serialization_seconds": round(serialization_seconds, 6),
-                    "frozen_audit_response_bytes": response_bytes,
-                    "frozen_audit_fixture_record_count": len(lookup.fixture_records),
-                },
-            }
-
-        try:
-            payload = self._frozen_audit_singleflight.get_or_compute(
-                cache_key,
-                ttl_seconds=15 * 60,
-                compute=compute,
-            )
-        except FrozenAuditRequestError:
-            with self._dashboard_metrics_lock:
-                self._frozen_audit_blocked_count += 1
-            raise
-        cache_metrics = self._frozen_audit_singleflight.metrics()
-        performance = payload.setdefault("performance", {})
-        performance.update(
-            {
-                "frozen_audit_cache_hit": cache_metrics["cache_hit"],
-                "frozen_audit_cache_miss": cache_metrics["cache_miss"],
-                "frozen_audit_singleflight_owner": cache_metrics["singleflight_owner"],
-                "frozen_audit_singleflight_waiter": cache_metrics["singleflight_waiter"],
-                "frozen_audit_blocked_count": self._frozen_audit_blocked_count,
-            }
-        )
-        return payload
-
-    @staticmethod
-    def _frozen_audit_error(reason: str | None, fixture_exists: bool) -> FrozenAuditRequestError:
-        code = str(reason or "FROZEN_AUDIT_SOURCE_UNAVAILABLE")
-        if code in {"LEDGER_NOT_FOUND"}:
-            return FrozenAuditRequestError(code, 404)
-        if code == "CAPTURE_NOT_FOUND":
-            return FrozenAuditRequestError(
-                "CAPTURE_IDENTITY_MISMATCH" if fixture_exists else code,
-                409 if fixture_exists else 404,
-            )
-        if code in {
-            "ESTIMATE_IDENTITY_MISMATCH",
-            "AMBIGUOUS_LEGACY_CAPTURE",
-            "AMBIGUOUS_CAPTURE",
-            "AMBIGUOUS_CAPTURE_ID",
-            "CAPTURE_IDENTITY_MISMATCH",
-        }:
-            return FrozenAuditRequestError(code, 409)
-        if code == "AUDIT_PROJECTION_TOO_LARGE":
-            return FrozenAuditRequestError(code, 413)
-        return FrozenAuditRequestError(code, 503)
-
-    def _bounded_embedded_analysis_card(
-        self,
-        embedded: dict[str, Any],
-        *,
-        fixture_id: str,
-    ) -> dict[str, Any]:
-        normalized = self._normalize_analysis_card(embedded, fixture_id=fixture_id)
-        if len(json.dumps(normalized, ensure_ascii=False, default=str).encode("utf-8")) < (
-            MAX_AUDIT_RESPONSE_BYTES - 16 * 1024
-        ):
-            return normalized
-        return self._frozen_analysis_unavailable(
-            fixture_id,
-            reason="FROZEN_ANALYSIS_CAPTURE_TOO_LARGE",
-        )
-
-    def _frozen_analysis_compatibility(
-        self,
-        capture: Mapping[str, Any],
-        *,
-        fixture_id: str,
-    ) -> dict[str, Any] | None:
-        capture_hash = str(
-            capture.get("capture_hash")
-            or capture.get("evidence_hash")
-            or capture.get("card_hash")
-            or ""
-        )
-        if not capture_hash:
-            return None
-        pick = capture.get("pick")
-        estimate_id = str(pick.get("estimate_id") or "") if isinstance(pick, Mapping) else ""
-        try:
-            payload = self.audit_detail(
-                fixture_id,
-                capture_hash=capture_hash,
-                estimate_id=estimate_id or None,
-            )
-        except FrozenAuditRequestError:
-            return None
-        return {
-            "fixture_id": fixture_id,
-            "decision": "SKIP",
-            "source": "frozen_audit_compatibility",
-            "reason_code": "FROZEN_AUDIT_COMPATIBILITY_ONLY",
-            "audit": payload["audit"],
-            "candidate": False,
-            "formal_recommendation": False,
-        }
-
-    def _frozen_analysis_unavailable(
-        self,
-        fixture_id: str,
-        *,
-        reason: str = "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE",
-    ) -> dict[str, Any]:
-        fallback = self._fallback_analysis_card(
-            fixture_id=fixture_id,
-            market_coverage={},
-            source="frozen_analysis_fail_closed",
-        )
-        fallback.update({"reason_code": reason, "data_status": "BLOCKED"})
-        return fallback
-
-    def _analysis_card_in_request(self, fixture_id: str) -> dict[str, Any] | None:
         for card in self.repository.matchday_cards():
             fixture = card.get("fixture", {})
             if str(fixture.get("fixture_id")) != fixture_id:
@@ -3406,6 +1576,8 @@ class ReadModelService:
         item: dict[str, Any],
         observations: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
+        if not observations:
+            return None
         fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
         teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
         home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
@@ -3417,10 +1589,9 @@ class ReadModelService:
         if not fixture_id or kickoff is None or not home_id or not away_id:
             return None
         repository = self._future_refresh_repository()
-        competition_id = self._competition_id_from_provider_fixture(item)
         context = FeatureContext(
             fixture_id=fixture_id,
-            competition_id=competition_id,
+            competition_id="world_cup_2026",
             home_team_id=home_id,
             away_team_id=away_id,
             kickoff_at=kickoff,
@@ -3498,11 +1669,10 @@ class ReadModelService:
         feature_observations = mainline_observations or observations
         market_snapshots = self._market_snapshots_from_observations(feature_observations)
         bookmaker_quotes = self._bookmaker_quotes_from_observations(feature_observations)
-        registry = CompetitionRegistry()
-        registry_entry = registry.all_entries().get(competition_id)
-        if registry_entry is None:
+        if not market_snapshots and not home_xg and not away_xg:
             return None
-        coverage = registry_entry.coverage_profile
+        registry = CompetitionRegistry()
+        coverage = registry.require_enabled("world_cup_2026").coverage_profile
         feature_set = build_feature_set(
             context=context,
             inputs=FeatureInputs(
@@ -3560,19 +1730,15 @@ class ReadModelService:
         latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
         latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
         neutral_site = _fixture_neutral_site(item)
-        home_model_for = latest_home_xg.xg_for if latest_home_xg is not None else None
-        home_model_against = latest_home_xg.xg_against if latest_home_xg is not None else None
-        away_model_for = latest_away_xg.xg_for if latest_away_xg is not None else None
-        away_model_against = latest_away_xg.xg_against if latest_away_xg is not None else None
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
                 home_team_id=home_id,
                 away_team_id=away_id,
-                home_xg_for=home_model_for,
-                home_xg_against=home_model_against,
-                away_xg_for=away_model_for,
-                away_xg_against=away_model_against,
+                home_xg_for=latest_home_xg.xg_for if latest_home_xg is not None else None,
+                home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
+                away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
+                away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
                 home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
                 away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
                 home_elo_source=latest_home_rating.source
@@ -3596,7 +1762,6 @@ class ReadModelService:
                 neutral_site=neutral_site,
                 input_readiness={
                     "xg_status": xg_readiness["status"],
-                    "model_input_source": "ROLLING_XG",
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
                     "ratings_ready": latest_home_rating is not None
@@ -3613,32 +1778,32 @@ class ReadModelService:
             reason=str(xg_readiness["status"]),
             xg_sample_status=str(xg_readiness["status"]),
         )
-        if simulation_output.status != "READY":
+        if (
+            xg_readiness["status"] != "READY"
+            or latest_home_xg is None
+            or latest_away_xg is None
+        ):
             missing.update({AnalysisMarket.FIRST_HALF_GOALS, AnalysisMarket.SCORE})
         else:
-            expected_home = float(simulation_output.lambda_home or 0.0)
-            expected_away = float(simulation_output.lambda_away or 0.0)
+            scoreline_output = independent_xg_poisson(
+                home_xg_for=latest_home_xg.xg_for,
+                home_xg_against=latest_home_xg.xg_against,
+                away_xg_for=latest_away_xg.xg_for,
+                away_xg_against=latest_away_xg.xg_against,
+            )
+            expected_home = scoreline_output.lambda_home
+            expected_away = scoreline_output.lambda_away
             half_goals = HalfGoalModelInput(
                 expected_home_goals=expected_home,
                 expected_away_goals=expected_away,
             )
-            score_matrix = self._poisson_score_matrix(expected_home, expected_away)
+            score_matrix = scoreline_output.score_matrix
             if expected_home > expected_away + 0.10:
                 score_direction = "HOME"
             elif expected_away > expected_home + 0.10:
                 score_direction = "AWAY"
             else:
                 score_direction = "DRAW"
-            assert home_model_for is not None
-            assert home_model_against is not None
-            assert away_model_for is not None
-            assert away_model_against is not None
-            scoreline_output = independent_xg_poisson(
-                home_xg_for=float(home_model_for),
-                home_xg_against=float(home_model_against),
-                away_xg_for=float(away_model_for),
-                away_xg_against=float(away_model_against),
-            )
             scoreline_readiness = self._scoreline_readiness(
                 status="READY",
                 reason=None,
@@ -3659,40 +1824,12 @@ class ReadModelService:
         )
         payload = self._analysis_card_payload(card)
         payload["feature_contributions"] = [
-            self._feature_contribution_payload(item) for item in feature_set.contributions
+            self._feature_contribution_payload(item)
+            for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
         payload["scoreline_readiness"] = scoreline_readiness
-        r4_1_rows = self._serving_r4_1_feature_rows(
-            competition_id=competition_id,
-            kickoff=kickoff,
-            neutral_site=neutral_site,
-            home_team_id=home_id,
-            away_team_id=away_id,
-            snapshots=snapshots,
-            home_xg=latest_home_xg,
-            away_xg=latest_away_xg,
-            home_rating=latest_home_rating,
-            away_rating=latest_away_rating,
-            home_value=latest_home_value,
-            away_value=latest_away_value,
-            home_history=home_history,
-            away_history=away_history,
-        )
-        if r4_1_rows is not None:
-            payload["r4_1_feature_rows"] = r4_1_rows
-            payload["league_feature_snapshots"] = r4_1_rows["snapshots"]
         self._apply_mainline_market_selection(payload, mainline_selection)
-        if not any(selection.get("status") == "READY" for selection in mainline_selection.values()):
-            for market_payload in payload.get("markets", []):
-                if not isinstance(market_payload, dict):
-                    continue
-                market_payload["decision"] = "SKIP"
-                market_payload["tendency"] = None
-                market_payload["confidence"] = 0.0
-                market_payload["candidate"] = False
-                market_payload["formal_recommendation"] = False
-            payload["decision"] = "SKIP"
         payload.update(
             self._analysis_input_summary(
                 fixture_id=fixture_id,
@@ -3707,140 +1844,12 @@ class ReadModelService:
                 score_matrix=score_matrix,
             )
         )
-        artifact = self._r4_1_artifacts.get(competition_id)
-        payload["feature_readiness"] = {
-            "xg_status": xg_readiness["status"],
-            "xg_home_match_count": xg_readiness["home_match_count"],
-            "xg_away_match_count": xg_readiness["away_match_count"],
-            "xg_snapshot_count": xg_readiness["snapshot_count"],
-            "ratings_status": "READY"
-            if latest_home_rating is not None and latest_away_rating is not None
-            else "UNAVAILABLE",
-            "artifact_status": "READY"
-            if artifact is not None
-            else "INVALID"
-            if competition_id in self._r4_1_artifact_invalid_reasons
-            else "UNAVAILABLE",
-            "artifact_reason": self._r4_1_artifact_invalid_reasons.get(competition_id),
-            "feature_as_of": r4_1_rows.get("feature_as_of") if r4_1_rows is not None else None,
-        }
         self._attach_xg_reason_values(
             payload,
             home_xg=latest_home_xg,
             away_xg=latest_away_xg,
         )
         return payload
-
-    def _competition_id_from_provider_fixture(self, item: Mapping[str, Any]) -> str:
-        explicit = str(item.get("competition_id") or "")
-        league = item.get("league")
-        registry = CompetitionRegistry()
-        if explicit in registry.all_entries():
-            return explicit
-        provider_id = explicit or (
-            str(league.get("id") or "") if isinstance(league, Mapping) else ""
-        )
-        for competition_id, entry in registry.entries().items():
-            if entry.provider_mapping.get("api_football_league_id") == provider_id:
-                return competition_id
-        return explicit or "world_cup_2026"
-
-    def _serving_r4_1_feature_rows(
-        self,
-        *,
-        competition_id: str,
-        kickoff: datetime,
-        neutral_site: bool,
-        home_team_id: str,
-        away_team_id: str,
-        snapshots: list[dict[str, Any]],
-        home_xg: TeamXgSnapshot | None,
-        away_xg: TeamXgSnapshot | None,
-        home_rating: TeamRatingSnapshot | None,
-        away_rating: TeamRatingSnapshot | None,
-        home_value: TeamValueSnapshot | None,
-        away_value: TeamValueSnapshot | None,
-        home_history: list[TeamMatchHistory],
-        away_history: list[TeamMatchHistory],
-    ) -> dict[str, Any] | None:
-        artifact = self._r4_1_artifacts.get(competition_id)
-        if artifact is None:
-            return None
-        if home_xg is None or away_xg is None or home_rating is None or away_rating is None:
-            return None
-        home_raw = self._latest_team_xg_snapshot_row(snapshots, home_team_id)
-        away_raw = self._latest_team_xg_snapshot_row(snapshots, away_team_id)
-        feature_pair = build_league_feature_pair(
-            competition_id=competition_id,
-            kickoff_utc=kickoff,
-            home_xg=home_xg,
-            away_xg=away_xg,
-            home_rating=home_rating,
-            away_rating=away_rating,
-            home_value=home_value,
-            away_value=away_value,
-            home_sample_count=self._int_or_none(home_raw.get("match_count")) or 0,
-            away_sample_count=self._int_or_none(away_raw.get("match_count")) or 0,
-            home_rolling_goals_for=_float_or_none(home_raw.get("rolling_goals_for")),
-            home_rolling_goals_against=_float_or_none(home_raw.get("rolling_goals_against")),
-            away_rolling_goals_for=_float_or_none(away_raw.get("rolling_goals_for")),
-            away_rolling_goals_against=_float_or_none(away_raw.get("rolling_goals_against")),
-            home_rest_days=self._rest_days_before_kickoff(home_history, kickoff),
-            away_rest_days=self._rest_days_before_kickoff(away_history, kickoff),
-        )
-        if feature_pair is None:
-            return None
-        home_snapshot, away_snapshot = feature_pair
-        home_row, away_row = r4_1_feature_rows_from_values(
-            competition_id=competition_id,
-            neutral_site=neutral_site,
-            home_attack_strength=home_snapshot.opponent_adjusted_strength,
-            home_defence_strength=home_snapshot.opponent_adjusted_defence,
-            away_attack_strength=away_snapshot.opponent_adjusted_strength,
-            away_defence_strength=away_snapshot.opponent_adjusted_defence,
-            elo_gap=(home_rating.elo - away_rating.elo) / 400.0,
-            feature_names=artifact.feature_names,
-        )
-        return {
-            "home": home_row,
-            "away": away_row,
-            "feature_names": list(artifact.feature_names),
-            "feature_as_of": max(
-                home_snapshot.feature_as_of,
-                away_snapshot.feature_as_of,
-            )
-            .astimezone(UTC)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "snapshots": {
-                "home": home_snapshot.as_dict(),
-                "away": away_snapshot.as_dict(),
-            },
-        }
-
-    def _latest_team_xg_snapshot_row(
-        self,
-        snapshots: list[dict[str, Any]],
-        team_id: str,
-    ) -> dict[str, Any]:
-        rows = [row for row in snapshots if str(row.get("team_id") or "") == team_id]
-        return max(
-            rows,
-            key=lambda row: (
-                parse_provider_time(row.get("as_of_time")) or datetime.min.replace(tzinfo=UTC)
-            ),
-            default={},
-        )
-
-    def _rest_days_before_kickoff(
-        self,
-        history: list[TeamMatchHistory],
-        kickoff: datetime,
-    ) -> float | None:
-        eligible = [row.kickoff_at for row in history if row.kickoff_at < kickoff]
-        if not eligible:
-            return None
-        return round((kickoff - max(eligible)).total_seconds() / 86400.0, 4)
 
     def _mainline_market_selection(
         self,
@@ -4087,9 +2096,12 @@ class ReadModelService:
                 market["balanced_prices"] = resolved.get("side_prices", {})
                 if side_price is not None:
                     market["odds"] = side_price
-                should_downgrade_to_watch = str(market.get("decision") or "") != "SKIP" and (
-                    (side_price is not None and float(side_price) < 1.40)
-                    or float(market.get("confidence") or 0.0) < 0.50
+                should_downgrade_to_watch = (
+                    str(market.get("decision") or "") != "SKIP"
+                    and (
+                        (side_price is not None and float(side_price) < 1.40)
+                        or float(market.get("confidence") or 0.0) < 0.50
+                    )
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
@@ -4114,7 +2126,9 @@ class ReadModelService:
         if not isinstance(markets, list):
             return
         decisions = {
-            str(market.get("decision") or "") for market in markets if isinstance(market, dict)
+            str(market.get("decision") or "")
+            for market in markets
+            if isinstance(market, dict)
         }
         if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
             payload["decision"] = "ANALYSIS_PICK"
@@ -4971,7 +2985,9 @@ class ReadModelService:
             if row.get("bookmaker_id") or row.get("bookmaker_name")
         }
         captured_points = {
-            str(row.get("captured_at")) for row in observations if row.get("captured_at")
+            str(row.get("captured_at"))
+            for row in observations
+            if row.get("captured_at")
         }
         lineups_status = self._enrichment_status(fixture_id=fixture_id, endpoint="lineups")
         statistics_status = self._enrichment_status(fixture_id=fixture_id, endpoint="statistics")
@@ -5089,7 +3105,9 @@ class ReadModelService:
     def _enrichment_status(self, *, fixture_id: str, endpoint: str) -> dict[str, Any]:
         rows = self._raw_payloads_for_endpoint(endpoint)
         matching = [
-            row for row in rows if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+            row
+            for row in rows
+            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
         ]
         if not matching:
             return {
@@ -5187,21 +3205,21 @@ class ReadModelService:
             grouped.setdefault((market, line), []).append(row)
         probabilities: dict[str, Any] = {}
         for (market, line), rows in grouped.items():
-            odds: dict[str, Decimal] = {}
+            implied: dict[str, float] = {}
             for row in rows:
                 try:
-                    price = Decimal(str(row["decimal_odds"]))
-                except (InvalidOperation, TypeError, ValueError):
+                    price = float(row["decimal_odds"])
+                except (TypeError, ValueError):
                     continue
-                if price <= Decimal("1.0"):
+                if price <= 1.0:
                     continue
-                odds[str(row["selection"])] = price
-            if len(odds) < 2:
+                implied[str(row["selection"])] = 1 / price
+            total = sum(implied.values())
+            if len(implied) < 2 or total <= 0:
                 continue
-            result = devig(odds, DevigMethod.POWER)
             probabilities[f"{market}:{line}"] = {
-                selection: round(value, 6)
-                for selection, value in sorted(result.probabilities.items())
+                selection: round(value / total, 4)
+                for selection, value in sorted(implied.items())
             }
         return probabilities
 
@@ -5213,13 +3231,19 @@ class ReadModelService:
         if total <= 0:
             return {}
         home = sum(
-            value for (home_goals, away_goals), value in matrix.items() if home_goals > away_goals
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals > away_goals
         )
         draw = sum(
-            value for (home_goals, away_goals), value in matrix.items() if home_goals == away_goals
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals == away_goals
         )
         away = sum(
-            value for (home_goals, away_goals), value in matrix.items() if home_goals < away_goals
+            value
+            for (home_goals, away_goals), value in matrix.items()
+            if home_goals < away_goals
         )
         over_2_5 = sum(
             value
@@ -5303,33 +3327,6 @@ class ReadModelService:
         ):
             if key in selection and selection.get(key) is not None:
                 entry[key] = selection.get(key)
-        observations = selection.get("observations")
-        if isinstance(observations, list):
-            rows = [item for item in observations if isinstance(item, Mapping)]
-            captured = sorted(
-                str(item.get("captured_at") or "") for item in rows if item.get("captured_at")
-            )
-            if captured:
-                entry["as_of"] = captured[-1]
-            providers = sorted({str(item.get("provider")) for item in rows if item.get("provider")})
-            bookmakers = sorted(
-                {
-                    str(item.get("bookmaker_name") or item.get("bookmaker_id"))
-                    for item in rows
-                    if item.get("bookmaker_name") or item.get("bookmaker_id")
-                }
-            )
-            entry["source"] = providers[0] if len(providers) == 1 else "consensus"
-            entry["bookmaker"] = bookmakers[0] if len(bookmakers) == 1 else "consensus"
-            source_hashes = sorted(
-                str(item.get("raw_payload_sha256"))
-                for item in rows
-                if item.get("raw_payload_sha256")
-            )
-            if source_hashes:
-                entry["source_hash"] = hashlib.sha256(
-                    "|".join(source_hashes).encode("utf-8")
-                ).hexdigest()
         return entry
 
     def _line_value(self, row: dict[str, Any]) -> str | None:
@@ -5461,7 +3458,9 @@ class ReadModelService:
                         for row in dashboard.get("all_market_ranking", [])
                         if row.get("market") == "BTTS"
                     ],
-                    "secondary_market_direction": dashboard.get("secondary_market_direction"),
+                    "secondary_market_direction": dashboard.get(
+                        "secondary_market_direction"
+                    ),
                     "source_snapshot_id": dashboard.get("provenance", {}).get("snapshot_id"),
                     "source_captured_at": self._optional_datetime(dashboard.get("captured_at")),
                     "source_phase": dashboard.get("phase"),
@@ -5473,7 +3472,7 @@ class ReadModelService:
                     ),
                     "temporal_status": dashboard.get("temporal_status"),
                     "integrity_status": dashboard.get("integrity_status"),
-                    "analysis_card": self.frozen_analysis_card(fixture_id),
+                    "analysis_card": self.analysis_card(fixture_id),
                 }
             )
             return row
@@ -5501,7 +3500,9 @@ class ReadModelService:
                     if item.get("canonical_market")
                 }
                 obs_bookmaker_ids: set[str] = {
-                    str(item["bookmaker_id"]) for item in observations if item.get("bookmaker_id")
+                    str(item["bookmaker_id"])
+                    for item in observations
+                    if item.get("bookmaker_id")
                 }
                 row.update(
                     {
@@ -5524,7 +3525,7 @@ class ReadModelService:
                             "probability_source": "stage7e_forward_holdout",
                         },
                         "risk_notes": [] if snapshots else ["market_not_comparable"],
-                        "analysis_card": self.frozen_analysis_card(fixture_id),
+                        "analysis_card": self.analysis_card(fixture_id),
                     }
                 )
                 return row
@@ -5623,21 +3624,8 @@ class ReadModelService:
     ) -> dict[str, Any]:
         decorated = dict(card)
         if fixture_context:
-            authoritative_identity_fields = {
-                "competition_id",
-                "kickoff_utc",
-                "home_team_id",
-                "away_team_id",
-                "home_team_name",
-                "away_team_name",
-                "home_team_provider_name",
-                "away_team_provider_name",
-            }
             for key, value in fixture_context.items():
-                if key in authoritative_identity_fields:
-                    decorated[key] = value
-                else:
-                    decorated.setdefault(key, value)
+                decorated.setdefault(key, value)
         competition_name = self._first_text(
             decorated.get("competition_name"),
             decorated.get("competition_cn"),
@@ -5714,7 +3702,6 @@ class ReadModelService:
         fixture_id = str(card.get("fixture_id") or "")
         timeline = self._market_timeline_payload(fixture_id) if fixture_id else {}
         self._apply_signed_ah_line_from_timeline(card, timeline)
-        self._apply_divergence_champion_model(card)
         movement = build_market_movement(timeline)
         divergence = build_market_divergence(
             pricing_shadow=card.get("pricing_shadow")
@@ -5732,268 +3719,6 @@ class ReadModelService:
             market_movement=movement,
             market_divergence=divergence,
         )
-
-    def _apply_divergence_champion_model(self, card: dict[str, Any]) -> None:
-        pricing_shadow = card.get("pricing_shadow")
-        if not isinstance(pricing_shadow, dict):
-            return
-        fitted_probabilities = _one_x_two_probabilities(
-            card.get("model_probabilities"),
-        ) or _one_x_two_probabilities(pricing_shadow.get("model_probabilities"))
-        r4_1_payload = self._r4_1_payload_for_card(card, pricing_shadow)
-        r4_1_fair_ah = _float_or_none(r4_1_payload.get("fair_ah"))
-        r4_1_fair_ou = _float_or_none(r4_1_payload.get("fair_ou"))
-        r4_1_probabilities = _one_x_two_probabilities(r4_1_payload.get("probabilities"))
-        if r4_1_fair_ah is None:
-            r4_1_probabilities = None
-        selection = select_divergence_champion_probabilities(
-            competition_id=str(card.get("competition_id") or ""),
-            fitted_calibrated=fitted_probabilities or {},
-            r4_1_calibrated=r4_1_probabilities,
-        )
-        pricing_shadow["model_family"] = selection.family.value
-        pricing_shadow["model_probabilities"] = dict(selection.probabilities)
-        if r4_1_payload.get("fallback_reason"):
-            pricing_shadow["model_family_fallback_reason"] = str(r4_1_payload["fallback_reason"])
-        elif selection.fallback_reason:
-            pricing_shadow["model_family_fallback_reason"] = selection.fallback_reason
-        else:
-            pricing_shadow.pop("model_family_fallback_reason", None)
-        if selection.family.value == "R4_1_CALIBRATED" and r4_1_fair_ah is not None:
-            pricing_shadow["fair_ah"] = r4_1_fair_ah
-            pricing_shadow["fair_ou"] = r4_1_fair_ou
-            if r4_1_payload.get("artifact_hash"):
-                pricing_shadow["artifact_hash"] = str(r4_1_payload["artifact_hash"])
-            if r4_1_payload.get("artifact_version"):
-                pricing_shadow["artifact_version"] = str(r4_1_payload["artifact_version"])
-            if r4_1_payload.get("train_cutoff"):
-                pricing_shadow["train_cutoff"] = str(r4_1_payload["train_cutoff"])
-            pricing_shadow["edge_ah"] = edge(
-                r4_1_fair_ah,
-                _float_or_none(pricing_shadow.get("market_ah")),
-            )
-            pricing_shadow["edge_ou"] = edge(
-                r4_1_fair_ou,
-                _float_or_none(pricing_shadow.get("market_ou")),
-            )
-        self._attach_fair_market_estimates(card, pricing_shadow, r4_1_payload)
-
-    def _attach_fair_market_estimates(
-        self,
-        card: dict[str, Any],
-        pricing_shadow: dict[str, Any],
-        r4_1_payload: Mapping[str, Any],
-    ) -> None:
-        model_family = str(pricing_shadow.get("model_family") or "FITTED_CALIBRATED")
-        simulation = card.get("simulation")
-        simulation_payload = simulation if isinstance(simulation, Mapping) else {}
-        if isinstance(simulation, dict):
-            simulation["decision_source_status"] = "LEGACY_BASELINE_NOT_DECISION_SOURCE"
-        data_readiness = card.get("data_readiness")
-        data_readiness = data_readiness if isinstance(data_readiness, Mapping) else {}
-        r4_1_features = card.get("r4_1_feature_rows")
-        r4_1_features = r4_1_features if isinstance(r4_1_features, Mapping) else {}
-        feature_as_of = self._first_text(
-            r4_1_features.get("feature_as_of"),
-            data_readiness.get("statistics_captured_at"),
-            data_readiness.get("xg_captured_at"),
-        )
-        home_mu = _float_or_none(r4_1_payload.get("home_mu"))
-        away_mu = _float_or_none(r4_1_payload.get("away_mu"))
-        dixon_coles_rho = _float_or_none(r4_1_payload.get("rho")) or 0.0
-        if model_family != "R4_1_CALIBRATED":
-            home_mu = _float_or_none(simulation_payload.get("lambda_home"))
-            away_mu = _float_or_none(simulation_payload.get("lambda_away"))
-        probability_sources = {
-            "ASIAN_HANDICAP": r4_1_payload.get("ah_probabilities")
-            if model_family == "R4_1_CALIBRATED"
-            else simulation_payload.get("ah_probabilities"),
-            "TOTALS": r4_1_payload.get("ou_probabilities")
-            if model_family == "R4_1_CALIBRATED"
-            else simulation_payload.get("ou_probabilities"),
-        }
-        derived_lines: dict[str, float] = {}
-        if model_family != "R4_1_CALIBRATED" and home_mu is not None and away_mu is not None:
-            fair_ah, fair_ou, ah_probabilities, ou_probabilities = fair_lines_from_lambdas(
-                home_mu=home_mu,
-                away_mu=away_mu,
-            )
-            derived_lines = {"fair_ah": fair_ah, "fair_ou": fair_ou}
-            probability_sources = {
-                "ASIAN_HANDICAP": ah_probabilities,
-                "TOTALS": ou_probabilities,
-            }
-            pricing_shadow.update(derived_lines)
-            pricing_shadow["edge_ah"] = (
-                None
-                if pricing_shadow.get("mainline_materialization_status") == "STALE"
-                else edge(
-                    fair_ah,
-                    _float_or_none(pricing_shadow.get("market_ah")),
-                )
-            )
-            pricing_shadow["edge_ou"] = edge(
-                fair_ou,
-                _float_or_none(pricing_shadow.get("market_ou")),
-            )
-        snapshots: list[dict[str, object]] = []
-        fixture_id = str(card.get("fixture_id") or "")
-        current_odds = card.get("current_odds")
-        odds_snapshot = dict(current_odds) if isinstance(current_odds, Mapping) else {}
-        feature_snapshot = {
-            "r4_1_feature_rows": dict(r4_1_features),
-            "data_readiness": dict(data_readiness),
-            "model_input_source": (
-                "r4_1_feature_rows"
-                if model_family == "R4_1_CALIBRATED"
-                else "legacy_fitted_model_inputs"
-            ),
-        }
-        created_at = (
-            self._first_text(
-                card.get("generated_at"),
-                feature_as_of,
-                pricing_shadow.get("as_of"),
-            )
-            or "UNKNOWN"
-        )
-        for market, fair_key in (("ASIAN_HANDICAP", "fair_ah"), ("TOTALS", "fair_ou")):
-            fair_line = derived_lines.get(fair_key, _float_or_none(pricing_shadow.get(fair_key)))
-            fallback_reason = pricing_shadow.get("model_family_fallback_reason")
-            train_cutoff = self._first_text(
-                r4_1_payload.get("train_cutoff"),
-                pricing_shadow.get("train_cutoff"),
-            )
-            artifact_hash = self._first_text(pricing_shadow.get("artifact_hash")) or None
-            artifact_id = self._first_text(
-                pricing_shadow.get("artifact_id"),
-                artifact_hash,
-            ) or None
-            artifact_version = self._first_text(pricing_shadow.get("artifact_version")) or None
-            estimate_is_complete = (
-                fair_line is not None
-                and home_mu is not None
-                and home_mu > 0
-                and away_mu is not None
-                and away_mu > 0
-                and bool(feature_as_of)
-                and bool(train_cutoff)
-                and bool(artifact_hash)
-                and bool(artifact_id)
-                and bool(artifact_version)
-            )
-            status = "READY" if estimate_is_complete else "INSUFFICIENT"
-            if not estimate_is_complete and not fallback_reason:
-                fallback_reason = "FME_PROVENANCE_INCOMPLETE"
-            estimate = FairMarketEstimate(
-                market=market,
-                status=status,
-                model_family=model_family,
-                fair_line=fair_line,
-                probabilities=cast(Mapping[str, float], probability_sources[market])
-                if isinstance(probability_sources[market], Mapping)
-                else {},
-                home_mu=home_mu,
-                away_mu=away_mu,
-                feature_as_of=feature_as_of,
-                train_cutoff=train_cutoff,
-                artifact_id=artifact_id,
-                artifact_hash=artifact_hash,
-                artifact_version=artifact_version,
-                fallback_reason=str(fallback_reason) if fallback_reason else None,
-                dixon_coles_rho=dixon_coles_rho,
-            )
-            snapshot = FairMarketEstimateSnapshot.create(
-                fixture_id=fixture_id,
-                estimate=estimate,
-                odds_snapshot=odds_snapshot,
-                feature_snapshot=feature_snapshot,
-                created_at=created_at,
-            ).as_dict()
-            snapshots.append(snapshot)
-        card["fair_market_estimate_snapshots"] = snapshots
-        card["fair_market_estimate_ids"] = [item["estimate_id"] for item in snapshots]
-        # Compatibility view only. New decision consumers resolve the immutable snapshots by ID.
-        card["fair_market_estimates"] = snapshots
-        snapshots_by_market = {str(item["market"]): item for item in snapshots}
-        canonical_ah = _float_or_none(
-            snapshots_by_market.get("ASIAN_HANDICAP", {}).get("model_fair_ah")
-        )
-        canonical_ou = _float_or_none(snapshots_by_market.get("TOTALS", {}).get("model_fair_ou"))
-        if canonical_ah is not None:
-            pricing_shadow["fair_ah"] = canonical_ah
-            pricing_shadow["edge_ah"] = (
-                None
-                if pricing_shadow.get("mainline_materialization_status") == "STALE"
-                else edge(
-                    canonical_ah,
-                    _float_or_none(pricing_shadow.get("market_ah")),
-                )
-            )
-        if canonical_ou is not None:
-            pricing_shadow["fair_ou"] = canonical_ou
-            pricing_shadow["edge_ou"] = edge(
-                canonical_ou,
-                _float_or_none(pricing_shadow.get("market_ou")),
-            )
-
-    def _r4_1_payload_for_card(
-        self,
-        card: dict[str, Any],
-        pricing_shadow: dict[str, Any],
-    ) -> dict[str, Any]:
-        explicit_payload = _r4_1_calibrated_payload(card, pricing_shadow)
-        if explicit_payload:
-            if self._r4_1_cutoff_before_fixture(card, explicit_payload.get("train_cutoff")):
-                return explicit_payload
-            return {"fallback_reason": "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"}
-        competition_id = str(card.get("competition_id") or "")
-        invalid_reason = self._r4_1_artifact_invalid_reasons.get(competition_id)
-        if invalid_reason:
-            return {"fallback_reason": invalid_reason}
-        artifact = self._r4_1_artifacts.get(competition_id)
-        if artifact is None:
-            return {}
-        if not self._r4_1_cutoff_before_fixture(card, artifact.train_cutoff_utc):
-            return {"fallback_reason": "R4_1_TRAIN_CUTOFF_NOT_BEFORE_FIXTURE"}
-        rows = self._r4_1_feature_rows_for_card(card, artifact)
-        if rows is None:
-            return {"fallback_reason": "R4_1_FEATURE_HISTORY_INSUFFICIENT"}
-        home_row, away_row = rows
-        return predict_r4_1_from_artifact(
-            artifact,
-            home_row=home_row,
-            away_row=away_row,
-        )
-
-    def _r4_1_cutoff_before_fixture(self, card: Mapping[str, Any], value: Any) -> bool:
-        kickoff = _parse_utc_text(card.get("kickoff_utc"))
-        cutoff: datetime | None
-        if isinstance(value, datetime):
-            cutoff = value.astimezone(UTC)
-        else:
-            cutoff = _parse_utc_text(value)
-        return kickoff is not None and cutoff is not None and cutoff < kickoff
-
-    def _r4_1_feature_rows_for_card(
-        self,
-        card: dict[str, Any],
-        artifact: R4_1Artifact,
-    ) -> tuple[list[float], list[float]] | None:
-        payload = card.get("r4_1_feature_rows")
-        if not isinstance(payload, dict):
-            return None
-        home = payload.get("home")
-        away = payload.get("away")
-        if not isinstance(home, list) or not isinstance(away, list):
-            return None
-        expected_length = len(artifact.coefficients)
-        if len(home) != expected_length or len(away) != expected_length:
-            return None
-        try:
-            return [float(value) for value in home], [float(value) for value in away]
-        except (TypeError, ValueError):
-            return None
 
     def _apply_signed_ah_line_from_timeline(
         self,
@@ -6055,7 +3780,9 @@ class ReadModelService:
             pricing_shadow["materialized_market_ah"] = materialized_line
             pricing_shadow["selector_market_ah"] = selector_line
             pricing_shadow["mainline_materialization_status"] = "STALE"
-            pricing_shadow["mainline_materialization_blocker"] = AH_MAINLINE_STALE_MATERIALIZATION
+            pricing_shadow["mainline_materialization_blocker"] = (
+                AH_MAINLINE_STALE_MATERIALIZATION
+            )
         elif materialized_line is not None:
             pricing_shadow["mainline_materialization_status"] = "READY"
         if not overwrite_materialized:
@@ -6077,7 +3804,9 @@ class ReadModelService:
         if not isinstance(ah, dict):
             return
         shadow = card.get("pricing_shadow")
-        market_ah = self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
+        market_ah = (
+            self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
+        )
         raw_home_line = self._snapshot_float(ah, "home_line")
         canonical_home_line = market_ah if market_ah is not None else raw_home_line
         if canonical_home_line is None:
@@ -6262,18 +3991,11 @@ class ReadModelService:
         home_name = str(item.get("home_team_name") or item.get("home_cn") or "主队")
         away_name = str(item.get("away_team_name") or item.get("away_cn") or "客队")
         return {
-            "competition_id": self._competition_id_from_provider_fixture(item),
             "kickoff_utc": item.get("kickoff_utc"),
             "competition_name": competition,
             "competition_cn": competition_cn,
             "home_name": home_name,
             "away_name": away_name,
-            "home_team_id": item.get("home_team_id"),
-            "away_team_id": item.get("away_team_id"),
-            "home_team_name": home_name,
-            "away_team_name": away_name,
-            "home_team_provider_name": item.get("home_team_provider_name") or home_name,
-            "away_team_provider_name": item.get("away_team_provider_name") or away_name,
             "home_cn": home_name,
             "away_cn": away_name,
         }
@@ -6290,18 +4012,11 @@ class ReadModelService:
         home_name = str(home.get("name") or "主队")
         away_name = str(away.get("name") or "客队")
         return {
-            "competition_id": self._competition_id_from_provider_fixture(item),
             "kickoff_utc": fixture.get("date"),
             "competition_name": competition,
             "competition_cn": competition_cn,
             "home_name": home_name,
             "away_name": away_name,
-            "home_team_id": home.get("id"),
-            "away_team_id": away.get("id"),
-            "home_team_name": home_name,
-            "away_team_name": away_name,
-            "home_team_provider_name": home_name,
-            "away_team_provider_name": away_name,
             "home_cn": home_name,
             "away_cn": away_name,
         }
@@ -6421,7 +4136,9 @@ class ReadModelService:
                     "market": str(observation.get("canonical_market")),
                     "selection": str(observation.get("selection")),
                     "line": (
-                        None if observation.get("line") is None else str(observation.get("line"))
+                        None
+                        if observation.get("line") is None
+                        else str(observation.get("line"))
                     ),
                     "decimal_odds": str(observation.get("decimal_odds")),
                     "bookmaker_count": 1,
@@ -6751,9 +4468,7 @@ class ReadModelService:
         rows: list[dict[str, Any]] = []
         for card in self.repository.matchday_cards():
             with suppress(Exception):
-                row = self._matchday_item(card)
-                if self._is_active_competition_row(row):
-                    rows.append(row)
+                rows.append(self._matchday_item(card))
         return rows
 
     def _future_fixture_rows_with_errors(self) -> tuple[list[dict[str, Any]], int]:
@@ -6765,27 +4480,9 @@ class ReadModelService:
             except Exception:
                 parse_error_count += 1
                 continue
-            if not self._is_active_competition_row(row):
-                continue
             row["_dashboard_source"] = "future_fixture_payload"
             rows.append(row)
         return rows, parse_error_count
-
-    def _is_active_competition_row(self, row: Mapping[str, Any]) -> bool:
-        if os.environ.get("W2_ENVIRONMENT", "").strip().lower() not in {
-            "staging",
-            "production",
-        }:
-            return True
-        identifier = str(row.get("competition_id") or "")
-        registry = CompetitionRegistry()
-        active = registry.entries()
-        if identifier in active:
-            return True
-        return any(
-            entry.provider_mapping.get("api_football_league_id") == identifier
-            for entry in active.values()
-        )
 
     def _filter_rows_for_operational_date(
         self,
@@ -6842,7 +4539,8 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         filtered.sort(
-            key=lambda row: self._row_kickoff_utc(row) or datetime.max.replace(tzinfo=UTC)
+            key=lambda row: self._row_kickoff_utc(row)
+            or datetime.max.replace(tzinfo=UTC)
         )
         return filtered[:limit]
 
@@ -6938,7 +4636,13 @@ class ReadModelService:
 
     def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
-        analysis = self.frozen_analysis_card(fixture_id) if fixture_id else None
+        analysis: dict[str, Any] | None = None
+        if fixture_id and row.get("_dashboard_source") == "future_fixture_payload":
+            item = self._fixture_payload_by_id(fixture_id)
+            if item is not None:
+                analysis = self._analysis_card_from_provider_payload(fixture_id, item)
+        elif fixture_id:
+            analysis = self.analysis_card(fixture_id)
         card = analysis or self._fallback_analysis_card(
             fixture_id=fixture_id or "unknown-fixture",
             market_coverage={},
@@ -6953,7 +4657,11 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
-        markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
+        markets = [
+            item
+            for item in card.get("markets", [])
+            if isinstance(item, dict)
+        ]
         picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
@@ -7067,10 +4775,6 @@ class ReadModelService:
             if kickoff_for_contract is not None
             else {}
         )
-        scoreline_reference = scoreline_reference_from_card(
-            {**card, **decision_contract},
-            recommendation=recommendation,
-        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
@@ -7086,7 +4790,6 @@ class ReadModelService:
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
-            "feature_readiness": card.get("feature_readiness", {}),
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,
@@ -7145,7 +4848,9 @@ class ReadModelService:
     ) -> dict[str, Any]:
         raw_data_readiness = card.get("data_readiness")
         data_readiness: dict[str, Any] = (
-            cast(dict[str, Any], raw_data_readiness) if isinstance(raw_data_readiness, dict) else {}
+            cast(dict[str, Any], raw_data_readiness)
+            if isinstance(raw_data_readiness, dict)
+            else {}
         )
         raw_available_inputs = readiness.get("available_inputs")
         available_inputs: dict[str, Any] = (
@@ -7325,20 +5030,18 @@ class ReadModelService:
         include_debug: bool,
     ) -> dict[str, Any]:
         cards = [
-            item for item in seed.get("all", seed.get("upcoming", [])) if isinstance(item, dict)
+            item
+            for item in seed.get("all", seed.get("upcoming", []))
+            if isinstance(item, dict)
         ]
-        debug = (
-            {
-                **counts,
-                "selected_date": requested_date.isoformat(),
-                "selected_date_has_data": bool(cards),
-                "next_available_date": requested_date.isoformat() if cards else None,
-                "empty_reason": None if cards else "STAGING_SEED_EMPTY",
-                "suggested_actions": ["staging seed is active; run live ingestion for real data"],
-            }
-            if include_debug
-            else {}
-        )
+        debug = {
+            **counts,
+            "selected_date": requested_date.isoformat(),
+            "selected_date_has_data": bool(cards),
+            "next_available_date": requested_date.isoformat() if cards else None,
+            "empty_reason": None if cards else "STAGING_SEED_EMPTY",
+            "suggested_actions": ["staging seed is active; run live ingestion for real data"],
+        } if include_debug else {}
         return {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),

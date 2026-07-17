@@ -147,7 +147,6 @@ class DashboardResponse(BaseModel):
     window: str
     data_profile: str
     data_source: str
-    read_degradation: dict[str, Any] = Field(default_factory=dict)
     version: dict[str, Any]
     debug: dict[str, Any]
     performance: dict[str, Any]
@@ -164,7 +163,6 @@ class DashboardDayViewResponse(BaseModel):
     football_day: str
     selected_football_day: str
     environment: str
-    active_whitelist_count: int | None = None
     environment_policy: dict[str, Any]
     timezone: str
     window: str
@@ -175,8 +173,6 @@ class DashboardDayViewResponse(BaseModel):
     provider_calls: int
     db_writes: int
     counts: dict[str, Any]
-    page_counts: dict[str, Any]
-    pagination: dict[str, Any]
     freshness: dict[str, Any]
     navigation: dict[str, Any]
     degradation: dict[str, Any]
@@ -255,14 +251,6 @@ class AnalysisCardResponse(BaseModel):
     request_id: str
     fixture_id: str
     card: dict[str, Any]
-    performance: dict[str, float] = Field(default_factory=dict)
-
-
-class FrozenAuditDetailResponse(BaseModel):
-    request_id: str
-    fixture_id: str
-    audit: dict[str, Any]
-    performance: dict[str, int | float] = Field(default_factory=dict)
 
 
 class MarketRankingResponse(BaseModel):

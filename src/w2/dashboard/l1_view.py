@@ -200,16 +200,8 @@ def _environment_policy(day_view: Mapping[str, Any], *, environment: str) -> dic
 
 
 def _match_label(card: Mapping[str, Any]) -> str:
-    home = _optional_text(
-        card.get("home_team_display_name"),
-        card.get("home_team_name_zh"),
-        card.get("home_team_name"),
-    )
-    away = _optional_text(
-        card.get("away_team_display_name"),
-        card.get("away_team_name_zh"),
-        card.get("away_team_name"),
-    )
+    home = _optional_text(card.get("home_team_name"))
+    away = _optional_text(card.get("away_team_name"))
     if home and away:
         return f"{home} vs {away}"
     return _text(card.get("fixture_id"), "未命名比赛")

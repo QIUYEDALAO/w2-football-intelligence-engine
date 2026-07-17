@@ -14,7 +14,6 @@ WORLD_CUP_BUDGET_RESERVE = 20
 
 CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
     ("OPEN", timedelta(hours=-48), ("odds",)),
-    ("T6_ODDS", timedelta(hours=-6), ("odds",)),
     ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
     ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
 )
@@ -69,7 +68,6 @@ def checkpoint_plan_for_fixture(
         due_at = kickoff + offset
         if checkpoint == "OPEN" and due_at < generated_at:
             due_at = generated_at
-        status = "MISSED" if checkpoint == "T6_ODDS" and due_at < generated_at else "PENDING"
         plans.append(
             FixtureCheckpointPlan(
                 fixture_id=str(fixture_id),
@@ -77,7 +75,6 @@ def checkpoint_plan_for_fixture(
                 kickoff_utc=kickoff,
                 due_at_utc=due_at,
                 endpoints=endpoints,
-                status=status,
             )
         )
     return plans
@@ -194,25 +191,6 @@ def select_checkpoint_batch(
     return selected, projected_calls_for_checkpoint_batch(selected)
 
 
-def prioritize_checkpoint_plans(
-    plans: list[FixtureCheckpointPlan],
-    *,
-    now: datetime,
-) -> list[FixtureCheckpointPlan]:
-    """Spend a constrained tick on today's nearest kickoffs before future fixtures."""
-    current = normalize_utc(now)
-    return sorted(
-        plans,
-        key=lambda plan: (
-            normalize_utc(plan.kickoff_utc).date() != current.date(),
-            normalize_utc(plan.kickoff_utc),
-            normalize_utc(plan.due_at_utc),
-            str(plan.fixture_id),
-            str(plan.checkpoint),
-        ),
-    )
-
-
 def world_cup_matchday_budget_projection(
     *,
     fixture_count: int = 5,
@@ -222,7 +200,7 @@ def world_cup_matchday_budget_projection(
     matchday_budget: int = WORLD_CUP_MATCHDAY_PROVIDER_BUDGET,
     trickle_backfill_budget: int = WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET,
 ) -> dict[str, int | bool]:
-    base_per_fixture = 4  # OPEN, T6 odds, T1 odds, T15 close.
+    base_per_fixture = 3  # OPEN, T1 odds, T15 close.
     lineups_per_fixture = 1
     retry_per_fixture = 2 if include_retries else 0
     fixture_calls = fixture_count * (

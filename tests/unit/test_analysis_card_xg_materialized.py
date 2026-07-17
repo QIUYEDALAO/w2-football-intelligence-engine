@@ -6,11 +6,6 @@ from typing import Any, cast
 
 from w2.api import repository as api_repository
 from w2.api.repository import ReadModelService
-from w2.domain.decision_adapter import (
-    MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE,
-    build_decision_contract_fields,
-)
-from w2.readiness.data_gate import READINESS_SOURCE
 
 NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(days=1)
@@ -129,11 +124,6 @@ class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
         }
 
 
-class FakeReadRepositoryWithoutMarket(FakeReadRepository):
-    def future_market_observations(self) -> list[dict[str, Any]]:
-        return []
-
-
 class FakeDbRepository:
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         if endpoint != "lineups":
@@ -205,16 +195,6 @@ class FakeDbRepository:
                     }
                 )
         return rows
-
-
-class FakeDbRepositoryWithoutXg(FakeDbRepository):
-    def team_xg_rolling_snapshots(
-        self,
-        *,
-        fixture_id: str | None = None,
-        team_id: str | None = None,
-    ) -> list[dict[str, Any]]:
-        return []
 
 
 def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() -> None:
@@ -305,111 +285,6 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
-
-
-def test_no_market_with_materialized_xg_reports_market_unavailable(monkeypatch) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
-    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithoutMarket()))
-
-    card = service.analysis_card("1489410")
-
-    assert card is not None
-    assert card["data_readiness"]["xg_status"] == "READY"
-    assert card["feature_readiness"]["xg_status"] == "READY"
-    assert all(market["decision"] == "SKIP" for market in card["markets"][:2])
-
-
-def test_no_market_never_creates_pick(monkeypatch) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
-    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithoutMarket()))
-
-    card = service.analysis_card("1489410")
-
-    assert card is not None
-    assert card["decision"] == "SKIP"
-    assert card["candidate"] is False
-    assert card["formal_recommendation"] is False
-
-
-def test_no_xg_and_no_market_preserves_both_readiness_diagnostics(monkeypatch) -> None:
-    monkeypatch.setattr(
-        api_repository,
-        "future_refresh_db_repository",
-        lambda: FakeDbRepositoryWithoutXg(),
-    )
-    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithoutMarket()))
-
-    card = service.analysis_card("1489410")
-
-    assert card is not None
-    assert card["data_readiness"]["market_observations"] == 0
-    assert card["feature_readiness"]["xg_status"] != "READY"
-    assert card["decision"] == "SKIP"
-
-
-def test_market_present_without_artifact_reports_provenance_incomplete(monkeypatch) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
-    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
-    card = service.analysis_card("1489410")
-    assert card is not None
-    assert card["feature_readiness"]["artifact_status"] == "UNAVAILABLE"
-
-    contract = build_decision_contract_fields(
-        card=card,
-        market=None,
-        recommendation=None,
-        readiness={
-            "source": READINESS_SOURCE,
-            "data_status": "READY",
-            "missing_fields": [],
-            "stale_fields": [],
-            "reason_code": None,
-            "field_statuses": [],
-        },
-        environment="staging",
-        as_of=NOW - timedelta(minutes=30),
-        kickoff_utc=KICKOFF,
-        competition_id="world_cup_2026",
-        fixture_id="1489410",
-    )
-
-    assert contract["primary_blocker"] == "FME_PROVENANCE_INCOMPLETE"
-    assert contract["primary_blocker_layer"] == "FME_PROVENANCE"
-    assert "MODEL_FAIR_LINE_UNAVAILABLE" in contract["all_blockers"]
-    assert all(
-        gate["primary_blocker"] == "FME_PROVENANCE_INCOMPLETE"
-        for gate in contract["analysis_gates"]
-    )
-
-
-def test_feature_fallback_reason_remains_l2_diagnostic(monkeypatch) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
-    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithoutMarket()))
-    card = service.analysis_card("1489410")
-    assert card is not None
-
-    contract = build_decision_contract_fields(
-        card=card,
-        market=None,
-        recommendation=None,
-        readiness=None,
-        environment="staging",
-        as_of=NOW,
-        kickoff_utc=KICKOFF,
-        competition_id="world_cup_2026",
-        fixture_id="1489410",
-    )
-
-    assert contract["primary_blocker"] == "MARKET_UNAVAILABLE"
-    assert all(
-        estimate["fallback_reason"] == "FME_PROVENANCE_INCOMPLETE"
-        for estimate in card["fair_market_estimate_snapshots"]
-    )
-    assert "FME_PROVENANCE_INCOMPLETE" not in contract["all_blockers"]
-
-
-def test_gate_thresholds_are_unchanged() -> None:
-    assert MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE == 0.25
 
 
 def test_analysis_card_prefers_future_refresh_observations_over_stale_dashboard(

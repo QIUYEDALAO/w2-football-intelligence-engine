@@ -111,15 +111,15 @@
       "outcome_tracked": false,
       "lock_eligible": false,
       "recommendation_id": null,
-      "reason_code": "MODEL_FAIR_LINE_UNAVAILABLE",
-      "action": "等待验证模型与公平盘就绪",
+      "reason_code": "LINEUPS_PENDING",
+      "action": "等待首发",
       "next_eval_at": "2026-07-05T01:30:00Z",
-      "one_liner": "首发为可选增强；当前等待验证模型与公平盘。",
+      "one_liner": "首发未出，先观察。",
       "card_hash": "hash-watch-1",
       "source": "tests.fixture",
       "non_pick": {
-        "reason_code": "MODEL_FAIR_LINE_UNAVAILABLE",
-        "action": "等待验证模型与公平盘就绪",
+        "reason_code": "LINEUPS_PENDING",
+        "action": "等待首发",
         "next_eval_at": "2026-07-05T01:30:00Z"
       }
     },

@@ -9,7 +9,6 @@ from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     build_recommendation_lock_snapshot,
     canonical_snapshot_hash,
 )
-from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
 
@@ -40,10 +39,6 @@ def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
     assert first.release_sha == "release-sha"
     assert first.market_timeline_json["pattern"] == "ONE_WAY_MOVE"
     assert first.ah_settlement_distribution_json["win"] == 0.41
-    estimate_id = card["recommendation"]["estimate_id"]  # type: ignore[index]
-    assert first.snapshot_payload_json["fair_market_estimate_ids"] == [estimate_id]
-    frozen_estimate = first.snapshot_payload_json["fair_market_estimate_snapshots"][0]
-    assert frozen_estimate["estimate_id"] == estimate_id
 
 
 def test_lock_snapshot_hash_changes_when_freeze_payload_changes() -> None:
@@ -123,90 +118,7 @@ def test_lock_snapshot_builder_rejects_post_kickoff_freeze() -> None:
         )
 
 
-def test_lock_snapshot_builder_rejects_missing_estimate() -> None:
-    card = _card()
-    card["recommendation"].pop("estimate_id")  # type: ignore[union-attr]
-
-    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_REQUIRES_ESTIMATE"):
-        _build(card)
-
-
-def test_lock_snapshot_builder_rejects_invalid_estimate() -> None:
-    card = _card()
-    card["fair_market_estimate_snapshots"][0]["fair_line"] = 99  # type: ignore[index]
-
-    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_INVALID_ESTIMATE"):
-        _build(card)
-
-
-def test_lock_snapshot_builder_rejects_semantic_failure() -> None:
-    card = _card(snapshot=_estimate_snapshot(home_mu=None))
-
-    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_ESTIMATE_SEMANTIC_FAIL"):
-        _build(card)
-
-
-def test_lock_snapshot_builder_rejects_market_mismatch() -> None:
-    card = _card(snapshot=_estimate_snapshot(market="TOTALS"))
-
-    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_ESTIMATE_MARKET_MISMATCH"):
-        _build(card)
-
-
-def test_lock_snapshot_builder_rejects_estimate_mismatch() -> None:
-    card = _card()
-    card["recommendation"]["estimate_id"] = "fme_other"  # type: ignore[index]
-
-    with pytest.raises(ValueError, match="LOCK_SNAPSHOT_ESTIMATE_MISMATCH"):
-        _build(card)
-
-
-def _build(card: dict[str, object]) -> object:
-    return build_recommendation_lock_snapshot(
-        recommendation_id="rec-1",
-        card=card,
-        locked_at=NOW,
-        reason="formal prematch lock",
-        release_sha="release-sha",
-    )
-
-
-def _estimate_snapshot(
-    *,
-    market: str = "ASIAN_HANDICAP",
-    home_mu: float | None = 1.6,
-) -> dict[str, object]:
-    return FairMarketEstimateSnapshot.create(
-        fixture_id="fixture-1",
-        estimate=FairMarketEstimate(
-            market=market,
-            status="READY",
-            model_family="R4_1_CALIBRATED",
-            fair_line=-0.5 if market == "ASIAN_HANDICAP" else 2.5,
-            probabilities={},
-            home_mu=home_mu,
-            away_mu=1.0,
-            feature_as_of="2026-06-22T00:00:00Z",
-            train_cutoff="2026-06-01T00:00:00Z",
-            artifact_hash="artifact",
-            artifact_version="v1",
-        ),
-        odds_snapshot={
-            "ah": {
-                "home_line": -0.75,
-                "away_line": 0.75,
-                "home_price": 2.02,
-                "away_price": 1.87,
-            },
-            "ou": {"line": 2.5, "over_price": 1.95, "under_price": 1.95},
-        },
-        feature_snapshot={"home_xg": home_mu, "away_xg": 1.0},
-        created_at="2026-06-22T01:00:00Z",
-    ).as_dict()
-
-
-def _card(snapshot: dict[str, object] | None = None) -> dict[str, object]:
-    estimate = snapshot or _estimate_snapshot()
+def _card() -> dict[str, object]:
     return {
         "fixture_id": "fixture-1",
         "generated_at": "2026-06-22T01:00:00Z",
@@ -219,7 +131,6 @@ def _card(snapshot: dict[str, object] | None = None) -> dict[str, object]:
             "tier": "FORMAL",
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
-            "estimate_id": estimate["estimate_id"],
             "selection_label_cn": "Away 受让",
             "line": "0.75",
             "odds": "1.87",
@@ -261,6 +172,4 @@ def _card(snapshot: dict[str, object] | None = None) -> dict[str, object]:
         },
         "data_refresh": {"lineups_status": "READY", "xg_status": "READY"},
         "data_profile": "real-db",
-        "fair_market_estimate_ids": [estimate["estimate_id"]],
-        "fair_market_estimate_snapshots": [estimate],
     }

@@ -100,7 +100,7 @@ def _boss_5s_test(day_view: Mapping[str, Any]) -> dict[str, Any]:
         "正式可锁",
         "分析推荐",
         "未就绪",
-        "MODEL_FAIR_LINE_UNAVAILABLE",
+        "LINEUPS_PENDING",
         "MARKET_UNAVAILABLE",
         "下一次刷新",
         str(freshness.get("next_refresh_tick") or ""),
@@ -109,6 +109,8 @@ def _boss_5s_test(day_view: Mapping[str, Any]) -> dict[str, Any]:
     blockers = _missing_texts(first_screen, required)
     if "主要未出原因" not in first_screen and "reason summary" not in first_screen:
         blockers.append("MISSING_REASON_SUMMARY")
+    if _int(counts.get("analysis_pick")) < 1:
+        blockers.append("ANALYSIS_PICK_COUNT_MISSING")
     blockers.extend(_raw_leaks(first_screen))
     return {
         "status": _status(blockers),

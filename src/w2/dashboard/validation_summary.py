@@ -59,5 +59,5 @@ def _sample_label(scope: str, sample_size: int) -> str:
     if scope == "official":
         return "official 样本不足，暂不计算命中率"
     if scope == "analysis_shadow":
-        return "验证推荐样本不足，暂不计算命中率（不计入正式战绩）"
+        return "analysis_shadow 样本不足，暂不计算命中率"
     return "分析参考样本不足，暂不计算命中率"

@@ -124,8 +124,8 @@ def require_competition_enabled(
     registry: CompetitionRegistry | None = None,
 ) -> CoverageProfile | FeatureContribution:
     resolved = registry or CompetitionRegistry()
-    entry = resolved.all_entries().get(context.competition_id)
-    if entry is None or not resolved.is_analysis_available(context.competition_id):
+    entry = resolved.entries().get(context.competition_id)
+    if entry is None or not entry.enabled:
         return FeatureContribution(
             feature_id="COMPETITION_WHITELIST",
             label="Competition whitelist",

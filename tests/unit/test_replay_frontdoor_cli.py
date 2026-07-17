@@ -51,13 +51,6 @@ def test_replay_frontdoor_cli_with_day_view_json_returns_cards(tmp_path: Path) -
                         "outcome_tracked": True,
                         "card_hash": "h",
                         "expected_card_hash": "h",
-                        "capture_hash": "capture-1",
-                        "pick": {
-                            "market": "TOTALS",
-                            "selection": "OVER",
-                            "estimate_id": "fme-1",
-                            "quote_id": "mq-1",
-                        },
                     }
                 ],
             },
@@ -66,22 +59,7 @@ def test_replay_frontdoor_cli_with_day_view_json_returns_cards(tmp_path: Path) -
         encoding="utf-8",
     )
     outcomes_path.write_text(
-        json.dumps(
-            [
-                {
-                    "fixture_id": "fixture-1",
-                    "market": "TOTALS",
-                    "selection": "OVER",
-                    "recommendation_scope": "VALIDATION",
-                    "strategy_version": "DECISION_CONTRACT_V2",
-                    "estimate_id": "fme-1",
-                    "quote_id": "mq-1",
-                    "source_capture_hash": "capture-1",
-                    "result_status": "FINAL",
-                    "score": "1-0",
-                }
-            ]
-        ),
+        json.dumps([{"fixture_id": "fixture-1", "result_status": "FINAL", "score": "1-0"}]),
         encoding="utf-8",
     )
 

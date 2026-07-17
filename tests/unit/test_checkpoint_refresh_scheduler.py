@@ -8,7 +8,6 @@ from w2.ingestion.checkpoint_refresh import (
     checkpoint_plan_for_fixture,
     line_jump_confirmation_plan,
     lineups_retry_plans,
-    prioritize_checkpoint_plans,
     projected_calls_for_checkpoint_batch,
     saturday_budget_projection,
     select_checkpoint_batch,
@@ -31,15 +30,12 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
 
     assert [plan.checkpoint for plan in plans] == [
         "OPEN",
-        "T6_ODDS",
         "T1_LINEUPS",
         "T15M_CLOSE",
     ]
     assert plans[0].due_at_utc == NOW
-    assert plans[1].due_at_utc == kickoff - timedelta(hours=6)
-    assert plans[1].endpoints == ("odds",)
-    assert plans[2].due_at_utc == kickoff - timedelta(hours=1)
-    assert plans[2].endpoints == ("odds", "lineups")
+    assert plans[1].due_at_utc == kickoff - timedelta(hours=1)
+    assert plans[1].endpoints == ("odds", "lineups")
     assert [plan.plan_id for plan in plans].count("fixture-1:T1_LINEUPS") == 1
 
 
@@ -53,23 +49,9 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
     )
 
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
-    assert plans[1].due_at_utc == datetime(2026, 7, 4, 18, 0, tzinfo=UTC)
-    assert plans[2].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
-    assert plans[3].checkpoint == "T15M_CLOSE"
-    assert plans[3].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
-
-
-def test_missed_t6_checkpoint_is_not_backfilled() -> None:
-    plans = checkpoint_plan_for_fixture(
-        fixture_id="fixture-missed-t6",
-        kickoff_utc=NOW + timedelta(hours=5),
-        generated_at_utc=NOW,
-    )
-
-    t6 = next(plan for plan in plans if plan.checkpoint == "T6_ODDS")
-
-    assert t6.due_at_utc == NOW - timedelta(hours=1)
-    assert t6.status == "MISSED"
+    assert plans[1].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
+    assert plans[2].checkpoint == "T15M_CLOSE"
+    assert plans[2].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
 
 
 def test_line_jump_confirmation_triggers_after_half_ball_move() -> None:
@@ -130,16 +112,16 @@ def test_lineups_provider_empty_schedules_t45_and_t30_retries_at_due_windows() -
 
 def test_checkpoint_batch_respects_hard_cap() -> None:
     plans = [
-        *[plan for plan in checkpoint_plan_for_fixture(
+        *checkpoint_plan_for_fixture(
             fixture_id="a",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
-        ) if plan.checkpoint in {"OPEN", "T1_LINEUPS"}],
-        *[plan for plan in checkpoint_plan_for_fixture(
+        )[:2],
+        *checkpoint_plan_for_fixture(
             fixture_id="b",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
-        ) if plan.checkpoint in {"OPEN", "T1_LINEUPS"}],
+        )[:2],
     ]
 
     selected, projected = select_checkpoint_batch(plans, hard_cap=4)
@@ -147,35 +129,6 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
     assert len(selected) == 2
     assert projected == projected_calls_for_checkpoint_batch(selected)
     assert projected <= 4
-
-
-def test_checkpoint_priority_prefers_today_nearest_kickoff() -> None:
-    future = checkpoint_plan_for_fixture(
-        fixture_id="future",
-        kickoff_utc=NOW + timedelta(days=1, hours=1),
-        generated_at_utc=NOW,
-    )[0]
-    later_today = checkpoint_plan_for_fixture(
-        fixture_id="later-today",
-        kickoff_utc=NOW + timedelta(hours=8),
-        generated_at_utc=NOW,
-    )[0]
-    nearer_today = checkpoint_plan_for_fixture(
-        fixture_id="nearer-today",
-        kickoff_utc=NOW + timedelta(hours=2),
-        generated_at_utc=NOW,
-    )[0]
-
-    prioritized = prioritize_checkpoint_plans(
-        [future, later_today, nearer_today],
-        now=NOW,
-    )
-
-    assert [plan.fixture_id for plan in prioritized] == [
-        "nearer-today",
-        "later-today",
-        "future",
-    ]
 
 
 def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> None:
@@ -210,13 +163,21 @@ def test_trickle_backfill_plan_never_steals_matchday_reserve() -> None:
     assert busy_day["allowed"] is False
 
 
-def test_world_cup_is_absent_from_live_refresh_policy_after_archive() -> None:
+def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() -> None:
     payload = json.loads(
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
-    assert "world_cup_2026" not in {
-        item["competition_id"] for item in payload["competitions"]
-    }
+    policy = next(
+        item
+        for item in payload["competitions"]
+        if item["competition_id"] == "world_cup_2026"
+    )
+
+    assert policy["daily_hard_cap"] == 120
+    assert policy["daily_reserve"] == 0
+    assert policy["request_budget"] == 30
+    assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
+    assert policy["trickle_backfill_daily_budget"] == 0
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:

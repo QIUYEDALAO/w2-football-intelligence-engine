@@ -9,7 +9,7 @@ ENV PATH=/app/.venv/bin:$PATH \
     W2_RELEASE_ID=${W2_RELEASE_ID}
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
-COPY pyproject.toml uv.lock README.md alembic.ini ./
+COPY pyproject.toml uv.lock README.md ./
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
@@ -29,8 +29,6 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/export_w2_audit_tables.py \
      scripts/debug_w2_modeling_sanity.py \
      scripts/debug_w2_s2_calibration_validation.py \
-     scripts/check_dayview_business_readiness.py \
-     scripts/check_r4_artifact_release.py \
      ./scripts/
 RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-gate5-preflight
@@ -48,14 +46,12 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_production_readiness.py \
  && test -f /app/scripts/export_w2_audit_tables.py \
  && test -f /app/scripts/debug_w2_modeling_sanity.py \
- && test -f /app/scripts/debug_w2_s2_calibration_validation.py \
- && test -f /app/scripts/check_dayview_business_readiness.py \
- && test -f /app/scripts/check_r4_artifact_release.py
+ && test -f /app/scripts/debug_w2_s2_calibration_validation.py
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \
       w2.release.id="${W2_RELEASE_ID}" \
       w2.runtime.contract.version="release-train-2-patch2"
 USER w2
-HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
-CMD ["/app/.venv/bin/uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+CMD ["uv", "run", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,12 +1,4 @@
-import {
-  fmtTime,
-  formatLine,
-  formatOdds,
-  localizedTeamName,
-  localizedTeamTitle,
-  teamCode,
-  translateCompetition,
-} from "../lib/formatters";
+import { fmtTime, formatLine, formatOdds, teamCode, translateCompetition, translateTeam } from "../lib/formatters";
 import { matchPhase, minutesToKickoff, phaseLabel, requiresPrematchReview } from "../lib/matchPhase";
 import { asRecord, currentOdds, readinessItems, textValue, watchLevel } from "../lib/normalize";
 import {
@@ -26,7 +18,7 @@ type VerdictState = "REFERENCE" | "WATCH" | "INSUFFICIENT" | "LOCKED";
 const TIER_LABELS: Record<RecommendationTier, string> = {
   FORMAL: "正式推荐",
   CANDIDATE: "候选观察",
-  ANALYSIS_PICK: "验证推荐",
+  ANALYSIS_PICK: "分析参考",
   WATCH: "观察",
   NO_RECOMMENDATION: "暂无推荐",
 };
@@ -70,7 +62,7 @@ const MARKET_LABELS: Record<string, string> = {
 };
 
 const VERDICT_LABELS: Record<VerdictState, string> = {
-  REFERENCE: "技术参考",
+  REFERENCE: "分析参考",
   WATCH: "观察",
   INSUFFICIENT: "数据不足",
   LOCKED: "已锁定",
@@ -342,7 +334,7 @@ function formalReason(match: DashboardMatchCard): string {
   if (readinessBlockers.length) return readinessBlockers.join(" · ");
   if (match.pricing_shadow?.simulation_status !== "READY") return "模拟引擎未就绪";
   if (match.pricing_shadow?.formal_eligible === false) return "未达到正式推荐门槛";
-  return "当前保持观察，尚未达到正式推荐条件。";
+  return "当前只保留为观察/分析参考，不伪装成正式推荐。";
 }
 
 function lockedSettlementText(match: DashboardMatchCard): string {
@@ -394,13 +386,13 @@ function actionabilityLine(match: DashboardMatchCard): string {
   if (phase === "LIVE") return "已开赛：赛前判断停止更新";
   if (phase === "FINISHED") return "已完场：查看复盘验证";
   if (requiresPrematchReview(phase)) {
-    if (!lineupsReady) return "首发待公布：当前为可选增强，不阻断或改变分析";
+    if (!lineupsReady) return "临场待确认：首发未出，开赛前需复核";
     if (!oddsReady) return "临场待确认：盘口快照不足，需复核";
-    return "临场可参考：首发仅作信息增强，继续关注盘口跳线";
+    return "临场可参考：仍需赛前复核阵容与盘口跳线";
   }
   if (ahMainlineBlocker(match)) return "全场让球主盘口不明确，保持观察";
   if (!oddsReady) return "等待盘口快照后再看";
-  return "赛前继续观察，等待正式条件";
+  return "赛前分析参考，等待正式条件";
 }
 
 function canShowScoreline(match: DashboardMatchCard): boolean {
@@ -469,15 +461,15 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
     );
   }
   const reference = match.scoreline_reference;
-  const directionScorelines = (reference?.direction_scorelines ?? [])
+  const topScorelines = (reference?.top_scorelines?.length ? reference.top_scorelines : match.scoreline_picks)
     .slice(0, 3)
-    .map((pick) => pick.scoreline)
+    .map((pick) => scorelineItemText(pick))
     .filter(Boolean)
     .join(" · ");
   const highTotal = highTotalText(match);
   const veryHighTotal = veryHighTotalText(match);
   const ahKeys = ahKeyScorelineText(match);
-  if (!directionScorelines && !highTotal && !ahKeys) {
+  if (!topScorelines && !highTotal && !ahKeys) {
     return (
       <p className="scoreline-hero-copy">
         <strong>模拟比分参考：</strong>
@@ -488,7 +480,7 @@ function ScorelineReferenceBlock({ match, isFormal }: { match: DashboardMatchCar
   return (
     <div className="scoreline-reference-block" aria-label="分层模拟比分参考">
       <strong>模拟比分参考，不是推荐比分</strong>
-      {directionScorelines ? <p>与推荐方向一致：{directionScorelines}</p> : null}
+      {topScorelines ? <p>最可能：{topScorelines}</p> : null}
       {highTotal ? <p>{highTotal}{veryHighTotal ? ` · ${veryHighTotal}` : ""}</p> : null}
       {ahKeys ? <p>让球结算关键比分：{ahKeys}</p> : null}
     </div>
@@ -789,8 +781,8 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
   const pick = displayPick(match);
   const risks = pick?.risks.length ? pick.risks : ["天气、红牌、阵容临场变化可能改变判断"];
   const stars = watchLevel({ watch_level: match.watch_level });
-  const homeName = localizedTeamName(match, "home");
-  const awayName = localizedTeamName(match, "away");
+  const homeName = translateTeam(match.home_team_name);
+  const awayName = translateTeam(match.away_team_name);
   const minutes = minutesToKickoff(match.kickoff_utc);
   const phase = matchPhase(match.kickoff_utc, match.status);
   const prematchReview = requiresPrematchReview(phase);
@@ -814,9 +806,9 @@ export function RecommendationCard({ match }: { match: DashboardMatchCard }) {
             {fmtTime(match.kickoff_utc)} · {translateCompetition(match.competition_name)}
           </span>
           <div className="fixture-title">
-            <strong title={localizedTeamTitle(match, "home")}>{homeName}</strong>
+            <strong>{homeName}</strong>
             <span>{match.result?.final_score ?? "vs"}</span>
-            <strong title={localizedTeamTitle(match, "away")}>{awayName}</strong>
+            <strong>{awayName}</strong>
           </div>
           <div className="team-code-row" aria-hidden="true">
             <span>{teamCode(match.home_team_name)}</span>

@@ -109,13 +109,6 @@ def build_market_divergence(
     base = {
         "factor_leader": leader,
         "factor_leader_team": _leader_team(leader, home_team_name, away_team_name),
-        "model_family": _text(shadow.get("model_family")) or "FITTED_CALIBRATED",
-        "model_family_fallback_reason": _optional_text(
-            shadow.get("model_family_fallback_reason")
-        ),
-        "artifact_hash": _optional_text(shadow.get("artifact_hash")),
-        "artifact_version": _optional_text(shadow.get("artifact_version")),
-        "model_probabilities": _mapping_copy(shadow.get("model_probabilities")),
         "fair_ah": fair_ah,
         "market_open_ah": market_open,
         "market_lock_ah": market_lock,
@@ -238,21 +231,6 @@ def _number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
-
-
-def _mapping_copy(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, dict) else {}
-
-
-def _optional_text(value: Any) -> str | None:
-    text = _text(value)
-    return text or None
-
-
-def _text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
 
 
 def _price_drift(opening: Any, latest: Any) -> float | None:

@@ -8,7 +8,6 @@ from typing import Any, Literal
 from w2.domain.enums import DataStatus, DecisionReasonCode
 
 READINESS_SOURCE: Literal["w2.readiness.data_gate.v1"] = "w2.readiness.data_gate.v1"
-OPTIONAL_ENRICHMENT_FIELDS = frozenset({"lineups", "team_value"})
 
 
 @dataclass(frozen=True)
@@ -103,17 +102,10 @@ def evaluate_data_readiness(
     policy: DataFreshnessPolicy,
 ) -> DataReadinessResult:
     as_of = data.as_of.astimezone(UTC)
+    kickoff = data.kickoff_utc.astimezone(UTC)
     fields = _field_statuses(data, policy)
-    missing = tuple(
-        field.field
-        for field in fields
-        if not field.present and field.field not in OPTIONAL_ENRICHMENT_FIELDS
-    )
-    stale = tuple(
-        field.field
-        for field in fields
-        if field.stale and field.field not in OPTIONAL_ENRICHMENT_FIELDS
-    )
+    missing = tuple(field.field for field in fields if not field.present)
+    stale = tuple(field.field for field in fields if field.stale)
     next_tick = as_of + timedelta(minutes=policy.default_next_refresh_minutes)
     provider_budget_status = _provider_budget_status(data)
 
@@ -150,16 +142,18 @@ def evaluate_data_readiness(
             provider_budget_status,
         )
     if "odds" in stale:
-        odds_field = next(field for field in fields if field.field == "odds")
         return _result(
             DataStatus.STALE,
             fields,
-            odds_field.reason_code or DecisionReasonCode.DATA_STALE_ODDS,
+            DecisionReasonCode.DATA_STALE_ODDS,
             next_tick,
             provider_budget_status,
         )
 
-    independent_soft = any(field in missing or field in stale for field in ("xg", "ratings"))
+    lineups_soft = "lineups" in missing or "lineups" in stale
+    independent_soft = any(
+        field in missing or field in stale for field in ("xg", "ratings", "team_value")
+    )
     hard_missing = _hard_required_missing(missing, policy)
     if hard_missing:
         return _result(
@@ -167,6 +161,14 @@ def evaluate_data_readiness(
             fields,
             _hard_required_reason(hard_missing),
             next_tick,
+            provider_budget_status,
+        )
+    if lineups_soft:
+        return _result(
+            DataStatus.PARTIAL,
+            fields,
+            DecisionReasonCode.LINEUPS_PENDING,
+            _lineups_next_eval(kickoff, as_of, policy, next_tick),
             provider_budget_status,
         )
     if independent_soft:
@@ -201,6 +203,7 @@ def build_data_readiness_from_legacy_payload(
     available_inputs = _as_mapping(_get(analysis_readiness, "available_inputs"))
     pricing = _as_mapping(card.get("pricing_shadow"))
     current_odds = _as_mapping(card.get("current_odds"))
+    line_movement = _as_mapping(card.get("line_movement"))
     provider = provider_status or _as_mapping(card.get("provider_status"))
     provider_budget_status = _first_text(
         _get(provider, "provider_budget_status"),
@@ -232,15 +235,13 @@ def build_data_readiness_from_legacy_payload(
         or _has_market_odds(market)
         or _has_market_odds(recommendation)
     )
-    selected_market = _first_text(
-        _get(recommendation, "market"),
-        _get(market, "market"),
-        _get(_as_mapping(card.get("pick")), "market"),
-        _get(_as_mapping(card.get("analysis_gate")), "market"),
-    )
-    selected_quote = _selected_quote(current_odds, selected_market)
     odds_captured_at = _parse_utc(
-        _first_text(_get(selected_quote, "captured_at"), _get(selected_quote, "as_of"))
+        _first_text(
+            _get(current_odds, "captured_at"),
+            _get(line_movement, "captured_at"),
+            _get(raw_data_readiness, "odds_captured_at"),
+            _get(card, "generated_at"),
+        ),
     )
     lineups_available = _truthy(_get(available_inputs, "lineups")) or _truthy(
         _get(raw_data_readiness, "lineups"),
@@ -249,16 +250,8 @@ def build_data_readiness_from_legacy_payload(
     ratings_available = _truthy(_get(raw_data_readiness, "ratings")) or _truthy(
         _get(pricing, "ratings_ready"),
     )
-    ratings_available = ratings_available or _pricing_factor_ready(
-        pricing,
-        "F7_STRENGTH_FORM",
-    )
     team_value_available = _truthy(_get(raw_data_readiness, "team_value")) or _truthy(
         _get(pricing, "team_value_ready"),
-    )
-    team_value_available = team_value_available or _pricing_factor_ready(
-        pricing,
-        "F8_SQUAD_VALUE",
     )
     status = _first_text(_get(analysis_readiness, "status"))
     if status == "READY":
@@ -330,18 +323,6 @@ def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | Non
     )
 
 
-def _pricing_factor_ready(pricing: Mapping[str, Any], factor_id: str) -> bool:
-    factors = pricing.get("factors")
-    if not isinstance(factors, list):
-        return False
-    return any(
-        isinstance(item, Mapping)
-        and str(item.get("id") or item.get("feature_id") or "") == factor_id
-        and str(item.get("status") or "").upper() == "READY"
-        for item in factors
-    )
-
-
 def _field_statuses(
     data: DataReadinessInput,
     policy: DataFreshnessPolicy,
@@ -361,7 +342,6 @@ def _field_statuses(
             data.as_of,
             DecisionReasonCode.MARKET_UNAVAILABLE,
             DecisionReasonCode.DATA_STALE_ODDS,
-            missing_capture_reason=DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING,
         ),
         _timed_field(
             "lineups",
@@ -410,30 +390,15 @@ def _timed_field(
     as_of: datetime,
     missing_reason: DecisionReasonCode,
     stale_reason: DecisionReasonCode,
-    *,
-    missing_capture_reason: DecisionReasonCode | None = None,
 ) -> DataFieldReadiness:
     captured = captured_at.astimezone(UTC) if captured_at is not None else None
     stale = (
         present
+        and captured is not None
         and max_age_seconds is not None
-        and (
-            (captured is None and missing_capture_reason is not None)
-            or (
-                captured is not None
-                and as_of.astimezone(UTC) - captured > timedelta(seconds=max_age_seconds)
-            )
-        )
+        and as_of.astimezone(UTC) - captured > timedelta(seconds=max_age_seconds)
     )
-    reason = (
-        missing_reason
-        if not present
-        else missing_capture_reason
-        if stale and captured is None
-        else stale_reason
-        if stale
-        else None
-    )
+    reason = missing_reason if not present else stale_reason if stale else None
     return DataFieldReadiness(field, present, stale, captured, max_age_seconds, reason)
 
 
@@ -447,16 +412,8 @@ def _result(
     reason_human, action = _reason_text(reason)
     return DataReadinessResult(
         data_status=status,
-        missing_fields=tuple(
-            field.field
-            for field in fields
-            if not field.present and field.field not in OPTIONAL_ENRICHMENT_FIELDS
-        ),
-        stale_fields=tuple(
-            field.field
-            for field in fields
-            if field.stale and field.field not in OPTIONAL_ENRICHMENT_FIELDS
-        ),
+        missing_fields=tuple(field.field for field in fields if not field.present),
+        stale_fields=tuple(field.field for field in fields if field.stale),
         reason_code=reason,
         reason_human=reason_human,
         action=action,
@@ -496,8 +453,14 @@ def _merge_legacy_status(
         )
     if blocker_set & {"MARKET_NOT_READY", "MARKET_UNAVAILABLE", "MISSING_AH_MARKET"}:
         return _replace_result(result, DataStatus.BLOCKED, DecisionReasonCode.MARKET_UNAVAILABLE)
-    # Lineups are optional enrichment. Legacy MISSING_LINEUPS blockers remain observable
-    # through field_statuses, but cannot degrade data readiness or become the primary reason.
+    if "MISSING_LINEUPS" in blocker_set and result.data_status is DataStatus.BLOCKED:
+        next_eval = result.next_eval_at or _parse_utc(_get(analysis_readiness, "next_eval_at"))
+        return _replace_result(
+            result,
+            DataStatus.PARTIAL,
+            DecisionReasonCode.LINEUPS_PENDING,
+            next_eval,
+        )
     if "AH_EV_BELOW_FORMAL_THRESHOLD" in blocker_set and status == "BLOCKED":
         return _replace_result(result, DataStatus.PARTIAL, DecisionReasonCode.EDGE_INSUFFICIENT)
     return result
@@ -540,8 +503,6 @@ def _reason_text(reason: DecisionReasonCode | None) -> tuple[str, str]:
         return "盘口未就绪", "等盘口开出或刷新"
     if reason is DecisionReasonCode.DATA_STALE_ODDS:
         return "盘口数据陈旧", "触发盘口刷新或等下一 tick"
-    if reason is DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING:
-        return "盘口缺少原始捕获时间", "等待带原始时间的盘口快照"
     if reason is DecisionReasonCode.LINEUPS_PENDING:
         return "首发未出", "等官方首发"
     if reason is DecisionReasonCode.DATA_MISSING_XG:
@@ -560,6 +521,10 @@ def _hard_required_missing(
         hard_fields.append("xg")
     if policy.ratings_hard_required:
         hard_fields.append("ratings")
+    if policy.team_value_hard_required:
+        hard_fields.append("team_value")
+    if policy.lineups_hard_required:
+        hard_fields.append("lineups")
     return tuple(field for field in missing if field in hard_fields)
 
 
@@ -659,17 +624,6 @@ def _legacy_blockers(
 
 def _has_market_odds(payload: Mapping[str, Any] | None) -> bool:
     return payload is not None and _get(payload, "odds") is not None
-
-
-def _selected_quote(
-    current_odds: Mapping[str, Any], selected_market: str | None
-) -> Mapping[str, Any]:
-    market = str(selected_market or "").upper()
-    if market == "ASIAN_HANDICAP":
-        return _as_mapping(current_odds.get("ah"))
-    if market == "TOTALS":
-        return _as_mapping(current_odds.get("ou"))
-    return {}
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:

@@ -65,8 +65,9 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     labels = {tick["label"] for tick in refresh["ticks"]}  # type: ignore[index]
 
     assert fixture["data_status"] == DataStatus.PARTIAL.value
-    assert fixture["decision_tier"] == DecisionTier.WATCH.value
-    assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
+    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert "分析参考" in fixture["decision_contract"]["pick"]["disclaimer"]  # type: ignore[index]
+    assert "非稳赢" in fixture["decision_contract"]["pick"]["disclaimer"]  # type: ignore[index]
     assert {"T_24H", "T_3H", "T_90M", "T_30M", "T_15M"}.issubset(labels)
     assert refresh["endpoint_allowlist"] == ["status", "fixtures", "odds", "lineups"]  # type: ignore[index]
     assert refresh["skipped_endpoints"] == ["statistics"]  # type: ignore[index]
@@ -74,7 +75,7 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     assert payload["environment_policy"]["disclaimer"]  # type: ignore[index]
 
 
-def test_production_raw_fixture_without_v2_estimate_is_not_lock_eligible() -> None:
+def test_production_analysis_pick_is_not_lock_eligible() -> None:
     payload = _payload(
         environment="production",
         fixtures=[
@@ -93,12 +94,12 @@ def test_production_raw_fixture_without_v2_estimate_is_not_lock_eligible() -> No
     )
     fixture = payload["fixtures"][0]  # type: ignore[index]
 
-    assert fixture["decision_tier"] == DecisionTier.WATCH.value
+    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fixture["lock_eligible"] is False
     assert payload["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]
 
 
-def test_staging_raw_fixture_does_not_create_lock_candidate() -> None:
+def test_staging_analysis_pick_does_not_create_lock_candidate() -> None:
     payload = _payload(
         fixtures=[
             {
@@ -118,7 +119,7 @@ def test_staging_raw_fixture_does_not_create_lock_candidate() -> None:
 
     fixture = payload["fixtures"][0]  # type: ignore[index]
 
-    assert fixture["decision_tier"] == DecisionTier.WATCH.value
+    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fixture["lock_eligible"] is False
     assert payload["lock_candidates"] == []
     assert payload["would_write_lock"] is False

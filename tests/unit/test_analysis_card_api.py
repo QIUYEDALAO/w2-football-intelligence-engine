@@ -341,7 +341,6 @@ def test_fixture_detail_includes_analysis_card() -> None:
     assert detail is not None
     assert detail["analysis_card"]["fixture_id"] == "1489404"
     assert len(detail["analysis_card"]["markets"]) == 4
-    assert detail["analysis_card"]["reason_code"] == "FROZEN_ANALYSIS_CAPTURE_UNAVAILABLE"
 
 
 class MixedFixtureRepository:
@@ -391,11 +390,9 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
 
     assert card is not None
     assert card["fixture_id"] == "db-world-cup-fixture"
-    assert card["source"] == "db_feature_materialized_analysis"
-    assert card["decision"] == "SKIP"
+    assert card["source"] == "future_refresh_without_analysis_payload"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
-    assert card["feature_readiness"]["xg_status"] == "PROVIDER_EMPTY_OR_UNAVAILABLE"
     assert card["competition_cn"] == "World Cup · Group Stage - 3"
     assert card["competition_name"] == "World Cup"
     assert card["home_cn"] == "Home"
@@ -408,8 +405,8 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
         "FIRST_HALF_GOALS",
         "SCORE",
     }
-    assert card["markets"][0]["reasons"] == ["无有效主盘"]
-    assert card["markets"][1]["reasons"] == ["无有效主盘"]
+    assert card["markets"][0]["reasons"] == ["AH_ANALYSIS_INPUT_UNAVAILABLE"]
+    assert card["markets"][1]["reasons"] == ["OU_ANALYSIS_INPUT_UNAVAILABLE"]
 
 
 def test_fixture_list_includes_team_names_for_loading_cards() -> None:

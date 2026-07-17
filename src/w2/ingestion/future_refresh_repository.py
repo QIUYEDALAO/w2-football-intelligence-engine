@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
 from typing import Any
 
 from sqlalchemy import Engine, desc, func, select
@@ -11,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from w2.config import Settings
 from w2.infrastructure.database import create_engine
-from w2.infrastructure.persistence.forward_ops_models import ForwardResultEventModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
@@ -26,7 +23,6 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
-from w2.tracking.forward_result_source import normalized_finished_results
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -78,71 +74,6 @@ class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
 
-    def day_view_source_watermarks(self) -> dict[str, Any]:
-        fixture_filter = RawPayloadModel.endpoint == "fixtures"
-        statement = select(
-            select(func.count(RawPayloadModel.sha256))
-            .where(fixture_filter)
-            .scalar_subquery()
-            .label("fixture_count"),
-            select(func.max(RawPayloadModel.captured_at))
-            .where(fixture_filter)
-            .scalar_subquery()
-            .label("fixture_max_captured_at"),
-            select(func.max(RawPayloadModel.sha256))
-            .where(fixture_filter)
-            .scalar_subquery()
-            .label("fixture_source_hash"),
-            select(func.count(ForwardResultEventModel.id))
-            .scalar_subquery()
-            .label("result_event_count"),
-            select(func.max(ForwardResultEventModel.confirmed_at))
-            .scalar_subquery()
-            .label("result_event_max_confirmed_at"),
-            select(func.max(ForwardResultEventModel.raw_payload_hash))
-            .scalar_subquery()
-            .label("result_event_source_hash"),
-        )
-        with Session(self.engine) as session:
-            row = session.execute(statement).one()
-            latest_observation = session.execute(
-                select(
-                    FutureMarketObservationModel.captured_at,
-                    FutureMarketObservationModel.observation_id,
-                )
-                .order_by(
-                    desc(FutureMarketObservationModel.captured_at),
-                    desc(FutureMarketObservationModel.observation_id),
-                )
-                .limit(1)
-            ).one_or_none()
-        observation_captured_at = latest_observation[0] if latest_observation else None
-        observation_source_hash = latest_observation[1] if latest_observation else None
-        return {
-            "fixture_count": int(row.fixture_count or 0),
-            "fixture_max_captured_at": iso_z(row.fixture_max_captured_at)
-            if row.fixture_max_captured_at
-            else None,
-            "fixture_source_hash": row.fixture_source_hash,
-            # Counting the multi-million-row observation history made every cache
-            # lookup scan the full table. This source is append-only, so its indexed
-            # latest row is the bounded invalidation watermark.
-            "observation_count": None,
-            "observation_max_captured_at": iso_z(observation_captured_at)
-            if observation_captured_at
-            else None,
-            "observation_source_hash": observation_source_hash,
-            "result_event_count": int(row.result_event_count or 0),
-            "result_event_max_confirmed_at": iso_z(row.result_event_max_confirmed_at)
-            if row.result_event_max_confirmed_at
-            else None,
-            "result_event_source_hash": row.result_event_source_hash,
-            "raw_result_count": int(row.fixture_count or 0),
-            "raw_result_max_captured_at": (
-                iso_z(row.fixture_max_captured_at) if row.fixture_max_captured_at else None
-            ),
-        }
-
     def save_raw_payload(
         self,
         *,
@@ -171,158 +102,6 @@ class FutureRefreshDbRepository:
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RAW_PAYLOAD_WRITE_FAILED") from exc
-
-    def append_finished_result_events(
-        self,
-        *,
-        payload: dict[str, Any],
-        captured_at: datetime,
-        raw_payload_hash: str,
-        provider: str = "api_football",
-    ) -> int:
-        events = normalized_finished_results(
-            payload,
-            provider=provider,
-            confirmed_at=captured_at,
-            raw_payload_hash=raw_payload_hash,
-        )
-        appended = 0
-        with Session(self.engine) as session:
-            for event in events:
-                session.add(ForwardResultEventModel(**event))
-                try:
-                    session.commit()
-                    appended += 1
-                except IntegrityError:
-                    session.rollback()
-                except Exception as exc:
-                    session.rollback()
-                    raise FutureRefreshPersistenceError("RESULT_EVENT_WRITE_FAILED") from exc
-        return appended
-
-    def persist_result_backfill_payload(
-        self,
-        *,
-        payload: dict[str, Any],
-        captured_at: datetime,
-        provider: str = "api_football",
-    ) -> dict[str, Any]:
-        """Atomically freeze a result response and append its normalized events."""
-        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        payload_hash = sha256(canonical.encode("utf-8")).hexdigest()
-        events = normalized_finished_results(
-            payload,
-            provider=provider,
-            confirmed_at=captured_at,
-            raw_payload_hash=payload_hash,
-        )
-        inserted = 0
-        with Session(self.engine) as session:
-            try:
-                if session.get(RawPayloadModel, payload_hash) is None:
-                    session.add(
-                        RawPayloadModel(
-                            sha256=payload_hash,
-                            endpoint="fixtures",
-                            captured_at=captured_at,
-                            storage_uri=f"db://raw_payload/{payload_hash}",
-                            payload=payload,
-                        )
-                    )
-                for event in events:
-                    exists = session.scalar(
-                        select(ForwardResultEventModel.id).where(
-                            ForwardResultEventModel.fixture_id == event["fixture_id"],
-                            ForwardResultEventModel.provider == event["provider"],
-                            ForwardResultEventModel.raw_payload_hash == payload_hash,
-                        )
-                    )
-                    if exists is None:
-                        session.add(ForwardResultEventModel(**event))
-                        inserted += 1
-                session.commit()
-            except Exception as exc:
-                session.rollback()
-                raise FutureRefreshPersistenceError("RESULT_BACKFILL_WRITE_FAILED") from exc
-        return {"raw_payload_hash": payload_hash, "events_inserted": inserted}
-
-    def result_events_for_fixture_ids(self, fixture_ids: list[str]) -> list[dict[str, Any]]:
-        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
-        if not ids:
-            return []
-        latest: dict[str, tuple[datetime, dict[str, Any]]] = {}
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(ForwardResultEventModel)
-                    .where(ForwardResultEventModel.fixture_id.in_(ids))
-                    .order_by(ForwardResultEventModel.confirmed_at)
-                )
-            )
-            raw_rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at)
-                )
-            )
-        for row in rows:
-            latest[row.fixture_id] = (
-                parse_db_datetime(row.confirmed_at),
-                dict(row.result_payload),
-            )
-        wanted = set(ids)
-        for raw in raw_rows:
-            for event in normalized_finished_results(
-                raw.payload,
-                provider="api_football",
-                confirmed_at=raw.captured_at,
-                raw_payload_hash=raw.sha256,
-            ):
-                fixture_id = str(event["fixture_id"])
-                if fixture_id not in wanted:
-                    continue
-                confirmed_at = parse_db_datetime(event["confirmed_at"])
-                current = latest.get(fixture_id)
-                if current is None or confirmed_at > current[0]:
-                    latest[fixture_id] = (confirmed_at, dict(event["result_payload"]))
-        return [latest[fixture_id][1] for fixture_id in ids if fixture_id in latest]
-
-    def result_events_snapshot(self) -> list[dict[str, Any]]:
-        latest: dict[str, tuple[datetime, dict[str, Any]]] = {}
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(ForwardResultEventModel).order_by(
-                        ForwardResultEventModel.confirmed_at
-                    )
-                )
-            )
-            raw_rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at)
-                )
-            )
-        for row in rows:
-            latest[row.fixture_id] = (
-                parse_db_datetime(row.confirmed_at),
-                dict(row.result_payload),
-            )
-        for raw in raw_rows:
-            for event in normalized_finished_results(
-                raw.payload,
-                provider="api_football",
-                confirmed_at=raw.captured_at,
-                raw_payload_hash=raw.sha256,
-            ):
-                fixture_id = str(event["fixture_id"])
-                confirmed_at = parse_db_datetime(event["confirmed_at"])
-                current = latest.get(fixture_id)
-                if current is None or confirmed_at > current[0]:
-                    latest[fixture_id] = (confirmed_at, dict(event["result_payload"]))
-        return [latest[fixture_id][1] for fixture_id in sorted(latest)]
 
     def append_observations(self, observations: list[dict[str, Any]]) -> int:
         appended = 0
@@ -401,46 +180,6 @@ class FutureRefreshDbRepository:
                 )
             )
         return self._latest_observation_dicts(rows)
-
-    def market_availability_for_fixture_ids(
-        self,
-        fixture_ids: list[str],
-    ) -> dict[str, bool]:
-        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
-        if not ids:
-            return {}
-        with Session(self.engine) as session:
-            available = set(
-                session.scalars(
-                    select(FutureMarketObservationModel.fixture_id)
-                    .where(FutureMarketObservationModel.fixture_id.in_(ids))
-                    .distinct()
-                )
-            )
-        return {fixture_id: fixture_id in available for fixture_id in ids}
-
-    def market_observation_history_for_fixtures(
-        self,
-        fixture_ids: list[str],
-    ) -> list[dict[str, Any]]:
-        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
-        if not ids:
-            return []
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureMarketObservationModel)
-                    .where(FutureMarketObservationModel.fixture_id.in_(ids))
-                    .order_by(
-                        FutureMarketObservationModel.fixture_id,
-                        FutureMarketObservationModel.captured_at,
-                        FutureMarketObservationModel.canonical_market,
-                        FutureMarketObservationModel.bookmaker_id,
-                        FutureMarketObservationModel.selection,
-                    )
-                )
-            )
-        return [self._observation_dict(row) for row in rows]
 
     def _latest_observation_dicts(
         self,
@@ -792,33 +531,6 @@ class FutureRefreshDbRepository:
                 )
             )
         return [self._checkpoint_plan_dict(row) for row in rows]
-
-    def next_checkpoint_plans_for_fixture_ids(
-        self,
-        fixture_ids: list[str],
-    ) -> dict[str, dict[str, Any]]:
-        target_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))
-        if not target_ids:
-            return {}
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureRefreshCheckpointPlanModel)
-                    .where(
-                        FutureRefreshCheckpointPlanModel.fixture_id.in_(target_ids),
-                        FutureRefreshCheckpointPlanModel.status == "PENDING",
-                    )
-                    .order_by(
-                        FutureRefreshCheckpointPlanModel.fixture_id,
-                        FutureRefreshCheckpointPlanModel.due_at,
-                        FutureRefreshCheckpointPlanModel.checkpoint,
-                    )
-                )
-            )
-        result: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            result.setdefault(row.fixture_id, self._checkpoint_plan_dict(row))
-        return result
 
     def write_checkpoint_audit(
         self,

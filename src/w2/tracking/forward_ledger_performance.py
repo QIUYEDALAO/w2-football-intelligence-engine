@@ -1,26 +1,14 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
 from typing import Any
 
-from w2.infrastructure.atomic_files import read_jsonl
-from w2.strategy.analysis_gate_shadow import confirm_strict_ah_shadow
-from w2.tracking.ah_direction_bias import build_ah_direction_bias
-from w2.tracking.ah_evidence_review import build_ah_evidence_review
-from w2.tracking.canonical_identity import (
-    candidate_for_outcome,
-    canonical_capture_candidates,
-)
-from w2.tracking.canonical_outcomes import project_canonical_outcomes
-
 SAMPLE_TARGET = 200
-OFFICIAL_SCOPE = "OFFICIAL"
-VALIDATION_SCOPE = "VALIDATION"
 SETTLED_OUTCOMES = {
     "HIT": "hit",
     "WIN": "hit",
@@ -32,118 +20,31 @@ SETTLED_OUTCOMES = {
     "VOID": "void",
 }
 
-API_FOOTBALL_COMPETITION_IDS = {
-    "1": "world_cup_2026",
-    "39": "premier_league",
-    "61": "ligue_1",
-    "71": "brasileirao_serie_a",
-    "78": "bundesliga",
-    "88": "eredivisie",
-    "94": "primeira_liga",
-    "103": "eliteserien",
-    "113": "allsvenskan",
-    "128": "argentina_primera",
-    "135": "serie_a",
-    "140": "la_liga",
-    "169": "chinese_super_league",
-    "253": "mls",
-}
-
 
 def forward_ledger_performance(
     runtime_root: Path,
     *,
     sample_target: int = SAMPLE_TARGET,
-    result_events: Sequence[Mapping[str, Any]] | None = (),
-    now: datetime | None = None,
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
-    raw_records, source_read_status, corruption_count = load_forward_ledger_records_with_status(
-        root
-    )
-    canonical_candidates = canonical_capture_candidates(raw_records)
-    outcome_projection = project_canonical_outcomes(raw_records, canonical_candidates)
-    records = [
-        dict(record)
-        for record in raw_records
-        if _record_type(record) != "outcome"
-    ]
-    records.extend(dict(record) for record in outcome_projection.canonical_outcomes)
-    outcome_counts = _outcome_counts(records, side="pick", scope=OFFICIAL_SCOPE)
-    outcome_validation_counts = _outcome_counts(
-        records,
-        side="pick",
-        scope=VALIDATION_SCOPE,
-    )
+    records = list(load_forward_ledger_records(root))
+    outcome_counts = _outcome_counts(records, side="pick")
     outcome_shadow_counts = _outcome_counts(records, side="shadow_pick")
-    wide_shadow_records = [
-        record
-        for record in records
-        if _outcome_side(record) == "shadow_pick" and not _strict_shadow_strategy(record)
-    ]
-    strict_shadow_records = [
-        record
-        for record in records
-        if _outcome_side(record) == "shadow_pick" and _strict_shadow_strategy(record)
-    ]
-    outcome_shadow_wide_counts = _outcome_counts(wide_shadow_records, side="shadow_pick")
-    outcome_shadow_strict_counts = _outcome_counts(strict_shadow_records, side="shadow_pick")
-    official_records = [
-        record for record in records if _recommendation_scope(record) == OFFICIAL_SCOPE
-    ]
-    clv_rows = _clv_rows(official_records, key_fn=_clv_key)
-    shadow_capture_records = _expanded_shadow_capture_records(records)
-    clv_shadow_rows = _clv_rows(shadow_capture_records, key_fn=_clv_shadow_key)
+    clv_rows = _clv_rows(records, key_fn=_clv_key)
+    clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
     clv_shadow_values = _clv_values(clv_shadow_rows)
-    outcomes_by_strategy = _outcomes_by_strategy(records)
     fixture_ids = {
         _text(record.get("fixture_id"))
-        for record in raw_records
+        for record in records
         if _text(record.get("fixture_id"))
     }
-    validation_fixture_ids = {
-        _text(record.get("fixture_id"))
-        for record in records
-        if _record_type(record) == "capture"
-        and _recommendation_scope(record) == VALIDATION_SCOPE
-        and _text(record.get("fixture_id"))
-    }
-    validation_settled_fixture_ids = {
-        _text(record.get("fixture_id"))
-        for record in records
-        if _outcome_side(record) == "pick"
-        and _recommendation_scope(record) == VALIDATION_SCOPE
-        and SETTLED_OUTCOMES.get(_outcome(record)) is not None
-        and _text(record.get("fixture_id"))
-    }
-    validation_pending_status = _validation_pending_status(
-        records,
-        validation_fixture_ids=validation_fixture_ids,
-        validation_settled_fixture_ids=validation_settled_fixture_ids,
-        result_events=result_events,
-        now=now or datetime.now(UTC),
-    )
-    ah_direction_bias = build_ah_direction_bias(records)
-    ah_evidence_review = build_ah_evidence_review(records, clv_rows=clv_shadow_rows)
-    double_snapshot_fixture_ids = {
-        _text(row.get("fixture_id")) for row in clv_shadow_rows if _text(row.get("fixture_id"))
-    }
-    payload = {
-        "schema_version": "w2.forward_ledger_performance.v2",
+    return {
+        "schema_version": "w2.forward_ledger_performance.v1",
         "source": "runtime/forward_outcome_ledger",
-        "source_read_status": source_read_status,
-        "source_corruption_count": corruption_count,
         "sample_target": sample_target,
-        "record_count": len(raw_records),
+        "record_count": len(records),
         "fixture_count": len(fixture_ids),
-        "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
-        "validation_fixture_count": len(validation_fixture_ids),
-        "validation_settled_fixture_count": len(validation_settled_fixture_ids),
-        "validation_pending_fixture_count": len(
-            validation_fixture_ids - validation_settled_fixture_ids
-        ),
-        "validation_pending_status": validation_pending_status,
         "settled_sample_count": sum(outcome_counts.values()),
         "hit_count": outcome_counts["hit"],
         "miss_count": outcome_counts["miss"],
@@ -151,55 +52,8 @@ def forward_ledger_performance(
         "void_count": outcome_counts["void"],
         "hit_rate": _hit_rate(outcome_counts),
         "outcomes": _outcome_summary(outcome_counts),
-        "outcomes_official": _outcome_summary(outcome_counts),
-        "outcomes_validation": _outcome_summary(outcome_validation_counts),
-        "outcomes_shadow_wide": _outcome_summary(outcome_shadow_wide_counts),
-        "outcomes_shadow_strict": _outcome_summary(outcome_shadow_strict_counts),
         "outcomes_shadow": _outcome_summary(outcome_shadow_counts),
-        "outcomes_shadow_compatibility_view": True,
-        "outcomes_raw_audit": _raw_outcome_audit(outcome_projection),
-        "performance_integrity": dict(outcome_projection.metrics),
-        **({"outcomes_by_strategy": outcomes_by_strategy} if outcomes_by_strategy else {}),
-        **(
-            {
-                "canonical_identity": {
-                    "eligible_candidate_count": len(
-                        [
-                            row
-                            for row in canonical_candidates
-                            if row.get("canonical_candidate") is True
-                        ]
-                    ),
-                    "audit_only_candidate_count": len(
-                        [row for row in canonical_candidates if row.get("audit_only") is True]
-                    ),
-                    "invalid_snapshot_count": len(
-                        [
-                            row
-                            for row in canonical_candidates
-                            if row.get("exclusion_reason") == "INVALID_SNAPSHOT"
-                        ]
-                    ),
-                    "invalid_quote_count": len(
-                        [
-                            row
-                            for row in canonical_candidates
-                            if row.get("exclusion_reason") == "INVALID_QUOTE"
-                        ]
-                    ),
-                    "semantic_fail_count": len(
-                        [
-                            row
-                            for row in canonical_candidates
-                            if row.get("exclusion_reason") == "SEMANTIC_FAIL"
-                        ]
-                    ),
-                }
-            }
-            if canonical_candidates
-            else {}
-        ),
-        "accumulation_label": _accumulation_label(len(fixture_ids), sample_target),
+        "accumulation_label": _accumulation_label(len(records), sample_target),
         "clv": _clv_summary(
             clv_values,
             clv_rows,
@@ -211,284 +65,47 @@ def forward_ledger_performance(
             method="shadow_pick_entry_minus_closing_same_line; not_displayed_direction",
         ),
         "accrual_note": (
-            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 direction_allowed;非展示战绩"
+            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 "
+            "direction_allowed;非展示战绩"
         ),
         "by_league": _league_rows(
             records,
             clv_rows,
             clv_shadow_rows,
-            outcome_counts_by_league(records, side="pick", scope=OFFICIAL_SCOPE),
-            outcome_counts_by_league(records, side="pick", scope=VALIDATION_SCOPE),
+            outcome_counts_by_league(records, side="pick"),
             outcome_counts_by_league(records, side="shadow_pick"),
-        ),
-        "by_league_market": _league_market_rows(
-            shadow_capture_records,
-            clv_shadow_rows,
-            records,
-        ),
-        **(
-            {"ah_direction_bias": ah_direction_bias}
-            if ah_direction_bias["overall"]["distinct_fixture_count"]
-            or ah_direction_bias["excluded_record_count"]
-            else {}
-        ),
-        **(
-            {"ah_evidence_review": ah_evidence_review}
-            if ah_evidence_review["corrected_settled_count"]
-            else {}
         ),
         "provider_calls": 0,
         "db_reads": 0,
         "db_writes": 0,
         "mock_data": False,
     }
-    if outcome_projection.metrics.get("status") == "BLOCKED":
-        _hide_hit_rates(payload)
-    return payload
-
-
-def _canonical_evidence_records(
-    records: Sequence[Mapping[str, Any]],
-    candidates: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    """Require exact canonical identity for new outcomes; retain legacy audit compatibility."""
-    output: list[dict[str, Any]] = []
-    for record in records:
-        item = dict(record)
-        if _record_type(item) != "outcome":
-            output.append(item)
-            continue
-        is_identity_aware = bool(
-            _text(item.get("strategy_version"))
-            or _text(item.get("quote_id"))
-            or _text(item.get("estimate_id"))
-        )
-        if not is_identity_aware:
-            output.append(item)
-            continue
-        source = candidate_for_outcome(candidates, item)
-        if source is None:
-            continue
-        item["canonical_performance_key"] = list(
-            (
-                source.get("fixture_id"),
-                source.get("market"),
-                source.get("recommendation_scope"),
-                source.get("strategy_version"),
-            )
-        )
-        output.append(item)
-    return output
-
-
-def _outcomes_by_strategy(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    counts: dict[tuple[str, str], defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for record in records:
-        if _record_type(record) != "outcome":
-            continue
-        bucket = SETTLED_OUTCOMES.get(_outcome(record))
-        if bucket is None:
-            continue
-        scope = (
-            "SHADOW" if _outcome_side(record) == "shadow_pick" else _recommendation_scope(record)
-        )
-        strategy = _text(record.get("strategy_version") or "LEGACY_UNVERSIONED")
-        counts[(scope, strategy)][bucket] += 1
-    return [
-        {
-            "recommendation_scope": scope,
-            "strategy_version": strategy,
-            **_outcome_summary(values),
-        }
-        for (scope, strategy), values in sorted(counts.items())
-    ]
-
-
-def _validation_pending_status(
-    records: Sequence[Mapping[str, Any]],
-    *,
-    validation_fixture_ids: set[str],
-    validation_settled_fixture_ids: set[str],
-    result_events: Sequence[Mapping[str, Any]] | None,
-    now: datetime,
-) -> dict[str, Any]:
-    """Classify pending validation fixtures without treating audit coverage as picks."""
-    pending_fixture_ids = validation_fixture_ids - validation_settled_fixture_ids
-    kickoff_by_fixture: dict[str, datetime] = {}
-    for record in records:
-        if _record_type(record) != "capture":
-            continue
-        if _recommendation_scope(record) != VALIDATION_SCOPE:
-            continue
-        fixture_id = _text(record.get("fixture_id"))
-        kickoff = _parse_time(record.get("kickoff_utc"))
-        if fixture_id in pending_fixture_ids and kickoff is not None:
-            kickoff_by_fixture.setdefault(fixture_id, kickoff)
-
-    final_result_fixture_ids = {
-        _text(event.get("fixture_id")) for event in result_events or () if _has_final_result(event)
-    }
-    source_available = result_events is not None
-    counts = {
-        "pre_settlement_window_fixture_count": 0,
-        "awaiting_official_result_fixture_count": 0,
-        "result_available_unsettled_fixture_count": 0,
-        "result_source_unavailable_fixture_count": 0,
-    }
-    for fixture_id in pending_fixture_ids:
-        kickoff = kickoff_by_fixture.get(fixture_id)
-        if kickoff is None or now < kickoff + timedelta(hours=3):
-            counts["pre_settlement_window_fixture_count"] += 1
-        elif not source_available:
-            counts["result_source_unavailable_fixture_count"] += 1
-        elif fixture_id in final_result_fixture_ids:
-            counts["result_available_unsettled_fixture_count"] += 1
-        else:
-            counts["awaiting_official_result_fixture_count"] += 1
-    return {
-        **counts,
-        "result_source_available": source_available,
-        "pending_fixture_count": len(pending_fixture_ids),
-    }
-
-
-def _has_final_result(event: Mapping[str, Any]) -> bool:
-    if _text(event.get("status")).upper() not in {"FT", "AET", "PEN"}:
-        return False
-    score = event.get("score")
-    fulltime = score.get("fulltime") if isinstance(score, Mapping) else None
-    if not isinstance(fulltime, Mapping):
-        return False
-    return isinstance(fulltime.get("home"), int) and isinstance(fulltime.get("away"), int)
 
 
 def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
-    records, _, _ = load_forward_ledger_records_with_status(root)
-    return records
-
-
-def load_forward_ledger_records_with_status(
-    root: Path,
-) -> tuple[list[dict[str, Any]], str, int]:
     if not root.exists():
-        return [], "MISSING", 0
+        return []
     records: list[dict[str, Any]] = []
-    corruption_count = 0
-    error = False
     for path in sorted(root.glob("*.jsonl")):
-        result = read_jsonl(path)
-        records.extend(result.records)
-        corruption_count += result.corruption_count
-        error = error or result.status == "ERROR"
-    status = "ERROR" if error else "DEGRADED" if corruption_count else "PASS"
-    return records, status, corruption_count
-
-
-def _normalize_outcome_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Attach legacy outcomes to their source capture and remove canonical duplicates."""
-    captures_by_hash: dict[str, Mapping[str, Any]] = {}
-    captures_by_pick: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
-    for record in records:
-        if _record_type(record) != "capture":
-            continue
-        for capture_hash in (record.get("evidence_hash"), record.get("card_hash")):
-            if value := _text(capture_hash):
-                captures_by_hash[value] = record
-        pick = record.get("pick")
-        if isinstance(pick, Mapping):
-            key = (
-                _text(record.get("fixture_id")),
-                _text(pick.get("market")),
-                _text(pick.get("selection")),
-            )
-            captures_by_pick[key].append(record)
-
-    normalized: list[dict[str, Any]] = []
-    outcomes: dict[tuple[str, ...], dict[str, Any]] = {}
-    for record in records:
-        if _record_type(record) != "outcome":
-            normalized.append(record)
-            continue
-        item = dict(record)
-        explicit_scope = _text(item.get("recommendation_scope")).upper()
-        if explicit_scope not in {OFFICIAL_SCOPE, VALIDATION_SCOPE, "SHADOW"}:
-            source = captures_by_hash.get(
-                _text(item.get("source_capture_hash") or item.get("card_hash"))
-            )
-            if source is None:
-                key = (
-                    _text(item.get("fixture_id")),
-                    _text(item.get("market")),
-                    _text(item.get("selection")),
-                )
-                candidates = captures_by_pick.get(key, [])
-                source = max(
-                    candidates,
-                    key=lambda row: (
-                        _parse_time(row.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
-                    ),
-                    default=None,
-                )
-            if source is not None:
-                item["recommendation_scope"] = _recommendation_scope(source)
-                item.setdefault("source_capture_hash", source.get("evidence_hash"))
-                item.setdefault("source_captured_at", source.get("captured_at"))
-        identity = (
-            _text(item.get("fixture_id")),
-            _text(item.get("settled_side")),
-            _recommendation_scope(item),
-            _text(item.get("market")),
-            _text(item.get("selection")),
-            _text(item.get("strategy_version") or "LEGACY_UNVERSIONED"),
-            _text(item.get("estimate_id") or "LEGACY_ESTIMATE"),
-            _text(item.get("quote_id") or "LEGACY_QUOTE"),
-            _text(item.get("source_capture_hash") or "LEGACY_UNSCOPED"),
-        )
-        existing = outcomes.get(identity)
-        if existing is None or (
-            _text(record.get("recommendation_scope"))
-            and not _text(existing.get("recommendation_scope"))
-        ):
-            outcomes[identity] = item
-    values = list(outcomes.values())
-    canonical_bases = {
-        (
-            _text(item.get("fixture_id")),
-            _text(item.get("settled_side")),
-            _recommendation_scope(item),
-            _text(item.get("market")),
-            _text(item.get("selection")),
-        )
-        for item in values
-        if _text(item.get("source_capture_hash"))
-    }
-    normalized.extend(
-        item
-        for item in values
-        if _text(item.get("source_capture_hash"))
-        or (
-            _text(item.get("fixture_id")),
-            _text(item.get("settled_side")),
-            _recommendation_scope(item),
-            _text(item.get("market")),
-            _text(item.get("selection")),
-        )
-        not in canonical_bases
-    )
-    return normalized
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict):
+                    records.append(payload)
+    return records
 
 
 def _outcome_counts(
     records: Sequence[Mapping[str, Any]],
     *,
     side: str,
-    scope: str | None = None,
 ) -> defaultdict[str, int]:
     counts: defaultdict[str, int] = defaultdict(int)
     for record in records:
         if _outcome_side(record) != side:
-            continue
-        if scope is not None and _recommendation_scope(record) != scope:
             continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
@@ -500,13 +117,10 @@ def outcome_counts_by_league(
     records: Sequence[Mapping[str, Any]],
     *,
     side: str = "pick",
-    scope: str | None = None,
 ) -> dict[str, defaultdict[str, int]]:
     by_league: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
     for record in records:
         if _outcome_side(record) != side:
-            continue
-        if scope is not None and _recommendation_scope(record) != scope:
             continue
         bucket = SETTLED_OUTCOMES.get(_outcome(record))
         if bucket:
@@ -525,59 +139,11 @@ def _outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
     }
 
 
-def _raw_outcome_audit(projection: Any) -> dict[str, Any]:
-    by_track: defaultdict[str, int] = defaultdict(int)
-    by_strategy: defaultdict[str, int] = defaultdict(int)
-    by_market: defaultdict[str, int] = defaultdict(int)
-    for record in projection.raw_outcomes:
-        track = (
-            "SHADOW"
-            if _outcome_side(record) == "shadow_pick"
-            else _recommendation_scope(record)
-        )
-        by_track[track] += 1
-        by_strategy[_text(record.get("strategy_version") or "LEGACY_UNVERSIONED")] += 1
-        by_market[_text(record.get("market") or "UNKNOWN")] += 1
-    return {
-        "raw_outcome_row_count": len(projection.raw_outcomes),
-        "canonical_outcome_count": len(projection.canonical_outcomes),
-        "audit_only_outcome_count": len(projection.audit_only_outcomes),
-        "duplicate_audit_row_count": len(projection.duplicate_outcomes),
-        "raw_exact_duplicate_count": int(
-            projection.metrics.get("raw_exact_duplicate_count", 0)
-        ),
-        "identity_aware_unmatched_count": len(projection.unmatched_identity_outcomes),
-        "outcome_conflict_count": int(
-            projection.metrics.get("outcome_conflict_count", 0)
-        ),
-        "conflicting_outcome_row_count": len(projection.conflicting_outcomes),
-        "by_track": dict(sorted(by_track.items())),
-        "by_strategy": dict(sorted(by_strategy.items())),
-        "by_market": dict(sorted(by_market.items())),
-        "raw_rows_are_not_fixture_denominators": True,
-    }
-
-
-def _strict_shadow_strategy(record: Mapping[str, Any]) -> bool:
-    strategy = _text(record.get("strategy_version")).upper()
-    return "STRICT" in strategy and "SHADOW" in strategy
-
-
-def _hide_hit_rates(value: Any) -> None:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if key == "hit_rate":
-                value[key] = None
-            else:
-                _hide_hit_rates(item)
-    elif isinstance(value, list):
-        for item in value:
-            _hide_hit_rates(item)
-
-
 def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:
     return [
-        float(row["clv_decimal"]) for row in rows if isinstance(row.get("clv_decimal"), int | float)
+        float(row["clv_decimal"])
+        for row in rows
+        if isinstance(row.get("clv_decimal"), int | float)
     ]
 
 
@@ -587,31 +153,13 @@ def _clv_summary(
     *,
     method: str,
 ) -> dict[str, Any]:
-    window_values = [
-        float(row["clv_decimal"])
-        for row in rows
-        if row.get("entry_window_met") is True and isinstance(row.get("clv_decimal"), int | float)
-    ]
     return {
         "sample_count": len(values),
         "median_decimal": median(values) if values else None,
-        "valid_pair_count": len([row for row in rows if row.get("excluded_reason") is None]),
-        "entry_window_met_count": len([row for row in rows if row.get("entry_window_met") is True]),
-        "median_decimal_window_met": median(window_values) if window_values else None,
         "positive_count": len([value for value in values if value > 0]),
         "negative_count": len([value for value in values if value < 0]),
         "push_count": len([value for value in values if value == 0]),
         "line_changed_count": len([row for row in rows if row.get("line_changed") is True]),
-        "line_clv_sample_count": len(
-            [row for row in rows if isinstance(row.get("line_clv"), int | float)]
-        ),
-        "median_line_clv": _median_field(rows, "line_clv"),
-        "excluded_no_prematch_closing": len(
-            [row for row in rows if row.get("excluded_reason") == "NO_PREMATCH_CLOSING"]
-        ),
-        "entry_line_mismatch_count": len(
-            [row for row in rows if row.get("entry_line_mismatch") is True]
-        ),
         "method": method,
     }
 
@@ -632,32 +180,14 @@ def _clv_rows(
         ordered = sorted(
             items,
             key=lambda item: (
-                _parse_time(item.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
+                _parse_time(item.get("captured_at"))
+                or datetime.min.replace(tzinfo=UTC)
             ),
         )
         if len(ordered) < 2:
             continue
         entry = _entry_record(ordered)
         closing = _closing_record(ordered)
-        if closing is None:
-            entry_quote = _quote(entry, market, selection)
-            entry_line = entry_quote[0] if entry_quote is not None else None
-            rows.append(
-                {
-                    "fixture_id": fixture_id,
-                    "league": _league_key(entry),
-                    "market": market,
-                    "selection": selection,
-                    "entry_captured_at": _text(entry.get("captured_at")),
-                    "closing_captured_at": None,
-                    "entry_window_met": _entry_window_met(entry),
-                    "line_changed": False,
-                    "entry_line_mismatch": _entry_line_mismatch(entry, entry_line),
-                    "excluded_reason": "NO_PREMATCH_CLOSING",
-                    "clv_decimal": None,
-                }
-            )
-            continue
         entry_quote = _quote(entry, market, selection)
         closing_quote = _quote(closing, market, selection)
         if entry_quote is None or closing_quote is None:
@@ -673,18 +203,8 @@ def _clv_rows(
                 "selection": selection,
                 "entry_captured_at": _text(entry.get("captured_at")),
                 "closing_captured_at": _text(closing.get("captured_at")),
-                "entry_window_met": _entry_window_met(entry),
                 "line_changed": line_changed,
-                "entry_line_mismatch": _entry_line_mismatch(entry, entry_line),
                 "clv_decimal": None if line_changed else round(entry_price - closing_price, 6),
-                "line_clv": _directional_line_clv(
-                    market=market,
-                    selection=selection,
-                    entry_line=entry_line,
-                    closing_line=closing_line,
-                )
-                if line_changed
-                else None,
             }
         )
     return rows
@@ -699,7 +219,7 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     return records[0]
 
 
-def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     before_kickoff = [
         record
         for record in records
@@ -707,27 +227,7 @@ def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any] | Non
         and (captured := _parse_time(record.get("captured_at")))
         and captured <= kickoff
     ]
-    return before_kickoff[-1] if before_kickoff else None
-
-
-def _entry_window_met(record: Mapping[str, Any]) -> bool:
-    kickoff = _parse_time(record.get("kickoff_utc"))
-    captured = _parse_time(record.get("captured_at"))
-    return bool(kickoff and captured and (kickoff - captured).total_seconds() >= 23 * 3600)
-
-
-def _entry_line_mismatch(record: Mapping[str, Any], entry_line: str | None) -> bool:
-    shadow_pick = record.get("shadow_pick")
-    if not isinstance(shadow_pick, Mapping) or entry_line is None:
-        return False
-    market_line = shadow_pick.get("market_line_at_capture")
-    if market_line is None:
-        return False
-    entry_decimal = _decimal_value(entry_line)
-    market_decimal = _decimal_value(market_line)
-    if entry_decimal is not None and market_decimal is not None:
-        return entry_decimal != market_decimal
-    return _text(entry_line) != _text(market_line)
+    return before_kickoff[-1] if before_kickoff else records[-1]
 
 
 def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
@@ -753,29 +253,9 @@ def _clv_shadow_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
         return None
     market = _text(shadow_pick.get("market"))
     selection = _text(shadow_pick.get("selection"))
-    if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
+    if market not in {"ASIAN_HANDICAP"} or not selection:
         return None
     return (fixture_id, market, selection)
-
-
-def _expanded_shadow_capture_records(
-    records: Sequence[Mapping[str, Any]],
-) -> list[Mapping[str, Any]]:
-    expanded: list[Mapping[str, Any]] = []
-    for record in records:
-        if _record_type(record) != "capture":
-            continue
-        shadow_picks = record.get("shadow_picks")
-        if isinstance(shadow_picks, Sequence) and not isinstance(
-            shadow_picks, str | bytes | bytearray
-        ):
-            for item in shadow_picks:
-                if isinstance(item, Mapping):
-                    expanded.append({**record, "shadow_pick": dict(item)})
-            continue
-        if isinstance(record.get("shadow_pick"), Mapping):
-            expanded.append(record)
-    return expanded
 
 
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
@@ -813,7 +293,6 @@ def _league_rows(
     clv_rows: Sequence[Mapping[str, Any]],
     clv_shadow_rows: Sequence[Mapping[str, Any]],
     league_outcomes: dict[str, defaultdict[str, int]],
-    league_validation_outcomes: dict[str, defaultdict[str, int]],
     league_shadow_outcomes: dict[str, defaultdict[str, int]],
 ) -> list[dict[str, Any]]:
     league_records: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
@@ -832,36 +311,25 @@ def _league_rows(
     rows: list[dict[str, Any]] = []
     for league, items in league_records.items():
         outcomes = league_outcomes.get(league, defaultdict(int))
-        validation_outcomes = league_validation_outcomes.get(league, defaultdict(int))
         shadow_outcomes = league_shadow_outcomes.get(league, defaultdict(int))
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
-        double_snapshot_fixture_ids = {
-            _text(row.get("fixture_id"))
-            for row in clv_shadow_rows
-            if _text(row.get("league")) == league and _text(row.get("fixture_id"))
-        }
         fixture_ids = {
-            _text(item.get("fixture_id")) for item in items if _text(item.get("fixture_id"))
+            _text(item.get("fixture_id"))
+            for item in items
+            if _text(item.get("fixture_id"))
         }
         rows.append(
             {
                 "league": league,
                 "record_count": len(items),
                 "fixture_count": len(fixture_ids),
-                "double_snapshot_fixture_count": len(double_snapshot_fixture_ids),
                 "settled_sample_count": sum(outcomes.values()),
                 "hit_count": outcomes["hit"],
                 "miss_count": outcomes["miss"],
                 "push_count": outcomes["push"],
                 "void_count": outcomes["void"],
                 "hit_rate": _hit_rate(outcomes),
-                "validation_settled_sample_count": sum(validation_outcomes.values()),
-                "validation_hit_count": validation_outcomes["hit"],
-                "validation_miss_count": validation_outcomes["miss"],
-                "validation_push_count": validation_outcomes["push"],
-                "validation_void_count": validation_outcomes["void"],
-                "validation_hit_rate": _hit_rate(validation_outcomes),
                 "shadow_settled_sample_count": sum(shadow_outcomes.values()),
                 "shadow_hit_count": shadow_outcomes["hit"],
                 "shadow_miss_count": shadow_outcomes["miss"],
@@ -871,286 +339,16 @@ def _league_rows(
                 "clv_sample_count": len(values),
                 "clv_median_decimal": median(values) if values else None,
                 "clv_shadow_sample_count": len(shadow_values),
-                "clv_shadow_median_decimal": median(shadow_values) if shadow_values else None,
+                "clv_shadow_median_decimal": median(shadow_values)
+                if shadow_values
+                else None,
             }
         )
     return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))
 
 
-def _league_market_rows(
-    shadow_captures: Sequence[Mapping[str, Any]],
-    clv_rows: Sequence[Mapping[str, Any]],
-    records: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    challenger_captures: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
-    confirmation_candidates: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(
-        list
-    )
-    for record in records:
-        if _record_type(record) != "capture":
-            continue
-        rows = record.get("analysis_gate_v2_shadows")
-        if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
-            continue
-        for row in rows:
-            if not isinstance(row, Mapping):
-                continue
-            if row.get("evidence_eligible") is not True or row.get("semantic_status") != "VERIFIED":
-                continue
-            market = _text(row.get("market"))
-            fixture_id = _text(record.get("fixture_id"))
-            if row.get("confirmation_required") is True and market and fixture_id:
-                confirmation_candidates[
-                    (
-                        _league_key(record),
-                        market,
-                        fixture_id,
-                        _text(row.get("strategy_version")),
-                    )
-                ].append(
-                    {
-                        **dict(row),
-                        "fixture_id": row.get("fixture_id") or fixture_id,
-                        "kickoff_utc": row.get("kickoff_utc") or record.get("kickoff_utc"),
-                    }
-                )
-                continue
-            if market and fixture_id:
-                challenger_captures[(_league_key(record), market)][fixture_id] = {
-                    **dict(row),
-                    "captured_at": record.get("captured_at"),
-                }
-    for (
-        league,
-        market,
-        fixture_id,
-        _strategy_version,
-    ), candidates in confirmation_candidates.items():
-        confirmed = confirm_strict_ah_shadow(candidates)
-        if confirmed.get("status") == "PASS":
-            challenger_captures[(league, market)][fixture_id] = confirmed
-    challenger_outcomes: dict[tuple[str, str], dict[str, Mapping[str, Any]]] = defaultdict(dict)
-    for record in records:
-        if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
-            continue
-        shadow = record.get("analysis_gate_v2_shadow")
-        if (
-            not isinstance(shadow, Mapping)
-            or shadow.get("candidate_pass") is not True
-            or shadow.get("evidence_eligible") is not True
-            or shadow.get("semantic_status") != "VERIFIED"
-            or (
-                shadow.get("confirmation_required") is True
-                and shadow.get("confirmation_status") != "CONFIRMED"
-            )
-        ):
-            continue
-        market = _text(record.get("market"))
-        fixture_id = _text(record.get("fixture_id"))
-        if market and fixture_id and _outcome(record) != "VOID":
-            challenger_outcomes[(_league_key(record), market)][fixture_id] = record
-    fixtures: dict[tuple[str, str], set[str]] = defaultdict(set)
-    for record in shadow_captures:
-        shadow_pick = record.get("shadow_pick")
-        if not isinstance(shadow_pick, Mapping):
-            continue
-        key = (_league_key(record), _text(shadow_pick.get("market")))
-        fixture_id = _text(record.get("fixture_id"))
-        if key[1] and fixture_id:
-            fixtures[key].add(fixture_id)
-    rows_by_key: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
-    for row in clv_rows:
-        rows_by_key[(_text(row.get("league")), _text(row.get("market")))].append(row)
-    outcomes_by_key: dict[tuple[str, str], set[str]] = defaultdict(set)
-    for record in records:
-        if _record_type(record) != "outcome" or _outcome_side(record) != "shadow_pick":
-            continue
-        key = (_league_key(record), _text(record.get("market")))
-        fixture_id = _text(record.get("fixture_id"))
-        if key[1] and fixture_id and _outcome(record) != "VOID":
-            outcomes_by_key[key].add(fixture_id)
-    output: list[dict[str, Any]] = []
-    for key in sorted(
-        set(fixtures) | set(rows_by_key) | set(challenger_captures) | set(challenger_outcomes)
-    ):
-        league, market = key
-        market_rows = rows_by_key.get(key, [])
-        same_line = [
-            float(row["clv_decimal"])
-            for row in market_rows
-            if isinstance(row.get("clv_decimal"), int | float)
-        ]
-        valid_pairs = [row for row in market_rows if row.get("excluded_reason") is None]
-        fixture_count = len(fixtures.get(key, set()))
-        entry_window_count = len(
-            [row for row in valid_pairs if row.get("entry_window_met") is True]
-        )
-        outcome_count = len(outcomes_by_key.get(key, set()))
-        challenger_capture_rows = list(challenger_captures.get(key, {}).values())
-        challenger_pass_rows = [
-            row for row in challenger_capture_rows if row.get("candidate_pass") is True
-        ]
-        challenger_settled_rows = list(challenger_outcomes.get(key, {}).values())
-        profit_units = [
-            value
-            for value in (_profit_units(row) for row in challenger_settled_rows)
-            if value is not None
-        ]
-        predicted_ev: list[float] = []
-        for row in challenger_settled_rows:
-            value = _mapping(row.get("analysis_gate_v2_shadow")).get("net_ev")
-            if isinstance(value, int | float):
-                predicted_ev.append(float(value))
-        candidate_fixture_ids = {
-            fixture_id
-            for fixture_id, row in challenger_captures.get(key, {}).items()
-            if row.get("candidate_pass") is True
-        }
-        candidate_clv = [
-            float(row["clv_decimal"])
-            for row in market_rows
-            if _text(row.get("fixture_id")) in candidate_fixture_ids
-            and isinstance(row.get("clv_decimal"), int | float)
-        ]
-        settled_count = len(challenger_settled_rows)
-        mean_profit = _mean(profit_units)
-        mean_ev = _mean(predicted_ev)
-        evidence_status = (
-            "MATURE"
-            if settled_count >= 100
-            else "REVIEW_ELIGIBLE"
-            if settled_count >= 35
-            else "ACCUMULATING"
-        )
-        captured_times = sorted(
-            _text(row.get("captured_at"))
-            for row in challenger_capture_rows
-            if _text(row.get("captured_at"))
-        )
-        output.append(
-            {
-                "league": league,
-                "market": market,
-                "fixture_count": fixture_count,
-                "valid_closing_pair_count": len(valid_pairs),
-                "closing_pair_coverage_rate": _ratio(len(valid_pairs), fixture_count),
-                "same_line_decimal_clv_sample_count": len(same_line),
-                "median_decimal_clv": median(same_line) if same_line else None,
-                "line_clv_sample_count": len(
-                    [row for row in market_rows if isinstance(row.get("line_clv"), int | float)]
-                ),
-                "median_line_clv": _median_field(market_rows, "line_clv"),
-                "entry_window_met_count": entry_window_count,
-                "entry_window_met_rate": _ratio(entry_window_count, len(valid_pairs)),
-                "outcome_count": outcome_count,
-                "outcome_coverage_rate": _ratio(outcome_count, len(valid_pairs)),
-                "ev_shadow_challenger": {
-                    "shadow_only": True,
-                    "affects_decision": False,
-                    "evaluated_fixture_count": len(challenger_capture_rows),
-                    "candidate_pass_count": len(challenger_pass_rows),
-                    "settled_candidate_count": settled_count,
-                    "evidence_status": evidence_status,
-                    "review_threshold": 35,
-                    "maturity_threshold": 100,
-                    "coverage_start": captured_times[0] if captured_times else None,
-                    "coverage_end": captured_times[-1] if captured_times else None,
-                    "roi": mean_profit,
-                    "profit_units": round(sum(profit_units), 6),
-                    "max_drawdown_units": _max_drawdown(profit_units),
-                    "median_clv_decimal": median(candidate_clv) if candidate_clv else None,
-                    "mean_predicted_ev": mean_ev,
-                    "mean_actual_units": mean_profit,
-                    "ev_calibration_gap": (
-                        round(mean_profit - mean_ev, 6)
-                        if mean_profit is not None and mean_ev is not None
-                        else None
-                    ),
-                },
-            }
-        )
-    return output
-
-
-def _directional_line_clv(
-    *,
-    market: str,
-    selection: str,
-    entry_line: str,
-    closing_line: str,
-) -> float | None:
-    entry = _number(entry_line)
-    closing = _number(closing_line)
-    if entry is None or closing is None:
-        return None
-    if market == "TOTALS" and selection == "OVER":
-        return round(closing - entry, 6)
-    return round(entry - closing, 6)
-
-
-def _median_field(rows: Sequence[Mapping[str, Any]], field: str) -> float | None:
-    values = [float(row[field]) for row in rows if isinstance(row.get(field), int | float)]
-    return median(values) if values else None
-
-
-def _ratio(numerator: int, denominator: int) -> float | None:
-    if denominator <= 0:
-        return None
-    return round(numerator / denominator, 6)
-
-
-def _mean(values: Sequence[float]) -> float | None:
-    return round(sum(values) / len(values), 6) if values else None
-
-
-def _max_drawdown(values: Sequence[float]) -> float | None:
-    if not values:
-        return None
-    equity = 0.0
-    peak = 0.0
-    drawdown = 0.0
-    for value in values:
-        equity += value
-        peak = max(peak, equity)
-        drawdown = max(drawdown, peak - equity)
-    return round(drawdown, 6)
-
-
-def _profit_units(record: Mapping[str, Any]) -> float | None:
-    price = _number(record.get("entry_price"))
-    outcome = _outcome(record)
-    if outcome == "WIN" and price is not None:
-        return price - 1.0
-    if outcome == "HALF_WIN" and price is not None:
-        return (price - 1.0) / 2.0
-    if outcome == "PUSH":
-        return 0.0
-    if outcome == "HALF_LOSS":
-        return -0.5
-    if outcome == "LOSS":
-        return -1.0
-    return None
-
-
-def _mapping(value: Any) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
-
-
 def _league_key(record: Mapping[str, Any]) -> str:
-    competition_id = _text(record.get("competition_id"))
-    if competition_id:
-        return API_FOOTBALL_COMPETITION_IDS.get(competition_id, competition_id)
-    name = _text(record.get("competition_name"))
-    normalized = name.lower()
-    for marker, canonical in (
-        ("allsvenskan", "allsvenskan"),
-        ("eliteserien", "eliteserien"),
-        ("super league", "chinese_super_league"),
-        ("world cup", "world_cup_2026"),
-    ):
-        if marker in normalized:
-            return canonical
-    return name or "UNKNOWN"
+    return _text(record.get("competition_name")) or _text(record.get("competition_id")) or "UNKNOWN"
 
 
 def _outcome(record: Mapping[str, Any]) -> str:
@@ -1171,18 +369,9 @@ def _outcome_side(record: Mapping[str, Any]) -> str:
     side = _text(record.get("settled_side"))
     if side in {"pick", "shadow_pick"}:
         return side
+    if _outcome(record):
+        return "pick"
     return ""
-
-
-def _recommendation_scope(record: Mapping[str, Any]) -> str:
-    explicit = _text(record.get("recommendation_scope")).upper()
-    if explicit in {OFFICIAL_SCOPE, VALIDATION_SCOPE}:
-        return explicit
-    tier = _text(record.get("decision_tier")).upper()
-    if tier == "ANALYSIS_PICK":
-        return VALIDATION_SCOPE
-    # Historical pick outcomes predate recommendation_scope and remain official.
-    return OFFICIAL_SCOPE
 
 
 def _record_type(record: Mapping[str, Any]) -> str:
@@ -1225,16 +414,6 @@ def _number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
-
-
-def _decimal_value(value: Any) -> Decimal | None:
-    text = _text(value)
-    if not text:
-        return None
-    try:
-        return Decimal(text)
-    except (InvalidOperation, ValueError):
-        return None
 
 
 def _text(value: Any) -> str:

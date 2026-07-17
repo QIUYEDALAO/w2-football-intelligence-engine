@@ -32,7 +32,7 @@
 
 | 阶段 | 内容 | 依赖 | 验收(硬) |
 |---|---|---|---|
-| **R2.0 契约与档位地基**(第 0–1 周) | DecisionCard 增 `probability_source: MARKET_DEVIG/MODEL_FALLBACK/BLEND` + `model_market_divergence`;档位选择性由逐场 `analysis_gate` 决定(ANALYSIS_PICK 加分歧/强度门槛 + NO_EDGE 档,不设每日数量上限);UI 词表 ↔ DecisionTier 双射映射表进契约文档 | #204(进行中) | 世界杯真数据日:全 PICK 现象消失;所有逐场过门信号均保留资格;契约测试过;`FORBIDDEN_MARKET_FIELDS` 对 model_probs 继续生效(双轨字段) |
+| **R2.0 契约与档位地基**(第 0–1 周) | DecisionCard 增 `probability_source: MARKET_DEVIG/MODEL_FALLBACK/BLEND` + `model_market_divergence`;#204 档位选择性收尾(ANALYSIS_PICK 加分歧/强度门槛 + NO_EDGE 档,常态日"值得看"0–3 场);UI 词表 ↔ DecisionTier 双射映射表进契约文档 | #204(进行中) | 世界杯真数据日:全 PICK 现象消失;契约测试过;`FORBIDDEN_MARKET_FIELDS` 对 model_probs 继续生效(双轨字段) |
 | **R2.1 展示概率层**(第 1–2 周) | display layer:有盘口 → 去 vig 概率(devig 模块复用);无盘口 → 纯模型 + `MODEL_FALLBACK` 降级标注;分歧雷达 = |p_model − p_market| 超阈值标记(语义:"模型与市场不一致",升级为"值得看"信号须待 R1 前向证据) | R2.0 | 同一场卡片双轨字段齐全;回退路径在无盘口场次真实触发并正确标注 |
 | **R2.2 dashboard A 方向实现**(第 2–4 周) | 时间轴 L1(A 骨架+档位排序)+ 覆盖雷达 tab(audit inventory 独立 read-model)+ 空态目录(reason_code+next_eval_at 枚举齐全);修设计稿七项(假战绩清零、白名单泄漏清洗、置信度列撤下/分歧上行、词表映射、时间数学、覆盖 tab、三态稿) | S16(odds 真进 DayView)、R2.0/R2.1 | 三态截图验收(满负荷/空日/降级日,replay 构造);5 秒测试六问全过;信任标记全部来自真实 gate 输出 |
 | **R2.3 staging enable 在赛联赛**(第 4 周起,单独审批) | odds-PASS 4 联赛按 §4 准入矩阵进 staging;每日 `w2-matchday` 产出带 probability_source 的卡;复盘可用 | R2.1、R1.0(战绩条有数据流);**单独批准 PR** | 联赛级门槛核对单过;`enabled` diff 最小;回滚路径演练 |

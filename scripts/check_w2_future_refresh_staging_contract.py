@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ast
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -210,12 +209,8 @@ def assert_config_mount(path: Path, compose: dict[str, Any]) -> None:
             fail(f"{path}: {service} config mount target mismatch")
         if mode != "ro":
             fail(f"{path}: {service} config mount must be read-only")
-    world_cup_profile = ROOT / "config/competitions/world_cup_2026.v1.json"
-    if not world_cup_profile.is_file():
-        fail("world_cup_2026 historical competition profile missing")
-    profile = json.loads(world_cup_profile.read_text(encoding="utf-8"))
-    if profile.get("whitelist_status") != "ARCHIVED" or profile.get("enabled") is not False:
-        fail("world_cup_2026 profile must remain archived and disabled")
+    if not (ROOT / "config/competitions/world_cup_2026.v1.json").is_file():
+        fail("world_cup_2026 competition registry config missing")
 
 
 def assert_runtime_mount(path: Path, compose: dict[str, Any]) -> None:
@@ -279,12 +274,11 @@ def assert_compose(path: Path) -> None:
     scheduler_env = service_env(compose, "scheduler")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED") != "true":
         fail(f"{path}: scheduler future refresh enable flag missing")
-    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != (
-        "brasileirao_serie_a"
-    ):
+    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != "world_cup_2026":
         fail(f"{path}: scheduler future refresh competition mismatch")
     expected_competitions = (
-        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+        "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
+        "allsvenskan,eliteserien"
     )
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS") != expected_competitions:
         fail(f"{path}: scheduler future refresh competition list mismatch")
@@ -354,12 +348,28 @@ def assert_compose(path: Path) -> None:
 
 
 def assert_policy() -> None:
+    import json
+
     policy = json.loads(POLICY.read_text(encoding="utf-8"))
     competitions = policy.get("competitions")
     if not isinstance(competitions, list):
         fail("future refresh policy competitions missing")
-    if any(item.get("competition_id") == "world_cup_2026" for item in competitions):
-        fail("world_cup_2026 must not remain in live future refresh policy")
+    match = next(
+        (item for item in competitions if item.get("competition_id") == "world_cup_2026"),
+        None,
+    )
+    if not isinstance(match, dict):
+        fail("world_cup_2026 policy missing")
+    if match.get("enabled") is not True:
+        fail("world_cup_2026 policy must be enabled")
+    if match.get("season") != "2026":
+        fail("world_cup_2026 policy season mismatch")
+    if match.get("daily_hard_cap") != 120:
+        fail("world_cup_2026 daily_hard_cap must stay at 120 for R1.0 staging collection")
+    if match.get("daily_reserve") != 0:
+        fail("world_cup_2026 daily_reserve must stay at 0 for R1.0 staging collection")
+    if match.get("daily_usage_scope") != "w2_ledger":
+        fail("world_cup_2026 daily_usage_scope must stay w2_ledger for record-only collection")
     expected_staging = {
         "brasileirao_serie_a": ("71", "2026"),
         "chinese_super_league": ("169", "2026"),

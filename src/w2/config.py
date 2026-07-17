@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
-from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,9 +25,6 @@ class Settings(BaseSettings):
     celery_broker_url: SecretStr | None = None
     celery_result_backend: SecretStr | None = None
     minio_endpoint: str | None = None
-    runtime_root: Path = Path("runtime")
-    ops_service_token: SecretStr | None = None
-    ops_allowed_cidrs: str | None = None
 
     @field_validator("database_url", "redis_url", "celery_broker_url", "celery_result_backend")
     @classmethod
@@ -45,13 +41,8 @@ class Settings(BaseSettings):
         url = self.database_url.get_secret_value()
         return url.split(":", 1)[0]
 
-    @property
-    def resolved_runtime_root(self) -> Path:
-        if self.runtime_root.is_absolute():
-            return self.runtime_root
-        return Path.cwd() / self.runtime_root
-
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+

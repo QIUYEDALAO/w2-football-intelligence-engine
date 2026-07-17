@@ -348,9 +348,7 @@ def test_openapi_snapshot_and_web_notice() -> None:
     assert "/ops/gates" in snapshot["paths"]
     web = Path("apps/web/src/main.tsx").read_text()
     assert "W2 足球分析 · 今日比赛" in web
-    assert "验证推荐" in web
-    assert "分析参考" not in web
-    assert "非稳赢" not in web
+    assert "分析参考 · 非稳赢" in web
     assert "Live read-model dashboard" not in web
     assert "W2 OPERATIONS CONSOLE" not in web
     assert "AI 推荐" not in web
