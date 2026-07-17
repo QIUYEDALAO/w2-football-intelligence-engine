@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T11:36:33Z"
+last_updated_utc: "2026-07-17T14:27:00Z"
 current_phase: Dashboard expired-odds containment and bounded active-window refresh repair
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -217,7 +217,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: STAGING_DISPLAY_PASS_POLL_FIX_VALIDATED_PENDING_REDEPLOY
+  status: IDENTICAL_QUOTE_CAPTURE_FIX_VALIDATED_PENDING_REDEPLOY
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -279,8 +279,8 @@ data08_expired_odds_display_and_refresh_20260717:
     due_plan_query_scope: fixture_scoped
     manual_provider_refresh: false
   local_validation:
-    targeted_tests_passed: 66
-    full_tests_passed: 1506
+    targeted_tests_passed: 95
+    full_tests_passed: 1507
     full_tests_skipped: 4
     ruff: PASS
     mypy: PASS
@@ -312,6 +312,20 @@ data08_expired_odds_display_and_refresh_20260717:
     discovered_deviation: checkpoint scan inherited the old 60-second default instead of the required 900-second interval
     action: scheduler paused; default corrected to 900 seconds and fully revalidated before redeploy
   next_gate: redeploy the final local release commit to all four staging services, verify 900-second scan interval and service alignment, then observe the remaining natural legal cycles
+  identical_quote_capture_blocker:
+    observed_release_sha: afac9307006a4451a6a409d58408aa787b4f6726
+    affected_fixture_ids:
+      - "1494211"
+      - "1494215"
+      - "1494700"
+    symptom: Provider refresh tasks completed every 30 minutes, but unchanged odds reused the previous observation_id so captured_at did not advance and the Dashboard remained STALE
+    failure_boundary: CONTENT_DEDUPLICATION_DROPS_NEW_CAPTURE_IDENTITY
+    scheduler_paused: true
+    provider_calls_at_pause: 598
+    repair: include captured_at in immutable observation identity while preserving identical raw payload hash and odds values
+    recommendation_gates_changed: false
+    freshness_threshold_changed: false
+    next_action: deploy the new local release and verify a naturally unchanged quote advances captured_at and becomes displayable
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS

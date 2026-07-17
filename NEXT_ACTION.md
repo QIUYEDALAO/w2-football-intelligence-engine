@@ -19,6 +19,13 @@ default. Scheduler is paused; the default is corrected to the required 900
 seconds. The unique next action is to redeploy the final local release commit to
 all four Staging services, verify alignment and observe the remaining legal cycles.
 
+The aligned release then exposed a deeper capture boundary: Provider refreshes
+completed, but identical odds content reused the previous observation identity,
+so `captured_at` did not advance and three matches stayed STALE. Scheduler is
+paused. The repair now binds observation identity to capture time while retaining
+the same raw payload hash and prices. Local validation is 95 directed tests and
+1507 full-suite tests. Redeploy and verify this natural identical-quote case next.
+
 ## Unique next action — DATA-08
 
 1. Hide quotes older than 30 minutes from `current_odds` while preserving their

@@ -540,6 +540,7 @@ def observations_from_odds_payload(
                     identity = {
                         "provider": "api_football",
                         "fixture_id": fixture_id,
+                        "captured_at": captured_at,
                         "bookmaker_id": bookmaker_id,
                         "bet_id": bet_id,
                         "selection": selection,

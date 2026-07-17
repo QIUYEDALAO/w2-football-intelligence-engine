@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -278,6 +278,55 @@ def test_odds_payload_records_split_totals_line_as_quarter_line() -> None:
     totals_rows = [row for row in rows if row["canonical_market"] == "TOTALS"]
     assert {row["line"] for row in totals_rows} == {"2.25"}
     assert {row["decimal_odds"] for row in totals_rows} == {"2.03", "1.85"}
+
+
+def test_identical_odds_payload_at_new_capture_time_is_a_new_immutable_observation() -> None:
+    payload = {
+        "response": [
+            {
+                "fixture": {"id": 1489404},
+                "bookmakers": [
+                    {
+                        "id": 1,
+                        "name": "Book A",
+                        "bets": [
+                            {
+                                "id": 5,
+                                "name": "Goals Over/Under",
+                                "values": [{"value": "Over 2.5", "odd": "1.91"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    def rows_at(captured_at: datetime) -> list[dict[str, Any]]:
+        response = LiveApiFootballResponse(
+            endpoint="odds",
+            params={"fixture": "1489404"},
+            status_code=200,
+            elapsed_ms=7,
+            payload=payload,
+            headers={},
+            captured_at=captured_at,
+        )
+        return observations_from_odds_payload(
+            fixture_id="1489404",
+            payload=payload,
+            response=response,
+            source_revision="test",
+            raw_payload_sha256="same-payload-hash",
+        )
+
+    first = rows_at(NOW)[0]
+    second = rows_at(NOW + timedelta(minutes=30))[0]
+
+    assert first["observation_id"] != second["observation_id"]
+    assert first["raw_payload_sha256"] == second["raw_payload_sha256"]
+    assert first["decimal_odds"] == second["decimal_odds"]
+    assert first["captured_at"] != second["captured_at"]
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):

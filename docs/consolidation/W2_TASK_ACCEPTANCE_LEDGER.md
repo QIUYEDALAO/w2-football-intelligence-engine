@@ -977,3 +977,11 @@
 - 首个自然调度 tick 在三个联赛任务中使用 11 次 Provider 调用，等于 Scheduler 的全局 projected calls=11，低于单 tick 30；队列随后归零，紧接的下一次扫描 Provider 增量为 0，任务键和 per-fixture 去重生效。
 - 运行日志暴露配置偏差：checkpoint Scheduler 仍继承旧的 60 秒扫描默认，虽然没有造成重复 Provider 调用，但不符合批准的 15 分钟扫描节奏。Scheduler 已立即暂停，默认改为 900 秒并加入回归测试。
 - 修正后定向测试 `66 passed`，完整测试 `1506 passed, 4 skipped`，Ruff、Mypy 和前端 production build PASS。唯一下一步是部署最终本地提交、恢复四服务 SHA 对齐并确认下一次扫描间隔为 900 秒；不手动调用 Provider。
+
+### V3 进展续92 · DATA-08 相同盘口内容丢失新采集身份(2026-07-17)
+
+- 最终对齐版本 `afac9307006a4451a6a409d58408aa787b4f6726` 的四服务健康、restart=0、OOM=false，运行时扫描周期为 900 秒。自然日志证明 fixtures `1494211/1494215/1494700` 每 30 分钟进入 active odds-only 任务，单 tick 始终低于 30 次且队列归零。
+- 用户页面仍显示上述比赛盘口过期。精确边界为 `CONTENT_DEDUPLICATION_DROPS_NEW_CAPTURE_IDENTITY`：当 Provider 返回的赔率内容和 raw payload hash 不变时，observation ID 也不变，数据库幂等冲突丢弃了新的采集时刻，导致 `captured_at` 停留在旧周期。
+- Scheduler 已暂停。定向修复只在 observation 不可变身份中加入 `captured_at`：相同内容的新采集成为新 observation，raw payload hash、赔率、来源和历史旧 observation 均不变；不更新旧行、不伪造 Provider 时间。
+- 新回归证明同 payload、同赔率、不同 capture time 生成不同 observation ID，同时 raw hash 和赔率值稳定。定向测试 `95 passed`，完整测试 `1507 passed, 4 skipped`，Ruff、Mypy、前端 build PASS。
+- 唯一下一步是部署新的本地发布提交，等待一次自然刷新并确认相同盘口也会推进 `captured_at`、恢复展示；30 分钟 freshness、FME、Snapshot 和推荐安全门不变。
