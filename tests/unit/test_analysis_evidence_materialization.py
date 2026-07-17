@@ -45,6 +45,12 @@ class _Repository:
             "latest_checkpoint_key": "latest-1",
         }
 
+    def frozen_analysis_source_signature(self, fixture_id: str) -> str | None:
+        if not self.persisted:
+            return None
+        materialization = self.persisted[-1]["payload"].get("analysis_materialization", {})
+        return cast(str | None, materialization.get("source_signature"))
+
 
 def test_materializer_uses_fixture_scoped_observations(monkeypatch: Any) -> None:
     repository = _Repository()
@@ -95,6 +101,35 @@ def test_offline_builder_primes_fixture_scope_before_reconstruction(monkeypatch:
         "fixture_id": "fixture-1",
         "observation_count": 1,
     }
+
+
+def test_reconcile_is_bounded_fixture_scoped_and_idempotent(monkeypatch: Any) -> None:
+    repository = _Repository()
+    service = ReadModelService(repository=cast(Any, repository))
+    builds = 0
+
+    def build(fixture_id: str, item: dict[str, Any]) -> dict[str, Any]:
+        nonlocal builds
+        builds += 1
+        return {
+            "fixture_id": fixture_id,
+            "decision_tier": "NOT_READY",
+            "data_status": "STALE",
+            "current_odds": {"ou": {"line": "2.5"}},
+            "fair_market_estimate_snapshots": [],
+        }
+
+    monkeypatch.setattr(service, "_analysis_card_from_provider_payload", build)
+
+    first = service.reconcile_frozen_analysis_cards(["fixture-1"] * 12, max_fixtures=10)
+    second = service.reconcile_frozen_analysis_cards(["fixture-1"], max_fixtures=10)
+
+    assert first["fixture_count"] == 1
+    assert first["materialized_count"] == 1
+    assert first["provider_calls"] == 0
+    assert second["materialized_count"] == 0
+    assert second["unchanged_count"] == 1
+    assert builds == 1
 
 
 def test_worker_materializes_checkpoint_after_completed_refresh(monkeypatch: Any) -> None:

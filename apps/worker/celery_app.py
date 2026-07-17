@@ -180,6 +180,13 @@ def market_timeline_refresh(
         write_artifacts=True,
         max_fixtures=max_fixtures,
     )
+    from w2.api.repository import ReadModelService
+
+    reconcile = ReadModelService().reconcile_frozen_analysis_cards(
+        [str(item) for item in result.get("selected_fixtures", [])],
+        max_fixtures=min(max(max_fixtures or 10, 0), 10),
+    )
+    result["analysis_reconcile"] = reconcile
     forward_ledger_result: dict[str, object] | None = None
     if capture_forward_ledger:
         forward_ledger_result = _run_forward_outcome_ledger(window=window)
@@ -192,6 +199,7 @@ def market_timeline_refresh(
         "candidate": False,
         "formal_recommendation": False,
         "beats_market": False,
+        "provider_calls": 0,
     }
 
 

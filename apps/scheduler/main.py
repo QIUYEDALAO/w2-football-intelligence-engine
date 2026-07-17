@@ -122,6 +122,7 @@ def due_checkpoint_refresh_batch(
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
         checkpoint_plans_from_fixture_payloads,
+        prioritize_checkpoint_plans,
         projected_calls_for_checkpoint_batch,
         select_checkpoint_batch,
     )
@@ -174,6 +175,7 @@ def due_checkpoint_refresh_batch(
         )()
         for row in due_rows
     ]
+    due_plans = prioritize_checkpoint_plans(due_plans, now=now)
     selected, projected_calls = select_checkpoint_batch(
         due_plans,
         hard_cap=provider_refresh_tick_hard_cap(),

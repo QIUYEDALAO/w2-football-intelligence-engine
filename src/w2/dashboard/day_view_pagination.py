@@ -85,22 +85,33 @@ def build_index_entries(
         if not fixture_id:
             continue
         summary = summaries.get(fixture_id)
-        tier = str(getattr(summary, "decision_tier", "NOT_READY") or "NOT_READY")
-        lock_eligible = getattr(summary, "lock_eligible", False) is True
+        tier = str(_summary_value(summary, "decision_tier", "NOT_READY") or "NOT_READY")
+        lock_eligible = _summary_value(summary, "lock_eligible", False) is True
         result.append(
             DayViewIndexEntry(
                 fixture_id=fixture_id,
                 kickoff_utc=str(row.get("kickoff_utc") or ""),
                 priority=_priority(tier, lock_eligible),
                 decision_tier=tier,
-                data_status=str(getattr(summary, "data_status", "BLOCKED") or "BLOCKED"),
-                lifecycle_status=str(getattr(summary, "lifecycle_status", "DRAFT") or "DRAFT"),
+                data_status=str(_summary_value(summary, "data_status", "BLOCKED") or "BLOCKED"),
+                lifecycle_status=str(
+                    _summary_value(summary, "lifecycle_status", "DRAFT") or "DRAFT"
+                ),
                 lock_eligible=lock_eligible,
-                outcome_tracked=getattr(summary, "outcome_tracked", False) is True,
-                source=str(getattr(summary, "source", "unavailable") or "unavailable"),
+                outcome_tracked=_summary_value(summary, "outcome_tracked", False) is True,
+                source=str(_summary_value(summary, "source", "unavailable") or "unavailable"),
             )
         )
     return result
+
+
+def _summary_value(summary: Any, key: str, default: Any) -> Any:
+    if isinstance(summary, Mapping):
+        contract = summary.get("decision_contract")
+        if isinstance(contract, Mapping) and contract.get(key) is not None:
+            return contract[key]
+        return summary.get(key, default)
+    return getattr(summary, key, default)
 
 
 def sort_entries(entries: Sequence[DayViewIndexEntry], sort: str) -> list[DayViewIndexEntry]:

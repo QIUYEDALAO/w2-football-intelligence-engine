@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T03:55:19Z"
-current_phase: Market availability pipeline recovery before Frozen L2 acceptance
-current_status: DATA_PIPELINE_BLOCKED
+last_updated_utc: "2026-07-17T04:33:45Z"
+current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
+current_status: IMPLEMENTATION_IN_PROGRESS
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -149,11 +149,13 @@ active_workstream:
     - L2-02
     - DATA-01
     - DATA-02
+    - DATA-03
   remaining_tasks:
-    - observe the next three naturally due checkpoint refresh cycles beginning at or after 2026-07-17T10:00:00Z
-    - verify the merged worker automatically materializes each checkpoint fixture and binds Decision Contract MarketQuote identity to the same current odds source
-    - distinguish Snapshot v2 mathematical reproducibility from decision evidence eligibility; incomplete model provenance remains blocked
-    - pass three consecutive staging cycles with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
+    - merge the bounded stale-market recovery implementation and context rebaseline through GitHub PR
+    - deploy merged main and immediately reconcile at most 10 current fixtures per zero-provider background cycle
+    - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
+    - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
+    - pass staging with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
     - only after market data is GREEN and evidence is READY, rerun the controlled-capture gate and full L1/Frozen L2 safety acceptance
     - complete the Draft Policy ADR after data and evidence recovery; do not enter U04 or M2 in this workstream
   deferred_findings:
@@ -187,8 +189,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - wait for and inspect the next naturally due checkpoint refresh cycles; do not force provider calls or bypass the checkpoint scheduler
-    - keep the deployed MA-03 release under the existing automatic rollback contract until three consecutive natural cycles are adjudicated
+    - complete and merge the Dashboard stale-market recovery PR, then deploy under the existing four-service rollback contract
+    - run only the bounded zero-provider reconcile and naturally due T6/T1/T15 refresh checkpoints
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -198,7 +200,7 @@ active_workstream:
     - historical evidence rewrites
 
 ma03_staging_deployment_20260717:
-  status: DEPLOYED_WAITING_FOR_NATURAL_CYCLES
+  status: SUPERSEDED_BY_REFRESH_POLICY_AND_DISPLAY_SEMANTICS_REPAIR
   deployed_at_utc: "2026-07-17T03:55:19Z"
   release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   rollback_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
@@ -224,6 +226,8 @@ ma03_staging_deployment_20260717:
   production_deploy: false
   recommendation_gate_change: false
   historical_rewrite: false
+  automated_patrol: PAUSED
+  superseding_blocker: DATA-03
 
 known_issue_catalog:
   CTX-01: GitHub main context predates PRs 314 through 325
@@ -249,6 +253,7 @@ known_issue_catalog:
   L2-02: current L1 content hash 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 has two occurrences and the latest occurrence contains zero Snapshot v2 records and no estimate identity; older valid-v2 captures are not decision/quote/card/evidence equivalent and cannot be substituted
   DATA-01: successful provider fixture and odds requests produce persisted market observations but the Dashboard decision path has no selected MarketQuote, no quote capture time and no evidence-eligible FME Snapshot v2
   DATA-02: fixture-scoped materialization restores frozen current odds and reproducible Snapshot v2 distributions, but sampled fixtures still lack complete decision-model provenance and current freshness; three naturally due post-merge cycles remain required
+  DATA-03: the deployed policy only schedules OPEN/T1/T15 and public DayView ignores database-frozen analysis cards when no forward capture exists, so non-clinical stale observations are misreported as MARKET_UNAVAILABLE; repair requires bounded reconcile, explicit STALE projection, T6 odds-only scheduling and next-refresh projection without weakening gates
 
 known_issue_status:
   resolved:

@@ -1,10 +1,11 @@
 # W2 Next Action
 
-Status: `DATA_PIPELINE_BLOCKED`
+Status: `IMPLEMENTATION_IN_PROGRESS`
 
-The Dashboard fixtures are present, but every fixture observed in the latest
-three refresh cycles fails closed because the decision path has no selected
-MarketQuote, no quote capture time, and no evidence-eligible FME Snapshot v2.
+The Dashboard has real fixture-scoped observations, but the deployed read path
+misclassifies non-clinical stale markets as unavailable because old observations
+are not reconciled into the database-frozen card consumed by direct DayView.
+The existing schedule also leaves a large OPEN-to-T1 gap.
 
 ## Execute next
 
@@ -59,7 +60,28 @@ Local and GitHub validation passed. On staging, fixture-scoped materialization f
 Snapshot v2 records per fixture, and reproduced the same three content hashes on
 an identical-input rerun. Public HTTP remained frozen/no-live-rebuild.
 
-### MA-03 — Three-cycle staging acceptance — DEPLOYED/WAITING ON NATURAL CYCLES
+### MA-03A — Dashboard stale-market directed repair — IN PROGRESS
+
+Implement and merge one bounded change set that:
+
+- projects database-frozen analysis cards when no forward capture exists;
+- keeps odds older than 30 minutes visible as `STALE` with source, capture time
+  and source hash, while `NOT_READY`, recommendation, lock and OFFICIAL remain closed;
+- runs an idempotent fixture-scoped reconcile for at most 10 kickoff-ordered
+  fixtures in the existing zero-provider background cycle;
+- writes a new immutable checkpoint only when the input source signature changes;
+- binds FME provenance to immutable artifact ID/hash, version, training cutoff,
+  feature-as-of and input source hash, failing closed when incomplete;
+- adds odds-only `T6_ODDS` between OPEN and T1, never backfills missed T6, and
+  retains the existing 30-call tick cap, 120-call daily cap, dedupe and reserve;
+- populates existing per-card `next_eval_at` and header `next_refresh_tick` from
+  pending legal checkpoint plans;
+- counts only true `BLOCKED` cards as data blocked; reports `STALE` separately.
+
+The hourly MA-03 patrol is paused. Do not use its former passive waiting result
+as acceptance evidence.
+
+### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and
 four-service SHA alignment. Materialized cards restored AH/OU current odds,
@@ -73,17 +95,15 @@ and feature-as-of provenance. They remained correctly blocked by
 `DECISION_SOURCE_INCONSISTENT`. Snapshot mathematical reproducibility alone does
 not satisfy decision evidence eligibility.
 
-Do not force refreshes or bypass the provider interval. The next eligible real
-cycles are naturally due Super League checkpoints beginning at
-`2026-07-17T10:00:00Z`.
+Deploy merged main under the existing four-service rollback contract. Immediately
+verify that current fixtures with observations show odds, age, STALE reason and
+next legal refresh after the zero-provider reconcile. Then observe natural
+`T6_ODDS`, `T1_LINEUPS` and `T15M_CLOSE` checkpoints. Do not force Provider calls
+or fabricate missed historical T6 records.
 
-GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` was deployed at
-`2026-07-17T03:55:19Z` under a mode-600 four-service rollback manifest. Artifact
-v1, migration head, API health/readiness, DayView and API/Web/worker/scheduler
-SHA alignment passed with restart count 0 and no OOM. Provider request logs
-remained `532`, latest refresh audit remained `1488`, and both the Redis queue
-and active provider-call count remained zero. Keep this release deployed and
-require three consecutive post-merge natural cycles.
+GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` remains the currently deployed
+staging baseline. It is not accepted for MA-03 because its refresh policy and
+direct DayView projection do not meet the stale-market display contract.
 
 Require three consecutive real refresh cycles to demonstrate:
 
@@ -119,5 +139,5 @@ U04 or M2 from this workstream.
 - treating raw observation volume or HTTP 200 as evidence readiness;
 - weakening or bypassing market, freshness, provenance, FME or Snapshot gates;
 - changing recommendation, EV, lock, OFFICIAL or production behavior;
-- deploying before MA-01 and MA-02 are complete;
+- treating the previous passive natural-cycle patrol as sufficient acceptance;
 - entering U04 or M2.

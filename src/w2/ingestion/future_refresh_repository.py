@@ -793,6 +793,33 @@ class FutureRefreshDbRepository:
             )
         return [self._checkpoint_plan_dict(row) for row in rows]
 
+    def next_checkpoint_plans_for_fixture_ids(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        target_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))
+        if not target_ids:
+            return {}
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(FutureRefreshCheckpointPlanModel)
+                    .where(
+                        FutureRefreshCheckpointPlanModel.fixture_id.in_(target_ids),
+                        FutureRefreshCheckpointPlanModel.status == "PENDING",
+                    )
+                    .order_by(
+                        FutureRefreshCheckpointPlanModel.fixture_id,
+                        FutureRefreshCheckpointPlanModel.due_at,
+                        FutureRefreshCheckpointPlanModel.checkpoint,
+                    )
+                )
+            )
+        result: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            result.setdefault(row.fixture_id, self._checkpoint_plan_dict(row))
+        return result
+
     def write_checkpoint_audit(
         self,
         *,

@@ -10,13 +10,14 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续78 · MA-03 四服务部署完成与自然三周期待验收`.
+Current latest entry: `V3 进展续79 · Dashboard stale-market 定向修复启动`.
 
 Current blocking chain:
 
-1. `DATA-02 / DATA_PIPELINE_BLOCKED`: `main@7ad56cd` is deployed to all four
-   staging services; three consecutive naturally due cycles beginning at or
-   after `2026-07-17T10:00:00Z` must prove current provenance-valid evidence.
+1. `DATA-03 / IMPLEMENTATION_IN_PROGRESS`: MA-03 is reclassified from passive
+   natural-cycle waiting to refresh-policy and display-semantics repair. Existing
+   observations must project as STALE, not MARKET_UNAVAILABLE, while all
+   recommendation gates remain closed.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

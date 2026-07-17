@@ -882,3 +882,10 @@
 - 部署前后 provider request log 均为 `532`，最新 refresh audit 仍为 `1488@2026-07-16T22:15:08.784841Z`，Redis queue=0、active provider calls=0；部署未主动调用 provider、未改业务数据或历史证据。
 - 当前只允许保持该版本并观察从 `2026-07-17T10:00:00Z` 起自然到期的连续三个周期；不得强制 refresh、绕过 provider interval 或放宽 freshness/provenance/FME/Snapshot/推荐门。
 - MA-03 仍为 `DATA_PIPELINE_BLOCKED` 待验收；只有三周期同时得到 `MARKET_DATA_HEALTH=GREEN` 与 `EVIDENCE_ELIGIBILITY=READY` 后才能进入 MA-04。
+
+### V3 进展续79 · Dashboard stale-market 定向修复启动(2026-07-17)
+
+- 重新读取 GitHub `main@495704ff57fb3d5832a63869c3763be9561a6e87` 的三份上下文后，确认 MA-03 不能继续按“被动等待自然周期即可恢复”执行。现有 30 分钟 freshness 与 OPEN/T1/T15 调度之间存在明显展示空档，且 direct DayView 在没有 forward capture 时未消费数据库冻结 analysis card，导致已有真实 observation 的比赛被误报为 `MARKET_UNAVAILABLE`。
+- 新 blocker 为 `DATA-03`：刷新策略与展示语义阻塞。原 hourly MA-03 自动巡检已暂停；旧部署 `7ad56cd` 保留为 staging baseline，但不构成 MA-03 接受结果。
+- 定向修复固定为：数据库冻结卡投影、STALE 与 BLOCKED 分离、最多 10 场 fixture-scoped 零 Provider reconcile、source signature 幂等写、显式 artifact ID/hash/version/train-cutoff/feature-as-of/input-source-hash provenance、odds-only T6、错过 T6 不回填、既有 next refresh 字段填充及 UI 单独统计 STALE。
+- 30 分钟 freshness、FME 数学、Snapshot 证据资格、推荐阈值、denominator、三轨、RECOMMEND、lock、OFFICIAL、production 与联赛启用均不变。只有合并、部署并完成即时 STALE 展示验收和自然 T6/T1/T15 身份一致性验收后，才可裁决 `GREEN + READY` 并进入 MA-04。

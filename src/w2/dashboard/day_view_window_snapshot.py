@@ -27,6 +27,8 @@ class DayViewWindowSnapshot:
     sorted_entries: tuple[DayViewIndexEntry, ...]
     counts: Mapping[str, Any]
     capture_index: DayViewCaptureIndex
+    materialized_cards: Mapping[str, Mapping[str, Any]]
+    next_evaluations: Mapping[str, str]
     market_availability: Mapping[str, bool]
     performance_summary: Mapping[str, Any]
     generated_at: str
