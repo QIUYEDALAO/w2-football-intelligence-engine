@@ -316,6 +316,11 @@ def test_materialized_odds_supersede_forward_capture_with_incomplete_identity(
                                 "as_of": "2030-07-16T08:00:00Z",
                                 "source": "api_football",
                                 "source_hash": "complete-source-hash",
+                                "candidate_lines": [
+                                    {"line": index, "detail": "x" * 200}
+                                    for index in range(200)
+                                ],
+                                "rejected_lines": [{"line": "3.5"}],
                             }
                         },
                     }
@@ -370,7 +375,10 @@ def test_materialized_odds_supersede_forward_capture_with_incomplete_identity(
     assert card["current_odds"]["ou"]["line"] == "2.5"
     assert card["current_odds"]["ou"]["source"] == "api_football"
     assert card["current_odds"]["ou"]["source_hash"] == "complete-source-hash"
+    assert "candidate_lines" not in card["current_odds"]["ou"]
+    assert "rejected_lines" not in card["current_odds"]["ou"]
     assert card["decision_tier"] == "NOT_READY"
+    assert card["reason_code"] == "DATA_STALE_ODDS"
     assert view["counts"]["watch"] == 0
 
 
