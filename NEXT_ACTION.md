@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `DATA06_FIX_IN_REVIEW`
+Status: `DATA_PIPELINE_BLOCKED`
 
 The Dashboard has real fixture-scoped observations, but the deployed read path
 misclassifies non-clinical stale markets as unavailable because old observations
@@ -132,8 +132,22 @@ exact 30-minute boundary. The Worker also supports bounded analysis reconcile
 with timeline writes disabled, so immediate display verification cannot create
 checkpoint artifacts. Scheduler defaults, due windows, quota policy and opening
 baseline behavior are unchanged. Targeted validation is `41 passed` plus Ruff
-and Mypy PASS; the full suite is `1497 passed, 4 skipped`. Merge remains subject
-to all GitHub checks.
+and Mypy PASS; the full suite is `1497 passed, 4 skipped`.
+
+PR #340 passed all three checks and merged as
+`main@ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5`. Its staging deployment passed
+image, artifact, migration, health and four-service alignment. Immediate public
+DayView then reported index counts `STALE=4/BLOCKED=6/WATCH=0`, but all four
+materialized cards were replaced by `L1_CARD_TOO_LARGE` fail-closed cards with
+empty odds. The full database-frozen `current_odds` contains candidate and
+rejected line evidence that does not belong in the bounded public display card.
+
+`DATA-07` is now the only code blocker. Keep the unchanged L1 payload limit and
+trim only the public display projection to existing essential odds fields:
+line/prices, capture time, provider source, source hash and display line. Do not
+delete evidence detail from the frozen checkpoint or expand the public API.
+Staging was immediately rolled back to `7ad56cd`; health/ready and public API/Web
+release identity confirm the rollback.
 
 ### MA-03B — Staging acceptance after merge
 

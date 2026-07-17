@@ -918,3 +918,10 @@
 - 定向修复对所有非 opening timeline artifact 复用既有 30 分钟 freshness：超过 30 分钟返回 `NO_FRESH_CHECKPOINT_OBSERVATION` 并禁止写入，恰好 30 分钟仍允许；opening 历史基线不变。
 - Worker 增加内部 `write_timeline_artifacts=false` 路径，允许部署即时验收只做 fixture-scoped、最多 10 场、零 Provider reconcile，不产生 timeline artifact。Scheduler 默认自然写入路径、due window、quota 与 reserve 均不变。
 - 定向验证 `41 passed`，Ruff/Mypy PASS；完整测试 `1497 passed, 4 skipped`，GitHub PR 检查仍待完成，staging 保持回滚版本 `7ad56cd`。
+
+### V3 进展续84 · DATA-07 完整盘口卡超出 L1 与第四次回滚(2026-07-17)
+
+- PR #340 三项 CI 全 PASS 并合并为 `main@ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5`；部署的 revision、artifact、migration、health/readiness 与四服务对齐全部 PASS。
+- 即时 public DayView 的索引计数为 `STALE=4/BLOCKED=6/WATCH=0`，但四张完整 database-frozen 卡在最终 L1 大小门被替换为 `L1_CARD_TOO_LARGE`，盘口为空。reconcile-only 命令因 SSH 管理通道超时未取得结果，不计为成功证据。
+- DATA-07 的边界为 `COMPLETE_MATERIALIZED_ODDS_EXCEED_BOUNDED_L1_CARD`：数据库冻结卡的 `current_odds` 包含 candidate/rejected line 证据明细，完整身份优先后将这些内部证据带入了公共卡。不得放宽 L1 上限，也不得删除冻结证据。
+- 已第四次回滚到 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；公开 health/ready、Web meta 与 API version 均确认恢复。唯一允许修复是在公共展示投影进入既有 L1 大小门前，只保留 line/price/as_of/source/source_hash/display line 等必要字段。
