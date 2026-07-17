@@ -316,6 +316,40 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert provider["blockers"] == []
 
 
+def test_frozen_analysis_checkpoint_is_content_addressed_and_updates_latest(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = ReadModelRepository()
+    first = repository.persist_frozen_analysis_checkpoint(
+        fixture_id="1489404",
+        payload={"fixture_id": "1489404", "analysis_card": {"status": "READY"}},
+        created_at=NOW,
+    )
+    duplicate = repository.persist_frozen_analysis_checkpoint(
+        fixture_id="1489404",
+        payload={"fixture_id": "1489404", "analysis_card": {"status": "READY"}},
+        created_at=NOW + timedelta(minutes=1),
+    )
+    changed = repository.persist_frozen_analysis_checkpoint(
+        fixture_id="1489404",
+        payload={"fixture_id": "1489404", "analysis_card": {"status": "INSUFFICIENT"}},
+        created_at=NOW + timedelta(minutes=2),
+    )
+
+    rows = repository.dashboard_checkpoints("dashboard:fixture_")
+
+    assert first["source_hash"] == duplicate["source_hash"]
+    assert changed["source_hash"] != first["source_hash"]
+    assert len(rows) == 3
+    latest = next(
+        row for row in rows if row["checkpoint_key"] == "dashboard:fixture_latest:1489404"
+    )
+    assert latest["source_hash"] == changed["source_hash"]
+    assert latest["payload"]["analysis_card"]["status"] == "INSUFFICIENT"
+
+
 def test_checkpoint_plan_is_idempotent_and_audited(
     tmp_path: Path,
     monkeypatch: Any,
@@ -336,9 +370,7 @@ def test_checkpoint_plan_is_idempotent_and_audited(
 
     assert repository.upsert_checkpoint_plans([row]) == 1
     assert repository.upsert_checkpoint_plans([row]) == 1
-    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == [
-        "1489404:T24"
-    ]
+    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == ["1489404:T24"]
     audit_id = repository.write_checkpoint_audit(
         fixture_id="1489404",
         checkpoint="T24",
@@ -353,12 +385,10 @@ def test_checkpoint_plan_is_idempotent_and_audited(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel))
-            == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel)) == 1
         )
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel))
-            == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
         )
 
 
