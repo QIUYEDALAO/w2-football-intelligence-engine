@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T06:59:00Z"
+last_updated_utc: "2026-07-17T07:12:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
-current_status: DATA07_FIX_IN_REVIEW
+current_status: MA03_IMMEDIATE_DISPLAY_PASS_WAITING_NATURAL_CYCLES
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: 5c30d546c43b53c677237e2e43288d975e49e6ab
-  deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  main_sha_at_rebaseline: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
+  deployed_code_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T06:59:00Z"
+  observed_at_utc: "2026-07-17T07:12:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -90,9 +90,9 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: 5c30d546c43b53c677237e2e43288d975e49e6ab
-  deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  status: STAGING_OBSERVATION_IN_PROGRESS
+  repository_main_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
+  deployed_staging_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -155,9 +155,7 @@ active_workstream:
     - DATA-06
     - DATA-07
   remaining_tasks:
-    - project complete database-frozen odds identity through the existing bounded L1 display fields without candidate-line expansion
-    - redeploy corrected main and allow only naturally scheduled T6/T1/T15 checkpoint execution
-    - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
+    - observe only naturally scheduled T1_LINEUPS and T15M_CLOSE cycles beginning at 2026-07-17T10:00:00Z
     - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
     - pass staging with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
     - only after market data is GREEN and evidence is READY, rerun the controlled-capture gate and full L1/Frozen L2 safety acceptance
@@ -193,8 +191,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - fix DATA-07 by trimming database-frozen display odds to line, price, source, capture time and source hash before the L1 size gate
-    - preserve the existing L1 payload limit and all recommendation/evidence gates
+    - keep staging main 1e444d3 running and collect naturally due T1/T15 evidence without manual refresh
+    - record YELLOW degraded until current quotes and eligible Snapshot v2 evidence satisfy GREEN plus READY
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -204,7 +202,7 @@ active_workstream:
     - historical evidence rewrites
 
 data06_stale_t6_checkpoint_20260717:
-  status: FIX_MERGED_PENDING_STAGING_REVALIDATION
+  status: FIX_MERGED_STAGING_GUARD_PASS
   attempted_release_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
   rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   observed_at_utc: "2026-07-17T05:38:00Z"
@@ -240,7 +238,7 @@ data06_stale_t6_checkpoint_20260717:
   service_oom_killed: false
 
 data07_materialized_card_l1_size_20260717:
-  status: FIX_IMPLEMENTED_PENDING_PR
+  status: FIX_MERGED_STAGING_PASS
   attempted_release_sha: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
   rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   observed_at_utc: "2026-07-17T06:44:00Z"
@@ -270,6 +268,43 @@ data07_materialized_card_l1_size_20260717:
     tests_skipped: 4
     ruff: PASS
     mypy: PASS
+
+ma03_immediate_display_acceptance_20260717:
+  status: PASS_WAITING_NATURAL_CYCLES
+  release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
+  observed_at_utc: "2026-07-17T07:12:00Z"
+  gates:
+    image_revision_matrix: PASS
+    artifact_v1: PASS
+    migration: PASS
+    api_health_ready: PASS
+    dayview_business_readiness: PASS
+    four_service_sha_alignment: PASS
+    service_restart_count: 0
+    service_oom_killed: false
+  reconcile_only:
+    status: PASS
+    fixture_count: 4
+    materialized_count: 0
+    unchanged_count: 4
+    provider_calls: 0
+    dry_run: true
+    timeline_write_artifacts: false
+    timeline_written: 0
+  dayview:
+    total: 10
+    stale: 4
+    blocked: 6
+    not_ready: 10
+    watch: 0
+    recommend: 0
+    lock_eligible: 0
+    l1_card_too_large: 0
+    stale_cards_with_ah_ou_identity: 4
+    next_refresh_tick_utc: "2026-07-17T10:00:00Z"
+  market_data_health: YELLOW
+  evidence_eligibility: NOT_READY
+  classification_reason: existing odds are now visible and correctly stale, but no current naturally refreshed quote or eligible Snapshot v2 evidence has passed yet
 
 ma03_staging_deployment_20260717:
   status: SUPERSEDED_BY_REFRESH_POLICY_AND_DISPLAY_SEMANTICS_REPAIR
