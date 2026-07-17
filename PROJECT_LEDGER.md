@@ -10,18 +10,16 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续82 · DATA-06 旧 observation 冒充 T6 与第三次回滚`.
+Current latest entry: `V3 进展续84 · DATA-07 完整盘口卡超出 L1 与第四次回滚`.
 
 Current blocking chain:
 
-1. `DATA-06 / FIX_IN_REVIEW`: `main@d571ea1` passed CI and deployment
-   alignment, but a bounded zero-provider auto run wrote four T6 records for two
-   fixtures from observations captured two days earlier. Stale odds may remain
-   displayable, but cannot be labelled as a current legal checkpoint. Staging was
-   rolled back to `7ad56cd`; immutable records are preserved without rewrite.
-   The directed repair applies the existing 30-minute freshness gate to every
-   non-opening timeline write and permits bounded reconcile with timeline writes
-   disabled; targeted tests and static checks pass.
+1. `DATA-07 / DATA_PIPELINE_BLOCKED`: DATA-06 was fixed and merged as
+   `main@ebeea00`, but immediate DayView projection replaced four complete
+   database-frozen cards with `L1_CARD_TOO_LARGE`. Their expanded candidate-line
+   evidence exceeded the unchanged public L1 size limit. Staging was rolled back
+   to `7ad56cd`. Only a bounded display-field projection is allowed; the payload
+   limit and evidence data remain unchanged.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

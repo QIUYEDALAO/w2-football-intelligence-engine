@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T06:25:00Z"
+last_updated_utc: "2026-07-17T06:44:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
-current_status: DATA06_FIX_IN_REVIEW
+current_status: DATA_PIPELINE_BLOCKED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: d571ea1ab16ad0dcda4e857e2249ba5acda62715
+  main_sha_at_rebaseline: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
   deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T06:25:00Z"
+  observed_at_utc: "2026-07-17T06:44:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,7 +91,7 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
+  repository_main_sha: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
   deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -153,9 +153,9 @@ active_workstream:
     - DATA-04
     - DATA-05
     - DATA-06
+    - DATA-07
   remaining_tasks:
-    - prevent checkpoint auto mode from writing T6_ODDS from observations captured outside the legal current checkpoint window
-    - keep bounded analysis reconcile separate from timeline checkpoint writes when no eligible current quote exists
+    - project complete database-frozen odds identity through the existing bounded L1 display fields without candidate-line expansion
     - redeploy corrected main and allow only naturally scheduled T6/T1/T15 checkpoint execution
     - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
     - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
@@ -193,8 +193,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - diagnose and fix DATA-06 so stale observations can remain displayable but cannot be labelled as a current T6 checkpoint
-    - run only bounded zero-provider analysis reconcile before naturally scheduled T6/T1/T15 refresh checkpoints
+    - fix DATA-07 by trimming database-frozen display odds to line, price, source, capture time and source hash before the L1 size gate
+    - preserve the existing L1 payload limit and all recommendation/evidence gates
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -204,7 +204,7 @@ active_workstream:
     - historical evidence rewrites
 
 data06_stale_t6_checkpoint_20260717:
-  status: FIX_IMPLEMENTED_PENDING_PR
+  status: FIX_MERGED_PENDING_STAGING_REVALIDATION
   attempted_release_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
   rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   observed_at_utc: "2026-07-17T05:38:00Z"
@@ -238,6 +238,25 @@ data06_stale_t6_checkpoint_20260717:
   staging_health_after_rollback: PASS
   service_restart_count: 0
   service_oom_killed: false
+
+data07_materialized_card_l1_size_20260717:
+  status: DATA_PIPELINE_BLOCKED
+  attempted_release_sha: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
+  rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  observed_at_utc: "2026-07-17T06:44:00Z"
+  immediate_dayview:
+    total: 10
+    index_stale: 4
+    index_blocked: 6
+    displayed_stale_with_odds: 0
+    l1_card_too_large: 4
+    watch: 0
+    recommend: 0
+  failure_boundary: COMPLETE_MATERIALIZED_ODDS_EXCEED_BOUNDED_L1_CARD
+  cause: database-frozen current_odds includes candidate_lines and rejected_lines that are evidence detail, not bounded display fields
+  allowed_fix: retain line/prices/as_of/source/source_hash and remove expanded evidence detail from the public display projection before the unchanged L1 size gate
+  decision: immediate four-service rollback; do not relax the L1 payload limit
+  public_health_after_rollback: PASS
 
 ma03_staging_deployment_20260717:
   status: SUPERSEDED_BY_REFRESH_POLICY_AND_DISPLAY_SEMANTICS_REPAIR
