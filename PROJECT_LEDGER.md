@@ -10,16 +10,15 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续81 · STALE 展示恢复、WATCH 安全门回滚`.
+Current latest entry: `V3 进展续82 · DATA-06 旧 observation 冒充 T6 与第三次回滚`.
 
 Current blocking chain:
 
-1. `DATA-05 / IMPLEMENTATION_IN_PROGRESS`: PR #337 restored STALE odds display,
-   but the second staging attempt was rolled back because STALE forward captures
-   remained WATCH. Every STALE source must be forced to NOT_READY and excluded
-   from worth-watching/recommendation regions. A forward capture whose odds lack
-   provider source or source hash must also yield display precedence to the
-   complete database-frozen card.
+1. `DATA-06 / DATA_PIPELINE_BLOCKED`: `main@d571ea1` passed CI and deployment
+   alignment, but a bounded zero-provider auto run wrote four T6 records for two
+   fixtures from observations captured two days earlier. Stale odds may remain
+   displayable, but cannot be labelled as a current legal checkpoint. Staging was
+   rolled back to `7ad56cd`; immutable records are preserved without rewrite.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.
