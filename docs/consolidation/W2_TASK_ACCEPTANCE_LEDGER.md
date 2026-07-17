@@ -969,3 +969,11 @@
 - 预算延后的旧动态计划会被标记为 MISSED，当前待执行查询按 fixture 集合限定，避免过期 next-eval、跨联赛挤占或历史动态计划回填。
 - 定向测试 `65 passed`；完整测试 `1505 passed, 4 skipped`；Ruff、Mypy、前端 typecheck 与 production build 全部 PASS。未调用 Provider，未部署生产，未改变 freshness、FME、Snapshot、推荐阈值、RECOMMEND、lock 或 OFFICIAL。
 - 唯一下一步：创建本地发布提交并部署 Staging 四服务；先验收旧盘口隐藏，再只观察三个自然合法刷新周期。
+
+### V3 进展续91 · DATA-08 旧盘口隐藏通过与扫描周期偏差修正(2026-07-17)
+
+- 本地发布 `48db41e5dba0a6161a167b56f8d352c55f2c00b3` 的五镜像 revision、artifact v1、migration、API/Worker/Web health 全部 PASS；mode-600 回滚清单和四服务冻结镜像已在切换前创建。
+- Scheduler 启动前的 public future DayView 已证明展示隔离生效：fixtures `1523203/1523204` 为 `STALE/NOT_READY`、`current_odds={}`、`DATA_STALE_ODDS`、lock=false，最后采集时间和下一评估时间保留。fixture `1523205` 已有自然刷新后的新盘口，因此正常显示，未被错误隐藏。
+- 首个自然调度 tick 在三个联赛任务中使用 11 次 Provider 调用，等于 Scheduler 的全局 projected calls=11，低于单 tick 30；队列随后归零，紧接的下一次扫描 Provider 增量为 0，任务键和 per-fixture 去重生效。
+- 运行日志暴露配置偏差：checkpoint Scheduler 仍继承旧的 60 秒扫描默认，虽然没有造成重复 Provider 调用，但不符合批准的 15 分钟扫描节奏。Scheduler 已立即暂停，默认改为 900 秒并加入回归测试。
+- 修正后定向测试 `66 passed`，完整测试 `1506 passed, 4 skipped`，Ruff、Mypy 和前端 production build PASS。唯一下一步是部署最终本地提交、恢复四服务 SHA 对齐并确认下一次扫描间隔为 900 秒；不手动调用 Provider。

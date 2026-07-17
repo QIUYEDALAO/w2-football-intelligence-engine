@@ -18,7 +18,7 @@ from w2.providers.control import (
 logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
-DEFAULT_CHECKPOINT_POLL_SECONDS = 60
+DEFAULT_CHECKPOINT_POLL_SECONDS = 15 * 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
@@ -99,7 +99,15 @@ def future_refresh_fixture_payloads(
 
 def checkpoint_poll_seconds() -> int:
     try:
-        return max(int(os.environ.get("W2_CHECKPOINT_REFRESH_POLL_SECONDS", "60")), 10)
+        return max(
+            int(
+                os.environ.get(
+                    "W2_CHECKPOINT_REFRESH_POLL_SECONDS",
+                    str(DEFAULT_CHECKPOINT_POLL_SECONDS),
+                )
+            ),
+            10,
+        )
     except ValueError:
         return DEFAULT_CHECKPOINT_POLL_SECONDS
 

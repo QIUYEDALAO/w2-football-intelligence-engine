@@ -7,6 +7,7 @@ import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     allocate_global_checkpoint_batches,
+    checkpoint_poll_seconds,
     due_checkpoint_refresh_batch,
     forward_outcome_backfill_tick,
     forward_outcome_ledger_tick,
@@ -45,6 +46,12 @@ def test_celery_ping_task_has_no_business_side_effect() -> None:
 
 def test_scheduler_heartbeat_does_not_call_external_api() -> None:
     assert heartbeat() == "w2 scheduler heartbeat"
+
+
+def test_checkpoint_scheduler_scans_every_fifteen_minutes_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("W2_CHECKPOINT_REFRESH_POLL_SECONDS", raising=False)
+
+    assert checkpoint_poll_seconds() == 15 * 60
 
 
 def test_global_checkpoint_budget_prefers_nearest_kickoff_across_competitions() -> None:

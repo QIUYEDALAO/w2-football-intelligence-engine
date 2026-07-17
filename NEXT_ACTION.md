@@ -11,11 +11,13 @@ as primary market values for four fixtures, including a fixture about 197 minute
 from kickoff. A STALE label does not make those values appropriate to display.
 
 DATA-08 is implemented and locally validated on
-`codex/w2-data08-expired-odds-refresh`: 65 directed tests and the full 1505-test
+`codex/w2-data08-expired-odds-refresh`: 66 directed tests and the full 1506-test
 suite pass, with 4 environment-dependent skips; Ruff, Mypy, frontend typecheck
-and production build pass. The unique next action is to deploy the local release
-commit to all four Staging services and verify expired odds are hidden before
-waiting for natural refresh evidence.
+and production build pass. Release `48db41e5` proved expired odds hiding and a
+globally bounded 11-call natural tick, then exposed the inherited 60-second scan
+default. Scheduler is paused; the default is corrected to the required 900
+seconds. The unique next action is to redeploy the final local release commit to
+all four Staging services, verify alignment and observe the remaining legal cycles.
 
 ## Unique next action — DATA-08
 

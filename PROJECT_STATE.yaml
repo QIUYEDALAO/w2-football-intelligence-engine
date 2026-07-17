@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T11:02:00Z"
+last_updated_utc: "2026-07-17T11:36:33Z"
 current_phase: Dashboard expired-odds containment and bounded active-window refresh repair
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -217,7 +217,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: LOCAL_IMPLEMENTED_VALIDATED_PENDING_STAGING
+  status: STAGING_DISPLAY_PASS_POLL_FIX_VALIDATED_PENDING_REDEPLOY
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -279,14 +279,39 @@ data08_expired_odds_display_and_refresh_20260717:
     due_plan_query_scope: fixture_scoped
     manual_provider_refresh: false
   local_validation:
-    targeted_tests_passed: 65
-    full_tests_passed: 1505
+    targeted_tests_passed: 66
+    full_tests_passed: 1506
     full_tests_skipped: 4
     ruff: PASS
     mypy: PASS
     frontend_typecheck: PASS
     frontend_production_build: PASS
-  next_gate: deploy the local release commit to all four staging services, verify expired odds are hidden, then observe three natural legal cycles
+  first_staging_attempt:
+    release_sha: 48db41e5dba0a6161a167b56f8d352c55f2c00b3
+    rollback_manifest: /opt/w2/shared/rollback-manifest-48db41e5dba0a6161a167b56f8d352c55f2c00b3.txt
+    rollback_manifest_mode: 600
+    image_revision_gate: PASS
+    artifact_v1_gate: PASS
+    migration_gate: PASS
+    api_worker_web_health: PASS
+    expired_odds_hidden_before_scheduler_start: PASS
+    stale_fixture_ids:
+      - "1523203"
+      - "1523204"
+    stale_current_odds_empty: true
+    stale_last_capture_preserved: true
+    stale_lock_eligible: false
+    provider_calls_before_scheduler: 549
+    provider_calls_after_first_natural_tick: 560
+    first_tick_provider_delta: 11
+    first_tick_projected_calls: 11
+    first_tick_global_cap: 30
+    first_tick_queued_competition_tasks: 3
+    queue_after_completion: 0
+    repeated_provider_calls_on_next_scan: 0
+    discovered_deviation: checkpoint scan inherited the old 60-second default instead of the required 900-second interval
+    action: scheduler paused; default corrected to 900 seconds and fully revalidated before redeploy
+  next_gate: redeploy the final local release commit to all four staging services, verify 900-second scan interval and service alignment, then observe the remaining natural legal cycles
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS
