@@ -521,6 +521,47 @@ market_availability_diagnosis_20260717:
     production_deploy: false
   next_action_source: NEXT_ACTION.md
 
+market_availability_root_cause_20260717:
+  status: ROOT_CAUSE_CONFIRMED
+  blocker: DATA_PIPELINE_BLOCKED
+  first_broken_boundary: BACKGROUND_ANALYSIS_EVIDENCE_MATERIALIZATION_MISSING
+  fixtures:
+    - fixture_id: "1492291"
+      fixture_scoped_observation_count: 6057
+      asian_handicap_selector: READY
+      totals_selector: READY
+    - fixture_id: "1492299"
+      fixture_scoped_observation_count: 6164
+      asian_handicap_selector: READY
+      totals_selector: READY
+    - fixture_id: "1494706"
+      fixture_scoped_observation_count: 3574
+      asian_handicap_selector: READY
+      totals_selector: READY
+  confirmed_chain:
+    - future refresh persists fixtures, odds observations and raw payload hashes successfully
+    - fixture-scoped repository reads return the expected observations and AH/TOTALS selectors are READY
+    - public and ledger Dashboard paths intentionally consume frozen analysis evidence and do not rebuild models on HTTP
+    - no background step materializes a new frozen analysis checkpoint from the refreshed fixture-scoped observations
+    - forward ledger therefore captures the existing unavailable frozen card and cannot naturally create eligible evidence
+  secondary_hazard:
+    status: CONFIRMED
+    reason: direct offline analysis reconstruction falls back to the unbounded global latest_market_observations query when its request cache is not fixture-primed
+    observed_effect: one diagnostic exec process was OOM-killed
+    api_main_process_restart_count: 0
+    api_health_after_event: PASS
+    api_ready_after_event: PASS
+    cgroup_oom_kill_after_event: 1
+    repeat_forbidden: true
+  required_repair:
+    - add a bounded background analysis evidence materializer using fixture-scoped observations
+    - persist an immutable frozen analysis checkpoint before forward ledger capture
+    - keep public HTTP no-live-rebuild behavior unchanged
+    - remove or guard the unbounded per-fixture offline fallback to global observation loading
+  code_change_in_diagnosis: false
+  business_db_write_in_diagnosis: false
+  provider_call_in_diagnosis: false
+
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program
   status: COMPLETE_DO_NOT_REOPEN

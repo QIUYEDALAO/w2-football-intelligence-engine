@@ -10,7 +10,7 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续75 · Market Availability 最近三周期只读诊断与 DATA_PIPELINE_BLOCKED`.
+Current latest entry: `V3 进展续76 · Market Availability 后台物化缺口根因确认`.
 
 Current blocking chain:
 

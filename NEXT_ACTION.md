@@ -8,7 +8,7 @@ MarketQuote, no quote capture time, and no evidence-eligible FME Snapshot v2.
 
 ## Execute next
 
-### MA-01 — Read-only root-cause trace
+### MA-01 — Read-only root-cause trace — COMPLETE
 
 Trace fixtures `1492291`, `1492299`, and `1494706` through:
 
@@ -19,13 +19,34 @@ Trace fixtures `1492291`, `1492299`, and `1494706` through:
 5. FME input assembly, semantic status and evidence eligibility;
 6. Dashboard DecisionCard blocker precedence.
 
-The output must identify the first exact boundary where available provider data
-becomes unavailable to the decision path. This step is read-only: no provider
-call, database write, scheduler change, deployment or historical rewrite.
+Confirmed result: fixture-scoped reads returned `6057/6164/3574` observations
+for fixtures `1492291/1492299/1494706`, and both AH and TOTALS selectors were
+`READY` for all three. The first broken boundary is the missing background
+analysis-evidence materialization between successful refresh persistence and the
+frozen Dashboard/forward-ledger consumers.
+
+The public HTTP and ledger paths correctly avoid live model rebuilds, but no
+background job currently creates a new immutable frozen analysis checkpoint.
+The forward ledger therefore recaptures an unavailable frozen card indefinitely.
+
+A direct offline fallback also attempts the unbounded global observation query
+when the request cache is not fixture-primed. One diagnostic exec process was
+OOM-killed; the API main process stayed healthy with restart count 0. This path
+must not be repeated.
 
 ### MA-02 — Smallest upstream repair
 
-Only after MA-01 proves the root cause, repair that boundary without changing:
+MA-02 is now the active task. Implement a bounded background materializer that:
+
+- reads only the target fixture IDs through the existing fixture-scoped repository API;
+- builds analysis evidence outside the public HTTP request path;
+- persists an immutable frozen analysis checkpoint consumed by Dashboard and the
+  forward ledger;
+- prevents per-fixture offline reconstruction from falling back to the unbounded
+  global observation query;
+- leaves the public `analysis-card` and DayView routes frozen/no-live-rebuild.
+
+Repair that boundary without changing:
 
 - quote freshness thresholds or timestamp provenance;
 - FME mathematics, Snapshot v2 semantics or evidence eligibility;

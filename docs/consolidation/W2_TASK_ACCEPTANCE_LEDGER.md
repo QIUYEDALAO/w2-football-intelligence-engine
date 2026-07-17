@@ -855,3 +855,12 @@
 - 正式结论为 `MARKET_DATA_HEALTH=RED`、`EVIDENCE_ELIGIBILITY=BLOCKED`，创建诊断 blocker `DATA_PIPELINE_BLOCKED` / known issue `DATA-01`。根因范围收敛到 observation→canonical market selection→MarketQuote→FME 的上游桥接链路。
 - 下一步必须先完成该链路的只读根因定位，再做最小修复和连续三周期 staging 证据验收；不得降低 freshness/provenance/Snapshot/recommendation 门，不得进入 U04/M2。只有恢复 `GREEN + READY` 后才可重跑 exact-identity 与 Frozen L2，随后等待 Draft Policy ADR。
 - 本轮诊断未修改代码、未主动调用 provider、未写业务数据库、未改推荐门、未部署 staging/production。
+
+### V3 进展续76 · Market Availability 后台物化缺口根因确认(2026-07-17)
+
+- 对 fixtures `1492291/1492299/1494706` 使用现有 fixture-scoped repository 只读接口，分别得到 `6057/6164/3574` 条 latest identity observation；三场的 AH 与 TOTALS mainline selector 六项全部 `READY`。因此 provider、fixture identity、observation persistence、AH/TOTALS 归一化和 selector 不是第一个故障点。
+- 第一个确定故障边界是 `BACKGROUND_ANALYSIS_EVIDENCE_MATERIALIZATION_MISSING`：future refresh 只持久化 fixture/odds/read-model 原料；public Dashboard、analysis-card 与 forward ledger 按 no-live-rebuild 合同只消费冻结 analysis evidence，但当前没有后台步骤从 fixture-scoped observation 生成并持久化新的 immutable analysis checkpoint。
+- `run_w2_forward_outcome_ledger` 因此从 Dashboard 继续读到 unavailable frozen card，反复捕获 `market_observations=0/current_odds=null`，无法靠自然刷新产生 eligible Snapshot v2。这解释了 Dashboard 全部比赛阻塞和 exact-identity 预写门持续失败。
+- 同时确认旧 offline per-fixture reconstruction 在 request cache 未预先限定 fixture 时，会回退到全局无界 `latest_market_observations()`；一次诊断 exec 进程因此触发 cgroup `oom_kill=1`。API 主进程保持 running、restart=0，`/health`、`/ready` 均 PASS；该无界路径禁止重复。
+- MA-02 固定为最小修复：新增 fixture-scoped 后台 analysis evidence materializer，先生成 immutable frozen checkpoint 再由 Dashboard/forward ledger 消费；公共 HTTP 继续禁止 live rebuild，并封堵 per-fixture offline 调用的全局 observation fallback。不得改变 freshness、FME、Snapshot、推荐门、provider budget、scheduler policy、denominator 或三轨。
+- 本轮根因定位未修改代码、未主动调用 provider、未写业务数据库、未部署；除上述诊断 OOM 事件外，staging 服务持续健康。
