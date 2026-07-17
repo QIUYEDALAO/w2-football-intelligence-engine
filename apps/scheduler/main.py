@@ -4,7 +4,7 @@ import hashlib
 import logging
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +19,7 @@ logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_CHECKPOINT_POLL_SECONDS = 15 * 60
+CHECKPOINT_DISPATCH_LOOKAHEAD_SECONDS = 10
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
@@ -267,14 +268,23 @@ def due_checkpoint_refresh_batch(
         supersede_active(fixture_ids=fixture_ids, active_plan_ids=active_plan_ids)
     due_rows = []
     if generated_plan_ids:
+        ready_before = now + timedelta(seconds=CHECKPOINT_DISPATCH_LOOKAHEAD_SECONDS)
         due_rows = [
             row
             for row in repository.due_checkpoint_plans(
-                now=now,
+                now=ready_before,
                 limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
                 fixture_ids=fixture_ids,
             )
             if row.get("id") in generated_plan_ids
+            and (
+                (parse_fixture_kickoff(row.get("due_at")) or now) <= now
+                or (
+                    str(row.get("checkpoint") or "").startswith("ACTIVE_ODDS_")
+                    and (parse_fixture_kickoff(row.get("due_at")) or ready_before)
+                    <= ready_before
+                )
+            )
         ]
     due_plans = [
         type(
@@ -509,6 +519,17 @@ def _future_fixture_refresh_tick_for_competition(
             "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
         }
     task_id = f"{task_key}:{uuid4()}"
+    dispatch_at = max(
+        [
+            due_at
+            for item in resolved_batch["checkpoints"]
+            if (due_at := parse_fixture_kickoff(item.get("due_at"))) is not None
+        ],
+        default=current,
+    )
+    send_options: dict[str, Any] = {"task_id": task_id}
+    if dispatch_at > current:
+        send_options["eta"] = dispatch_at
     celery_app.send_task(
         "w2.future_fixture_refresh",
         kwargs={
@@ -520,7 +541,7 @@ def _future_fixture_refresh_tick_for_competition(
             ],
             "refresh_checkpoints": resolved_batch["checkpoints"],
         },
-        task_id=task_id,
+        **send_options,
     )
     return {
         **resolved_batch,
@@ -530,6 +551,7 @@ def _future_fixture_refresh_tick_for_competition(
         "competition_id": config.competition_id,
         "season": config.season,
         "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
+        "dispatch_at_utc": dispatch_at.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
         "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",

@@ -148,8 +148,16 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
             persistence="file",
         )
 
-    def eager_send_task(name: str, *, kwargs: dict[str, Any], task_id: str) -> None:
-        dispatched.append({"name": name, "kwargs": kwargs, "task_id": task_id})
+    def eager_send_task(
+        name: str,
+        *,
+        kwargs: dict[str, Any],
+        task_id: str,
+        **options: Any,
+    ) -> None:
+        dispatched.append(
+            {"name": name, "kwargs": kwargs, "task_id": task_id, **options}
+        )
         worker_module.celery_app.tasks[name].apply(kwargs=kwargs, task_id=task_id).get()
 
     gate_seen: set[str] = set()

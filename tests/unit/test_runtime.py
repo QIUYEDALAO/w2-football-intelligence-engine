@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -187,6 +187,117 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
     assert sent[0]["kwargs"]["checkpoint_fixture_ids"] == ["1489404"]
     assert sent[0]["kwargs"]["refresh_checkpoints"] == result["checkpoints"]
+
+
+def test_scheduler_dispatches_near_due_active_odds_at_exact_due_time(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+    now = datetime(2026, 7, 17, 15, 18, 40, tzinfo=UTC)
+    due_at = now + timedelta(seconds=4)
+
+    def fake_send_task(name: str, **kwargs: object) -> None:
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda current, **kwargs: {
+            "status": "READY",
+            "fixture_payload_count": 1,
+            "generated_plan_count": 1,
+            "due_checkpoint_count": 1,
+            "selected_checkpoint_count": 1,
+            "projected_calls": 3,
+            "all_due_projected_calls": 3,
+            "tick_hard_cap": 30,
+            "checkpoints": [
+                {
+                    "fixture_id": "1494211",
+                    "checkpoint": "ACTIVE_ODDS_20260717T151844Z",
+                    "kickoff_utc": "2026-07-17T17:00:00Z",
+                    "due_at": due_at.isoformat().replace("+00:00", "Z"),
+                    "endpoints": ["odds"],
+                    "source": "active_window",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {"now": staticmethod(lambda tz=None: now), "fromisoformat": datetime.fromisoformat},
+        ),
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate", (), {"allowed": True, "status": "ACQUIRED", "backend": "test"}
+        )(),
+    )
+    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+
+    result = future_fixture_refresh_tick()
+
+    assert result["status"] == "QUEUED"
+    assert result["dispatch_at_utc"] == "2026-07-17T15:18:44Z"
+    assert sent[0]["eta"] == due_at
+
+
+def test_checkpoint_batch_reads_ten_second_active_odds_lookahead(monkeypatch) -> None:
+    now = datetime(2026, 7, 17, 15, 18, 40, tzinfo=UTC)
+    observed: dict[str, object] = {}
+    fixtures = [
+        {
+            "fixture": {
+                "id": 1494211,
+                "date": "2026-07-17T17:00:00Z",
+                "status": {"short": "NS", "elapsed": None},
+            },
+            "league": {"id": 113, "season": 2026},
+            "teams": {"home": {"id": 1}, "away": {"id": 2}},
+        }
+    ]
+
+    class FakeRepository:
+        def latest_observation_captured_at_for_fixture_ids(self, fixture_ids: list[str]):
+            return {"1494211": now - timedelta(minutes=29, seconds=56)}
+
+        def latest_odds_refresh_attempt_at_for_fixture_ids(self, fixture_ids: list[str]):
+            return {}
+
+        def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
+            active = next(item for item in plans if item["checkpoint"].startswith("ACTIVE_ODDS_"))
+            observed["active"] = active
+            return len(plans)
+
+        def supersede_pending_active_checkpoint_plans(self, **kwargs: object) -> int:
+            return 0
+
+        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            observed["query_now"] = kwargs["now"]
+            active = dict(observed["active"])
+            return [active]
+
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda **kwargs: fixtures,
+    )
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        FakeRepository,
+    )
+
+    result = due_checkpoint_refresh_batch(now, provider_league_id="113")
+
+    assert observed["query_now"] == now + timedelta(seconds=10)
+    assert result["status"] == "READY"
+    assert result["checkpoints"][0]["due_at"] == "2026-07-17T15:18:44Z"
 
 
 def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) -> None:
