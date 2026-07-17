@@ -3,14 +3,16 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-16T21:20:37Z"
-current_phase: Frozen L2 current-capture eligible-evidence blocker after automatic rollback
-current_status: WORKSTREAM_ROLLED_BACK
+last_updated_utc: "2026-07-17T02:27:13Z"
+current_phase: Market availability pipeline recovery before Frozen L2 acceptance
+current_status: DATA_PIPELINE_BLOCKED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
   history_source: docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+  history_index_source: PROJECT_LEDGER.md
   current_state_source: PROJECT_STATE.yaml
+  current_action_source: NEXT_ACTION.md
   precedence:
     - Live read-only observations override stale snapshots in this file.
     - Merged main and GitHub CI define repository truth.
@@ -21,6 +23,8 @@ context_contract:
 
 context_read_order:
   - PROJECT_STATE.yaml
+  - PROJECT_LEDGER.md
+  - NEXT_ACTION.md
   - docs/superpowers/specs/2026-07-16-public-edge-observer-evidence-fix-design.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/operations/W2_PUBLIC_EDGE_ACCEPTANCE_V1.md
@@ -28,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: b6909d67450d032d447d7c8a61077aa3ba6837b2
+  main_sha_at_rebaseline: d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-16T21:20:37Z"
+  observed_at_utc: "2026-07-17T02:27:13Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -86,8 +90,8 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: BLOCKED_EXACT_IDENTITY
-  repository_main_sha: b6909d67450d032d447d7c8a61077aa3ba6837b2
+  status: DATA_PIPELINE_BLOCKED
+  repository_main_sha: d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -116,6 +120,7 @@ active_workstream:
     - local full-suite, static, frontend and offline acceptance validation
     - exact-identity code PR 330 merged with all three CI checks passing
     - latest-main staging deployment attempted and automatically rolled back on the pre-write eligible-evidence gate
+    - three-cycle read-only market availability diagnosis completed with provider transport healthy but decision evidence blocked
   known_issues:
     - CTX-01
     - CTX-02
@@ -138,10 +143,14 @@ active_workstream:
     - L2-01
     - FINAL-01
     - L2-02
+    - DATA-01
   remaining_tasks:
-    - wait for or separately restore a naturally authoritative current capture with available market provenance and an evidence-eligible Snapshot v2 before kickoff
-    - rerun the controlled-capture dry run only after the current record is eligible; do not write the current insufficient record
-    - only after that gate passes, redeploy merged main and rerun L1, Frozen L2, denominator, three-track and safety acceptance
+    - trace the read-only path from persisted future market observations through canonical AH/TOTALS selection, MarketQuote construction and FME generation
+    - identify why successful fixtures and odds responses plus persisted observations still produce MARKET_UNAVAILABLE and QUOTE_CAPTURE_TIME_MISSING
+    - implement the smallest upstream repair only after the root cause is evidenced; do not weaken freshness, provenance, evidence or recommendation gates
+    - pass three consecutive staging cycles with selected quote identity, complete reproducible Snapshot v2 evidence and stable source/hash binding
+    - only after market data is GREEN and evidence is READY, rerun the controlled-capture gate and full L1/Frozen L2 safety acceptance
+    - complete the Draft Policy ADR after data and evidence recovery; do not enter U04 or M2 in this workstream
   deferred_findings:
     - id: PROD-01
       status: BLOCKS_PRODUCTION_ONLY
@@ -204,6 +213,7 @@ known_issue_catalog:
   L2-01: current GitHub main has no final Frozen L2 staging acceptance
   FINAL-01: final GitHub context rebaseline is pending
   L2-02: current L1 content hash 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 has two occurrences and the latest occurrence contains zero Snapshot v2 records and no estimate identity; older valid-v2 captures are not decision/quote/card/evidence equivalent and cannot be substituted
+  DATA-01: successful provider fixture and odds requests produce persisted market observations but the Dashboard decision path has no selected MarketQuote, no quote capture time and no evidence-eligible FME Snapshot v2
 
 known_issue_status:
   resolved:
@@ -229,6 +239,7 @@ known_issue_status:
     - FINAL-01
   blocking:
     - L2-02
+    - DATA-01
 
 observer_v2_implementation:
   status: MERGED_AND_FORMALLY_VALIDATED
@@ -437,6 +448,119 @@ exact_identity_staging_attempt_20260716:
       - "1492291"
       - "1492299"
   production_deploy: false
+
+market_availability_diagnosis_20260717:
+  mode: READ_ONLY_LAST_THREE_REFRESH_CYCLES
+  observed_at_utc: "2026-07-17T02:27:13Z"
+  github_main_sha: d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317
+  deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  market_data_health: RED
+  evidence_eligibility: BLOCKED
+  blocker: DATA_PIPELINE_BLOCKED
+  configured_active_league_count: 13
+  observed_competition_count: 2
+  distinct_fixture_count: 3
+  cycle_fixture_count: 5
+  cycles:
+    - audit_id: 1488
+      generated_at_utc: "2026-07-16T22:15:08.784841Z"
+      competition_id: brasileirao_serie_a
+      fixture_count: 2
+      market_observation_count: 12988
+      provider_fixture_success: 1/1
+      provider_odds_success: 2/2
+      fme_ready: 0/4
+    - audit_id: 1487
+      generated_at_utc: "2026-07-16T21:30:24.443193Z"
+      competition_id: brasileirao_serie_a
+      fixture_count: 2
+      market_observation_count: 12977
+      provider_fixture_success: 1/1
+      provider_odds_success: 2/2
+      fme_ready: 0/4
+    - audit_id: 1486
+      generated_at_utc: "2026-07-16T16:45:01.807396Z"
+      competition_id: eliteserien
+      fixture_count: 1
+      market_observation_count: 0
+      market_observation_note: identical previously persisted odds payload was idempotently deduplicated while one market snapshot remained selected by the refresh audit
+      provider_fixture_success: 1/1
+      provider_odds_success: 1/1
+      fme_ready: 0/2
+  totals:
+    market_observation_count: 25965
+    provider_fixture_success: 3/3
+    provider_odds_success: 5/5
+    fme_ready: 0/10
+  quote_freshness:
+    selected_quote_capture_time_present: 0/5
+    raw_provider_update_age_at_cycle:
+      - approximately 2h12m
+      - approximately 3h30m
+      - approximately 4h40m
+  blocker_distribution:
+    MARKET_UNAVAILABLE: 5
+    QUOTE_CAPTURE_TIME_MISSING: 5
+  evidence:
+    snapshot_completeness: 0/10
+    snapshot_reproducibility: NOT_PROVABLE_NO_ELIGIBLE_SNAPSHOT
+    raw_payload_hash_resolution: 25965/25965
+    eligible_snapshot_hash_stability: NOT_PROVABLE_NO_ELIGIBLE_SNAPSHOT
+    observation_provider_source: api_football
+    observation_provider_source_consistent: true
+    selected_quote_source_consistent: false
+    selected_quote_source_reason: no selected MarketQuote exists in the five post-cycle fixture captures
+  dashboard_effect:
+    status: ALL_OBSERVED_FIXTURES_BLOCKED
+    reason: raw market ingestion succeeds but the decision path cannot construct a fresh provenance-bound quote and eligible FME
+  safety:
+    code_change: false
+    provider_call_caused_by_diagnosis: false
+    business_db_write: false
+    recommendation_gate_change: false
+    production_deploy: false
+  next_action_source: NEXT_ACTION.md
+
+market_availability_root_cause_20260717:
+  status: ROOT_CAUSE_CONFIRMED
+  blocker: DATA_PIPELINE_BLOCKED
+  first_broken_boundary: BACKGROUND_ANALYSIS_EVIDENCE_MATERIALIZATION_MISSING
+  fixtures:
+    - fixture_id: "1492291"
+      fixture_scoped_observation_count: 6057
+      asian_handicap_selector: READY
+      totals_selector: READY
+    - fixture_id: "1492299"
+      fixture_scoped_observation_count: 6164
+      asian_handicap_selector: READY
+      totals_selector: READY
+    - fixture_id: "1494706"
+      fixture_scoped_observation_count: 3574
+      asian_handicap_selector: READY
+      totals_selector: READY
+  confirmed_chain:
+    - future refresh persists fixtures, odds observations and raw payload hashes successfully
+    - fixture-scoped repository reads return the expected observations and AH/TOTALS selectors are READY
+    - public and ledger Dashboard paths intentionally consume frozen analysis evidence and do not rebuild models on HTTP
+    - no background step materializes a new frozen analysis checkpoint from the refreshed fixture-scoped observations
+    - forward ledger therefore captures the existing unavailable frozen card and cannot naturally create eligible evidence
+  secondary_hazard:
+    status: CONFIRMED
+    reason: direct offline analysis reconstruction falls back to the unbounded global latest_market_observations query when its request cache is not fixture-primed
+    observed_effect: one diagnostic exec process was OOM-killed
+    api_main_process_restart_count: 0
+    api_health_after_event: PASS
+    api_ready_after_event: PASS
+    cgroup_oom_kill_after_event: 1
+    repeat_forbidden: true
+  required_repair:
+    - add a bounded background analysis evidence materializer using fixture-scoped observations
+    - persist an immutable frozen analysis checkpoint before forward ledger capture
+    - keep public HTTP no-live-rebuild behavior unchanged
+    - remove or guard the unbounded per-fixture offline fallback to global observation loading
+  code_change_in_diagnosis: false
+  business_db_write_in_diagnosis: false
+  provider_call_in_diagnosis: false
 
 current_execution_queue:
   name: W2 whole-system correctness and AH validation program

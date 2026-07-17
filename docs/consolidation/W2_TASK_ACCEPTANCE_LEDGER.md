@@ -844,3 +844,23 @@
 - 按预写硬门没有追加目标 capture，并立即以四服务冻结镜像回滚到 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`。回滚后四服务 healthy、restart=0、OOM/oom_kill=0，`/health`、`/ready` PASS；provider ledger 仍 522、active calls=0、queue=0、migration 不变。
 - ledger 在 scheduler 的正常运行窗口自动 append 两条其他 fixture 的 `T_MINUS_1H` capture，共 3,790 bytes；重构去除这两条尾部记录后，部署前总字节 `36,450,975` 与 manifest hash `986c13fd...` 完全一致，证明 historical prefix 未改写。fixture 1492140 没有写入。
 - 最终结果为 `WORKSTREAM_ROLLED_BACK`，L2-02 继续 blocking。下一动作不得再改 lookup/UI/FME/threshold/provider scheduling 或部署；只允许只读观察当前 market provenance 是否自然恢复为 evidence-eligible Snapshot v2，预写 gate 通过后才能重新部署和验收。
+
+### V3 进展续75 · Market Availability 最近三周期只读诊断与 DATA_PIPELINE_BLOCKED(2026-07-17)
+
+- 以 GitHub `main@d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317` 为上下文，对 staging 最近三个 `future_refresh_run_audit` 周期 `1488/1487/1486` 只读诊断；部署版本仍为 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`。
+- 三轮覆盖巴甲与挪超，cycle-fixture=`5`、distinct fixture=`3`；fixtures 请求 `3/3`、odds 请求 `5/5` 全部成功。两轮新增 market observation `12988/12977`，第三轮复用相同 payload 并被幂等去重，合计新增 `25965`。
+- 原始 observation 来源全部为 `api_football`，`25965/25965` 个 raw payload hash 均能解析到已持久化 payload；provider transport、原始存储和 hash 引用不是当前直接故障点。
+- 五个 post-cycle fixture capture 全部为 `MARKET_UNAVAILABLE`，且全部缺少 selected MarketQuote、quote identity 与 `quote_captured_at`，对应 `QUOTE_CAPTURE_TIME_MISSING=5/5`。原始 provider update 在三轮时分别约滞后 `2h12m/3h30m/4h40m`。
+- 按每个 fixture 的 AH/TOTALS 两个预期 FME 计算，Snapshot completeness 与 READY 均为 `0/10`；没有 eligible Snapshot 可证明 reproducibility 或 evidence hash stability。Dashboard 所见比赛因此全部 fail closed，而不是无 fixture 或 provider HTTP 失败。
+- 正式结论为 `MARKET_DATA_HEALTH=RED`、`EVIDENCE_ELIGIBILITY=BLOCKED`，创建诊断 blocker `DATA_PIPELINE_BLOCKED` / known issue `DATA-01`。根因范围收敛到 observation→canonical market selection→MarketQuote→FME 的上游桥接链路。
+- 下一步必须先完成该链路的只读根因定位，再做最小修复和连续三周期 staging 证据验收；不得降低 freshness/provenance/Snapshot/recommendation 门，不得进入 U04/M2。只有恢复 `GREEN + READY` 后才可重跑 exact-identity 与 Frozen L2，随后等待 Draft Policy ADR。
+- 本轮诊断未修改代码、未主动调用 provider、未写业务数据库、未改推荐门、未部署 staging/production。
+
+### V3 进展续76 · Market Availability 后台物化缺口根因确认(2026-07-17)
+
+- 对 fixtures `1492291/1492299/1494706` 使用现有 fixture-scoped repository 只读接口，分别得到 `6057/6164/3574` 条 latest identity observation；三场的 AH 与 TOTALS mainline selector 六项全部 `READY`。因此 provider、fixture identity、observation persistence、AH/TOTALS 归一化和 selector 不是第一个故障点。
+- 第一个确定故障边界是 `BACKGROUND_ANALYSIS_EVIDENCE_MATERIALIZATION_MISSING`：future refresh 只持久化 fixture/odds/read-model 原料；public Dashboard、analysis-card 与 forward ledger 按 no-live-rebuild 合同只消费冻结 analysis evidence，但当前没有后台步骤从 fixture-scoped observation 生成并持久化新的 immutable analysis checkpoint。
+- `run_w2_forward_outcome_ledger` 因此从 Dashboard 继续读到 unavailable frozen card，反复捕获 `market_observations=0/current_odds=null`，无法靠自然刷新产生 eligible Snapshot v2。这解释了 Dashboard 全部比赛阻塞和 exact-identity 预写门持续失败。
+- 同时确认旧 offline per-fixture reconstruction 在 request cache 未预先限定 fixture 时，会回退到全局无界 `latest_market_observations()`；一次诊断 exec 进程因此触发 cgroup `oom_kill=1`。API 主进程保持 running、restart=0，`/health`、`/ready` 均 PASS；该无界路径禁止重复。
+- MA-02 固定为最小修复：新增 fixture-scoped 后台 analysis evidence materializer，先生成 immutable frozen checkpoint 再由 Dashboard/forward ledger 消费；公共 HTTP 继续禁止 live rebuild，并封堵 per-fixture offline 调用的全局 observation fallback。不得改变 freshness、FME、Snapshot、推荐门、provider budget、scheduler policy、denominator 或三轨。
+- 本轮根因定位未修改代码、未主动调用 provider、未写业务数据库、未部署；除上述诊断 OOM 事件外，staging 服务持续健康。
