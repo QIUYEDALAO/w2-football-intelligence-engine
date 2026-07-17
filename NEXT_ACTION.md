@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `IMPLEMENTATION_IN_PROGRESS`
+Status: `DATA_PIPELINE_BLOCKED`
 
 The Dashboard has real fixture-scoped observations, but the deployed read path
 misclassifies non-clinical stale markets as unavailable because old observations
@@ -110,6 +110,21 @@ forward summary has odds but lacks capture time, provider source or source hash,
 the complete database-frozen card must supply the bounded display projection;
 the incomplete summary must not hide the stored identity.
 
+PR #338 merged as `main@d571ea1ab16ad0dcda4e857e2249ba5acda62715`
+with all three CI checks passing. Its third staging deployment passed image,
+artifact, migration, health and four-service SHA alignment. The first bounded
+zero-provider run remained fixture-scoped and analysis reconcile was idempotent
+(`materialized=0`, `unchanged=4`, `provider_calls=0`), but auto checkpoint mode
+wrote four `T-6h` records for fixtures `1523203/1523204` from observations
+captured on 2026-07-15. This is not eligible current-cycle evidence.
+
+`DATA-06` is the active blocker: stale observations may power a STALE display,
+but the timeline writer must reject them as inputs to a current T6/T1/T15
+checkpoint. Keep bounded analysis reconcile independent from timeline writes
+when no eligible current quote exists. The four services were immediately
+rolled back to `7ad56cd`; do not delete or rewrite the immutable failed-attempt
+records.
+
 ### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and
@@ -124,11 +139,12 @@ and feature-as-of provenance. They remained correctly blocked by
 `DECISION_SOURCE_INCONSISTENT`. Snapshot mathematical reproducibility alone does
 not satisfy decision evidence eligibility.
 
-Deploy merged main under the existing four-service rollback contract. Immediately
-verify that current fixtures with observations show odds, age, STALE reason and
-next legal refresh after the zero-provider reconcile. Then observe natural
-`T6_ODDS`, `T1_LINEUPS` and `T15M_CLOSE` checkpoints. Do not force Provider calls
-or fabricate missed historical T6 records.
+Fix DATA-06 first. Then deploy merged main under the existing four-service
+rollback contract, run only the bounded analysis reconcile, and let the
+scheduler produce naturally due `T6_ODDS`, `T1_LINEUPS` and `T15M_CLOSE`
+checkpoints. Do not manually invoke the combined refresh task for immediate
+display acceptance, force Provider calls or fabricate missed historical T6
+records.
 
 GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` remains the currently deployed
 staging baseline. It is not accepted for MA-03 because its refresh policy and

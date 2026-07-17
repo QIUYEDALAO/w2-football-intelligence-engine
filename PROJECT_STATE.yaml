@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T05:20:00Z"
+last_updated_utc: "2026-07-17T05:38:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
-current_status: IMPLEMENTATION_IN_PROGRESS
+current_status: DATA_PIPELINE_BLOCKED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: 81e5c71165da245a209ad30e5779df78e017bfb3
+  main_sha_at_rebaseline: d571ea1ab16ad0dcda4e857e2249ba5acda62715
   deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T05:20:00Z"
+  observed_at_utc: "2026-07-17T05:38:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,7 +91,7 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: 81e5c71165da245a209ad30e5779df78e017bfb3
+  repository_main_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
   deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -152,9 +152,11 @@ active_workstream:
     - DATA-03
     - DATA-04
     - DATA-05
+    - DATA-06
   remaining_tasks:
-    - merge the source-independent STALE-to-NOT_READY display invariant, complete-identity display preference and second rollback context through GitHub PR
-    - redeploy corrected main and immediately reconcile at most 10 current fixtures per zero-provider background cycle
+    - prevent checkpoint auto mode from writing T6_ODDS from observations captured outside the legal current checkpoint window
+    - keep bounded analysis reconcile separate from timeline checkpoint writes when no eligible current quote exists
+    - redeploy corrected main and allow only naturally scheduled T6/T1/T15 checkpoint execution
     - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
     - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
     - pass staging with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
@@ -191,8 +193,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - complete and merge the STALE-to-NOT_READY display invariant and complete-identity display preference, then redeploy under the existing four-service rollback contract
-    - run only the bounded zero-provider reconcile and naturally due T6/T1/T15 refresh checkpoints
+    - diagnose and fix DATA-06 so stale observations can remain displayable but cannot be labelled as a current T6 checkpoint
+    - run only bounded zero-provider analysis reconcile before naturally scheduled T6/T1/T15 refresh checkpoints
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -200,6 +202,29 @@ active_workstream:
     - OFFICIAL writes
     - model or threshold changes
     - historical evidence rewrites
+
+data06_stale_t6_checkpoint_20260717:
+  status: DATA_PIPELINE_BLOCKED
+  attempted_release_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
+  rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  observed_at_utc: "2026-07-17T05:38:00Z"
+  bounded_run:
+    fixture_count: 4
+    observation_count: 12691
+    provider_calls: 0
+    reconcile_materialized_count: 0
+    reconcile_unchanged_count: 4
+    written_t6_records: 4
+    written_fixture_ids:
+      - "1523203"
+      - "1523204"
+    observation_capture_date_utc: "2026-07-15"
+    attempted_checkpoint_date_utc: "2026-07-17"
+  failure_boundary: STALE_OBSERVATION_WRITTEN_AS_CURRENT_T6
+  decision: immediate four-service rollback; preserve immutable records and do not rewrite history
+  staging_health_after_rollback: PASS
+  service_restart_count: 0
+  service_oom_killed: false
 
 ma03_staging_deployment_20260717:
   status: SUPERSEDED_BY_REFRESH_POLICY_AND_DISPLAY_SEMANTICS_REPAIR

@@ -904,3 +904,10 @@
 - 即时验收确认 fixtures `1523207/1523203/1523204/1523205` 已显示 AH/OU 和采集时间，顶部统计为 STALE=4、BLOCKED=6，`next_refresh_tick` 与逐场 `next_eval_at` 可见。重复 reconcile 为 `materialized=0/unchanged=4/provider_calls=0`，证明幂等且无 Provider。
 - 新硬门失败为 `STALE_WATCH_PROMOTION`: 四张带盘口的 forward capture 虽为 STALE 且 lock=false，却仍为 WATCH，会进入“值得看”区域。数据库卡的 freshness projection 已是 NOT_READY，但当 forward capture 自身带盘口时仍优先使用 capture，暴露来源不一致的最终状态语义。
 - 按验收规则第二次回滚四服务至 `7ad56cd43360f6df5d97c16935539d1e78cd5078`。下一修复必须在最终 DayView 及 full-window counts 建立来源无关不变量：任何 STALE 都强制 NOT_READY，清除 pick/recommendation/lock/outcome tracking，并使用 `DATA_STALE_ODDS`；不得改变 freshness、FME、阈值、身份或调度。
+
+### V3 进展续82 · DATA-06 旧 observation 冒充 T6 与第三次回滚(2026-07-17)
+
+- PR #338 三项 CI 全 PASS 并合并为 `main@d571ea1ab16ad0dcda4e857e2249ba5acda62715`；本地完整验证为 `1494 passed, 4 skipped`。第三次 staging 的镜像 revision、artifact v1、migration、health/readiness 与四服务 SHA 对齐全部 PASS。
+- 首次受限运行只选择 fixtures `1523207/1523203/1523204/1523205`，analysis reconcile 为 `materialized=0/unchanged=4/provider_calls=0`，但 combined auto checkpoint writer 同时从 12,691 条旧 observation 写入四条 `T-6h` 记录，涉及 `1523203/1523204`。输入采集时间为 2026-07-15，不能作为 2026-07-17 当前 T6 身份。
+- 新失败边界为 `STALE_OBSERVATION_WRITTEN_AS_CURRENT_T6`（DATA-06）。STALE 数据只允许展示；当 Provider 未调用且没有合格当前 quote 时，timeline writer 必须拒绝创建当前 T6/T1/T15 checkpoint，bounded analysis reconcile 不得隐式触发这种写入。
+- 已立即将 API/Web/worker/scheduler 回滚至 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；health/ready PASS、restart=0、OOM=false。已生成的 immutable 记录保留作为失败证据，不删除、不改写历史。
