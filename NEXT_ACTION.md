@@ -59,7 +59,7 @@ Local and GitHub validation passed. On staging, fixture-scoped materialization f
 Snapshot v2 records per fixture, and reproduced the same three content hashes on
 an identical-input rerun. Public HTTP remained frozen/no-live-rebuild.
 
-### MA-03 — Three-cycle staging acceptance — ACTIVE/BLOCKED ON NATURAL CYCLES
+### MA-03 — Three-cycle staging acceptance — DEPLOYED/WAITING ON NATURAL CYCLES
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and
 four-service SHA alignment. Materialized cards restored AH/OU current odds,
@@ -75,8 +75,15 @@ not satisfy decision evidence eligibility.
 
 Do not force refreshes or bypass the provider interval. The next eligible real
 cycles are naturally due Super League checkpoints beginning at
-`2026-07-17T10:00:00Z`. Redeploy merged main under the existing rollback
-contract, then require three consecutive post-merge cycles.
+`2026-07-17T10:00:00Z`.
+
+GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` was deployed at
+`2026-07-17T03:55:19Z` under a mode-600 four-service rollback manifest. Artifact
+v1, migration head, API health/readiness, DayView and API/Web/worker/scheduler
+SHA alignment passed with restart count 0 and no OOM. Provider request logs
+remained `532`, latest refresh audit remained `1488`, and both the Redis queue
+and active provider-call count remained zero. Keep this release deployed and
+require three consecutive post-merge natural cycles.
 
 Require three consecutive real refresh cycles to demonstrate:
 

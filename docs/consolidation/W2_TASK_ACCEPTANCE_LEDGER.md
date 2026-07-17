@@ -874,3 +874,11 @@
 - 冻结卡恢复了 AH/OU line、price、`as_of`、`api_football` source 与 source hash；Decision Contract 对存在 edge 的市场生成确定性 MarketQuote ID。但这些历史样本在验收时已经 stale，且 fallback FME 缺少完整 artifact/train-cutoff/feature-as-of provenance，仍由 `DATA_STALE_ODDS`、`MODEL_FAIR_LINE_UNAVAILABLE`、`DECISION_SOURCE_INCONSISTENT` 正确 fail closed。数学可复算 Snapshot 不等于决策证据 READY。
 - 按身份/新鲜度硬门立即回滚至 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`；四服务 healthy、restart=0。未改历史 ledger、RECOMMEND、lock、OFFICIAL 或 production。
 - 下一动作不是强制 provider refresh，也不是修改 FME/Snapshot/门槛；只允许在现有 rollback 合同下等待并验收下一批自然到期 checkpoint。当前最早为 Super League `T1_LINEUPS/T15M_CLOSE`，从 `2026-07-17T10:00:00Z` 起。三轮 post-merge 真实周期全部满足 current quote、完整 provenance、stable hash 后，方可输出 `GREEN + READY`。
+
+### V3 进展续78 · MA-03 四服务部署完成与自然三周期待验收(2026-07-17)
+
+- 以 GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` 和三项全绿 CI 为唯一部署目标；切换前冻结 API/Web/worker/scheduler 四服务回滚镜像及 mode-600 manifest，回滚目标为 `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`。
+- artifact v1、migration `0023_create_checkpoint_refresh_schedule (head)`、API health/ready、DayView 及四服务 SHA 对齐全部 PASS；四服务 restart=0、OOM=false，未触发自动回滚。
+- 部署前后 provider request log 均为 `532`，最新 refresh audit 仍为 `1488@2026-07-16T22:15:08.784841Z`，Redis queue=0、active provider calls=0；部署未主动调用 provider、未改业务数据或历史证据。
+- 当前只允许保持该版本并观察从 `2026-07-17T10:00:00Z` 起自然到期的连续三个周期；不得强制 refresh、绕过 provider interval 或放宽 freshness/provenance/FME/Snapshot/推荐门。
+- MA-03 仍为 `DATA_PIPELINE_BLOCKED` 待验收；只有三周期同时得到 `MARKET_DATA_HEALTH=GREEN` 与 `EVIDENCE_ELIGIBILITY=READY` 后才能进入 MA-04。

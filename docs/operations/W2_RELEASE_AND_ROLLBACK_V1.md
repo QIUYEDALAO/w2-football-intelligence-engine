@@ -124,3 +124,10 @@ Rules:
 - The market projection recovered selected AH/TOTALS lines, prices, provider source, capture time and source hashes. Decision Contract could build deterministic MarketQuote identities for markets with a selection edge.
 - Acceptance still failed because the sampled quotes were stale and fallback estimates lacked complete artifact, train-cutoff and feature-as-of provenance. Mathematically verified Snapshot v2 distributions were not accepted as decision evidence.
 - All four services were restored to `c89555b...`, healthy with restart count 0. Production, timeouts, thresholds, artifacts, provider policy, recommendations, locks, OFFICIAL data, denominator and track isolation were unchanged.
+
+## MA-03 natural-cycle acceptance deployment · 2026-07-17
+
+- Deployed `main@7ad56cd43360f6df5d97c16935539d1e78cd5078`; rollback target is `c89555b98cbcf2c41ecf999eefce9f5c0a9627f5`, with four frozen service images and `/opt/w2/shared/rollback-manifest-7ad56cd43360f6df5d97c16935539d1e78cd5078.json` at mode 600.
+- Artifact v1, migration head, API health/readiness, DayView and API/Web/worker/scheduler revision alignment passed. All four services were healthy with restart count 0 and no OOM event.
+- Provider request log count remained 532, the latest refresh audit remained `1488@2026-07-16T22:15:08.784841Z`, active provider calls remained 0 and the Redis queue remained empty.
+- Keep the release deployed for three consecutive naturally due cycles beginning at or after `2026-07-17T10:00:00Z`. Do not force refreshes or change provider, evidence, recommendation, lock, OFFICIAL or production policy.
