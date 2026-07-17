@@ -10,7 +10,7 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续93 · DATA-08 精确到期调度通过、Provider 日上限阻塞`.
+Current latest entry: `V3 进展续94 · Football-API 88/7500 与内部 120 误计数定位`.
 
 Current blocking chain:
 
@@ -19,10 +19,11 @@ Current blocking chain:
    its own exact due time. Four services are healthy and aligned. A natural T1
    task due at `2026-07-17T21:30:00Z` completed at `21:30:00.076Z`, proving the
    former 15-minute stale gap is closed. Market recovery remains `RED + BLOCKED`
-   because the UTC-day Provider ledger is exactly `120/120`; all 120 calls
-   succeeded and the new tasks used 0 calls under `DAILY_PROVIDER_HARD_CAP_EXCEEDED`.
-   Wait for the natural UTC-day reset at `2026-07-18T00:00:00Z`; do not force a
-   request or weaken the cap.
+   because W2 incorrectly counted 32 unbilled `/status` health requests against
+   its internal 120-call safety budget. Football-API headers confirm the real
+   billable usage is `88/7500`: fixtures=32, lineups=7 and odds=49. The directed
+   correction is locally validated and must be deployed before natural-cycle
+   acceptance resumes; the 120-call project safety budget itself is unchanged.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

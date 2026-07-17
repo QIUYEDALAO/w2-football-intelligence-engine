@@ -16,16 +16,16 @@ OOM=false.
 
 Natural acceptance proved fixture `1492140` was due at
 `2026-07-17T21:30:00Z` and completed at `21:30:00.076Z`. The former 15-minute
-stale gap is closed without early Provider access. The current blocker is not
-code: the UTC-day Provider ledger is exactly `120/120`, with all 120 requests
-successful. New tasks fail closed with `DAILY_PROVIDER_HARD_CAP_EXCEEDED` and
-`request_count=0`.
+stale gap is closed without early Football-API access. The subsequent hard-cap
+block was an internal accounting bug: W2 counted 32 unbilled `/status` health
+queries together with 88 billable requests. Football-API headers confirm
+`88/7500`; the account quota was never exhausted.
 
 ## Unique next action — DATA-08
 
-1. Keep release `0f359149` deployed; do not change code or safety gates.
-2. Wait for the UTC daily Provider ledger to reset naturally at
-   `2026-07-18T00:00:00Z` (Beijing 08:00).
+1. Deploy the billable-usage correction from the existing local stage branch.
+2. Confirm natural Scheduler preflight reports 88 billable calls rather than
+   120 transport logs and no longer raises `DAILY_PROVIDER_HARD_CAP_EXCEEDED`.
 3. Observe three consecutive legal exact-time cycles. Require fresh quote,
    provider/capture/quote/raw-hash identity and Snapshot/FME consistency.
 4. Resume MA-03 only if `MARKET_DATA_HEALTH=GREEN` and

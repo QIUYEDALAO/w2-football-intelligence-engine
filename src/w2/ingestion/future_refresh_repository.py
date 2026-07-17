@@ -993,16 +993,13 @@ class FutureRefreshDbRepository:
         day_end = day_start + timedelta(days=1)
         try:
             with Session(self.engine) as session:
-                future_refresh_requests = session.scalar(
-                    select(func.coalesce(func.sum(FutureRefreshRunAuditModel.request_count), 0))
-                    .where(FutureRefreshRunAuditModel.generated_at >= since_utc)
-                )
                 provider_request_logs = session.scalar(
                     select(func.count())
                     .select_from(ProviderRequestLogModel)
                     .where(
                         ProviderRequestLogModel.provider == "api_football",
                         ProviderRequestLogModel.requested_at >= since_utc,
+                        ProviderRequestLogModel.endpoint != "status",
                     )
                 )
                 quota_usage = (
@@ -1019,7 +1016,6 @@ class FutureRefreshDbRepository:
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
         return max(
-            int(future_refresh_requests or 0),
             int(provider_request_logs or 0),
             int(quota_usage or 0),
         )

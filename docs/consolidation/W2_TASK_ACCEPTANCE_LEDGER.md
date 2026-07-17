@@ -994,3 +994,11 @@
 - 启动自然扫描一次预排 3 个任务，global projected calls=10 < tick cap 30。fixture `1492140` 的 T1 due time 为 `2026-07-17T21:30:00Z`，实际完成于 `21:30:00.076Z`，误差约 76ms，证明未提前执行且不再等待下一 15 分钟 tick。
 - UTC 当日 Provider ledger 已恰好达到 `120/120`，且 120 次全部成功。fixtures `1492295/1492297/1492140` 均被 `DAILY_PROVIDER_HARD_CAP_EXCEEDED` fail closed，`request_count=0`，没有强制调用、超预算或降低 freshness。
 - 当前裁决保持 `MARKET_DATA_HEALTH=RED`、`EVIDENCE_ELIGIBILITY=BLOCKED`。唯一下一步是在 `2026-07-18T00:00:00Z`（北京时间 08:00）自然日账本重置后观察三个合法周期；不得手动 Provider、修改 120 次硬门或进入 MA-04。
+
+### V3 进展续94 · Football-API 88/7500 与内部 120 误计数定位(2026-07-18)
+
+- 用户确认 Football-API 控制台当日用量为 88、账户日额度为 7500。前条将内部 120 次门描述为供应商额度耗尽不准确；`Provider` 只是代码对外部数据供应商的泛称，本项目实际连接器为 `api_football`。
+- 只读数据库与 Football-API quota header 交叉核对：UTC 窗口 transport logs=120 且全部 HTTP 成功，按 endpoint 分解为 fixtures=32、lineups=7、odds=49、status=32；真实扣费端点合计 88，响应头同样报告 `88/7500`。
+- 精确失败边界为 `UNBILLED_STATUS_REQUESTS_COUNTED_AGAINST_W2_DAILY_CAP`。W2 的 `request_count_since` 把不扣额度的 `/status` 健康查询计入内部 120 次安全预算，并因 120/120 错误阻塞自然刷新。
+- 定向修复从 billable 日用量中排除 status，并继续以 Football-API quota header 的 used 值作为权威下限；run audit 的 transport request_count 仍完整保留用于运维观察。120 次项目安全预算未改成 7500，避免把错误计数修复与预算策略变更混为一体。
+- 修复验证为定向 `93 passed`、全量 `1510 passed, 4 skipped`，Ruff/Mypy PASS。唯一下一步是部署同一阶段提交，确认自然 preflight 从错误 120 恢复为 88 并继续三个合法周期；不手动调用 Football-API。

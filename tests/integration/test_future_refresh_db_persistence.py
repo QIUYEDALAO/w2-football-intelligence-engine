@@ -524,6 +524,49 @@ def test_request_count_since_includes_provider_request_logs(
     assert FutureRefreshDbRepository().request_count_since(since) >= 120
 
 
+def test_request_count_since_excludes_unbilled_status_checks(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        for index in range(32):
+            requested_at = since + timedelta(seconds=index)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="status",
+                    request_hash=f"status-{index:056x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            ProviderRequestLogModel(
+                provider="api_football",
+                endpoint="odds",
+                request_hash="odds".ljust(64, "0"),
+                live=True,
+                status_code=200,
+                requested_at=since + timedelta(minutes=1),
+                completed_at=since + timedelta(minutes=1),
+            )
+        )
+        session.commit()
+
+    assert (
+        FutureRefreshDbRepository().request_count_since(
+            since,
+            include_quota_usage=False,
+        )
+        == 1
+    )
+
+
 def test_request_count_since_includes_quota_usage(
     tmp_path: Path,
     monkeypatch: Any,

@@ -3,8 +3,8 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T21:30:00Z"
-current_phase: Dashboard exact-time active refresh deployed; daily Provider cap blocks data recovery
+last_updated_utc: "2026-07-17T21:42:00Z"
+current_phase: Football-API billable usage correction validated pending deployment
 current_status: DATA_PIPELINE_BLOCKED
 
 context_contract:
@@ -215,7 +215,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: EXACT_TIME_REFRESH_DEPLOYED_DAILY_PROVIDER_CAP_BLOCKED
+  status: BILLABLE_USAGE_FIX_VALIDATED_PENDING_DEPLOYMENT
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -277,8 +277,8 @@ data08_expired_odds_display_and_refresh_20260717:
     due_plan_query_scope: fixture_scoped
     manual_provider_refresh: false
   local_validation:
-    targeted_tests_passed: 52
-    full_tests_passed: 1509
+    targeted_tests_passed: 93
+    full_tests_passed: 1510
     full_tests_skipped: 4
     ruff: PASS
     mypy: PASS
@@ -329,11 +329,24 @@ data08_expired_odds_display_and_refresh_20260717:
       blocker: DAILY_PROVIDER_HARD_CAP_EXCEEDED
     global_tick_projected_calls: 10
     global_tick_hard_cap: 30
-    provider_daily_usage: 120
+    provider_transport_log_count: 120
+    provider_billable_usage_from_headers: 88
     provider_daily_hard_cap: 120
     provider_success_count: 120
     manual_provider_refresh: false
-  next_gate: after the UTC daily ledger resets at 2026-07-18T00:00:00Z, observe the next natural exact-time cycles; do not force Provider or weaken the 120-call cap
+  provider_usage_miscount:
+    failure_boundary: UNBILLED_STATUS_REQUESTS_COUNTED_AGAINST_W2_DAILY_CAP
+    transport_logs_by_endpoint:
+      fixtures: 32
+      lineups: 7
+      odds: 49
+      status: 32
+    football_api_billable_usage: 88
+    football_api_daily_limit: 7500
+    incorrect_internal_usage: 120
+    repair: exclude status health queries from billable daily usage and use Football-API quota headers as the authoritative floor
+    safety_budget_changed: false
+  next_gate: deploy the billable-usage correction, confirm the natural scheduler no longer reports DAILY_PROVIDER_HARD_CAP_EXCEEDED at 88/120, then observe three legal cycles
   identical_quote_capture_blocker:
     observed_release_sha: afac9307006a4451a6a409d58408aa787b4f6726
     affected_fixture_ids:
