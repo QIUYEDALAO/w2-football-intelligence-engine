@@ -502,6 +502,68 @@ def _formal_payload_blocker(formal_result: Any) -> str:
 
 
 class ReadModelRepository:
+    def persist_frozen_analysis_checkpoint(
+        self,
+        *,
+        fixture_id: str,
+        payload: Mapping[str, Any],
+        created_at: datetime | None = None,
+    ) -> dict[str, str]:
+        normalized = cast(
+            dict[str, Any],
+            json.loads(json.dumps(dict(payload), ensure_ascii=False, default=str)),
+        )
+        encoded = json.dumps(
+            normalized,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        source_hash = hashlib.sha256(encoded).hexdigest()
+        immutable_key = f"dashboard:fixture_analysis:{fixture_id}:{source_hash}"
+        latest_key = f"dashboard:fixture_latest:{fixture_id}"
+        observed_at = created_at or datetime.now(UTC)
+        engine = create_engine()
+        with Session(engine) as session, session.begin():
+            immutable = session.scalar(
+                select(ReadModelCheckpointModel).where(
+                    ReadModelCheckpointModel.checkpoint_key == immutable_key
+                )
+            )
+            if immutable is None:
+                session.add(
+                    ReadModelCheckpointModel(
+                        checkpoint_key=immutable_key,
+                        source_hash=source_hash,
+                        created_at=observed_at,
+                        payload=normalized,
+                    )
+                )
+            latest = session.scalar(
+                select(ReadModelCheckpointModel).where(
+                    ReadModelCheckpointModel.checkpoint_key == latest_key
+                )
+            )
+            if latest is None:
+                session.add(
+                    ReadModelCheckpointModel(
+                        checkpoint_key=latest_key,
+                        source_hash=source_hash,
+                        created_at=observed_at,
+                        payload=normalized,
+                    )
+                )
+            else:
+                latest.source_hash = source_hash
+                latest.created_at = observed_at
+                latest.payload = normalized
+        return {
+            "fixture_id": fixture_id,
+            "source_hash": source_hash,
+            "immutable_checkpoint_key": immutable_key,
+            "latest_checkpoint_key": latest_key,
+        }
+
     def day_view_source_watermarks(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "schema_version": "w2.day_view_source_watermarks.v1",
@@ -516,9 +578,7 @@ class ReadModelRepository:
                         func.max(ReadModelCheckpointModel.created_at),
                         func.max(ReadModelCheckpointModel.source_hash),
                     ).where(
-                        ReadModelCheckpointModel.checkpoint_key.like(
-                            "dashboard:fixture_latest:%"
-                        )
+                        ReadModelCheckpointModel.checkpoint_key.like("dashboard:fixture_latest:%")
                     )
                 ).one()
             payload.update(
@@ -621,6 +681,7 @@ class ReadModelRepository:
                     "temporal_status": item.get("temporal_status", "PREMATCH_LOCKED"),
                 },
                 "market_ranking": item.get("all_market_ranking", []),
+                "analysis_card": item.get("analysis_card"),
                 "temporal": {
                     "source_snapshot_id": item.get("provenance", {}).get("snapshot_id"),
                     "source_captured_at": item.get("captured_at"),
@@ -1393,9 +1454,7 @@ class ReadModelService:
             source_watermarks = self._day_view_source_watermarks()
             source_watermark_seconds = monotonic() - watermark_started
             fingerprint_started = monotonic()
-            ledger_fingerprint = frozen_ledger_fingerprint(
-                get_settings().resolved_runtime_root
-            )
+            ledger_fingerprint = frozen_ledger_fingerprint(get_settings().resolved_runtime_root)
             source_fingerprint = make_day_view_source_fingerprint(
                 release_sha=identity["api_git_sha"],
                 source_watermarks=source_watermarks,
@@ -1414,17 +1473,17 @@ class ReadModelService:
             cache_lookup_started = monotonic()
             snapshot, window_cache_status = (
                 self._day_view_window_singleflight.get_or_compute_with_status(
-                window_key,
-                ttl_seconds=30.0,
-                compute=lambda: self._build_day_view_window_snapshot(
-                    requested_date=requested_date,
-                    window=window,
-                    timezone=timezone,
-                    sort=sort,
-                    identity=identity,
-                    source_watermarks=source_watermarks,
-                    source_fingerprint=source_fingerprint,
-                ),
+                    window_key,
+                    ttl_seconds=30.0,
+                    compute=lambda: self._build_day_view_window_snapshot(
+                        requested_date=requested_date,
+                        window=window,
+                        timezone=timezone,
+                        sort=sort,
+                        identity=identity,
+                        source_watermarks=source_watermarks,
+                        source_fingerprint=source_fingerprint,
+                    ),
                 )
             )
             cache_key = (snapshot.snapshot_id, page_size, cursor or "", sort)
@@ -1463,18 +1522,10 @@ class ReadModelService:
                             "window_snapshot_build_inflight": window_cache_metrics[
                                 "build_inflight"
                             ],
-                            "source_watermark_seconds": round(
-                                source_watermark_seconds, 6
-                            ),
-                            "result_event_watermark_seconds": round(
-                                source_watermark_seconds, 6
-                            ),
-                            "version_identity_seconds": round(
-                                version_identity_seconds, 6
-                            ),
-                            "server_cache_lookup_seconds": round(
-                                server_cache_lookup_seconds, 6
-                            ),
+                            "source_watermark_seconds": round(source_watermark_seconds, 6),
+                            "result_event_watermark_seconds": round(source_watermark_seconds, 6),
+                            "version_identity_seconds": round(version_identity_seconds, 6),
+                            "server_cache_lookup_seconds": round(server_cache_lookup_seconds, 6),
                             "capture_index_fingerprint_seconds": round(
                                 source_fingerprint_seconds, 6
                             ),
@@ -1503,11 +1554,15 @@ class ReadModelService:
                 "source_status": "DEGRADED",
                 "reason": type(error).__name__,
             }
-        return dict(value) if isinstance(value, Mapping) else {
-            "schema_version": "w2.day_view_source_watermarks.v1",
-            "source_status": "DEGRADED",
-            "reason": "INVALID_SOURCE_WATERMARK",
-        }
+        return (
+            dict(value)
+            if isinstance(value, Mapping)
+            else {
+                "schema_version": "w2.day_view_source_watermarks.v1",
+                "source_status": "DEGRADED",
+                "reason": "INVALID_SOURCE_WATERMARK",
+            }
+        )
 
     def _build_dashboard_day_view_payload(
         self,
@@ -1524,9 +1579,7 @@ class ReadModelService:
         source_fingerprint = make_day_view_source_fingerprint(
             release_sha=identity["api_git_sha"],
             source_watermarks=source_watermarks,
-            ledger_fingerprint=frozen_ledger_fingerprint(
-                get_settings().resolved_runtime_root
-            ),
+            ledger_fingerprint=frozen_ledger_fingerprint(get_settings().resolved_runtime_root),
             capture_projection_version=DAY_VIEW_CAPTURE_PROJECTION_VERSION,
         )
         snapshot = self._build_day_view_window_snapshot(
@@ -1611,9 +1664,7 @@ class ReadModelService:
                 "fixture_window_read_seconds": round(fixture_read_seconds, 6),
                 "fixture_read_seconds": round(fixture_read_seconds, 6),
                 "capture_index_build_seconds": round(capture_index_build_seconds, 6),
-                "market_availability_read_seconds": round(
-                    market_availability_read_seconds, 6
-                ),
+                "market_availability_read_seconds": round(market_availability_read_seconds, 6),
                 "window_index_build_seconds": round(window_index_build_seconds, 6),
                 "snapshot_hash_seconds": round(snapshot_hash_seconds, 6),
                 "ledger_summary_seconds": round(ledger_summary_seconds, 6),
@@ -1654,9 +1705,7 @@ class ReadModelService:
             page_size=page_size,
             cursor=cursor,
         )
-        row_by_fixture = {
-            str(row.get("fixture_id") or ""): row for row in snapshot.fixture_rows
-        }
+        row_by_fixture = {str(row.get("fixture_id") or ""): row for row in snapshot.fixture_rows}
         page_rows = [dict(row_by_fixture[item.fixture_id]) for item in page_entries]
         frozen_captures = snapshot.capture_index.summaries
         projection_started = monotonic()
@@ -1797,9 +1846,7 @@ class ReadModelService:
                 requested_date=requested_date,
             )
         if window == "results":
-            result_rows = [
-                row for row in self._all_matchday_rows() if self._is_finished_row(row)
-            ]
+            result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
             return self._filter_rows_for_operational_date(
                 result_rows,
                 requested_date=requested_date,
@@ -1825,9 +1872,7 @@ class ReadModelService:
         )
         if window == "all":
             next36_rows = self.matchday_next_36_hours().get("items", [])
-            result_rows = [
-                row for row in self._all_matchday_rows() if self._is_finished_row(row)
-            ]
+            result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
             return self._dedupe_dashboard_rows(
                 [
                     *today_rows,
@@ -1956,12 +2001,8 @@ class ReadModelService:
             "market_observation_history_seconds": 0.0,
             "result_event_cache_hit": result_cache_metrics["cache_hit"],
             "result_event_cache_miss": result_cache_metrics["cache_miss"],
-            "result_event_singleflight_owner": result_cache_metrics[
-                "singleflight_owner"
-            ],
-            "result_event_singleflight_waiter": result_cache_metrics[
-                "singleflight_waiter"
-            ],
+            "result_event_singleflight_owner": result_cache_metrics["singleflight_owner"],
+            "result_event_singleflight_waiter": result_cache_metrics["singleflight_waiter"],
         }
         return result
 
@@ -2550,7 +2591,62 @@ class ReadModelService:
     def build_analysis_card_offline(self, fixture_id: str) -> dict[str, Any] | None:
         """Expensive full analysis reconstruction for scheduled/offline use only, never HTTP."""
         with self._read_request_scope():
+            reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+            if callable(reader):
+                self._future_market_observations_cache = cast(
+                    list[dict[str, Any]],
+                    reader([fixture_id]),
+                )
             return self._analysis_card_in_request(fixture_id)
+
+    def materialize_frozen_analysis_cards(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, Any]:
+        """Build fixture-scoped evidence in the worker and freeze it for HTTP consumers."""
+        target_fixture_ids = list(dict.fromkeys(str(item) for item in fixture_ids if item))
+        writer = getattr(self.repository, "persist_frozen_analysis_checkpoint", None)
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        if not callable(writer) or not callable(reader):
+            return {
+                "status": "BLOCKED",
+                "blockers": ["ANALYSIS_MATERIALIZATION_REPOSITORY_UNAVAILABLE"],
+                "materialized_count": 0,
+                "fixture_count": len(target_fixture_ids),
+                "provider_calls": 0,
+            }
+        results: list[dict[str, Any]] = []
+        blockers: list[str] = []
+        for fixture_id in target_fixture_ids:
+            with self._read_request_scope():
+                observations = cast(list[dict[str, Any]], reader([fixture_id]))
+                self._future_market_observations_cache = observations
+                self._observations_by_fixture_cache = None
+                item = self._fixture_payload_by_id(fixture_id)
+                if item is None:
+                    blockers.append(f"FIXTURE_PAYLOAD_UNAVAILABLE:{fixture_id}")
+                    continue
+                card = self._analysis_card_from_provider_payload(fixture_id, item)
+                fixture = self._fixture_summary(item, BEIJING_TZ)
+                checkpoint = writer(
+                    fixture_id=fixture_id,
+                    payload={**fixture, "analysis_card": card},
+                )
+                results.append(
+                    {
+                        **dict(checkpoint),
+                        "observation_count": len(observations),
+                        "snapshot_count": len(card.get("fair_market_estimate_snapshots", [])),
+                    }
+                )
+        return {
+            "status": "COMPLETED" if not blockers else "BLOCKED",
+            "blockers": blockers,
+            "fixture_count": len(target_fixture_ids),
+            "materialized_count": len(results),
+            "results": results,
+            "provider_calls": 0,
+        }
 
     def frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
         """Return embedded/frozen evidence or a small fail-closed card; never rebuild models."""

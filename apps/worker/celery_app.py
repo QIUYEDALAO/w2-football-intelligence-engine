@@ -90,16 +90,41 @@ def future_fixture_refresh(
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
     )
+    materialization: dict[str, object] = {
+        "status": "NOT_REQUESTED",
+        "materialized_count": 0,
+        "provider_calls": 0,
+    }
+    target_fixture_ids = list(dict.fromkeys(checkpoint_fixture_ids or []))
+    if audit.status == "COMPLETED" and target_fixture_ids:
+        from w2.api.repository import ReadModelService
+
+        materialization = ReadModelService().materialize_frozen_analysis_cards(target_fixture_ids)
+    task_status = "BLOCKED" if materialization.get("status") == "BLOCKED" else audit.status
+    result = {**audit.result, "analysis_materialization": materialization}
+    raw_materialization_blockers = materialization.get("blockers")
+    materialization_blockers = (
+        raw_materialization_blockers if isinstance(raw_materialization_blockers, list) else []
+    )
+    if task_status == "BLOCKED" and materialization_blockers:
+        result["blockers"] = list(
+            dict.fromkeys(
+                [
+                    *[str(item) for item in audit.result.get("blockers", [])],
+                    *[str(item) for item in materialization_blockers],
+                ]
+            )
+        )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
-        "status": audit.status,
+        "status": task_status,
         "requested_interval_seconds": requested_interval_seconds,
         "effective_interval_seconds": effective_interval_seconds,
         "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
         "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
         "refresh_checkpoints": refresh_checkpoints or [],
-        "result": audit.result,
+        "result": result,
         "candidate": False,
         "formal_recommendation": False,
     }
