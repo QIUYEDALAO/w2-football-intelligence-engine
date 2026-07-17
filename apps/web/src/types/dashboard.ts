@@ -168,12 +168,6 @@ export interface DashboardCard {
   away_cn?: string | null;
   home_team_name?: string | null;
   away_team_name?: string | null;
-  home_team_name_zh?: string | null;
-  away_team_name_zh?: string | null;
-  home_team_display_name?: string | null;
-  away_team_display_name?: string | null;
-  home_team_provider_name?: string | null;
-  away_team_provider_name?: string | null;
   decision?: Decision;
   loading?: boolean;
   watch_level?: number | string | null;
@@ -235,19 +229,12 @@ export interface ScorelinePick {
   probability_label?: string;
   hit?: boolean;
   direction_hit?: boolean;
-  probability_type?: "UNCONDITIONAL_FILTERED_BY_SETTLEMENT" | string;
-  selection?: string;
-  line?: number;
-  outcome?: string;
-  source?: string;
 }
 
 export interface ScorelineReference {
   source?: string | null;
-  estimate_id?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
-  direction_scorelines?: ScorelinePick[];
   high_total?: {
     threshold?: number;
     probability?: number | null;
@@ -271,23 +258,6 @@ export interface ScorelineReference {
     settlement_probability_label?: string | null;
     source?: string | null;
   }>;
-  market_settlement?: {
-    market?: string;
-    selection?: string;
-    line?: number;
-    source?: string;
-    probabilities?: Record<string, number>;
-    probability_labels?: Record<string, string>;
-  } | null;
-  distribution_provenance?: {
-    model_family?: string | null;
-    artifact_hash?: string | null;
-    artifact_version?: string | null;
-    train_cutoff?: string | null;
-    feature_as_of?: string | null;
-    home_mu?: number | null;
-    away_mu?: number | null;
-  } | null;
 }
 
 export interface ScorelineReadiness {
@@ -453,19 +423,6 @@ export interface PerformanceBucket {
   hit_rate?: number | null;
 }
 
-export interface OptionalEnrichmentItem {
-  status?: string | null;
-  affects_estimate?: boolean;
-  adjustment?: number | null;
-  source?: string | null;
-  as_of?: string | null;
-}
-
-export interface OptionalEnrichment {
-  lineups?: OptionalEnrichmentItem;
-  player_value?: OptionalEnrichmentItem;
-}
-
 export interface DashboardMatchCard {
   fixture_id: string;
   kickoff_utc: string;
@@ -475,16 +432,6 @@ export interface DashboardMatchCard {
   competition_name: string;
   home_team_name: string;
   away_team_name: string;
-  home_team_id?: string | null;
-  away_team_id?: string | null;
-  home_team_name_zh?: string | null;
-  away_team_name_zh?: string | null;
-  home_team_display_name?: string | null;
-  away_team_display_name?: string | null;
-  home_team_provider_name?: string | null;
-  away_team_provider_name?: string | null;
-  home_team_localization_status?: string | null;
-  away_team_localization_status?: string | null;
   home_team_code?: string;
   away_team_code?: string;
   status: MatchStatus;
@@ -562,7 +509,6 @@ export interface ForwardLedgerLeaguePerformance {
   league: string;
   record_count: number;
   fixture_count: number;
-  double_snapshot_fixture_count: number;
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;
@@ -571,8 +517,6 @@ export interface ForwardLedgerLeaguePerformance {
   hit_rate?: number | null;
   clv_sample_count: number;
   clv_median_decimal?: number | null;
-  clv_shadow_sample_count: number;
-  clv_shadow_median_decimal?: number | null;
 }
 
 export interface ForwardLedgerPerformance {
@@ -581,61 +525,12 @@ export interface ForwardLedgerPerformance {
   sample_target: number;
   record_count: number;
   fixture_count: number;
-  double_snapshot_fixture_count: number;
-  validation_fixture_count: number;
-  validation_settled_fixture_count: number;
-  validation_pending_fixture_count: number;
-  validation_pending_status: {
-    pre_settlement_window_fixture_count: number;
-    awaiting_official_result_fixture_count: number;
-    result_available_unsettled_fixture_count: number;
-    result_source_unavailable_fixture_count: number;
-    result_source_available: boolean;
-    pending_fixture_count: number;
-  };
   settled_sample_count: number;
   hit_count: number;
   miss_count: number;
   push_count: number;
   void_count: number;
   hit_rate?: number | null;
-  outcomes_validation: ForwardLedgerOutcomeSummary;
-  outcomes_official: ForwardLedgerOutcomeSummary;
-  outcomes_shadow_wide: ForwardLedgerOutcomeSummary;
-  outcomes_shadow_strict: ForwardLedgerOutcomeSummary;
-  outcomes_shadow: ForwardLedgerOutcomeSummary;
-  outcomes_shadow_compatibility_view?: boolean;
-  outcomes_by_strategy?: Array<{
-    recommendation_scope: string;
-    strategy_version: string;
-    settled_sample_count: number;
-  } & ForwardLedgerOutcomeSummary>;
-  outcomes_raw_audit: {
-    raw_outcome_row_count: number;
-    canonical_outcome_count: number;
-    audit_only_outcome_count: number;
-    duplicate_audit_row_count: number;
-    raw_exact_duplicate_count: number;
-    outcome_conflict_count: number;
-    identity_aware_unmatched_count: number;
-  };
-  performance_integrity: {
-    status: "PASS" | "PASS_WITH_LEGACY_AUDIT" | "BLOCKED" | string;
-    raw_outcome_row_count: number;
-    canonical_outcome_count: number;
-    audit_only_outcome_count: number;
-    duplicate_audit_row_count: number;
-    raw_exact_duplicate_count: number;
-    outcome_conflict_count: number;
-    identity_aware_matched_count: number;
-    identity_aware_unmatched_count: number;
-    historical_incomplete_identity_count: number;
-    canonical_duplicate_count: number;
-    canonical_candidate_nonunique_count: number;
-    cross_track_contamination_count: number;
-    historical_compatibility_outcome_count: number;
-    corrected_outcome_count: number;
-  };
   accumulation_label: string;
   clv: {
     sample_count: number;
@@ -646,28 +541,8 @@ export interface ForwardLedgerPerformance {
     line_changed_count: number;
     method?: string;
   };
-  clv_shadow: {
-    sample_count: number;
-    median_decimal?: number | null;
-    positive_count: number;
-    negative_count: number;
-    push_count: number;
-    line_changed_count: number;
-    line_clv_sample_count?: number;
-    median_line_clv?: number | null;
-    method?: string;
-  };
   by_league: ForwardLedgerLeaguePerformance[];
   mock_data?: boolean;
-}
-
-export interface ForwardLedgerOutcomeSummary {
-  settled_sample_count: number;
-  hit_count: number;
-  miss_count: number;
-  push_count: number;
-  void_count: number;
-  hit_rate?: number | null;
 }
 
 export interface FormalTrackingSummary {
@@ -776,16 +651,6 @@ export interface DashboardDayViewCard {
   competition_name?: string | null;
   home_team_name?: string | null;
   away_team_name?: string | null;
-  home_team_id?: string | null;
-  away_team_id?: string | null;
-  home_team_name_zh?: string | null;
-  away_team_name_zh?: string | null;
-  home_team_display_name?: string | null;
-  away_team_display_name?: string | null;
-  home_team_provider_name?: string | null;
-  away_team_provider_name?: string | null;
-  home_team_localization_status?: string | null;
-  away_team_localization_status?: string | null;
   status?: string | null;
   source?: string | null;
   decision_tier: DecisionTier;
@@ -798,13 +663,9 @@ export interface DashboardDayViewCard {
   action?: string | null;
   next_eval_at?: string | null;
   provider_budget_status?: string | null;
-  primary_blocker?: string | null;
-  primary_blocker_layer?: string | null;
-  all_blockers?: string[];
   missing_fields: string[];
   stale_fields: string[];
   data_readiness?: Record<string, unknown>;
-  feature_readiness?: Record<string, unknown>;
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
@@ -812,39 +673,15 @@ export interface DashboardDayViewCard {
   odds_movement?: Record<string, unknown>;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
-  fair_market_estimates?: Array<Record<string, unknown>>;
-  fair_market_estimate_ids?: string[];
-  fair_market_estimate_snapshots?: Array<Record<string, unknown>>;
-  analysis_gate_v2_shadow?: Record<string, unknown>;
-  analysis_gate_v2_shadows?: Array<Record<string, unknown>>;
-  optional_enrichment?: OptionalEnrichment;
-  player_impact_estimate?: Record<string, unknown>;
-  analysis_gate?: Record<string, unknown>;
-  analysis_gates?: Array<Record<string, unknown>>;
   market_strip?: Array<Record<string, unknown>>;
   missing_inputs?: string[];
-  pricing_shadow?: PricingShadow | null;
-  scoreline_picks: ScorelinePick[];
-  scoreline_reference?: ScorelineReference | null;
-  scoreline_readiness?: ScorelineReadiness | null;
   pick?: {
     market?: string | null;
     selection?: string | null;
     line?: string | number | null;
     odds?: string | number | null;
-    fair_line?: string | number | null;
-    estimate_id?: string | null;
-    model_basis_id?: string | null;
+    disclaimer?: string | null;
   } | null;
-  compact_provenance?: Record<string, unknown>;
-  audit_available?: boolean;
-  audit_links?: Record<string, string>;
-  audit_capture_id?: string | null;
-  audit_capture_hash?: string | null;
-  audit_estimate_id?: string | null;
-  audit_identity_status?: string | null;
-  audit_blocker?: string | null;
-  audit_detail_url?: string | null;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;
@@ -858,7 +695,6 @@ export interface DashboardDayView {
   football_day: string;
   selected_football_day: string;
   environment: string;
-  active_whitelist_count?: number | null;
   environment_policy?: Record<string, unknown>;
   timezone: string;
   window: string;
@@ -868,18 +704,6 @@ export interface DashboardDayView {
   provider_calls: number;
   db_writes: number;
   counts: DashboardDayViewCounts;
-  page_counts: DashboardDayViewCounts;
-  pagination: {
-    schema_version: "w2.day_view_page.v1";
-    snapshot_id: string;
-    sort: "BOSS_PRIORITY_KICKOFF" | "KICKOFF_ONLY";
-    total_count: number;
-    returned_count: number;
-    page_size: number;
-    has_more: boolean;
-    next_cursor?: string | null;
-    truncated_by_byte_budget: boolean;
-  };
   freshness: DashboardDayViewFreshness;
   navigation?: Record<string, unknown>;
   degradation?: Record<string, unknown>;
@@ -909,17 +733,4 @@ export interface DashboardView {
   finished: DashboardMatchCard[];
   all: DashboardMatchCard[];
   errors: string[];
-  cache_status?: "FRESH" | "STALE_CACHE";
-}
-
-export interface FixtureAuditDetails {
-  fixture_id: string;
-  audit_capture_id: string;
-  estimate_id: string | null;
-  audit_capture_hash: string;
-  api_release_sha: string;
-  match: DashboardMatchCard;
-  audit: Record<string, unknown>;
-  integrity: Record<string, unknown>;
-  performance: Record<string, unknown>;
 }

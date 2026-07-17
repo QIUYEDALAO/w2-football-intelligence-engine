@@ -59,7 +59,7 @@ class FakeApiFootballClient:
                             "status": {"short": "NS"},
                             "venue": {"name": "DB Test Venue"},
                         },
-                        "league": {"id": 71, "name": "Serie A", "round": "Regular Season"},
+                        "league": {"id": 1, "name": "World Cup", "round": "Group K"},
                         "teams": {
                             "home": {"id": 10, "name": "Team A"},
                             "away": {"id": 20, "name": "Team B"},
@@ -115,8 +115,7 @@ class FakeApiFootballClient:
 
 def configure_sqlite_db(monkeypatch: Any, tmp_path: Path) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'future-refresh.db'}"
-    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
+    monkeypatch.setenv("W2_ENVIRONMENT", "test")
     monkeypatch.setenv("W2_DATABASE_URL", database_url)
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
     get_settings.cache_clear()
@@ -133,7 +132,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
     runtime_root.mkdir()
     runtime_root.chmod(0o500)
     key = deterministic_task_key(
-        competition_id="brasileirao_serie_a",
+        competition_id="world_cup_2026",
         season="2026",
         now=NOW,
         interval_seconds=900,
@@ -176,6 +175,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert set(session.scalars(select(RawPayloadModel.endpoint)).all()) == {
             "fixtures",
             "odds",
+            "lineups",
             "status",
         }
         observation = session.scalar(select(FutureMarketObservationModel))
@@ -190,7 +190,7 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
     key = deterministic_task_key(
-        competition_id="brasileirao_serie_a",
+        competition_id="world_cup_2026",
         season="2026",
         now=NOW,
         interval_seconds=900,
@@ -231,51 +231,8 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
         "status",
         "fixtures",
         "odds",
+        "lineups",
     ]
-
-
-def test_market_observation_history_preserves_all_capture_times(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    rows = []
-    for index, captured_at in enumerate(
-        ("2026-06-23T08:00:00Z", "2026-06-23T09:00:00Z"),
-        start=1,
-    ):
-        rows.append(
-            {
-                "observation_id": f"observation-{index}",
-                "fixture_id": "fixture-history",
-                "provider": "api_football",
-                "bookmaker_id": "book-1",
-                "bookmaker_name": "Book 1",
-                "provider_bet_id": "bet-1",
-                "raw_market_label": "Asian Handicap",
-                "canonical_market": "ASIAN_HANDICAP",
-                "selection": "HOME",
-                "line": "-0.75",
-                "decimal_odds": "1.92",
-                "suspended": False,
-                "live": False,
-                "provider_last_update": captured_at,
-                "captured_at": captured_at,
-                "ingested_at": captured_at,
-                "raw_payload_sha256": str(index) * 64,
-                "source_revision": "test",
-            }
-        )
-    assert repository.append_observations(rows) == 2
-
-    history = repository.market_observation_history_for_fixtures(["fixture-history"])
-    latest = repository.latest_market_observations_for_fixtures(["fixture-history"])
-
-    assert len(history) == 2
-    assert history[0]["captured_at"] < history[1]["captured_at"]
-    assert len(latest) == 1
-    assert latest[0]["captured_at"] == history[-1]["captured_at"]
 
 
 def test_api_repository_reads_future_refresh_projection_from_db(
@@ -285,7 +242,7 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     configure_sqlite_db(monkeypatch, tmp_path)
     monkeypatch.setattr(api_repository, "RUNTIME", tmp_path / "api-runtime")
     key = deterministic_task_key(
-        competition_id="brasileirao_serie_a",
+        competition_id="world_cup_2026",
         season="2026",
         now=NOW,
         interval_seconds=900,
@@ -316,40 +273,6 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert provider["blockers"] == []
 
 
-def test_frozen_analysis_checkpoint_is_content_addressed_and_updates_latest(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    repository = ReadModelRepository()
-    first = repository.persist_frozen_analysis_checkpoint(
-        fixture_id="1489404",
-        payload={"fixture_id": "1489404", "analysis_card": {"status": "READY"}},
-        created_at=NOW,
-    )
-    duplicate = repository.persist_frozen_analysis_checkpoint(
-        fixture_id="1489404",
-        payload={"fixture_id": "1489404", "analysis_card": {"status": "READY"}},
-        created_at=NOW + timedelta(minutes=1),
-    )
-    changed = repository.persist_frozen_analysis_checkpoint(
-        fixture_id="1489404",
-        payload={"fixture_id": "1489404", "analysis_card": {"status": "INSUFFICIENT"}},
-        created_at=NOW + timedelta(minutes=2),
-    )
-
-    rows = repository.dashboard_checkpoints("dashboard:fixture_")
-
-    assert first["source_hash"] == duplicate["source_hash"]
-    assert changed["source_hash"] != first["source_hash"]
-    assert len(rows) == 3
-    latest = next(
-        row for row in rows if row["checkpoint_key"] == "dashboard:fixture_latest:1489404"
-    )
-    assert latest["source_hash"] == changed["source_hash"]
-    assert latest["payload"]["analysis_card"]["status"] == "INSUFFICIENT"
-
-
 def test_checkpoint_plan_is_idempotent_and_audited(
     tmp_path: Path,
     monkeypatch: Any,
@@ -370,7 +293,9 @@ def test_checkpoint_plan_is_idempotent_and_audited(
 
     assert repository.upsert_checkpoint_plans([row]) == 1
     assert repository.upsert_checkpoint_plans([row]) == 1
-    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == ["1489404:T24"]
+    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == [
+        "1489404:T24"
+    ]
     audit_id = repository.write_checkpoint_audit(
         fixture_id="1489404",
         checkpoint="T24",
@@ -385,10 +310,12 @@ def test_checkpoint_plan_is_idempotent_and_audited(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel)) == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel))
+            == 1
         )
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel))
+            == 1
         )
 
 

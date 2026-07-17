@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.models import RecommendationLockModel
-from w2.models.fair_market_estimate import verify_estimate_semantics, verify_estimate_snapshot
 
 SNAPSHOT_SCHEMA_VERSION = "w2.recommendation_lock_snapshot.v1"
 
@@ -44,7 +43,6 @@ def build_recommendation_lock_snapshot(
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_DATA_PROFILE")
 
     _require_formal_ah_recommendation(card, recommendation)
-    _require_estimate_snapshot(card, recommendation)
 
     fixture_id = _string(card.get("fixture_id"))
     if fixture_id is None:
@@ -110,8 +108,6 @@ def build_recommendation_lock_snapshot(
         "market_timeline": market_timeline,
         "ah_settlement_distribution": settlement_distribution,
         "scoreline_top3": scoreline_top3,
-        "fair_market_estimate_ids": card.get("fair_market_estimate_ids"),
-        "fair_market_estimate_snapshots": card.get("fair_market_estimate_snapshots"),
         "signals": {
             "independent_signal_count": pricing.get("independent_signal_count"),
             "groups": pricing.get("independent_signal_groups"),
@@ -209,40 +205,9 @@ def _require_formal_ah_recommendation(
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_LINE")
 
 
-def _require_estimate_snapshot(
-    card: dict[str, Any],
-    recommendation: dict[str, Any],
-) -> None:
-    estimate_id = _string(recommendation.get("estimate_id"))
-    if estimate_id is None:
-        raise ValueError("LOCK_SNAPSHOT_REQUIRES_ESTIMATE")
-    ids = card.get("fair_market_estimate_ids")
-    snapshots = card.get("fair_market_estimate_snapshots")
-    if not isinstance(ids, list) or estimate_id not in {str(item) for item in ids}:
-        raise ValueError("LOCK_SNAPSHOT_ESTIMATE_MISMATCH")
-    if not isinstance(snapshots, list):
-        raise ValueError("LOCK_SNAPSHOT_REQUIRES_ESTIMATE")
-    snapshot = next(
-        (
-            item
-            for item in snapshots
-            if isinstance(item, dict) and item.get("estimate_id") == estimate_id
-        ),
-        None,
-    )
-    if snapshot is None:
-        raise ValueError("LOCK_SNAPSHOT_ESTIMATE_MISMATCH")
-    if not verify_estimate_snapshot(snapshot):
-        raise ValueError("LOCK_SNAPSHOT_INVALID_ESTIMATE")
-    if not verify_estimate_semantics(snapshot):
-        raise ValueError("LOCK_SNAPSHOT_ESTIMATE_SEMANTIC_FAIL")
-    if snapshot.get("market") != recommendation.get("market"):
-        raise ValueError("LOCK_SNAPSHOT_ESTIMATE_MARKET_MISMATCH")
-
-
 def _direction_top3(card: dict[str, Any]) -> Any | None:
     reference = _dict(card.get("scoreline_reference"))
-    rows = reference.get("direction_scorelines") or reference.get("direction_top3")
+    rows = reference.get("direction_top3")
     if isinstance(rows, list):
         return rows
     return None

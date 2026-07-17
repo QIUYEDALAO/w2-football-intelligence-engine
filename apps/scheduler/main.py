@@ -58,10 +58,10 @@ def forward_outcome_backfill_enabled() -> bool:
 def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
     raw = os.environ.get(
         "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "brasileirao_serie_a"),
+        os.environ.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026"),
     )
     ids = tuple(item.strip() for item in raw.split(",") if item.strip())
-    return ids or ("brasileirao_serie_a",)
+    return ids or ("world_cup_2026",)
 
 
 def future_fixture_refresh_contract_ready() -> bool:
@@ -110,7 +110,9 @@ def checkpoint_task_key(
     season: str,
     checkpoints: list[dict[str, Any]],
 ) -> str:
-    identity = "|".join(f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints)
+    identity = "|".join(
+        f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints
+    )
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
 
@@ -122,7 +124,6 @@ def due_checkpoint_refresh_batch(
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
         checkpoint_plans_from_fixture_payloads,
-        prioritize_checkpoint_plans,
         projected_calls_for_checkpoint_batch,
         select_checkpoint_batch,
     )
@@ -175,7 +176,6 @@ def due_checkpoint_refresh_batch(
         )()
         for row in due_rows
     ]
-    due_plans = prioritize_checkpoint_plans(due_plans, now=now)
     selected, projected_calls = select_checkpoint_batch(
         due_plans,
         hard_cap=provider_refresh_tick_hard_cap(),
@@ -277,7 +277,9 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
                     "blockers": [gate.status],
                     "dedup_backend": gate.backend,
                     "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                    "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
+                    "provider_refresh_min_interval_policy": (
+                        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+                    ),
                 }
             task_id = f"{task_key}:{uuid4()}"
             celery_app.send_task(
@@ -300,7 +302,9 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
                 "candidate": False,
                 "formal_recommendation": False,
                 "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
+                "provider_refresh_min_interval_policy": (
+                    "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+                ),
             }
         return {
             **batch,
@@ -341,7 +345,9 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "competition_id": config.competition_id,
             "task_key": task_key,
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "checkpoint_fixture_ids": [str(item["fixture_id"]) for item in batch["checkpoints"]],
+            "checkpoint_fixture_ids": [
+                str(item["fixture_id"]) for item in batch["checkpoints"]
+            ],
             "refresh_checkpoints": batch["checkpoints"],
         },
         task_id=task_id,
@@ -407,7 +413,8 @@ def market_timeline_refresh_tick() -> dict[str, object]:
     now = datetime.now(UTC)
     max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
     capture_forward_ledger = (
-        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower() == "true"
+        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower()
+        == "true"
     )
     task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
     celery_app.send_task(
@@ -488,7 +495,7 @@ def forward_outcome_backfill_tick() -> dict[str, object]:
         "w2.forward_outcome_backfill",
         kwargs={
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_WINDOW", "all"),
+            "window": os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_WINDOW", "next36"),
         },
         task_id=task_id,
     )
@@ -576,7 +583,10 @@ def run_forever() -> None:
                 next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
                 tz=UTC,
             )
-        if forward_outcome_ledger_enabled() and datetime.now(UTC) >= next_forward_outcome_ledger_at:
+        if (
+            forward_outcome_ledger_enabled()
+            and datetime.now(UTC) >= next_forward_outcome_ledger_at
+        ):
             try:
                 result = forward_outcome_ledger_tick()
                 logger.info("w2 forward outcome ledger %s", result)
@@ -622,10 +632,12 @@ def run_forever() -> None:
                     )
                 )
             next_forward_outcome_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
-            next_forward_outcome_backfill_at = next_forward_outcome_backfill_at.fromtimestamp(
-                next_forward_outcome_backfill_at.timestamp()
-                + forward_outcome_backfill_interval_seconds,
-                tz=UTC,
+            next_forward_outcome_backfill_at = (
+                next_forward_outcome_backfill_at.fromtimestamp(
+                    next_forward_outcome_backfill_at.timestamp()
+                    + forward_outcome_backfill_interval_seconds,
+                    tz=UTC,
+                )
             )
         time.sleep(interval_seconds)
 

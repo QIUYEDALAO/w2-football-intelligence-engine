@@ -104,10 +104,10 @@ def test_evidence_only_dry_run_has_zero_provider_calls_and_no_sleep() -> None:
     )
 
     assert payload["status"] == "DRY_RUN_READY"
-    assert payload["competition_count"] == 13
+    assert payload["competition_count"] == 14
     assert payload["audit_mode"] == "EVIDENCE_ONLY"
     assert payload["endpoint_allowlist"] == ["leagues", "fixtures", "odds"]
-    assert payload["planned_provider_calls"] == 52
+    assert payload["planned_provider_calls"] == 56
     assert payload["provider_calls"] == 0
     assert payload["db_reads"] == 0
     assert payload["db_writes"] == 0

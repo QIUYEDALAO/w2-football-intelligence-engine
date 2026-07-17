@@ -4,7 +4,7 @@ import App from "./App";
 import "./styles.css";
 
 // Compatibility markers for existing contract tests: const API_BASE = "/v1"; ${API_BASE}/fixtures
-// W2 足球分析 · 今日比赛 · 验证推荐
+// W2 足球分析 · 今日比赛 · 分析参考 · 非稳赢
 const root = document.getElementById("root");
 
 if (root) {

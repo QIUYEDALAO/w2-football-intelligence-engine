@@ -47,7 +47,7 @@ def context() -> FeatureContext:
 
 
 def coverage():
-    return CompetitionRegistry().require_registered("world_cup_2026").coverage_profile
+    return CompetitionRegistry().require_enabled("world_cup_2026").coverage_profile
 
 
 def test_market_movement_contribution_is_explainable_and_as_of_safe() -> None:

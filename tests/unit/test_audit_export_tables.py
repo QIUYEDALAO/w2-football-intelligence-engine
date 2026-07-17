@@ -12,15 +12,13 @@ from w2.audit_export import build_audit_export, write_audit_export
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.models import RecommendationLockModel, SettlementModel
-from w2.models.fair_market_estimate import FairMarketEstimate, FairMarketEstimateSnapshot
 
 
-def test_audit_export_builds_six_tables_from_dashboard_payload() -> None:
+def test_audit_export_builds_five_tables_from_dashboard_payload() -> None:
     export = build_audit_export(_dashboard_payload())
 
     assert set(export.tables) == {
         "prematch_recommendations",
-        "fair_market_estimate_snapshots",
         "market_timeline_snapshots",
         "locked_recommendation_snapshots",
         "settlement_history",
@@ -29,12 +27,6 @@ def test_audit_export_builds_six_tables_from_dashboard_payload() -> None:
     assert export.manifest["provider_calls"] == 0
     assert export.manifest["db_writes"] == 0
     assert export.manifest["status"] == "PASS"
-    assert export.manifest["export_status"] == "PASS_WITH_WARNINGS"
-    assert export.manifest["integrity_status"] == "PASS"
-    assert export.manifest["semantic_status"] == "PASS"
-    assert export.manifest["invalid_snapshot_count"] == 0
-    assert export.manifest["invalid_quote_count"] == 0
-    assert export.manifest["warning_count"] == 2
     assert export.manifest["environment"] == "staging"
     assert export.manifest["policy_version"] == "w2.environment_policy.v1"
     assert export.manifest["lock_policy_name"] == "staging_B"
@@ -76,80 +68,6 @@ def test_audit_export_builds_six_tables_from_dashboard_payload() -> None:
     assert export.tables["settlement_history"][0]["status"] == "PENDING"
     assert export.tables["settlement_history"][0]["lock_snapshot_status"] == "MISSING_LOCK_SNAPSHOT"
     assert export.tables["calibration_report"] == []
-
-
-def test_audit_export_indexes_immutable_estimate_snapshot_by_id() -> None:
-    payload = _dashboard_payload()
-    match = payload["all"][0]  # type: ignore[index]
-    assert isinstance(match, dict)
-    snapshot = FairMarketEstimateSnapshot.create(
-        fixture_id="fixture-1",
-        estimate=FairMarketEstimate(
-            market="ASIAN_HANDICAP",
-            status="READY",
-            model_family="R4_1_CALIBRATED",
-            fair_line=-0.75,
-            probabilities={"HOME": 0.55, "AWAY": 0.45},
-            home_mu=1.6,
-            away_mu=1.0,
-            feature_as_of="2026-07-01T01:00:00Z",
-            train_cutoff="2026-06-01T00:00:00Z",
-            artifact_hash="artifact",
-            artifact_version="v1",
-        ),
-        odds_snapshot={"ah": {"home_line": -0.5}},
-        feature_snapshot={"home_xg": 1.6, "away_xg": 1.0},
-        created_at="2026-07-01T01:00:00Z",
-    ).as_dict()
-    match["fair_market_estimate_ids"] = [snapshot["estimate_id"]]
-    match["fair_market_estimate_snapshots"] = [snapshot]
-
-    export = build_audit_export(payload)
-
-    row = export.tables["fair_market_estimate_snapshots"][0]
-    assert row["estimate_id"] == snapshot["estimate_id"]
-    assert row["estimate_hash"] == snapshot["estimate_hash"]
-    assert row["integrity_valid"] is True
-    assert row["semantic_valid"] is True
-    assert row["artifact_hash"] == "artifact"
-
-
-def test_audit_manifest_fails_closed_on_invalid_snapshot_and_quote() -> None:
-    payload = _dashboard_payload()
-    match = payload["all"][0]  # type: ignore[index]
-    assert isinstance(match, dict)
-    snapshot = FairMarketEstimateSnapshot.create(
-        fixture_id="fixture-1",
-        estimate=FairMarketEstimate(
-            market="TOTALS",
-            status="READY",
-            model_family="R4_1_CALIBRATED",
-            fair_line=2.75,
-            probabilities={"OVER": 0.52, "UNDER": 0.48},
-            home_mu=1.6,
-            away_mu=1.1,
-            feature_as_of="2026-07-01T01:00:00Z",
-            train_cutoff="2026-06-01T00:00:00Z",
-            artifact_hash="artifact",
-            artifact_version="v1",
-        ),
-        odds_snapshot={"ou": {"line": 2.5, "over_price": 1.95}},
-        feature_snapshot={"home_xg": 1.6, "away_xg": 1.1},
-        created_at="2026-07-01T01:00:00Z",
-    ).as_dict()
-    snapshot["home_mu"] = 9
-    match["fair_market_estimate_ids"] = [snapshot["estimate_id"]]
-    match["fair_market_estimate_snapshots"] = [snapshot]
-    match["market_quote"] = {"schema_version": "w2.market_quote.v1", "quote_id": "bad"}
-
-    manifest = build_audit_export(payload).manifest
-
-    assert manifest["status"] == "FAIL"
-    assert manifest["export_status"] == "FAIL"
-    assert manifest["integrity_status"] == "FAIL"
-    assert manifest["semantic_status"] == "FAIL"
-    assert manifest["invalid_snapshot_count"] == 1
-    assert manifest["invalid_quote_count"] == 1
 
 
 def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> None:

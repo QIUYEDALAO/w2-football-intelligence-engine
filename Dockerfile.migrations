@@ -21,5 +21,5 @@ LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       w2.release.id="${W2_RELEASE_ID}" \
       w2.runtime.contract.version="release-train-2-patch2"
 USER w2
-HEALTHCHECK CMD /app/.venv/bin/alembic current || exit 1
-CMD ["/app/.venv/bin/alembic", "upgrade", "head"]
+HEALTHCHECK CMD uv run alembic current || exit 1
+CMD ["uv", "run", "alembic", "upgrade", "head"]

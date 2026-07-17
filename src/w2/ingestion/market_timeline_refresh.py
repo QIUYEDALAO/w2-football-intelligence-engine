@@ -15,15 +15,13 @@ from w2.ingestion.market_timeline import (
 )
 from w2.ingestion.quota_budget import independent_signal_quota_decision
 
-CURRENT_CHECKPOINT_MAX_AGE = timedelta(minutes=30)
-
 
 class MarketTimelineRepository(Protocol):
     def fixture_payloads(self) -> list[dict[str, Any]]: ...
 
     def future_market_observations(self) -> list[dict[str, Any]]: ...
 
-    def market_observation_history_for_fixtures(
+    def future_market_observations_for_fixtures(
         self,
         fixture_ids: list[str],
     ) -> list[dict[str, Any]]: ...
@@ -83,7 +81,7 @@ def run_market_timeline_refresh(
         fixtures = fixtures[: max(max_fixtures, 0)]
     fixture_ids = [str(item["fixture_id"]) for item in fixtures]
     observations = (
-        repo.market_observation_history_for_fixtures(fixture_ids) if fixture_ids else []
+        repo.future_market_observations_for_fixtures(fixture_ids) if fixture_ids else []
     )
     results: list[dict[str, Any]] = []
     written = 0
@@ -103,22 +101,8 @@ def run_market_timeline_refresh(
                     generated_at=resolved_now,
                 )
                 snapshot = selection.snapshot
-                if snapshot is not None and due_checkpoint != "opening":
-                    captured_at = parse_utc(snapshot.get("as_of"))
-                    if (
-                        captured_at is None
-                        or resolved_now - captured_at > CURRENT_CHECKPOINT_MAX_AGE
-                    ):
-                        snapshot = None
-                        selection = type(selection)(
-                            snapshot=None,
-                            reason="NO_FRESH_CHECKPOINT_OBSERVATION",
-                        )
                 if snapshot is None:
-                    if selection.reason in {
-                        "NO_FRESH_CHECKPOINT_OBSERVATION",
-                        "NO_FRESH_LOCK_OBSERVATION",
-                    }:
+                    if selection.reason == "NO_FRESH_LOCK_OBSERVATION":
                         freshness_rejections += 1
                     results.append(
                         {

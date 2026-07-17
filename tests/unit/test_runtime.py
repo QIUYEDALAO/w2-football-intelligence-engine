@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
@@ -15,7 +14,6 @@ from apps.scheduler.main import (
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
-    _forward_runtime_root,
     celery_app,
     forward_outcome_backfill,
     forward_outcome_ledger,
@@ -27,15 +25,6 @@ from apps.worker.celery_app import (
 
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
-
-
-@pytest.fixture(autouse=True)
-def _active_scheduler_competitions(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv(
-        "W2_STAGING_ENABLED_COMPETITIONS",
-        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
-    )
 
 
 def test_celery_ping_task_has_no_business_side_effect() -> None:
@@ -112,8 +101,10 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_key"]).startswith("checkpoint-refresh:brasileirao_serie_a:2026:")
-    assert result["provider_refresh_min_interval_policy"] == ("REPLACED_BY_PER_FIXTURE_CHECKPOINTS")
+    assert str(result["task_key"]).startswith("checkpoint-refresh:world_cup_2026:2026:")
+    assert result["provider_refresh_min_interval_policy"] == (
+        "REPLACED_BY_PER_FIXTURE_CHECKPOINTS"
+    )
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
     assert sent[0]["kwargs"]["checkpoint_fixture_ids"] == ["1489404"]
@@ -273,7 +264,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv(
         "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+        "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
     )
     monkeypatch.setattr(
         scheduler_main,
@@ -316,9 +307,13 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert result["queued_count"] == 4
-    assert len(sent) == 4
-    assert {item["kwargs"]["competition_id"] for item in sent} == {
+    assert result["queued_count"] == 5
+    assert len(sent) == 5
+    assert {
+        item["kwargs"]["competition_id"]
+        for item in sent
+    } == {
+        "world_cup_2026",
         "brasileirao_serie_a",
         "chinese_super_league",
         "allsvenskan",
@@ -370,7 +365,9 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
 
     assert result["status"] == "QUEUED"
     assert result["competition_id"] == "brasileirao_serie_a"
-    assert result["provider_refresh_min_interval_policy"] == ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES")
+    assert result["provider_refresh_min_interval_policy"] == (
+        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
+    )
     assert sent == [
         {
             "name": "w2.future_fixture_refresh",
@@ -547,15 +544,7 @@ def test_scheduler_forward_outcome_backfill_dispatches_without_provider_calls(
     assert result["db_writes"] == 0
     assert str(result["task_id"]).startswith("forward-outcome-backfill:")
     assert sent[0]["name"] == "w2.forward_outcome_backfill"
-    assert sent[0]["kwargs"]["window"] == "all"
-
-
-def test_worker_forward_outcome_backfill_uses_mounted_runtime_root(
-    tmp_path, monkeypatch
-) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.chdir(tmp_path)
-
-    assert _forward_runtime_root() == tmp_path / "runtime"
+    assert sent[0]["kwargs"]["window"] == "next36"
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
@@ -605,31 +594,6 @@ def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
     assert result["beats_market"] is False
-
-
-def test_worker_market_timeline_can_reconcile_without_timeline_writes(monkeypatch) -> None:
-    received: dict[str, object] = {}
-
-    def fake_refresh(**kwargs):
-        received.update(kwargs)
-        return {
-            "status": "PASS",
-            "selected_fixtures": ["fx1"],
-            "written": 0,
-            "provider_calls": 0,
-        }
-
-    monkeypatch.setattr("apps.worker.celery_app.run_market_timeline_refresh", fake_refresh)
-
-    result = market_timeline_refresh.run(
-        max_fixtures=1,
-        write_timeline_artifacts=False,
-    )
-
-    assert received["dry_run"] is True
-    assert received["write_artifacts"] is False
-    assert result["result"]["written"] == 0
-    assert result["provider_calls"] == 0
 
 
 def test_worker_market_timeline_can_capture_forward_ledger(monkeypatch) -> None:

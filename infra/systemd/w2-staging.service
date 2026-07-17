@@ -21,7 +21,7 @@ RemainAfterExit=yes
 User=ubuntu
 Group=ubuntu
 
-Environment=COMPOSE_PROJECT_NAME=w2-staging
+Environment=COMPOSE_PROJECT_NAME=w2
 EnvironmentFile=-/opt/w2/shared/release.env
 
 WorkingDirectory=/opt/w2/current

@@ -24,8 +24,6 @@ BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
 PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
-BACKGROUND_DRIFT_REVIEWED="${W2_STAGING_BACKGROUND_DRIFT_REVIEWED:-false}"
-APPROVED_ARTIFACT_VERSION="${W2_STAGING_APPROVED_ARTIFACT_VERSION:-}"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
 echo "  SSH host:  ${SSH_HOST}"
@@ -34,7 +32,6 @@ echo "  Branch:    $(git rev-parse --abbrev-ref HEAD)"
 
 # ── Step 0: Structural port preflight ──────────────────────
 echo "--- Running local structural staging port preflight ---"
-python3 scripts/check_staging_disk_capacity.py --path /
 if python3 -c "import yaml" >/dev/null 2>&1; then
   python3 scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
 else
@@ -75,7 +72,6 @@ scp scripts/check_compose_staging_ports.py "${SSH_HOST}:/tmp/check_compose_stagi
 ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/releases/${REVISION}
-python3 scripts/check_staging_disk_capacity.py --path /
 if python3 -c \"import yaml\" >/dev/null 2>&1; then
   python3 /tmp/check_compose_staging_ports.py infra/compose/compose.staging.yml
 else
@@ -88,20 +84,6 @@ rm -f /tmp/check_compose_staging_ports.py
 echo "--- Switching /opt/w2/current -> ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
-readlink -f /opt/w2/current > /opt/w2/shared/previous-release-path
-cp /opt/w2/shared/release.env /opt/w2/shared/previous-release.env 2>/dev/null || true
-if sudo docker inspect w2-staging-api-1 >/dev/null 2>&1; then
-  if ! sudo docker commit w2-staging-api-1 w2-rollback-api:${REVISION} >/dev/null 2>&1; then
-    sudo docker image tag w2-staging-api:latest w2-rollback-api:${REVISION}
-  fi
-  printf '%s\n' 'w2-rollback-api:${REVISION}' > /opt/w2/shared/previous-api-image
-fi
-if sudo docker inspect w2-staging-web-1 >/dev/null 2>&1; then
-  if ! sudo docker commit w2-staging-web-1 w2-rollback-web:${REVISION} >/dev/null 2>&1; then
-    sudo docker image tag w2-staging-web:latest w2-rollback-web:${REVISION}
-  fi
-  printf '%s\n' 'w2-rollback-web:${REVISION}' > /opt/w2/shared/previous-web-image
-fi
 ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
 ls -la /opt/w2/current
 "
@@ -156,7 +138,7 @@ sudo docker system df || true
 export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
-sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build migration api web
+sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
 echo 'staging images built for current release'
 if [ '${PRUNE_BUILD_CACHE}' = 'true' ]; then
   echo '--- Pruning unused Docker build cache (no volumes) ---'
@@ -180,135 +162,31 @@ echo 'systemd units installed and reloaded'
 "
 
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
-  if [ "${BACKGROUND_DRIFT_REVIEWED}" != "true" ]; then
-    echo 'W2_STAGING_BACKGROUND_DRIFT_REVIEWED=true is required because worker/scheduler are intentionally not switched.' >&2
-    exit 2
-  fi
-  if [ -z "${APPROVED_ARTIFACT_VERSION}" ]; then
-    echo 'W2_STAGING_APPROVED_ARTIFACT_VERSION is required.' >&2
-    exit 2
-  fi
-  echo "--- Migrating, switching API, then switching Web after stability ---"
+  echo "--- Starting/restarting staging and running stability probe ---"
   ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
-compose() {
-  sudo docker compose \
-    -p w2-staging \
-    -f infra/compose/compose.staging.yml \
-    --env-file /opt/w2/shared/.env \
-    --env-file /opt/w2/shared/release.env \
-    \"\$@\"
-}
-rollback_release() {
-  trap - ERR
-  previous_release=\"\$(cat /opt/w2/shared/previous-release-path)\"
-  echo \"automatic_rollback_to=\${previous_release}\" >&2
-  ln -sfn \"\${previous_release}\" /opt/w2/current
-  if [ -f /opt/w2/shared/previous-release.env ]; then
-    cp /opt/w2/shared/previous-release.env /opt/w2/shared/release.env
-  fi
-  cd /opt/w2/current
-  previous_api_image=\"\$(cat /opt/w2/shared/previous-api-image)\"
-  previous_web_image=\"\$(cat /opt/w2/shared/previous-web-image)\"
-  cat > /tmp/w2-rollback-images.yml <<EOF
-services:
-  api:
-    image: \${previous_api_image}
-  web:
-    image: \${previous_web_image}
-EOF
-  sudo docker compose \
-    -p w2-staging \
-    -f infra/compose/compose.staging.yml \
-    -f /tmp/w2-rollback-images.yml \
-    --env-file /opt/w2/shared/.env \
-    --env-file /opt/w2/shared/release.env \
-    up -d --no-deps api web
-  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/health >/dev/null
-  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/ready >/dev/null
-  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/v1/version >/dev/null
-  curl -fsS --retry 12 --retry-all-errors --retry-delay 5 http://127.0.0.1/meta.json >/dev/null
-  echo 'automatic_rollback_probe=PASS' >&2
-  exit 1
-}
-trap rollback_release ERR
-
-compose run --rm --no-deps api /app/.venv/bin/python \
-  scripts/check_r4_artifact_release.py \
-  --artifact-dir /app/runtime/model_artifacts/r4_1 \
-  --approved-version '${APPROVED_ARTIFACT_VERSION}'
-compose run --rm migration
-compose up -d --no-deps api
-
-api_consecutive=0
-for attempt in \$(seq 1 18); do
-  echo \"api_stability_probe_attempt=\${attempt}\"
-  health=false
-  ready=false
-  version=false
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
-  echo \"health=\${health} ready=\${ready} version=\${version}\"
-  if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ]; then
-    api_consecutive=\$((api_consecutive + 1))
-    if [ \"\${api_consecutive}\" -ge 3 ]; then
-      echo 'api_stability_probe=PASS'
-      break
-    fi
-  else
-    api_consecutive=0
-  fi
-  sleep 5
-done
-if [ \"\${api_consecutive}\" -lt 3 ]; then
-  echo 'api_stability_probe=FAIL' >&2
-  rollback_release
-fi
-
-if ! compose run --rm --no-deps api /app/.venv/bin/python \
-  scripts/check_dayview_business_readiness.py \
-  --url 'http://api:8000/v1/dashboard?window=next36&include_debug=true' \
-  --audit-file /app/runtime/release-audit-${REVISION}.json; then
-  rollback_release
-fi
-
-compose up -d --no-deps web
+sudo systemctl restart w2-staging.service
 sudo systemctl start w2-staging-watchdog.timer
-
-release_consecutive=0
-for attempt in \$(seq 1 18); do
-  echo \"release_stability_probe_attempt=\${attempt}\"
+for attempt in 1 2 3 4 5 6; do
+  echo \"stability_probe_attempt=\${attempt}\"
   health=false
   ready=false
   version=false
   meta=false
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/health >/tmp/w2-health.json && health=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/ready >/tmp/w2-ready.json && ready=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/v1/version >/tmp/w2-version.json && version=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json && meta=true || true
   echo \"health=\${health} ready=\${ready} version=\${version} meta=\${meta}\"
   if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
-    release_consecutive=\$((release_consecutive + 1))
-    if [ \"\${release_consecutive}\" -ge 3 ]; then
-      echo 'stability_probe=PASS'
-      break
-    fi
-  else
-    release_consecutive=0
+    echo 'stability_probe=PASS'
+    exit 0
   fi
-  sleep 5
+  sleep 10
 done
-if [ \"\${release_consecutive}\" -lt 3 ]; then
-  echo 'stability_probe=FAIL' >&2
-  rollback_release
-fi
-
-compose ps --format json > /opt/w2/shared/service-version-matrix-${REVISION}.json
-printf '%s\n' 'background_version_drift_reviewed=true' \
-  > /opt/w2/shared/service-version-review-${REVISION}.txt
-echo 'worker_scheduler_restart=false'
+echo 'stability_probe=FAIL' >&2
+exit 1
 "
 fi
 
@@ -318,7 +196,7 @@ echo "  Revision: ${REVISION}"
 echo "  Release:  /opt/w2/releases/${REVISION}"
 echo "  Current:  /opt/w2/current"
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
-  echo "  API and Web switched in order; worker/scheduler untouched; stability probe passed."
+  echo "  Staging service restarted and stability probe passed."
 else
   echo "  Run 'sudo systemctl start w2-staging.service' to start."
   echo "  Optional: W2_STAGING_START_AFTER_DEPLOY=true enables post-deploy stability probe."

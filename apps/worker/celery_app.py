@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 from celery import Celery
 
@@ -36,7 +35,7 @@ def ping() -> str:
 @celery_app.task(name="w2.future_fixture_refresh", bind=True)
 def future_fixture_refresh(
     self: object,
-    competition_id: str = "brasileirao_serie_a",
+    competition_id: str = "world_cup_2026",
     task_key: str | None = None,
     queued_at_utc: str | None = None,
     requested_interval_seconds: int | None = None,
@@ -90,41 +89,16 @@ def future_fixture_refresh(
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
     )
-    materialization: dict[str, object] = {
-        "status": "NOT_REQUESTED",
-        "materialized_count": 0,
-        "provider_calls": 0,
-    }
-    target_fixture_ids = list(dict.fromkeys(checkpoint_fixture_ids or []))
-    if audit.status == "COMPLETED" and target_fixture_ids:
-        from w2.api.repository import ReadModelService
-
-        materialization = ReadModelService().materialize_frozen_analysis_cards(target_fixture_ids)
-    task_status = "BLOCKED" if materialization.get("status") == "BLOCKED" else audit.status
-    result = {**audit.result, "analysis_materialization": materialization}
-    raw_materialization_blockers = materialization.get("blockers")
-    materialization_blockers = (
-        raw_materialization_blockers if isinstance(raw_materialization_blockers, list) else []
-    )
-    if task_status == "BLOCKED" and materialization_blockers:
-        result["blockers"] = list(
-            dict.fromkeys(
-                [
-                    *[str(item) for item in audit.result.get("blockers", [])],
-                    *[str(item) for item in materialization_blockers],
-                ]
-            )
-        )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
-        "status": task_status,
+        "status": audit.status,
         "requested_interval_seconds": requested_interval_seconds,
         "effective_interval_seconds": effective_interval_seconds,
         "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
         "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
         "refresh_checkpoints": refresh_checkpoints or [],
-        "result": result,
+        "result": audit.result,
         "candidate": False,
         "formal_recommendation": False,
     }
@@ -170,24 +144,16 @@ def market_timeline_refresh(
     checkpoint: str = "auto",
     max_fixtures: int | None = 10,
     capture_forward_ledger: bool = False,
-    write_timeline_artifacts: bool = True,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
     result = run_market_timeline_refresh(
         window=window,
         checkpoint=checkpoint,
-        dry_run=not write_timeline_artifacts,
-        write_artifacts=write_timeline_artifacts,
+        dry_run=False,
+        write_artifacts=True,
         max_fixtures=max_fixtures,
     )
-    from w2.api.repository import ReadModelService
-
-    reconcile = ReadModelService().reconcile_frozen_analysis_cards(
-        [str(item) for item in result.get("selected_fixtures", [])],
-        max_fixtures=min(max(max_fixtures or 10, 0), 10),
-    )
-    result["analysis_reconcile"] = reconcile
     forward_ledger_result: dict[str, object] | None = None
     if capture_forward_ledger:
         forward_ledger_result = _run_forward_outcome_ledger(window=window)
@@ -200,7 +166,6 @@ def market_timeline_refresh(
         "candidate": False,
         "formal_recommendation": False,
         "beats_market": False,
-        "provider_calls": 0,
     }
 
 
@@ -231,7 +196,7 @@ def forward_outcome_ledger(
 def forward_outcome_backfill(
     self: object,
     queued_at_utc: str | None = None,
-    window: str = "all",
+    window: str = "next36",
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "forward-outcome-backfill")
@@ -269,27 +234,16 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
 
 
 def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
-    from w2.api.repository import ReadModelService, future_refresh_db_repository
-    from w2.tracking.forward_outcome_ledger import backfill_outcomes, ledger_fixture_ids
+    from pathlib import Path
 
-    runtime_root = _forward_runtime_root()
-    fixture_ids = ledger_fixture_ids(runtime_root)
-    persisted_results: list[dict[str, object]] = []
-    repository = future_refresh_db_repository()
-    if repository is not None:
-        persisted_results = repository.result_events_for_fixture_ids(fixture_ids)
+    from w2.api.repository import ReadModelService
+    from w2.tracking.forward_outcome_ledger import backfill_outcomes
+
     service = ReadModelService()
     dashboard = service.dashboard(window=window, include_debug=False)
-    dashboard_results = dashboard.get("results")
-    existing_results = dashboard_results if isinstance(dashboard_results, list) else []
-    result_source = {**dashboard, "results": [*existing_results, *persisted_results]}
     return backfill_outcomes(
-        runtime_root,
-        result_source,
+        Path.cwd(),
+        dashboard,
         dry_run=False,
         write_artifacts=True,
     )
-
-
-def _forward_runtime_root() -> Path:
-    return get_settings().resolved_runtime_root

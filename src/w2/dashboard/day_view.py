@@ -4,12 +4,9 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from urllib.parse import quote
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
-from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
-from w2.dashboard.team_localization import localize_team_name
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
@@ -24,7 +21,6 @@ def build_dashboard_day_view(
     dashboard_payload: Mapping[str, Any],
     *,
     environment: str,
-    active_whitelist_count: int | None = None,
 ) -> dict[str, Any]:
     """Build a read-only DayView envelope from the existing dashboard payload."""
     football_day = _text(
@@ -45,13 +41,11 @@ def build_dashboard_day_view(
         "football_day": football_day,
         "selected_football_day": football_day,
         "environment": environment,
-        "active_whitelist_count": active_whitelist_count,
         "environment_policy": build_environment_policy_stamp(environment),
         "timezone": _text(dashboard_payload.get("timezone"), "Asia/Shanghai"),
         "window": _text(dashboard_payload.get("window"), "today"),
         "source": "dashboard_read_model",
         "version": _mapping_copy(dashboard_payload.get("version")),
-        "read_degradation": _mapping_copy(dashboard_payload.get("read_degradation")),
         "checkpoint_key": f"dashboard:day_view:{football_day}",
         "would_write_checkpoint": False,
         "provider_calls": 0,
@@ -67,56 +61,6 @@ def build_dashboard_day_view(
         checkpoint_key=str(view["checkpoint_key"]),
     )
     view["degradation"] = build_dashboard_degradation(view)
-    return view
-
-
-def build_forward_capture_day_view(
-    dashboard_payload: Mapping[str, Any],
-    *,
-    environment: str,
-) -> dict[str, Any]:
-    """Build the internal ledger view without exposing full evidence through public L1."""
-    view = build_dashboard_day_view(dashboard_payload, environment=environment)
-    source_by_fixture = {
-        _text(row.get("fixture_id")): row for row in _dashboard_cards(dashboard_payload)
-    }
-    evidence_fields = (
-        "fair_market_estimate_snapshots",
-        "fair_market_estimate_ids",
-        "fair_market_estimates",
-        "analysis_gate",
-        "analysis_gates",
-        "analysis_gate_v2_shadow",
-        "analysis_gate_v2_shadows",
-        "model_market_divergence",
-        "estimate_id",
-        "model_basis_id",
-    )
-    for card in view["cards"]:
-        source = source_by_fixture.get(_text(card.get("fixture_id")))
-        if source is None:
-            continue
-        contract = _mapping(source.get("decision_contract"))
-        for field in evidence_fields:
-            value = _field(source, contract, field)
-            if field in {
-                "fair_market_estimate_snapshots",
-                "fair_market_estimates",
-                "analysis_gates",
-                "analysis_gate_v2_shadows",
-            }:
-                card[field] = _mapping_list(value)
-            elif field == "fair_market_estimate_ids":
-                card[field] = _string_list(value)
-            elif field in {
-                "analysis_gate",
-                "analysis_gate_v2_shadow",
-                "model_market_divergence",
-            }:
-                card[field] = _mapping_copy(value)
-            else:
-                card[field] = value
-    view["source"] = "internal_forward_capture_projection"
     return view
 
 
@@ -165,8 +109,6 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         _field(card, contract, "lifecycle_status"),
         LifecycleStatus.DRAFT.value,
     )
-    raw_pick = _field(card, contract, "pick")
-    pick = _compact_pick(raw_pick) if isinstance(raw_pick, Mapping) else None
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
@@ -182,22 +124,27 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "lock_eligible": _bool_or_default(_field(card, contract, "lock_eligible"), False),
         "recommendation_id": _optional_text(_field(card, contract, "recommendation_id")),
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
-        "primary_blocker": _optional_text(_field(card, contract, "primary_blocker")),
-        "primary_blocker_layer": _optional_text(
-            _field(card, contract, "primary_blocker_layer")
-        ),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
-        "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
+        "provider_budget_status": _optional_text(
+            _field(card, contract, "provider_budget_status")
+        ),
+        "probability_source": _optional_text(_field(card, contract, "probability_source")),
+        "model_market_divergence": _mapping_copy(
+            _field(card, contract, "model_market_divergence")
+        ),
+        "missing_fields": _string_list(_field(card, contract, "missing_fields")),
+        "stale_fields": _string_list(_field(card, contract, "stale_fields")),
+        "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
         **_market_context_fields(card),
-        **_analysis_context_fields(card, pick=pick),
-        "pick": pick,
+        "pick": _mapping_copy(_field(card, contract, "pick"))
+        if isinstance(_field(card, contract, "pick"), Mapping)
+        else None,
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
         else None,
         "one_liner": _optional_text(_field(card, contract, "one_liner")),
         "card_hash": _optional_text(_field(card, contract, "card_hash")),
-        **_audit_identity_fields(card, pick),
     }
 
 
@@ -214,59 +161,33 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "lock_eligible": legacy.lock_eligible,
         "recommendation_id": legacy.recommendation_id,
         "reason_code": _optional_text(card.get("reason_code")),
-        "primary_blocker": _optional_text(card.get("primary_blocker")),
-        "primary_blocker_layer": _optional_text(card.get("primary_blocker_layer")),
         "action": _optional_text(card.get("action")),
         "next_eval_at": _format_time(card.get("next_eval_at")),
         "provider_budget_status": _optional_text(card.get("provider_budget_status")),
+        "probability_source": _optional_text(card.get("probability_source")),
+        "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+        "missing_fields": _string_list(card.get("missing_fields")),
+        "stale_fields": _string_list(card.get("stale_fields")),
+        "data_readiness": _mapping_copy(card.get("data_readiness")),
         **_market_context_fields(card),
-        **_analysis_context_fields(card, pick=None),
         "pick": None,
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
         else None,
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
-        **_audit_identity_fields(card, None),
     }
 
 
 def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
-    competition_id = _optional_text(card.get("competition_id"))
-    home_team_id = _optional_text(card.get("home_team_id"))
-    away_team_id = _optional_text(card.get("away_team_id"))
-    home_provider_name = _optional_text(card.get("home_team_name"))
-    away_provider_name = _optional_text(card.get("away_team_name"))
-    home = localize_team_name(
-        competition_id=competition_id,
-        provider_team_id=home_team_id,
-        provider_name=home_provider_name,
-        missing_name_fallback="主队",
-    )
-    away = localize_team_name(
-        competition_id=competition_id,
-        provider_team_id=away_team_id,
-        provider_name=away_provider_name,
-        missing_name_fallback="客队",
-    )
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "kickoff_utc": _format_time(card.get("kickoff_utc")),
         "kickoff_beijing": _optional_text(card.get("kickoff_beijing")),
-        "competition_id": competition_id,
+        "competition_id": _optional_text(card.get("competition_id")),
         "competition_name": _optional_text(card.get("competition_name")),
-        "home_team_id": home_team_id,
-        "away_team_id": away_team_id,
-        "home_team_name": home_provider_name,
-        "away_team_name": away_provider_name,
-        "home_team_name_zh": home.name_zh,
-        "away_team_name_zh": away.name_zh,
-        "home_team_display_name": home.display_name,
-        "away_team_display_name": away.display_name,
-        "home_team_provider_name": home.provider_name,
-        "away_team_provider_name": away.provider_name,
-        "home_team_localization_status": home.status,
-        "away_team_localization_status": away.status,
+        "home_team_name": _optional_text(card.get("home_team_name")),
+        "away_team_name": _optional_text(card.get("away_team_name")),
         "status": _optional_text(card.get("status")),
     }
 
@@ -274,185 +195,12 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
+        "market_probabilities": _market_probabilities(card),
+        "odds_movement": _mapping_copy(card.get("odds_movement")),
+        "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
-    }
-
-
-def _analysis_context_fields(
-    card: Mapping[str, Any],
-    *,
-    pick: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    if not pick:
-        return {
-            "compact_provenance": {},
-            "scoreline_picks": [],
-            "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
-            "audit_available": bool(_optional_text(card.get("audit_capture_hash"))),
-            "audit_links": _audit_links(card),
-        }
-    card_dict = dict(card)
-    card_dict["pick"] = dict(pick)
-    derived_reference = scoreline_reference_from_card(
-        card_dict,
-        recommendation=dict(_mapping(card.get("recommendation"))) or None,
-    )
-    scoreline_reference = derived_reference or _mapping_copy(card.get("scoreline_reference"))
-    scoreline_picks = (
-        _mapping_list(scoreline_reference.get("top_scorelines"))
-        if isinstance(scoreline_reference, Mapping)
-        else []
-    )
-    if not scoreline_picks:
-        scoreline_picks = scoreline_picks_from_card(card_dict)
-    if not scoreline_picks:
-        scoreline_picks = _mapping_list(card.get("scoreline_picks"))
-    compact_scorelines = [
-        {"scoreline": scoreline}
-        for item in scoreline_picks
-        if (scoreline := _optional_text(item.get("scoreline")))
-    ]
-    explicit_provenance = _mapping_copy(card.get("compact_provenance"))
-    return {
-        "compact_provenance": explicit_provenance or _compact_provenance(card),
-        "scoreline_picks": compact_scorelines,
-        "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
-        "audit_available": bool(_optional_text(card.get("audit_capture_hash"))),
-        "audit_links": _audit_links(card),
-    }
-
-
-def _compact_pick(value: Mapping[str, Any]) -> dict[str, Any]:
-    allowed = (
-        "market",
-        "selection",
-        "line",
-        "odds",
-        "fair_line",
-        "estimate_id",
-        "model_basis_id",
-    )
-    return {key: value[key] for key in allowed if value.get(key) is not None}
-
-
-def _compact_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
-    snapshots = _mapping_list(card.get("fair_market_estimate_snapshots"))
-    pick = _mapping(card.get("pick"))
-    estimate_id = _optional_text(pick.get("estimate_id"))
-    market = _optional_text(pick.get("market"))
-    selected = next(
-        (
-            snapshot
-            for snapshot in snapshots
-            if estimate_id and _optional_text(snapshot.get("estimate_id")) == estimate_id
-        ),
-        None,
-    )
-    if selected is None:
-        selected = next(
-            (
-                snapshot
-                for snapshot in snapshots
-                if market and _optional_text(snapshot.get("market")) == market
-            ),
-            snapshots[0] if len(snapshots) == 1 else None,
-        )
-    if not selected:
-        return {}
-    integrity = _mapping(selected.get("integrity"))
-    model_context = _mapping(selected.get("model_context"))
-    return {
-        key: value
-        for key, value in {
-            "estimate_id": _optional_text(selected.get("estimate_id")),
-            "model_basis_id": _optional_text(selected.get("model_basis_id")),
-            "market": _optional_text(selected.get("market")),
-            "schema_version": _optional_text(
-                selected.get("schema_version") or selected.get("schema")
-            ),
-            "status": _optional_text(selected.get("status")),
-            "integrity_status": _optional_text(
-                selected.get("integrity_status") or integrity.get("status")
-            ),
-            "semantic_status": _optional_text(selected.get("semantic_status")),
-            "artifact_hash": _optional_text(
-                selected.get("artifact_hash") or model_context.get("artifact_hash")
-            ),
-            "artifact_version": _optional_text(
-                selected.get("artifact_version") or model_context.get("artifact_version")
-            ),
-            "feature_as_of": _format_time(
-                selected.get("feature_as_of") or model_context.get("feature_as_of")
-            ),
-        }.items()
-        if value is not None
-    }
-
-
-def _audit_links(card: Mapping[str, Any]) -> dict[str, str]:
-    fixture_id = _optional_text(card.get("fixture_id"))
-    capture_id = _optional_text(card.get("audit_capture_id"))
-    capture_hash = _optional_text(card.get("audit_capture_hash"))
-    estimate_id = _optional_text(card.get("audit_estimate_id"))
-    if (
-        not fixture_id
-        or not capture_id
-        or not capture_hash
-        or not estimate_id
-        or _optional_text(card.get("audit_identity_status")) != "PASS"
-    ):
-        return {}
-    query = (
-        f"capture_id={quote(capture_id, safe='')}&"
-        f"capture_hash={quote(capture_hash, safe='')}&"
-        f"estimate_id={quote(estimate_id, safe='')}"
-    )
-    return {"audit_detail_url": f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"}
-
-
-def _audit_identity_fields(
-    card: Mapping[str, Any],
-    pick: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    capture_id = _optional_text(card.get("audit_capture_id"))
-    capture_hash = _optional_text(
-        card.get("audit_capture_hash")
-        or card.get("capture_hash")
-        or card.get("evidence_hash")
-        or card.get("card_hash")
-    )
-    estimate_id = _optional_text(
-        card.get("audit_estimate_id")
-        or (pick.get("estimate_id") if isinstance(pick, Mapping) else None)
-    )
-    fixture_id = _optional_text(card.get("fixture_id"))
-    identity_status = _optional_text(card.get("audit_identity_status"))
-    blocker = _optional_text(card.get("audit_blocker"))
-    available = bool(
-        capture_id
-        and capture_hash
-        and estimate_id
-        and identity_status == "PASS"
-        and not blocker
-    )
-    detail_url = None
-    if fixture_id and capture_id and capture_hash and estimate_id and available:
-        query = (
-            f"capture_id={quote(capture_id, safe='')}&"
-            f"capture_hash={quote(capture_hash, safe='')}&"
-            f"estimate_id={quote(estimate_id, safe='')}"
-        )
-        detail_url = f"/v1/fixtures/{quote(fixture_id, safe='')}/audit-detail?{query}"
-    return {
-        "audit_capture_id": capture_id,
-        "audit_capture_hash": capture_hash,
-        "audit_estimate_id": estimate_id,
-        "audit_identity_status": identity_status,
-        "audit_blocker": blocker,
-        "audit_available": available,
-        "audit_detail_url": detail_url,
     }
 
 
@@ -471,7 +219,7 @@ def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
         prices = _market_prices(market, labels)
         if len(prices) < 2:
             continue
-        result = devig(prices, DevigMethod.POWER)
+        result = devig(prices, DevigMethod.PROPORTIONAL)
         markets[key] = {
             "method": result.method.value,
             "probabilities": {

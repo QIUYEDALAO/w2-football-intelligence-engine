@@ -4,27 +4,14 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.infrastructure.atomic_files import append_jsonl_once, read_jsonl
-from w2.models.fair_market_estimate import (
-    estimate_snapshots,
-    verify_estimate_semantics,
-    verify_estimate_snapshot,
-)
-from w2.models.market_quote import MarketQuote
-from w2.strategy.analysis_gate_shadow import confirm_strict_ah_shadow
+from w2.domain.odds import settle_asian_handicap
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
-FT_STATUSES = {"FT", "AET", "PEN"}
-MIN_SHADOW_LINE_DIVERGENCE = 0.25
-OFFICIAL_SCOPE = "OFFICIAL"
-VALIDATION_SCOPE = "VALIDATION"
-SHADOW_SCOPE = "SHADOW"
+FT_STATUSES = {"FT"}
 
 
 def run_forward_outcome_ledger(
@@ -43,26 +30,22 @@ def run_forward_outcome_ledger(
     )
     written = 0
     skipped_existing = 0
-    corruption_count = 0
     output_file = _ledger_path(root, day_view)
     if write_artifacts and not dry_run:
-        for record in records:
-            appended, read_result = append_jsonl_once(
-                output_file,
-                record,
-                key=_record_key(record),
-                key_fn=_record_key,
-            )
-            corruption_count = max(corruption_count, read_result.corruption_count)
-            if appended:
+        existing_keys = _existing_keys(output_file)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with output_file.open("a", encoding="utf-8") as handle:
+            for record in records:
+                key = _record_key(record)
+                if key in existing_keys:
+                    skipped_existing += 1
+                    continue
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+                existing_keys.add(key)
                 written += 1
-            else:
-                skipped_existing += 1
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "DEGRADED" if corruption_count else "PASS",
-        "source_read_status": "DEGRADED" if corruption_count else "PASS",
-        "corruption_count": corruption_count,
+        "status": "PASS",
         "dry_run": bool(dry_run),
         "write_artifacts": bool(write_artifacts),
         "provider_calls": 0,
@@ -91,64 +74,36 @@ def build_forward_outcome_records(
         fixture_id = _text(card.get("fixture_id"))
         if not fixture_id:
             continue
-        shadow_picks = _shadow_picks(card)
-        evidence_identity = _capture_evidence_identity(
-            card,
-            shadow_picks=shadow_picks,
+        rows.append(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "record_type": "capture",
+                "captured_at": captured,
+                "football_day": football_day,
+                "environment": environment,
+                "fixture_id": fixture_id,
+                "kickoff_utc": _optional_text(card.get("kickoff_utc")),
+                "competition_id": _optional_text(card.get("competition_id")),
+                "competition_name": _optional_text(card.get("competition_name")),
+                "home_team_name": _optional_text(card.get("home_team_name")),
+                "away_team_name": _optional_text(card.get("away_team_name")),
+                "decision_tier": _text(card.get("decision_tier") or "SKIP"),
+                "data_status": _text(card.get("data_status") or "PARTIAL"),
+                "reason_code": _optional_text(card.get("reason_code")),
+                "action": _optional_text(card.get("action")),
+                "probability_source": _optional_text(card.get("probability_source")),
+                "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+                "shadow_pick": _shadow_pick(card),
+                "pick": _mapping_copy(card.get("pick")),
+                "non_pick": _mapping_copy(card.get("non_pick")),
+                "current_odds": _market_odds_summary(card.get("current_odds")),
+                "card_hash": _optional_text(card.get("card_hash")),
+                "outcome_tracked": bool(card.get("outcome_tracked") is True),
+                "source": _optional_text(card.get("source")),
+                "posthoc_only": True,
+                "not_a_lock": True,
+            }
         )
-        record = {
-            "schema_version": SCHEMA_VERSION,
-            "record_type": "capture",
-            "captured_at": captured,
-            "football_day": football_day,
-            "environment": environment,
-            "fixture_id": fixture_id,
-            "kickoff_utc": _optional_text(card.get("kickoff_utc")),
-            "competition_id": _optional_text(card.get("competition_id")),
-            "competition_name": _optional_text(card.get("competition_name")),
-            "home_team_name": _optional_text(card.get("home_team_name")),
-            "away_team_name": _optional_text(card.get("away_team_name")),
-            "decision_tier": _text(card.get("decision_tier") or "SKIP"),
-            "data_status": _text(card.get("data_status") or "PARTIAL"),
-            "reason_code": _optional_text(card.get("reason_code")),
-            "action": _optional_text(card.get("action")),
-            "probability_source": _optional_text(card.get("probability_source")),
-            "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-            "fair_market_estimates": _mapping_list(card.get("fair_market_estimates")),
-            "fair_market_estimate_ids": _string_list(card.get("fair_market_estimate_ids")),
-            "fair_market_estimate_snapshots": _mapping_list(
-                card.get("fair_market_estimate_snapshots")
-            ),
-            "estimate_integrity": [
-                {
-                    "estimate_id": item.get("estimate_id"),
-                    "valid": verify_estimate_snapshot(item),
-                }
-                for item in estimate_snapshots(card)
-                if item.get("estimate_id")
-            ],
-            "analysis_gate": _mapping_copy(card.get("analysis_gate")),
-            "analysis_gates": _mapping_list(card.get("analysis_gates")),
-            "analysis_gate_v2_shadow": _mapping_copy(card.get("analysis_gate_v2_shadow")),
-            "analysis_gate_v2_shadows": _mapping_list(card.get("analysis_gate_v2_shadows")),
-            "shadow_pick": shadow_picks[0] if shadow_picks else None,
-            "shadow_picks": shadow_picks,
-            "pick": _mapping_copy(card.get("pick")),
-            "non_pick": _mapping_copy(card.get("non_pick")),
-            "current_odds": _market_odds_summary(card.get("current_odds")),
-            "card_hash": _optional_text(card.get("card_hash")),
-            "outcome_tracked": bool(card.get("outcome_tracked") is True),
-            "recommendation_scope": _recommendation_scope(card),
-            "source": _optional_text(card.get("source")),
-            "posthoc_only": True,
-            "not_a_lock": True,
-            **evidence_identity,
-        }
-        record["audit_capture_identities"] = _audit_capture_identities(record)
-        record["capture_checkpoint"] = _capture_checkpoint(record, captured_at)
-        record["capture_hash"] = _evidence_hash(record)
-        record["evidence_hash"] = record["capture_hash"]
-        rows.append(record)
     return rows
 
 
@@ -162,8 +117,8 @@ def backfill_outcomes(
 ) -> dict[str, Any]:
     root = runtime_root / "forward_outcome_ledger"
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    results, unsettled_missing_fulltime = _finished_results(day_view_or_results_source)
-    ledger_rows, source_read_status, corruption_count = _ledger_rows_by_file_with_status(root)
+    results = _finished_results(day_view_or_results_source)
+    ledger_rows = _ledger_rows_by_file(root)
     outcome_records: list[tuple[Path, dict[str, Any]]] = []
     for path, records in ledger_rows.items():
         for entry, side, item in _settlement_entries(records, results):
@@ -183,24 +138,21 @@ def backfill_outcomes(
     written = 0
     skipped_existing = 0
     if write_artifacts and not dry_run:
+        existing_by_path = {path: _existing_keys(path) for path in ledger_rows}
         for path, record in outcome_records:
-            appended, read_result = append_jsonl_once(
-                path,
-                record,
-                key=_record_key(record),
-                key_fn=_record_key,
-            )
-            corruption_count = max(corruption_count, read_result.corruption_count)
-            if appended:
-                written += 1
-            else:
+            existing_keys = existing_by_path.setdefault(path, _existing_keys(path))
+            key = _record_key(record)
+            if key in existing_keys:
                 skipped_existing += 1
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _append_jsonl_record(path, record)
+            existing_keys.add(key)
+            written += 1
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "DEGRADED" if corruption_count else "PASS",
-        "source_read_status": source_read_status,
-        "corruption_count": corruption_count,
+        "status": "PASS",
         "dry_run": bool(dry_run),
         "write_artifacts": bool(write_artifacts),
         "provider_calls": 0,
@@ -210,7 +162,6 @@ def backfill_outcomes(
         "settlement_write": False,
         "runtime_root": str(runtime_root),
         "result_fixture_count": len(results),
-        "unsettled_missing_fulltime": unsettled_missing_fulltime,
         "record_count": len(outcome_records),
         "written": written,
         "skipped_existing": skipped_existing,
@@ -220,196 +171,112 @@ def backfill_outcomes(
     }
 
 
-def ledger_fixture_ids(runtime_root: Path) -> list[str]:
-    root = runtime_root / "forward_outcome_ledger"
-    fixture_ids: dict[str, None] = {}
-    for records in _ledger_rows_by_file(root).values():
-        for record in records:
-            if _text(record.get("record_type") or "capture") != "capture":
-                continue
-            fixture_id = _text(record.get("fixture_id"))
-            if fixture_id:
-                fixture_ids.setdefault(fixture_id, None)
-    return list(fixture_ids)
-
-
 def _ledger_path(root: Path, day_view: Mapping[str, Any]) -> Path:
     football_day = _text(day_view.get("football_day") or day_view.get("date") or "unknown")
     environment = _text(day_view.get("environment") or "unknown")
     return root / f"{football_day}_{environment}.jsonl"
 
 
+def _existing_keys(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    keys: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, Mapping):
+            keys.add(_record_key(record))
+    return keys
+
+
 def _record_key(record: Mapping[str, Any]) -> str:
     record_type = _text(record.get("record_type") or "capture")
-    capture_identity = _text(record.get("card_hash") or record.get("captured_at"))
-    if record_type == "capture" and record.get("evidence_hash"):
-        capture_identity = "|".join(
-            [
-                _text(record.get("capture_checkpoint") or "EVIDENCE_CHANGE"),
-                _text(record.get("evidence_hash")),
-            ]
-        )
     parts = [
         _text(record.get("football_day")),
         _text(record.get("environment")),
         _text(record.get("fixture_id")),
-        capture_identity,
+        _text(record.get("card_hash") or record.get("captured_at")),
         record_type,
     ]
     if record_type == "outcome":
         parts.extend(
             [
                 _text(record.get("settled_side")),
-                _text(record.get("recommendation_scope")),
                 _text(record.get("market")),
                 _text(record.get("selection")),
-                _text(record.get("strategy_version") or "LEGACY_UNVERSIONED"),
-                _text(record.get("estimate_id") or "LEGACY_ESTIMATE"),
-                _text(record.get("quote_id") or "LEGACY_QUOTE"),
-                _text(record.get("source_capture_hash") or "LEGACY_CAPTURE"),
             ]
         )
     return "|".join(parts)
 
 
 def _ledger_rows_by_file(root: Path) -> dict[Path, list[dict[str, Any]]]:
-    rows, _, _ = _ledger_rows_by_file_with_status(root)
+    if not root.exists():
+        return {}
+    rows: dict[Path, list[dict[str, Any]]] = {}
+    for path in sorted(root.glob("*.jsonl")):
+        items: list[dict[str, Any]] = []
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict):
+                    items.append(record)
+        rows[path] = items
     return rows
 
 
-def _ledger_rows_by_file_with_status(
-    root: Path,
-) -> tuple[dict[Path, list[dict[str, Any]]], str, int]:
-    if not root.exists():
-        return {}, "MISSING", 0
-    rows: dict[Path, list[dict[str, Any]]] = {}
-    corruption_count = 0
-    error = False
-    for path in sorted(root.glob("*.jsonl")):
-        result = read_jsonl(path)
-        rows[path] = result.records
-        corruption_count += result.corruption_count
-        error = error or result.status == "ERROR"
-    status = "ERROR" if error else "DEGRADED" if corruption_count else "PASS"
-    return rows, status, corruption_count
+def _append_jsonl_record(path: Path, record: Mapping[str, Any]) -> None:
+    needs_newline = path.exists() and path.stat().st_size > 0
+    if needs_newline:
+        with path.open("rb") as handle:
+            handle.seek(-1, 2)
+            needs_newline = handle.read(1) != b"\n"
+    with path.open("a", encoding="utf-8") as handle:
+        if needs_newline:
+            handle.write("\n")
+        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 def _settlement_entries(
     records: Sequence[Mapping[str, Any]],
     results: Mapping[str, Mapping[str, Any]],
 ) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
-    grouped: dict[
-        tuple[str, str, str, str, str, str],
-        list[tuple[Mapping[str, Any], Mapping[str, Any]]],
-    ] = {}
+    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
     for record in records:
         if _text(record.get("record_type") or "capture") != "capture":
             continue
         fixture_id = _text(record.get("fixture_id"))
         if fixture_id not in results:
             continue
-        settlement_items: list[tuple[str, Any, str]] = [
-            ("pick", record.get("pick"), "DECISION_CONTRACT_V2")
-        ]
-        shadow_picks = record.get("shadow_picks")
-        if isinstance(shadow_picks, Sequence) and not isinstance(
-            shadow_picks, str | bytes | bytearray
+        for side, item in (
+            ("pick", record.get("pick")),
+            ("shadow_pick", record.get("shadow_pick")),
         ):
-            settlement_items.extend(
-                ("shadow_pick", item, _text(item.get("strategy_version") or "WIDE_SHADOW_V1"))
-                for item in shadow_picks
-                if isinstance(item, Mapping)
-            )
-        else:
-            settlement_items.append(("shadow_pick", record.get("shadow_pick"), "WIDE_SHADOW_V1"))
-        strict_rows = record.get("analysis_gate_v2_shadows")
-        if isinstance(strict_rows, Sequence) and not isinstance(
-            strict_rows, str | bytes | bytearray
-        ):
-            settlement_items.extend(
-                (
-                    "shadow_pick",
-                    item,
-                    _text(
-                        item.get("strategy_version")
-                        or item.get("schema_version")
-                        or "STRICT_SHADOW_V1"
-                    ),
-                )
-                for item in strict_rows
-                if isinstance(item, Mapping)
-                and item.get("confirmation_required") is not True
-                and item.get("candidate_pass") is True
-                and item.get("evidence_eligible") is True
-            )
-        for side, item, strategy_version in settlement_items:
             if not isinstance(item, Mapping):
                 continue
             market = _text(item.get("market"))
             selection = _text(item.get("selection"))
-            if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
+            if market != "ASIAN_HANDICAP" or not selection:
                 continue
-            scope = SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(record)
-            if side == "pick" and scope is None:
-                continue
-            grouped.setdefault(
-                (fixture_id, side, _text(scope), strategy_version, market, selection),
-                [],
-            ).append((record, {**item, "strategy_version": strategy_version}))
-
-    confirmation_groups: dict[
-        tuple[str, str, str], list[tuple[Mapping[str, Any], Mapping[str, Any]]]
-    ] = {}
-    for record in records:
-        if _text(record.get("record_type") or "capture") != "capture":
-            continue
-        fixture_id = _text(record.get("fixture_id"))
-        if fixture_id not in results:
-            continue
-        rows = record.get("analysis_gate_v2_shadows")
-        if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
-            continue
-        for row in rows:
-            if not isinstance(row, Mapping) or row.get("confirmation_required") is not True:
-                continue
-            enriched = {
-                **dict(row),
-                "fixture_id": row.get("fixture_id") or fixture_id,
-                "kickoff_utc": row.get("kickoff_utc") or record.get("kickoff_utc"),
-            }
-            key = (
-                fixture_id,
-                _text(row.get("market")),
-                _text(row.get("strategy_version")),
-            )
-            confirmation_groups.setdefault(key, []).append((record, enriched))
-    for (fixture_id, market, strategy_version), pairs in confirmation_groups.items():
-        confirmed = confirm_strict_ah_shadow([item for _, item in pairs])
-        if confirmed.get("status") != "PASS":
-            continue
-        latest_quote_id = confirmed.get("quote_id")
-        entry = next(
-            record for record, item in reversed(pairs) if item.get("quote_id") == latest_quote_id
-        )
-        selection = _text(confirmed.get("selection"))
-        grouped.setdefault(
-            (fixture_id, "shadow_pick", SHADOW_SCOPE, strategy_version, market, selection),
-            [],
-        ).append((entry, confirmed))
+            grouped.setdefault((fixture_id, side, market, selection), []).append(record)
 
     entries: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
-    for (_, side, _, _, _, _), items in grouped.items():
+    for (_, side, _, _), items in grouped.items():
         ordered = sorted(
             items,
-            key=lambda pair: (
-                _parse_time(pair[0].get("captured_at")) or datetime.min.replace(tzinfo=UTC)
+            key=lambda item: (
+                _parse_time(item.get("captured_at"))
+                or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        selected_entry = _final_prematch_record([pair[0] for pair in ordered])
-        if selected_entry is None:
-            continue
-        pick_item = next(item for record, item in ordered if record is selected_entry)
-        entries.append((selected_entry, side, pick_item))
+        entry = _entry_record(ordered)
+        pick_item = entry.get(side)
+        if isinstance(pick_item, Mapping):
+            entries.append((entry, side, pick_item))
     return entries
 
 
@@ -431,7 +298,6 @@ def _outcome_record(
         "away": away_goals,
         "status": _text(result.get("status") or "FT"),
     }
-    identity = _audit_identity_for_item(entry, item=item, side=side)
     base = {
         "schema_version": SCHEMA_VERSION,
         "record_type": "outcome",
@@ -442,24 +308,9 @@ def _outcome_record(
         "competition_id": _optional_text(entry.get("competition_id")),
         "competition_name": _optional_text(entry.get("competition_name")),
         "card_hash": _optional_text(entry.get("card_hash")),
-        "source_capture_hash": _optional_text(entry.get("evidence_hash") or entry.get("card_hash")),
-        "source_captured_at": _optional_text(entry.get("captured_at")),
         "market": market,
         "selection": selection,
-        "estimate_id": _optional_text(identity.get("estimate_id") or item.get("estimate_id")),
-        "quote_id": _optional_text(identity.get("quote_id") or item.get("quote_id")),
-        "strategy_version": _optional_text(
-            identity.get("strategy_version") or item.get("strategy_version")
-        ),
-        "analysis_gate_v2_shadow": (
-            dict(item)
-            if item.get("confirmation_status") == "CONFIRMED"
-            else _shadow_gate_for_item(entry, item)
-        ),
         "settled_side": side,
-        "recommendation_scope": (
-            SHADOW_SCOPE if side == "shadow_pick" else _recommendation_scope(entry)
-        ),
         "final_score": final_score,
         "provider_calls": 0,
         "db_writes": 0,
@@ -483,27 +334,12 @@ def _outcome_record(
             "settlement_outcome": "VOID",
             "void_reason": "INVALID_ENTRY_LINE_OR_SELECTION",
         }
-    if market == "ASIAN_HANDICAP":
-        outcome = settle_asian_handicap(
-            home_goals,
-            away_goals,
-            settlement_selection,
-            decimal_line,
-        )
-    elif market == "TOTALS":
-        outcome = settle_total_goals(
-            home_goals + away_goals,
-            settlement_selection,
-            decimal_line,
-        )
-    else:
-        return {
-            **base,
-            "entry_line": line,
-            "entry_price": _price,
-            "settlement_outcome": "VOID",
-            "void_reason": "INVALID_ENTRY_MARKET",
-        }
+    outcome = settle_asian_handicap(
+        home_goals,
+        away_goals,
+        settlement_selection,
+        decimal_line,
+    )
     return {
         **base,
         "entry_line": line,
@@ -512,64 +348,10 @@ def _outcome_record(
     }
 
 
-def _audit_identity_for_item(
-    entry: Mapping[str, Any], *, item: Mapping[str, Any], side: str
-) -> Mapping[str, Any]:
-    identities = entry.get("audit_capture_identities")
-    if not isinstance(identities, Sequence) or isinstance(identities, str | bytes | bytearray):
-        return {}
-    scope = SHADOW_SCOPE if side == "shadow_pick" else _text(_recommendation_scope(entry))
-    matches = [
-        identity
-        for identity in identities
-        if isinstance(identity, Mapping)
-        and _text(identity.get("market")) == _text(item.get("market"))
-        and _text(identity.get("selection")) == _text(item.get("selection"))
-        and _text(identity.get("recommendation_scope")) == scope
-    ]
-    if side == "shadow_pick":
-        requested_strategy = _text(item.get("strategy_version"))
-        if requested_strategy == "WIDE_SHADOW_V1":
-            wide = [
-                row for row in matches if _text(row.get("strategy_version")) == requested_strategy
-            ]
-            return wide[0] if wide else {}
-        strict_schema = requested_strategy or _text(
-            _shadow_gate_for_item(entry, item).get("schema_version")
-        )
-        strict = [row for row in matches if _text(row.get("strategy_version")) == strict_schema]
-        if strict:
-            return strict[0]
-        wide = [row for row in matches if _text(row.get("strategy_version")) == "WIDE_SHADOW_V1"]
-        if wide:
-            return wide[0]
-    return matches[0] if matches else {}
-
-
-def _shadow_gate_for_item(
-    entry: Mapping[str, Any],
-    item: Mapping[str, Any],
-) -> dict[str, Any]:
-    estimate_id = _text(item.get("estimate_id"))
-    market = _text(item.get("market"))
-    rows = entry.get("analysis_gate_v2_shadows")
-    if isinstance(rows, Sequence) and not isinstance(rows, str | bytes | bytearray):
-        for row in rows:
-            if not isinstance(row, Mapping):
-                continue
-            if estimate_id and _text(row.get("estimate_id")) == estimate_id:
-                return dict(row)
-            if not estimate_id and _text(row.get("market")) == market:
-                return dict(row)
-    primary = entry.get("analysis_gate_v2_shadow")
-    return dict(primary) if isinstance(primary, Mapping) else {}
-
-
-def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], int]:
+def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
-    unsettled_missing_fulltime = 0
     candidates: list[Mapping[str, Any]] = []
-    for key in ("cards", "results", "fixtures", "all"):
+    for key in ("cards", "results", "fixtures"):
         value = source.get(key)
         if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
             candidates.extend(item for item in value if isinstance(item, Mapping))
@@ -578,12 +360,8 @@ def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, An
     for item in candidates:
         fixture_id = _fixture_id(item)
         status = _status(item)
-        if not fixture_id or status not in FT_STATUSES:
-            continue
-        score = _score(item, status=status)
-        if score is None:
-            if status in {"AET", "PEN"}:
-                unsettled_missing_fulltime += 1
+        score = _score(item)
+        if not fixture_id or status not in FT_STATUSES or score is None:
             continue
         home_goals, away_goals = score
         results[fixture_id] = {
@@ -592,7 +370,7 @@ def _finished_results(source: Mapping[str, Any]) -> tuple[dict[str, dict[str, An
             "home_goals": home_goals,
             "away_goals": away_goals,
         }
-    return results, unsettled_missing_fulltime
+    return results
 
 
 def _fixture_id(item: Mapping[str, Any]) -> str:
@@ -616,12 +394,7 @@ def _status(item: Mapping[str, Any]) -> str:
     return _text(item.get("status") or item.get("result_status")).upper()
 
 
-def _score(item: Mapping[str, Any], *, status: str) -> tuple[int, int] | None:
-    fulltime = _fulltime_score(item)
-    if fulltime is not None:
-        return fulltime
-    if status in {"AET", "PEN"}:
-        return None
+def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
     direct = _score_pair(item.get("home_score"), item.get("away_score"))
     if direct is not None:
         return direct
@@ -647,26 +420,6 @@ def _score(item: Mapping[str, Any], *, status: str) -> tuple[int, int] | None:
     return None
 
 
-def _fulltime_score(item: Mapping[str, Any]) -> tuple[int, int] | None:
-    score = item.get("score")
-    if isinstance(score, Mapping):
-        for key in ("fulltime", "full_time", "ft"):
-            value = score.get(key)
-            if isinstance(value, Mapping):
-                pair = _score_pair(value.get("home"), value.get("away"))
-                if pair is not None:
-                    return pair
-    result = item.get("result")
-    if isinstance(result, Mapping):
-        for key in ("fulltime", "full_time", "ft"):
-            value = result.get(key)
-            if isinstance(value, Mapping):
-                pair = _score_pair(value.get("home"), value.get("away"))
-                if pair is not None:
-                    return pair
-    return None
-
-
 def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
     home_goals = _int(home)
     away_goals = _int(away)
@@ -677,24 +430,15 @@ def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
 
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
     odds = record.get("current_odds")
-    if not isinstance(odds, Mapping):
+    if not isinstance(odds, Mapping) or market != "ASIAN_HANDICAP":
         return None
-    if market == "ASIAN_HANDICAP":
-        ah = odds.get("ah")
-        if not isinstance(ah, Mapping):
-            return None
-        if selection == "HOME_AH":
-            return _line_price(ah.get("home_line"), ah.get("home_price"))
-        if selection == "AWAY_AH":
-            return _line_price(ah.get("away_line"), ah.get("away_price"))
-    if market == "TOTALS":
-        totals = odds.get("ou")
-        if not isinstance(totals, Mapping):
-            return None
-        if selection == "OVER":
-            return _line_price(totals.get("line"), totals.get("over_price"))
-        if selection == "UNDER":
-            return _line_price(totals.get("line"), totals.get("under_price"))
+    ah = odds.get("ah")
+    if not isinstance(ah, Mapping):
+        return None
+    if selection == "HOME_AH":
+        return _line_price(ah.get("home_line"), ah.get("home_price"))
+    if selection == "AWAY_AH":
+        return _line_price(ah.get("away_line"), ah.get("away_price"))
     return None
 
 
@@ -716,49 +460,11 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     return records[0]
 
 
-def _final_prematch_record(
-    records: list[Mapping[str, Any]],
-) -> Mapping[str, Any] | None:
-    """Return the last valid capture strictly before kickoff."""
-    prematch = [
-        record
-        for record in records
-        if (kickoff := _parse_time(record.get("kickoff_utc"))) is not None
-        and (captured := _parse_time(record.get("captured_at"))) is not None
-        and captured < kickoff
-    ]
-    if prematch:
-        return max(
-            prematch,
-            key=lambda record: (
-                _parse_time(record.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
-            ),
-        )
-    return None
-
-
-def _recommendation_scope(record: Mapping[str, Any]) -> str | None:
-    explicit = _text(record.get("recommendation_scope")).upper()
-    if explicit in {OFFICIAL_SCOPE, VALIDATION_SCOPE, SHADOW_SCOPE}:
-        return explicit
-    tier = _text(record.get("decision_tier")).upper()
-    if tier == "ANALYSIS_PICK":
-        return VALIDATION_SCOPE
-    if tier in {"RECOMMEND", "FORMAL", "CANDIDATE"}:
-        return OFFICIAL_SCOPE
-    if isinstance(record.get("pick"), Mapping):
-        # Historical captures predate recommendation_scope and remain official.
-        return OFFICIAL_SCOPE
-    return None
-
-
 def _settlement_selection(selection: str) -> str | None:
     if selection == "HOME_AH":
         return "HOME"
     if selection == "AWAY_AH":
         return "AWAY"
-    if selection in {"OVER", "UNDER"}:
-        return selection
     return None
 
 
@@ -783,296 +489,29 @@ def _parse_time(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
-    picks: list[dict[str, Any]] = []
-    estimates = estimate_snapshots(card)
-    if estimates:
-        odds = _mapping(card.get("current_odds"))
-        for estimate in estimates:
-            if not isinstance(estimate, Mapping) or _text(estimate.get("status")) != "READY":
-                continue
-            market = _text(estimate.get("market"))
-            fair_line = _number(estimate.get("fair_line"))
-            market_line = _estimate_market_line(odds, market)
-            if fair_line is None or market_line is None:
-                continue
-            delta = fair_line - market_line
-            if abs(delta) < MIN_SHADOW_LINE_DIVERGENCE:
-                continue
-            selection = (
-                ("HOME_AH" if delta < 0 else "AWAY_AH")
-                if market == "ASIAN_HANDICAP"
-                else ("OVER" if delta > 0 else "UNDER")
-            )
-            payload = _shadow_pick_payload(
-                card,
-                market=market,
-                selection=selection,
-                fair_line=fair_line,
-                market_line=market_line,
-                delta=delta,
-                derived_from="fair_market_estimate_snapshot",
-            )
-            payload["estimate_id"] = _optional_text(estimate.get("estimate_id"))
-            payload["model_basis_id"] = _optional_text(estimate.get("model_basis_id"))
-            semantic_status = _text(
-                estimate.get("semantic_status") or "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED"
-            )
-            evidence_eligible = (
-                estimate.get("schema_version") == "w2.fme_snapshot.v2"
-                and semantic_status == "VERIFIED"
-                and estimate.get("evidence_eligible") is True
-                and verify_estimate_snapshot(estimate)
-                and verify_estimate_semantics(estimate)
-            )
-            payload.update(
-                {
-                    "raw_shadow_capture": True,
-                    "diagnostic_only": not evidence_eligible,
-                    "evidence_eligible": evidence_eligible,
-                    "semantic_status": semantic_status,
-                }
-            )
-            for field in (
-                "model_family",
-                "artifact_hash",
-                "artifact_version",
-                "train_cutoff",
-                "feature_as_of",
-            ):
-                if estimate.get(field) is not None:
-                    payload[field] = estimate[field]
-            picks.append(payload)
-        return picks
-
+def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
+    # v2 shadow capture starts with AH only. TOTALS shadow capture needs a separate
+    # fair_ou/market_ou contract before it can be made deterministic.
     divergence = _mapping(card.get("model_market_divergence"))
     fair_line = _number(divergence.get("model_fair_line"))
     market_line = _number(divergence.get("market_line"))
-    if fair_line is not None and market_line is not None:
-        delta = fair_line - market_line
-        if abs(delta) >= MIN_SHADOW_LINE_DIVERGENCE:
-            picks.append(
-                _shadow_pick_payload(
-                    card,
-                    market="ASIAN_HANDICAP",
-                    selection="HOME_AH" if delta < 0 else "AWAY_AH",
-                    fair_line=fair_line,
-                    market_line=market_line,
-                    delta=delta,
-                    derived_from="model_market_divergence",
-                )
-            )
-
-    return picks
-
-
-def _estimate_market_line(odds: Mapping[str, Any], market: str) -> float | None:
-    if market == "ASIAN_HANDICAP":
-        return _number(_mapping(odds.get("ah")).get("home_line"))
-    if market == "TOTALS":
-        return _number(_mapping(odds.get("ou")).get("line"))
-    return None
-
-
-def _shadow_pick_payload(
-    card: Mapping[str, Any],
-    *,
-    market: str,
-    selection: str,
-    fair_line: float,
-    market_line: float,
-    delta: float,
-    derived_from: str,
-) -> dict[str, Any]:
+    if fair_line is None or market_line is None:
+        return None
+    delta = fair_line - market_line
+    if abs(delta) <= 0.005:
+        return None
     return {
-        "market": market,
-        "selection": selection,
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH" if delta < 0 else "AWAY_AH",
         "model_fair_line": fair_line,
         "market_line_at_capture": market_line,
         "divergence_line_units": round(delta, 4),
-        "derived_from": derived_from,
+        "derived_from": "model_market_divergence",
         "display_tier_at_capture": _text(card.get("decision_tier") or "SKIP"),
         "shadow": True,
         "not_a_recommendation": True,
         "not_displayed": True,
-        "raw_shadow_capture": True,
-        "diagnostic_only": True,
-        "evidence_eligible": False,
-        "semantic_status": "LEGACY_DISTRIBUTION_CONTEXT_UNVERIFIED",
     }
-
-
-def _capture_evidence_identity(
-    card: Mapping[str, Any],
-    *,
-    shadow_picks: Sequence[Mapping[str, Any]],
-) -> dict[str, Any]:
-    pick = _mapping(card.get("pick"))
-    selected = pick or (shadow_picks[0] if shadow_picks else {})
-    market = _text(selected.get("market"))
-    selection = _text(selected.get("selection"))
-    estimate_id = _optional_text(
-        selected.get("estimate_id") or _mapping(card.get("analysis_gate")).get("estimate_id")
-    )
-    estimate = next(
-        (
-            item
-            for item in estimate_snapshots(card)
-            if estimate_id and item.get("estimate_id") == estimate_id
-        ),
-        {},
-    )
-    base = {
-        "estimate_id": estimate_id,
-        "model_basis_id": _optional_text(estimate.get("model_basis_id")),
-        "quote_id": None,
-        "market_quote": None,
-        "selection_line": None,
-        "selection_price": None,
-        "quote_captured_at": None,
-        "quote_status": "BLOCKED",
-        "quote_blocker": "QUOTE_CAPTURE_TIME_MISSING",
-    }
-    odds = _mapping(card.get("current_odds"))
-    quote_odds = _mapping(
-        odds.get("ah" if market == "ASIAN_HANDICAP" else "ou" if market == "TOTALS" else "")
-    )
-    if not market or not selection or not quote_odds:
-        return base
-    quote_captured_at = _optional_text(quote_odds.get("captured_at") or quote_odds.get("as_of"))
-    if quote_captured_at is None:
-        return base
-    try:
-        quote = MarketQuote.create(
-            fixture_id=_text(card.get("fixture_id")),
-            market=market,
-            selection=selection,
-            odds=quote_odds,
-            captured_at=quote_captured_at,
-        ).as_dict()
-    except ValueError:
-        return base
-    return {
-        **base,
-        "quote_id": quote["quote_id"],
-        "market_quote": quote,
-        "selection_line": quote["selection_line"],
-        "selection_price": quote["selection_price"],
-        "quote_captured_at": quote["captured_at"],
-        "quote_status": "READY",
-        "quote_blocker": None,
-    }
-
-
-def _audit_capture_identities(record: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Freeze each decision/shadow strategy identity without creating another truth source."""
-    candidates: list[tuple[Mapping[str, Any], str, str]] = []
-    pick = record.get("pick")
-    if isinstance(pick, Mapping):
-        candidates.append((pick, _text(_recommendation_scope(record)), "DECISION_CONTRACT_V2"))
-    shadow_picks = record.get("shadow_picks")
-    if isinstance(shadow_picks, Sequence) and not isinstance(shadow_picks, str | bytes | bytearray):
-        candidates.extend(
-            (item, SHADOW_SCOPE, _text(item.get("strategy_version") or "WIDE_SHADOW_V1"))
-            for item in shadow_picks
-            if isinstance(item, Mapping)
-        )
-    strict_rows = record.get("analysis_gate_v2_shadows")
-    if isinstance(strict_rows, Sequence) and not isinstance(strict_rows, str | bytes | bytearray):
-        candidates.extend(
-            (
-                item,
-                SHADOW_SCOPE,
-                _text(
-                    item.get("strategy_version") or item.get("schema_version") or "STRICT_SHADOW_V1"
-                ),
-            )
-            for item in strict_rows
-            if isinstance(item, Mapping)
-        )
-
-    identities: list[dict[str, Any]] = []
-    for item, scope, strategy_version in candidates:
-        market = _text(item.get("market"))
-        selection = _text(item.get("selection"))
-        estimate_id = _optional_text(item.get("estimate_id") or record.get("estimate_id"))
-        quote = _market_quote_for_candidate(record, market=market, selection=selection)
-        identities.append(
-            {
-                "market": market,
-                "selection": selection,
-                "recommendation_scope": scope,
-                "strategy_version": strategy_version,
-                "estimate_id": estimate_id,
-                "quote_id": quote.get("quote_id") if quote else None,
-                "market_quote": quote,
-                "evidence_eligible": item.get("evidence_eligible", True),
-            }
-        )
-    return identities
-
-
-def _market_quote_for_candidate(
-    record: Mapping[str, Any], *, market: str, selection: str
-) -> dict[str, Any] | None:
-    odds = _mapping(record.get("current_odds"))
-    quote_odds = _mapping(
-        odds.get("ah" if market == "ASIAN_HANDICAP" else "ou" if market == "TOTALS" else "")
-    )
-    if not quote_odds:
-        return None
-    quote_captured_at = _optional_text(quote_odds.get("captured_at") or quote_odds.get("as_of"))
-    if quote_captured_at is None:
-        return None
-    try:
-        return MarketQuote.create(
-            fixture_id=_text(record.get("fixture_id")),
-            market=market,
-            selection=selection,
-            odds=quote_odds,
-            captured_at=quote_captured_at,
-        ).as_dict()
-    except ValueError:
-        return None
-
-
-def _capture_checkpoint(record: Mapping[str, Any], captured_at: datetime) -> str:
-    kickoff = _parse_time(record.get("kickoff_utc"))
-    if kickoff is None:
-        return "EVIDENCE_CHANGE"
-    seconds = (kickoff - captured_at.astimezone(UTC)).total_seconds()
-    if 23 * 3600 <= seconds <= 25 * 3600:
-        return "T_MINUS_24H"
-    if 45 * 60 <= seconds <= 75 * 60:
-        return "T_MINUS_1H"
-    if 0 <= seconds < 45 * 60:
-        return "LOCK_WINDOW"
-    return "EVIDENCE_CHANGE"
-
-
-def _evidence_hash(record: Mapping[str, Any]) -> str:
-    evidence = {
-        "fixture_id": record.get("fixture_id"),
-        "kickoff_utc": record.get("kickoff_utc"),
-        "decision_tier": record.get("decision_tier"),
-        "data_status": record.get("data_status"),
-        "reason_code": record.get("reason_code"),
-        "probability_source": record.get("probability_source"),
-        "model_market_divergence": record.get("model_market_divergence"),
-        "shadow_picks": record.get("shadow_picks"),
-        "pick": record.get("pick"),
-        "non_pick": record.get("non_pick"),
-        "current_odds": record.get("current_odds"),
-        "analysis_gate": record.get("analysis_gate"),
-        "estimate_id": record.get("estimate_id"),
-        "model_basis_id": record.get("model_basis_id"),
-        "quote_id": record.get("quote_id"),
-        "selection_line": record.get("selection_line"),
-        "selection_price": record.get("selection_price"),
-        "quote_captured_at": record.get("quote_captured_at"),
-    }
-    canonical = json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _cards(day_view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -1113,18 +552,6 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _mapping_copy(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
-
-
-def _mapping_list(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
-        return []
-    return [dict(item) for item in value if isinstance(item, Mapping)]
-
-
-def _string_list(value: Any) -> list[str]:
-    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
-        return []
-    return [str(item) for item in value if item]
 
 
 def _optional_text(value: Any) -> str | None:

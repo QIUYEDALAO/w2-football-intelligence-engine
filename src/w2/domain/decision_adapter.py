@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
-from w2.dashboard.blocker_priority import prioritize_blockers
 from w2.domain.decision_card import DecisionCard, DecisionNonPick, DecisionPick
 from w2.domain.decision_policy import (
     DecisionPolicyConfig,
@@ -20,27 +19,16 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.domain.legacy_decision_shim import legacy_decision_view
-from w2.models.fair_market_estimate import (
-    estimate_snapshot_by_id,
-    estimate_snapshots,
-    verify_estimate_semantics,
-    verify_estimate_snapshot,
-)
-from w2.models.market_quote import MarketQuote
-from w2.models.player_impact import unsupported_player_impact
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
     DataReadinessResult,
     build_data_readiness_from_legacy_payload,
     result_from_mapping,
 )
-from w2.strategy.analysis_gate_shadow import build_analysis_gate_v2_shadow
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
-# AH line-unit divergence. One quarter line is the minimum meaningful handicap step.
-MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE = 0.25
-ANALYSIS_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
+MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
 
 
 def build_decision_contract_fields(
@@ -73,55 +61,11 @@ def build_decision_contract_fields(
     )
     probability_source = _probability_source(card, market, recommendation)
     model_market_divergence = _model_market_divergence(card, market, recommendation)
-    analysis_gates = _analysis_gates(
-        card=card,
-        kickoff_utc=kickoff_utc,
-        as_of=as_of,
-        environment=environment,
-    )
-    analysis_gate = _primary_analysis_gate(analysis_gates)
-    blocker_diagnostics = prioritize_blockers(
-        [
-            data_readiness.reason_code.value if data_readiness.reason_code is not None else None,
-            *(
-                field.reason_code.value
-                for field in data_readiness.field_statuses
-                if field.reason_code is not None
-            ),
-            *_blockers(
-                readiness,
-                card=card,
-                market=market,
-                recommendation=recommendation,
-            ),
-            *(
-                blocker
-                for gate in analysis_gates
-                for blocker in _string_list(gate.get("blockers"))
-            ),
-        ]
-    )
-    analysis_gate_v2_shadows = _analysis_gate_v2_shadows(
-        card,
-        analysis_gates,
-        kickoff_utc=kickoff_utc,
-    )
-    analysis_gate_v2_shadow = next(
-        (
-            item
-            for item in analysis_gate_v2_shadows
-            if item.get("estimate_id") == analysis_gate.get("estimate_id")
-        ),
-        {},
-    )
-    optional_enrichment = _optional_enrichment(card)
-    player_impact_estimate = unsupported_player_impact().as_dict()
     tier = _market_anchor_display_tier(
         tier=tier,
         data_status=data_status,
         probability_source=probability_source,
         model_market_divergence=model_market_divergence,
-        analysis_gate=analysis_gate,
     )
     lifecycle_status = _lifecycle_status(card)
     recommendation_id = _first_text(
@@ -144,15 +88,9 @@ def build_decision_contract_fields(
     ):
         tier = DecisionTier.ANALYSIS_PICK if market_complete else DecisionTier.WATCH
     legacy = legacy_decision_view(card, market)
-    recommendation_legacy = legacy_decision_view({}, recommendation)
-    legacy_formal = legacy.legacy_formal or recommendation_legacy.legacy_formal
+    legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
     pick_payload = (
-        _pick_payload(
-            card=card,
-            market=market,
-            recommendation=recommendation,
-            analysis_gate=analysis_gate,
-        )
+        _pick_payload(card=card, market=market, recommendation=recommendation)
         if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
         else None
     )
@@ -165,7 +103,6 @@ def build_decision_contract_fields(
             data_readiness=data_readiness,
             kickoff_utc=kickoff_utc,
             as_of=as_of,
-            analysis_gate=analysis_gate,
         )
         if tier in {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
         else None
@@ -186,20 +123,6 @@ def build_decision_contract_fields(
         ),
         "probability_source": probability_source.value,
         "model_market_divergence": model_market_divergence,
-        "analysis_gate": analysis_gate,
-        "analysis_gates": analysis_gates,
-        "primary_blocker": blocker_diagnostics["primary_blocker"],
-        "primary_blocker_layer": blocker_diagnostics["primary_blocker_layer"],
-        "all_blockers": blocker_diagnostics["all_blockers"],
-        "analysis_gate_v2_shadow": analysis_gate_v2_shadow,
-        "analysis_gate_v2_shadows": analysis_gate_v2_shadows,
-        "fair_market_estimates": [dict(item) for item in _fair_market_estimates(card)],
-        "fair_market_estimate_ids": _fair_market_estimate_ids(card),
-        "fair_market_estimate_snapshots": [
-            dict(item) for item in _fair_market_estimate_snapshots(card)
-        ],
-        "optional_enrichment": optional_enrichment,
-        "player_impact_estimate": player_impact_estimate,
         "provenance": {
             "source": str(_get(card, "source") or "legacy_payload"),
             "adapter": "w2.decision_contract.v2.adapter",
@@ -268,8 +191,7 @@ def _decision_tier(
             return tier
 
     legacy = legacy_decision_view(card, market)
-    recommendation_legacy = legacy_decision_view({}, recommendation)
-    if legacy.legacy_formal or recommendation_legacy.legacy_formal:
+    if legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation")):
         return DecisionTier.ANALYSIS_PICK
 
     decision = _first_upper(
@@ -285,10 +207,7 @@ def _decision_tier(
         if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
             return DecisionTier.WATCH
         return DecisionTier.ANALYSIS_PICK
-    if (
-        legacy.decision_tier is DecisionTier.WATCH
-        or recommendation_legacy.decision_tier is DecisionTier.WATCH
-    ):
+    if _truthy(_get(card, "candidate")) or _truthy(_get(market, "candidate")):
         return DecisionTier.WATCH
     if decision == "WATCH":
         return DecisionTier.WATCH
@@ -328,33 +247,13 @@ def _market_anchor_display_tier(
     data_status: DataStatus,
     probability_source: ProbabilitySource,
     model_market_divergence: Mapping[str, Any],
-    analysis_gate: Mapping[str, Any],
 ) -> DecisionTier:
-    if data_status is DataStatus.BLOCKED:
-        return DecisionTier.NOT_READY
-    if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND} and not (
-        analysis_gate
-        and analysis_gate.get("estimate_id")
-        and analysis_gate.get("decision_source_consistent") is True
-    ):
-        return DecisionTier.WATCH
-    if (
-        str(analysis_gate.get("market")) == "ASIAN_HANDICAP"
-        and analysis_gate.get("direction_allowed") is not True
-    ):
-        return DecisionTier.WATCH
-    if not _market_anchor_display_enabled():
-        return tier
-    if analysis_gate:
-        if str(analysis_gate.get("status")) != "ELIGIBLE":
-            return DecisionTier.WATCH
-        if probability_source is not ProbabilitySource.MARKET_DEVIG:
-            return DecisionTier.WATCH
-        return (
-            DecisionTier.RECOMMEND if tier is DecisionTier.RECOMMEND else DecisionTier.ANALYSIS_PICK
-        )
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         return tier
+    if not _market_anchor_display_enabled():
+        return tier
+    if data_status is DataStatus.BLOCKED:
+        return DecisionTier.NOT_READY
     if _market_anchor_blocks_pick(
         probability_source=probability_source,
         model_market_divergence=model_market_divergence,
@@ -382,7 +281,7 @@ def _market_anchor_blocks_pick(
     magnitude = _number(_get(model_market_divergence, "magnitude"))
     threshold = _number(os.getenv("W2_MARKET_ANCHOR_MIN_DIVERGENCE"))
     if threshold is None:
-        threshold = MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE
+        threshold = MIN_MARKET_ANCHOR_DIVERGENCE
     return magnitude is None or abs(magnitude) < threshold
 
 
@@ -448,45 +347,21 @@ def _pick_payload(
     card: Mapping[str, Any],
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
-    analysis_gate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pricing = _as_mapping(_get(card, "pricing_shadow"))
-    gate_quote = _analysis_gate_quote(card, analysis_gate)
-    pick_market = _first_text(
-        _get(analysis_gate, "market"),
-        _get(recommendation, "market"),
-        _get(market, "market"),
-    )
+    pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
     fair_key, market_key, edge_key = _pricing_keys_for_market(pick_market)
     return {
         "market": pick_market,
         "selection": _first_text(
-            _get(analysis_gate, "selection"),
             _get(recommendation, "selection"),
             _get(market, "tendency"),
             _get(market, "lean"),
         ),
-        "estimate_id": _optional_text(_get(analysis_gate, "estimate_id")),
-        "line": _first_text(
-            gate_quote.get("line"),
-            _get(recommendation, "line"),
-            _get(market, "line"),
-        ),
-        "odds": _first_text(
-            gate_quote.get("odds"),
-            _get(recommendation, "odds"),
-            _get(market, "odds"),
-        ),
-        "fair_line": _first_text(
-            _get(analysis_gate, "fair_line"),
-            _get(pricing, fair_key),
-            _get(market, "fair_line"),
-        ),
-        "market_line": _first_text(
-            _get(analysis_gate, "market_line"),
-            _get(pricing, market_key),
-            _get(market, "market_line"),
-        ),
+        "line": _first_text(_get(recommendation, "line"), _get(market, "line")),
+        "odds": _first_text(_get(recommendation, "odds"), _get(market, "odds")),
+        "fair_line": _first_text(_get(pricing, fair_key), _get(market, "fair_line")),
+        "market_line": _first_text(_get(pricing, market_key), _get(market, "market_line")),
         "value_edge": _number(
             _get(recommendation, "risk_adjusted_ev")
             or _get(recommendation, "expected_value")
@@ -501,28 +376,6 @@ def _pick_payload(
         ),
         "disclaimer": ANALYSIS_PICK_DISCLAIMER,
     }
-
-
-def _analysis_gate_quote(
-    card: Mapping[str, Any],
-    analysis_gate: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    market = _first_text(_get(analysis_gate, "market"))
-    selection = _first_text(_get(analysis_gate, "selection"))
-    odds = _as_mapping(card.get("current_odds"))
-    if market == "ASIAN_HANDICAP":
-        item = _as_mapping(odds.get("ah"))
-        if selection == "HOME_AH":
-            return {"line": item.get("home_line"), "odds": item.get("home_price")}
-        if selection == "AWAY_AH":
-            return {"line": item.get("away_line"), "odds": item.get("away_price")}
-    if market == "TOTALS":
-        item = _as_mapping(odds.get("ou"))
-        if selection == "OVER":
-            return {"line": item.get("line"), "odds": item.get("over_price")}
-        if selection == "UNDER":
-            return {"line": item.get("line"), "odds": item.get("under_price")}
-    return {}
 
 
 def _pricing_keys_for_market(market: str | None) -> tuple[str, str, str]:
@@ -540,29 +393,25 @@ def _non_pick_payload(
     data_readiness: DataReadinessResult,
     kickoff_utc: datetime,
     as_of: datetime,
-    analysis_gate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    gate_reason = _gate_reason_code(analysis_gate)
-    reason_code = (
-        gate_reason
-        if gate_reason is not None and data_readiness.data_status is not DataStatus.BLOCKED
-        else data_readiness.reason_code
-        or _reason_code(
-            card=card,
-            market=market,
-            recommendation=recommendation,
-            readiness=readiness,
-        )
+    reason_code = data_readiness.reason_code or _reason_code(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+        readiness=readiness,
     )
-    reason_human, action = _reason_text(reason_code)
-    if gate_reason is None and data_readiness.reason_code is not None:
-        reason_human, action = data_readiness.reason_human, data_readiness.action
+    reason_human, action = (
+        (data_readiness.reason_human, data_readiness.action)
+        if data_readiness.reason_code is not None
+        else _reason_text(reason_code)
+    )
     return {
         "reason_code": reason_code.value,
         "reason_human": reason_human,
         "action": action,
-        "next_eval_at": _first_text(_get(analysis_gate, "next_eval_at"))
-        or _format_utc(data_readiness.next_eval_at)
+        "next_eval_at": _format_utc(
+            data_readiness.next_eval_at,
+        )
         or _next_eval_at(reason_code, kickoff_utc=kickoff_utc, as_of=as_of),
     }
 
@@ -647,43 +496,7 @@ def _reason_text(reason_code: DecisionReasonCode) -> tuple[str, str]:
         return "比赛已开始或结束", "停止赛前评估"
     if reason_code is DecisionReasonCode.CONTRADICTION_UNEXPLAINED:
         return "信号冲突未解释", "人工复核后再评估"
-    if reason_code is DecisionReasonCode.MODEL_FAIR_LINE_UNAVAILABLE:
-        return "独立模型公平盘尚不可用", "等待赛前模型输入补齐后重算"
-    if reason_code is DecisionReasonCode.NO_EDGE:
-        return "模型与市场线差不足 0.25", "保持观察，不降低阈值凑数"
-    if reason_code is DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING:
-        return "方向证据仍在积累", "达到预注册门槛后提交人工复核"
     return "覆盖不足", "等待覆盖或跳过"
-
-
-def _gate_reason_code(
-    analysis_gate: Mapping[str, Any] | None,
-) -> DecisionReasonCode | None:
-    primary = str(_get(analysis_gate, "primary_blocker") or "").upper()
-    if primary == "MARKET_UNAVAILABLE":
-        return DecisionReasonCode.MARKET_UNAVAILABLE
-    if primary == "FME_PROVENANCE_INCOMPLETE":
-        return DecisionReasonCode.MODEL_FAIR_LINE_UNAVAILABLE
-    if primary == "FEATURE_HISTORY_INSUFFICIENT":
-        return DecisionReasonCode.DATA_MISSING_XG
-    if primary == "STRICT_GATE_EDGE_OR_EVIDENCE":
-        blockers = {
-            str(value).upper()
-            for value in _string_list(_get(analysis_gate, "blockers"))
-        }
-        if "FORWARD_EVIDENCE_ACCUMULATING" in blockers:
-            return DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING
-        return DecisionReasonCode.NO_EDGE
-    blockers = {str(value).upper() for value in _string_list(_get(analysis_gate, "blockers"))}
-    if "MARKET_UNAVAILABLE" in blockers:
-        return DecisionReasonCode.MARKET_UNAVAILABLE
-    if "MODEL_FAIR_LINE_UNAVAILABLE" in blockers:
-        return DecisionReasonCode.MODEL_FAIR_LINE_UNAVAILABLE
-    if "FORWARD_EVIDENCE_ACCUMULATING" in blockers:
-        return DecisionReasonCode.FORWARD_EVIDENCE_ACCUMULATING
-    if "NO_EDGE" in blockers:
-        return DecisionReasonCode.NO_EDGE
-    return None
 
 
 def _next_eval_at(
@@ -815,29 +628,6 @@ def _validated_card_hash(
         model_version=str(core["model_version"]),
         probability_source=ProbabilitySource(str(core["probability_source"])),
         model_market_divergence=_as_mapping(core.get("model_market_divergence")),
-        analysis_gate=_as_mapping(core.get("analysis_gate")),
-        analysis_gates=tuple(
-            item for item in core.get("analysis_gates", []) if isinstance(item, Mapping)
-        ),
-        analysis_gate_v2_shadow=_as_mapping(core.get("analysis_gate_v2_shadow")),
-        analysis_gate_v2_shadows=tuple(
-            item
-            for item in core.get("analysis_gate_v2_shadows", [])
-            if isinstance(item, Mapping)
-        ),
-        fair_market_estimates=tuple(
-            item for item in core.get("fair_market_estimates", []) if isinstance(item, Mapping)
-        ),
-        fair_market_estimate_ids=tuple(
-            str(item) for item in core.get("fair_market_estimate_ids", []) if item
-        ),
-        fair_market_estimate_snapshots=tuple(
-            item
-            for item in core.get("fair_market_estimate_snapshots", [])
-            if isinstance(item, Mapping)
-        ),
-        optional_enrichment=_as_mapping(core.get("optional_enrichment")),
-        player_impact_estimate=_as_mapping(core.get("player_impact_estimate")),
         provenance=_as_mapping(core.get("provenance")),
         environment=environment,
         pick=_decision_pick(_as_mapping(core.get("pick"))),
@@ -845,405 +635,6 @@ def _validated_card_hash(
         one_liner=str(core["one_liner"]),
     )
     return decision_card.card_hash
-
-
-def _analysis_gates(
-    *,
-    card: Mapping[str, Any],
-    kickoff_utc: datetime,
-    as_of: datetime,
-    environment: str,
-) -> list[dict[str, Any]]:
-    estimates = _fair_market_estimate_snapshots(card)
-    if not estimates:
-        return []
-    odds = _as_mapping(_get(card, "current_odds"))
-    estimate_set_consistent = _estimate_set_provenance_consistent(estimates)
-    gates: list[dict[str, Any]] = []
-    for market in ANALYSIS_MARKETS:
-        estimate = next(
-            (item for item in estimates if str(item.get("market")) == market),
-            {},
-        )
-        market_line = _market_line(odds, market)
-        market_ready = _market_odds_ready(odds, market)
-        fair_line = _number(estimate.get("fair_line"))
-        source_consistent = _estimate_source_consistent(
-            estimate=estimate,
-            fair_line=fair_line,
-            market=market,
-            provenance_consistent=(
-                estimate_set_consistent
-                and _estimate_matches_card_provenance(card=card, estimate=estimate)
-            ),
-        )
-        model_ready = source_consistent
-        delta = (
-            fair_line - market_line if fair_line is not None and market_line is not None else None
-        )
-        threshold = MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE
-        selection = _selection_for_delta(market, delta)
-        quote_odds = _as_mapping(odds.get("ah" if market == "ASIAN_HANDICAP" else "ou"))
-        quote_captured_at = _first_text(
-            quote_odds.get("captured_at"),
-            quote_odds.get("as_of"),
-        )
-        quote = _analysis_market_quote(
-            card=card,
-            market=market,
-            selection=selection,
-            quote_odds=quote_odds,
-            quote_captured_at=quote_captured_at,
-        )
-        quote_time = _parse_utc(quote_captured_at)
-        quote_stale = quote_time is not None and as_of.astimezone(UTC) - quote_time > timedelta(
-            minutes=DataFreshnessPolicy().odds_max_age_minutes
-        )
-        direction_allowed = _direction_allowed(card, estimate, market)
-        staging_analysis_visible = environment.strip().lower() == "staging"
-        blockers: list[str] = []
-        advisories: list[str] = []
-        if not market_ready:
-            blockers.append("MARKET_UNAVAILABLE")
-        if market_ready and quote_captured_at is None:
-            blockers.append("QUOTE_CAPTURE_TIME_MISSING")
-        elif market_ready and quote_stale:
-            blockers.append("DATA_STALE_ODDS")
-        elif market_ready and quote is None:
-            blockers.append("MARKET_QUOTE_INVALID")
-        if not model_ready:
-            blockers.append("MODEL_FAIR_LINE_UNAVAILABLE")
-        if estimate and not source_consistent:
-            blockers.append("DECISION_SOURCE_INCONSISTENT")
-        if market_ready and model_ready and delta is not None and abs(delta) < threshold:
-            blockers.append("NO_EDGE")
-        direction_blocked = not direction_allowed and (
-            market == "ASIAN_HANDICAP" or not staging_analysis_visible
-        )
-        if market_ready and model_ready and delta is not None and abs(delta) >= threshold:
-            if direction_blocked:
-                blockers.append("FORWARD_EVIDENCE_ACCUMULATING")
-            elif not direction_allowed:
-                advisories.append("FORWARD_EVIDENCE_ACCUMULATING")
-        if not market_ready or not model_ready or any(
-            item in blockers
-            for item in ("QUOTE_CAPTURE_TIME_MISSING", "DATA_STALE_ODDS", "MARKET_QUOTE_INVALID")
-        ):
-            status = "BLOCKED"
-        elif delta is None or abs(delta) < threshold:
-            status = "NO_EDGE"
-        elif direction_blocked:
-            status = "ACCUMULATING"
-        else:
-            status = "ELIGIBLE"
-        if _lineups_pending(card):
-            advisories.append("LINEUPS_PENDING")
-        blocker_diagnostics = prioritize_blockers(blockers)
-        gates.append(
-            {
-                "market": market,
-                "estimate_id": estimate.get("estimate_id"),
-                "status": status,
-                "market_ready": market_ready,
-                "model_ready": model_ready,
-                "evidence_ready": direction_allowed,
-                "direction_allowed": direction_allowed,
-                "fair_line": fair_line,
-                "market_line": market_line,
-                "selection": selection,
-                "quote_id": quote.get("quote_id") if quote else None,
-                "quote_captured_at": quote.get("captured_at") if quote else quote_captured_at,
-                "quote_source_hash": quote.get("source_hash") if quote else None,
-                "quote_freshness_status": (
-                    "MISSING_CAPTURE_TIME"
-                    if quote_captured_at is None
-                    else "STALE"
-                    if quote_stale
-                    else "READY"
-                    if quote is not None
-                    else "INVALID"
-                ),
-                "divergence_line_units": round(delta, 6) if delta is not None else None,
-                "threshold_line_units": threshold,
-                "strength_quarter_lines": round(abs(delta) / threshold, 6)
-                if delta is not None
-                else None,
-                "blockers": blockers,
-                "primary_blocker": blocker_diagnostics["primary_blocker"],
-                "primary_blocker_layer": blocker_diagnostics[
-                    "primary_blocker_layer"
-                ],
-                "all_blockers": blocker_diagnostics["all_blockers"],
-                "advisories": advisories,
-                "next_eval_at": _analysis_next_eval(
-                    kickoff_utc=kickoff_utc,
-                    as_of=as_of,
-                    blockers=blockers,
-                ),
-                "model_family": estimate.get("model_family"),
-                "artifact_hash": estimate.get("artifact_hash"),
-                "artifact_version": estimate.get("artifact_version"),
-                "train_cutoff": estimate.get("train_cutoff"),
-                "feature_as_of": estimate.get("feature_as_of"),
-                "decision_source": "FAIR_MARKET_ESTIMATE",
-                "decision_source_consistent": source_consistent,
-            }
-        )
-    return gates
-
-
-def _estimate_source_consistent(
-    *,
-    estimate: Mapping[str, Any],
-    fair_line: float | None,
-    market: str,
-    provenance_consistent: bool = True,
-) -> bool:
-    home_mu = _number(estimate.get("home_mu"))
-    away_mu = _number(estimate.get("away_mu"))
-    return (
-        str(estimate.get("market") or "") == market
-        and str(estimate.get("status") or "").upper() == "READY"
-        and fair_line is not None
-        and home_mu is not None
-        and home_mu > 0
-        and away_mu is not None
-        and away_mu > 0
-        and bool(str(estimate.get("model_family") or "").strip())
-        and provenance_consistent
-        and estimate.get("schema_version") == "w2.fme_snapshot.v2"
-        and bool(str(estimate.get("estimate_id") or "").strip())
-        and bool(str(estimate.get("model_basis_id") or "").strip())
-        and verify_estimate_snapshot(estimate)
-        and verify_estimate_semantics(estimate)
-    )
-
-
-def _estimate_set_provenance_consistent(
-    estimates: Sequence[Mapping[str, Any]],
-) -> bool:
-    markets = [str(item.get("market") or "") for item in estimates]
-    if len(markets) != len(ANALYSIS_MARKETS) or set(markets) != set(ANALYSIS_MARKETS):
-        return False
-    ready = [
-        item
-        for item in estimates
-        if str(item.get("status") or "").upper() == "READY"
-    ]
-    for key in (
-        "model_family",
-        "artifact_hash",
-        "artifact_version",
-        "train_cutoff",
-        "feature_as_of",
-        "home_mu",
-        "away_mu",
-    ):
-        if len({_provenance_value(item.get(key)) for item in ready}) > 1:
-            return False
-    return True
-
-
-def _estimate_matches_card_provenance(
-    *,
-    card: Mapping[str, Any],
-    estimate: Mapping[str, Any],
-) -> bool:
-    pricing = _as_mapping(card.get("pricing_shadow"))
-    for key in ("model_family", "artifact_hash", "artifact_version", "train_cutoff"):
-        expected = _provenance_value(pricing.get(key))
-        actual = _provenance_value(estimate.get(key))
-        if expected and actual != expected:
-            return False
-    return True
-
-
-def _provenance_value(value: Any) -> str:
-    if isinstance(value, float):
-        return format(value, ".12g")
-    return str(value or "").strip()
-
-
-def _analysis_gates_from_card(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    value = card.get("analysis_gates")
-    if isinstance(value, list):
-        return [item for item in value if isinstance(item, Mapping)]
-    gate = card.get("analysis_gate")
-    return [gate] if isinstance(gate, Mapping) else []
-
-
-def _primary_analysis_gate(gates: Sequence[Mapping[str, Any]]) -> Mapping[str, Any]:
-    if not gates:
-        return {}
-    status_rank = {"ELIGIBLE": 0, "ACCUMULATING": 1, "NO_EDGE": 2, "BLOCKED": 3}
-    market_rank = {"ASIAN_HANDICAP": 0, "TOTALS": 1}
-    return min(
-        gates,
-        key=lambda item: (
-            status_rank.get(str(item.get("status")), 9),
-            -float(item.get("strength_quarter_lines") or 0.0),
-            market_rank.get(str(item.get("market")), 9),
-        ),
-    )
-
-
-def _analysis_gate_v2_shadows(
-    card: Mapping[str, Any],
-    gates: Sequence[Mapping[str, Any]],
-    *,
-    kickoff_utc: datetime,
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for gate in gates:
-        estimate = estimate_snapshot_by_id(card, gate.get("estimate_id"))
-        if estimate is None:
-            continue
-        quote = _analysis_gate_quote(card, gate)
-        rows.append(
-            build_analysis_gate_v2_shadow(
-                estimate=estimate,
-                gate=gate,
-                odds=quote.get("odds"),
-                selection_line=quote.get("line"),
-                fixture_id=card.get("fixture_id"),
-                kickoff_utc=kickoff_utc.isoformat().replace("+00:00", "Z"),
-                quote_id=gate.get("quote_id"),
-                quote_captured_at=gate.get("quote_captured_at"),
-            )
-        )
-    return rows
-
-
-def _fair_market_estimates(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    return list(estimate_snapshots(card))
-
-
-def _fair_market_estimate_snapshots(
-    card: Mapping[str, Any],
-) -> list[Mapping[str, Any]]:
-    value = card.get("fair_market_estimate_snapshots")
-    if isinstance(value, list):
-        return [item for item in value if isinstance(item, Mapping)]
-    return []
-
-
-def _fair_market_estimate_ids(card: Mapping[str, Any]) -> list[str]:
-    value = card.get("fair_market_estimate_ids")
-    if isinstance(value, list):
-        return [str(item) for item in value if item]
-    return [
-        str(item.get("estimate_id"))
-        for item in _fair_market_estimate_snapshots(card)
-        if item.get("estimate_id")
-    ]
-
-
-def _market_line(odds: Mapping[str, Any], market: str) -> float | None:
-    if market == "ASIAN_HANDICAP":
-        return _number(_get(_as_mapping(odds.get("ah")), "home_line"))
-    return _number(_get(_as_mapping(odds.get("ou")), "line"))
-
-
-def _market_odds_ready(odds: Mapping[str, Any], market: str) -> bool:
-    if market == "ASIAN_HANDICAP":
-        item = _as_mapping(odds.get("ah"))
-        return all(
-            _non_empty(item.get(key))
-            for key in ("home_line", "away_line", "home_price", "away_price")
-        )
-    item = _as_mapping(odds.get("ou"))
-    return all(_non_empty(item.get(key)) for key in ("line", "over_price", "under_price"))
-
-
-def _analysis_market_quote(
-    *,
-    card: Mapping[str, Any],
-    market: str,
-    selection: str | None,
-    quote_odds: Mapping[str, Any],
-    quote_captured_at: str | None,
-) -> dict[str, Any] | None:
-    if selection is None or quote_captured_at is None:
-        return None
-    try:
-        return MarketQuote.create(
-            fixture_id=str(card.get("fixture_id") or ""),
-            market=market,
-            selection=selection,
-            odds=quote_odds,
-            captured_at=quote_captured_at,
-        ).as_dict()
-    except ValueError:
-        return None
-
-
-def _direction_allowed(
-    card: Mapping[str, Any],
-    estimate: Mapping[str, Any],
-    market: str,
-) -> bool:
-    by_market = card.get("direction_allowed_by_market")
-    if isinstance(by_market, Mapping) and market in by_market:
-        return _truthy(by_market.get(market))
-    if estimate.get("direction_allowed") is not None:
-        return _truthy(estimate.get("direction_allowed"))
-    if market == "ASIAN_HANDICAP":
-        divergence = _as_mapping(card.get("model_market_divergence")) or _as_mapping(
-            card.get("market_divergence")
-        )
-        return _truthy(divergence.get("direction_allowed"))
-    return False
-
-
-def _selection_for_delta(market: str, delta: float | None) -> str | None:
-    if delta is None or abs(delta) < MIN_MARKET_ANCHOR_DIVERGENCE_AH_LINE:
-        return None
-    if market == "ASIAN_HANDICAP":
-        return "HOME_AH" if delta < 0 else "AWAY_AH"
-    return "OVER" if delta > 0 else "UNDER"
-
-
-def _lineups_pending(card: Mapping[str, Any]) -> bool:
-    readiness = _as_mapping(card.get("data_readiness"))
-    return not _truthy(readiness.get("lineups"))
-
-
-def _optional_enrichment(card: Mapping[str, Any]) -> dict[str, Any]:
-    readiness = _as_mapping(card.get("data_readiness"))
-    available_inputs = _as_mapping(
-        _get(_as_mapping(card.get("analysis_readiness")), "available_inputs")
-    )
-    lineups_available = _truthy(readiness.get("lineups")) or _truthy(
-        available_inputs.get("lineups")
-    )
-    player_value_available = _truthy(readiness.get("team_value"))
-    return {
-        "lineups": {
-            "status": "AVAILABLE_NOT_MODELED" if lineups_available else "PENDING",
-            "affects_estimate": False,
-            "adjustment": 0.0,
-            "source": None,
-            "as_of": readiness.get("lineups_captured_at"),
-        },
-        "player_value": {
-            "status": "AVAILABLE_NOT_MODELED" if player_value_available else "NOT_SUPPORTED",
-            "affects_estimate": False,
-            "source": None,
-            "as_of": readiness.get("team_value_captured_at"),
-        },
-    }
-
-
-def _analysis_next_eval(
-    *,
-    kickoff_utc: datetime,
-    as_of: datetime,
-    blockers: list[str],
-) -> str:
-    target = kickoff_utc - timedelta(minutes=60 if "LINEUPS_PENDING" in blockers else 30)
-    if target <= as_of:
-        target = as_of + timedelta(minutes=30)
-    return target.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _probability_source(
@@ -1289,19 +680,6 @@ def _model_market_divergence(
         ),
         "calibration_status": _optional_text(_get(divergence, "calibration_status")),
         "direction_allowed": _truthy(_get(divergence, "direction_allowed")),
-        "model_family": _optional_text(
-            _get(divergence, "model_family") or _get(pricing, "model_family")
-        ),
-        "model_family_fallback_reason": _optional_text(
-            _get(divergence, "model_family_fallback_reason")
-            or _get(pricing, "model_family_fallback_reason")
-        ),
-        "artifact_hash": _optional_text(
-            _get(divergence, "artifact_hash") or _get(pricing, "artifact_hash")
-        ),
-        "artifact_version": _optional_text(
-            _get(divergence, "artifact_version") or _get(pricing, "artifact_version")
-        ),
     }
 
 
@@ -1311,7 +689,6 @@ def _decision_pick(payload: Mapping[str, Any]) -> DecisionPick | None:
     return DecisionPick(
         market=str(payload.get("market") or ""),
         selection=str(payload.get("selection") or ""),
-        estimate_id=_optional_text(payload.get("estimate_id")),
         line=_optional_text(payload.get("line")),
         odds=_optional_text(payload.get("odds")),
         fair_line=_optional_text(payload.get("fair_line")),

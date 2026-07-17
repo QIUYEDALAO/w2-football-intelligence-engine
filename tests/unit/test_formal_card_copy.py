@@ -46,12 +46,7 @@ def test_formal_card_copy_localizes_prematch_blockers_and_formal_scoreline() -> 
     assert 'source === "formal_simulation"' in card
     assert "未出正式推荐原因" in card
     assert "模拟比分参考，不是推荐比分" in card
-    assert "与推荐方向一致：" in card
-    assert "direction_scorelines" in card
-    boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
-    assert "结算概率：" not in boss_view
-    assert "分析参考" not in boss_view
-    assert "非稳赢" not in boss_view
+    assert "最可能：" in card
     assert "总进球≥" in card
     assert "让球结算关键比分" in card
     assert "推荐比分" not in card.replace("不是推荐比分", "")
@@ -88,26 +83,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "sortFormalFirst" not in page
     assert "DecisionCounts" in boss_view
     assert "EvidencePanel" in boss_view
-    assert "validationRecommendations" in boss_view
-    assert (
-        "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
-        not in boss_view
-    )
-    assert 'return ["RECOMMEND", "ANALYSIS_PICK"].includes(card.decision_tier);' in boss_view
-    assert "为什么选择这个方向" in boss_view
-    assert "为什么还不是正式推荐" not in boss_view
-    assert "为什么当前只观察" in boss_view
-    assert "可选增强状态" in boss_view
-    assert "首发已获取，仅作信息增强，不参与当前模型" in boss_view
-    assert "首发待公布，不阻断当前分析，也不会触发自动改向" in boss_view
-    assert "球员影响模型未启用，净调整为 0" in boss_view
-    assert "公布后会自动重算" not in boss_view
-    assert "14 联赛可用" not in boss_view
-    assert "active_whitelist_count" in boss_view
-    assert "前向比赛" in boss_view
-    assert "有效双快照" in boss_view
-    assert "影子 CLV" in boss_view
-    assert "已纳入 outcome tracking" not in boss_view
+    assert "readyRecommendations" in boss_view
     assert "todaySchedule" in boss_view
     assert "futureSchedule" in boss_view
     assert "ScheduleSection" in boss_view
@@ -116,12 +92,6 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
-    assert "验证结算" in boss_view
-    assert "outcomes_validation" in boss_view
-    assert "验证推荐 {validationTotal} 场" in boss_view
-    assert "待结算 {pending} 场" in boss_view
-    assert "已有赛果待结算" in boss_view
-    assert "前向比赛 {forwardLedger?.fixture_count" not in boss_view
     assert "LeaguePerformancePreview" in boss_view
     assert "DecisionRow" in boss_view
     assert "pickSelectionLabel" in boss_view

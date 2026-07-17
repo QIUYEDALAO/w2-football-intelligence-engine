@@ -4,7 +4,7 @@
 #   sudo docker compose \
 #     -f docker-compose.yml \
 #     -f infra/compose/staging-lite.override.yml \
-#     -p w2-staging up -d
+#     -p w2 up -d
 #
 # All public ports bound to 127.0.0.1 only.
 # No MinIO (not required by staging forward-holdout cycle).
@@ -102,12 +102,8 @@ services:
       - ./config:/app/config:ro
     environment:
       W2_ENVIRONMENT: staging
-      W2_TEAM_LOCALIZATION_REGISTRY_PATH: /app/config/team_localization/teams.zh-CN.v1.json
-      W2_R4_1_ARTIFACT_DIR: /app/runtime/model_artifacts/r4_1
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
-      W2_OPS_SERVICE_TOKEN: ${W2_OPS_SERVICE_TOKEN:-}  # secrets via environment
-      W2_OPS_ALLOWED_CIDRS: ${W2_OPS_ALLOWED_CIDRS:-}
       W2_CELERY_BROKER_URL: redis://redis:6379/1
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_PROVIDER_CALLS_DISABLED: "true"
@@ -119,7 +115,7 @@ services:
       W2_PROVIDER_DAILY_HARD_CAP: "120"
       W2_STAGING_ENABLED_COMPETITIONS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
-      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.25}
+      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_XG_BACKFILL_ENABLED: "false"
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
@@ -140,7 +136,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5); assert r.status==200"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); assert r.status==200"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -189,7 +185,7 @@ services:
       W2_PROVIDER_DAILY_HARD_CAP: "120"
       W2_STAGING_ENABLED_COMPETITIONS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
-      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.25}
+      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_XG_BACKFILL_ENABLED: "false"
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
@@ -248,8 +244,8 @@ services:
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "brasileirao_serie_a"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
       W2_PROVIDER_CALLS_DISABLED: "false"
       W2_PROVIDER_SCHEDULER_ENABLED: "true"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
@@ -272,7 +268,7 @@ services:
       W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS: ${W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS:-3600}
       W2_FORWARD_OUTCOME_BACKFILL_WINDOW: ${W2_FORWARD_OUTCOME_BACKFILL_WINDOW:-future}
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
-      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.25}
+      W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_DEEPSEEK_ENABLED: "false"
       W2_RECOMMENDATION_ENABLED: "false"
       W2_CANDIDATE_ENABLED: "false"

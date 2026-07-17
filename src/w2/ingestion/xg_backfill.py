@@ -26,7 +26,6 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
-from w2.models.r4_1_features import R4_1_WINDOW_MATCHES
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import env_int
 from w2.providers.quota import (
@@ -69,13 +68,12 @@ class XgBackfillRepository(Protocol):
 
 @dataclass(frozen=True, kw_only=True)
 class XgBackfillConfig:
-    competition_id: str = "chinese_super_league"
+    competition_id: str = "world_cup_2026"
     recent_match_count: int = 5
     request_budget: int = 120
     quota_reserve: int = 1500
     min_rolling_matches: int = 3
-    # Keep materialized serving features on the same window as the reviewed R4.1 protocol.
-    max_rolling_matches: int = R4_1_WINDOW_MATCHES
+    max_rolling_matches: int = 5
     source_revision: str = "LOCAL_UNDEPLOYED"
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500

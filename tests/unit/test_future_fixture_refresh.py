@@ -848,20 +848,15 @@ def test_future_refresh_w2_budget_scope_ignores_provider_header_usage(
     assert "PROVIDER_RESERVE_PROTECTED" not in result.blockers
 
 
-def test_future_refresh_policy_allows_only_active_enabled_competitions(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
+def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Path) -> None:
     policy_path = tmp_path / "policy.json"
     policy_path.write_text(
         """
         {
           "competitions": [
             {
-              "competition_id": "brasileirao_serie_a",
-              "provider_league_id": "71",
+              "competition_id": "world_cup_2026",
+              "provider_league_id": "1",
               "season": "2026",
               "horizon_days": 14,
               "scheduler_interval_seconds": 900,
@@ -878,17 +873,14 @@ def test_future_refresh_policy_allows_only_active_enabled_competitions(
         encoding="utf-8",
     )
 
-    policy = load_refresh_policy(
-        competition_id="brasileirao_serie_a",
-        policy_path=policy_path,
-    )
+    policy = load_refresh_policy(competition_id="world_cup_2026", policy_path=policy_path)
     config = config_from_policy(
-        competition_id="brasileirao_serie_a",
+        competition_id="world_cup_2026",
         runtime_root=tmp_path / "runtime",
         policy_path=policy_path,
     )
 
-    assert policy.provider_league_id == "71"
+    assert policy.provider_league_id == "1"
     assert config.season == "2026"
     assert config.max_odds_requests == 20
     try:
@@ -899,17 +891,13 @@ def test_future_refresh_policy_allows_only_active_enabled_competitions(
         raise AssertionError("unregistered policy unexpectedly loaded")
 
 
-def test_active_future_refresh_policy_uses_zero_trickle_backfill_budget(
-    monkeypatch,
-) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
-    config = config_from_policy(competition_id="brasileirao_serie_a")
+def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
+    config = config_from_policy(competition_id="world_cup_2026")
 
     assert config.daily_hard_cap == 120
     assert config.daily_reserve == 0
-    assert config.request_budget == 10
-    assert config.checkpoint_mode == "legacy_full_checkpoint"
+    assert config.request_budget == 30
+    assert config.checkpoint_mode == "world_cup_three_checkpoint"
     assert config.trickle_backfill_daily_budget == 0
 
 

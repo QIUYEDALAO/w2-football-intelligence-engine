@@ -11,53 +11,6 @@ from w2.strategy.formal_recommendation import ah_display_contract
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
-def test_future_provider_fixture_context_preserves_team_identity() -> None:
-    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
-
-    context = service._analysis_context_from_provider_fixture(
-        {
-            "fixture": {"date": "2026-07-12T11:00:00Z"},
-            "league": {"id": 169, "name": "Chinese Super League", "round": "Round 18"},
-            "teams": {
-                "home": {"id": 1001, "name": "Tianjin Teda"},
-                "away": {"id": 1002, "name": "Shenyang Urban"},
-            },
-        }
-    )
-
-    assert context["competition_id"] == "chinese_super_league"
-    assert context["home_team_id"] == 1001
-    assert context["away_team_id"] == 1002
-    assert context["home_team_name"] == "Tianjin Teda"
-    assert context["away_team_provider_name"] == "Shenyang Urban"
-
-
-def test_future_flat_fixture_context_preserves_team_identity() -> None:
-    service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
-
-    context = service._analysis_context_from_flat_fixture(
-        {
-            "competition_id": "113",
-            "competition_name": "Allsvenskan",
-            "home_team_id": "11",
-            "away_team_id": "22",
-            "home_team_name": "Home Provider",
-            "away_team_name": "Away Provider",
-        }
-    )
-
-    assert context["home_team_id"] == "11"
-    assert context["away_team_id"] == "22"
-    assert context["home_team_provider_name"] == "Home Provider"
-    assert context["competition_id"] == "allsvenskan"
-
-    decorated = service._decorate_analysis_card(
-        {"fixture_id": "fixture", "competition_id": "113", "markets": []},
-        fixture_context=context,
-    )
-    assert decorated["competition_id"] == "allsvenskan"
-
-
 class RecommendationLoopRepository:
     def release_counts(self) -> dict[str, int]:
         return {
@@ -1477,7 +1430,7 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
 
 
-def test_dashboard_non_pick_uses_marked_legacy_reference_when_fme_is_incomplete() -> None:
+def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     service = ReadModelService(
         repository=cast(
             Any,
@@ -1515,22 +1468,13 @@ def test_dashboard_non_pick_uses_marked_legacy_reference_when_fme_is_incomplete(
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
-    assert card["pricing_shadow"]["simulation"]["decision_source_status"] == (
-        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
-    )
+    assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
     assert card["scoreline_picks"][0]["scoreline"] != "4-4"
-    assert all(item["status"] == "INSUFFICIENT" for item in card["fair_market_estimates"])
-    assert all(
-        item["fallback_reason"] == "FME_PROVENANCE_INCOMPLETE"
-        for item in card["fair_market_estimates"]
-    )
-    assert card["scoreline_reference"]["source"] == "legacy_baseline_simulation"
-    assert card["scoreline_reference"]["source_status"] == (
-        "LEGACY_BASELINE_NOT_DECISION_SOURCE"
-    )
+    assert card["scoreline_reference"]["source"] == "formal_simulation"
     assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert "high_total" in card["scoreline_reference"]
-    assert "ah_key_scorelines" in card["scoreline_reference"]
+    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
+    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
+    assert card["scoreline_reference"]["ah_key_scorelines"] == []
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:
@@ -1569,7 +1513,7 @@ def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate()
     assert payload["validation"]["analysis_shadow"]["hit_rate"] is None
     assert (
         payload["validation"]["analysis_shadow"]["label"]
-        == "验证推荐样本不足，暂不计算命中率（不计入正式战绩）"
+        == "analysis_shadow 样本不足，暂不计算命中率"
     )
 
 

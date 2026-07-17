@@ -12,11 +12,11 @@ from scripts.summarize_w2_league_whitelist_scope import (
 from w2.competitions.league_whitelist_scope import REMAINING_UNAUDITED_WHITELIST
 
 
-def test_full_scope_inventory_has_thirteen_active_competitions() -> None:
+def test_full_scope_inventory_has_fourteen_competitions() -> None:
     payload = build_scope_summary()
     inventory = {item["competition_id"]: item for item in payload["inventory"]}
 
-    assert payload["competition_count"] == 13
+    assert payload["competition_count"] == 14
     assert payload["provider_calls"] == 0
     assert payload["db_reads"] == 0
     assert payload["db_writes"] == 0
@@ -26,6 +26,7 @@ def test_full_scope_inventory_has_thirteen_active_competitions() -> None:
         "bundesliga",
         "serie_a",
         "ligue_1",
+        "world_cup_2026",
         "brasileirao_serie_a",
         "argentina_primera",
         "mls",
@@ -37,14 +38,14 @@ def test_full_scope_inventory_has_thirteen_active_competitions() -> None:
     }
 
 
-def test_remaining_unaudited_whitelist_has_seven_competitions() -> None:
+def test_remaining_unaudited_whitelist_has_eight_competitions() -> None:
     payload = build_cli_payload(
         group="remaining_unaudited_whitelist",
         audit_mode="coverage-inventory",
     )
     ids = [result["competition_id"] for result in payload["results"]]
 
-    assert payload["competition_count"] == 7
+    assert payload["competition_count"] == 8
     assert tuple(ids) == REMAINING_UNAUDITED_WHITELIST
     assert ids == [
         "premier_league",
@@ -52,18 +53,22 @@ def test_remaining_unaudited_whitelist_has_seven_competitions() -> None:
         "bundesliga",
         "serie_a",
         "ligue_1",
+        "world_cup_2026",
         "eredivisie",
         "primeira_liga",
     ]
     assert payload["provider_calls"] == 0
 
 
-def test_scope_excludes_archived_world_cup() -> None:
+def test_scope_marks_existing_world_cup_without_new_enablement() -> None:
     payload = build_scope_summary()
+    world_cup = _inventory_item(payload, "world_cup_2026")
 
-    assert "world_cup_2026" not in {
-        item["competition_id"] for item in payload["inventory"]
-    }
+    assert world_cup["enabled"] is True
+    assert world_cup["audit_status"] == "ENABLED_EXISTING"
+    assert world_cup["audit_mode"] == "COVERAGE_INVENTORY_AUDIT"
+    assert world_cup["can_enable"] is False
+    assert "not a new enablement" in world_cup["reason"]
 
 
 def test_top_five_disabled_entries_are_not_enabled_by_inventory() -> None:

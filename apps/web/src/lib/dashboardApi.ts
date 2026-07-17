@@ -13,7 +13,6 @@ import type {
   FormalTrackingSummary,
   LockedPreMatchRecommendation,
   DashboardView,
-  FixtureAuditDetails,
   MatchResult,
   MatchStatus,
   PricingShadow,
@@ -24,31 +23,14 @@ import type {
   ValidationSummary,
 } from "../types/dashboard";
 
-const REQUEST_TIMEOUT_MS = 12_000;
-const DASHBOARD_CACHE_VERSION = "dashboard-v13-cache-first";
-const DASHBOARD_CACHE_TTL_MS = 15 * 60_000;
-const DASHBOARD_FIRST_PAGE_CACHE_MAX_BYTES = 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 20000;
+const DASHBOARD_CACHE_VERSION = "dashboard-v12-future-default-dayview-required";
+const DASHBOARD_CACHE_TTL_MS = 60_000;
 
 interface DashboardCacheEntry {
   version: string;
   stored_at: string;
   view: DashboardView;
-}
-
-const fixtureAuditInflight = new Map<string, Promise<FixtureAuditDetails>>();
-const fixtureAuditCache = new Map<string, { expiresAt: number; detail: FixtureAuditDetails }>();
-const fixtureTimelineInflight = new Map<string, Promise<Record<string, unknown>>>();
-const fixtureTimelineCache = new Map<string, { expiresAt: number; detail: Record<string, unknown> }>();
-const dayViewPageInflight = new Map<string, Promise<DashboardDayView>>();
-const FIXTURE_AUDIT_CACHE_MAX_ENTRIES = 64;
-const FIXTURE_AUDIT_CACHE_TTL_MS = 15 * 60_000;
-let activeFixtureAuditRelease = "";
-let activeFixtureTimelineRelease = "";
-
-export class DashboardHttpError extends Error {
-  constructor(public readonly status: number, url: string) {
-    super(`${url} -> HTTP ${status}`);
-  }
 }
 
 interface FetchDashboardArgs {
@@ -64,7 +46,7 @@ async function getJSON(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unk
     window.clearTimeout(timeout);
   });
   if (!response.ok) {
-    throw new DashboardHttpError(response.status, url);
+    throw new Error(`${url} -> HTTP ${response.status}`);
   }
   return response.json() as Promise<unknown>;
 }
@@ -135,9 +117,6 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const analysisShadow = asRecord(record.analysis_shadow);
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
-  const forwardShadowClv = asRecord(forwardLedger.clv_shadow);
-  const performanceIntegrity = asRecord(forwardLedger.performance_integrity);
-  const outcomesRawAudit = asRecord(forwardLedger.outcomes_raw_audit);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
     hit_count: numberValue(row.hit_count),
@@ -193,98 +172,12 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       sample_target: numberValue(forwardLedger.sample_target),
       record_count: numberValue(forwardLedger.record_count),
       fixture_count: numberValue(forwardLedger.fixture_count),
-      double_snapshot_fixture_count: numberValue(forwardLedger.double_snapshot_fixture_count),
-      validation_fixture_count: numberValue(forwardLedger.validation_fixture_count),
-      validation_settled_fixture_count: numberValue(
-        forwardLedger.validation_settled_fixture_count,
-      ),
-      validation_pending_fixture_count: numberValue(
-        forwardLedger.validation_pending_fixture_count,
-      ),
-      validation_pending_status: {
-        pre_settlement_window_fixture_count: numberValue(
-          asRecord(forwardLedger.validation_pending_status)
-            .pre_settlement_window_fixture_count,
-        ),
-        awaiting_official_result_fixture_count: numberValue(
-          asRecord(forwardLedger.validation_pending_status)
-            .awaiting_official_result_fixture_count,
-        ),
-        result_available_unsettled_fixture_count: numberValue(
-          asRecord(forwardLedger.validation_pending_status)
-            .result_available_unsettled_fixture_count,
-        ),
-        result_source_unavailable_fixture_count: numberValue(
-          asRecord(forwardLedger.validation_pending_status)
-            .result_source_unavailable_fixture_count,
-        ),
-        result_source_available:
-          asRecord(forwardLedger.validation_pending_status).result_source_available === true,
-        pending_fixture_count: numberValue(
-          asRecord(forwardLedger.validation_pending_status).pending_fixture_count,
-        ),
-      },
       settled_sample_count: numberValue(forwardLedger.settled_sample_count),
       hit_count: numberValue(forwardLedger.hit_count),
       miss_count: numberValue(forwardLedger.miss_count),
       push_count: numberValue(forwardLedger.push_count),
       void_count: numberValue(forwardLedger.void_count),
       hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
-      outcomes_validation: outcomeSummary(forwardLedger.outcomes_validation),
-      outcomes_official: outcomeSummary(forwardLedger.outcomes_official),
-      outcomes_shadow_wide: outcomeSummary(forwardLedger.outcomes_shadow_wide),
-      outcomes_shadow_strict: outcomeSummary(forwardLedger.outcomes_shadow_strict),
-      outcomes_shadow: outcomeSummary(forwardLedger.outcomes_shadow),
-      outcomes_shadow_compatibility_view:
-        forwardLedger.outcomes_shadow_compatibility_view === true,
-      outcomes_by_strategy: asArray(forwardLedger.outcomes_by_strategy).map((item) => {
-        const row = asRecord(item);
-        return {
-          recommendation_scope: textValue(row.recommendation_scope, "UNKNOWN"),
-          strategy_version: textValue(row.strategy_version, "UNKNOWN"),
-          ...outcomeSummary(row),
-        };
-      }),
-      outcomes_raw_audit: {
-        raw_outcome_row_count: numberValue(outcomesRawAudit.raw_outcome_row_count),
-        canonical_outcome_count: numberValue(outcomesRawAudit.canonical_outcome_count),
-        audit_only_outcome_count: numberValue(outcomesRawAudit.audit_only_outcome_count),
-        duplicate_audit_row_count: numberValue(outcomesRawAudit.duplicate_audit_row_count),
-        raw_exact_duplicate_count: numberValue(outcomesRawAudit.raw_exact_duplicate_count),
-        outcome_conflict_count: numberValue(outcomesRawAudit.outcome_conflict_count),
-        identity_aware_unmatched_count: numberValue(
-          outcomesRawAudit.identity_aware_unmatched_count,
-        ),
-      },
-      performance_integrity: {
-        status: textValue(performanceIntegrity.status, "BLOCKED"),
-        raw_outcome_row_count: numberValue(performanceIntegrity.raw_outcome_row_count),
-        canonical_outcome_count: numberValue(performanceIntegrity.canonical_outcome_count),
-        audit_only_outcome_count: numberValue(performanceIntegrity.audit_only_outcome_count),
-        duplicate_audit_row_count: numberValue(performanceIntegrity.duplicate_audit_row_count),
-        raw_exact_duplicate_count: numberValue(performanceIntegrity.raw_exact_duplicate_count),
-        outcome_conflict_count: numberValue(performanceIntegrity.outcome_conflict_count),
-        identity_aware_matched_count: numberValue(
-          performanceIntegrity.identity_aware_matched_count,
-        ),
-        identity_aware_unmatched_count: numberValue(
-          performanceIntegrity.identity_aware_unmatched_count,
-        ),
-        historical_incomplete_identity_count: numberValue(
-          performanceIntegrity.historical_incomplete_identity_count,
-        ),
-        canonical_duplicate_count: numberValue(performanceIntegrity.canonical_duplicate_count),
-        canonical_candidate_nonunique_count: numberValue(
-          performanceIntegrity.canonical_candidate_nonunique_count,
-        ),
-        cross_track_contamination_count: numberValue(
-          performanceIntegrity.cross_track_contamination_count,
-        ),
-        historical_compatibility_outcome_count: numberValue(
-          performanceIntegrity.historical_compatibility_outcome_count,
-        ),
-        corrected_outcome_count: numberValue(performanceIntegrity.corrected_outcome_count),
-      },
       accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
       clv: {
         sample_count: numberValue(forwardClv.sample_count),
@@ -295,24 +188,12 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
         line_changed_count: numberValue(forwardClv.line_changed_count),
         method: textValue(forwardClv.method) || undefined,
       },
-      clv_shadow: {
-        sample_count: numberValue(forwardShadowClv.sample_count),
-        median_decimal: typeof forwardShadowClv.median_decimal === "number" ? forwardShadowClv.median_decimal : null,
-        positive_count: numberValue(forwardShadowClv.positive_count),
-        negative_count: numberValue(forwardShadowClv.negative_count),
-        push_count: numberValue(forwardShadowClv.push_count),
-        line_changed_count: numberValue(forwardShadowClv.line_changed_count),
-        line_clv_sample_count: numberValue(forwardShadowClv.line_clv_sample_count),
-        median_line_clv: typeof forwardShadowClv.median_line_clv === "number" ? forwardShadowClv.median_line_clv : null,
-        method: textValue(forwardShadowClv.method) || undefined,
-      },
       by_league: asArray(forwardLedger.by_league).map((item) => {
         const row = asRecord(item);
         return {
           league: textValue(row.league, "UNKNOWN"),
           record_count: numberValue(row.record_count),
           fixture_count: numberValue(row.fixture_count),
-          double_snapshot_fixture_count: numberValue(row.double_snapshot_fixture_count),
           settled_sample_count: numberValue(row.settled_sample_count),
           hit_count: numberValue(row.hit_count),
           miss_count: numberValue(row.miss_count),
@@ -321,24 +202,10 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
           hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
           clv_sample_count: numberValue(row.clv_sample_count),
           clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
-          clv_shadow_sample_count: numberValue(row.clv_shadow_sample_count),
-          clv_shadow_median_decimal: typeof row.clv_shadow_median_decimal === "number" ? row.clv_shadow_median_decimal : null,
         };
       }),
       mock_data: Boolean(forwardLedger.mock_data),
     } : undefined,
-  };
-}
-
-function outcomeSummary(payload: unknown) {
-  const row = asRecord(payload);
-  return {
-    settled_sample_count: numberValue(row.settled_sample_count),
-    hit_count: numberValue(row.hit_count),
-    miss_count: numberValue(row.miss_count),
-    push_count: numberValue(row.push_count),
-    void_count: numberValue(row.void_count),
-    hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
   };
 }
 
@@ -515,11 +382,6 @@ function normalizeScorelinePick(payload: unknown) {
     away_goals: numberValue(row.away_goals) ?? undefined,
     probability: typeof row.probability === "number" ? row.probability : undefined,
     probability_label: textValue(row.probability_label),
-    probability_type: textValue(row.probability_type) || undefined,
-    selection: textValue(row.selection) || undefined,
-    line: numberValue(row.line) ?? undefined,
-    outcome: textValue(row.outcome) || undefined,
-    source: textValue(row.source) || undefined,
   };
 }
 
@@ -529,17 +391,11 @@ function normalizeScorelineReference(payload: unknown) {
   if (!source && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
   return {
     source: source || null,
-    estimate_id: textValue(record.estimate_id) || null,
     label: textValue(record.label) || null,
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
-    direction_scorelines: asArray(record.direction_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
     high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
     very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
     ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => asRecord(item)),
-    market_settlement: Object.keys(asRecord(record.market_settlement)).length ? asRecord(record.market_settlement) : null,
-    distribution_provenance: Object.keys(asRecord(record.distribution_provenance)).length
-      ? asRecord(record.distribution_provenance)
-      : null,
   };
 }
 
@@ -668,16 +524,6 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     competition_name: textValue(record.competition_name, "世界杯"),
     home_team_name: textValue(record.home_team_name, "主队"),
     away_team_name: textValue(record.away_team_name, "客队"),
-    home_team_id: textValue(record.home_team_id) || null,
-    away_team_id: textValue(record.away_team_id) || null,
-    home_team_name_zh: textValue(record.home_team_name_zh) || null,
-    away_team_name_zh: textValue(record.away_team_name_zh) || null,
-    home_team_display_name: textValue(record.home_team_display_name) || null,
-    away_team_display_name: textValue(record.away_team_display_name) || null,
-    home_team_provider_name: textValue(record.home_team_provider_name) || null,
-    away_team_provider_name: textValue(record.away_team_provider_name) || null,
-    home_team_localization_status: textValue(record.home_team_localization_status) || null,
-    away_team_localization_status: textValue(record.away_team_localization_status) || null,
     status: textValue(record.status, "UPCOMING") as MatchStatus,
     raw_status: textValue(record.raw_status),
     data_state: textValue(record.data_state),
@@ -800,21 +646,19 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
   };
 }
 
-function cachePointerKey(date: string, mode: DashboardMode): string {
-  return `${DASHBOARD_CACHE_VERSION}:${date}:${mode}:first-page`;
+function cacheKey(date: string, mode: DashboardMode): string {
+  return `${DASHBOARD_CACHE_VERSION}:${date}:${mode}`;
 }
 
 export function getCachedDashboardView(date: string, mode: DashboardMode): DashboardView | null {
   try {
-    const storedKey = window.localStorage.getItem(cachePointerKey(date, mode));
-    if (!storedKey) return null;
-    const raw = window.localStorage.getItem(storedKey);
+    const raw = window.localStorage.getItem(cacheKey(date, mode));
     if (!raw) return null;
     const entry = JSON.parse(raw) as Partial<DashboardCacheEntry>;
     if (entry.version !== DASHBOARD_CACHE_VERSION || !entry.stored_at || !entry.view) return null;
     if (Date.now() - Date.parse(entry.stored_at) > DASHBOARD_CACHE_TTL_MS) return null;
     if (!entry.view.day_view) return null;
-    return { ...entry.view, cache_status: "STALE_CACHE" };
+    return entry.view;
   } catch {
     return null;
   }
@@ -822,10 +666,7 @@ export function getCachedDashboardView(date: string, mode: DashboardMode): Dashb
 
 export function clearCachedDashboardView(date: string, mode: DashboardMode): void {
   try {
-    const pointer = cachePointerKey(date, mode);
-    const storedKey = window.localStorage.getItem(pointer);
-    window.localStorage.removeItem(pointer);
-    if (storedKey) window.localStorage.removeItem(storedKey);
+    window.localStorage.removeItem(cacheKey(date, mode));
     for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
       const key = window.localStorage.key(index);
       if (key?.startsWith("dashboard-v")) {
@@ -844,16 +685,20 @@ function storeCachedDashboardView(date: string, mode: DashboardMode, view: Dashb
       stored_at: new Date().toISOString(),
       view,
     };
-    const snapshotId = view.day_view?.pagination.snapshot_id;
-    if (!snapshotId || !view.day_view || view.day_view.pagination.returned_count !== view.day_view.cards.length) return;
-    const key = `${DASHBOARD_CACHE_VERSION}:${date}:${mode}:${view.release.api_git_sha}:${snapshotId}`;
-    const encoded = JSON.stringify(entry);
-    if (new Blob([encoded]).size > DASHBOARD_FIRST_PAGE_CACHE_MAX_BYTES) return;
-    window.localStorage.setItem(key, encoded);
-    window.localStorage.setItem(cachePointerKey(date, mode), key);
+    window.localStorage.setItem(cacheKey(date, mode), JSON.stringify(entry));
   } catch {
     // Cache is best-effort; private browsing or quota limits should not break the dashboard.
   }
+}
+
+async function fetchDashboardPayload(date: string, mode: DashboardMode, includeDebug: boolean, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
+  const params = new URLSearchParams({
+    date,
+    window: mode,
+    timezone: "Asia/Shanghai",
+    include_debug: includeDebug ? "true" : "false",
+  });
+  return getJSON(`${API_BASE}/dashboard?${params.toString()}`, timeoutMs);
 }
 
 async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): Promise<unknown> {
@@ -861,13 +706,16 @@ async function fetchDashboardDayViewPayload(date: string, mode: DashboardMode): 
     date,
     window: mode,
     timezone: "Asia/Shanghai",
-    page_size: "20",
   });
   return getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`);
 }
 
 async function fetchDashboardDayViewPayloadRequired(date: string, mode: DashboardMode): Promise<unknown> {
-  return fetchDashboardDayViewPayload(date, mode);
+  try {
+    return await fetchDashboardDayViewPayload(date, mode);
+  } catch {
+    return fetchDashboardDayViewPayload(date, mode);
+  }
 }
 
 function normalizeCounts(payload: unknown): DashboardDayViewCounts {
@@ -898,17 +746,6 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
   const pick = asRecord(record.pick);
-  const optionalEnrichment = asRecord(record.optional_enrichment);
-  const normalizeEnrichmentItem = (payload: unknown) => {
-    const row = asRecord(payload);
-    return {
-      status: textValue(row.status) || null,
-      affects_estimate: row.affects_estimate === true,
-      adjustment: nullableNumber(row.adjustment),
-      source: textValue(row.source) || null,
-      as_of: textValue(row.as_of) || null,
-    };
-  };
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc) || null,
@@ -917,16 +754,6 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     competition_name: textValue(record.competition_name) || null,
     home_team_name: textValue(record.home_team_name) || null,
     away_team_name: textValue(record.away_team_name) || null,
-    home_team_id: textValue(record.home_team_id) || null,
-    away_team_id: textValue(record.away_team_id) || null,
-    home_team_name_zh: textValue(record.home_team_name_zh) || null,
-    away_team_name_zh: textValue(record.away_team_name_zh) || null,
-    home_team_display_name: textValue(record.home_team_display_name) || null,
-    away_team_display_name: textValue(record.away_team_display_name) || null,
-    home_team_provider_name: textValue(record.home_team_provider_name) || null,
-    away_team_provider_name: textValue(record.away_team_provider_name) || null,
-    home_team_localization_status: textValue(record.home_team_localization_status) || null,
-    away_team_localization_status: textValue(record.away_team_localization_status) || null,
     status: textValue(record.status) || null,
     source: textValue(record.source) || null,
     decision_tier: textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"],
@@ -939,13 +766,9 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     action: textValue(record.action) || null,
     next_eval_at: textValue(record.next_eval_at) || null,
     provider_budget_status: textValue(record.provider_budget_status) || null,
-    primary_blocker: textValue(record.primary_blocker) || null,
-    primary_blocker_layer: textValue(record.primary_blocker_layer) || null,
-    all_blockers: asArray(record.all_blockers).map((item) => textValue(item)).filter(Boolean),
     missing_fields: asArray(record.missing_fields).map((item) => textValue(item)).filter(Boolean),
     stale_fields: asArray(record.stale_fields).map((item) => textValue(item)).filter(Boolean),
     data_readiness: asRecord(record.data_readiness),
-    feature_readiness: asRecord(record.feature_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
     current_odds: asRecord(record.current_odds),
@@ -953,46 +776,17 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     odds_movement: asRecord(record.odds_movement),
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
-    fair_market_estimates: asArray(record.fair_market_estimates).map((item) => asRecord(item)),
-    fair_market_estimate_ids: asArray(record.fair_market_estimate_ids)
-      .map((item) => textValue(item))
-      .filter(Boolean),
-    fair_market_estimate_snapshots: asArray(record.fair_market_estimate_snapshots).map((item) => asRecord(item)),
-    analysis_gate_v2_shadow: asRecord(record.analysis_gate_v2_shadow),
-    analysis_gate_v2_shadows: asArray(record.analysis_gate_v2_shadows).map((item) => asRecord(item)),
-    optional_enrichment: {
-      lineups: normalizeEnrichmentItem(optionalEnrichment.lineups),
-      player_value: normalizeEnrichmentItem(optionalEnrichment.player_value),
-    },
-    player_impact_estimate: asRecord(record.player_impact_estimate),
-    analysis_gate: asRecord(record.analysis_gate),
-    analysis_gates: asArray(record.analysis_gates).map((item) => asRecord(item)),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
-    pricing_shadow: normalizePricingShadow(record.pricing_shadow),
-    scoreline_picks: asArray(record.scoreline_picks).map(normalizeScorelinePick).filter((row) => row.scoreline),
-    scoreline_reference: normalizeScorelineReference(record.scoreline_reference),
-    scoreline_readiness: normalizeScorelineReadiness(record.scoreline_readiness),
     pick: Object.keys(pick).length
       ? {
           market: textValue(pick.market) || null,
           selection: textValue(pick.selection) || null,
           line: textValue(pick.line) || null,
           odds: textValue(pick.odds) || null,
-          fair_line: textValue(pick.fair_line) || null,
-          estimate_id: textValue(pick.estimate_id) || null,
-          model_basis_id: textValue(pick.model_basis_id) || null,
+          disclaimer: textValue(pick.disclaimer) || null,
         }
       : null,
-    compact_provenance: asRecord(record.compact_provenance),
-    audit_available: record.audit_available === true,
-    audit_links: asRecord(record.audit_links) as Record<string, string>,
-    audit_capture_id: textValue(record.audit_capture_id) || null,
-    audit_capture_hash: textValue(record.audit_capture_hash) || null,
-    audit_estimate_id: textValue(record.audit_estimate_id) || null,
-    audit_identity_status: textValue(record.audit_identity_status) || null,
-    audit_blocker: textValue(record.audit_blocker) || null,
-    audit_detail_url: textValue(record.audit_detail_url) || null,
     non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
@@ -1004,7 +798,6 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
   const record = asRecord(payload);
   const freshness = asRecord(record.freshness);
   const staleness = asRecord(freshness.staleness);
-  const pagination = asRecord(record.pagination);
   return {
     request_id: textValue(record.request_id) || undefined,
     generated_at: textValue(record.generated_at, new Date().toISOString()),
@@ -1012,7 +805,6 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     football_day: textValue(record.football_day, textValue(record.selected_football_day)),
     selected_football_day: textValue(record.selected_football_day, textValue(record.football_day)),
     environment: textValue(record.environment, "unknown"),
-    active_whitelist_count: typeof record.active_whitelist_count === "number" ? record.active_whitelist_count : null,
     environment_policy: asRecord(record.environment_policy),
     timezone: textValue(record.timezone, "Asia/Shanghai"),
     window: textValue(record.window, "today"),
@@ -1022,18 +814,6 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     provider_calls: numberValue(record.provider_calls),
     db_writes: numberValue(record.db_writes),
     counts: normalizeCounts(record.counts),
-    page_counts: normalizeCounts(record.page_counts),
-    pagination: {
-      schema_version: "w2.day_view_page.v1",
-      snapshot_id: textValue(pagination.snapshot_id),
-      sort: textValue(pagination.sort, "BOSS_PRIORITY_KICKOFF") as DashboardDayView["pagination"]["sort"],
-      total_count: numberValue(pagination.total_count),
-      returned_count: numberValue(pagination.returned_count),
-      page_size: numberValue(pagination.page_size),
-      has_more: Boolean(pagination.has_more),
-      next_cursor: textValue(pagination.next_cursor) || null,
-      truncated_by_byte_budget: Boolean(pagination.truncated_by_byte_budget),
-    },
     freshness: {
       last_refresh: textValue(freshness.last_refresh) || null,
       next_refresh_tick: textValue(freshness.next_refresh_tick) || null,
@@ -1054,29 +834,7 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
   };
 }
 
-export function fetchDashboardDayViewPage(
-  date: string,
-  mode: DashboardMode,
-  cursor: string,
-): Promise<DashboardDayView> {
-  const key = `${date}:${mode}:${cursor}`;
-  const existing = dayViewPageInflight.get(key);
-  if (existing) return existing;
-  const params = new URLSearchParams({
-    date,
-    window: mode,
-    timezone: "Asia/Shanghai",
-    page_size: "20",
-    cursor,
-  });
-  const request = getJSON(`${API_BASE}/dashboard/day-view?${params.toString()}`)
-    .then(normalizeDashboardDayView)
-    .finally(() => dayViewPageInflight.delete(key));
-  dayViewPageInflight.set(key, request);
-  return request;
-}
-
-export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Promise<DashboardView> {
+export async function fetchDashboardView({ date, mode, includeDebug = false }: FetchDashboardArgs): Promise<DashboardView> {
   const metaPromise = getJSON("/meta.json");
   if (explicitDemoMode()) {
     const meta = normalizeMeta(await metaPromise);
@@ -1089,7 +847,21 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
     fetchDashboardDayViewPayloadRequired(date, mode),
   ]);
   const dayView = dayViewPayload ? normalizeDashboardDayView(dayViewPayload) : null;
-  const dashboard = {} as Record<string, unknown>;
+  let dashboardPayload: unknown | null = null;
+  let dashboardError: unknown = null;
+  if (!dayView) {
+    dashboardPayload = await fetchDashboardPayload(date, mode, includeDebug, REQUEST_TIMEOUT_MS);
+  }
+  let dashboard = asRecord(dashboardPayload);
+  if (!includeDebug && !dayView && asArray(dashboard.all).length === 0) {
+    try {
+      dashboardPayload = await fetchDashboardPayload(date, mode, true, REQUEST_TIMEOUT_MS);
+      dashboard = asRecord(dashboardPayload);
+    } catch (error) {
+      dashboardError = dashboardError ?? error;
+      throw error;
+    }
+  }
   const meta = normalizeMeta(metaPayload);
   const version = normalizeVersion(versionPayload);
   const release = normalizeRelease(meta, version, dashboard, false);
@@ -1104,13 +876,13 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
       textValue(dashboard.date) ||
       dayView?.selected_football_day ||
       date,
-    selected_date_has_data: Boolean(dayView?.cards.length),
+    selected_date_has_data: dashboardPayload ? Boolean(dashboard.selected_date_has_data) : Boolean(dayView?.cards.length),
     next_available_date: textValue(dashboard.next_available_date) || normalizeDebug(dashboard.debug).next_available_date || dayView?.selected_football_day || null,
     football_day_timezone: textValue(dashboard.football_day_timezone) || "Asia/Shanghai",
     football_day_cutoff_hour: numberValue(dashboard.football_day_cutoff_hour) ?? 12,
     football_day_start_utc: textValue(dashboard.football_day_start_utc) || undefined,
     football_day_end_utc: textValue(dashboard.football_day_end_utc) || undefined,
-    generated_at: dayView?.generated_at ?? new Date().toISOString(),
+    generated_at: textValue(dashboard.generated_at, new Date().toISOString()),
     data_profile: release.data_profile,
     data_source: release.data_source,
     release,
@@ -1122,110 +894,8 @@ export async function fetchDashboardView({ date, mode }: FetchDashboardArgs): Pr
     upcoming: asArray(dashboard.upcoming).map(normalizeCard),
     finished: asArray(dashboard.finished).map(normalizeCard),
     all,
-    errors: [],
-    cache_status: "FRESH" as const,
+    errors: dashboardError ? ["legacy dashboard payload timed out; Boss View rendered from DayView"] : [],
   };
   storeCachedDashboardView(date, mode, view);
   return view;
-}
-
-export function fetchFixtureAuditDetails(
-  fixtureId: string,
-  captureId: string,
-  captureHash: string,
-  estimateId: string | null,
-  apiReleaseSha: string,
-): Promise<FixtureAuditDetails> {
-  if (activeFixtureAuditRelease && activeFixtureAuditRelease !== apiReleaseSha) {
-    fixtureAuditCache.clear();
-    fixtureAuditInflight.clear();
-  }
-  activeFixtureAuditRelease = apiReleaseSha;
-  const key = [fixtureId, captureId, captureHash, estimateId ?? "NO_ESTIMATE", apiReleaseSha].join(":");
-  const cached = fixtureAuditCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
-  if (cached) fixtureAuditCache.delete(key);
-  const inflight = fixtureAuditInflight.get(key);
-  if (inflight) return inflight;
-
-  const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
-  const query = new URLSearchParams({ capture_id: captureId, capture_hash: captureHash });
-  if (estimateId) query.set("estimate_id", estimateId);
-  const request = getJSON(`${base}/audit-detail?${query.toString()}`).then((payload) => {
-    const envelope = asRecord(payload);
-    const audit = asRecord(envelope.audit);
-    const decision = asRecord(audit.decision);
-    const scorelines = asRecord(audit.scoreline_explanation);
-    const card = {
-      fixture_id: fixtureId,
-      ...decision,
-      fair_market_estimate_snapshots: asArray(audit.estimate_summaries),
-      analysis_gate: asRecord(audit.analysis_gate),
-      scoreline_reference: {
-        source: "FROZEN_FORWARD_CAPTURE",
-        estimate_id: estimateId,
-        top_scorelines: asArray(scorelines.global_scorelines),
-        direction_scorelines: asArray(scorelines.direction_scorelines),
-        market_settlement: asRecord(audit.settlement_distribution),
-      },
-    };
-    const detail: FixtureAuditDetails = {
-      fixture_id: fixtureId,
-      audit_capture_id: captureId,
-      estimate_id: estimateId,
-      audit_capture_hash: captureHash,
-      api_release_sha: apiReleaseSha,
-      match: normalizeCard(card),
-      audit,
-      integrity: asRecord(audit.integrity),
-      performance: asRecord(envelope.performance),
-    };
-    fixtureAuditCache.set(key, {
-      expiresAt: Date.now() + FIXTURE_AUDIT_CACHE_TTL_MS,
-      detail,
-    });
-    while (fixtureAuditCache.size > FIXTURE_AUDIT_CACHE_MAX_ENTRIES) {
-      const oldest = fixtureAuditCache.keys().next().value;
-      if (oldest === undefined) break;
-      fixtureAuditCache.delete(oldest);
-    }
-    return detail;
-  }).finally(() => {
-    fixtureAuditInflight.delete(key);
-  });
-  fixtureAuditInflight.set(key, request);
-  return request;
-}
-
-export function fetchFixtureOddsTimeline(
-  fixtureId: string,
-  apiReleaseSha: string,
-): Promise<Record<string, unknown>> {
-  if (activeFixtureTimelineRelease && activeFixtureTimelineRelease !== apiReleaseSha) {
-    fixtureTimelineCache.clear();
-    fixtureTimelineInflight.clear();
-  }
-  activeFixtureTimelineRelease = apiReleaseSha;
-  const key = [fixtureId, apiReleaseSha].join(":");
-  const cached = fixtureTimelineCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.detail);
-  if (cached) fixtureTimelineCache.delete(key);
-  const inflight = fixtureTimelineInflight.get(key);
-  if (inflight) return inflight;
-  const base = `${API_BASE}/fixtures/${encodeURIComponent(fixtureId)}`;
-  const request = getJSON(`${base}/odds-timeline`).then((payload) => {
-    const detail = asRecord(payload);
-    fixtureTimelineCache.set(key, {
-      expiresAt: Date.now() + FIXTURE_AUDIT_CACHE_TTL_MS,
-      detail,
-    });
-    while (fixtureTimelineCache.size > FIXTURE_AUDIT_CACHE_MAX_ENTRIES) {
-      const oldest = fixtureTimelineCache.keys().next().value;
-      if (oldest === undefined) break;
-      fixtureTimelineCache.delete(oldest);
-    }
-    return detail;
-  }).finally(() => fixtureTimelineInflight.delete(key));
-  fixtureTimelineInflight.set(key, request);
-  return request;
 }

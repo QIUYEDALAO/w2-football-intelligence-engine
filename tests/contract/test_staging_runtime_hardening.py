@@ -81,9 +81,6 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "http://127.0.0.1/meta.json" in text
     assert "docker builder prune -f" in text
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
-    assert "compose up -d --no-deps api" in text
-    assert "compose up -d --no-deps web" in text
-    assert "worker_scheduler_restart=false" in text
 
 
 def test_deploy_makes_shared_runtime_writable_for_staging_runtime_tasks() -> None:

@@ -88,7 +88,7 @@ export function fixtureTeamName(fixture: unknown, side: "home" | "away"): string
   const teams = asRecord(record.teams);
   const team = asRecord(teams[side]);
   return textValue(
-    record[`${side}_team_display_name`] ?? record[`${side}_team_name_zh`] ?? record[`${side}_team_name`] ?? record[`${side}_name`] ?? record[`${side}_cn`] ?? team.name,
+    record[`${side}_team_name`] ?? record[`${side}_name`] ?? record[`${side}_cn`] ?? team.name,
     side === "home" ? "主队" : "客队",
   );
 }
@@ -204,7 +204,7 @@ export function readinessItems(card: DashboardCard): ReadinessItem[] {
     if (xgReady) return "已就绪";
     if (xgStatus === "PARTIAL_HISTORY") return "部分覆盖";
     if (xgStatus === "INSUFFICIENT_HISTORY") return "历史不足";
-    if (xgStatus === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "模型特征未物化";
+    if (xgStatus === "PROVIDER_EMPTY_OR_UNAVAILABLE") return "源无返回";
     if (xgStatus === "NOT_REQUESTED") return "未请求";
     return "富集中";
   })();
@@ -364,25 +364,11 @@ export function scoreRows(market: MarketAnalysis): ScoreReference[] {
 }
 
 export function homeName(card: DashboardCard): string {
-  return textValue(
-    card.home_team_display_name
-      ?? card.home_team_name_zh
-      ?? card.home_name
-      ?? card.home_cn
-      ?? card.home_team_name,
-    "主队",
-  );
+  return textValue(card.home_name ?? card.home_cn ?? card.home_team_name, "主队");
 }
 
 export function awayName(card: DashboardCard): string {
-  return textValue(
-    card.away_team_display_name
-      ?? card.away_team_name_zh
-      ?? card.away_name
-      ?? card.away_cn
-      ?? card.away_team_name,
-    "客队",
-  );
+  return textValue(card.away_name ?? card.away_cn ?? card.away_team_name, "客队");
 }
 
 export function teamBadgeLabel(name: string): string {

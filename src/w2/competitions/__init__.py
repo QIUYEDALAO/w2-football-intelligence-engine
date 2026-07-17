@@ -5,7 +5,6 @@ from w2.competitions.registry import (
     CompetitionRegistryEntry,
     CompetitionRegistryError,
     CoverageProfile,
-    WhitelistStatus,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "CompetitionRegistryEntry",
     "CompetitionRegistryError",
     "CoverageProfile",
-    "WhitelistStatus",
 ]

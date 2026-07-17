@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from w2.infrastructure.atomic_files import atomic_write_json, file_lock
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
@@ -46,13 +45,6 @@ class TimelineWriteResult:
 class SnapshotSelectionResult:
     snapshot: dict[str, Any] | None
     reason: str | None = None
-
-
-@dataclass(frozen=True, kw_only=True)
-class TimelineReadResult:
-    payload: dict[str, Any]
-    status: str
-    error_class: str | None = None
 
 
 def parse_utc(value: Any) -> datetime | None:
@@ -259,22 +251,6 @@ def write_timeline_snapshot(
     snapshot: dict[str, Any],
 ) -> TimelineWriteResult:
     path = timeline_path(root, fixture_id)
-    with file_lock(path.with_suffix(path.suffix + ".lock")):
-        return _write_timeline_snapshot_locked(
-            path=path,
-            fixture_id=fixture_id,
-            kickoff=kickoff,
-            snapshot=snapshot,
-        )
-
-
-def _write_timeline_snapshot_locked(
-    *,
-    path: Path,
-    fixture_id: str,
-    kickoff: datetime,
-    snapshot: dict[str, Any],
-) -> TimelineWriteResult:
     as_of = parse_utc(snapshot.get("as_of"))
     if as_of is None or as_of >= kickoff.astimezone(UTC):
         return TimelineWriteResult(
@@ -283,15 +259,7 @@ def _write_timeline_snapshot_locked(
             path=path,
             snapshot=snapshot,
         )
-    read_result = load_timeline_result(path)
-    if read_result.status in {"CORRUPT", "ERROR"}:
-        return TimelineWriteResult(
-            written=False,
-            status="INVALID_EXISTING_TIMELINE",
-            path=path,
-            snapshot=snapshot,
-        )
-    existing = read_result.payload
+    existing = load_timeline(path)
     if not existing:
         existing = {
             "schema_version": MARKET_TIMELINE_SCHEMA_VERSION,
@@ -328,28 +296,19 @@ def _write_timeline_snapshot_locked(
                     snapshot=item,
                 )
     snapshots.append(snapshot)
-    atomic_write_json(path, existing)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, sort_keys=True) + "\n", encoding="utf-8")
     return TimelineWriteResult(written=True, status="WRITTEN", path=path, snapshot=snapshot)
 
 
 def load_timeline(path: Path) -> dict[str, Any]:
-    return load_timeline_result(path).payload
-
-
-def load_timeline_result(path: Path) -> TimelineReadResult:
     if not path.exists():
-        return TimelineReadResult(payload={}, status="MISSING")
+        return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        return TimelineReadResult(payload={}, status="ERROR", error_class=type(exc).__name__)
-    except json.JSONDecodeError as exc:
-        return TimelineReadResult(
-            payload={}, status="CORRUPT", error_class=type(exc).__name__
-        )
-    if not isinstance(payload, dict):
-        return TimelineReadResult(payload={}, status="CORRUPT", error_class="INVALID_ROOT")
-    return TimelineReadResult(payload=payload, status="PASS")
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def validate_timeline_payload(payload: dict[str, Any]) -> list[str]:

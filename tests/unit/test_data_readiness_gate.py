@@ -99,82 +99,27 @@ def test_stale_odds_marks_stale() -> None:
     assert result.stale_fields == ("odds",)
 
 
-def test_present_quote_without_raw_capture_time_fails_closed() -> None:
-    result = evaluate_data_readiness(_input(odds_captured_at=None), POLICY)
-
-    assert result.data_status is DataStatus.STALE
-    assert result.reason_code is DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING
-    assert result.stale_fields == ("odds",)
-
-
-def test_legacy_freshness_uses_selected_totals_quote_not_stale_ah_quote() -> None:
-    result = build_data_readiness_from_legacy_payload(
-        card={
-            "fixture_id": "fixture-selected-quote",
-            "generated_at": NOW.isoformat(),
-            "current_odds": {
-                "ah": {"home_line": -0.25, "as_of": (NOW - timedelta(hours=2)).isoformat()},
-                "ou": {"line": 2.5, "as_of": (NOW - timedelta(minutes=5)).isoformat()},
-            },
-        },
-        market={"market": "TOTALS", "line": "2.5", "odds": "1.95"},
-        recommendation=None,
-        analysis_readiness={"status": "READY", "available_inputs": {}},
-        provider_status={"status": "AVAILABLE", "remaining_quota": 6000},
-        as_of=NOW,
-        kickoff_utc=KICKOFF,
-        policy=POLICY,
-    )
-
-    assert result.data_status is DataStatus.READY
-    odds = next(field for field in result.field_statuses if field.field == "odds")
-    assert odds.captured_at == NOW - timedelta(minutes=5)
-
-
-def test_legacy_freshness_never_falls_back_to_card_generated_at() -> None:
-    result = build_data_readiness_from_legacy_payload(
-        card={
-            "fixture_id": "fixture-missing-quote-time",
-            "generated_at": NOW.isoformat(),
-            "current_odds": {"ah": {"home_line": -0.25}},
-        },
-        market={"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
-        recommendation=None,
-        analysis_readiness={"status": "READY", "available_inputs": {}},
-        provider_status={"status": "AVAILABLE", "remaining_quota": 6000},
-        as_of=NOW,
-        kickoff_utc=KICKOFF,
-        policy=POLICY,
-    )
-
-    assert result.data_status is DataStatus.STALE
-    assert result.reason_code is DecisionReasonCode.QUOTE_CAPTURE_TIME_MISSING
-
-
-def test_lineups_missing_before_t90_is_optional_and_ready() -> None:
+def test_lineups_missing_before_t90_is_partial_not_blocked() -> None:
     as_of = KICKOFF - timedelta(minutes=120)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.READY
-    assert result.reason_code is None
-    assert result.missing_fields == ()
-    lineup_status = next(field for field in result.field_statuses if field.field == "lineups")
-    assert lineup_status.present is False
+    assert result.data_status is DataStatus.PARTIAL
+    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.missing_fields == ("lineups",)
 
 
-def test_lineups_missing_after_t30_does_not_schedule_a_lineup_only_retry() -> None:
+def test_lineups_missing_after_t30_is_still_partial_by_default() -> None:
     as_of = KICKOFF - timedelta(minutes=20)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.READY
-    assert result.reason_code is None
-    assert result.next_eval_at is None
+    assert result.data_status is DataStatus.PARTIAL
+    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
 
 
 def test_missing_xg_is_partial() -> None:
@@ -207,31 +152,3 @@ def test_baseline_prior_and_calibration_report_are_not_readiness_blockers() -> N
 
     assert result.data_status is not DataStatus.BLOCKED
     assert result.reason_code is not DecisionReasonCode.COVERAGE_NONE
-
-
-def test_pricing_factors_prevent_false_ratings_and_team_value_missing() -> None:
-    result = build_data_readiness_from_legacy_payload(
-        card={
-            "fixture_id": "fixture-pricing-factors",
-            "fixture_status": "UPCOMING",
-            "pricing_shadow": {
-                "factors": [
-                    {"id": "F7_STRENGTH_FORM", "status": "READY"},
-                    {"feature_id": "F8_SQUAD_VALUE", "status": "READY"},
-                ],
-            },
-        },
-        market={"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
-        recommendation=None,
-        analysis_readiness={
-            "status": "PARTIAL",
-            "available_inputs": {"lineups": True, "xg": True},
-        },
-        provider_status={"status": "AVAILABLE", "remaining_quota": 6000},
-        as_of=NOW,
-        kickoff_utc=KICKOFF,
-        policy=POLICY,
-    )
-
-    assert "ratings" not in result.missing_fields
-    assert "team_value" not in result.missing_fields

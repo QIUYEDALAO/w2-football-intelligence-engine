@@ -1,4 +1,4 @@
-import { fmtTime, localizedTeamTitle } from "../lib/formatters";
+import { fmtTime } from "../lib/formatters";
 import { awayName, cardStatus, competitionName, homeName, readinessLabel } from "../lib/normalize";
 import type { DashboardCard } from "../types/dashboard";
 import { TeamBadge } from "./TeamBadge";
@@ -15,9 +15,9 @@ export function MatchHeader({ card }: { card: DashboardCard }) {
         </span>
         <div className="teams-row">
           <TeamBadge name={home} />
-          <strong title={localizedTeamTitle(card, "home")}>{home}</strong>
+          <strong>{home}</strong>
           <span>vs</span>
-          <strong title={localizedTeamTitle(card, "away")}>{away}</strong>
+          <strong>{away}</strong>
           <TeamBadge name={away} />
         </div>
       </div>
