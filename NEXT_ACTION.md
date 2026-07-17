@@ -1,13 +1,28 @@
 # W2 Next Action
 
-Status: `MA03_IMMEDIATE_DISPLAY_PASS_WAITING_NATURAL_CYCLES`
+Status: `DATA_PIPELINE_BLOCKED`
 
-The Dashboard has real fixture-scoped observations, but the deployed read path
-misclassifies non-clinical stale markets as unavailable because old observations
-are not reconciled into the database-frozen card consumed by direct DayView.
-The existing schedule also leaves a large OPEN-to-T1 gap.
+MA-03 is paused. The deployed Dashboard renders approximately 44-hour-old odds
+as primary market values for four fixtures, including a fixture about 197 minutes
+from kickoff. A STALE label does not make those values appropriate to display.
 
-## Execute next
+## Unique next action — DATA-08
+
+1. Merge this RED context rebaseline.
+2. Roll all four staging services back to the aligned safe release that does not
+   display expired odds.
+3. Hide quotes older than 30 minutes from `current_odds` while preserving their
+   immutable observation, quote ID, capture time and source hash.
+4. Add natural odds-only active-window refresh from T6 through T15, with one
+   refresh per fixture per 30 minutes, T1/T15 dedupe, no historical backfill,
+   global 30-call tick and 120-call daily caps.
+5. Redeploy and observe three consecutive legal cycles before resuming MA-03.
+
+Do not wait for the old 18:00-only checkpoint and do not manually force Provider
+calls. Recommendation, FME, Snapshot, lock, OFFICIAL and production gates remain
+unchanged.
+
+## Superseded execution history
 
 ### MA-01 — Read-only root-cause trace — COMPLETE
 
