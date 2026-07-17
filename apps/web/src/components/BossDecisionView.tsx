@@ -317,7 +317,32 @@ function oddsSummary(card: DashboardDayViewCard): string | null {
     const underPrice = formatOdds(ou.under_price);
     rows.push(`大小 ${formatLine(line)} 大@${overPrice} / 小@${underPrice}`);
   }
-  return rows.length ? rows.join(" · ") : null;
+  if (!rows.length) return null;
+  const quotes = [ah, ou].filter((quote) => Object.keys(quote).length);
+  const newest = quotes
+    .map((quote) => ({
+      asOf: textValue(quote.as_of, textValue(quote.captured_at)),
+      source: textValue(quote.source),
+      sourceHash: textValue(quote.source_hash),
+    }))
+    .filter((quote) => quote.asOf)
+    .sort((left, right) => right.asOf.localeCompare(left.asOf))[0];
+  if (newest) {
+    const captured = new Date(newest.asOf);
+    const ageMinutes = Number.isNaN(captured.getTime())
+      ? null
+      : Math.max(Math.floor((Date.now() - captured.getTime()) / 60000), 0);
+    const age = ageMinutes == null
+      ? ""
+      : ageMinutes >= 60
+        ? `${Math.floor(ageMinutes / 60)}小时${ageMinutes % 60}分前`
+        : `${ageMinutes}分钟前`;
+    const identity = [newest.source, newest.sourceHash ? shortSha(newest.sourceHash) : ""]
+      .filter(Boolean)
+      .join("/");
+    rows.push(`采集 ${fmtTime(newest.asOf)}${age ? ` · ${age}` : ""}${identity ? ` · ${identity}` : ""}`);
+  }
+  return rows.join(" · ");
 }
 
 function marketProbabilitySummary(card: DashboardDayViewCard): string | null {
@@ -1091,18 +1116,21 @@ function cardTruthCounts(cards: DashboardDayViewCard[]) {
 
 function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
   const truth = cardTruthCounts(dayView.cards);
-  const blocked = truth.blocked + truth.stale;
-  const headline = blocked
-    ? `${blocked} 场数据阻塞`
+  const headline = truth.blocked
+    ? `${truth.blocked} 场数据阻塞`
+    : truth.stale
+      ? `${truth.stale} 场盘口过期`
     : truth.partial
       ? `${truth.partial} 场部分就绪`
       : "比赛数据正常";
   return (
-    <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
+    <section className={`health-strip${truth.blocked || truth.stale ? " has-warning" : ""}`} aria-label="白名单健康状态">
       <strong>{headline}</strong>
-      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 验证推荐 {truth.analysisPick} · 观察 {truth.watch} · 部分就绪 {truth.partial} · 数据阻塞 {blocked}</span>
-      {blocked
+      <span>{dayView.active_whitelist_count ?? "--"} 个活跃联赛 · 验证推荐 {truth.analysisPick} · 观察 {truth.watch} · 部分就绪 {truth.partial} · 盘口过期 {truth.stale} · 数据阻塞 {truth.blocked}</span>
+      {truth.blocked
         ? <small>仅受阻比赛等待补数；验证推荐和观察比赛继续保留在赛程中。</small>
+        : truth.stale
+          ? <small>盘口仍可查看，但已超过推荐新鲜度，等待下一合法刷新周期。</small>
         : truth.partial
           ? <small>部分就绪不等于阻塞；已满足分析门的比赛仍正常展示。</small>
           : <small>覆盖诊断只在异常时展开。</small>}

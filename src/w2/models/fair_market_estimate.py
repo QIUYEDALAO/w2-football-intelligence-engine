@@ -38,6 +38,7 @@ class FairMarketEstimate:
     away_mu: float | None
     feature_as_of: str | None
     train_cutoff: str | None
+    artifact_id: str | None = None
     artifact_hash: str | None = None
     artifact_version: str | None = None
     fallback_reason: str | None = None
@@ -99,7 +100,14 @@ class FairMarketEstimateSnapshot:
             "odds_snapshot": odds_payload,
             "feature_snapshot": feature_payload,
         }
+        input_context["input_source_hash"] = canonical_estimate_hash(
+            {
+                "odds_snapshot_hash": input_context["odds_snapshot_hash"],
+                "feature_snapshot_hash": input_context["feature_snapshot_hash"],
+            }
+        )
         model_context: dict[str, object] = {
+            "artifact_id": estimate.artifact_id,
             "artifact_hash": estimate.artifact_hash,
             "artifact_version": estimate.artifact_version,
             "model_family": estimate.model_family,

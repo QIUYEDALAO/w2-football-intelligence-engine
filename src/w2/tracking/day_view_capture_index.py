@@ -359,6 +359,11 @@ def _compact_provenance(
             "artifact_hash": _optional_text(
                 selected.get("artifact_hash") or model.get("artifact_hash")
             ),
+            "artifact_id": _optional_text(
+                selected.get("artifact_id")
+                or model.get("artifact_id")
+                or model.get("artifact_hash")
+            ),
             "artifact_version": _optional_text(
                 selected.get("artifact_version") or model.get("artifact_version")
             ),
