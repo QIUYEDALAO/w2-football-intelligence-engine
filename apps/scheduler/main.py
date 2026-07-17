@@ -19,7 +19,6 @@ logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_CHECKPOINT_POLL_SECONDS = 15 * 60
-CHECKPOINT_DISPATCH_LOOKAHEAD_SECONDS = 10
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
@@ -125,12 +124,14 @@ def checkpoint_task_key(
 
 
 def projected_calls_for_checkpoint_rows(checkpoints: list[dict[str, Any]]) -> int:
-    if not checkpoints:
-        return 0
-    calls = 2  # provider status and fixture preflight for each competition task
-    calls += sum(1 for item in checkpoints if "odds" in set(item.get("endpoints") or []))
-    calls += sum(1 for item in checkpoints if "lineups" in set(item.get("endpoints") or []))
-    return calls
+    # Future checkpoints are dispatched independently at their exact due time.
+    # Each task therefore pays its own status + fixture preflight overhead.
+    return sum(
+        2
+        + int("odds" in set(item.get("endpoints") or []))
+        + int("lineups" in set(item.get("endpoints") or []))
+        for item in checkpoints
+    )
 
 
 def allocate_global_checkpoint_batches(
@@ -219,8 +220,6 @@ def due_checkpoint_refresh_batch(
         checkpoint_plans_from_fixture_payloads,
         dedupe_active_odds_plans,
         prioritize_checkpoint_plans,
-        projected_calls_for_checkpoint_batch,
-        select_checkpoint_batch,
     )
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
@@ -268,7 +267,7 @@ def due_checkpoint_refresh_batch(
         supersede_active(fixture_ids=fixture_ids, active_plan_ids=active_plan_ids)
     due_rows = []
     if generated_plan_ids:
-        ready_before = now + timedelta(seconds=CHECKPOINT_DISPATCH_LOOKAHEAD_SECONDS)
+        ready_before = now + timedelta(seconds=checkpoint_poll_seconds())
         due_rows = [
             row
             for row in repository.due_checkpoint_plans(
@@ -277,14 +276,6 @@ def due_checkpoint_refresh_batch(
                 fixture_ids=fixture_ids,
             )
             if row.get("id") in generated_plan_ids
-            and (
-                (parse_fixture_kickoff(row.get("due_at")) or now) <= now
-                or (
-                    str(row.get("checkpoint") or "").startswith("ACTIVE_ODDS_")
-                    and (parse_fixture_kickoff(row.get("due_at")) or ready_before)
-                    <= ready_before
-                )
-            )
         ]
     due_plans = [
         type(
@@ -308,10 +299,14 @@ def due_checkpoint_refresh_batch(
     resolved_hard_cap = (
         provider_refresh_tick_hard_cap() if hard_cap is None else max(int(hard_cap), 0)
     )
-    selected, projected_calls = select_checkpoint_batch(
-        due_plans,
-        hard_cap=resolved_hard_cap,
-    )
+    selected = []
+    projected_calls = 0
+    for plan in due_plans:
+        plan_calls = 2 + int(plan.needs_odds) + int(plan.needs_lineups)
+        if projected_calls + plan_calls > resolved_hard_cap:
+            continue
+        selected.append(plan)
+        projected_calls += plan_calls
     selected_rows = [
         {
             "fixture_id": plan.fixture_id,
@@ -334,7 +329,9 @@ def due_checkpoint_refresh_batch(
         "due_checkpoint_count": len(due_rows),
         "selected_checkpoint_count": len(selected_rows),
         "projected_calls": projected_calls,
-        "all_due_projected_calls": projected_calls_for_checkpoint_batch(due_plans),
+        "all_due_projected_calls": sum(
+            2 + int(plan.needs_odds) + int(plan.needs_lineups) for plan in due_plans
+        ),
         "tick_hard_cap": resolved_hard_cap,
         "checkpoints": selected_rows,
     }
@@ -497,61 +494,73 @@ def _future_fixture_refresh_tick_for_competition(
             "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
             "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
         }
-    task_key = checkpoint_task_key(
-        competition_id=config.competition_id,
-        season=config.season,
-        checkpoints=list(resolved_batch["checkpoints"]),
-    )
-    gate = provider_task_key_gate(task_key=task_key)
-    if not gate.allowed:
+    dispatches: list[dict[str, str]] = []
+    suppressed: list[str] = []
+    attempted_task_keys: list[str] = []
+    for checkpoint in resolved_batch["checkpoints"]:
+        task_key = checkpoint_task_key(
+            competition_id=config.competition_id,
+            season=config.season,
+            checkpoints=[checkpoint],
+        )
+        attempted_task_keys.append(task_key)
+        gate = provider_task_key_gate(task_key=task_key)
+        if not gate.allowed:
+            suppressed.append(gate.status)
+            continue
+        task_id = f"{task_key}:{uuid4()}"
+        dispatch_at = parse_fixture_kickoff(checkpoint.get("due_at")) or current
+        send_options: dict[str, Any] = {"task_id": task_id}
+        if dispatch_at > current:
+            send_options["eta"] = dispatch_at
+        celery_app.send_task(
+            "w2.future_fixture_refresh",
+            kwargs={
+                "competition_id": config.competition_id,
+                "task_key": task_key,
+                "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
+                "checkpoint_fixture_ids": [str(checkpoint["fixture_id"])],
+                "refresh_checkpoints": [checkpoint],
+            },
+            **send_options,
+        )
+        dispatches.append(
+            {
+                "task_id": task_id,
+                "task_key": task_key,
+                "fixture_id": str(checkpoint["fixture_id"]),
+                "dispatch_at_utc": dispatch_at.isoformat().replace("+00:00", "Z"),
+            }
+        )
+    if not dispatches:
+        status = suppressed[0] if suppressed else "NO_CHECKPOINT_DUE"
         return {
-            "status": gate.status,
-            "task_key": task_key,
+            **resolved_batch,
+            "status": status,
+            "task_key": attempted_task_keys[0] if attempted_task_keys else None,
             "competition_id": config.competition_id,
             "season": config.season,
             "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
             "candidate": False,
             "formal_recommendation": False,
             "provider_calls": 0,
-            "blockers": [gate.status],
-            "dedup_backend": gate.backend,
+            "blockers": list(dict.fromkeys(suppressed)),
             "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
             "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
         }
-    task_id = f"{task_key}:{uuid4()}"
-    dispatch_at = max(
-        [
-            due_at
-            for item in resolved_batch["checkpoints"]
-            if (due_at := parse_fixture_kickoff(item.get("due_at"))) is not None
-        ],
-        default=current,
-    )
-    send_options: dict[str, Any] = {"task_id": task_id}
-    if dispatch_at > current:
-        send_options["eta"] = dispatch_at
-    celery_app.send_task(
-        "w2.future_fixture_refresh",
-        kwargs={
-            "competition_id": config.competition_id,
-            "task_key": task_key,
-            "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
-            "checkpoint_fixture_ids": [
-                str(item["fixture_id"]) for item in resolved_batch["checkpoints"]
-            ],
-            "refresh_checkpoints": resolved_batch["checkpoints"],
-        },
-        **send_options,
-    )
+    first = dispatches[0]
     return {
         **resolved_batch,
         "status": "QUEUED",
-        "task_id": task_id,
-        "task_key": task_key,
+        "task_id": first["task_id"],
+        "task_key": first["task_key"],
+        "task_ids": [item["task_id"] for item in dispatches],
+        "dispatches": dispatches,
         "competition_id": config.competition_id,
         "season": config.season,
         "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
-        "dispatch_at_utc": dispatch_at.isoformat().replace("+00:00", "Z"),
+        "dispatch_at_utc": first["dispatch_at_utc"],
+        "suppressed": list(dict.fromkeys(suppressed)),
         "candidate": False,
         "formal_recommendation": False,
         "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",

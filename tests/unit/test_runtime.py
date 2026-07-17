@@ -193,6 +193,7 @@ def test_scheduler_dispatches_near_due_active_odds_at_exact_due_time(monkeypatch
     sent: list[dict[str, object]] = []
     now = datetime(2026, 7, 17, 15, 18, 40, tzinfo=UTC)
     due_at = now + timedelta(seconds=4)
+    later_due_at = now + timedelta(minutes=12)
 
     def fake_send_task(name: str, **kwargs: object) -> None:
         sent.append({"name": name, **kwargs})
@@ -204,12 +205,12 @@ def test_scheduler_dispatches_near_due_active_odds_at_exact_due_time(monkeypatch
         "due_checkpoint_refresh_batch",
         lambda current, **kwargs: {
             "status": "READY",
-            "fixture_payload_count": 1,
-            "generated_plan_count": 1,
-            "due_checkpoint_count": 1,
-            "selected_checkpoint_count": 1,
-            "projected_calls": 3,
-            "all_due_projected_calls": 3,
+            "fixture_payload_count": 2,
+            "generated_plan_count": 2,
+            "due_checkpoint_count": 2,
+            "selected_checkpoint_count": 2,
+            "projected_calls": 6,
+            "all_due_projected_calls": 6,
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
@@ -219,7 +220,15 @@ def test_scheduler_dispatches_near_due_active_odds_at_exact_due_time(monkeypatch
                     "due_at": due_at.isoformat().replace("+00:00", "Z"),
                     "endpoints": ["odds"],
                     "source": "active_window",
-                }
+                },
+                {
+                    "fixture_id": "1494215",
+                    "checkpoint": "ACTIVE_ODDS_20260717T153040Z",
+                    "kickoff_utc": "2026-07-17T17:00:00Z",
+                    "due_at": later_due_at.isoformat().replace("+00:00", "Z"),
+                    "endpoints": ["odds"],
+                    "source": "active_window",
+                },
             ],
         },
     )
@@ -245,10 +254,13 @@ def test_scheduler_dispatches_near_due_active_odds_at_exact_due_time(monkeypatch
 
     assert result["status"] == "QUEUED"
     assert result["dispatch_at_utc"] == "2026-07-17T15:18:44Z"
+    assert len(result["dispatches"]) == 2
+    assert len(sent) == 2
     assert sent[0]["eta"] == due_at
+    assert sent[1]["eta"] == later_due_at
 
 
-def test_checkpoint_batch_reads_ten_second_active_odds_lookahead(monkeypatch) -> None:
+def test_checkpoint_batch_reads_full_poll_window_for_exact_eta_dispatch(monkeypatch) -> None:
     now = datetime(2026, 7, 17, 15, 18, 40, tzinfo=UTC)
     observed: dict[str, object] = {}
     fixtures = [
@@ -265,7 +277,7 @@ def test_checkpoint_batch_reads_ten_second_active_odds_lookahead(monkeypatch) ->
 
     class FakeRepository:
         def latest_observation_captured_at_for_fixture_ids(self, fixture_ids: list[str]):
-            return {"1494211": now - timedelta(minutes=29, seconds=56)}
+            return {"1494211": now - timedelta(minutes=18)}
 
         def latest_odds_refresh_attempt_at_for_fixture_ids(self, fixture_ids: list[str]):
             return {}
@@ -295,9 +307,9 @@ def test_checkpoint_batch_reads_ten_second_active_odds_lookahead(monkeypatch) ->
 
     result = due_checkpoint_refresh_batch(now, provider_league_id="113")
 
-    assert observed["query_now"] == now + timedelta(seconds=10)
+    assert observed["query_now"] == now + timedelta(minutes=15)
     assert result["status"] == "READY"
-    assert result["checkpoints"][0]["due_at"] == "2026-07-17T15:18:44Z"
+    assert result["checkpoints"][0]["due_at"] == "2026-07-17T15:30:40Z"
 
 
 def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) -> None:
