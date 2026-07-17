@@ -10,14 +10,14 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续80 · 首次 stale-market 部署回滚与显示优先级定位`.
+Current latest entry: `V3 进展续81 · STALE 展示恢复、WATCH 安全门回滚`.
 
 Current blocking chain:
 
-1. `DATA-04 / IMPLEMENTATION_IN_PROGRESS`: PR #336 is merged, but the first
-   staging attempt was rolled back because an older empty forward capture
-   overrode a database-frozen card containing real AH/OU. The correction is
-   limited to display precedence and remains fail-closed.
+1. `DATA-05 / IMPLEMENTATION_IN_PROGRESS`: PR #337 restored STALE odds display,
+   but the second staging attempt was rolled back because STALE forward captures
+   remained WATCH. Every STALE source must be forced to NOT_READY and excluded
+   from worth-watching/recommendation regions.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

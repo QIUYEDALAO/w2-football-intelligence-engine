@@ -1898,6 +1898,7 @@ class ReadModelService:
             non_pick = card.get("non_pick")
             if isinstance(non_pick, dict):
                 non_pick["next_eval_at"] = next_evaluation_at
+        cards = [self._enforce_stale_display_safety(card) for card in cards]
         cards = [self._bounded_day_view_card(card) for card in cards]
         compact_card_projection_seconds = monotonic() - projection_started
         performance = deepcopy(dict(snapshot.performance_summary))
@@ -1986,6 +1987,42 @@ class ReadModelService:
         return isinstance(current_odds, Mapping) and any(
             isinstance(value, Mapping) and bool(value) for value in current_odds.values()
         )
+
+    def _enforce_stale_display_safety(self, card: dict[str, Any]) -> dict[str, Any]:
+        if str(card.get("data_status") or "") != "STALE":
+            return card
+        projected = deepcopy(card)
+        projected.update(
+            {
+                "decision_tier": "NOT_READY",
+                "lock_eligible": False,
+                "outcome_tracked": False,
+                "recommendation_id": None,
+                "recommendation": None,
+                "pick": None,
+                "reason_code": "DATA_STALE_ODDS",
+                "primary_blocker": "DATA_STALE_ODDS",
+                "primary_blocker_layer": "MARKET_QUOTE",
+                "action": "等待下一合法刷新",
+            }
+        )
+        contract = projected.get("decision_contract")
+        if isinstance(contract, dict):
+            contract.update(
+                {
+                    "decision_tier": "NOT_READY",
+                    "data_status": "STALE",
+                    "lock_eligible": False,
+                    "outcome_tracked": False,
+                    "recommendation_id": None,
+                    "pick": None,
+                    "reason_code": "DATA_STALE_ODDS",
+                    "primary_blocker": "DATA_STALE_ODDS",
+                    "primary_blocker_layer": "MARKET_QUOTE",
+                    "action": "等待下一合法刷新",
+                }
+            )
+        return projected
 
     def _bounded_day_view_card(self, card: dict[str, Any]) -> dict[str, Any]:
         encoded = json.dumps(card, ensure_ascii=False, default=str).encode("utf-8")

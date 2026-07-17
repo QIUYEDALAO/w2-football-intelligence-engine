@@ -87,18 +87,25 @@ def build_index_entries(
         summary = summaries.get(fixture_id)
         tier = str(_summary_value(summary, "decision_tier", "NOT_READY") or "NOT_READY")
         lock_eligible = _summary_value(summary, "lock_eligible", False) is True
+        data_status = str(_summary_value(summary, "data_status", "BLOCKED") or "BLOCKED")
+        if data_status == "STALE":
+            tier = "NOT_READY"
+            lock_eligible = False
         result.append(
             DayViewIndexEntry(
                 fixture_id=fixture_id,
                 kickoff_utc=str(row.get("kickoff_utc") or ""),
                 priority=_priority(tier, lock_eligible),
                 decision_tier=tier,
-                data_status=str(_summary_value(summary, "data_status", "BLOCKED") or "BLOCKED"),
+                data_status=data_status,
                 lifecycle_status=str(
                     _summary_value(summary, "lifecycle_status", "DRAFT") or "DRAFT"
                 ),
                 lock_eligible=lock_eligible,
-                outcome_tracked=_summary_value(summary, "outcome_tracked", False) is True,
+                outcome_tracked=(
+                    data_status != "STALE"
+                    and _summary_value(summary, "outcome_tracked", False) is True
+                ),
                 source=str(_summary_value(summary, "source", "unavailable") or "unavailable"),
             )
         )

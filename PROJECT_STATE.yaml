@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T05:03:00Z"
+last_updated_utc: "2026-07-17T05:20:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
 current_status: IMPLEMENTATION_IN_PROGRESS
 
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: 7e4d8b7e6011c006952bc14a260f65c76a0e3e79
+  main_sha_at_rebaseline: 81e5c71165da245a209ad30e5779df78e017bfb3
   deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T05:03:00Z"
+  observed_at_utc: "2026-07-17T05:20:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,7 +91,7 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: 7e4d8b7e6011c006952bc14a260f65c76a0e3e79
+  repository_main_sha: 81e5c71165da245a209ad30e5779df78e017bfb3
   deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -151,10 +151,9 @@ active_workstream:
     - DATA-02
     - DATA-03
     - DATA-04
-    - DATA-03
-    - DATA-04
+    - DATA-05
   remaining_tasks:
-    - merge the frozen-card display precedence correction and rollback context through GitHub PR
+    - merge the source-independent STALE-to-NOT_READY display invariant and second rollback context through GitHub PR
     - redeploy corrected main and immediately reconcile at most 10 current fixtures per zero-provider background cycle
     - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
     - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
@@ -192,7 +191,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - complete and merge the frozen-card display precedence correction, then redeploy under the existing four-service rollback contract
+    - complete and merge the STALE-to-NOT_READY display invariant, then redeploy under the existing four-service rollback contract
     - run only the bounded zero-provider reconcile and naturally due T6/T1/T15 refresh checkpoints
   forbidden_actions:
     - production deployment
@@ -258,6 +257,7 @@ known_issue_catalog:
   DATA-02: fixture-scoped materialization restores frozen current odds and reproducible Snapshot v2 distributions, but sampled fixtures still lack complete decision-model provenance and current freshness; three naturally due post-merge cycles remain required
   DATA-03: the deployed policy only schedules OPEN/T1/T15 and public DayView ignores database-frozen analysis cards when no forward capture exists, so non-clinical stale observations are misreported as MARKET_UNAVAILABLE; repair requires bounded reconcile, explicit STALE projection, T6 odds-only scheduling and next-refresh projection without weakening gates
   DATA-04: PR 336 merged and the first 7e4d8b7 staging attempt materialized four zero-provider frozen cards with AH/OU, but an older forward capture with empty current_odds retained projection precedence; immediate gate failed and all four services were rolled back to 7ad56cd without provider calls
+  DATA-05: PR 337 merged and the second 81e5c71 staging attempt exposed four STALE cards with AH/OU and next refresh, but a newer forward capture classified them as WATCH; the worth-watching exclusion gate failed and all four services were rolled back to 7ad56cd
 
 known_issue_status:
   resolved:
@@ -285,6 +285,9 @@ known_issue_status:
     - L2-02
     - DATA-01
     - DATA-02
+    - DATA-03
+    - DATA-04
+    - DATA-05
 
 observer_v2_implementation:
   status: MERGED_AND_FORMALLY_VALIDATED
