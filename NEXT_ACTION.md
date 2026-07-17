@@ -81,6 +81,20 @@ Implement and merge one bounded change set that:
 The hourly MA-03 patrol is paused. Do not use its former passive waiting result
 as acceptance evidence.
 
+PR #336 merged as `main@7e4d8b7e6011c006952bc14a260f65c76a0e3e79` with all three CI checks passing.
+Its first staging attempt passed image revision, artifact, migration, health and
+four-service alignment. A zero-provider reconcile processed fixtures
+`1523207/1523203/1523204/1523205` and persisted AH/OU cards from 2,980 scoped
+observations for the sampled fixture. Immediate DayView acceptance still showed
+`MARKET_UNAVAILABLE` because an older forward capture with empty `current_odds`
+overrode the newer database-frozen display card. The release was automatically
+rolled back to `7ad56cd`; Provider logs remained 532 and the queue remained 0.
+
+The only allowed correction is: when a forward capture has no current odds and
+the database-frozen card has real odds, use the database-frozen card for the
+bounded display projection. It must already be freshness-degraded to STALE and
+must not supply a pick, recommendation, lock or audit identity.
+
 ### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and

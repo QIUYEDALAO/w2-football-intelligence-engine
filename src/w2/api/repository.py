@@ -1669,6 +1669,7 @@ class ReadModelService:
             for row in selected_rows
             if str(row.get("fixture_id") or "") not in frozen_captures
         ]
+        selected_fixture_ids = [str(row.get("fixture_id") or "") for row in selected_rows]
         availability_reader = getattr(
             self.repository,
             "market_availability_for_fixture_ids",
@@ -1681,8 +1682,8 @@ class ReadModelService:
         )
         materialized_reader = getattr(self.repository, "dashboard_fixtures_for_ids", None)
         materialized_payloads = (
-            materialized_reader(missing_capture_ids)
-            if callable(materialized_reader) and missing_capture_ids
+            materialized_reader(selected_fixture_ids)
+            if callable(materialized_reader) and selected_fixture_ids
             else {}
         )
         materialized_cards = {
@@ -1695,7 +1696,7 @@ class ReadModelService:
         }
         next_plan_reader = getattr(self.repository, "next_checkpoint_plans_for_fixture_ids", None)
         next_plans = (
-            next_plan_reader([str(row.get("fixture_id") or "") for row in selected_rows])
+            next_plan_reader(selected_fixture_ids)
             if callable(next_plan_reader)
             else {}
         )
@@ -1706,7 +1707,23 @@ class ReadModelService:
         }
         market_availability_read_seconds = monotonic() - availability_started
         index_started = monotonic()
-        index_summaries = {**materialized_cards, **frozen_captures}
+        materialized_preferred_fixture_ids = frozenset(
+            fixture_id
+            for fixture_id, card in materialized_cards.items()
+            if fixture_id not in frozen_captures
+            or (
+                self._card_has_current_odds(card)
+                and not self._card_has_current_odds(frozen_captures[fixture_id])
+            )
+        )
+        index_summaries = {
+            fixture_id: (
+                materialized_cards[fixture_id]
+                if fixture_id in materialized_preferred_fixture_ids
+                else frozen_captures.get(fixture_id, materialized_cards.get(fixture_id))
+            )
+            for fixture_id in selected_fixture_ids
+        }
         entries = sort_entries(build_index_entries(selected_rows, index_summaries), sort)
         full_counts = window_counts(entries)
         window_index_build_seconds = monotonic() - index_started
@@ -1755,6 +1772,7 @@ class ReadModelService:
             counts=full_counts,
             capture_index=capture_index,
             materialized_cards=materialized_cards,
+            materialized_preferred_fixture_ids=materialized_preferred_fixture_ids,
             next_evaluations=next_evaluations,
             market_availability=market_availability,
             performance_summary=performance,
@@ -1838,9 +1856,7 @@ class ReadModelService:
         frozen_captures = snapshot.capture_index.summaries
         projection_started = monotonic()
         cards = [
-            project_day_view_card(row, frozen_captures[fixture_id])
-            if fixture_id in frozen_captures
-            else {
+            {
                 **dict(snapshot.materialized_cards[fixture_id]),
                 **{
                     key: row.get(key)
@@ -1859,7 +1875,9 @@ class ReadModelService:
                 },
                 "source": "frozen_analysis_checkpoint",
             }
-            if fixture_id in snapshot.materialized_cards
+            if fixture_id in snapshot.materialized_preferred_fixture_ids
+            else project_day_view_card(row, frozen_captures[fixture_id])
+            if fixture_id in frozen_captures
             else self._day_view_unavailable_card(
                 row,
                 has_market=bool(snapshot.market_availability.get(fixture_id)),
@@ -1958,6 +1976,16 @@ class ReadModelService:
         )
         dayview_metrics["response_bytes"] = len(serialized_view)
         return view
+
+    def _card_has_current_odds(self, card: Any) -> bool:
+        current_odds = (
+            card.get("current_odds")
+            if isinstance(card, Mapping)
+            else getattr(card, "current_odds", None)
+        )
+        return isinstance(current_odds, Mapping) and any(
+            isinstance(value, Mapping) and bool(value) for value in current_odds.values()
+        )
 
     def _bounded_day_view_card(self, card: dict[str, Any]) -> dict[str, Any]:
         encoded = json.dumps(card, ensure_ascii=False, default=str).encode("utf-8")

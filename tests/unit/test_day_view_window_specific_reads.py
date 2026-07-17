@@ -215,6 +215,83 @@ def test_materialized_stale_card_is_displayed_without_live_rebuild(
     assert view["counts"]["blocked"] == 0
 
 
+def test_materialized_odds_supersede_empty_forward_capture(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    class Repository(_AvailabilityRepository):
+        def dashboard_fixtures_for_ids(
+            self,
+            fixture_ids: list[str],
+        ) -> dict[str, dict[str, Any]]:
+            return {
+                "captured": {
+                    "analysis_card": {
+                        "fixture_id": "captured",
+                        "decision_tier": "NOT_READY",
+                        "data_status": "STALE",
+                        "lifecycle_status": "DRAFT",
+                        "lock_eligible": False,
+                        "outcome_tracked": False,
+                        "reason_code": "DATA_STALE_ODDS",
+                        "current_odds": {
+                            "ou": {
+                                "line": "2.5",
+                                "as_of": "2030-07-16T08:00:00Z",
+                                "source": "api_football",
+                                "source_hash": "source-hash",
+                            }
+                        },
+                    }
+                }
+            }
+
+    repository = Repository()
+    service = ReadModelService(repository=cast(Any, repository))
+    empty_capture = _summary_from_capture(
+        {
+            "fixture_id": "captured",
+            "captured_at": "2030-07-16T08:05:00Z",
+            "kickoff_utc": "2030-07-16T10:00:00Z",
+            "capture_hash": "empty-capture",
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "reason_code": "MARKET_UNAVAILABLE",
+            "status": "NS",
+        }
+    )
+    assert empty_capture is not None
+    monkeypatch.setattr(
+        "w2.api.repository.get_settings",
+        lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
+    )
+    monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: SimpleNamespace(
+            summaries={"captured": empty_capture},
+            ledger_fingerprint="ledger-a",
+            schema_version="w2.day_view_capture_summary.v1",
+            source_status="PASS",
+        ),
+    )
+
+    view = service.dashboard_day_view(
+        target_date="2030-07-16",
+        window="future",
+        page_size=20,
+    )
+
+    card = view["cards"][0]
+    assert card["data_status"] == "STALE"
+    assert card["reason_code"] == "DATA_STALE_ODDS"
+    assert card["current_odds"]["ou"]["line"] == "2.5"
+    assert view["counts"]["stale"] == 1
+    assert view["counts"]["blocked"] == 0
+
+
 def test_materialized_fresh_card_ages_to_stale_without_model_rebuild() -> None:
     service = ReadModelService(repository=cast(Any, object()))
     card = {

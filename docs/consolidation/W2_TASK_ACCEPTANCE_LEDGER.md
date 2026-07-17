@@ -889,3 +889,11 @@
 - 新 blocker 为 `DATA-03`：刷新策略与展示语义阻塞。原 hourly MA-03 自动巡检已暂停；旧部署 `7ad56cd` 保留为 staging baseline，但不构成 MA-03 接受结果。
 - 定向修复固定为：数据库冻结卡投影、STALE 与 BLOCKED 分离、最多 10 场 fixture-scoped 零 Provider reconcile、source signature 幂等写、显式 artifact ID/hash/version/train-cutoff/feature-as-of/input-source-hash provenance、odds-only T6、错过 T6 不回填、既有 next refresh 字段填充及 UI 单独统计 STALE。
 - 30 分钟 freshness、FME 数学、Snapshot 证据资格、推荐阈值、denominator、三轨、RECOMMEND、lock、OFFICIAL、production 与联赛启用均不变。只有合并、部署并完成即时 STALE 展示验收和自然 T6/T1/T15 身份一致性验收后，才可裁决 `GREEN + READY` 并进入 MA-04。
+
+### V3 进展续80 · 首次 stale-market 部署回滚与显示优先级定位(2026-07-17)
+
+- PR #336 三项 CI 全 PASS 并合并为 `main@7e4d8b7e6011c006952bc14a260f65c76a0e3e79`。首次 staging 切换前冻结 API/Web/worker/scheduler 四镜像和 mode-600 rollback manifest；镜像 revision、artifact v1、migration、health/readiness 与四服务 SHA 对齐均 PASS。
+- 批量 reconcile 以 `provider_calls=0` 处理 fixtures `1523207/1523203/1523204/1523205`，四场全部成功物化。数据库抽样确认 fixture `1523207` 的冻结卡来自 2,980 条 scoped observation，并包含 AH/OU；但 public DayView 仍显示空盘口与 `MARKET_UNAVAILABLE`。
+- 精确失败边界为 `EMPTY_FORWARD_CAPTURE_PRECEDENCE`: 旧 forward capture 虽无 `current_odds`，仍覆盖了新的 database-frozen analysis card。刷新时间字段已经正确出现，但 STALE 展示目标未达成，故未继续验收。
+- 已立即回滚四服务到 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；health/ready PASS、queue=0、Provider request logs 仍为 532、latest refresh audit 仍为 1488。授权的四场 immutable checkpoint 保留，未发生历史 rewrite、推荐/lock/OFFICIAL/production 变化。
+- 下一修复仅允许在 forward capture 无盘口且 database-frozen card 有真实盘口时调整 bounded display precedence；数据库卡必须先按 30 分钟门降为 STALE/NOT_READY，并清除 pick、recommendation、lock 与 audit promotion。其他身份、模型、阈值和调度边界不变。
