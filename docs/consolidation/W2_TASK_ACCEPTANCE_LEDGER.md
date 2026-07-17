@@ -897,3 +897,10 @@
 - 精确失败边界为 `EMPTY_FORWARD_CAPTURE_PRECEDENCE`: 旧 forward capture 虽无 `current_odds`，仍覆盖了新的 database-frozen analysis card。刷新时间字段已经正确出现，但 STALE 展示目标未达成，故未继续验收。
 - 已立即回滚四服务到 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；health/ready PASS、queue=0、Provider request logs 仍为 532、latest refresh audit 仍为 1488。授权的四场 immutable checkpoint 保留，未发生历史 rewrite、推荐/lock/OFFICIAL/production 变化。
 - 下一修复仅允许在 forward capture 无盘口且 database-frozen card 有真实盘口时调整 bounded display precedence；数据库卡必须先按 30 分钟门降为 STALE/NOT_READY，并清除 pick、recommendation、lock 与 audit promotion。其他身份、模型、阈值和调度边界不变。
+
+### V3 进展续81 · STALE 展示恢复、WATCH 安全门回滚(2026-07-17)
+
+- PR #337 三项 CI 全 PASS 并合并为 `main@81e5c71165da245a209ad30e5779df78e017bfb3`。第二次 staging 切换的五镜像 revision、artifact v1、migration、health/readiness、DayView business gate 与四服务 SHA 对齐均 PASS。
+- 即时验收确认 fixtures `1523207/1523203/1523204/1523205` 已显示 AH/OU 和采集时间，顶部统计为 STALE=4、BLOCKED=6，`next_refresh_tick` 与逐场 `next_eval_at` 可见。重复 reconcile 为 `materialized=0/unchanged=4/provider_calls=0`，证明幂等且无 Provider。
+- 新硬门失败为 `STALE_WATCH_PROMOTION`: 四张带盘口的 forward capture 虽为 STALE 且 lock=false，却仍为 WATCH，会进入“值得看”区域。数据库卡的 freshness projection 已是 NOT_READY，但当 forward capture 自身带盘口时仍优先使用 capture，暴露来源不一致的最终状态语义。
+- 按验收规则第二次回滚四服务至 `7ad56cd43360f6df5d97c16935539d1e78cd5078`。下一修复必须在最终 DayView 及 full-window counts 建立来源无关不变量：任何 STALE 都强制 NOT_READY，清除 pick/recommendation/lock/outcome tracking，并使用 `DATA_STALE_ODDS`；不得改变 freshness、FME、阈值、身份或调度。

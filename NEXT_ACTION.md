@@ -95,6 +95,21 @@ the database-frozen card has real odds, use the database-frozen card for the
 bounded display projection. It must already be freshness-degraded to STALE and
 must not supply a pick, recommendation, lock or audit identity.
 
+PR #337 merged as `main@81e5c71165da245a209ad30e5779df78e017bfb3`. The second staging attempt
+passed revision, artifact, migration, health and four-service alignment. The
+same four fixtures displayed AH/OU as STALE; reconcile proved idempotent with
+`materialized_count=0`, `unchanged_count=4`, `provider_calls=0`. Their newer
+forward captures still carried `decision_tier=WATCH`, so they would enter the
+worth-watching region. This triggered a second rollback to `7ad56cd`.
+
+The remaining correction is a source-independent final projection invariant:
+every `data_status=STALE` card must be `decision_tier=NOT_READY`, with pick,
+recommendation, lock and outcome tracking removed and reason
+`DATA_STALE_ODDS`. Full-window counts must apply the same invariant. If an older
+forward summary has odds but lacks capture time, provider source or source hash,
+the complete database-frozen card must supply the bounded display projection;
+the incomplete summary must not hide the stored identity.
+
 ### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and

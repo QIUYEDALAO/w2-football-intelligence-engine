@@ -292,6 +292,148 @@ def test_materialized_odds_supersede_empty_forward_capture(
     assert view["counts"]["blocked"] == 0
 
 
+def test_materialized_odds_supersede_forward_capture_with_incomplete_identity(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    class Repository(_AvailabilityRepository):
+        def dashboard_fixtures_for_ids(
+            self,
+            fixture_ids: list[str],
+        ) -> dict[str, dict[str, Any]]:
+            return {
+                "captured": {
+                    "analysis_card": {
+                        "fixture_id": "captured",
+                        "decision_tier": "NOT_READY",
+                        "data_status": "STALE",
+                        "lock_eligible": False,
+                        "outcome_tracked": False,
+                        "reason_code": "DATA_STALE_ODDS",
+                        "current_odds": {
+                            "ou": {
+                                "line": "2.5",
+                                "as_of": "2030-07-16T08:00:00Z",
+                                "source": "api_football",
+                                "source_hash": "complete-source-hash",
+                            }
+                        },
+                    }
+                }
+            }
+
+    repository = Repository()
+    service = ReadModelService(repository=cast(Any, repository))
+    incomplete_capture = _summary_from_capture(
+        {
+            "fixture_id": "captured",
+            "captured_at": "2030-07-16T08:05:00Z",
+            "kickoff_utc": "2030-07-16T10:00:00Z",
+            "capture_hash": "incomplete-capture",
+            "decision_tier": "WATCH",
+            "data_status": "STALE",
+            "reason_code": "MODEL_FAIR_LINE_UNAVAILABLE",
+            "current_odds": {
+                "ou": {
+                    "line": "3.5",
+                    "as_of": "2030-07-16T08:05:00Z",
+                }
+            },
+            "status": "NS",
+        }
+    )
+    assert incomplete_capture is not None
+    monkeypatch.setattr(
+        "w2.api.repository.get_settings",
+        lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
+    )
+    monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: SimpleNamespace(
+            summaries={"captured": incomplete_capture},
+            ledger_fingerprint="ledger-a",
+            schema_version="w2.day_view_capture_summary.v1",
+            source_status="PASS",
+        ),
+    )
+
+    view = service.dashboard_day_view(
+        target_date="2030-07-16",
+        window="future",
+        page_size=20,
+    )
+
+    card = view["cards"][0]
+    assert card["current_odds"]["ou"]["line"] == "2.5"
+    assert card["current_odds"]["ou"]["source"] == "api_football"
+    assert card["current_odds"]["ou"]["source_hash"] == "complete-source-hash"
+    assert card["decision_tier"] == "NOT_READY"
+    assert view["counts"]["watch"] == 0
+
+
+def test_stale_forward_capture_is_forced_out_of_watch(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    repository = _AvailabilityRepository()
+    service = ReadModelService(repository=cast(Any, repository))
+    stale_capture = _summary_from_capture(
+        {
+            "fixture_id": "captured",
+            "captured_at": "2030-07-16T08:05:00Z",
+            "kickoff_utc": "2030-07-16T10:00:00Z",
+            "capture_hash": "stale-capture",
+            "decision_tier": "WATCH",
+            "data_status": "STALE",
+            "lock_eligible": False,
+            "outcome_tracked": True,
+            "reason_code": "MODEL_FAIR_LINE_UNAVAILABLE",
+            "current_odds": {
+                "ou": {
+                    "line": "2.5",
+                    "as_of": "2030-07-16T08:00:00Z",
+                }
+            },
+            "status": "NS",
+        }
+    )
+    assert stale_capture is not None
+    monkeypatch.setattr(
+        "w2.api.repository.get_settings",
+        lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
+    )
+    monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
+    monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        "w2.api.repository.build_day_view_capture_index",
+        lambda _: SimpleNamespace(
+            summaries={"captured": stale_capture},
+            ledger_fingerprint="ledger-a",
+            schema_version="w2.day_view_capture_summary.v1",
+            source_status="PASS",
+        ),
+    )
+
+    view = service.dashboard_day_view(
+        target_date="2030-07-16",
+        window="future",
+        page_size=20,
+    )
+
+    card = view["cards"][0]
+    assert card["data_status"] == "STALE"
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["reason_code"] == "DATA_STALE_ODDS"
+    assert card["lock_eligible"] is False
+    assert card["outcome_tracked"] is False
+    assert view["counts"]["watch"] == 0
+    assert view["counts"]["not_ready"] == 1
+
+
 def test_materialized_fresh_card_ages_to_stale_without_model_rebuild() -> None:
     service = ReadModelService(repository=cast(Any, object()))
     card = {
