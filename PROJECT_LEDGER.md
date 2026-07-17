@@ -14,12 +14,15 @@ Current latest entry: `V3 进展续84 · DATA-07 完整盘口卡超出 L1 与第
 
 Current blocking chain:
 
-1. `DATA-07 / DATA_PIPELINE_BLOCKED`: DATA-06 was fixed and merged as
+1. `DATA-07 / FIX_IN_REVIEW`: DATA-06 was fixed and merged as
    `main@ebeea00`, but immediate DayView projection replaced four complete
    database-frozen cards with `L1_CARD_TOO_LARGE`. Their expanded candidate-line
    evidence exceeded the unchanged public L1 size limit. Staging was rolled back
    to `7ad56cd`. Only a bounded display-field projection is allowed; the payload
    limit and evidence data remain unchanged.
+   The directed repair now projects an explicit bounded public card and removes
+   candidate/rejected line expansion only from that projection. Full tests and
+   static checks pass; staging remains on the rollback baseline pending PR.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

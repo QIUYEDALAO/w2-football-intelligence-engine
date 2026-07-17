@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `DATA_PIPELINE_BLOCKED`
+Status: `DATA07_FIX_IN_REVIEW`
 
 The Dashboard has real fixture-scoped observations, but the deployed read path
 misclassifies non-clinical stale markets as unavailable because old observations
@@ -149,6 +149,15 @@ delete evidence detail from the frozen checkpoint or expand the public API.
 Staging was immediately rolled back to `7ad56cd`; health/ready and public API/Web
 release identity confirm the rollback.
 
+The DATA-07 repair is implemented on `codex/w2-data07-bounded-odds`. It replaces
+the full database analysis-card spread with an explicit public DayView field
+projection and bounds each displayed market to line/prices, capture time,
+provider source, source hash, selection policy and display line. Candidate and
+rejected line evidence remain in the immutable database checkpoint but do not
+enter L1. A 200-candidate regression remains STALE/NOT_READY with visible source
+identity and does not become `L1_CARD_TOO_LARGE`. Validation is `1497 passed,
+4 skipped`, Ruff PASS and Mypy PASS; GitHub checks remain required before merge.
+
 ### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and
@@ -163,7 +172,7 @@ and feature-as-of provenance. They remained correctly blocked by
 `DECISION_SOURCE_INCONSISTENT`. Snapshot mathematical reproducibility alone does
 not satisfy decision evidence eligibility.
 
-Fix DATA-06 first. Then deploy merged main under the existing four-service
+After DATA-07 merges, deploy merged main under the existing four-service
 rollback contract, run only the bounded analysis reconcile, and let the
 scheduler produce naturally due `T6_ODDS`, `T1_LINEUPS` and `T15M_CLOSE`
 checkpoints. Do not manually invoke the combined refresh task for immediate

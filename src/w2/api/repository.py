@@ -1858,25 +1858,10 @@ class ReadModelService:
         frozen_captures = snapshot.capture_index.summaries
         projection_started = monotonic()
         cards = [
-            {
-                **dict(snapshot.materialized_cards[fixture_id]),
-                **{
-                    key: row.get(key)
-                    for key in (
-                        "fixture_id",
-                        "kickoff_utc",
-                        "kickoff_beijing",
-                        "competition_id",
-                        "competition_name",
-                        "home_team_id",
-                        "away_team_id",
-                        "home_team_name",
-                        "away_team_name",
-                        "status",
-                    )
-                },
-                "source": "frozen_analysis_checkpoint",
-            }
+            self._project_materialized_day_view_card(
+                row,
+                snapshot.materialized_cards[fixture_id],
+            )
             if fixture_id in snapshot.materialized_preferred_fixture_ids
             else project_day_view_card(row, frozen_captures[fixture_id])
             if fixture_id in frozen_captures
@@ -1979,6 +1964,108 @@ class ReadModelService:
         )
         dayview_metrics["response_bytes"] = len(serialized_view)
         return view
+
+    def _project_materialized_day_view_card(
+        self,
+        row: Mapping[str, Any],
+        card: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        projected = {
+            key: deepcopy(card.get(key))
+            for key in (
+                "captured_at",
+                "decision_tier",
+                "data_status",
+                "lifecycle_status",
+                "outcome_tracked",
+                "lock_eligible",
+                "recommendation_id",
+                "reason_code",
+                "primary_blocker",
+                "primary_blocker_layer",
+                "action",
+                "next_eval_at",
+                "provider_budget_status",
+                "pick",
+                "non_pick",
+                "analysis_readiness",
+                "data_refresh",
+                "probability_source",
+                "scoreline_readiness",
+            )
+            if card.get(key) is not None
+        }
+        projected["current_odds"] = self._bounded_display_current_odds(
+            card.get("current_odds")
+        )
+        projected.update(
+            {
+                key: row.get(key)
+                for key in (
+                    "fixture_id",
+                    "kickoff_utc",
+                    "kickoff_beijing",
+                    "competition_id",
+                    "competition_name",
+                    "home_team_id",
+                    "away_team_id",
+                    "home_team_name",
+                    "away_team_name",
+                    "status",
+                )
+            }
+        )
+        projected["source"] = "frozen_analysis_checkpoint"
+        return projected
+
+    def _bounded_display_current_odds(self, value: Any) -> dict[str, Any]:
+        if not isinstance(value, Mapping):
+            return {}
+        market_fields = (
+            "line",
+            "home_line",
+            "away_line",
+            "over_line",
+            "under_line",
+            "home_price",
+            "away_price",
+            "over_price",
+            "under_price",
+            "draw_price",
+            "price",
+            "bookmaker_count",
+            "bookmaker",
+            "selection_policy",
+            "as_of",
+            "captured_at",
+            "source",
+            "provider",
+            "source_hash",
+            "source_payload_id",
+            "quote_id",
+            "capture_id",
+            "display_line_cn",
+            "home_display_line_cn",
+            "away_display_line_cn",
+        )
+        projected: dict[str, Any] = {}
+        for key, item in value.items():
+            if isinstance(item, Mapping):
+                projected[str(key)] = {
+                    field: deepcopy(item.get(field))
+                    for field in market_fields
+                    if item.get(field) is not None
+                }
+            elif key in {
+                "as_of",
+                "captured_at",
+                "source",
+                "source_hash",
+                "quote_id",
+                "capture_id",
+            }:
+                projected[str(key)] = deepcopy(item)
+        return projected
 
     def _card_has_current_odds(self, card: Any) -> bool:
         current_odds = (

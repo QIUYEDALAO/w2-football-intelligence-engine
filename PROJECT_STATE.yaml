@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T06:44:00Z"
+last_updated_utc: "2026-07-17T06:59:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
-current_status: DATA_PIPELINE_BLOCKED
+current_status: DATA07_FIX_IN_REVIEW
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
+  main_sha_at_rebaseline: 5c30d546c43b53c677237e2e43288d975e49e6ab
   deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T06:44:00Z"
+  observed_at_utc: "2026-07-17T06:59:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,7 +91,7 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
+  repository_main_sha: 5c30d546c43b53c677237e2e43288d975e49e6ab
   deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -240,7 +240,7 @@ data06_stale_t6_checkpoint_20260717:
   service_oom_killed: false
 
 data07_materialized_card_l1_size_20260717:
-  status: DATA_PIPELINE_BLOCKED
+  status: FIX_IMPLEMENTED_PENDING_PR
   attempted_release_sha: ebeea00984ebf0d6ade539e9a53c88a1cf2d39c5
   rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   observed_at_utc: "2026-07-17T06:44:00Z"
@@ -257,6 +257,19 @@ data07_materialized_card_l1_size_20260717:
   allowed_fix: retain line/prices/as_of/source/source_hash and remove expanded evidence detail from the public display projection before the unchanged L1 size gate
   decision: immediate four-service rollback; do not relax the L1 payload limit
   public_health_after_rollback: PASS
+  repair_branch: codex/w2-data07-bounded-odds
+  repair_contract:
+    - database-frozen evidence payload remains unchanged
+    - public materialized card uses an explicit bounded field projection
+    - current odds retain line, prices, source, capture time, source hash and display line
+    - candidate and rejected line evidence do not enter the public L1 card
+    - the 24 KiB per-card limit remains unchanged and fail-closed
+  validation:
+    focused_tests_passed: 7
+    full_tests_passed: 1497
+    tests_skipped: 4
+    ruff: PASS
+    mypy: PASS
 
 ma03_staging_deployment_20260717:
   status: SUPERSEDED_BY_REFRESH_POLICY_AND_DISPLAY_SEMANTICS_REPAIR

@@ -925,3 +925,10 @@
 - 即时 public DayView 的索引计数为 `STALE=4/BLOCKED=6/WATCH=0`，但四张完整 database-frozen 卡在最终 L1 大小门被替换为 `L1_CARD_TOO_LARGE`，盘口为空。reconcile-only 命令因 SSH 管理通道超时未取得结果，不计为成功证据。
 - DATA-07 的边界为 `COMPLETE_MATERIALIZED_ODDS_EXCEED_BOUNDED_L1_CARD`：数据库冻结卡的 `current_odds` 包含 candidate/rejected line 证据明细，完整身份优先后将这些内部证据带入了公共卡。不得放宽 L1 上限，也不得删除冻结证据。
 - 已第四次回滚到 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；公开 health/ready、Web meta 与 API version 均确认恢复。唯一允许修复是在公共展示投影进入既有 L1 大小门前，只保留 line/price/as_of/source/source_hash/display line 等必要字段。
+
+### V3 进展续85 · DATA-07 有界公共盘口投影实现(2026-07-17)
+
+- 定向修复不再把完整 database analysis card 展开到公共 DayView；公共 materialized card 改为显式字段投影，冻结数据库 checkpoint 与内部证据内容完全不变。
+- `current_odds` 只保留 line、主客/大小价格、采集时间、provider source、source hash、selection policy 与中文展示线；candidate/rejected line 仍留在冻结证据，但不进入 L1。
+- 新回归使用 200 条 candidate line，确认卡片仍为 STALE/NOT_READY，来源和 hash 可见，WATCH=0，且不会降级为 `L1_CARD_TOO_LARGE`。24 KiB 单卡门保持不变并继续 fail closed。
+- 定向测试 `7 passed`，完整测试 `1497 passed, 4 skipped`，Ruff/Mypy PASS；staging 继续保持 `7ad56cd`，等待代码 PR 三项检查和合并。
