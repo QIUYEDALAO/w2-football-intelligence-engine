@@ -6,34 +6,30 @@ Version-control contract: GitHub workflow is disabled. Keep one local branch and
 one verified local commit chain per complete stage; retain local Git history and
 rollback tags, and do not push, open PRs or wait for remote CI.
 
-MA-03 is paused. The deployed Dashboard renders approximately 44-hour-old odds
-as primary market values for four fixtures, including a fixture about 197 minutes
-from kickoff. A STALE label does not make those values appropriate to display.
+DATA-08 code and deployment are complete on local release
+`0f359149d7524b392d1ac900ded3bd47b78be480`. Expired odds are hidden, identical
+odds receive a new immutable capture identity, and the Scheduler now prequeues
+all checkpoints inside its 15-minute scan window as independent tasks that run
+at their own exact due time. The full suite is `1509 passed, 4 skipped`; Ruff and
+Mypy pass. Four Staging services are healthy and SHA-aligned with restart=0 and
+OOM=false.
 
-DATA-08 is implemented and locally validated on
-`codex/w2-data08-expired-odds-refresh`: 66 directed tests and the full 1506-test
-suite pass, with 4 environment-dependent skips; Ruff, Mypy, frontend typecheck
-and production build pass. Release `48db41e5` proved expired odds hiding and a
-globally bounded 11-call natural tick, then exposed the inherited 60-second scan
-default. Scheduler is paused; the default is corrected to the required 900
-seconds. The unique next action is to redeploy the final local release commit to
-all four Staging services, verify alignment and observe the remaining legal cycles.
-
-The aligned release then exposed a deeper capture boundary: Provider refreshes
-completed, but identical odds content reused the previous observation identity,
-so `captured_at` did not advance and three matches stayed STALE. Scheduler is
-paused. The repair now binds observation identity to capture time while retaining
-the same raw payload hash and prices. Local validation is 95 directed tests and
-1507 full-suite tests. Redeploy and verify this natural identical-quote case next.
+Natural acceptance proved fixture `1492140` was due at
+`2026-07-17T21:30:00Z` and completed at `21:30:00.076Z`. The former 15-minute
+stale gap is closed without early Provider access. The current blocker is not
+code: the UTC-day Provider ledger is exactly `120/120`, with all 120 requests
+successful. New tasks fail closed with `DAILY_PROVIDER_HARD_CAP_EXCEEDED` and
+`request_count=0`.
 
 ## Unique next action — DATA-08
 
-1. Hide quotes older than 30 minutes from `current_odds` while preserving their
-   immutable observation, quote ID, capture time and source hash.
-2. Add natural odds-only active-window refresh from T6 through T15, with one
-   refresh per fixture per 30 minutes, T1/T15 dedupe, no historical backfill,
-   global 30-call tick and 120-call daily caps.
-3. Redeploy and observe three consecutive legal cycles before resuming MA-03.
+1. Keep release `0f359149` deployed; do not change code or safety gates.
+2. Wait for the UTC daily Provider ledger to reset naturally at
+   `2026-07-18T00:00:00Z` (Beijing 08:00).
+3. Observe three consecutive legal exact-time cycles. Require fresh quote,
+   provider/capture/quote/raw-hash identity and Snapshot/FME consistency.
+4. Resume MA-03 only if `MARKET_DATA_HEALTH=GREEN` and
+   `EVIDENCE_ELIGIBILITY=READY`; otherwise record the exact blocker.
 
 The required four-service rollback completed at `2026-07-17T10:07:00Z` and all
 services are healthy and aligned on `7ad56cd`, with restart=0 and OOM=false.

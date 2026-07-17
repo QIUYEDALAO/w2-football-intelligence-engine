@@ -985,3 +985,12 @@
 - Scheduler 已暂停。定向修复只在 observation 不可变身份中加入 `captured_at`：相同内容的新采集成为新 observation，raw payload hash、赔率、来源和历史旧 observation 均不变；不更新旧行、不伪造 Provider 时间。
 - 新回归证明同 payload、同赔率、不同 capture time 生成不同 observation ID，同时 raw hash 和赔率值稳定。定向测试 `95 passed`，完整测试 `1507 passed, 4 skipped`，Ruff、Mypy、前端 build PASS。
 - 唯一下一步是部署新的本地发布提交，等待一次自然刷新并确认相同盘口也会推进 `captured_at`、恢复展示；30 分钟 freshness、FME、Snapshot 和推荐安全门不变。
+
+### V3 进展续93 · DATA-08 精确到期调度通过、Provider 日上限阻塞(2026-07-18)
+
+- 本地 release `0f359149d7524b392d1ac900ded3bd47b78be480` 已部署；artifact v1、migration、API/Worker/Scheduler/Web 四服务 SHA、health、restart=0、OOM=false 与 mode-600 rollback manifest 全部 PASS。GitHub workflow 保持关闭。
+- 相同盘口的新采集身份修复已保留；进一步自然验收确认旧实现会因 900 秒 Scheduler tick 比 30 分钟到期点早数秒而漏过一次刷新，造成最多 15 分钟 STALE 空窗。
+- 最终修复在每个 15 分钟扫描窗内预排所有 checkpoint，并为每场创建独立、可去重任务，使用 Celery ETA 在各自 due time 执行。预算按每任务真实 status+fixture+odds/lineups 调用计算；全量 `1509 passed, 4 skipped`，Ruff/Mypy PASS。
+- 启动自然扫描一次预排 3 个任务，global projected calls=10 < tick cap 30。fixture `1492140` 的 T1 due time 为 `2026-07-17T21:30:00Z`，实际完成于 `21:30:00.076Z`，误差约 76ms，证明未提前执行且不再等待下一 15 分钟 tick。
+- UTC 当日 Provider ledger 已恰好达到 `120/120`，且 120 次全部成功。fixtures `1492295/1492297/1492140` 均被 `DAILY_PROVIDER_HARD_CAP_EXCEEDED` fail closed，`request_count=0`，没有强制调用、超预算或降低 freshness。
+- 当前裁决保持 `MARKET_DATA_HEALTH=RED`、`EVIDENCE_ELIGIBILITY=BLOCKED`。唯一下一步是在 `2026-07-18T00:00:00Z`（北京时间 08:00）自然日账本重置后观察三个合法周期；不得手动 Provider、修改 120 次硬门或进入 MA-04。

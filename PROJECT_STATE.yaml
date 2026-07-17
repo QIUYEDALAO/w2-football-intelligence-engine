@@ -3,8 +3,8 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T14:27:00Z"
-current_phase: Dashboard expired-odds containment and bounded active-window refresh repair
+last_updated_utc: "2026-07-17T21:30:00Z"
+current_phase: Dashboard exact-time active refresh deployed; daily Provider cap blocks data recovery
 current_status: DATA_PIPELINE_BLOCKED
 
 context_contract:
@@ -45,13 +45,13 @@ context_read_order:
 
 repository_state:
   main_sha_at_rebaseline: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  deployed_code_sha: 0f359149d7524b392d1ac900ded3bd47b78be480
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T10:07:00Z"
+  observed_at_utc: "2026-07-17T21:30:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -104,7 +104,7 @@ active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: MA03_PAUSED_DATA_PIPELINE_BLOCKED
   repository_main_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  deployed_staging_sha: 0f359149d7524b392d1ac900ded3bd47b78be480
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -168,9 +168,7 @@ active_workstream:
     - DATA-07
     - DATA-08
   remaining_tasks:
-    - hide quotes older than 30 minutes from public current_odds while preserving immutable observation identity
-    - add globally budgeted natural active-window odds refresh from T6 through T15 with per-fixture 30-minute dedupe
-    - distinguish STALE, waiting refresh, provider-empty, evidence-incomplete and system failure in the Dashboard
+    - wait for the UTC daily Provider ledger to reset at 2026-07-18T00:00:00Z without forcing a request
     - observe three consecutive legal refresh cycles after the directed repair is deployed
     - pass staging with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
     - only after market data is GREEN and evidence is READY, rerun the controlled-capture gate and full L1/Frozen L2 safety acceptance
@@ -217,7 +215,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: IDENTICAL_QUOTE_CAPTURE_FIX_VALIDATED_PENDING_REDEPLOY
+  status: EXACT_TIME_REFRESH_DEPLOYED_DAILY_PROVIDER_CAP_BLOCKED
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -279,8 +277,8 @@ data08_expired_odds_display_and_refresh_20260717:
     due_plan_query_scope: fixture_scoped
     manual_provider_refresh: false
   local_validation:
-    targeted_tests_passed: 95
-    full_tests_passed: 1507
+    targeted_tests_passed: 52
+    full_tests_passed: 1509
     full_tests_skipped: 4
     ruff: PASS
     mypy: PASS
@@ -311,7 +309,31 @@ data08_expired_odds_display_and_refresh_20260717:
     repeated_provider_calls_on_next_scan: 0
     discovered_deviation: checkpoint scan inherited the old 60-second default instead of the required 900-second interval
     action: scheduler paused; default corrected to 900 seconds and fully revalidated before redeploy
-  next_gate: redeploy the final local release commit to all four staging services, verify 900-second scan interval and service alignment, then observe the remaining natural legal cycles
+  final_staging_release:
+    release_sha: 0f359149d7524b392d1ac900ded3bd47b78be480
+    deployed_at_utc: "2026-07-17T21:25:00Z"
+    artifact_v1_gate: PASS
+    migration_gate: PASS
+    four_service_alignment: PASS
+    service_restart_count: 0
+    service_oom_killed: false
+    scheduler_scan_interval_seconds: 900
+    rollback_manifest: /opt/w2/shared/rollback-manifest-0f359149d7524b392d1ac900ded3bd47b78be480.txt
+    rollback_manifest_mode: 600
+    exact_time_dispatch:
+      scheduled_fixture_id: "1492140"
+      scheduled_due_at_utc: "2026-07-17T21:30:00Z"
+      actual_completed_at_utc: "2026-07-17T21:30:00.076Z"
+      dispatch_error_milliseconds: 76
+      request_count: 0
+      blocker: DAILY_PROVIDER_HARD_CAP_EXCEEDED
+    global_tick_projected_calls: 10
+    global_tick_hard_cap: 30
+    provider_daily_usage: 120
+    provider_daily_hard_cap: 120
+    provider_success_count: 120
+    manual_provider_refresh: false
+  next_gate: after the UTC daily ledger resets at 2026-07-18T00:00:00Z, observe the next natural exact-time cycles; do not force Provider or weaken the 120-call cap
   identical_quote_capture_blocker:
     observed_release_sha: afac9307006a4451a6a409d58408aa787b4f6726
     affected_fixture_ids:
@@ -325,7 +347,7 @@ data08_expired_odds_display_and_refresh_20260717:
     repair: include captured_at in immutable observation identity while preserving identical raw payload hash and odds values
     recommendation_gates_changed: false
     freshness_threshold_changed: false
-    next_action: deploy the new local release and verify a naturally unchanged quote advances captured_at and becomes displayable
+    next_action: code and exact-time dispatch are deployed; wait for the daily Provider ledger reset and verify the next natural capture advances without manual calls
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS
