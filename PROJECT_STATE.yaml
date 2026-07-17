@@ -302,6 +302,18 @@ ma03_immediate_display_acceptance_20260717:
     l1_card_too_large: 0
     stale_cards_with_ah_ou_identity: 4
     next_refresh_tick_utc: "2026-07-17T10:00:00Z"
+  frontend_future_window:
+    total: 40
+    first_page_returned: 20
+    stale: 4
+    blocked: 36
+    not_ready: 40
+    watch: 0
+    recommend: 0
+    lock_eligible: 0
+    first_page_stale_with_odds: 4
+    l1_card_too_large: 0
+    next_refresh_tick_utc: "2026-07-17T10:00:00Z"
   market_data_health: YELLOW
   evidence_eligibility: NOT_READY
   classification_reason: existing odds are now visible and correctly stale, but no current naturally refreshed quote or eligible Snapshot v2 evidence has passed yet

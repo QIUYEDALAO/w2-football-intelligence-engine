@@ -174,6 +174,12 @@ Current adjudication is `MARKET_DATA_HEALTH=YELLOW` and
 naturally refreshed quotes and eligible Snapshot v2 evidence do not yet exist.
 Do not manually trigger refresh; observe only naturally due T1/T15 cycles.
 
+The production frontend code fixes its Dashboard request mode to `future`, so
+that exact public window was also verified. It returns total=40, first page=20,
+STALE=4 and true BLOCKED=36. The first four current fixtures have visible odds;
+the remaining fixtures have no materialized observations and correctly remain
+BLOCKED. WATCH/RECOMMEND/lock and `L1_CARD_TOO_LARGE` are all zero.
+
 ### MA-03B — Staging acceptance after merge
 
 The first `a9b42a5` staging attempt passed artifact v1, migration, health and

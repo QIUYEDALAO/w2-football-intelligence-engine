@@ -10,7 +10,7 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续86 · Dashboard STALE 即时展示通过、等待自然周期`.
+Current latest entry: `V3 进展续87 · 前端 future 窗口真实统计确认`.
 
 Current blocking chain:
 
@@ -20,6 +20,8 @@ Current blocking chain:
    WATCH/RECOMMEND/lock=0. Reconcile-only wrote no timeline artifacts and made no
    Provider calls. Immediate status is `YELLOW + NOT_READY`; wait only for
    naturally due T1/T15 cycles from 2026-07-17T10:00:00Z.
+   The actual frontend `future` window is total=40 with first page=20,
+   STALE=4 and true BLOCKED=36; the four current fixtures show odds on page 1.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.
