@@ -1,12 +1,31 @@
 # W2 Next Action
 
-Status: `MARKET_DATA_RECOVERED_EVIDENCE_NOT_READY`
+Status: `ROLLED_BACK_PRE_GPT56_RELEASE_TASKS_PAUSED`
 
 Version-control contract: GitHub workflow is disabled. Keep one local branch and
 one verified local commit chain per complete stage; retain local Git history and
 rollback tags, and do not push, open PRs or wait for remote CI.
 
-DATA-08 code and deployment are complete on local release
+## Unique next action — PAUSED
+
+At the user's request, Staging has been rolled back to
+`b5cfd6575ba7274692714c9fc814916a00c13e36`, committed at
+`2026-07-08T21:34:33+08:00`, the final verified W2 release before GPT-5.6
+general availability on 2026-07-09. API, Worker, Scheduler and Frontend are
+healthy, restart=0, and API/Web release identities match the rollback SHA.
+
+This was an application-only rollback. No pre-July-9 database snapshot exists
+on the server, so PostgreSQL and runtime data were deliberately preserved. No
+database migration files differ between the rollback target and the previous
+deployed release. Public health, Dashboard and DayView return HTTP 200.
+
+Do not resume DATA-08, MA-03, MA-04, Provider refresh repair, deployment or
+acceptance work without new explicit authorization. The remaining content in
+this file is superseded execution history.
+
+## Superseded DATA-08 execution history
+
+DATA-08 code and deployment were complete on local release
 `0f359149d7524b392d1ac900ded3bd47b78be480`. Expired odds are hidden, identical
 odds receive a new immutable capture identity, and the Scheduler now prequeues
 all checkpoints inside its 15-minute scan window as independent tasks that run

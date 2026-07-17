@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T21:56:00Z"
-current_phase: Dashboard market data recovered; evidence eligibility remains under acceptance
-current_status: MARKET_DATA_RECOVERED_EVIDENCE_NOT_READY
+last_updated_utc: "2026-07-17T22:18:12Z"
+current_phase: Staging rolled back to the final verified release before GPT-5.6 general availability
+current_status: ROLLED_BACK_PRE_GPT56_RELEASE_TASKS_PAUSED
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -45,13 +45,13 @@ context_read_order:
 
 repository_state:
   main_sha_at_rebaseline: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_code_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
+  deployed_code_sha: b5cfd6575ba7274692714c9fc814916a00c13e36
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T21:56:00Z"
+  observed_at_utc: "2026-07-17T22:18:12Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -102,9 +102,9 @@ public_edge_recovery:
 
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
-  status: MA03_PAUSED_DATA_PIPELINE_BLOCKED
+  status: USER_REQUESTED_PRE_GPT56_ROLLBACK_COMPLETE
   repository_main_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
-  deployed_staging_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
+  deployed_staging_sha: b5cfd6575ba7274692714c9fc814916a00c13e36
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -213,6 +213,23 @@ active_workstream:
     - OFFICIAL writes
     - model or threshold changes
     - historical evidence rewrites
+
+pre_gpt56_release_rollback_20260718:
+  status: COMPLETE
+  official_general_availability_date: "2026-07-09"
+  cutoff_timezone: Asia/Shanghai
+  target_release_sha: b5cfd6575ba7274692714c9fc814916a00c13e36
+  target_commit_time: "2026-07-08T21:34:33+08:00"
+  previous_deployed_sha: 8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac
+  rollback_scope: application services only; existing PostgreSQL and runtime data preserved
+  database_snapshot_restored: false
+  database_compatibility: no migration-file differences between target and previous deployed release
+  verification:
+    - API, Worker, Scheduler and Frontend healthy
+    - all four services restart count 0
+    - API and Frontend report target release SHA
+    - public health, Dashboard and DayView return HTTP 200
+  next_action: none; all repair and acceptance work remains paused until explicitly reauthorized
 
 data08_expired_odds_display_and_refresh_20260717:
   status: DASHBOARD_MARKET_RECOVERY_PASS

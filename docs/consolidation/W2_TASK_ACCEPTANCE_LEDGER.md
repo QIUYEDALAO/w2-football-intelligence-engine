@@ -1009,3 +1009,11 @@
 - 北京时间 05:55，fixtures `1492295/1492297` 两个自然 active-odds 任务均 `COMPLETED`、`blockers=[]`，各自 transport request_count=3；Football-API 剩余额度依次为 7409/7406，内部 billable usage 正确增至 94。
 - public future DayView 已显示两场新 AH/OU，capture time 分别为 `2026-07-17T21:55:18.239739Z` 与 `21:55:30.664858Z`，来源为 `api_football` 且 source hash 在场。状态为 PARTIAL/SKIP，未进入 WATCH/RECOMMEND/lock/OFFICIAL。
 - 用户页面恢复不再等待三个验收周期。当前裁决从 RED/BLOCKED 调整为 `MARKET_DATA_HEALTH=YELLOW`、`EVIDENCE_ELIGIBILITY=NOT_READY`；后续周期只用于确认 FME/Snapshot/identity 是否达到 GREEN+READY，不影响 Dashboard 展示真实新盘口。
+
+### V3 进展续96 · 用户要求回退至 GPT-5.6 正式发布前版本(2026-07-18)
+
+- OpenAI 官方发布记录确认 GPT-5.6 于 2026-07-09 全面可用；按北京时间边界，服务器中最后一个 7 月 9 日前的完整 W2 发行目录为 `b5cfd6575ba7274692714c9fc814916a00c13e36`，提交时间 `2026-07-08T21:34:33+08:00`。
+- 回退前为当前四服务镜像保留了本机恢复标签；随后从既有发行目录构建 API、Worker、Scheduler、Frontend，并一次性将 Staging 从 `8be60bcb3ff18d16d7d7b1432d7dfec59f8a81ac` 切换到 `b5cfd6575ba7274692714c9fc814916a00c13e36`。
+- 服务器没有 7 月 9 日前的成套数据库快照或 rollback manifest；因此本次只回退应用，保留 PostgreSQL 与 runtime 数据。目标版本与原部署版本之间无 migration 文件差异，未执行降级迁移、数据删除或历史改写。
+- 四服务 health=healthy、restart=0；API 与 Web 均报告目标 SHA，公网 health、Dashboard 与 DayView 均返回 HTTP 200。此前尚未部署的 T-18/1200 本地修改已全部撤销。
+- 用户要求停止修复；DATA-08、MA-03、MA-04、Provider 刷新和证据验收全部暂停，除非收到新的明确授权，否则无下一执行动作。
