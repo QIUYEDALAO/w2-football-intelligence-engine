@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T03:14:00Z"
+last_updated_utc: "2026-07-17T03:55:19Z"
 current_phase: Market availability pipeline recovery before Frozen L2 acceptance
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: a9b42a5730f4fea700ec91035874bb67d2e5248c
-  deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  main_sha_at_rebaseline: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  deployed_code_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T03:14:00Z"
+  observed_at_utc: "2026-07-17T03:55:19Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,8 +91,8 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: a9b42a5730f4fea700ec91035874bb67d2e5248c
-  deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  repository_main_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  deployed_staging_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
     status: APPROVED_FOR_IMPLEMENTATION
@@ -124,6 +124,7 @@ active_workstream:
     - fixture-scoped frozen analysis materializer PR 333 merged with all three CI checks passing
     - identical-input materialization produced stable content-addressed hashes and two Snapshot v2 records per sampled fixture
     - main a9b42a5 staging attempt rolled back after the evidence identity gate remained blocked
+    - main 7ad56cd deployed for the MA-03 natural three-cycle gate with four-service alignment and rollback protection
   known_issues:
     - CTX-01
     - CTX-02
@@ -187,7 +188,7 @@ active_workstream:
     - final context PR merged
   next_allowed_action:
     - wait for and inspect the next naturally due checkpoint refresh cycles; do not force provider calls or bypass the checkpoint scheduler
-    - redeploy merged main only for the three-cycle gate with the existing automatic rollback contract
+    - keep the deployed MA-03 release under the existing automatic rollback contract until three consecutive natural cycles are adjudicated
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -195,6 +196,34 @@ active_workstream:
     - OFFICIAL writes
     - model or threshold changes
     - historical evidence rewrites
+
+ma03_staging_deployment_20260717:
+  status: DEPLOYED_WAITING_FOR_NATURAL_CYCLES
+  deployed_at_utc: "2026-07-17T03:55:19Z"
+  release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
+  rollback_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
+  rollback_manifest: /opt/w2/shared/rollback-manifest-7ad56cd43360f6df5d97c16935539d1e78cd5078.json
+  rollback_manifest_mode: "600"
+  gates:
+    github_main_ci: PASS
+    artifact_v1: PASS
+    migration: 0023_create_checkpoint_refresh_schedule (head)
+    api_health_ready: PASS
+    dayview_business_readiness: PASS
+    four_service_sha_alignment: PASS
+    service_restart_count: 0
+    service_oom_killed: false
+  pre_cycle_baseline:
+    provider_request_log_count: 532
+    latest_future_refresh_audit_id: 1488
+    latest_future_refresh_generated_at_utc: "2026-07-16T22:15:08.784841Z"
+    redis_queue_length: 0
+    active_provider_calls: 0
+  next_natural_cycle_not_before_utc: "2026-07-17T10:00:00Z"
+  provider_calls_caused_by_deployment: 0
+  production_deploy: false
+  recommendation_gate_change: false
+  historical_rewrite: false
 
 known_issue_catalog:
   CTX-01: GitHub main context predates PRs 314 through 325

@@ -10,13 +10,13 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续77 · 后台物化合并、staging 身份门回滚与自然周期等待`.
+Current latest entry: `V3 进展续78 · MA-03 四服务部署完成与自然三周期待验收`.
 
 Current blocking chain:
 
-1. `DATA-02 / DATA_PIPELINE_BLOCKED`: frozen current odds and reproducible
-   Snapshot v2 distributions now materialize, but sampled fallback estimates
-   still lack complete decision-model provenance and current freshness.
+1. `DATA-02 / DATA_PIPELINE_BLOCKED`: `main@7ad56cd` is deployed to all four
+   staging services; three consecutive naturally due cycles beginning at or
+   after `2026-07-17T10:00:00Z` must prove current provenance-valid evidence.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.
