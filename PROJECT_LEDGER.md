@@ -10,7 +10,7 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续88 · DATA-08 旧盘口展示阻塞重定基线`.
+Current latest entry: `V3 进展续89 · DATA-08 回滚对齐但展示隔离失败`.
 
 Current blocking chain:
 
@@ -20,6 +20,11 @@ Current blocking chain:
    appropriate as primary current odds. Classification is `RED + BLOCKED` until
    quotes older than 30 minutes are hidden and a globally budgeted natural
    T6-to-T15 active-window refresh is deployed and accepted.
+   Four-service rollback to `7ad56cd` is healthy and aligned, but it is not a
+   display-safety control because existing forward captures still expose three
+   expired quotes. Explicit API projection containment is now the unique next
+   code action. Fixture `1523207` independently received a natural fresh quote
+   at `2026-07-17T10:00:04Z`; no manual Provider refresh was used.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

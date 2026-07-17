@@ -952,3 +952,10 @@
 - 将该失败边界登记为 `DATA-08 / EXPIRED_ODDS_RENDERED_AS_PRIMARY_MARKET_VALUES`，暂停 MA-03，正式分类改为 `MARKET_DATA_HEALTH=RED` 与 `EVIDENCE_ELIGIBILITY=BLOCKED`。
 - 唯一执行链改为：先合并 RED 上下文，再回滚四服务到不展示过期盘口的安全版本；随后隐藏超过 30 分钟的 `current_odds`，并建立 T6 到 T15 的自然、有界、去重的滚动 odds 刷新。
 - 原始 observation、quote ID、capture time 和 source hash 必须保留；不强制 Provider，不回填历史 checkpoint，不降低 30 分钟 freshness、FME、Snapshot 或推荐门。
+
+### V3 进展续89 · DATA-08 回滚对齐但展示隔离失败(2026-07-17)
+
+- 按 mode-600 manifest 将 API/Web/worker/scheduler 四服务回滚到 `7ad56cd43360f6df5d97c16935539d1e78cd5078`；四服务 healthy、SHA 对齐、restart=0、OOM=false，内外 health/ready/version 均 PASS。
+- 即时 future DayView 验证发现，回滚版本仍从现有 forward capture 展示 fixtures `1523203/1523204/1523205` 的 7 月 15 日旧盘口，因此“回滚 SHA 本身能隐藏旧盘口”的假设不成立。不再将更旧 SHA 当作展示安全门。
+- fixture `1523207` 在北京时间 18:00 自然周期获得 `2026-07-17T10:00:04Z` 新 quote；本轮未手动调用 Provider。
+- 唯一下一步改为 API 最终投影强制隔离：任何超过 30 分钟的 quote 都不得进入 `current_odds`，但原始 observation 和身份证据保留；之后再实施全局预算的 T6-T15 自然滚动刷新。
