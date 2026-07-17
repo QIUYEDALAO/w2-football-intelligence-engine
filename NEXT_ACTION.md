@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `DATA07_FIX_IN_REVIEW`
+Status: `MA03_IMMEDIATE_DISPLAY_PASS_WAITING_NATURAL_CYCLES`
 
 The Dashboard has real fixture-scoped observations, but the deployed read path
 misclassifies non-clinical stale markets as unavailable because old observations
@@ -156,7 +156,23 @@ provider source, source hash, selection policy and display line. Candidate and
 rejected line evidence remain in the immutable database checkpoint but do not
 enter L1. A 200-candidate regression remains STALE/NOT_READY with visible source
 identity and does not become `L1_CARD_TOO_LARGE`. Validation is `1497 passed,
-4 skipped`, Ruff PASS and Mypy PASS; GitHub checks remain required before merge.
+4 skipped`, Ruff PASS and Mypy PASS.
+
+PR #342 passed all three GitHub checks and merged as
+`main@1e444d3b7ba952ab9ee829f3e648f58d21946bb8`. Staging image, artifact,
+migration, health and four-service SHA gates passed with restart=0 and OOM=false.
+Reconcile-only selected four fixtures with `dry_run=true`, timeline writes 0,
+`materialized=0`, `unchanged=4` and Provider calls 0.
+
+Immediate public DayView acceptance passed: four cards display AH/OU, capture
+time, `api_football` source and source hash as STALE; all 10 cards are NOT_READY,
+WATCH/RECOMMEND/lock are 0, and no card is `L1_CARD_TOO_LARGE`. The earliest
+`next_refresh_tick` is `2026-07-17T10:00:00Z` (18:00 Beijing).
+
+Current adjudication is `MARKET_DATA_HEALTH=YELLOW` and
+`EVIDENCE_ELIGIBILITY=NOT_READY`: display recovery is complete, but current
+naturally refreshed quotes and eligible Snapshot v2 evidence do not yet exist.
+Do not manually trigger refresh; observe only naturally due T1/T15 cycles.
 
 ### MA-03B — Staging acceptance after merge
 
@@ -172,16 +188,13 @@ and feature-as-of provenance. They remained correctly blocked by
 `DECISION_SOURCE_INCONSISTENT`. Snapshot mathematical reproducibility alone does
 not satisfy decision evidence eligibility.
 
-After DATA-07 merges, deploy merged main under the existing four-service
-rollback contract, run only the bounded analysis reconcile, and let the
-scheduler produce naturally due `T6_ODDS`, `T1_LINEUPS` and `T15M_CLOSE`
-checkpoints. Do not manually invoke the combined refresh task for immediate
-display acceptance, force Provider calls or fabricate missed historical T6
-records.
+Keep the deployed release and let the scheduler produce naturally due
+`T1_LINEUPS` and `T15M_CLOSE` checkpoints. Do not manually invoke the combined
+refresh task, force Provider calls or fabricate missed historical T6 records.
 
-GitHub `main@7ad56cd43360f6df5d97c16935539d1e78cd5078` remains the currently deployed
-staging baseline. It is not accepted for MA-03 because its refresh policy and
-direct DayView projection do not meet the stale-market display contract.
+GitHub `main@1e444d3b7ba952ab9ee829f3e648f58d21946bb8` is the currently deployed
+staging release. It has passed the immediate display gate but not the natural
+cycle evidence gate.
 
 Require three consecutive real refresh cycles to demonstrate:
 

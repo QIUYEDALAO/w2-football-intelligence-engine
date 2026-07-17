@@ -10,19 +10,16 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续84 · DATA-07 完整盘口卡超出 L1 与第四次回滚`.
+Current latest entry: `V3 进展续86 · Dashboard STALE 即时展示通过、等待自然周期`.
 
 Current blocking chain:
 
-1. `DATA-07 / FIX_IN_REVIEW`: DATA-06 was fixed and merged as
-   `main@ebeea00`, but immediate DayView projection replaced four complete
-   database-frozen cards with `L1_CARD_TOO_LARGE`. Their expanded candidate-line
-   evidence exceeded the unchanged public L1 size limit. Staging was rolled back
-   to `7ad56cd`. Only a bounded display-field projection is allowed; the payload
-   limit and evidence data remain unchanged.
-   The directed repair now projects an explicit bounded public card and removes
-   candidate/rejected line expansion only from that projection. Full tests and
-   static checks pass; staging remains on the rollback baseline pending PR.
+1. `MA-03 / STAGING_OBSERVATION_IN_PROGRESS`: `main@1e444d3` is deployed with
+   four-service alignment. Four materialized fixtures display AH/OU as STALE with
+   provider source, capture time and source hash; all remain NOT_READY with
+   WATCH/RECOMMEND/lock=0. Reconcile-only wrote no timeline artifacts and made no
+   Provider calls. Immediate status is `YELLOW + NOT_READY`; wait only for
+   naturally due T1/T15 cycles from 2026-07-17T10:00:00Z.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

@@ -932,3 +932,10 @@
 - `current_odds` 只保留 line、主客/大小价格、采集时间、provider source、source hash、selection policy 与中文展示线；candidate/rejected line 仍留在冻结证据，但不进入 L1。
 - 新回归使用 200 条 candidate line，确认卡片仍为 STALE/NOT_READY，来源和 hash 可见，WATCH=0，且不会降级为 `L1_CARD_TOO_LARGE`。24 KiB 单卡门保持不变并继续 fail closed。
 - 定向测试 `7 passed`，完整测试 `1497 passed, 4 skipped`，Ruff/Mypy PASS；staging 继续保持 `7ad56cd`，等待代码 PR 三项检查和合并。
+
+### V3 进展续86 · Dashboard STALE 即时展示通过、等待自然周期(2026-07-17)
+
+- PR #342 三项 CI 全 PASS 并合并为 `main@1e444d3b7ba952ab9ee829f3e648f58d21946bb8`；staging image/artifact/migration/health/DayView business/four-service SHA 全 PASS，restart=0、OOM=false。
+- reconcile-only 明确为 `dry_run=true/write_artifacts=false`，选择 4 场、`materialized=0/unchanged=4/provider_calls=0/timeline_written=0`，未触发当前 checkpoint 或 Provider。
+- 即时 public DayView 为 total=10、STALE=4、BLOCKED=6、NOT_READY=10、WATCH=0、RECOMMEND=0、lock=0、`L1_CARD_TOO_LARGE=0`。四张 STALE 卡均显示 AH/OU、采集时间、`api_football` source 与 source hash，并给出下一合法刷新时间。
+- 当前裁决仅为 `MARKET_DATA_HEALTH=YELLOW`、`EVIDENCE_ELIGIBILITY=NOT_READY`：Dashboard 展示恢复已通过，但旧 quote 仍 stale，尚无自然刷新后的 current quote 与 eligible Snapshot v2。保持 `1e444d3`，从 `2026-07-17T10:00:00Z` 起只观察自然 T1/T15，不手动刷新。
