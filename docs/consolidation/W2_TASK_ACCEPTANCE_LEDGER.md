@@ -939,3 +939,9 @@
 - reconcile-only 明确为 `dry_run=true/write_artifacts=false`，选择 4 场、`materialized=0/unchanged=4/provider_calls=0/timeline_written=0`，未触发当前 checkpoint 或 Provider。
 - 即时 public DayView 为 total=10、STALE=4、BLOCKED=6、NOT_READY=10、WATCH=0、RECOMMEND=0、lock=0、`L1_CARD_TOO_LARGE=0`。四张 STALE 卡均显示 AH/OU、采集时间、`api_football` source 与 source hash，并给出下一合法刷新时间。
 - 当前裁决仅为 `MARKET_DATA_HEALTH=YELLOW`、`EVIDENCE_ELIGIBILITY=NOT_READY`：Dashboard 展示恢复已通过，但旧 quote 仍 stale，尚无自然刷新后的 current quote 与 eligible Snapshot v2。保持 `1e444d3`，从 `2026-07-17T10:00:00Z` 起只观察自然 T1/T15，不手动刷新。
+
+### V3 进展续87 · 前端 future 窗口真实统计确认(2026-07-17)
+
+- 前端当前固定以 `window=future` 请求 DayView，因此补做了与用户实际页面一致的公开只读验证，而非仅依赖 today 窗口。
+- future 全窗口 total=40，首屏返回 20，STALE=4、BLOCKED=36、NOT_READY=40、WATCH/RECOMMEND/lock=0、`L1_CARD_TOO_LARGE=0`。首屏前四场显示真实 AH/OU；其他尚无 observation 的未来比赛继续真实 BLOCKED。
+- 顶部语义已经区分“盘口过期”和“数据阻塞”，没有把 STALE 计入 BLOCKED，也没有为无 observation 比赛伪造盘口。下一刷新仍为 `2026-07-17T10:00:00Z`，当前裁决保持 YELLOW + NOT_READY。
