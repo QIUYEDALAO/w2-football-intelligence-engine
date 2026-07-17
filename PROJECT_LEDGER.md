@@ -17,7 +17,9 @@ Current blocking chain:
 1. `DATA-05 / IMPLEMENTATION_IN_PROGRESS`: PR #337 restored STALE odds display,
    but the second staging attempt was rolled back because STALE forward captures
    remained WATCH. Every STALE source must be forced to NOT_READY and excluded
-   from worth-watching/recommendation regions.
+   from worth-watching/recommendation regions. A forward capture whose odds lack
+   provider source or source hash must also yield display precedence to the
+   complete database-frozen card.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

@@ -153,7 +153,7 @@ active_workstream:
     - DATA-04
     - DATA-05
   remaining_tasks:
-    - merge the source-independent STALE-to-NOT_READY display invariant and second rollback context through GitHub PR
+    - merge the source-independent STALE-to-NOT_READY display invariant, complete-identity display preference and second rollback context through GitHub PR
     - redeploy corrected main and immediately reconcile at most 10 current fixtures per zero-provider background cycle
     - verify existing observations display as STALE with source, capture time, source hash and next legal refresh while recommendation eligibility remains closed
     - observe natural T6_ODDS, T1_LINEUPS and T15M_CLOSE checkpoints without historical T6 backfill
@@ -191,7 +191,7 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - complete and merge the STALE-to-NOT_READY display invariant, then redeploy under the existing four-service rollback contract
+    - complete and merge the STALE-to-NOT_READY display invariant and complete-identity display preference, then redeploy under the existing four-service rollback contract
     - run only the bounded zero-provider reconcile and naturally due T6/T1/T15 refresh checkpoints
   forbidden_actions:
     - production deployment

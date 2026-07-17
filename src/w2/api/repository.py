@@ -1713,7 +1713,9 @@ class ReadModelService:
             if fixture_id not in frozen_captures
             or (
                 self._card_has_current_odds(card)
-                and not self._card_has_current_odds(frozen_captures[fixture_id])
+                and not self._card_has_complete_current_odds_identity(
+                    frozen_captures[fixture_id]
+                )
             )
         )
         index_summaries = {
@@ -1986,6 +1988,24 @@ class ReadModelService:
         )
         return isinstance(current_odds, Mapping) and any(
             isinstance(value, Mapping) and bool(value) for value in current_odds.values()
+        )
+
+    def _card_has_complete_current_odds_identity(self, card: Any) -> bool:
+        current_odds = (
+            card.get("current_odds")
+            if isinstance(card, Mapping)
+            else getattr(card, "current_odds", None)
+        )
+        markets = (
+            [value for value in current_odds.values() if isinstance(value, Mapping) and value]
+            if isinstance(current_odds, Mapping)
+            else []
+        )
+        return bool(markets) and all(
+            bool(market.get("as_of") or market.get("captured_at"))
+            and bool(market.get("source"))
+            and bool(market.get("source_hash"))
+            for market in markets
         )
 
     def _enforce_stale_display_safety(self, card: dict[str, Any]) -> dict[str, Any]:

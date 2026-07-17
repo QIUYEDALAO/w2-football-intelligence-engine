@@ -105,7 +105,10 @@ worth-watching region. This triggered a second rollback to `7ad56cd`.
 The remaining correction is a source-independent final projection invariant:
 every `data_status=STALE` card must be `decision_tier=NOT_READY`, with pick,
 recommendation, lock and outcome tracking removed and reason
-`DATA_STALE_ODDS`. Full-window counts must apply the same invariant.
+`DATA_STALE_ODDS`. Full-window counts must apply the same invariant. If an older
+forward summary has odds but lacks capture time, provider source or source hash,
+the complete database-frozen card must supply the bounded display projection;
+the incomplete summary must not hide the stored identity.
 
 ### MA-03B — Staging acceptance after merge
 
