@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
+    allocate_global_checkpoint_batches,
     due_checkpoint_refresh_batch,
     forward_outcome_backfill_tick,
     forward_outcome_ledger_tick,
@@ -44,6 +45,67 @@ def test_celery_ping_task_has_no_business_side_effect() -> None:
 
 def test_scheduler_heartbeat_does_not_call_external_api() -> None:
     assert heartbeat() == "w2 scheduler heartbeat"
+
+
+def test_global_checkpoint_budget_prefers_nearest_kickoff_across_competitions() -> None:
+    now = datetime(2026, 7, 17, 10, tzinfo=UTC)
+
+    def batch(fixture_id: str, kickoff: str) -> dict[str, Any]:
+        return {
+            "status": "READY",
+            "fixture_payload_count": 1,
+            "due_checkpoint_count": 1,
+            "checkpoints": [
+                {
+                    "fixture_id": fixture_id,
+                    "checkpoint": "ACTIVE_ODDS_20260717T100000Z",
+                    "kickoff_utc": kickoff,
+                    "due_at": "2026-07-17T10:00:00Z",
+                    "endpoints": ["odds"],
+                    "source": "active_window",
+                }
+            ],
+        }
+
+    allocated = allocate_global_checkpoint_batches(
+        [
+            ("later", batch("later-fixture", "2026-07-17T18:00:00Z")),
+            ("nearer", batch("nearer-fixture", "2026-07-17T11:00:00Z")),
+        ],
+        now=now,
+        hard_cap=3,
+    )
+
+    assert allocated["nearer"]["status"] == "READY"
+    assert allocated["nearer"]["selected_checkpoint_count"] == 1
+    assert allocated["later"]["status"] == "PROVIDER_REFRESH_BUDGET_DEFERRED"
+    assert allocated["nearer"]["global_tick_projected_calls"] == 3
+
+
+def test_global_checkpoint_budget_counts_initial_seed_tasks() -> None:
+    now = datetime(2026, 7, 17, 10, tzinfo=UTC)
+    batches = [
+        (
+            f"competition-{index}",
+            {
+                "status": "NO_CHECKPOINT_DUE",
+                "fixture_payload_count": 0,
+                "due_checkpoint_count": 0,
+                "checkpoints": [],
+                "initial_seed_projected_calls": 10,
+            },
+        )
+        for index in range(4)
+    ]
+
+    allocated = allocate_global_checkpoint_batches(batches, now=now, hard_cap=30)
+
+    assert sum(item["initial_seed_allowed"] is True for item in allocated.values()) == 3
+    assert sum(
+        item["status"] == "PROVIDER_REFRESH_BUDGET_DEFERRED"
+        for item in allocated.values()
+    ) == 1
+    assert all(item["global_tick_projected_calls"] == 30 for item in allocated.values())
 
 
 def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:

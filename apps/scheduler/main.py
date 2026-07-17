@@ -115,13 +115,100 @@ def checkpoint_task_key(
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
 
 
+def projected_calls_for_checkpoint_rows(checkpoints: list[dict[str, Any]]) -> int:
+    if not checkpoints:
+        return 0
+    calls = 2  # provider status and fixture preflight for each competition task
+    calls += sum(1 for item in checkpoints if "odds" in set(item.get("endpoints") or []))
+    calls += sum(1 for item in checkpoints if "lineups" in set(item.get("endpoints") or []))
+    return calls
+
+
+def allocate_global_checkpoint_batches(
+    batches: list[tuple[str, dict[str, Any]]],
+    *,
+    now: datetime,
+    hard_cap: int,
+) -> dict[str, dict[str, Any]]:
+    """Allocate one provider-call budget across all competitions in kickoff order."""
+    current = now.astimezone(UTC)
+    flattened: list[tuple[str, dict[str, Any]]] = []
+    for competition_id, batch in batches:
+        flattened.extend(
+            (competition_id, dict(item)) for item in list(batch.get("checkpoints") or [])
+        )
+    flattened.sort(
+        key=lambda item: (
+            (parse_fixture_kickoff(item[1].get("kickoff_utc")) or current).date()
+            != current.date(),
+            parse_fixture_kickoff(item[1].get("kickoff_utc")) or current,
+            parse_fixture_kickoff(item[1].get("due_at")) or current,
+            str(item[1].get("fixture_id") or ""),
+            str(item[1].get("checkpoint") or ""),
+        )
+    )
+    selected: dict[str, list[dict[str, Any]]] = {
+        competition_id: [] for competition_id, _ in batches
+    }
+    cap = max(int(hard_cap), 0)
+    for competition_id, checkpoint in flattened:
+        candidate = [*selected[competition_id], checkpoint]
+        projected = sum(
+            projected_calls_for_checkpoint_rows(rows) for rows in selected.values() if rows
+        )
+        projected -= projected_calls_for_checkpoint_rows(selected[competition_id])
+        projected += projected_calls_for_checkpoint_rows(candidate)
+        if projected <= cap:
+            selected[competition_id] = candidate
+
+    selected_total = sum(
+        projected_calls_for_checkpoint_rows(items) for items in selected.values() if items
+    )
+    seed_allowed: dict[str, bool] = {}
+    for competition_id, batch in batches:
+        seed_calls = int(batch.get("initial_seed_projected_calls") or 0)
+        is_seed = int(batch.get("fixture_payload_count") or 0) == 0 and not int(
+            batch.get("due_checkpoint_count") or 0
+        )
+        allowed = not is_seed or selected_total + seed_calls <= cap
+        seed_allowed[competition_id] = allowed
+        if is_seed and allowed:
+            selected_total += seed_calls
+
+    allocated: dict[str, dict[str, Any]] = {}
+    for competition_id, batch in batches:
+        rows = selected[competition_id]
+        projected = projected_calls_for_checkpoint_rows(rows)
+        original_due = int(batch.get("due_checkpoint_count") or 0)
+        status = str(batch.get("status") or "NO_CHECKPOINT_DUE")
+        if original_due and not rows:
+            status = "PROVIDER_REFRESH_BUDGET_DEFERRED"
+        elif not seed_allowed[competition_id]:
+            status = "PROVIDER_REFRESH_BUDGET_DEFERRED"
+        elif rows:
+            status = "READY"
+        allocated[competition_id] = {
+            **batch,
+            "status": status,
+            "checkpoints": rows,
+            "selected_checkpoint_count": len(rows),
+            "projected_calls": projected,
+            "tick_hard_cap": cap,
+            "initial_seed_allowed": seed_allowed[competition_id],
+            "global_tick_projected_calls": selected_total,
+        }
+    return allocated
+
+
 def due_checkpoint_refresh_batch(
     now: datetime,
     *,
     provider_league_id: str | None = None,
+    hard_cap: int | None = None,
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
         checkpoint_plans_from_fixture_payloads,
+        dedupe_active_odds_plans,
         prioritize_checkpoint_plans,
         projected_calls_for_checkpoint_batch,
         select_checkpoint_batch,
@@ -131,7 +218,21 @@ def due_checkpoint_refresh_batch(
     repository = FutureRefreshDbRepository()
     fixtures = future_refresh_fixture_payloads(provider_league_id=provider_league_id)
     fixture_payload_count = len(fixtures)
-    plans = checkpoint_plans_from_fixture_payloads(fixtures, now=now)
+    fixture_ids = [
+        str(item.get("fixture", {}).get("id") or "")
+        for item in fixtures
+        if isinstance(item, dict) and isinstance(item.get("fixture"), dict)
+    ]
+    quote_reader = getattr(repository, "latest_observation_captured_at_for_fixture_ids", None)
+    attempt_reader = getattr(repository, "latest_odds_refresh_attempt_at_for_fixture_ids", None)
+    latest_quotes = quote_reader(fixture_ids) if callable(quote_reader) else {}
+    latest_attempts = attempt_reader(fixture_ids) if callable(attempt_reader) else {}
+    plans = checkpoint_plans_from_fixture_payloads(
+        fixtures,
+        now=now,
+        latest_quote_at_by_fixture=latest_quotes,
+        latest_attempt_at_by_fixture=latest_attempts,
+    )
     generated_plan_ids = {plan.plan_id for plan in plans}
     repository.upsert_checkpoint_plans(
         [
@@ -148,6 +249,14 @@ def due_checkpoint_refresh_batch(
             for plan in plans
         ]
     )
+    active_plan_ids = {
+        plan.plan_id
+        for plan in plans
+        if str(plan.checkpoint).startswith("ACTIVE_ODDS_")
+    }
+    supersede_active = getattr(repository, "supersede_pending_active_checkpoint_plans", None)
+    if callable(supersede_active):
+        supersede_active(fixture_ids=fixture_ids, active_plan_ids=active_plan_ids)
     due_rows = []
     if generated_plan_ids:
         due_rows = [
@@ -155,6 +264,7 @@ def due_checkpoint_refresh_batch(
             for row in repository.due_checkpoint_plans(
                 now=now,
                 limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
+                fixture_ids=fixture_ids,
             )
             if row.get("id") in generated_plan_ids
         ]
@@ -175,10 +285,14 @@ def due_checkpoint_refresh_batch(
         )()
         for row in due_rows
     ]
+    due_plans = dedupe_active_odds_plans(due_plans)
     due_plans = prioritize_checkpoint_plans(due_plans, now=now)
+    resolved_hard_cap = (
+        provider_refresh_tick_hard_cap() if hard_cap is None else max(int(hard_cap), 0)
+    )
     selected, projected_calls = select_checkpoint_batch(
         due_plans,
-        hard_cap=provider_refresh_tick_hard_cap(),
+        hard_cap=resolved_hard_cap,
     )
     selected_rows = [
         {
@@ -203,7 +317,7 @@ def due_checkpoint_refresh_batch(
         "selected_checkpoint_count": len(selected_rows),
         "projected_calls": projected_calls,
         "all_due_projected_calls": projected_calls_for_checkpoint_batch(due_plans),
-        "tick_hard_cap": provider_refresh_tick_hard_cap(),
+        "tick_hard_cap": resolved_hard_cap,
         "checkpoints": selected_rows,
     }
 
@@ -223,9 +337,42 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "formal_recommendation": False,
             "provider_calls": 0,
         }
+    from w2.ingestion.future_refresh import config_from_policy
+
+    now = datetime.now(UTC)
+    competition_ids = future_fixture_refresh_competition_ids()
+    candidate_batches: list[tuple[str, dict[str, Any]]] = []
+    for competition_id in competition_ids:
+        config = config_from_policy(competition_id=competition_id)
+        candidate_batches.append(
+            (
+                competition_id,
+                due_checkpoint_refresh_batch(
+                    now,
+                    provider_league_id=config.league_id,
+                    hard_cap=provider_refresh_tick_hard_cap(),
+                )
+                | {
+                    "initial_seed_projected_calls": (
+                        2
+                        + max(config.max_odds_requests, 0)
+                        + max(config.feature_enrichment_request_budget, 0)
+                    )
+                },
+            )
+        )
+    allocated = allocate_global_checkpoint_batches(
+        candidate_batches,
+        now=now,
+        hard_cap=provider_refresh_tick_hard_cap(),
+    )
     results = [
-        _future_fixture_refresh_tick_for_competition(competition_id)
-        for competition_id in future_fixture_refresh_competition_ids()
+        _future_fixture_refresh_tick_for_competition(
+            competition_id,
+            now=now,
+            batch=allocated[competition_id],
+        )
+        for competition_id in competition_ids
     ]
     if len(results) == 1:
         return results[0]
@@ -240,11 +387,16 @@ def future_fixture_refresh_tick() -> dict[str, object]:
     }
 
 
-def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[str, object]:
+def _future_fixture_refresh_tick_for_competition(
+    competition_id: str,
+    *,
+    now: datetime | None = None,
+    batch: dict[str, Any] | None = None,
+) -> dict[str, object]:
     from apps.worker.celery_app import celery_app
     from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
 
-    now = datetime.now(UTC)
+    current = now or datetime.now(UTC)
     config = config_from_policy(competition_id=competition_id)
     if not config.enabled:
         return {
@@ -253,24 +405,38 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "candidate": False,
             "formal_recommendation": False,
         }
-    batch = due_checkpoint_refresh_batch(now, provider_league_id=config.league_id)
-    if batch["status"] == "NO_CHECKPOINT_DUE":
-        if int(batch.get("fixture_payload_count") or 0) == 0:
+    resolved_batch = batch or due_checkpoint_refresh_batch(
+        current,
+        provider_league_id=config.league_id,
+    )
+    if resolved_batch["status"] == "PROVIDER_REFRESH_BUDGET_DEFERRED":
+        return {
+            **resolved_batch,
+            "competition_id": config.competition_id,
+            "season": config.season,
+            "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "blockers": ["PROVIDER_REFRESH_BUDGET_DEFERRED"],
+        }
+    if resolved_batch["status"] == "NO_CHECKPOINT_DUE":
+        if int(resolved_batch.get("fixture_payload_count") or 0) == 0:
             task_key = deterministic_task_key(
                 competition_id=config.competition_id,
                 season=config.season,
-                now=now,
+                now=current,
                 interval_seconds=config.scheduler_interval_seconds,
             )
             gate = provider_task_key_gate(task_key=task_key)
             if not gate.allowed:
                 return {
-                    **batch,
+                    **resolved_batch,
                     "status": gate.status,
                     "task_key": task_key,
                     "competition_id": config.competition_id,
                     "season": config.season,
-                    "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                    "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
                     "candidate": False,
                     "formal_recommendation": False,
                     "provider_calls": 0,
@@ -285,28 +451,28 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
                 kwargs={
                     "competition_id": config.competition_id,
                     "task_key": task_key,
-                    "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                    "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
                 },
                 task_id=task_id,
             )
             return {
-                **batch,
+                **resolved_batch,
                 "status": "QUEUED",
                 "task_id": task_id,
                 "task_key": task_key,
                 "competition_id": config.competition_id,
                 "season": config.season,
-                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
                 "candidate": False,
                 "formal_recommendation": False,
                 "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
                 "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
             }
         return {
-            **batch,
+            **resolved_batch,
             "competition_id": config.competition_id,
             "season": config.season,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
             "candidate": False,
             "formal_recommendation": False,
             "provider_calls": 0,
@@ -316,7 +482,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
     task_key = checkpoint_task_key(
         competition_id=config.competition_id,
         season=config.season,
-        checkpoints=list(batch["checkpoints"]),
+        checkpoints=list(resolved_batch["checkpoints"]),
     )
     gate = provider_task_key_gate(task_key=task_key)
     if not gate.allowed:
@@ -325,7 +491,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "task_key": task_key,
             "competition_id": config.competition_id,
             "season": config.season,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
             "candidate": False,
             "formal_recommendation": False,
             "provider_calls": 0,
@@ -340,20 +506,22 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
         kwargs={
             "competition_id": config.competition_id,
             "task_key": task_key,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "checkpoint_fixture_ids": [str(item["fixture_id"]) for item in batch["checkpoints"]],
-            "refresh_checkpoints": batch["checkpoints"],
+            "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
+            "checkpoint_fixture_ids": [
+                str(item["fixture_id"]) for item in resolved_batch["checkpoints"]
+            ],
+            "refresh_checkpoints": resolved_batch["checkpoints"],
         },
         task_id=task_id,
     )
     return {
-        **batch,
+        **resolved_batch,
         "status": "QUEUED",
         "task_id": task_id,
         "task_key": task_key,
         "competition_id": config.competition_id,
         "season": config.season,
-        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "queued_at_utc": current.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
         "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",

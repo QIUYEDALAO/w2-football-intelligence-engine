@@ -42,7 +42,7 @@ const REASON_LABELS: Record<string, string> = {
   LINEUPS_PENDING: "首发未出",
   MARKET_UNAVAILABLE: "盘口未齐",
   ODDS_UNAVAILABLE: "赔率未返回",
-  DATA_STALE_ODDS: "赔率过期",
+  DATA_STALE_ODDS: "盘口已过期并隐藏",
   PROVIDER_BUDGET_EXHAUSTED: "provider 预算耗尽",
   MARKET_INCOMPLETE: "盘口不完整",
   XG_PENDING: "xG 待刷新",
@@ -464,6 +464,19 @@ function marketSourceLabel(card: DashboardDayViewCard): string {
   const source = textValue(preferred.source) || textValue(preferred.bookmaker);
   if (source) return `${source} · POWER 去水`;
   return "主线共识盘 · POWER 去水";
+}
+
+function staleOddsCaptureLabel(card: DashboardDayViewCard, now: Date): string | null {
+  if (card.reason_code !== "DATA_STALE_ODDS") return null;
+  const capturedAt = card.data_refresh?.last_refresh_hint;
+  if (!capturedAt) return "旧盘口已隐藏 · 最后采集时间未知";
+  const captured = new Date(capturedAt);
+  if (Number.isNaN(captured.getTime())) return "旧盘口已隐藏 · 最后采集时间未知";
+  const ageMinutes = Math.max(Math.floor((now.getTime() - captured.getTime()) / 60_000), 0);
+  const hours = Math.floor(ageMinutes / 60);
+  const minutes = ageMinutes % 60;
+  const age = hours ? `${hours}小时${minutes ? `${minutes}分` : ""}` : `${minutes}分钟`;
+  return `最后采集 ${fmtTime(capturedAt)} · 已过期 ${age}`;
 }
 
 function divergenceLabel(card: DashboardDayViewCard): string {
@@ -1033,7 +1046,7 @@ export function DecisionRow({
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>
-          <small>{marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
+          <small>{staleOddsCaptureLabel(card, now) ?? marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
         </div>
         <div className="decision-cell decision-data">
           <span>{dataStatusLabel(card.data_status)}</span>
@@ -1130,7 +1143,7 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
       {truth.blocked
         ? <small>仅受阻比赛等待补数；验证推荐和观察比赛继续保留在赛程中。</small>
         : truth.stale
-          ? <small>盘口仍可查看，但已超过推荐新鲜度，等待下一合法刷新周期。</small>
+          ? <small>超过 30 分钟的盘口已隐藏；仅保留最后采集时间和审计身份，等待下一合法刷新周期。</small>
         : truth.partial
           ? <small>部分就绪不等于阻塞；已满足分析门的比赛仍正常展示。</small>
           : <small>覆盖诊断只在异常时展开。</small>}

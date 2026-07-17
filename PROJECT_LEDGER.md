@@ -1,6 +1,6 @@
 # W2 Project Ledger Index
 
-This file is the stable GitHub startup entry for project history.
+This file is the stable local-Git startup entry for project history.
 
 The canonical append-only execution and acceptance ledger is:
 

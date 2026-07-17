@@ -25,6 +25,10 @@ LINEUPS_RETRY_CHECKPOINTS: tuple[tuple[str, timedelta], ...] = (
 )
 
 JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
+ACTIVE_ODDS_CHECKPOINT_PREFIX = "ACTIVE_ODDS_"
+ACTIVE_ODDS_WINDOW_START = timedelta(hours=-6)
+ACTIVE_ODDS_WINDOW_END = timedelta(minutes=-15)
+ACTIVE_ODDS_MIN_INTERVAL = timedelta(minutes=30)
 
 
 @dataclass(frozen=True)
@@ -83,13 +87,64 @@ def checkpoint_plan_for_fixture(
     return plans
 
 
+def active_odds_checkpoint_plan(
+    *,
+    fixture_id: str,
+    kickoff_utc: datetime,
+    now: datetime,
+    latest_quote_at_utc: datetime | None = None,
+    latest_attempt_at_utc: datetime | None = None,
+) -> FixtureCheckpointPlan | None:
+    """Plan one natural odds refresh inside T-6h..T-15m without historical labels."""
+    kickoff = normalize_utc(kickoff_utc)
+    current = normalize_utc(now)
+    window_start = kickoff + ACTIVE_ODDS_WINDOW_START
+    window_end = kickoff + ACTIVE_ODDS_WINDOW_END
+    if current < window_start or current >= window_end:
+        return None
+
+    anchors = [
+        normalize_utc(value)
+        for value in (latest_quote_at_utc, latest_attempt_at_utc)
+        if value is not None
+    ]
+    due_at = max(anchors) + ACTIVE_ODDS_MIN_INTERVAL if anchors else current
+    if due_at >= window_end:
+        return None
+    if due_at < current:
+        due_at = current
+
+    # Missing/stale inputs use a stable half-hour bucket. This lets the existing
+    # task-key gate suppress repeated polls until an audit records the attempt.
+    identity_at = due_at
+    if not anchors or due_at == current:
+        identity_at = current.replace(
+            minute=(current.minute // 30) * 30,
+            second=0,
+            microsecond=0,
+        )
+    checkpoint = f"{ACTIVE_ODDS_CHECKPOINT_PREFIX}{identity_at.strftime('%Y%m%dT%H%M%SZ')}"
+    return FixtureCheckpointPlan(
+        fixture_id=str(fixture_id),
+        checkpoint=checkpoint,
+        kickoff_utc=kickoff,
+        due_at_utc=due_at,
+        endpoints=("odds",),
+        source="active_window",
+    )
+
+
 def checkpoint_plans_from_fixture_payloads(
     fixtures: list[dict[str, Any]],
     *,
     now: datetime,
     horizon: timedelta = timedelta(hours=48),
+    latest_quote_at_by_fixture: dict[str, datetime] | None = None,
+    latest_attempt_at_by_fixture: dict[str, datetime] | None = None,
 ) -> list[FixtureCheckpointPlan]:
     current = normalize_utc(now)
+    latest_quotes = latest_quote_at_by_fixture or {}
+    latest_attempts = latest_attempt_at_by_fixture or {}
     plans: list[FixtureCheckpointPlan] = []
     for item in fixtures:
         fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
@@ -109,7 +164,36 @@ def checkpoint_plans_from_fixture_payloads(
                 generated_at_utc=current,
             )
         )
+        active_plan = active_odds_checkpoint_plan(
+            fixture_id=fixture_id,
+            kickoff_utc=kickoff,
+            now=current,
+            latest_quote_at_utc=latest_quotes.get(fixture_id),
+            latest_attempt_at_utc=latest_attempts.get(fixture_id),
+        )
+        if active_plan is not None:
+            plans.append(active_plan)
     return plans
+
+
+def dedupe_active_odds_plans(
+    plans: list[FixtureCheckpointPlan],
+) -> list[FixtureCheckpointPlan]:
+    """Prefer a due named checkpoint when it already refreshes the same fixture odds."""
+    named_odds_fixture_ids = {
+        str(plan.fixture_id)
+        for plan in plans
+        if plan.needs_odds
+        and not str(plan.checkpoint).startswith(ACTIVE_ODDS_CHECKPOINT_PREFIX)
+    }
+    return [
+        plan
+        for plan in plans
+        if not (
+            str(plan.checkpoint).startswith(ACTIVE_ODDS_CHECKPOINT_PREFIX)
+            and str(plan.fixture_id) in named_odds_fixture_ids
+        )
+    ]
 
 
 def lineups_retry_plans(
@@ -167,13 +251,9 @@ def line_jump_confirmation_plan(
 def projected_calls_for_checkpoint_batch(plans: list[FixtureCheckpointPlan]) -> int:
     if not plans:
         return 0
-    calls = 0
-    if any("status" in plan.endpoints for plan in plans):
-        calls += 1
-    if any("fixtures" in plan.endpoints for plan in plans) or any(
-        endpoint in {"odds", "lineups"} for plan in plans for endpoint in plan.endpoints
-    ):
-        calls += 1
+    # Every dispatched provider refresh performs the status and fixture preflight
+    # before its fixture-scoped odds/lineups calls.
+    calls = 2
     calls += sum(1 for plan in plans if plan.needs_odds)
     calls += sum(1 for plan in plans if plan.needs_lineups)
     return calls

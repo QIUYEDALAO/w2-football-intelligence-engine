@@ -5,7 +5,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from w2.ingestion.checkpoint_refresh import (
+    ACTIVE_ODDS_CHECKPOINT_PREFIX,
+    active_odds_checkpoint_plan,
     checkpoint_plan_for_fixture,
+    dedupe_active_odds_plans,
     line_jump_confirmation_plan,
     lineups_retry_plans,
     prioritize_checkpoint_plans,
@@ -142,11 +145,83 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
         ) if plan.checkpoint in {"OPEN", "T1_LINEUPS"}],
     ]
 
-    selected, projected = select_checkpoint_batch(plans, hard_cap=4)
+    selected, projected = select_checkpoint_batch(plans, hard_cap=5)
 
     assert len(selected) == 2
     assert projected == projected_calls_for_checkpoint_batch(selected)
-    assert projected <= 4
+    assert projected <= 5
+
+
+def test_active_odds_plan_starts_inside_t6_without_backfilling_t6() -> None:
+    kickoff = NOW + timedelta(hours=5)
+
+    plan = active_odds_checkpoint_plan(
+        fixture_id="active-stale",
+        kickoff_utc=kickoff,
+        now=NOW,
+        latest_quote_at_utc=NOW - timedelta(hours=2),
+    )
+
+    assert plan is not None
+    assert plan.checkpoint.startswith(ACTIVE_ODDS_CHECKPOINT_PREFIX)
+    assert plan.checkpoint != "T6_ODDS"
+    assert plan.due_at_utc == NOW
+    assert plan.endpoints == ("odds",)
+
+
+def test_active_odds_plan_waits_thirty_minutes_from_latest_quote_or_attempt() -> None:
+    kickoff = NOW + timedelta(hours=5)
+
+    from_quote = active_odds_checkpoint_plan(
+        fixture_id="active-fresh",
+        kickoff_utc=kickoff,
+        now=NOW,
+        latest_quote_at_utc=NOW - timedelta(minutes=10),
+    )
+    from_attempt = active_odds_checkpoint_plan(
+        fixture_id="active-empty",
+        kickoff_utc=kickoff,
+        now=NOW,
+        latest_quote_at_utc=NOW - timedelta(hours=2),
+        latest_attempt_at_utc=NOW - timedelta(minutes=5),
+    )
+
+    assert from_quote is not None
+    assert from_quote.due_at_utc == NOW + timedelta(minutes=20)
+    assert from_attempt is not None
+    assert from_attempt.due_at_utc == NOW + timedelta(minutes=25)
+
+
+def test_active_odds_plan_stops_at_t15_and_named_due_checkpoint_wins() -> None:
+    kickoff = NOW + timedelta(minutes=15)
+    assert (
+        active_odds_checkpoint_plan(
+            fixture_id="too-late",
+            kickoff_utc=kickoff,
+            now=NOW,
+        )
+        is None
+    )
+
+    kickoff = NOW + timedelta(hours=1)
+    named = next(
+        plan
+        for plan in checkpoint_plan_for_fixture(
+            fixture_id="dedupe",
+            kickoff_utc=kickoff,
+            generated_at_utc=NOW,
+        )
+        if plan.checkpoint == "T1_LINEUPS"
+    )
+    active = active_odds_checkpoint_plan(
+        fixture_id="dedupe",
+        kickoff_utc=kickoff,
+        now=NOW,
+        latest_quote_at_utc=NOW - timedelta(hours=2),
+    )
+
+    assert active is not None
+    assert dedupe_active_odds_plans([active, named]) == [named]
 
 
 def test_checkpoint_priority_prefers_today_nearest_kickoff() -> None:

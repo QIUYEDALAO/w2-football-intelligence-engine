@@ -266,6 +266,19 @@ def test_materialized_odds_supersede_empty_forward_capture(
         lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
     )
     monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(
+        "w2.api.repository.datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {
+                "now": staticmethod(
+                    lambda tz=None: datetime.fromisoformat("2030-07-16T08:20:00+00:00")
+                ),
+                "fromisoformat": datetime.fromisoformat,
+            },
+        ),
+    )
     monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
     monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
@@ -353,6 +366,19 @@ def test_materialized_odds_supersede_forward_capture_with_incomplete_identity(
         lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
     )
     monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(
+        "w2.api.repository.datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {
+                "now": staticmethod(
+                    lambda tz=None: datetime.fromisoformat("2030-07-16T08:20:00+00:00")
+                ),
+                "fromisoformat": datetime.fromisoformat,
+            },
+        ),
+    )
     monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
     monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
@@ -414,6 +440,19 @@ def test_stale_forward_capture_is_forced_out_of_watch(
         lambda: SimpleNamespace(resolved_runtime_root=tmp_path, environment=Environment.TEST),
     )
     monkeypatch.setenv("W2_GIT_SHA", "release-a")
+    monkeypatch.setattr(
+        "w2.api.repository.datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {
+                "now": staticmethod(
+                    lambda tz=None: datetime.fromisoformat("2030-07-16T08:31:00+00:00")
+                ),
+                "fromisoformat": datetime.fromisoformat,
+            },
+        ),
+    )
     monkeypatch.setattr(service, "_dashboard_rows_for_window", lambda **_: [_row("captured")])
     monkeypatch.setattr(service, "_day_view_performance", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
@@ -436,6 +475,7 @@ def test_stale_forward_capture_is_forced_out_of_watch(
     assert card["data_status"] == "STALE"
     assert card["decision_tier"] == "NOT_READY"
     assert card["reason_code"] == "DATA_STALE_ODDS"
+    assert card["current_odds"] == {}
     assert card["lock_eligible"] is False
     assert card["outcome_tracked"] is False
     assert view["counts"]["watch"] == 0
@@ -468,6 +508,9 @@ def test_materialized_fresh_card_ages_to_stale_without_model_rebuild() -> None:
     assert projected["decision_tier"] == "NOT_READY"
     assert projected["lock_eligible"] is False
     assert projected["pick"] is None
+    assert projected["current_odds"] == {}
+    assert projected["data_refresh"]["odds_status"] == "STALE"
+    assert projected["data_refresh"]["last_refresh_hint"] == "2030-07-16T08:00:00Z"
     assert projected["decision_contract"]["data_status"] == "STALE"
     assert card["data_status"] == "READY"
 
@@ -476,3 +519,43 @@ def test_materialized_fresh_card_ages_to_stale_without_model_rebuild() -> None:
         as_of=datetime.fromisoformat("2030-07-16T08:30:00+00:00"),
     )
     assert boundary["data_status"] == "READY"
+    assert boundary["current_odds"] == card["current_odds"]
+
+
+def test_final_projection_hides_expired_forward_odds_but_keeps_fresh_stale_card_odds(
+    monkeypatch: Any,
+) -> None:
+    service = ReadModelService(repository=cast(Any, object()))
+    monkeypatch.setattr(
+        "w2.api.repository.datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {
+                "now": staticmethod(
+                    lambda tz=None: datetime.fromisoformat("2030-07-16T08:31:00+00:00")
+                ),
+                "fromisoformat": datetime.fromisoformat,
+            },
+        ),
+    )
+    expired = {
+        "decision_tier": "WATCH",
+        "data_status": "STALE",
+        "current_odds": {"ah": {"as_of": "2030-07-16T08:00:00Z", "line": "-0.5"}},
+    }
+    fresh_but_model_stale = {
+        "decision_tier": "NOT_READY",
+        "data_status": "STALE",
+        "reason_code": "MODEL_FAIR_LINE_UNAVAILABLE",
+        "current_odds": {"ah": {"as_of": "2030-07-16T08:15:00Z", "line": "-0.5"}},
+    }
+
+    hidden = service._enforce_stale_display_safety(expired)
+    retained = service._enforce_stale_display_safety(fresh_but_model_stale)
+
+    assert hidden["current_odds"] == {}
+    assert hidden["reason_code"] == "DATA_STALE_ODDS"
+    assert hidden["decision_tier"] == "NOT_READY"
+    assert retained["current_odds"] == fresh_but_model_stale["current_odds"]
+    assert retained["reason_code"] == "MODEL_FAIR_LINE_UNAVAILABLE"

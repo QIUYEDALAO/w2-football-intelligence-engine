@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T10:07:00Z"
+last_updated_utc: "2026-07-17T11:02:00Z"
 current_phase: Dashboard expired-odds containment and bounded active-window refresh repair
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -15,10 +15,22 @@ context_contract:
   current_action_source: NEXT_ACTION.md
   precedence:
     - Live read-only observations override stale snapshots in this file.
-    - Merged main and GitHub CI define repository truth.
+    - The active local Git branch and verified local commit define implementation truth.
     - Staging SHA and health endpoints define deployed truth.
     - The task ledger remains append-only history, not the current execution queue.
-  update_rule: Update this file in every stage-changing PR and after every merge or deployment acceptance.
+  update_rule: Update the local context files during the stage and include their final state in the stage commit.
+  version_control_rule:
+    mode: LOCAL_GIT_ONLY
+    github_workflow_enabled: false
+    remote_push_enabled: false
+    pull_request_enabled: false
+    remote_ci_enabled: false
+    unit: one complete stage
+    branch_count: 1
+    final_commit_chain_count: 1
+    active_stage_source: the single local stage branch
+    completed_stage_source: verified local stage commit and tag
+    requirement: Keep code fixes, test fixes, deployment and rollback records, context closure and explanatory additions in the same local stage branch; retain local Git history and rollback tags without GitHub operations.
   security_rule: Never record credentials, authentication material, raw provider payloads, private access material, or database contents.
 
 context_read_order:
@@ -205,7 +217,7 @@ active_workstream:
     - historical evidence rewrites
 
 data08_expired_odds_display_and_refresh_20260717:
-  status: RED_ROLLBACK_ALIGNED_DISPLAY_CONTAINMENT_FAILED
+  status: LOCAL_IMPLEMENTED_VALIDATED_PENDING_STAGING
   observed_at_utc: "2026-07-17T07:43:00Z"
   affected_release_sha: 1e444d3b7ba952ab9ee829f3e648f58d21946bb8
   affected_fixture_ids:
@@ -251,6 +263,30 @@ data08_expired_odds_display_and_refresh_20260717:
       fixture_1523205: EXPIRED_QUOTE_STILL_VISIBLE
     manual_provider_refresh: false
     decision: no older SHA is accepted as a display-safety control; proceed with explicit API projection containment
+  local_implementation:
+    branch: codex/w2-data08-expired-odds-refresh
+    release_commit: this stage release commit; exact SHA is recorded by local Git and staging release metadata
+    expired_odds_projection: quotes older than 30 minutes are removed from public current_odds while immutable observations and refresh identity remain stored
+    dashboard_projection: shows the stale reason, last capture time, data age and next legal evaluation without rendering the expired line or price
+    active_refresh_window: T6_THROUGH_T15_ODDS_ONLY
+    active_refresh_interval_minutes: 30
+    scheduler_scan_interval_minutes: 15
+    global_tick_provider_cap: 30
+    global_daily_provider_cap: 120
+    named_checkpoint_dedupe: T1_AND_T15
+    historical_backfill: false
+    pending_active_plan_supersession: enabled
+    due_plan_query_scope: fixture_scoped
+    manual_provider_refresh: false
+  local_validation:
+    targeted_tests_passed: 65
+    full_tests_passed: 1505
+    full_tests_skipped: 4
+    ruff: PASS
+    mypy: PASS
+    frontend_typecheck: PASS
+    frontend_production_build: PASS
+  next_gate: deploy the local release commit to all four staging services, verify expired odds are hidden, then observe three natural legal cycles
 
 data06_stale_t6_checkpoint_20260717:
   status: FIX_MERGED_STAGING_GUARD_PASS

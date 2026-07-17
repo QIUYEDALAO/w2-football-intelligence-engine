@@ -419,6 +419,62 @@ class FutureRefreshDbRepository:
             )
         return {fixture_id: fixture_id in available for fixture_id in ids}
 
+    def latest_observation_captured_at_for_fixture_ids(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, datetime]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return {}
+        with Session(self.engine) as session:
+            rows = list(
+                session.execute(
+                    select(
+                        FutureMarketObservationModel.fixture_id,
+                        func.max(FutureMarketObservationModel.captured_at),
+                    )
+                    .where(FutureMarketObservationModel.fixture_id.in_(ids))
+                    .group_by(FutureMarketObservationModel.fixture_id)
+                )
+            )
+        return {
+            str(fixture_id): parse_db_datetime(captured_at)
+            for fixture_id, captured_at in rows
+            if captured_at is not None
+        }
+
+    def latest_odds_refresh_attempt_at_for_fixture_ids(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, datetime]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return {}
+        with Session(self.engine) as session:
+            rows = list(
+                session.execute(
+                    select(
+                        FutureRefreshCheckpointPlanModel.fixture_id,
+                        FutureRefreshCheckpointPlanModel.checkpoint,
+                        FutureRefreshCheckpointPlanModel.executed_at,
+                    ).where(
+                        FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
+                        FutureRefreshCheckpointPlanModel.executed_at.is_not(None),
+                    )
+                )
+            )
+        result: dict[str, datetime] = {}
+        odds_checkpoints = {"OPEN", "T6_ODDS", "T1_LINEUPS", "T15M_CLOSE"}
+        for fixture_id, checkpoint, executed_at in rows:
+            name = str(checkpoint)
+            if name not in odds_checkpoints and not name.startswith("ACTIVE_ODDS_"):
+                continue
+            observed_at = parse_db_datetime(executed_at)
+            key = str(fixture_id)
+            if key not in result or observed_at > result[key]:
+                result[key] = observed_at
+        return result
+
     def market_observation_history_for_fixtures(
         self,
         fixture_ids: list[str],
@@ -767,28 +823,64 @@ class FutureRefreshDbRepository:
                 raise FutureRefreshPersistenceError("CHECKPOINT_PLAN_WRITE_FAILED") from exc
         return upserted
 
+    def supersede_pending_active_checkpoint_plans(
+        self,
+        *,
+        fixture_ids: list[str],
+        active_plan_ids: set[str],
+    ) -> int:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids:
+            return 0
+        changed = 0
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(FutureRefreshCheckpointPlanModel).where(
+                        FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
+                        FutureRefreshCheckpointPlanModel.status == "PENDING",
+                        FutureRefreshCheckpointPlanModel.checkpoint.like("ACTIVE_ODDS_%"),
+                    )
+                )
+            )
+            for row in rows:
+                if row.id in active_plan_ids:
+                    continue
+                row.status = "MISSED"
+                changed += 1
+            try:
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("CHECKPOINT_PLAN_SUPERSEDE_FAILED") from exc
+        return changed
+
     def due_checkpoint_plans(
         self,
         *,
         now: datetime,
         limit: int = 100,
+        fixture_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         current = parse_db_datetime(now)
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids or []) if fixture_id]
         with Session(self.engine) as session:
+            statement = select(FutureRefreshCheckpointPlanModel).where(
+                FutureRefreshCheckpointPlanModel.status == "PENDING",
+                FutureRefreshCheckpointPlanModel.due_at <= current,
+            )
+            if fixture_ids is not None:
+                if not ids:
+                    return []
+                statement = statement.where(FutureRefreshCheckpointPlanModel.fixture_id.in_(ids))
             rows = list(
                 session.scalars(
-                    select(FutureRefreshCheckpointPlanModel)
-                    .where(
-                        FutureRefreshCheckpointPlanModel.status == "PENDING",
-                        FutureRefreshCheckpointPlanModel.due_at <= current,
-                    )
-                    .order_by(
+                    statement.order_by(
                         FutureRefreshCheckpointPlanModel.due_at,
                         FutureRefreshCheckpointPlanModel.kickoff_utc,
                         FutureRefreshCheckpointPlanModel.fixture_id,
                         FutureRefreshCheckpointPlanModel.checkpoint,
-                    )
-                    .limit(limit)
+                    ).limit(limit)
                 )
             )
         return [self._checkpoint_plan_dict(row) for row in rows]

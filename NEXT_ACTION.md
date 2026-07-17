@@ -2,9 +2,20 @@
 
 Status: `DATA_PIPELINE_BLOCKED`
 
+Version-control contract: GitHub workflow is disabled. Keep one local branch and
+one verified local commit chain per complete stage; retain local Git history and
+rollback tags, and do not push, open PRs or wait for remote CI.
+
 MA-03 is paused. The deployed Dashboard renders approximately 44-hour-old odds
 as primary market values for four fixtures, including a fixture about 197 minutes
 from kickoff. A STALE label does not make those values appropriate to display.
+
+DATA-08 is implemented and locally validated on
+`codex/w2-data08-expired-odds-refresh`: 65 directed tests and the full 1505-test
+suite pass, with 4 environment-dependent skips; Ruff, Mypy, frontend typecheck
+and production build pass. The unique next action is to deploy the local release
+commit to all four Staging services and verify expired odds are hidden before
+waiting for natural refresh evidence.
 
 ## Unique next action — DATA-08
 

@@ -1805,6 +1805,18 @@ class ReadModelService:
                 )
         if not captured_at or as_of - max(captured_at) <= timedelta(minutes=30):
             return projected
+        latest_capture = max(captured_at)
+        data_refresh = projected.get("data_refresh")
+        refresh_projection: dict[str, Any] = (
+            deepcopy(dict(data_refresh)) if isinstance(data_refresh, Mapping) else {}
+        )
+        refresh_projection.update(
+            {
+                "status": "STALE",
+                "odds_status": "STALE",
+                "last_refresh_hint": latest_capture.isoformat().replace("+00:00", "Z"),
+            }
+        )
         projected.update(
             {
                 "decision_tier": "NOT_READY",
@@ -1817,7 +1829,9 @@ class ReadModelService:
                 "reason_code": "DATA_STALE_ODDS",
                 "primary_blocker": "DATA_STALE_ODDS",
                 "primary_blocker_layer": "MARKET_QUOTE",
-                "action": "等待下一合法刷新",
+                "action": "过期盘口已隐藏，等待下一合法刷新",
+                "current_odds": {},
+                "data_refresh": refresh_projection,
             }
         )
         contract = projected.get("decision_contract")
@@ -1833,7 +1847,7 @@ class ReadModelService:
                     "reason_code": "DATA_STALE_ODDS",
                     "primary_blocker": "DATA_STALE_ODDS",
                     "primary_blocker_layer": "MARKET_QUOTE",
-                    "action": "等待下一合法刷新",
+                    "action": "过期盘口已隐藏，等待下一合法刷新",
                 }
             )
         return projected
@@ -2096,39 +2110,59 @@ class ReadModelService:
         )
 
     def _enforce_stale_display_safety(self, card: dict[str, Any]) -> dict[str, Any]:
-        if str(card.get("data_status") or "") != "STALE":
-            return card
-        projected = deepcopy(card)
-        projected.update(
-            {
-                "decision_tier": "NOT_READY",
-                "lock_eligible": False,
-                "outcome_tracked": False,
-                "recommendation_id": None,
-                "recommendation": None,
-                "pick": None,
-                "reason_code": "DATA_STALE_ODDS",
-                "primary_blocker": "DATA_STALE_ODDS",
-                "primary_blocker_layer": "MARKET_QUOTE",
-                "action": "等待下一合法刷新",
-            }
+        projected = self._project_materialized_card_freshness(
+            card,
+            as_of=datetime.now(UTC),
         )
-        contract = projected.get("decision_contract")
-        if isinstance(contract, dict):
-            contract.update(
+        if str(projected.get("data_status") or "") != "STALE":
+            return projected
+        expired_odds_hidden = (
+            not self._card_has_current_odds(projected)
+            and str(
+                (projected.get("data_refresh") or {}).get("odds_status")
+                if isinstance(projected.get("data_refresh"), Mapping)
+                else ""
+            )
+            == "STALE"
+        )
+        safety_update: dict[str, Any] = {
+            "decision_tier": "NOT_READY",
+            "lock_eligible": False,
+            "outcome_tracked": False,
+            "recommendation_id": None,
+            "recommendation": None,
+            "pick": None,
+        }
+        if expired_odds_hidden:
+            safety_update.update(
                 {
-                    "decision_tier": "NOT_READY",
-                    "data_status": "STALE",
-                    "lock_eligible": False,
-                    "outcome_tracked": False,
-                    "recommendation_id": None,
-                    "pick": None,
                     "reason_code": "DATA_STALE_ODDS",
                     "primary_blocker": "DATA_STALE_ODDS",
                     "primary_blocker_layer": "MARKET_QUOTE",
-                    "action": "等待下一合法刷新",
+                    "action": "过期盘口已隐藏，等待下一合法刷新",
                 }
             )
+        projected.update(safety_update)
+        contract = projected.get("decision_contract")
+        if isinstance(contract, dict):
+            contract_update: dict[str, Any] = {
+                "decision_tier": "NOT_READY",
+                "data_status": "STALE",
+                "lock_eligible": False,
+                "outcome_tracked": False,
+                "recommendation_id": None,
+                "pick": None,
+            }
+            if expired_odds_hidden:
+                contract_update.update(
+                    {
+                        "reason_code": "DATA_STALE_ODDS",
+                        "primary_blocker": "DATA_STALE_ODDS",
+                        "primary_blocker_layer": "MARKET_QUOTE",
+                        "action": projected["action"],
+                    }
+                )
+            contract.update(contract_update)
         return projected
 
     def _bounded_day_view_card(self, card: dict[str, Any]) -> dict[str, Any]:

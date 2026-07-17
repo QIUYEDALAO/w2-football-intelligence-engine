@@ -959,3 +959,13 @@
 - 即时 future DayView 验证发现，回滚版本仍从现有 forward capture 展示 fixtures `1523203/1523204/1523205` 的 7 月 15 日旧盘口，因此“回滚 SHA 本身能隐藏旧盘口”的假设不成立。不再将更旧 SHA 当作展示安全门。
 - fixture `1523207` 在北京时间 18:00 自然周期获得 `2026-07-17T10:00:04Z` 新 quote；本轮未手动调用 Provider。
 - 唯一下一步改为 API 最终投影强制隔离：任何超过 30 分钟的 quote 都不得进入 `current_odds`，但原始 observation 和身份证据保留；之后再实施全局预算的 T6-T15 自然滚动刷新。
+
+### V3 进展续90 · DATA-08 本地修复与发布前验证完成(2026-07-17)
+
+- GitHub 工作流已停用；本阶段只使用本地分支 `codex/w2-data08-expired-odds-refresh`、本地提交与本地回滚历史，不 push、不创建 PR、不等待远端 CI。
+- 公共 DayView 最终投影在 quote 超过 30 分钟时清空 `current_odds`，强制 `STALE/NOT_READY` 并关闭 pick、recommendation、lock 与 outcome tracking；原始 observation、quote/capture/source/hash 证据不删除。恰好 30 分钟仍可见。
+- Dashboard 不再显示旧让球线或赔率，改为明确显示“盘口已过期并隐藏”、最后采集时间、数据年龄和下一合法评估时间；STALE 与真正 BLOCKED 继续分开统计。
+- Scheduler 增加 T6 到 T15 的 odds-only 自然滚动刷新，每场最短 30 分钟、15 分钟扫描、与 T1/T15 去重、开赛及 T15 后停止。所有联赛共用单 tick 30 次上限，并保持每日 120 次、请求账本、quota reserve 与任务键门。
+- 预算延后的旧动态计划会被标记为 MISSED，当前待执行查询按 fixture 集合限定，避免过期 next-eval、跨联赛挤占或历史动态计划回填。
+- 定向测试 `65 passed`；完整测试 `1505 passed, 4 skipped`；Ruff、Mypy、前端 typecheck 与 production build 全部 PASS。未调用 Provider，未部署生产，未改变 freshness、FME、Snapshot、推荐阈值、RECOMMEND、lock 或 OFFICIAL。
+- 唯一下一步：创建本地发布提交并部署 Staging 四服务；先验收旧盘口隐藏，再只观察三个自然合法刷新周期。

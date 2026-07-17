@@ -276,6 +276,112 @@ def test_market_observation_history_preserves_all_capture_times(
     assert history[0]["captured_at"] < history[1]["captured_at"]
     assert len(latest) == 1
     assert latest[0]["captured_at"] == history[-1]["captured_at"]
+    assert repository.latest_observation_captured_at_for_fixture_ids(
+        ["fixture-history"]
+    ) == {"fixture-history": datetime(2026, 6, 23, 9, 0, tzinfo=UTC)}
+
+
+def test_latest_odds_refresh_attempt_is_fixture_scoped_and_ignores_lineups_only(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    plans = [
+        {
+            "id": "fixture-a:ACTIVE_ODDS_20260623T090000Z",
+            "fixture_id": "fixture-a",
+            "checkpoint": "ACTIVE_ODDS_20260623T090000Z",
+            "kickoff_utc": NOW + timedelta(hours=2),
+            "due_at": NOW - timedelta(hours=1),
+            "endpoints": ["odds"],
+            "source": "active_window",
+            "status": "PENDING",
+        },
+        {
+            "id": "fixture-a:T45_LINEUPS_RETRY",
+            "fixture_id": "fixture-a",
+            "checkpoint": "T45_LINEUPS_RETRY",
+            "kickoff_utc": NOW + timedelta(hours=2),
+            "due_at": NOW - timedelta(minutes=10),
+            "endpoints": ["lineups"],
+            "source": "lineups_retry",
+            "status": "PENDING",
+        },
+    ]
+    assert repository.upsert_checkpoint_plans(plans) == 2
+    repository.write_checkpoint_audit(
+        fixture_id="fixture-a",
+        checkpoint="ACTIVE_ODDS_20260623T090000Z",
+        as_of=NOW - timedelta(minutes=40),
+        calls_used=1,
+        status="COMPLETED",
+        details={},
+    )
+    repository.write_checkpoint_audit(
+        fixture_id="fixture-a",
+        checkpoint="T45_LINEUPS_RETRY",
+        as_of=NOW - timedelta(minutes=5),
+        calls_used=1,
+        status="COMPLETED",
+        details={},
+    )
+
+    assert repository.latest_odds_refresh_attempt_at_for_fixture_ids(
+        ["fixture-a", "fixture-b"]
+    ) == {"fixture-a": NOW - timedelta(minutes=40)}
+
+
+def test_active_plan_supersession_keeps_next_eval_bounded_and_due_reads_scoped(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    current_id = "fixture-a:ACTIVE_ODDS_20260623T100000Z"
+    plans = [
+        {
+            "id": "fixture-a:ACTIVE_ODDS_20260623T093000Z",
+            "fixture_id": "fixture-a",
+            "checkpoint": "ACTIVE_ODDS_20260623T093000Z",
+            "kickoff_utc": NOW + timedelta(hours=2),
+            "due_at": NOW - timedelta(minutes=30),
+            "endpoints": ["odds"],
+            "source": "active_window",
+            "status": "PENDING",
+        },
+        {
+            "id": current_id,
+            "fixture_id": "fixture-a",
+            "checkpoint": "ACTIVE_ODDS_20260623T100000Z",
+            "kickoff_utc": NOW + timedelta(hours=2),
+            "due_at": NOW,
+            "endpoints": ["odds"],
+            "source": "active_window",
+            "status": "PENDING",
+        },
+        {
+            "id": "fixture-b:ACTIVE_ODDS_20260623T093000Z",
+            "fixture_id": "fixture-b",
+            "checkpoint": "ACTIVE_ODDS_20260623T093000Z",
+            "kickoff_utc": NOW + timedelta(hours=3),
+            "due_at": NOW - timedelta(minutes=30),
+            "endpoints": ["odds"],
+            "source": "active_window",
+            "status": "PENDING",
+        },
+    ]
+    assert repository.upsert_checkpoint_plans(plans) == 3
+
+    assert repository.supersede_pending_active_checkpoint_plans(
+        fixture_ids=["fixture-a"],
+        active_plan_ids={current_id},
+    ) == 1
+
+    fixture_a_due = repository.due_checkpoint_plans(now=NOW, fixture_ids=["fixture-a"])
+    assert [row["id"] for row in fixture_a_due] == [current_id]
+    fixture_b_due = repository.due_checkpoint_plans(now=NOW, fixture_ids=["fixture-b"])
+    assert [row["fixture_id"] for row in fixture_b_due] == ["fixture-b"]
 
 
 def test_api_repository_reads_future_refresh_projection_from_db(
