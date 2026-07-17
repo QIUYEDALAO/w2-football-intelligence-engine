@@ -3,9 +3,9 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T05:38:00Z"
+last_updated_utc: "2026-07-17T06:25:00Z"
 current_phase: Dashboard stale-market recovery before MA-03 staging acceptance
-current_status: DATA_PIPELINE_BLOCKED
+current_status: DATA06_FIX_IN_REVIEW
 
 context_contract:
   purpose: Restore the current operational and product state without replaying chat history.
@@ -39,7 +39,7 @@ repository_state:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T05:38:00Z"
+  observed_at_utc: "2026-07-17T06:25:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -204,7 +204,7 @@ active_workstream:
     - historical evidence rewrites
 
 data06_stale_t6_checkpoint_20260717:
-  status: DATA_PIPELINE_BLOCKED
+  status: FIX_IMPLEMENTED_PENDING_PR
   attempted_release_sha: d571ea1ab16ad0dcda4e857e2249ba5acda62715
   rollback_release_sha: 7ad56cd43360f6df5d97c16935539d1e78cd5078
   observed_at_utc: "2026-07-17T05:38:00Z"
@@ -222,6 +222,19 @@ data06_stale_t6_checkpoint_20260717:
     attempted_checkpoint_date_utc: "2026-07-17"
   failure_boundary: STALE_OBSERVATION_WRITTEN_AS_CURRENT_T6
   decision: immediate four-service rollback; preserve immutable records and do not rewrite history
+  repair_branch: codex/w2-data06-stale-checkpoint-guard
+  repair_contract:
+    - every non-opening timeline write requires an observation no older than 30 minutes at execution time
+    - stale observations remain available to STALE display and bounded analysis reconcile
+    - worker can run bounded reconcile with timeline artifact writes disabled
+    - scheduler default remains natural timeline writes with the same quota and due-window policy
+  targeted_validation:
+    tests_passed: 41
+    ruff: PASS
+    mypy: PASS
+  full_validation:
+    tests_passed: 1497
+    tests_skipped: 4
   staging_health_after_rollback: PASS
   service_restart_count: 0
   service_oom_killed: false

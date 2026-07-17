@@ -125,6 +125,116 @@ def test_market_timeline_refresh_service_respects_max_fixtures_and_does_not_back
     assert "T-6h" not in {item["checkpoint"] for item in payload["results"]}
 
 
+def test_market_timeline_refresh_rejects_stale_observation_at_current_t6(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
+
+        def market_observation_history_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-26T12:00:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Home -0.25",
+                    "line": "-0.25",
+                    "decimal_odds": "1.94",
+                    "bookmaker_id": "book-a",
+                },
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-26T12:00:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Away +0.25",
+                    "line": "+0.25",
+                    "decimal_odds": "1.97",
+                    "bookmaker_id": "book-a",
+                },
+            ]
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            return []
+
+    payload = run_market_timeline_refresh(
+        checkpoint="auto",
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 12, 5, tzinfo=UTC),
+    )
+
+    t6_results = [item for item in payload["results"] if item["checkpoint"] == "T-6h"]
+    assert t6_results
+    assert {item["status"] for item in t6_results} == {"NO_MAINLINE_OBSERVATION"}
+    assert {item["reason"] for item in t6_results} >= {
+        "NO_FRESH_CHECKPOINT_OBSERVATION"
+    }
+    assert payload["freshness_rejections"] == 1
+    assert payload["written"] == 1  # opening remains the historical baseline
+    timeline = json.loads((tmp_path / "fx1.json").read_text())
+    assert {item["checkpoint"] for item in timeline["snapshots"]} == {"opening"}
+
+
+def test_market_timeline_refresh_accepts_thirty_minute_t6_boundary(
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def fixture_payloads(self) -> list[dict[str, object]]:
+            return [{"fixture": {"id": "fx1", "date": "2026-06-28T18:00:00Z"}}]
+
+        def market_observation_history_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T11:35:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Home -0.25",
+                    "line": "-0.25",
+                    "decimal_odds": "1.94",
+                    "bookmaker_id": "book-a",
+                },
+                {
+                    "fixture_id": "fx1",
+                    "captured_at": "2026-06-28T11:35:00Z",
+                    "canonical_market": "ASIAN_HANDICAP",
+                    "raw_market_label": "Asian Handicap",
+                    "selection": "Away +0.25",
+                    "line": "+0.25",
+                    "decimal_odds": "1.97",
+                    "bookmaker_id": "book-a",
+                },
+            ]
+
+        def future_market_observations(self) -> list[dict[str, object]]:
+            return []
+
+    payload = run_market_timeline_refresh(
+        checkpoint="auto",
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        repository=Repository(),
+        now=datetime(2026, 6, 28, 12, 5, tzinfo=UTC),
+    )
+
+    assert any(
+        item["checkpoint"] == "T-6h" and item["status"] == "WRITTEN"
+        for item in payload["results"]
+    )
+
+
 def test_market_timeline_refresh_does_not_fallback_to_all_observations_when_scoped_empty(
     tmp_path: Path,
 ) -> None:

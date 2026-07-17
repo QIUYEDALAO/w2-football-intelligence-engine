@@ -607,6 +607,31 @@ def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
     assert result["beats_market"] is False
 
 
+def test_worker_market_timeline_can_reconcile_without_timeline_writes(monkeypatch) -> None:
+    received: dict[str, object] = {}
+
+    def fake_refresh(**kwargs):
+        received.update(kwargs)
+        return {
+            "status": "PASS",
+            "selected_fixtures": ["fx1"],
+            "written": 0,
+            "provider_calls": 0,
+        }
+
+    monkeypatch.setattr("apps.worker.celery_app.run_market_timeline_refresh", fake_refresh)
+
+    result = market_timeline_refresh.run(
+        max_fixtures=1,
+        write_timeline_artifacts=False,
+    )
+
+    assert received["dry_run"] is True
+    assert received["write_artifacts"] is False
+    assert result["result"]["written"] == 0
+    assert result["provider_calls"] == 0
+
+
 def test_worker_market_timeline_can_capture_forward_ledger(monkeypatch) -> None:
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(

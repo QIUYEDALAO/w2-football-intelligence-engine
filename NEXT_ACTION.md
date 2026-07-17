@@ -1,6 +1,6 @@
 # W2 Next Action
 
-Status: `DATA_PIPELINE_BLOCKED`
+Status: `DATA06_FIX_IN_REVIEW`
 
 The Dashboard has real fixture-scoped observations, but the deployed read path
 misclassifies non-clinical stale markets as unavailable because old observations
@@ -124,6 +124,16 @@ checkpoint. Keep bounded analysis reconcile independent from timeline writes
 when no eligible current quote exists. The four services were immediately
 rolled back to `7ad56cd`; do not delete or rewrite the immutable failed-attempt
 records.
+
+The directed repair is implemented on
+`codex/w2-data06-stale-checkpoint-guard`: every non-opening timeline artifact
+requires an observation at most 30 minutes old at execution time, including the
+exact 30-minute boundary. The Worker also supports bounded analysis reconcile
+with timeline writes disabled, so immediate display verification cannot create
+checkpoint artifacts. Scheduler defaults, due windows, quota policy and opening
+baseline behavior are unchanged. Targeted validation is `41 passed` plus Ruff
+and Mypy PASS; the full suite is `1497 passed, 4 skipped`. Merge remains subject
+to all GitHub checks.
 
 ### MA-03B — Staging acceptance after merge
 
