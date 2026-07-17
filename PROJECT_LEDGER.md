@@ -10,12 +10,13 @@ Do not duplicate or rewrite historical entries here. At the start of every task,
 read `PROJECT_STATE.yaml`, this index, `NEXT_ACTION.md`, and then the canonical
 ledger entries relevant to the active blocker.
 
-Current latest entry: `V3 进展续76 · Market Availability 后台物化缺口根因确认`.
+Current latest entry: `V3 进展续77 · 后台物化合并、staging 身份门回滚与自然周期等待`.
 
 Current blocking chain:
 
-1. `DATA-01 / DATA_PIPELINE_BLOCKED`: persisted observations do not become a
-   selected provenance-bound MarketQuote or an evidence-eligible FME Snapshot v2.
+1. `DATA-02 / DATA_PIPELINE_BLOCKED`: frozen current odds and reproducible
+   Snapshot v2 distributions now materialize, but sampled fallback estimates
+   still lack complete decision-model provenance and current freshness.
 2. `L2-02`: Frozen L2 exact identity cannot pass until a current eligible capture
    exists.
 3. Draft Policy ADR remains pending after data and evidence recovery.

@@ -3,7 +3,7 @@ project:
   repository: QIUYEDALAO/w2-football-intelligence-engine
   dashboard_staging_url: http://43.155.208.138/
 
-last_updated_utc: "2026-07-17T02:27:13Z"
+last_updated_utc: "2026-07-17T03:14:00Z"
 current_phase: Market availability pipeline recovery before Frozen L2 acceptance
 current_status: DATA_PIPELINE_BLOCKED
 
@@ -32,14 +32,14 @@ context_read_order:
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository_state:
-  main_sha_at_rebaseline: d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317
+  main_sha_at_rebaseline: a9b42a5730f4fea700ec91035874bb67d2e5248c
   deployed_code_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   main_ci: SUCCESS
   main_ci_checks:
     - verify
     - staging-parity
     - predeploy-e2e
-  observed_at_utc: "2026-07-17T02:27:13Z"
+  observed_at_utc: "2026-07-17T03:14:00Z"
 
 public_edge_recovery:
   status: ROUTE_SPECIFIC_WARNING
@@ -91,7 +91,7 @@ public_edge_recovery:
 active_workstream:
   id: W2-PUBLIC-EDGE-FROZEN-L2-RECOVERY-20260716
   status: DATA_PIPELINE_BLOCKED
-  repository_main_sha: d0740f4e48ef2f59b6b1fdf8b97034a2f46a7317
+  repository_main_sha: a9b42a5730f4fea700ec91035874bb67d2e5248c
   deployed_staging_sha: c89555b98cbcf2c41ecf999eefce9f5c0a9627f5
   specification:
     path: docs/superpowers/specs/2026-07-17-frozen-l2-exact-capture-identity-design.md
@@ -121,6 +121,9 @@ active_workstream:
     - exact-identity code PR 330 merged with all three CI checks passing
     - latest-main staging deployment attempted and automatically rolled back on the pre-write eligible-evidence gate
     - three-cycle read-only market availability diagnosis completed with provider transport healthy but decision evidence blocked
+    - fixture-scoped frozen analysis materializer PR 333 merged with all three CI checks passing
+    - identical-input materialization produced stable content-addressed hashes and two Snapshot v2 records per sampled fixture
+    - main a9b42a5 staging attempt rolled back after the evidence identity gate remained blocked
   known_issues:
     - CTX-01
     - CTX-02
@@ -144,11 +147,12 @@ active_workstream:
     - FINAL-01
     - L2-02
     - DATA-01
+    - DATA-02
   remaining_tasks:
-    - trace the read-only path from persisted future market observations through canonical AH/TOTALS selection, MarketQuote construction and FME generation
-    - identify why successful fixtures and odds responses plus persisted observations still produce MARKET_UNAVAILABLE and QUOTE_CAPTURE_TIME_MISSING
-    - implement the smallest upstream repair only after the root cause is evidenced; do not weaken freshness, provenance, evidence or recommendation gates
-    - pass three consecutive staging cycles with selected quote identity, complete reproducible Snapshot v2 evidence and stable source/hash binding
+    - observe the next three naturally due checkpoint refresh cycles beginning at or after 2026-07-17T10:00:00Z
+    - verify the merged worker automatically materializes each checkpoint fixture and binds Decision Contract MarketQuote identity to the same current odds source
+    - distinguish Snapshot v2 mathematical reproducibility from decision evidence eligibility; incomplete model provenance remains blocked
+    - pass three consecutive staging cycles with selected quote identity, complete provenance-valid Snapshot v2 evidence and stable source/hash binding
     - only after market data is GREEN and evidence is READY, rerun the controlled-capture gate and full L1/Frozen L2 safety acceptance
     - complete the Draft Policy ADR after data and evidence recovery; do not enter U04 or M2 in this workstream
   deferred_findings:
@@ -182,7 +186,8 @@ active_workstream:
     - denominator and three-track invariants reconciled
     - final context PR merged
   next_allowed_action:
-    - no further code or deployment action in this scope; only read-only eligibility observation is allowed until current market provenance yields an evidence-eligible Snapshot v2
+    - wait for and inspect the next naturally due checkpoint refresh cycles; do not force provider calls or bypass the checkpoint scheduler
+    - redeploy merged main only for the three-cycle gate with the existing automatic rollback contract
   forbidden_actions:
     - production deployment
     - RECOMMEND enablement
@@ -214,6 +219,7 @@ known_issue_catalog:
   FINAL-01: final GitHub context rebaseline is pending
   L2-02: current L1 content hash 720d570b505e6e06571f2101d23641743251c271fa9262008ebacddfb7ec2b12 has two occurrences and the latest occurrence contains zero Snapshot v2 records and no estimate identity; older valid-v2 captures are not decision/quote/card/evidence equivalent and cannot be substituted
   DATA-01: successful provider fixture and odds requests produce persisted market observations but the Dashboard decision path has no selected MarketQuote, no quote capture time and no evidence-eligible FME Snapshot v2
+  DATA-02: fixture-scoped materialization restores frozen current odds and reproducible Snapshot v2 distributions, but sampled fixtures still lack complete decision-model provenance and current freshness; three naturally due post-merge cycles remain required
 
 known_issue_status:
   resolved:
@@ -240,6 +246,7 @@ known_issue_status:
   blocking:
     - L2-02
     - DATA-01
+    - DATA-02
 
 observer_v2_implementation:
   status: MERGED_AND_FORMALLY_VALIDATED
