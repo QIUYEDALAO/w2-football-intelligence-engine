@@ -17,6 +17,14 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 0
 fi
 
+run_python() {
+  if command -v uv >/dev/null 2>&1; then
+    uv run --python 3.12 python "$@"
+  else
+    python3 "$@"
+  fi
+}
+
 TMP_DIR="$(mktemp -d)"
 ENV_FILE="${TMP_DIR}/predeploy-e2e.env"
 OVERRIDE_FILE="${TMP_DIR}/predeploy-e2e.override.yml"
@@ -82,8 +90,8 @@ cd "${ROOT}"
 mkdir -p runtime
 chmod 0555 runtime || true
 
-uv run --python 3.12 python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
-uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
+run_python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
+run_python scripts/check_w2_future_refresh_staging_contract.py
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait postgres redis
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" run --rm migration
