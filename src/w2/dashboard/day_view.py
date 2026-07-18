@@ -156,6 +156,11 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         else None,
         "one_liner": _optional_text(_field(card, contract, "one_liner")),
         "card_hash": _optional_text(_field(card, contract, "card_hash")),
+        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
+        "frozen_artifact_provenance": _mapping_copy(
+            card.get("frozen_artifact_provenance")
+        ),
+        "artifact_hash": _optional_text(card.get("artifact_hash")),
     }
 
 
@@ -191,6 +196,11 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         else None,
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
+        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
+        "frozen_artifact_provenance": _mapping_copy(
+            card.get("frozen_artifact_provenance")
+        ),
+        "artifact_hash": _optional_text(card.get("artifact_hash")),
     }
 
 

@@ -19,6 +19,7 @@ from w2.api.frozen_analysis import (
     validate_frozen_analysis_payload,
 )
 from w2.api.repository import ReadModelService
+from w2.dashboard.day_view import build_dashboard_day_view
 
 
 def _artifact(fixture_id: str = "1576804") -> FrozenAnalysisArtifact:
@@ -52,7 +53,7 @@ def _artifact(fixture_id: str = "1576804") -> FrozenAnalysisArtifact:
     }
     body = {
         "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
-        "checkpoint_namespace": "canary",
+        "checkpoint_namespace": "public",
         "fixture_identity": {
             "fixture_id": fixture_id,
             "competition_id": "league",
@@ -120,7 +121,7 @@ def test_canary_reads_only_verified_frozen_artifact() -> None:
     assert card["frozen_artifact_provenance"] == {
         "status": "VERIFIED",
         "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
-        "checkpoint_namespace": "canary",
+        "checkpoint_namespace": "public",
         "checkpoint_key": analysis_card_canary_key("1576804"),
         "source_hash": artifact.source_hash,
         "artifact_hash": artifact.artifact_hash,
@@ -217,3 +218,90 @@ def test_public_route_exposes_frozen_provenance(monkeypatch: pytest.MonkeyPatch)
         artifact.artifact_hash
     )
     assert json.dumps(payload["card"])
+
+
+def test_non_canary_fixture_also_fails_closed_without_frozen_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = FrozenRepository(None)
+    monkeypatch.setattr(
+        ReadModelService,
+        "analysis_card",
+        lambda *_args, **_kwargs: pytest.fail("legacy builder called"),
+    )
+
+    card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
+        "1523206"
+    )
+
+    assert card is not None
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["pick"] is None
+    assert card["frozen_artifact_provenance"]["blockers"] == [
+        "FROZEN_ARTIFACT_MISSING"
+    ]
+
+
+def test_fixture_dashboard_and_day_view_share_frozen_authority() -> None:
+    artifact = _artifact()
+
+    class PublicRepository(FrozenRepository):
+        def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+            if fixture_id != "1576804":
+                return None
+            return {
+                "fixture_id": fixture_id,
+                "competition_id": "league",
+                "competition_name": "League",
+                "kickoff_utc": "2026-07-19T12:00:00Z",
+                "status": "NS",
+                "home_team_id": "home",
+                "home_team_name": "Home",
+                "away_team_id": "away",
+                "away_team_name": "Away",
+                "market_coverage": {},
+            }
+
+    repository = PublicRepository(artifact)
+    service = ReadModelService(repository=cast(Any, repository))
+    analysis = service.public_analysis_card_bounded("1576804")
+    detail = service.fixture("1576804", "UTC")
+    dashboard_card = service._dashboard_card_from_matchday(
+        {
+            "fixture_id": "1576804",
+            "kickoff_utc": "2026-07-19T12:00:00Z",
+            "competition_id": "league",
+            "competition_name": "League",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "status": "NS",
+        }
+    )
+    day_view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-07-18T05:00:00Z",
+            "date": "2026-07-19",
+            "selected_football_day": "2026-07-19",
+            "timezone": "Asia/Shanghai",
+            "window": "today",
+            "version": {},
+            "all": [dashboard_card],
+        },
+        environment="staging",
+    )
+
+    assert analysis is not None
+    assert detail is not None
+    expected_hash = artifact.artifact_hash
+    assert analysis["frozen_artifact_provenance"]["artifact_hash"] == expected_hash
+    assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (
+        expected_hash
+    )
+    assert dashboard_card["artifact_hash"] == expected_hash
+    assert day_view["cards"][0]["artifact_hash"] == expected_hash
+    for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
+        assert card["decision_tier"] == "NOT_READY"
+        assert card["pick"] is None
+        assert card["lock_eligible"] is False
+        assert card["quote_identity_audit"] == analysis["quote_identity_audit"]
+    assert repository.forbidden_calls == 0

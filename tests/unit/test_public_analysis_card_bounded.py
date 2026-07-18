@@ -5,11 +5,7 @@ from datetime import UTC, datetime
 from threading import Barrier
 from typing import Any, cast
 
-from apps.api.main import app
-from fastapi.testclient import TestClient
-
 from w2.api import repository as api_repository
-from w2.api import routers
 from w2.api.repository import ReadModelService
 
 
@@ -138,26 +134,21 @@ def test_public_analysis_card_uses_fixture_scoped_observation_reader(
 ) -> None:
     _patch_card_builder(monkeypatch)
     repository = BoundedObservationRepository(["target"])
-    monkeypatch.setattr(
-        routers,
-        "service",
-        ReadModelService(repository=cast(Any, repository)),
+    card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
+        "target",
+        use_frozen_canary=False,
     )
 
-    response = TestClient(app).get("/v1/fixtures/target/analysis-card")
-
-    assert response.status_code == 200
+    assert card is not None
     assert repository.scoped_calls == [["target"]]
     assert repository.global_calls == 0
-    assert response.json()["card"]["quote_identity_audit"]["observed_fixture_ids"] == [
-        "target"
-    ]
-    assert response.json()["card"]["decision_tier"] == "NOT_READY"
-    assert response.json()["card"]["decision"] == "SKIP"
-    assert response.json()["card"]["pick"] is None
-    assert response.json()["card"]["recommendation_id"] is None
-    assert response.json()["card"]["lock_eligible"] is False
-    assert response.json()["card"]["outcome_tracked"] is False
+    assert card["quote_identity_audit"]["observed_fixture_ids"] == ["target"]
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["decision"] == "SKIP"
+    assert card["pick"] is None
+    assert card["recommendation_id"] is None
+    assert card["lock_eligible"] is False
+    assert card["outcome_tracked"] is False
 
 
 def test_public_analysis_card_never_calls_latest_market_observations(
@@ -167,7 +158,8 @@ def test_public_analysis_card_never_calls_latest_market_observations(
     repository = BoundedObservationRepository(["target"])
 
     card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
-        "target"
+        "target",
+        use_frozen_canary=False,
     )
 
     assert card is not None
@@ -183,7 +175,8 @@ def test_fixture_scoped_reader_rejects_cross_fixture_rows(monkeypatch: Any) -> N
     )
 
     card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
-        "target"
+        "target",
+        use_frozen_canary=False,
     )
 
     assert card is not None
@@ -206,7 +199,8 @@ def test_fixture_scoped_reader_failure_does_not_fallback_global(monkeypatch: Any
     repository.scoped_error = RuntimeError("scoped reader failed")
 
     card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
-        "target"
+        "target",
+        use_frozen_canary=False,
     )
 
     assert card is not None
@@ -237,7 +231,7 @@ def test_missing_fixture_scoped_reader_returns_blocked_card(monkeypatch: Any) ->
 
     card = ReadModelService(
         repository=cast(Any, RepositoryWithoutScopedReader())
-    ).public_analysis_card_bounded("target")
+    ).public_analysis_card_bounded("target", use_frozen_canary=False)
 
     assert card is not None
     assert card["bounded_read"]["blockers"] == [
@@ -257,7 +251,13 @@ def test_concurrent_analysis_card_requests_do_not_share_fixture_cache(
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         cards = list(
-            executor.map(service.public_analysis_card_bounded, ["fixture-a", "fixture-b"])
+            executor.map(
+                lambda fixture_id: service.public_analysis_card_bounded(
+                    fixture_id,
+                    use_frozen_canary=False,
+                ),
+                ["fixture-a", "fixture-b"],
+            )
         )
 
     assert all(card is not None for card in cards)
@@ -280,7 +280,8 @@ def test_large_unrelated_observation_population_does_not_affect_target_read(
     ]
 
     card = ReadModelService(repository=cast(Any, repository)).public_analysis_card_bounded(
-        "target"
+        "target",
+        use_frozen_canary=False,
     )
 
     assert card is not None
@@ -298,7 +299,7 @@ def test_public_bounded_read_projects_canonical_no_pick_contract(monkeypatch: An
     legacy_card = ReadModelService(repository=cast(Any, repository)).analysis_card("target")
     bounded_card = ReadModelService(
         repository=cast(Any, repository)
-    ).public_analysis_card_bounded("target")
+    ).public_analysis_card_bounded("target", use_frozen_canary=False)
 
     assert legacy_card is not None
     assert bounded_card is not None

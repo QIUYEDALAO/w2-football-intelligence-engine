@@ -5,7 +5,9 @@ import json
 from datetime import datetime
 
 from w2.api.frozen_analysis import (
+    MAX_PUBLIC_FIXTURES,
     AnalysisCardCanaryMaterializer,
+    FrozenAnalysisError,
     write_frozen_analysis_artifacts,
 )
 from w2.api.repository import ReadModelRepository
@@ -23,24 +25,53 @@ def parse_datetime(value: str) -> datetime:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Materialize deterministic analysis-card canaries."
+        description="Materialize deterministic frozen analysis-card artifacts."
     )
     parser.add_argument("--fixture-id", action="append", dest="fixture_ids")
+    parser.add_argument(
+        "--all-public",
+        action="store_true",
+        help="Materialize the bounded public fixture inventory.",
+    )
     parser.add_argument("--evaluated-at", required=True, type=parse_datetime)
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
 
-    fixture_ids = tuple(args.fixture_ids or CANARY_FIXTURES)
-    materializer = AnalysisCardCanaryMaterializer(ReadModelRepository())
-    artifacts = [
-        materializer.build(fixture_id, evaluated_at=args.evaluated_at) for fixture_id in fixture_ids
-    ]
+    if args.all_public and args.fixture_ids:
+        parser.error("--all-public and --fixture-id are mutually exclusive")
+    repository = ReadModelRepository()
+    if args.all_public:
+        fixture_ids = tuple(
+            dict.fromkeys(
+                str(payload.get("fixture", {}).get("id") or "")
+                for payload in repository.public_fixture_payloads(limit=MAX_PUBLIC_FIXTURES)
+                if payload.get("fixture", {}).get("id")
+            )
+        )
+    else:
+        fixture_ids = tuple(args.fixture_ids or CANARY_FIXTURES)
+    materializer = AnalysisCardCanaryMaterializer(repository)
+    artifacts = []
+    unavailable = []
+    for fixture_id in fixture_ids:
+        try:
+            artifacts.append(
+                materializer.build(fixture_id, evaluated_at=args.evaluated_at)
+            )
+        except FrozenAnalysisError as exc:
+            if not args.all_public:
+                raise
+            unavailable.append({"fixture_id": fixture_id, "reason": str(exc)})
     if args.write:
         write_frozen_analysis_artifacts(create_engine(), artifacts)
     print(
         json.dumps(
             {
                 "status": "MATERIALIZED" if args.write else "DRY_RUN",
+                "requested_fixture_count": len(fixture_ids),
+                "materialized_fixture_count": len(artifacts),
+                "unavailable_fixture_count": len(unavailable),
+                "unavailable": unavailable,
                 "schema_versions": sorted(
                     {str(artifact.payload["schema_version"]) for artifact in artifacts}
                 ),
@@ -51,7 +82,10 @@ def main() -> int:
                         "source_hash": artifact.source_hash,
                         "artifact_hash": artifact.artifact_hash,
                     }
-                    for fixture_id, artifact in zip(fixture_ids, artifacts, strict=True)
+                    for artifact in artifacts
+                    for fixture_id in [
+                        str(artifact.payload["fixture_identity"]["fixture_id"])
+                    ]
                 ],
             },
             ensure_ascii=False,

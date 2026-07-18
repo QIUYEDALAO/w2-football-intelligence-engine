@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 
-ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.canary.v1"
-ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:canary:v1:"
+ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
+ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
+MAX_PUBLIC_FIXTURES = 512
 
 
 class FrozenAnalysisError(ValueError):
@@ -180,7 +181,7 @@ class AnalysisCardCanaryMaterializer:
         }
         artifact_body = {
             "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
-            "checkpoint_namespace": "canary",
+            "checkpoint_namespace": "public",
             "fixture_identity": identity,
             "input_manifest": input_manifest,
             "analysis_card": card,

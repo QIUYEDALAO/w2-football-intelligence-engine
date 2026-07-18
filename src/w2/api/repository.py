@@ -1244,7 +1244,6 @@ class ReadModelService:
             ]
             response_cards = [self._compact_all_window_card(card) for card in all_cards]
         else:
-            self._prime_observations_for_rows(selected_rows)
             all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
             response_cards = all_cards
         recommendations = [
@@ -1340,6 +1339,58 @@ class ReadModelService:
 
     def _dashboard_index_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
         """Return a cheap all-window index card without loading analysis payloads."""
+        fixture_id = str(row.get("fixture_id") or "")
+        if fixture_id and self._uses_frozen_public_authority():
+            card = self.public_analysis_card_bounded(fixture_id)
+            if card is None:
+                card = self._frozen_analysis_card_failure(
+                    fixture_id,
+                    blocker="FROZEN_ARTIFACT_MISSING",
+                )
+            contract = (
+                cast(dict[str, Any], card["decision_contract"])
+                if isinstance(card.get("decision_contract"), dict)
+                else {}
+            )
+            provenance = card.get("frozen_artifact_provenance")
+            return {
+                "fixture_id": fixture_id,
+                "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
+                "kickoff_beijing": row.get("kickoff_beijing"),
+                "operational_date_beijing": row.get("operational_date_beijing"),
+                "competition_id": row.get("competition_id"),
+                "competition_name": row.get("competition_name"),
+                "home_team_name": row.get("home_team_name"),
+                "away_team_name": row.get("away_team_name"),
+                "status": normalize_match_status(row.get("status")),
+                "raw_status": row.get("raw_status") or row.get("status"),
+                "recommendation": None,
+                "candidate": False,
+                "formal_recommendation": False,
+                "formal_suppressed": True,
+                "formal_suppressed_reason": "FROZEN_INDEX_NOT_FORMAL_AUTHORITY",
+                "decision_tier": card.get("decision_tier")
+                or contract.get("decision_tier"),
+                "data_status": card.get("data_status") or contract.get("data_status"),
+                "lifecycle_status": card.get("lifecycle_status")
+                or contract.get("lifecycle_status"),
+                "outcome_tracked": card.get("outcome_tracked", False),
+                "lock_eligible": card.get("lock_eligible", False),
+                "recommendation_id": card.get("recommendation_id"),
+                "pick": card.get("pick"),
+                "reason_code": card.get("reason_code") or contract.get("reason_code"),
+                "action": card.get("action"),
+                "next_eval_at": card.get("next_eval_at"),
+                "provider_budget_status": card.get("provider_budget_status"),
+                "current_odds": card.get("current_odds", {}),
+                "quote_identity_audit": card.get("quote_identity_audit", {}),
+                "frozen_artifact_provenance": provenance,
+                "artifact_hash": (
+                    cast(dict[str, Any], provenance).get("artifact_hash")
+                    if isinstance(provenance, dict)
+                    else None
+                ),
+            }
         recommendation = row.get("recommendation")
         compact_recommendation = (
             {
@@ -1407,6 +1458,22 @@ class ReadModelService:
                 "formal_suppressed_reason": card.get("formal_suppressed_reason"),
             }
         )
+        provenance = card.get("frozen_artifact_provenance")
+        if isinstance(provenance, dict):
+            payload.update(
+                {
+                    "decision_tier": card.get("decision_tier"),
+                    "data_status": card.get("data_status"),
+                    "lifecycle_status": card.get("lifecycle_status"),
+                    "outcome_tracked": card.get("outcome_tracked"),
+                    "lock_eligible": card.get("lock_eligible"),
+                    "recommendation_id": card.get("recommendation_id"),
+                    "pick": card.get("pick"),
+                    "quote_identity_audit": card.get("quote_identity_audit", {}),
+                    "frozen_artifact_provenance": provenance,
+                    "artifact_hash": card.get("artifact_hash"),
+                }
+            )
         return payload
 
     def _all_window_card_reference(self, card: dict[str, Any]) -> dict[str, Any]:
@@ -1732,11 +1799,8 @@ class ReadModelService:
         use_frozen_canary: bool = True,
     ) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
-        if use_frozen_canary:
-            from w2.api.frozen_analysis import ANALYSIS_CARD_CANARY_FIXTURES
-
-            if fixture_id in ANALYSIS_CARD_CANARY_FIXTURES:
-                return self._public_frozen_analysis_card(fixture_id)
+        if use_frozen_canary and self._uses_frozen_public_authority():
+            return self._public_frozen_analysis_card(fixture_id)
         request_service = ReadModelService(repository=self.repository)
         request_service._bounded_public_request = True
         if evaluation_time is not None:
@@ -1770,6 +1834,10 @@ class ReadModelService:
             fixture_id=fixture_id,
             card=card,
         )
+
+    def _uses_frozen_public_authority(self) -> bool:
+        reader = getattr(self.repository, "analysis_card_canary_artifact", None)
+        return callable(reader)
 
     def _public_frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
         from copy import deepcopy
@@ -1880,7 +1948,7 @@ class ReadModelService:
             return self._fail_closed_public_analysis_card(card)
         row = self._fixture_summary(item, "UTC")
         row["_dashboard_source"] = "future_fixture_payload"
-        canonical = self._dashboard_card_from_matchday(row)
+        canonical = self._dashboard_card_from_matchday(row, analysis_override=card)
         contract = canonical.get("decision_contract")
         if not isinstance(contract, dict):
             return self._fail_closed_public_analysis_card(card)
@@ -5301,15 +5369,23 @@ class ReadModelService:
             "pnl": None,
         }
 
-    def _dashboard_card_from_matchday(self, row: dict[str, Any]) -> dict[str, Any]:
+    def _dashboard_card_from_matchday(
+        self,
+        row: dict[str, Any],
+        *,
+        analysis_override: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         fixture_id = str(row.get("fixture_id") or "")
-        analysis: dict[str, Any] | None = None
-        if fixture_id and row.get("_dashboard_source") == "future_fixture_payload":
-            item = self._fixture_payload_by_id(fixture_id)
-            if item is not None:
-                analysis = self._analysis_card_from_provider_payload(fixture_id, item)
-        elif fixture_id:
-            analysis = self.analysis_card(fixture_id)
+        analysis = analysis_override
+        if analysis is None and fixture_id:
+            if self._uses_frozen_public_authority():
+                analysis = self.public_analysis_card_bounded(fixture_id)
+            elif row.get("_dashboard_source") == "future_fixture_payload":
+                item = self._fixture_payload_by_id(fixture_id)
+                if item is not None:
+                    analysis = self._analysis_card_from_provider_payload(fixture_id, item)
+            else:
+                analysis = self.analysis_card(fixture_id)
         card = analysis or self._fallback_analysis_card(
             fixture_id=fixture_id or "unknown-fixture",
             market_coverage={},
@@ -5477,6 +5553,13 @@ class ReadModelService:
             "market_divergence": card.get("market_divergence", {}),
             "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),
+            "quote_identity_audit": card.get("quote_identity_audit", {}),
+            "frozen_artifact_provenance": card.get("frozen_artifact_provenance"),
+            "artifact_hash": (
+                cast(dict[str, Any], card["frozen_artifact_provenance"]).get("artifact_hash")
+                if isinstance(card.get("frozen_artifact_provenance"), dict)
+                else None
+            ),
             "missing_inputs": self._missing_inputs_from_analysis_card(card),
             "candidate": bool(recommendation.get("candidate")) if recommendation else False,
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
