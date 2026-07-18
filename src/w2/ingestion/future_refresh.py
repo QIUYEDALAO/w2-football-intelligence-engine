@@ -6,6 +6,7 @@ import json
 import os
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1557,6 +1558,7 @@ def run_future_refresh_task(
     provider_refresh_min_interval_seconds: int | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
+    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -1635,6 +1637,14 @@ def run_future_refresh_task(
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
         )
+        materialized_fixture_ids: list[str] = []
+        if (
+            refresh_checkpoints
+            and result.ledger_appended_count > 0
+            and (resolved_persistence == "db" or materialize_public_artifacts is not None)
+        ):
+            materializer = materialize_public_artifacts or materialize_refreshed_public_artifacts
+            materialized_fixture_ids = materializer(result.selected_market_fixture_ids)
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
             "fixture_count": result.fixture_count,
@@ -1649,6 +1659,7 @@ def run_future_refresh_task(
             "formal_recommendation": False,
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": list(refresh_checkpoints),
+            "materialized_fixture_ids": materialized_fixture_ids,
         }
     except Exception as exc:
         summary = {
@@ -1682,6 +1693,34 @@ def run_future_refresh_task(
     )
     write_task_audit(root, audit, persistence=persistence)
     return audit
+
+
+def materialize_refreshed_public_artifacts(fixture_ids: list[str]) -> list[str]:
+    from w2.api.frozen_analysis import (
+        AnalysisCardCanaryMaterializer,
+        write_frozen_analysis_artifacts,
+    )
+    from w2.api.repository import ReadModelRepository
+    from w2.infrastructure.database import create_engine
+
+    ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+    if not ids:
+        return []
+    repository = ReadModelRepository()
+    materializer = AnalysisCardCanaryMaterializer(repository)
+    artifacts = []
+    for fixture_id in ids:
+        observations = repository.future_market_observations_for_fixtures([fixture_id])
+        captured_at = [
+            parsed
+            for row in observations
+            if (parsed := parse_utc(row.get("captured_at"))) is not None
+        ]
+        if not captured_at:
+            raise FutureRefreshError(f"PUBLIC_ARTIFACT_CAPTURE_MISSING:{fixture_id}")
+        artifacts.append(materializer.build(fixture_id, evaluated_at=max(captured_at)))
+    write_frozen_analysis_artifacts(create_engine(), artifacts)
+    return ids
 
 
 def write_task_audit(

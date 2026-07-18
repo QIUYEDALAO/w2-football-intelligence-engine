@@ -1100,5 +1100,38 @@ def test_future_refresh_task_writes_audit_and_blocks_duplicate_bucket(tmp_path: 
     assert existing.release()
 
 
+def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
+    tmp_path: Path,
+) -> None:
+    materialized: list[list[str]] = []
+    checkpoint = {
+        "fixture_id": "1489404",
+        "checkpoint": "T1_LINEUPS",
+        "kickoff_utc": "2026-06-23T17:00:00Z",
+        "due_at": "2026-06-23T16:00:00Z",
+        "endpoints": ["odds"],
+        "source": "scheduled",
+    }
+
+    audit = run_future_refresh_task(
+        task_id="task-materialize",
+        key="checkpoint-refresh:test:materialize",
+        queued_at=NOW,
+        runtime_root=tmp_path,
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="file",
+        checkpoint_fixture_ids=("1489404",),
+        refresh_checkpoints=(checkpoint,),
+        materialize_public_artifacts=lambda fixture_ids: (
+            materialized.append(fixture_ids) or fixture_ids
+        ),
+    )
+
+    assert audit.status == "COMPLETED"
+    assert materialized == [["1489404"]]
+    assert audit.result["materialized_fixture_ids"] == ["1489404"]
+
+
 def test_future_refresh_error_type_is_runtime_error() -> None:
     assert issubclass(FutureRefreshError, RuntimeError)
