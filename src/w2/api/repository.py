@@ -931,6 +931,7 @@ class ReadModelService:
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
         ] = {}
         self._bounded_public_request = False
+        self._analysis_evaluation_time_override: datetime | None = None
 
     def _reset_read_caches(self) -> None:
         self._fixture_payloads_cache = None
@@ -1718,10 +1719,19 @@ class ReadModelService:
             return self._analysis_card_from_provider_payload(fixture_id, item)
         return None
 
-    def public_analysis_card_bounded(self, fixture_id: str) -> dict[str, Any] | None:
+    def public_analysis_card_bounded(
+        self,
+        fixture_id: str,
+        *,
+        evaluation_time: datetime | None = None,
+    ) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
         request_service = ReadModelService(repository=self.repository)
         request_service._bounded_public_request = True
+        if evaluation_time is not None:
+            if evaluation_time.tzinfo is None:
+                raise ValueError("analysis-card evaluation_time must be timezone-aware")
+            request_service._analysis_evaluation_time_override = evaluation_time.astimezone(UTC)
         reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
         if not callable(reader):
             return request_service._bounded_analysis_card_failure(
@@ -1952,7 +1962,7 @@ class ReadModelService:
             home_team_id=home_id,
             away_team_id=away_id,
             kickoff_at=kickoff,
-            as_of=min(datetime.now(UTC), kickoff),
+            as_of=min(self._analysis_evaluation_time_override or datetime.now(UTC), kickoff),
             stage_id="group",
         )
         snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
