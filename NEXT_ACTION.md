@@ -2,20 +2,20 @@
 
 ## Current gate
 
-R0.6 is **PASS**. The authorized next phase is R1.
+R1 is `implemented`; checkpoints R1.1–R1.4 are `locally_verified` and R1.5 is
+awaiting the phase-wide local gates. R1 is not yet `staging_accepted`.
 
 ## Next implementation
 
-R0.6 passed local, isolated and direct staging acceptance at
-`1d582f1a51370abcb69d3732c2366f28cc80102d`. All public surfaces now use one
-bounded frozen authority. Verified artifacts preserve baseline product semantics;
-missing artifacts fail closed without pick, odds, recommendation or lock. Public
-Dashboard startup and requests have zero global/provider/model/rebuild calls.
+Run the phase-wide R1 Gate: Python, Ruff, Mypy, TypeScript, Web production build,
+Playwright, acceptance, tracked-output, credential scan, diff check, isolated
+staging-parity and predeploy-e2e. R1 has no database migration, so migration
+upgrade/downgrade/upgrade is `NOT_APPLICABLE`.
 
-Implement R1 in a separate branch, in checkpoint order: shared bounded metrics
-registry, machine-readable release evidence, fail-closed runtime degradation,
-Playwright Web contracts, then four-level documentation state. Complete all local
-and isolated gates before one staging release-candidate canary.
+If every local and isolated Gate passes, freeze formal staging, stop scheduler,
+deploy the exact local R1 candidate once, run runtime/product canaries and restore
+the scheduler/watchdog state. Any hard failure rolls back to the accepted R0.6
+release. Only a successful canary may change R1 to `staging_accepted` and authorize R2.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.

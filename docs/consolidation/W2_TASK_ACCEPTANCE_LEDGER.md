@@ -351,3 +351,13 @@
 - 回填幂等:同一 fixture/market/selection/settled_side 重跑不会重复写;无 FT 赛果不产 outcome;线或价格缺失写 `VOID` + `void_reason`。
 - staging 调度开关已预置:`W2_FORWARD_OUTCOME_BACKFILL_ENABLED` 默认代码为 false,staging compose 显式 true,间隔默认 `3600s`;production 不启用。
 - 下一步队列保持不变:FIX-C(锚定阈值 0.25 线差单位 + devig POWER 统一) -> FIX-D(R4.1b champion model_family 接线)。
+
+### 2026-07-18 · R1 本地检查点（正式 staging canary 前）
+
+- 状态统一为 `implemented / locally_verified / staging_accepted / production_approved`；
+  旧 PR #333–#347 只作需求与失败案例线索，不代表当前树已合入或通过。
+- R1.1–R1.4 已 `locally_verified`：共享有界指标、机器发布证据、fail-closed
+  runtime degradation、Chromium 五态 Web 合约均通过专项与各检查点全量门。
+- R1.5 为 `implemented`。R1 尚未 `staging_accepted`，不得进入 R2；下一步是
+  R1 全阶段本地/隔离 Gate，通过后只做一次 formal staging canary。
+- GitHub、champion、RECOMMEND/lock、OFFICIAL 与 production 均未变更。

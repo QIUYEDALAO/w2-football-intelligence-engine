@@ -1,6 +1,11 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T09:17:45Z"
+updated_at: "2026-07-18T11:55:00Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
+delivery_status_vocabulary:
+  - implemented
+  - locally_verified
+  - staging_accepted
+  - production_approved
 
 context_read_order:
   - PROJECT_STATE.yaml
@@ -17,6 +22,7 @@ context_read_order:
   - docs/operations/W2_R0_4_STAGING_CANARY_20260718.md
   - docs/operations/W2_R0_5_STAGING_CANARY_20260718.md
   - docs/operations/W2_R0_6_STAGING_CANARY_20260718.md
+  - docs/operations/W2_DELIVERY_STATUS_LEVELS.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
@@ -31,15 +37,22 @@ repository:
   tree_sha: c3294f2d9072352356a890c7038698d3cabdfa61
   baseline_reason: Restore pre-GPT-5.6 expert review baseline
   historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
-  prohibited_bulk_restore_range: "#333-#346"
+  prohibited_bulk_restore_range: "#333-#347"
+  local_r1_candidate_checkpoint_sha: e8a29b28cd2369cda34b5c5b0a11ef98b9829127
 
 current_phase:
-  id: R0.6
-  name: frozen_public_cutover
-  status: PASS
-  next_phase: R1
-  next_phase_gate: AUTHORIZED_BY_FULL_PLAN
+  id: R1
+  name: reliability_release_evidence_web_contract
+  status: implemented
+  next_phase: R2
+  next_phase_gate: REQUIRES_R1_LOCAL_GATES_AND_STAGING_ACCEPTANCE
   blocker: null
+  checkpoints:
+    R1.1_metrics: locally_verified
+    R1.2_release_evidence: locally_verified
+    R1.3_runtime_degradation: locally_verified
+    R1.4_web_e2e: locally_verified
+    R1.5_documentation_state: implemented
 
 staging:
   deployed_sha: 1d582f1a51370abcb69d3732c2366f28cc80102d
@@ -74,10 +87,7 @@ current_tree_ci:
   predeploy_e2e: PASS
   historical_test_counts_reusable: false
 
-confirmed_open_boundaries:
-  - METRICS_SINK_AND_EXPORTER_DISCONNECTED
-  - RELEASE_EVIDENCE_NOT_YET_MACHINE_READABLE
-  - WEB_E2E_NOT_YET_IMPLEMENTED
+confirmed_open_boundaries: []
 
 phase_order:
   - R0.0

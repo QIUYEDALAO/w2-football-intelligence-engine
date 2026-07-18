@@ -201,6 +201,25 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.6 Staging Canary](docs/operations/W2_R0_6_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R1 local checkpoints before phase canary
+
+- R1.1 `locally_verified`: API metrics and `/metrics` share a thread-safe process
+  registry; fixed-bucket histograms retain no samples. Route/status/readiness,
+  provider/model, checkpoint, tripwire and materializer metrics are exposed.
+- R1.2 `locally_verified`: `/v1/version` exposes local SHA, release/image digest
+  availability, Alembic current/head and readiness artifact hashes. Release Gate
+  manifests hash their evidence and are written atomically.
+- R1.3 `locally_verified`: retries and response cache are bounded; observation
+  batches fail without partial writes; runtime evidence fails on queue, restart,
+  OOM, exit137, service state, RSS or checkpoint-lag anomalies.
+- R1.4 `locally_verified`: Chromium covers READY, STALE, BLOCKED, INCOMPLETE and
+  checkpoint-missing Dashboard/DayView/analysis-card contracts. Non-ready Web
+  projection clears residual pick, current odds, recommendation and lock fields.
+- R1.5 `implemented`: the four delivery states are now explicit. This entry is not
+  staging acceptance. R1 phase-wide gates and its single canary remain pending.
+- No GitHub synchronization, champion switch, RECOMMEND/lock enable, OFFICIAL or
+  production action occurred.
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

@@ -3,13 +3,12 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
-Progress: R0.0 through R0.4 are accepted by local-direct staging evidence.
-R0.1a–R0.2 closed quote identity/freshness, non-ready no-pick and canonical
-readiness. R0.3 removed public global observation/raw/history reads. R0.4 added
-deterministic three-fixture canary sidecars. The next authorized phase is R0.5
-frozen analysis-card canary reads.
+Progress: R0.0 through R0.6 are `staging_accepted` by local-direct evidence.
+R1.1–R1.4 are `locally_verified`; R1.5 is `implemented`. R1 still requires its
+phase-wide local/isolated gates and single formal staging canary before it can be
+called `staging_accepted` or authorize R2.
 
-This plan supersedes recovery-era implementation sequencing. PRs #333–#346 are
+This plan supersedes recovery-era implementation sequencing. PRs #333–#347 are
 specification and failure-case inputs only; they are not a backlog to restore.
 
 ## Ordered gates
