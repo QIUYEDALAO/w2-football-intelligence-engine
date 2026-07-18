@@ -50,6 +50,7 @@ from w2.api.schemas import (
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.monitoring.health import HealthPayload, build_health_payload
+from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -81,9 +82,13 @@ def public_health() -> HealthPayload:
     return build_health_payload()
 
 
-@public_router.get("/ready", response_model=HealthPayload)
-def public_ready() -> HealthPayload:
-    return build_health_payload()
+@public_router.get("/ready", response_model=ReadinessPayload)
+def public_ready(response: Response) -> ReadinessPayload:
+    payload = build_readiness_payload()
+    response.status_code = 200 if payload.status == "READY" else 503
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</ready>; rel="canonical"'
+    return payload
 
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:

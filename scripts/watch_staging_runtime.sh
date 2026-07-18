@@ -20,7 +20,6 @@ probe() {
 }
 
 failures=0
-probe health http://127.0.0.1:18000/health || failures=$((failures + 1))
 probe ready http://127.0.0.1:18000/ready || failures=$((failures + 1))
 probe version http://127.0.0.1:18000/v1/version || failures=$((failures + 1))
 probe web_meta http://127.0.0.1/meta.json || failures=$((failures + 1))

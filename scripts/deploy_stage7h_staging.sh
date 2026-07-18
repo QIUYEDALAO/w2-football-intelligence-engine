@@ -170,16 +170,14 @@ sudo systemctl restart w2-staging.service
 sudo systemctl start w2-staging-watchdog.timer
 for attempt in 1 2 3 4 5 6; do
   echo \"stability_probe_attempt=\${attempt}\"
-  health=false
   ready=false
   version=false
   meta=false
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json && health=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json && meta=true || true
-  echo \"health=\${health} ready=\${ready} version=\${version} meta=\${meta}\"
-  if [ \"\${health}\" = true ] && [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
+  echo \"ready=\${ready} version=\${version} meta=\${meta}\"
+  if [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
     echo 'stability_probe=PASS'
     exit 0
   fi

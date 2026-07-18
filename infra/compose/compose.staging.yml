@@ -142,6 +142,7 @@ services:
       W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
+      W2_READINESS_RELEASE_ROOT: /app
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
     depends_on:
       postgres:
@@ -149,7 +150,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); assert r.status==200"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5); assert r.status==200"]
       interval: 15s
       timeout: 5s
       retries: 5

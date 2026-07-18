@@ -1,0 +1,20 @@
+{
+  "schema_version": "w2.readiness.manifest.v1",
+  "required_artifacts": [
+    {
+      "path": "config/policies/future_fixture_refresh.v1.json",
+      "sha256": "2c5b0a6cd3c81431120cb5530e356c979c495843a14db335ce31785b2710bc82",
+      "required": true
+    },
+    {
+      "path": "config/policies/research_grade.v1.json",
+      "sha256": "6fcec87fada21f93e016769b0049faf894e512f5e649ff444bc7e0c2b427fcfb",
+      "required": true
+    },
+    {
+      "path": "config/environments/staging.yaml",
+      "sha256": "2897f063ed49f380771016d3b975aee892ed68bd0a8dcb64137bbe27ff229d04",
+      "required": true
+    }
+  ]
+}

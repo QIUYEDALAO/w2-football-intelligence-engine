@@ -75,12 +75,24 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "w2-staging-watchdog.timer" in text
     assert "W2_STAGING_START_AFTER_DEPLOY" in text
     assert "stability_probe=PASS" in text
-    assert "http://127.0.0.1:18000/health" in text
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1/meta.json" in text
     assert "docker builder prune -f" in text
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
+
+
+def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    api_healthcheck = " ".join(
+        str(item) for item in compose["services"]["api"]["healthcheck"]["test"]
+    )
+    assert "http://127.0.0.1:8000/ready" in api_healthcheck
+    assert "/health" not in api_healthcheck
+    for path in (DEPLOY, RECOVER, WATCH):
+        text = read(path)
+        assert "http://127.0.0.1:18000/ready" in text
+        assert "http://127.0.0.1:18000/health" not in text
 
 
 def test_deploy_makes_shared_runtime_writable_for_staging_runtime_tasks() -> None:
