@@ -1,0 +1,89 @@
+schema_version: w2.project_state.v3
+updated_at: "2026-07-18T02:39:49Z"
+authority: CURRENT_MAIN_RECOVERY_BASELINE
+
+context_read_order:
+  - PROJECT_STATE.yaml
+  - PROJECT_LEDGER.md
+  - NEXT_ACTION.md
+  - docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md
+  - docs/operations/W2_R0_0_BASELINE_FREEZE_20260718.md
+  - docs/consolidation/W2_DECISION_CONTRACT_V2.md
+  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+
+repository:
+  remote: QIUYEDALAO/w2-football-intelligence-engine
+  main_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
+  tree_sha: 31eae0ba07361eb7ad195afccc985784f868c5c7
+  baseline_reason: Restore pre-GPT-5.6 expert review baseline
+  historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
+  prohibited_bulk_restore_range: "#333-#346"
+
+current_phase:
+  id: R0.0
+  name: baseline_evidence_freeze
+  status: IN_REVIEW
+  next_phase: R0.1a
+  next_phase_gate: R0.0_PR_MERGED_AND_CI_PASS
+
+staging:
+  deployed_sha: b5cfd6575ba7274692714c9fc814916a00c13e36
+  deployed_tree_sha: 31eae0ba07361eb7ad195afccc985784f868c5c7
+  tree_matches_main: true
+  health_http_status: 200
+  weak_ready_http_status: 200
+  service_health: healthy
+  restart_count: 0
+  oom_killed: false
+  redis_queue_length: 0
+  production_deployed: false
+
+safety_switches:
+  recommend_enabled: false
+  candidate_enabled: false
+  formal_recommendation_enabled: false
+  production_release: false
+  lock_count: 0
+  official_enabled: false
+  xg_backfill_enabled: false
+
+current_tree_ci:
+  push_run_id: 29618114633
+  pr_347_run_id: 29617918571
+  verify: PASS
+  staging_parity: PASS
+  predeploy_e2e: PASS
+  historical_test_counts_reusable: false
+
+confirmed_open_boundaries:
+  - WEAK_READINESS_SURFACES
+  - PUBLIC_ANALYSIS_CARD_READ_TIME_REBUILD
+  - QUOTE_IDENTITY_AND_FRESHNESS_NOT_DOMAIN_HARD_GATES
+  - METRICS_SINK_AND_EXPORTER_DISCONNECTED
+  - PUBLIC_READS_INCLUDE_UNBOUNDED_GLOBAL_FALLBACKS
+
+phase_order:
+  - R0.0
+  - R0.1a
+  - R0.1b
+  - R0.1c
+  - R0.2
+  - R0.3
+  - R0.4
+  - R0.5
+  - R0.6
+  - R1
+  - R2
+  - R3
+  - R4
+
+blocked_until_r0_0_through_r0_3_pass:
+  - bulk_restore_pr_333_through_346
+  - T6_through_T15_expansion
+  - frozen_l2
+  - model_champion_switch
+  - recommend
+  - lock
+  - official
+  - production
+
