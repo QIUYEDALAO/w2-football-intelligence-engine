@@ -234,6 +234,26 @@ test("pre-refresh stale odds are shown as a scheduled wait, not a pipeline fault
   await expect(page.locator(".health-strip")).not.toContainText("部分数据需处理");
 });
 
+test("enabled leagues and club teams render localized Chinese names", async ({ page }) => {
+  await installRoutes(page, "STALE", 1, true);
+  await page.route("**/v1/dashboard/day-view?**", async (route) => {
+    const payload = dayView("STALE");
+    payload.cards[0].competition_name = "Allsvenskan · Regular Season - 13";
+    payload.cards[0].home_team_name = "IF Elfsborg";
+    payload.cards[0].away_team_name = "Sirius";
+    payload.cards[0].kickoff_utc = "2026-07-19T14:30:00Z";
+    payload.cards[0].next_eval_at = "2026-07-19T08:30:00Z";
+    await json(route, payload);
+  });
+  await page.goto("/");
+
+  const row = page.locator("article.decision-row").filter({ hasText: "埃尔夫斯堡 vs 天狼星" });
+  await expect(row).toContainText("瑞典超");
+  await expect(row).toContainText("22:30");
+  await expect(row).not.toContainText("IF Elfsborg");
+  await expect(row).not.toContainText("Allsvenskan");
+});
+
 for (const scenario of ["STALE", "BLOCKED", "INCOMPLETE", "CHECKPOINT_MISSING"] as const) {
   test(`${scenario} never renders current odds, pick, or recommendation`, async ({ page }) => {
     await installRoutes(page, scenario);
