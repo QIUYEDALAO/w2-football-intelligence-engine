@@ -3,10 +3,9 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
-Progress: R0.0 through R0.6 are `staging_accepted` by local-direct evidence.
-R1.1–R1.4 are `locally_verified`; R1.5 is `implemented`. R1 still requires its
-phase-wide local/isolated gates and single formal staging canary before it can be
-called `staging_accepted` or authorize R2.
+Progress: R0.0 through R1 are `staging_accepted` by local-direct evidence.
+R2 is authorized for deterministic offline implementation only; it cannot change
+the champion or enable RECOMMEND/lock, OFFICIAL or production.
 
 This plan supersedes recovery-era implementation sequencing. PRs #333–#347 are
 specification and failure-case inputs only; they are not a backlog to restore.

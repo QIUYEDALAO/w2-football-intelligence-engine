@@ -361,3 +361,15 @@
 - R1.5 为 `implemented`。R1 尚未 `staging_accepted`，不得进入 R2；下一步是
   R1 全阶段本地/隔离 Gate，通过后只做一次 formal staging canary。
 - GitHub、champion、RECOMMEND/lock、OFFICIAL 与 production 均未变更。
+
+### 2026-07-18 · R1 正式 staging 验收
+
+- R1 exact candidate `103813d7e8ea422756472cb9b4369e3c80876d09` 已完成本地、
+  隔离 predeploy/parity 与正式 staging canary，状态升级为 `staging_accepted`。
+- 产品 projection hash、provider/业务表/checkpoint/ledger/lock/queue 均保持不变；
+  四服务健康且 restart/OOM/exit137 为 0，scheduler/watchdog 已恢复 active。
+- canary 中发现并修复镜像身份查询与 stopped scheduler RSS 采集缺陷；旧 OCI index
+  丢失事实已写入正式证据，后续部署会在移动 fixed tag 前保留 revision-scoped
+  rollback tags。
+- `next_phase=R2`，只授权离线确定性模型修正；不自动替换 champion，不开放
+  RECOMMEND/lock、OFFICIAL 或 production。

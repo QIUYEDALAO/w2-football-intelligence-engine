@@ -220,6 +220,28 @@ Detailed canary evidence:
 - No GitHub synchronization, champion switch, RECOMMEND/lock enable, OFFICIAL or
   production action occurred.
 
+## 2026-07-18 — R1 staging acceptance
+
+- Exact local candidate `103813d7e8ea422756472cb9b4369e3c80876d09` passed
+  `1150 passed / 4 skipped`, Ruff, Mypy, Web typecheck/build, five Chromium E2E
+  cases, acceptance/guards, exact-candidate isolated predeploy and parity.
+- Formal staging proved exact API/Web release identity, matching Alembic and
+  readiness artifacts, shared bounded metrics, stopped/running scheduler runtime
+  evidence and byte-identical product projection hash `18647c8de4838fb3…`.
+- Provider/business/checkpoint/ledger/lock/queue counts had zero canary delta.
+  Four services finished healthy with restart/OOM/exit137 zero; scheduler and
+  watchdog returned active.
+- Two hard failures were rolled back and fixed before acceptance: stale-container
+  image enumeration and stopped-scheduler RSS collection. The second rollback
+  could restore the R0.6 source/config but not its original BuildKit index IDs;
+  that identity loss is recorded in the canary report. Revision-scoped rollback
+  tags are now retained and verified before fixed tags move.
+- R1 is `staging_accepted`; `next_phase=R2`. GitHub, champion, thresholds,
+  league scope, RECOMMEND/lock, OFFICIAL and production remain unchanged.
+
+Detailed evidence:
+[W2 R1 Staging Canary](docs/operations/W2_R1_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
