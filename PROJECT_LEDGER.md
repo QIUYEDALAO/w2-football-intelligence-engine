@@ -84,6 +84,24 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.1b Staging Canary](docs/operations/W2_R0_1B_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.1c non-READY no-pick invariant
+
+- Local SHA `58ca49793f2011148e5bfc7d2f1ac5c9062ffbf8` established one final
+  Decision Contract postcondition and made DayView, public analysis-card and
+  tracking project it without restoring legacy picks.
+- Final local validation reported `1097 passed, 4 skipped`; static, Web,
+  acceptance, migration and isolated predeploy gates passed.
+- Staging contained 10 WATCH cards and one expected NOT_READY card. Every card
+  had zero pick, recommendation, executable odds, lock eligibility and outcome
+  tracking. The public analysis-card projected the same semantics.
+- Provider, observation, queue and lock counts did not change. API RSS was
+  268.1 MiB; all services remained restart zero/OOM false and scheduler/watchdog
+  state was restored.
+- R0.1c is PASS. R0.2 is now authorized.
+
+Detailed canary evidence:
+[W2 R0.1c Staging Canary](docs/operations/W2_R0_1C_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

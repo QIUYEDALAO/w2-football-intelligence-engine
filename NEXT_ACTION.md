@@ -2,21 +2,20 @@
 
 ## Current gate
 
-Implement and accept **R0.1c non-READY no-pick invariant**.
+Implement and accept **R0.2 canonical readiness 503**.
 
 ## Next implementation
 
-R0.1b passed local gates and direct staging acceptance at
-`13183b3eabd9022cada47a76d01fa619648bd01f`. Authoritative observation time now
-drives a single freshness evaluator; stale and incomplete quotes retain audit
-identity but are excluded from current odds and pricing.
+R0.1c passed local gates and direct staging acceptance at
+`58ca49793f2011148e5bfc7d2f1ac5c9062ffbf8`. The canonical Decision Contract
+now guarantees that every non-ready surface has no pick, recommendation,
+executable odds, lock eligibility or outcome tracking.
 
-R0.1c must enforce one final Decision Contract postcondition. BLOCKED or
-INCOMPLETE/CONFLICT becomes NOT_READY; STALE/PARTIAL becomes WATCH; only READY
-with complete provenance may retain a pick tier. Every non-READY output must clear
-pick, recommendation, executable odds and recommendation ID, and must set lock and
-outcome tracking false. Invalid RECOMMEND prerequisites may not fall back to
-ANALYSIS_PICK.
+R0.2 must make `/health` pure liveness and make root `/ready` the canonical
+readiness surface. Critical DB, Redis, schema, artifact-manifest or core-mount
+failures must deterministically return 503. `/v1/ready` must share the exact body
+and status while adding deprecation and canonical Link headers. Runtime probes
+must use root `/ready`; fault injection stays isolated from staging dependencies.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.
