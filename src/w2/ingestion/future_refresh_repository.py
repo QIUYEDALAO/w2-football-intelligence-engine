@@ -104,18 +104,21 @@ class FutureRefreshDbRepository:
                 raise FutureRefreshPersistenceError("RAW_PAYLOAD_WRITE_FAILED") from exc
 
     def append_observations(self, observations: list[dict[str, Any]]) -> int:
-        appended = 0
-        with Session(self.engine) as session:
-            for row in observations:
-                session.add(self._observation_model(row))
-                try:
-                    session.commit()
-                    appended += 1
-                except IntegrityError:
-                    session.rollback()
-                except Exception as exc:
-                    session.rollback()
-                    raise FutureRefreshPersistenceError("OBSERVATION_WRITE_FAILED") from exc
+        try:
+            models = [self._observation_model(row) for row in observations]
+            appended = 0
+            with Session(self.engine) as session:
+                with session.begin():
+                    for model in models:
+                        try:
+                            with session.begin_nested():
+                                session.add(model)
+                                session.flush()
+                            appended += 1
+                        except IntegrityError:
+                            continue
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("OBSERVATION_WRITE_FAILED") from exc
         return appended
 
     def latest_market_observations(self) -> list[dict[str, Any]]:

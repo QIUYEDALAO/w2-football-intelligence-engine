@@ -8,6 +8,9 @@ class CircuitOpenError(RuntimeError):
     pass
 
 
+MAX_RETRY_ATTEMPTS = 5
+
+
 @dataclass
 class CircuitBreaker:
     failure_threshold: int
@@ -33,6 +36,12 @@ class RetryPolicy:
     max_attempts: int = 3
     base_delay_seconds: float = 0.1
     multiplier: float = 2.0
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.max_attempts <= MAX_RETRY_ATTEMPTS:
+            raise ValueError(f"max_attempts must be between 1 and {MAX_RETRY_ATTEMPTS}")
+        if self.base_delay_seconds < 0 or self.multiplier < 1:
+            raise ValueError("retry delays must be non-negative and non-decreasing")
 
     def delays(self) -> list[float]:
         return [

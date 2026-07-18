@@ -248,6 +248,7 @@ def _new_default_metric_registry() -> OperationalMetricRegistry:
         "w2_gate4_state",
         "w2_backup_freshness_seconds",
         "w2_readiness_status",
+        "w2_checkpoint_lag_seconds",
     ]:
         registry.gauge(name, 0)
     for name in [

@@ -162,6 +162,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
 
     assert loaded is not None
     assert loaded.canonical_bytes == artifact.canonical_bytes
+    assert registry.gauges["w2_checkpoint_lag_seconds"] >= 0
     assert registry.labelled_counters[hit_key] == hits_before + 1
     with Session(engine) as session:
         assert session.query(ReadModelCheckpointModel).count() == 1

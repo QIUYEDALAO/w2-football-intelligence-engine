@@ -788,6 +788,24 @@ def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
     assert "PROVIDER_HTTP_429" in audit
 
 
+def test_future_refresh_caps_configured_provider_retries(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "999")
+    client = FakeApiFootballClient(status_code=429)
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.request_count == 3
+    assert len(client.calls) == 3
+
+
 def test_future_refresh_daily_hard_cap_blocks_before_provider_call(
     tmp_path: Path,
     monkeypatch,

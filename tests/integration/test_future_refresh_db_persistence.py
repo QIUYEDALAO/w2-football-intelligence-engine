@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -24,10 +25,36 @@ from w2.infrastructure.persistence.ingestion_models import (
     QuotaUsageModel,
 )
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
-from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+def observation_row(observation_id: str) -> dict[str, Any]:
+    return {
+        "observation_id": observation_id,
+        "fixture_id": "fixture",
+        "provider": "test",
+        "bookmaker_id": "book",
+        "bookmaker_name": "Book",
+        "provider_bet_id": "1",
+        "raw_market_label": "Over/Under",
+        "canonical_market": "TOTALS",
+        "selection": "Over",
+        "line": "2.5",
+        "decimal_odds": "1.91",
+        "suspended": False,
+        "live": False,
+        "provider_last_update": NOW.isoformat(),
+        "captured_at": NOW.isoformat(),
+        "ingested_at": NOW.isoformat(),
+        "raw_payload_sha256": "a" * 64,
+        "source_revision": "test",
+    }
 
 
 class FakeApiFootballClient:
@@ -182,6 +209,23 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         assert observation is not None
         assert observation.candidate is False
         assert observation.formal_recommendation is False
+
+
+def test_observation_batch_validation_failure_writes_no_partial_rows(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    invalid = observation_row("invalid")
+    invalid.pop("decimal_odds")
+
+    with pytest.raises(FutureRefreshPersistenceError, match="OBSERVATION_WRITE_FAILED"):
+        repository.append_observations([observation_row("valid"), invalid])
+
+    with Session(repository.engine) as session:
+        count = session.scalar(select(func.count()).select_from(FutureMarketObservationModel))
+    assert count == 0
 
 
 def test_db_persistence_allows_retry_after_blocked_task_key(

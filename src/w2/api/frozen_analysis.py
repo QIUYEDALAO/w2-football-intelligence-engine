@@ -309,6 +309,13 @@ def read_frozen_analysis_artifact(
             "w2_checkpoint_reads_total", labels={"status": "MISS"}
         )
         return None
+    created_at = row.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    default_metric_registry().gauge(
+        "w2_checkpoint_lag_seconds",
+        max(0.0, (datetime.now(UTC) - created_at).total_seconds()),
+    )
     try:
         artifact = validate_frozen_analysis_payload(fixture_id, row.payload)
         if row.source_hash != artifact.source_hash:

@@ -68,6 +68,8 @@ def test_retry_backoff_and_circuit_breaker() -> None:
         call_with_retry(lambda: (_ for _ in ()).throw(TimeoutError()), RetryPolicy(), breaker)
     with pytest.raises(CircuitOpenError):
         breaker.before_call()
+    with pytest.raises(ValueError, match="max_attempts"):
+        RetryPolicy(max_attempts=1000)
 
 
 def test_raw_payload_hash_and_append_only_idempotency() -> None:

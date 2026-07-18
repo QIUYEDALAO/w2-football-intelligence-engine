@@ -26,6 +26,7 @@ from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
     provider_endpoint_allowlist,
+    provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
 )
 from w2.providers.quota import (
@@ -812,7 +813,7 @@ class FutureFixtureRefreshService:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
-        max_attempts = max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1)
+        max_attempts = provider_http_max_attempts()
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
