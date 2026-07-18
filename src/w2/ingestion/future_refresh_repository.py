@@ -138,7 +138,7 @@ class FutureRefreshDbRepository:
         fixture_ids: list[str],
     ) -> list[dict[str, Any]]:
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
-        if not ids:
+        if not ids or len(ids) > 64:
             return []
         partition = (
             FutureMarketObservationModel.fixture_id,
@@ -177,6 +177,7 @@ class FutureRefreshDbRepository:
                         FutureMarketObservationModel.bookmaker_id,
                         FutureMarketObservationModel.selection,
                     )
+                    .limit(len(ids) * 256)
                 )
             )
         return self._latest_observation_dicts(rows)
@@ -235,6 +236,71 @@ class FutureRefreshDbRepository:
                     fixtures[fixture_id] = item
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
+    def fixture_payload(self, fixture_id: str, *, payload_limit: int = 32) -> dict[str, Any] | None:
+        """Find one fixture without scanning the complete raw-payload history."""
+        bounded_limit = max(0, min(int(payload_limit), 128))
+        if not fixture_id or bounded_limit == 0:
+            return None
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == "fixtures")
+                    .order_by(RawPayloadModel.captured_at.desc())
+                    .limit(bounded_limit)
+                )
+            )
+        for row in rows:
+            response = row.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for item in response[:256]:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("fixture", {}).get("id") or "") == fixture_id:
+                    return item
+        return None
+
+    def fixture_payloads_bounded(
+        self,
+        *,
+        payload_limit: int = 32,
+        item_limit: int = 512,
+    ) -> list[dict[str, Any]]:
+        bounded_payloads = max(0, min(int(payload_limit), 128))
+        bounded_items = max(0, min(int(item_limit), 1024))
+        if bounded_payloads == 0 or bounded_items == 0:
+            return []
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == "fixtures")
+                    .order_by(RawPayloadModel.captured_at.desc())
+                    .limit(bounded_payloads)
+                )
+            )
+        fixtures: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            response = row.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for item in response[:bounded_items]:
+                if not isinstance(item, dict):
+                    continue
+                fixture_id = str(item.get("fixture", {}).get("id") or "")
+                if fixture_id and fixture_id not in fixtures:
+                    fixtures[fixture_id] = item
+                if len(fixtures) >= bounded_items:
+                    return sorted(
+                        fixtures.values(),
+                        key=lambda value: value.get("fixture", {}).get("date", ""),
+                    )
+        return sorted(
+            fixtures.values(),
+            key=lambda value: value.get("fixture", {}).get("date", ""),
+        )
+
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         with Session(self.engine) as session:
             rows = list(
@@ -253,6 +319,56 @@ class FutureRefreshDbRepository:
             }
             for row in rows
         ]
+
+    def raw_payloads_for_scope(
+        self,
+        endpoint: str,
+        *,
+        fixture_id: str | None = None,
+        team_ids: list[str] | None = None,
+        limit: int = 32,
+    ) -> list[dict[str, Any]]:
+        """Return a bounded set of raw payloads relevant to one public request."""
+        bounded_limit = max(0, min(int(limit), 128))
+        if bounded_limit == 0 or (fixture_id is None and not team_ids):
+            return []
+        wanted_teams = {str(team_id) for team_id in team_ids or [] if str(team_id)}
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == endpoint)
+                    .order_by(RawPayloadModel.captured_at.desc())
+                    .limit(bounded_limit)
+                )
+            )
+        scoped: list[dict[str, Any]] = []
+        for row in rows:
+            payload = dict(row.payload)
+            parameters = payload.get("parameters")
+            parameters = parameters if isinstance(parameters, dict) else {}
+            parameter_fixture = str(parameters.get("fixture") or "")
+            parameter_team = str(parameters.get("team") or "")
+            parameter_h2h = {
+                value
+                for value in str(parameters.get("h2h") or "").replace("-", "_").split("_")
+                if value
+            }
+            fixture_match = fixture_id is not None and parameter_fixture == fixture_id
+            team_match = bool(wanted_teams) and (
+                parameter_team in wanted_teams or wanted_teams <= parameter_h2h
+            )
+            if not fixture_match and not team_match:
+                continue
+            scoped.append(
+                {
+                    "sha256": row.sha256,
+                    "endpoint": row.endpoint,
+                    "captured_at": iso_z(row.captured_at),
+                    "payload": payload,
+                }
+            )
+        return scoped
 
     def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
         upserted = 0
@@ -293,25 +409,64 @@ class FutureRefreshDbRepository:
                     )
                 )
             )
-        return [
-            {
-                "id": row.id,
-                "fixture_id": row.fixture_id,
-                "team_id": row.team_id,
-                "opponent_team_id": row.opponent_team_id,
-                "kickoff_at": iso_z(row.kickoff_at),
-                "captured_at": iso_z(row.captured_at),
-                "xg_for": row.xg_for,
-                "xg_against": row.xg_against,
-                "goals_for": row.goals_for,
-                "goals_against": row.goals_against,
-                "raw_payload_sha256": row.raw_payload_sha256,
-                "source_system": row.source_system,
-                "candidate": False,
-                "formal_recommendation": False,
-            }
-            for row in rows
-        ]
+        return [self._team_xg_match_dict(row) for row in rows]
+
+    def team_xg_matches_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        limit_per_team: int = 20,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        bounded_limit = max(0, min(int(limit_per_team), 50))
+        if not ids or bounded_limit == 0:
+            return []
+        ranked = (
+            select(
+                TeamXgMatchModel.id.label("id"),
+                func.row_number()
+                .over(
+                    partition_by=TeamXgMatchModel.team_id,
+                    order_by=TeamXgMatchModel.kickoff_at.desc(),
+                )
+                .label("rank"),
+            )
+            .where(
+                TeamXgMatchModel.team_id.in_(ids),
+                TeamXgMatchModel.kickoff_at < before,
+            )
+            .subquery()
+        )
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(TeamXgMatchModel)
+                    .join(ranked, TeamXgMatchModel.id == ranked.c.id)
+                    .where(ranked.c.rank <= bounded_limit)
+                    .order_by(TeamXgMatchModel.team_id, TeamXgMatchModel.kickoff_at)
+                )
+            )
+        return [self._team_xg_match_dict(row) for row in rows]
+
+    @staticmethod
+    def _team_xg_match_dict(row: TeamXgMatchModel) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "fixture_id": row.fixture_id,
+            "team_id": row.team_id,
+            "opponent_team_id": row.opponent_team_id,
+            "kickoff_at": iso_z(row.kickoff_at),
+            "captured_at": iso_z(row.captured_at),
+            "xg_for": row.xg_for,
+            "xg_against": row.xg_against,
+            "goals_for": row.goals_for,
+            "goals_against": row.goals_against,
+            "raw_payload_sha256": row.raw_payload_sha256,
+            "source_system": row.source_system,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
 
     def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
         upserted = 0
@@ -383,6 +538,16 @@ class FutureRefreshDbRepository:
 
     def market_snapshots(self) -> list[dict[str, Any]]:
         observations = self.latest_market_observations()
+        return self._market_snapshots_from_observations(observations)
+
+    def market_snapshots_for_fixture(self, fixture_id: str) -> list[dict[str, Any]]:
+        observations = self.latest_market_observations_for_fixtures([fixture_id])
+        return self._market_snapshots_from_observations(observations)
+
+    def _market_snapshots_from_observations(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         by_fixture: dict[str, list[dict[str, Any]]] = {}
         for row in observations:
             by_fixture.setdefault(str(row["fixture_id"]), []).append(row)

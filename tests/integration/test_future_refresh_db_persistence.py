@@ -378,6 +378,57 @@ def test_fixture_scoped_reader_ignores_large_unrelated_observation_population(
     assert {row["fixture_id"] for row in rows} == {"target"}
 
 
+def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    for index in range(40):
+        fixture_id = "target" if index == 39 else f"unrelated-{index}"
+        repository.save_raw_payload(
+            sha256=f"{index:064x}",
+            endpoint="lineups",
+            captured_at=NOW + timedelta(seconds=index),
+            payload={"parameters": {"fixture": fixture_id}, "response": []},
+        )
+    matches = []
+    for team_id in ("home", "away", "unrelated"):
+        for index in range(25):
+            matches.append(
+                {
+                    "id": f"{team_id}-{index}",
+                    "fixture_id": f"fixture-{team_id}-{index}",
+                    "team_id": team_id,
+                    "opponent_team_id": "opponent",
+                    "kickoff_at": NOW - timedelta(days=index + 1),
+                    "captured_at": NOW,
+                    "xg_for": 1.0,
+                    "xg_against": 1.0,
+                    "goals_for": 1,
+                    "goals_against": 1,
+                    "raw_payload_sha256": "a" * 64,
+                    "source_system": "test",
+                }
+            )
+    repository.upsert_team_xg_matches(matches)
+
+    raw = repository.raw_payloads_for_scope(
+        "lineups",
+        fixture_id="target",
+        limit=32,
+    )
+    xg = repository.team_xg_matches_for_teams(
+        ["home", "away"],
+        before=NOW + timedelta(days=1),
+        limit_per_team=20,
+    )
+
+    assert [row["payload"]["parameters"]["fixture"] for row in raw] == ["target"]
+    assert len(xg) == 40
+    assert {row["team_id"] for row in xg} == {"home", "away"}
+
+
 def test_request_count_since_includes_provider_request_logs(
     tmp_path: Path,
     monkeypatch: Any,

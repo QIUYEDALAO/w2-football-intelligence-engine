@@ -557,6 +557,90 @@ class ReadModelRepository:
             fixtures["stage10a-contract-fixture"] = self._contract_fixture_payload()
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
+    def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
+        dashboard = self.dashboard_fixture(fixture_id)
+        if dashboard is not None:
+            return self._dashboard_fixture_to_provider_payload(dashboard)
+        db_repository = future_refresh_db_repository()
+        reader = getattr(db_repository, "fixture_payload", None) if db_repository else None
+        if callable(reader):
+            try:
+                return cast(dict[str, Any] | None, reader(fixture_id, payload_limit=32))
+            except Exception:
+                return None
+        if db_repository is not None and get_settings().environment in {
+            Environment.LOCAL,
+            Environment.TEST,
+        }:
+            offline_reader = getattr(db_repository, "fixture_payloads", None)
+            if callable(offline_reader):
+                with suppress(Exception):
+                    return next(
+                        (
+                            item
+                            for item in offline_reader()
+                            if str(item.get("fixture", {}).get("id") or "") == fixture_id
+                        ),
+                        None,
+                    )
+        return None
+
+    def public_fixture_payloads(self, *, limit: int = 512) -> list[dict[str, Any]]:
+        bounded_limit = max(0, min(int(limit), 1024))
+        fixtures: dict[str, dict[str, Any]] = {}
+        for item in self.dashboard_latest_fixtures()[:bounded_limit]:
+            fixture_id = str(item.get("fixture_id") or "")
+            if fixture_id:
+                fixtures[fixture_id] = self._dashboard_fixture_to_provider_payload(item)
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "fixture_payloads_bounded", None)
+            if db_repository is not None
+            else None
+        )
+        if callable(reader):
+            with suppress(Exception):
+                for item in reader(payload_limit=32, item_limit=bounded_limit):
+                    fixture_id = str(item.get("fixture", {}).get("id") or "")
+                    if fixture_id:
+                        fixtures[fixture_id] = item
+        elif db_repository is not None and get_settings().environment in {
+            Environment.LOCAL,
+            Environment.TEST,
+        }:
+            offline_reader = getattr(db_repository, "fixture_payloads", None)
+            if callable(offline_reader):
+                with suppress(Exception):
+                    for item in offline_reader()[:bounded_limit]:
+                        fixture_id = str(item.get("fixture", {}).get("id") or "")
+                        if fixture_id:
+                            fixtures[fixture_id] = item
+        return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
+
+    def market_snapshots_for_fixture(self, fixture_id: str) -> list[dict[str, Any]]:
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "market_snapshots_for_fixture", None)
+            if db_repository is not None
+            else None
+        )
+        if callable(reader):
+            with suppress(Exception):
+                return cast(list[dict[str, Any]], reader(fixture_id))
+        if db_repository is not None and get_settings().environment in {
+            Environment.LOCAL,
+            Environment.TEST,
+        }:
+            offline_reader = getattr(db_repository, "market_snapshots", None)
+            if callable(offline_reader):
+                with suppress(Exception):
+                    return [
+                        row
+                        for row in offline_reader()
+                        if str(row.get("fixture_id") or "") == fixture_id
+                    ]
+        return []
+
     def forward_locks(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
 
@@ -588,11 +672,23 @@ class ReadModelRepository:
         self,
         fixture_ids: list[str],
     ) -> list[dict[str, Any]]:
+        fixture_ids = list(dict.fromkeys(fixture_id for fixture_id in fixture_ids if fixture_id))
+        if not fixture_ids or len(fixture_ids) > 64:
+            return []
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
             reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
             if callable(reader):
                 return cast(list[dict[str, Any]], reader(fixture_ids))
+            if get_settings().environment in {Environment.LOCAL, Environment.TEST}:
+                offline_reader = getattr(db_repository, "latest_market_observations", None)
+                if callable(offline_reader):
+                    allowed = set(fixture_ids)
+                    return [
+                        row
+                        for row in offline_reader()
+                        if str(row.get("fixture_id") or "") in allowed
+                    ]
         return []
 
     def result_events(self) -> list[dict[str, Any]]:
@@ -834,6 +930,7 @@ class ReadModelService:
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool], tuple[float, dict[str, Any]]
         ] = {}
+        self._bounded_public_request = False
 
     def _reset_read_caches(self) -> None:
         self._fixture_payloads_cache = None
@@ -853,13 +950,40 @@ class ReadModelService:
 
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
-            fixture_reader = getattr(self.repository, "fixture_payloads", None)
+            fixture_reader = getattr(
+                self.repository,
+                "public_fixture_payloads" if self._bounded_public_request else "fixture_payloads",
+                None,
+            )
+            if (
+                self._bounded_public_request
+                and not callable(fixture_reader)
+                and get_settings().environment in {Environment.LOCAL, Environment.TEST}
+            ):
+                fixture_reader = getattr(self.repository, "fixture_payloads", None)
+                self._fixture_payloads_cache = (
+                    fixture_reader()[:512] if callable(fixture_reader) else []
+                )
+                return self._fixture_payloads_cache
             self._fixture_payloads_cache = (
-                fixture_reader() if callable(fixture_reader) else []
+                fixture_reader(limit=512)
+                if self._bounded_public_request and callable(fixture_reader)
+                else fixture_reader()
+                if callable(fixture_reader)
+                else []
             )
         return self._fixture_payloads_cache
 
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
+        scoped_reader = getattr(self.repository, "fixture_payload", None)
+        if callable(scoped_reader):
+            scoped = scoped_reader(fixture_id)
+            if scoped is not None:
+                return cast(dict[str, Any], scoped)
+            if self._bounded_public_request:
+                return None
+        elif self._bounded_public_request:
+            return None
         if self._fixture_payload_index_cache is None:
             self._fixture_payload_index_cache = {}
             for item in self._cached_fixture_payloads():
@@ -870,11 +994,31 @@ class ReadModelService:
 
     def _cached_future_market_observations(self) -> list[dict[str, Any]]:
         if self._future_market_observations_cache is None:
+            if self._bounded_public_request:
+                return []
             observation_reader = getattr(self.repository, "future_market_observations", None)
             self._future_market_observations_cache = (
                 observation_reader() if callable(observation_reader) else []
             )
         return self._future_market_observations_cache
+
+    def public_dashboard(self, **kwargs: Any) -> dict[str, Any]:
+        request_service = ReadModelService(repository=self.repository)
+        request_service._bounded_public_request = True
+        request_service._dashboard_response_cache = self._dashboard_response_cache
+        return request_service.dashboard(**kwargs)
+
+    def public_dashboard_summary(self, **kwargs: Any) -> dict[str, Any]:
+        request_service = ReadModelService(repository=self.repository)
+        request_service._bounded_public_request = True
+        request_service._dashboard_response_cache = self._dashboard_response_cache
+        return request_service.dashboard_summary(**kwargs)
+
+    def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
+        request_service = ReadModelService(repository=self.repository)
+        request_service._bounded_public_request = True
+        request_service._dashboard_response_cache = self._dashboard_response_cache
+        return request_service.validation_summary(**kwargs)
 
     def _observations_for_fixture(self, fixture_id: str) -> list[dict[str, Any]]:
         if self._observations_by_fixture_cache is None:
@@ -890,9 +1034,50 @@ class ReadModelService:
         reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
         if not callable(reader):
             return
-        fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
-        self._future_market_observations_cache = reader(fixture_ids)
+        fixture_ids = list(
+            dict.fromkeys(str(row.get("fixture_id") or "") for row in rows if row.get("fixture_id"))
+        )
+        if not fixture_ids or len(fixture_ids) > 64:
+            self._future_market_observations_cache = []
+            self._observations_by_fixture_cache = {}
+            return
+        try:
+            observations = cast(list[dict[str, Any]], reader(fixture_ids))
+        except Exception:
+            self._future_market_observations_cache = []
+            self._observations_by_fixture_cache = {}
+            return
+        allowed = set(fixture_ids)
+        if any(str(row.get("fixture_id") or "") not in allowed for row in observations):
+            self._future_market_observations_cache = []
+            self._observations_by_fixture_cache = {}
+            return
+        self._future_market_observations_cache = observations
         self._observations_by_fixture_cache = None
+
+    def _fixture_observations_bounded(self, fixture_id: str) -> list[dict[str, Any]]:
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        if not callable(reader):
+            return []
+        try:
+            rows = cast(list[dict[str, Any]], reader([fixture_id]))
+        except Exception:
+            return []
+        if any(str(row.get("fixture_id") or "") != fixture_id for row in rows):
+            return []
+        return rows
+
+    def _market_snapshots_bounded(self, fixture_id: str) -> list[dict[str, Any]]:
+        reader = getattr(self.repository, "market_snapshots_for_fixture", None)
+        if not callable(reader):
+            return []
+        try:
+            rows = cast(list[dict[str, Any]], reader(fixture_id))
+        except Exception:
+            return []
+        if any(str(row.get("fixture_id") or "") != fixture_id for row in rows):
+            return []
+        return rows[:64]
 
     def _formal_snapshots_by_fixture(self) -> dict[str, list[dict[str, Any]]]:
         if self._formal_snapshots_by_fixture_cache is None:
@@ -1323,7 +1508,13 @@ class ReadModelService:
     ) -> tuple[list[dict[str, Any]], int]:
         rows = []
         is_dashboard: list[bool] = []
-        for item in self.repository.fixture_payloads():
+        public_reader = getattr(self.repository, "public_fixture_payloads", None)
+        payloads = (
+            cast(list[dict[str, Any]], public_reader(limit=512))
+            if callable(public_reader)
+            else self.repository.fixture_payloads()[:512]
+        )
+        for item in payloads:
             rows.append(self._fixture_summary(item, timezone))
             is_dashboard.append("_dashboard" in item)
         now = datetime.now(UTC)
@@ -1530,6 +1721,7 @@ class ReadModelService:
     def public_analysis_card_bounded(self, fixture_id: str) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
         request_service = ReadModelService(repository=self.repository)
+        request_service._bounded_public_request = True
         reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
         if not callable(reader):
             return request_service._bounded_analysis_card_failure(
@@ -2736,7 +2928,10 @@ class ReadModelService:
         home_team_id: str,
         away_team_id: str,
     ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
-        matches = self._team_xg_matches()
+        matches = self._team_xg_matches_for_teams(
+            [home_team_id, away_team_id],
+            before=context.as_of,
+        )
         home: list[TeamMatchHistory] = []
         away: list[TeamMatchHistory] = []
         for row in matches:
@@ -2787,7 +2982,10 @@ class ReadModelService:
         home_team_id: str,
         away_team_id: str,
     ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
-        rows = self._fixture_response_items_from_raw_payloads()
+        rows = self._fixture_response_items_from_raw_payloads(
+            endpoint="fixtures",
+            team_ids=[home_team_id, away_team_id],
+        )
         home = self._team_history_from_fixture_items(
             rows,
             team_id=home_team_id,
@@ -2809,11 +3007,17 @@ class ReadModelService:
         home_team_id: str,
         away_team_id: str,
     ) -> list[TeamMatchHistory]:
-        rows = self._fixture_response_items_from_raw_payloads(endpoint="h2h")
+        rows = self._fixture_response_items_from_raw_payloads(
+            endpoint="h2h",
+            team_ids=[home_team_id, away_team_id],
+        )
         if not rows:
             rows = [
                 row
-                for row in self._fixture_response_items_from_raw_payloads()
+                for row in self._fixture_response_items_from_raw_payloads(
+                    endpoint="fixtures",
+                    team_ids=[home_team_id, away_team_id],
+                )
                 if self._fixture_has_teams(row, home_team_id, away_team_id)
             ]
         meetings: list[TeamMatchHistory] = []
@@ -2979,27 +3183,67 @@ class ReadModelService:
     def _fixture_response_items_from_raw_payloads(
         self,
         endpoint: str = "fixtures",
+        *,
+        fixture_id: str | None = None,
+        team_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         repository = self._future_refresh_repository()
-        reader = getattr(repository, "raw_payloads", None) if repository is not None else None
-        rows = self._fixture_response_items_from_runtime_artifacts(endpoint=endpoint)
+        reader = (
+            getattr(repository, "raw_payloads_for_scope", None)
+            if repository is not None
+            else None
+        )
+        rows = self._fixture_response_items_from_runtime_artifacts(
+            endpoint=endpoint,
+            fixture_id=fixture_id,
+            team_ids=team_ids,
+        )
         if not callable(reader):
+            if not self._bounded_public_request:
+                offline_reader = (
+                    getattr(repository, "raw_payloads", None)
+                    if repository is not None
+                    else None
+                )
+                if callable(offline_reader):
+                    with suppress(Exception):
+                        for raw in offline_reader(endpoint):
+                            payload = raw.get("payload") if isinstance(raw, dict) else None
+                            response = (
+                                payload.get("response")
+                                if isinstance(payload, dict)
+                                else None
+                            )
+                            if isinstance(response, list):
+                                rows.extend(item for item in response if isinstance(item, dict))
             return rows
         with suppress(Exception):
-            payload_rows = reader(endpoint)
+            payload_rows = reader(
+                endpoint,
+                fixture_id=fixture_id,
+                team_ids=team_ids,
+                limit=32,
+            )
             for raw in payload_rows:
                 payload = raw.get("payload") if isinstance(raw, dict) else None
                 if not isinstance(payload, dict):
                     continue
                 response = payload.get("response")
                 if isinstance(response, list):
-                    rows.extend(item for item in response if isinstance(item, dict))
+                    remaining = max(0, 256 - len(rows))
+                    rows.extend(
+                        item for item in response[:remaining] if isinstance(item, dict)
+                    )
+                    if len(rows) >= 256:
+                        break
         return rows
 
     def _fixture_response_items_from_runtime_artifacts(
         self,
         *,
         endpoint: str,
+        fixture_id: str | None = None,
+        team_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         raw_dir = ROOT / "runtime/independent_signal_backfill/raw_payloads" / endpoint
         try:
@@ -3007,9 +3251,28 @@ class ReadModelService:
                 return []
         except OSError:
             return []
+        patterns: list[str] = []
+        if fixture_id:
+            patterns.append(f"*_{fixture_id}_*.json")
+        scoped_teams = [str(team_id) for team_id in team_ids or [] if str(team_id)]
+        if endpoint == "fixtures":
+            patterns.extend(f"team_{team_id}_*.json" for team_id in scoped_teams)
+        elif endpoint == "h2h" and len(scoped_teams) == 2:
+            patterns.extend(
+                (
+                    f"{scoped_teams[0]}_{scoped_teams[1]}_*.json",
+                    f"{scoped_teams[1]}_{scoped_teams[0]}_*.json",
+                )
+            )
+        if not patterns:
+            if self._bounded_public_request:
+                return []
+            patterns = ["*.json"]
         rows: list[dict[str, Any]] = []
         try:
-            paths = sorted(raw_dir.glob("*.json"))
+            paths = sorted(
+                {path for pattern in patterns for path in raw_dir.glob(pattern)}
+            )[:32]
         except OSError:
             return []
         for path in paths:
@@ -3022,7 +3285,10 @@ class ReadModelService:
                 continue
             response = raw_payload.get("response")
             if isinstance(response, list):
-                rows.extend(item for item in response if isinstance(item, dict))
+                remaining = max(0, 256 - len(rows))
+                rows.extend(item for item in response[:remaining] if isinstance(item, dict))
+                if len(rows) >= 256:
+                    break
         return rows
 
     def _team_history_from_fixture_items(
@@ -3309,7 +3575,7 @@ class ReadModelService:
         }
 
     def _team_xg_match_count(self, *, team_id: str, before: datetime) -> int:
-        matches = self._team_xg_matches()
+        matches = self._team_xg_matches_for_teams([team_id], before=before)
         count = 0
         for row in matches:
             if str(row.get("team_id") or "") != team_id:
@@ -3318,6 +3584,28 @@ class ReadModelService:
             if kickoff is not None and kickoff < before:
                 count += 1
         return count
+
+    def _team_xg_matches_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        repository = self._future_refresh_repository()
+        reader = (
+            getattr(repository, "team_xg_matches_for_teams", None)
+            if repository is not None
+            else None
+        )
+        if not callable(reader):
+            return [] if self._bounded_public_request else self._team_xg_matches()
+        try:
+            return cast(
+                list[dict[str, Any]],
+                reader(team_ids, before=before, limit_per_team=20),
+            )
+        except Exception:
+            return []
 
     def _team_xg_matches(self) -> list[dict[str, Any]]:
         if self._team_xg_matches_cache is not None:
@@ -3335,12 +3623,7 @@ class ReadModelService:
         return rows
 
     def _enrichment_status(self, *, fixture_id: str, endpoint: str) -> dict[str, Any]:
-        rows = self._raw_payloads_for_endpoint(endpoint)
-        matching = [
-            row
-            for row in rows
-            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
-        ]
+        matching = self._raw_payloads_for_fixture(endpoint, fixture_id=fixture_id)
         if not matching:
             return {
                 "ready": False,
@@ -3367,6 +3650,46 @@ class ReadModelService:
             "captured_at": latest.get("captured_at"),
             "response_count": response_count,
         }
+
+    def _raw_payloads_for_fixture(
+        self,
+        endpoint: str,
+        *,
+        fixture_id: str,
+    ) -> list[dict[str, Any]]:
+        repository = self._future_refresh_repository()
+        reader = (
+            getattr(repository, "raw_payloads_for_scope", None)
+            if repository is not None
+            else None
+        )
+        if not callable(reader):
+            if not self._bounded_public_request:
+                offline_reader = (
+                    getattr(repository, "raw_payloads", None)
+                    if repository is not None
+                    else None
+                )
+                if callable(offline_reader):
+                    with suppress(Exception):
+                        return [
+                            row
+                            for row in offline_reader(endpoint)
+                            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+                        ]
+            return []
+        try:
+            rows = cast(
+                list[dict[str, Any]],
+                reader(endpoint, fixture_id=fixture_id, team_ids=None, limit=32),
+            )
+        except Exception:
+            return []
+        return [
+            row
+            for row in rows
+            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+        ]
 
     def _raw_payloads_for_endpoint(self, endpoint: str) -> list[dict[str, Any]]:
         if endpoint in self._raw_payloads_by_endpoint_cache:
@@ -3704,28 +4027,21 @@ class ReadModelService:
                     ),
                     "temporal_status": dashboard.get("temporal_status"),
                     "integrity_status": dashboard.get("integrity_status"),
-                    "analysis_card": self.analysis_card(fixture_id),
+                    "analysis_card": self.public_analysis_card_bounded(fixture_id),
                 }
             )
             return row
-        for item in self.repository.fixture_payloads():
-            if str(item.get("fixture", {}).get("id")) == fixture_id:
+        previous_bounded_state = self._bounded_public_request
+        self._bounded_public_request = True
+        try:
+            item = self._fixture_payload_by_id(fixture_id)
+        finally:
+            self._bounded_public_request = previous_bounded_state
+        if item is not None:
                 row = self._fixture_summary(item, timezone)
-                snapshots = [
-                    item
-                    for item in self.repository.market_snapshots()
-                    if item["fixture_id"] == fixture_id
-                ]
-                locks = [
-                    item
-                    for item in self.repository.forward_locks()
-                    if item["fixture_id"] == fixture_id
-                ]
-                observations = [
-                    item
-                    for item in self.repository.future_market_observations()
-                    if str(item.get("fixture_id")) == fixture_id
-                ]
+                snapshots = self._market_snapshots_bounded(fixture_id)
+                locks: list[dict[str, Any]] = []
+                observations = self._fixture_observations_bounded(fixture_id)
                 observed_markets: set[str] = {
                     str(item["canonical_market"])
                     for item in observations
@@ -3757,7 +4073,7 @@ class ReadModelService:
                             "probability_source": "stage7e_forward_holdout",
                         },
                         "risk_notes": [] if snapshots else ["market_not_comparable"],
-                        "analysis_card": self.analysis_card(fixture_id),
+                        "analysis_card": self.public_analysis_card_bounded(fixture_id),
                     }
                 )
                 return row
@@ -4347,11 +4663,7 @@ class ReadModelService:
             ]
         points: list[dict[str, Any]] = []
         first_seen: set[tuple[str, str, str | None, str | None]] = set()
-        observations = [
-            item
-            for item in self.repository.future_market_observations()
-            if str(item.get("fixture_id")) == fixture_id
-        ]
+        observations = self._fixture_observations_bounded(fixture_id)
         observations.sort(
             key=lambda item: (
                 str(item.get("captured_at")),
@@ -4390,9 +4702,7 @@ class ReadModelService:
                 }
             )
             first_seen.add(identity)
-        for snapshot in self.repository.market_snapshots():
-            if snapshot["fixture_id"] != fixture_id:
-                continue
+        for snapshot in self._market_snapshots_bounded(fixture_id):
             probabilities = snapshot.get("power_probabilities") or {}
             for selection, probability in probabilities.items():
                 points.append(
@@ -4420,8 +4730,8 @@ class ReadModelService:
                 "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
                 "quality": dashboard.get("data_status", "READY"),
             }
-        for snapshot in self.repository.market_snapshots():
-            if snapshot["fixture_id"] == fixture_id and snapshot.get("power_probabilities"):
+        for snapshot in self._market_snapshots_bounded(fixture_id):
+            if snapshot.get("power_probabilities"):
                 return {
                     "probability_type": "market_fair_probability",
                     "probabilities": snapshot["power_probabilities"],
@@ -4448,16 +4758,6 @@ class ReadModelService:
                 "quality": dashboard.get("decision_status", "SKIP"),
                 "calibrated": True,
             }
-        for lock in self.repository.forward_locks():
-            if lock["fixture_id"] == fixture_id:
-                return {
-                    "probability_type": "independent_model_probability",
-                    "probabilities": lock["probabilities"],
-                    "source": "frozen_stage7b_challenger",
-                    "as_of_time": datetime.fromisoformat(lock["as_of_time"]),
-                    "quality": lock["decision"],
-                    "calibrated": True,
-                }
         return {
             "probability_type": "independent_model_probability",
             "probabilities": {},
@@ -4486,7 +4786,13 @@ class ReadModelService:
             age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
         stale_count = 0
         now = datetime.now(UTC)
-        for item in self.repository.fixture_payloads():
+        public_reader = getattr(self.repository, "public_fixture_payloads", None)
+        payloads = (
+            cast(list[dict[str, Any]], public_reader(limit=512))
+            if callable(public_reader)
+            else []
+        )
+        for item in payloads:
             row = self._fixture_summary(item, "UTC")
             if row["status"] == "NS" and row["kickoff_utc"] < now:
                 stale_count += 1

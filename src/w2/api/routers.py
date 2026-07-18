@@ -133,7 +133,7 @@ def dashboard(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.dashboard(
+        **service.public_dashboard(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
@@ -150,7 +150,7 @@ def dashboard_day_view(
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    payload = service.dashboard(
+    payload = service.public_dashboard(
         target_date=date,
         window=normalized_window,
         timezone=timezone,
@@ -177,7 +177,7 @@ def dashboard_summary(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.dashboard_summary(
+        **service.public_dashboard_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
@@ -195,7 +195,7 @@ def validation_summary(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.validation_summary(
+        **service.public_validation_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,

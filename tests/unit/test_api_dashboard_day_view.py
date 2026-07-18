@@ -61,6 +61,9 @@ class RecordingDashboardService:
             ],
         }
 
+    def public_dashboard(self, **kwargs: Any) -> dict[str, Any]:
+        return self.dashboard(**kwargs)
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,
