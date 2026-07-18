@@ -24,8 +24,6 @@
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -503,7 +501,7 @@ button {
 
 .boss-commandbar {
   display: grid;
-  grid-template-columns: 170px auto minmax(0, 1fr);
+  grid-template-columns: 170px 116px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 54px;
@@ -528,18 +526,15 @@ button {
   letter-spacing: 0.08em;
 }
 
-.readonly-mode-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  border: 1px solid rgba(143, 228, 111, 0.3);
-  border-radius: 999px;
-  padding: 0 11px;
-  background: rgba(98, 181, 47, 0.12);
-  color: #a9ee91;
-  font-size: 12px;
+.boss-view-select {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #8fe46f;
   font-weight: 900;
-  white-space: nowrap;
+  text-align: left;
 }
 
 .boss-command-meta {
@@ -577,335 +572,6 @@ button {
   color: #7e887f;
   font-size: 11px;
   white-space: nowrap;
-}
-
-.today-decision-summary,
-.attention-board,
-.validation-scorecard,
-.system-read-status,
-.technical-details {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(3, 21, 20, 0.82);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.2);
-}
-
-.today-decision-summary {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.8fr) minmax(520px, 1.2fr);
-  gap: 20px;
-  align-items: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 0 0, rgba(98, 181, 47, 0.16), transparent 28rem),
-    rgba(3, 21, 20, 0.9);
-}
-
-.today-decision-copy span,
-.attention-board > header span,
-.validation-scorecard header span,
-.system-read-status header span {
-  color: #9ee683;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-}
-
-.today-decision-copy h1,
-.attention-board h2,
-.validation-scorecard h2,
-.system-read-status h2 {
-  margin: 5px 0 0;
-  color: var(--text);
-  text-wrap: balance;
-}
-
-.today-decision-copy h1 {
-  font-size: clamp(24px, 3vw, 38px);
-  line-height: 1.08;
-}
-
-.today-decision-copy p,
-.validation-scorecard p,
-.system-read-status p {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
-  text-wrap: pretty;
-}
-
-.today-decision-counts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.today-decision-counts > div,
-.validation-score-grid > div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 7px;
-  padding: 13px;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.today-decision-counts span,
-.validation-score-grid span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.today-decision-counts strong,
-.validation-score-grid strong {
-  color: var(--text);
-  font-size: 25px;
-  font-variant-numeric: tabular-nums;
-}
-
-.today-decision-counts small {
-  color: var(--subtle);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.attention-board > header,
-.validation-scorecard > header,
-.system-read-status > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.attention-board h2,
-.validation-scorecard h2,
-.system-read-status h2 {
-  font-size: 18px;
-}
-
-.attention-board > header > strong,
-.validation-scorecard > header > strong,
-.system-read-status > header > strong {
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-  font-size: 12px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.attention-card-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 12px;
-}
-
-.attention-card {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-  border: 1px solid rgba(226, 164, 58, 0.24);
-  border-radius: 7px;
-  padding: 16px;
-  background: rgba(226, 164, 58, 0.07);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.attention-card.is-actionable {
-  border-color: rgba(98, 181, 47, 0.42);
-  background: rgba(98, 181, 47, 0.09);
-}
-
-.attention-card header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.attention-card header span,
-.attention-card footer,
-.attention-market small {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.attention-card h3 {
-  margin: 5px 0 0;
-  color: var(--text);
-  font-size: 17px;
-  line-height: 1.25;
-  text-wrap: balance;
-}
-
-.attention-card header > strong {
-  color: #ffd58b;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.attention-market {
-  display: grid;
-  gap: 3px;
-  border-radius: 6px;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.attention-market > span {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.attention-card > p {
-  margin: 0;
-  color: #dbe5d8;
-  font-size: 13px;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
-.attention-card footer {
-  display: grid;
-  gap: 3px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.decision-proof-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.validation-score-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 7px;
-  padding: 12px;
-}
-
-.validation-score-grid strong {
-  font-size: 20px;
-}
-
-.validation-scorecard > p,
-.system-read-status > p {
-  padding: 0 16px 14px;
-}
-
-.system-read-status dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 12px;
-}
-
-.system-read-status dl > div {
-  display: grid;
-  gap: 4px;
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.system-read-status dt {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.system-read-status dd {
-  margin: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-
-.technical-details > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 48px;
-  padding: 10px 14px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.technical-details > summary::-webkit-details-marker {
-  display: none;
-}
-
-.technical-details > summary strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.technical-details > summary span {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.technical-status-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-  padding: 0 12px 12px;
-}
-
-.technical-status-grid span {
-  border-radius: 6px;
-  padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.technical-schedule-list {
-  border-top: 1px solid var(--border);
-}
-
-.technical-schedule-row {
-  display: grid;
-  grid-template-columns: 82px 112px minmax(230px, 1fr) minmax(220px, 0.74fr) 104px 112px 104px;
-  gap: 0;
-  align-items: center;
-  min-width: 0;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.01);
-}
-
-.technical-schedule-row:first-of-type {
-  border-top: 0;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .boss-header {
@@ -1809,39 +1475,6 @@ button {
     min-height: 24px;
     padding: 0 10px 0 0;
     border-left: 0;
-  }
-
-  .today-decision-summary,
-  .decision-proof-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .today-decision-summary {
-    padding: 18px;
-  }
-
-  .today-decision-counts,
-  .validation-score-grid,
-  .technical-status-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .attention-card-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .technical-schedule-row {
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 8px 10px;
-    align-items: start;
-  }
-
-  .technical-schedule-row .decision-time {
-    grid-row: span 3;
-  }
-
-  .technical-details > summary {
-    align-items: flex-start;
   }
 
   .boss-command-release {

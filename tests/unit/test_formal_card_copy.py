@@ -81,18 +81,19 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "selected_date_has_data" in page
     assert "rawHour === 24 ? 0 : rawHour" in formatters
     assert "sortFormalFirst" not in page
-    assert "TodayDecisionSummary" in boss_view
-    assert "AttentionBoard" in boss_view
-    assert "ValidationScorecard" in boss_view
-    assert "SystemReadStatus" in boss_view
-    assert "TechnicalDetails" in boss_view
+    assert "DecisionCounts" in boss_view
+    assert "EvidencePanel" in boss_view
     assert "readyRecommendations" in boss_view
-    assert "recommendations.map" in boss_view
-    assert "今天暂无合格比赛" in boss_view
-    assert "只读模式" in boss_view
-    assert "watchFallback" not in boss_view
-    assert "正式可锁" not in boss_view
+    assert "todaySchedule" in boss_view
+    assert "futureSchedule" in boss_view
+    assert "ScheduleSection" in boss_view
+    assert "CoverageFoldout" in boss_view
+    assert "值得看" in boss_view
+    assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
+    assert "VerificationPreview" in boss_view
+    assert "LeaguePerformancePreview" in boss_view
+    assert "DecisionRow" in boss_view
     assert "pickSelectionLabel" in boss_view
     assert 'value === "HOME_AH"' in boss_view
     assert 'value === "AWAY_AH"' in boss_view
