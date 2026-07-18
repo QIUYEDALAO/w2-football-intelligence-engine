@@ -6,11 +6,13 @@ R3 is `staging_accepted` and is awaiting three stable read-only cycles.
 R4 is authorized for approval-package preparation only; champion, lock and
 production state changes are not authorized by that preparation.
 
-R3 read-only candidate `94bcd62c67ed3fe50bba5ee65be10133556f83d0`
-is deployed on the existing public staging host. Repeated unchanged odds now
-retain separate append-only capture identities, refreshed fixtures are
-rematerialized before checkpoint completion, and the Dashboard invalidates its
-cache when the quote or collection watermark advances.
+R3 read-only candidate `f2389e80418502dc85ad9718c0b3481b32d9ab3f`
+is deployed on the existing public staging host. Public fixture reads now keep
+bounded full-time AH and totals coverage, use the latest pre-fixture rolling xG
+state, canonicalize API-Football handicap sides, and restore the T6 odds tick.
+Before that scheduled tick the Dashboard reports a planned collection wait
+instead of a false pipeline failure. The pre-noon page continues to use the
+previous football-day date.
 
 The consecutive Beijing 09:00 read-only cycle count is `0/3`. The first eligible
 cycle is 2026-07-19. No GitHub synchronization is authorized.
