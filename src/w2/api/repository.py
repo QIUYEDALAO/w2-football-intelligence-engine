@@ -5499,7 +5499,8 @@ class ReadModelService:
         )
         kickoff_for_contract = _parse_utc_text(row.get("kickoff_utc") or card.get("kickoff_utc"))
         as_of_for_contract = (
-            _parse_utc_text(row.get("last_captured"))
+            self._analysis_evaluation_time_override
+            or _parse_utc_text(row.get("last_captured"))
             or _parse_utc_text(card.get("generated_at"))
             or datetime.now(UTC)
         )

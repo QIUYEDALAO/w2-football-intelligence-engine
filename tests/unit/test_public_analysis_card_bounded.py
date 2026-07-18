@@ -314,6 +314,35 @@ def test_public_bounded_read_projects_canonical_no_pick_contract(monkeypatch: An
     assert all(market["decision"] != "PICK" for market in bounded_card["markets"])
 
 
+def test_public_bounded_read_uses_explicit_evaluation_time_for_next_eval(
+    monkeypatch: Any,
+) -> None:
+    _patch_card_builder(monkeypatch)
+    repository = BoundedObservationRepository(["target"])
+    repository.fixture_payload = lambda fixture_id: {  # type: ignore[method-assign]
+        **_fixture_payload(fixture_id),
+        "fixture": {
+            **_fixture_payload(fixture_id)["fixture"],
+            "date": "2026-07-17T12:00:00Z",
+        },
+    }
+    evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
+
+    card = ReadModelService(
+        repository=cast(Any, repository)
+    ).public_analysis_card_bounded(
+        "target",
+        evaluation_time=evaluated_at,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    assert card["next_eval_at"] == "2026-07-18T05:30:00Z"
+    assert card["decision_contract"]["non_pick"]["next_eval_at"] == (
+        "2026-07-18T05:30:00Z"
+    )
+
+
 def test_fixture_detail_and_odds_timeline_never_call_global_observation_reader(
     monkeypatch: Any,
 ) -> None:
