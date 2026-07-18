@@ -10,6 +10,7 @@ DEPLOY = ROOT / "scripts/deploy_stage7h_staging.sh"
 DIAGNOSE = ROOT / "scripts/diagnose_staging_runtime.sh"
 RECOVER = ROOT / "scripts/recover_staging_runtime.sh"
 WATCH = ROOT / "scripts/watch_staging_runtime.sh"
+READINESS_FAULT = ROOT / "scripts/run_readiness_fault_injection.sh"
 WATCHDOG_SERVICE = ROOT / "infra/systemd/w2-staging-watchdog.service"
 WATCHDOG_TIMER = ROOT / "infra/systemd/w2-staging-watchdog.timer"
 
@@ -93,6 +94,16 @@ def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:
         text = read(path)
         assert "http://127.0.0.1:18000/ready" in text
         assert "http://127.0.0.1:18000/health" not in text
+
+
+def test_readiness_fault_injection_is_isolated_from_formal_staging() -> None:
+    text = read(READINESS_FAULT)
+    assert "w2-readiness-fault" in text
+    assert "W2_READINESS_FAULT_IMAGE_PREFIX" in text
+    assert "W2_READINESS_FAULT_PORT" in text
+    assert "w2-staging" not in text
+    assert "/opt/w2/shared" not in text
+    assert "docker volume rm \"${VOLUME}\"" in text
 
 
 def test_deploy_makes_shared_runtime_writable_for_staging_runtime_tasks() -> None:
