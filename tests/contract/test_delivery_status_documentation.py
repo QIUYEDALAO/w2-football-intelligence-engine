@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 STATES = (
     "implemented",
@@ -17,15 +19,18 @@ def read(path: str) -> str:
 
 def test_delivery_status_vocabulary_is_complete_and_not_overclaimed() -> None:
     policy = read("docs/operations/W2_DELIVERY_STATUS_LEVELS.md")
-    state = read("PROJECT_STATE.yaml")
+    state_text = read("PROJECT_STATE.yaml")
+    state = yaml.safe_load(state_text)
     next_action = read("NEXT_ACTION.md")
 
     for status in STATES:
         assert f"`{status}`" in policy
-        assert f"  - {status}" in state
-    assert "status: implemented" in state
-    assert "R1 is not yet `staging_accepted`" in next_action
-    assert "production_deployed: false" in state
+    assert tuple(state["delivery_status_vocabulary"]) == STATES
+    assert state["current_phase"]["status"] in STATES
+    assert set(state["current_phase"]["checkpoints"].values()) <= set(STATES)
+    assert "R1 is `staging_accepted`" in next_action
+    assert "offline-only implementation" in next_action
+    assert state["staging"]["production_deployed"] is False
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
