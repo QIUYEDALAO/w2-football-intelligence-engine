@@ -83,6 +83,11 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
 
 
+def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
+    text = read(DEPLOY)
+    assert "sudo install -o root -g root -m 0644 /dev/stdin" in text
+
+
 def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:
     compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
     api_healthcheck = " ".join(

@@ -113,7 +113,7 @@ ssh "${SSH_HOST}" "
 set -euo pipefail
 install -d -m 0755 /opt/w2/shared
 umask 022
-cat > /opt/w2/shared/release.env <<'EOF'
+sudo install -o root -g root -m 0644 /dev/stdin /opt/w2/shared/release.env <<'EOF'
 W2_GIT_SHA=${REVISION}
 W2_RELEASE_ID=${REVISION}
 W2_BUILD_TIME=${BUILD_TIME}
