@@ -120,6 +120,25 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.2 Staging Canary](docs/operations/W2_R0_2_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.3 fixture-scoped bounded public reads
+
+- Implementation SHA `7e383e2f21fcd0b488ffc95cd58c6c6394291855` separates
+  public bounded readers from explicitly offline global readers.
+- Observation reads are capped at 256 rows per fixture; raw payload reads at 32
+  payloads/256 response items; xG history at 20 rows per team.
+- Local validation passed with `1112 passed, 4 skipped`, Ruff, Mypy, Web build,
+  acceptance, tracked-output, credential and diff gates.
+- Isolated predeploy-e2e and staging-parity passed. Formal canary injected
+  fail-on-call global observation/raw/xG readers and recorded zero global calls.
+- DayView product hash stayed `f2e282491966350c04a317d39d53424a25d6a09eee5421bb8e249f4b96917280`.
+  Provider, observation, raw, checkpoint, queue and lock counts did not change.
+- API RSS was 219.4 MiB against a 349.2 MiB cap; all services ended healthy with
+  restart zero/OOM false, and scheduler/watchdog state was restored.
+- R0.3 is PASS. R0.4 is authorized by the full local execution plan.
+
+Detailed canary evidence:
+[W2 R0.3 Staging Canary](docs/operations/W2_R0_3_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

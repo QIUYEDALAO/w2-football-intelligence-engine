@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T06:16:00Z"
+updated_at: "2026-07-18T06:58:25Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 
 context_read_order:
@@ -12,33 +12,35 @@ context_read_order:
   - docs/operations/W2_R0_1B_STAGING_CANARY_20260718.md
   - docs/operations/W2_R0_1C_STAGING_CANARY_20260718.md
   - docs/operations/W2_R0_2_STAGING_CANARY_20260718.md
+  - docs/operations/W2_R0_3_STAGING_CANARY_20260718.md
+  - docs/operations/W2_R0_3_PUBLIC_READ_INVENTORY_20260718.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   remote_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_accepted_implementation_sha: 87e2ba15b5920c369ca90583b0b0d2dd1a73a74a
+  local_accepted_implementation_sha: 7e383e2f21fcd0b488ffc95cd58c6c6394291855
   github_sync_performed: false
   recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
   remote_main_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_main_contains_sha: 87e2ba15b5920c369ca90583b0b0d2dd1a73a74a
-  tree_sha: 82df8faeedc1ff34c4e796c606abed7119670c71
+  local_main_contains_sha: 7e383e2f21fcd0b488ffc95cd58c6c6394291855
+  tree_sha: 677e06480786b40e6ee19008e98d7df44cdebaee
   baseline_reason: Restore pre-GPT-5.6 expert review baseline
   historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
   prohibited_bulk_restore_range: "#333-#346"
 
 current_phase:
-  id: R0.2
-  name: canonical_readiness_503
+  id: R0.3
+  name: fixture_scoped_bounded_public_reads
   status: PASS
-  next_phase: R0.3
-  next_phase_gate: USER_AUTHORIZATION_REQUIRED
+  next_phase: R0.4
+  next_phase_gate: AUTHORIZED_BY_FULL_PLAN
   blocker: null
 
 staging:
-  deployed_sha: 87e2ba15b5920c369ca90583b0b0d2dd1a73a74a
-  deployed_tree_sha: local-direct-release
+  deployed_sha: 7e383e2f21fcd0b488ffc95cd58c6c6394291855
+  deployed_tree_sha: 677e06480786b40e6ee19008e98d7df44cdebaee
   tree_matches_main: false
   health_http_status: 200
   canonical_ready_http_status: 200
@@ -71,7 +73,7 @@ current_tree_ci:
 
 confirmed_open_boundaries:
   - METRICS_SINK_AND_EXPORTER_DISCONNECTED
-  - PUBLIC_READS_INCLUDE_UNBOUNDED_GLOBAL_FALLBACKS
+  - PUBLIC_ANALYSIS_CARD_IS_NOT_YET_FROZEN
 
 phase_order:
   - R0.0

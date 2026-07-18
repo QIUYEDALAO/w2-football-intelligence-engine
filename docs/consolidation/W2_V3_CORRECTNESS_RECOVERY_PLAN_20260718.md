@@ -3,10 +3,10 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
-Progress: R0.0 merged in PR #348. R0.1a merged in PR #349, but its staging canary
-hit the existing public analysis-card OOM/exit-137 boundary and was rolled back.
-Its observation schema is `w2.quote_identity.v1`; it is audit-only and does not
-make freshness or decision eligibility claims. R0.1b remains blocked.
+Progress: R0.0 through R0.3 are accepted by local-direct staging evidence.
+R0.1a–R0.2 closed quote identity/freshness, non-ready no-pick and canonical
+readiness. R0.3 removed public global observation/raw/history reads. The next
+authorized phase is R0.4 deterministic sidecar materialization.
 
 This plan supersedes recovery-era implementation sequencing. PRs #333–#346 are
 specification and failure-case inputs only; they are not a backlog to restore.

@@ -2,17 +2,19 @@
 
 ## Current gate
 
-R0.2 is **PASS**. Stop before R0.3 as required by the authorized plan.
+R0.3 is **PASS**. The authorized next phase is R0.4.
 
 ## Next implementation
 
-R0.2 passed local, isolated and direct staging acceptance at
-`87e2ba15b5920c369ca90583b0b0d2dd1a73a74a`. Root `/ready` is canonical and
-fail-closed for DB, Redis, schema, artifact and mount failures; `/health` is pure
-liveness. Legacy `/v1/ready` has identical semantics and deprecation headers.
+R0.3 passed local, isolated and direct staging acceptance at
+`7e383e2f21fcd0b488ffc95cd58c6c6394291855`. Public Dashboard, DayView,
+fixture detail, analysis-card, odds timeline and probability reads now use
+fixture/team-scoped bounded dependencies. Injected global observation, raw and
+xG readers were never called.
 
-The next phase identifier is R0.3, but no R0.3 implementation, Frozen L2 or later
-phase work is authorized in this run. Await an explicit new instruction.
+Implement R0.4 in a separate branch: materialize deterministic analysis-card
+sidecars for fixtures `1576804`, `1494701` and `1494210` into a versioned canary
+checkpoint namespace. Do not switch public reads during R0.4.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.
