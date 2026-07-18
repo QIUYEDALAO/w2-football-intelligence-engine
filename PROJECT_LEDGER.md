@@ -66,6 +66,24 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
 Detailed canary evidence:
 [W2 R0.1a Staging Canary](docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.1b quote freshness isolation
+
+- Local SHA `13183b3eabd9022cada47a76d01fa619648bd01f` introduced one freshness
+  evaluator using authoritative observation `captured_at` only.
+- Missing, invalid or conflicting provenance is INCOMPLETE; quotes older than 30
+  minutes are STALE. Neither class enters current odds or current pricing.
+- Final local validation reported `1094 passed, 4 skipped`; static, Web,
+  acceptance, migration and isolated predeploy gates passed.
+- Staging DayView cards remained WATCH with no pick/recommendation/lock. All
+  visible cards were STALE and exposed no current odds.
+- Shared-fixture product projections were byte-identical. Provider, observation,
+  queue and lock counts did not change; all services remained restart zero/OOM
+  false and scheduler/watchdog state was restored.
+- R0.1b is PASS. R0.1c is now authorized.
+
+Detailed canary evidence:
+[W2 R0.1b Staging Canary](docs/operations/W2_R0_1B_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

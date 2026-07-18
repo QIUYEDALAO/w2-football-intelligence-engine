@@ -2,21 +2,21 @@
 
 ## Current gate
 
-Implement and accept **R0.1b quote freshness isolation**.
+Implement and accept **R0.1c non-READY no-pick invariant**.
 
 ## Next implementation
 
-R0.1a-B1 passed local gates and direct staging acceptance at
-`3fc2412c258b996d4f8af6bd44f2799438f49504`. The public analysis-card now uses a
-request-local fixture-scoped observation reader. First, sequential and concurrent
-probes completed without OOM or restart; provider, DB, queue, locks and the DayView
-product projection were unchanged.
+R0.1b passed local gates and direct staging acceptance at
+`13183b3eabd9022cada47a76d01fa619648bd01f`. Authoritative observation time now
+drives a single freshness evaluator; stale and incomplete quotes retain audit
+identity but are excluded from current odds and pricing.
 
-R0.1b must add one quote freshness evaluator using authoritative observation
-`captured_at` only. Missing or conflicting identity is INCOMPLETE, age over 30
-minutes is STALE, and neither may enter current or executable odds. Generated card
-timestamps remain evaluation references only. Do not change pick direction, tier,
-thresholds, model or product projection.
+R0.1c must enforce one final Decision Contract postcondition. BLOCKED or
+INCOMPLETE/CONFLICT becomes NOT_READY; STALE/PARTIAL becomes WATCH; only READY
+with complete provenance may retain a pick tier. Every non-READY output must clear
+pick, recommendation, executable odds and recommendation ID, and must set lock and
+outcome tracking false. Invalid RECOMMEND prerequisites may not fall back to
+ANALYSIS_PICK.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.
