@@ -291,6 +291,22 @@ Detailed evidence:
 Detailed evidence:
 [W2 R3 read-only staging candidate](docs/operations/W2_R3_READONLY_STAGING_CANDIDATE_20260718.md).
 
+## 2026-07-18 — R4 approval packs prepared in parallel
+
+- Champion review material is prepared but does not support or authorize a
+  champion switch; explicit later approval remains required.
+- RECOMMEND/lock review material is prepared; the 200 canonical settled-fixture
+  target and explicit later approval remain required. RECOMMEND, lock and
+  OFFICIAL are unchanged.
+- Read-only production has the user's conditional authorization after three
+  consecutive real Beijing 09:00 patrol PASS cycles on implementation SHA
+  `7e4c0ae`; current state remains `0/3` and not production approved.
+- This documentation-only preparation does not rebuild staging and does not
+  reset the cycle candidate.
+
+Detailed evidence:
+[W2 R4 approval packs](docs/operations/W2_R4_APPROVAL_PACKS_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
