@@ -242,6 +242,32 @@ Detailed canary evidence:
 Detailed evidence:
 [W2 R1 Staging Canary](docs/operations/W2_R1_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R2 offline corrections and staging acceptance
+
+- R2.1–R2.4 completed as separate deterministic commits: persistent rolling
+  form, explicit half-goal `0.5` contract, truthful `signal_strength` semantics,
+  and fixed-snapshot paired offline evaluation.
+- Final exact candidate `6f300d028939bb227683cc644461a7dc67988a77`
+  passed `1158 passed / 4 skipped`, all static/Web/acceptance guards, staging-host
+  parity and isolated predeploy.
+- Offline evaluation changed all 12 validation rolling-form feature rows but no
+  probability row because the selected model does not consume that feature;
+  log loss, Brier, RPS and ECE deltas were honestly zero. The result remains
+  shadow-only.
+- The first canary found legacy frozen payloads bypassing the confidence-to-
+  strength projection. Exact R1 rollback completed before repair; a real-shape
+  regression was added and every gate rerun.
+- The accepted canary verified three real legacy checkpoints under sequential
+  and concurrent load. Provider/business/checkpoint/ledger/lock/queue counts
+  had zero canary delta, and 39 DayView cards matched R1 after only allowed field,
+  derived-hash and request-time normalization.
+- All services ended healthy with RSS within 1.20x, restart/OOM/exit137 zero;
+  scheduler and watchdog returned active. R2 is `staging_accepted` and R3 is
+  authorized for append-only forward shadow evidence only.
+
+Detailed evidence:
+[W2 R2 Staging Canary](docs/operations/W2_R2_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

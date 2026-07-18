@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T10:35:00Z"
+updated_at: "2026-07-18T11:24:35Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 delivery_status_vocabulary:
   - implemented
@@ -24,6 +24,9 @@ context_read_order:
   - docs/operations/W2_R0_6_STAGING_CANARY_20260718.md
   - docs/operations/W2_R1_STAGING_CANARY_20260718.md
   - docs/operations/W2_R1_RELEASE_GATE_MANIFEST_20260718.json
+  - docs/operations/W2_R2_STAGING_CANARY_20260718.md
+  - docs/operations/W2_R2_RELEASE_GATE_MANIFEST_20260718.json
+  - docs/operations/W2_R2_OFFLINE_CORRECTION_EVALUATION_20260718.json
   - docs/operations/W2_DELIVERY_STATUS_LEVELS.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
@@ -31,7 +34,7 @@ context_read_order:
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   remote_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_accepted_implementation_sha: 103813d7e8ea422756472cb9b4369e3c80876d09
+  local_accepted_implementation_sha: 6f300d028939bb227683cc644461a7dc67988a77
   github_sync_performed: false
   recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
   remote_main_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
@@ -43,22 +46,21 @@ repository:
   local_r1_candidate_checkpoint_sha: 103813d7e8ea422756472cb9b4369e3c80876d09
 
 current_phase:
-  id: R1
-  name: reliability_release_evidence_web_contract
+  id: R2
+  name: offline_deterministic_model_corrections
   status: staging_accepted
-  next_phase: R2
-  next_phase_gate: AUTHORIZED_OFFLINE_ONLY
+  next_phase: R3
+  next_phase_gate: AUTHORIZED_FORWARD_SHADOW_ONLY
   blocker: null
   checkpoints:
-    R1.1_metrics: staging_accepted
-    R1.2_release_evidence: staging_accepted
-    R1.3_runtime_degradation: staging_accepted
-    R1.4_web_e2e: staging_accepted
-    R1.5_documentation_state: staging_accepted
+    R2.1_rolling_form: staging_accepted
+    R2.2_half_goal_contract: staging_accepted
+    R2.3_confidence_semantics: staging_accepted
+    R2.4_offline_evaluation: staging_accepted
 
 staging:
-  deployed_sha: 103813d7e8ea422756472cb9b4369e3c80876d09
-  deployed_tree_sha: 51376cc728bfddd8ff2c15e21f89d6484d1a0cee
+  deployed_sha: 6f300d028939bb227683cc644461a7dc67988a77
+  deployed_tree_sha: 86756a52fa935b49015b2d9736f98c9ff54a91af
   tree_matches_main: false
   health_http_status: 200
   canonical_ready_http_status: 200

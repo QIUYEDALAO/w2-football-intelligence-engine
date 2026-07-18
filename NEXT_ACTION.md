@@ -2,27 +2,28 @@
 
 ## Current gate
 
-R1 is `staging_accepted` at local candidate
-`103813d7e8ea422756472cb9b4369e3c80876d09`. R2 is authorized for local,
-offline-only implementation. No GitHub synchronization is authorized.
+R2 is `staging_accepted` at local candidate
+`6f300d028939bb227683cc644461a7dc67988a77`. R3 is authorized only for
+append-only forward shadow evidence. No GitHub synchronization is authorized.
 
 ## Next implementation
 
-Implement R2 in separate deterministic offline commits, in order:
+Build R3 without changing public decision authority:
 
-1. R2.1 persist rolling-form team state correctly.
-2. R2.2 constrain the half-goal model contract to the implemented 0.5 market.
-3. R2.3 migrate bookmaker heuristic `confidence` to `signal_strength`, including
-   one input-compatibility period and truthful Web copy.
-4. R2.4 evaluate the fixed snapshot/split with log loss, Brier, RPS, ECE,
-   coverage, strata and paired bootstrap intervals.
+1. Freeze fixture identity, quote provenance and settled outcome in an
+   append-only shadow ledger.
+2. Accumulate at least 200 canonical settled fixtures; report push separately
+   and exclude it from the decisive hit-rate denominator.
+3. Report coverage, missingness, stale rate, log loss, Brier/RPS, ECE,
+   research-only ROI, league/market strata and paired bootstrap intervals.
+4. Complete at least three consecutive acceptance cycles with artifact, provider,
+   model, queue, lock, RSS and restart/OOM evidence.
 
-Each checkpoint gets focused tests; the phase receives complete local/offline
-gates. R2 may create only a shadow candidate and must not change champion,
-thresholds, league scope, RECOMMEND/lock, OFFICIAL or production.
+Reaching 200 fixtures does not promote the candidate. Identity gaps, drift or
+insufficient evidence keep R3 in shadow. Champion, thresholds, league scope,
+RECOMMEND/lock, OFFICIAL and production remain unchanged until their separate R4
+human approval gates.
 
-No GitHub synchronization is authorized. R2 does not require a staging deployment
-for each model checkpoint; deploy only if the completed phase introduces a
-runtime boundary that requires staging acceptance.
+No GitHub synchronization is authorized.
 The complete phase contract remains in
 [W2 V3 Correctness Recovery Plan](docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md).

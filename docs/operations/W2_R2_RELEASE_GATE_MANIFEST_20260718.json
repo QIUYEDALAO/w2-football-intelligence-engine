@@ -1,0 +1,29 @@
+{
+  "schema_version": "w2.release-gate-manifest.v1",
+  "phase": "R2",
+  "result": "PASS_LOCAL_DIRECT_RELEASE",
+  "implementation_sha": "6f300d028939bb227683cc644461a7dc67988a77",
+  "rollback_sha": "103813d7e8ea422756472cb9b4369e3c80876d09",
+  "github_sync_performed": false,
+  "gates": [
+    {"name": "full-pytest", "result": "PASS", "detail": "1158 passed, 4 skipped"},
+    {"name": "ruff-mypy-all-stage-verify", "result": "PASS"},
+    {"name": "web-typecheck-build-e2e", "result": "PASS", "detail": "5 Chromium cases"},
+    {"name": "acceptance-and-guards", "result": "PASS"},
+    {"name": "isolated-staging-parity", "result": "PASS", "detail": "3 passed"},
+    {"name": "isolated-predeploy-e2e", "result": "PASS"},
+    {"name": "schema-migration-cycle", "result": "NOT_APPLICABLE", "detail": "no schema change; upgrade head passed"},
+    {"name": "legacy-frozen-signal-strength", "result": "PASS", "detail": "3 fixtures; 15 sequential and 6 concurrent reads"},
+    {"name": "protected-state-zero-delta", "result": "PASS"},
+    {"name": "dayview-allowed-normalization", "result": "PASS", "detail": "39 cards"},
+    {"name": "rss-restart-oom", "result": "PASS"},
+    {"name": "scheduler-watchdog-restoration", "result": "PASS"}
+  ],
+  "offline_evaluation": {
+    "status": "SHADOW_CANDIDATE_ONLY",
+    "artifact": "docs/operations/W2_R2_OFFLINE_CORRECTION_EVALUATION_20260718.json",
+    "champion_changed": false
+  },
+  "staging_evidence": "docs/operations/W2_R2_STAGING_CANARY_20260718.md",
+  "production_approved": false
+}

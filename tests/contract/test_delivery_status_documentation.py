@@ -28,8 +28,11 @@ def test_delivery_status_vocabulary_is_complete_and_not_overclaimed() -> None:
     assert tuple(state["delivery_status_vocabulary"]) == STATES
     assert state["current_phase"]["status"] in STATES
     assert set(state["current_phase"]["checkpoints"].values()) <= set(STATES)
-    assert "R1 is `staging_accepted`" in next_action
-    assert "offline-only implementation" in next_action
+    assert (
+        f"{state['current_phase']['id']} is `{state['current_phase']['status']}`"
+        in next_action
+    )
+    assert f"{state['current_phase']['next_phase']} is authorized" in next_action
     assert state["staging"]["production_deployed"] is False
 
 
