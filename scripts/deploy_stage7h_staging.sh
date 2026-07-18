@@ -162,7 +162,13 @@ sudo docker system df || true
 export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
-sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
+# This VPS Docker/BuildKit version can panic inside a multi-target Bake build.
+# Building one target at a time prevents that daemon crash from interrupting
+# the currently running staging containers.
+for service in migration api worker scheduler web; do
+  echo "building staging service: \${service}"
+  sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build "\${service}"
+done
 API_IMAGE_ID=\"\$(sudo docker image inspect --format='{{.Id}}' w2-staging-api:latest)\"
 if ! printf '%s\n' \"\${API_IMAGE_ID}\" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
   echo \"API image ID unavailable after build\" >&2
