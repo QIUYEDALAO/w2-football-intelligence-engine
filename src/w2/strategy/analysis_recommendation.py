@@ -12,7 +12,7 @@ from w2.strategy.score_scenarios import Direction, ScoreMatrix
 
 DISCLAIMER = "分析参考·非稳赢"
 BANNED_OUTPUT_TERMS = ("稳赢", "必中", "保证")
-MIN_INTENT_CONFIDENCE_FOR_PICK = 0.55
+MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK = 0.55
 MIN_HALF_GOAL_PROBABILITY_EDGE = 0.08
 MIN_SCORE_SCENARIO_PROBABILITY = 0.18
 
@@ -36,7 +36,7 @@ class MarketAnalysis:
     market: AnalysisMarket
     decision: AnalysisDecision
     tendency: str | None
-    confidence: float
+    signal_strength: float
     reasons: tuple[str, ...]
     risks: tuple[str, ...]
     invalidation_conditions: tuple[str, ...]
@@ -130,18 +130,18 @@ def _ah_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         IntentSignal.CONFLICTED,
     }:
         return _skip(AnalysisMarket.ASIAN_HANDICAP, inputs.ah_intent.intent.value)
-    if inputs.ah_intent.confidence < MIN_INTENT_CONFIDENCE_FOR_PICK:
+    if inputs.ah_intent.signal_strength < MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK:
         return _no_edge(
             AnalysisMarket.ASIAN_HANDICAP,
             "AH_EDGE_INSUFFICIENT",
-            confidence=inputs.ah_intent.confidence,
+            signal_strength=inputs.ah_intent.signal_strength,
         )
     tendency = _side_tendency(inputs.ah_intent.implied_side)
     return MarketAnalysis(
         market=AnalysisMarket.ASIAN_HANDICAP,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=tendency,
-        confidence=_confidence(inputs.ah_intent.confidence, inputs.feature_set),
+        signal_strength=_signal_strength(inputs.ah_intent.signal_strength, inputs.feature_set),
         reasons=_feature_reasons(inputs.feature_set)
         + (f"庄家意图: {inputs.ah_intent.intent.value}",),
         risks=inputs.base_risks + ("让球盘对临场赔率变化敏感。",),
@@ -154,18 +154,18 @@ def _ou_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         return _skip(AnalysisMarket.TOTALS, "OU_DATA_UNAVAILABLE")
     if inputs.ou_intent.intent in {IntentSignal.LEAKAGE_BLOCKED, IntentSignal.INSUFFICIENT_DATA}:
         return _skip(AnalysisMarket.TOTALS, inputs.ou_intent.intent.value)
-    if inputs.ou_intent.confidence < MIN_INTENT_CONFIDENCE_FOR_PICK:
+    if inputs.ou_intent.signal_strength < MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK:
         return _no_edge(
             AnalysisMarket.TOTALS,
             "OU_EDGE_INSUFFICIENT",
-            confidence=inputs.ou_intent.confidence,
+            signal_strength=inputs.ou_intent.signal_strength,
         )
     tendency = "OVER" if inputs.ou_intent.intent == IntentSignal.OVER_LEAN else "UNDER"
     return MarketAnalysis(
         market=AnalysisMarket.TOTALS,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=tendency,
-        confidence=_confidence(inputs.ou_intent.confidence, inputs.feature_set),
+        signal_strength=_signal_strength(inputs.ou_intent.signal_strength, inputs.feature_set),
         reasons=_feature_reasons(inputs.feature_set)
         + (f"大小球意图: {inputs.ou_intent.intent.value}",),
         risks=inputs.base_risks + ("天气、红牌、早球会改变节奏。",),
@@ -185,14 +185,14 @@ def _half_goal_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         return _no_edge(
             AnalysisMarket.FIRST_HALF_GOALS,
             "HALF_GOAL_EDGE_INSUFFICIENT",
-            confidence=round(probability_edge * 2, 4),
+            signal_strength=round(probability_edge * 2, 4),
         )
     tendency = "1H_OVER" if over_probability >= 0.5 else "1H_UNDER"
     return MarketAnalysis(
         market=AnalysisMarket.FIRST_HALF_GOALS,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=tendency,
-        confidence=round(abs(over_probability - 0.5) * 2, 4),
+        signal_strength=round(abs(over_probability - 0.5) * 2, 4),
         reasons=(f"半场 Poisson 拆分 P(1H>0.5)={over_probability:.3f}",),
         risks=inputs.base_risks + ("半场模型是简化拆分，不代表精确比分。",),
         invalidation_conditions=("首发保守程度变化", "盘口未覆盖半场市场"),
@@ -220,13 +220,13 @@ def _score_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         return _no_edge(
             AnalysisMarket.SCORE,
             "SCORE_EDGE_INSUFFICIENT",
-            confidence=round(top_probability, 4),
+            signal_strength=round(top_probability, 4),
         )
     return MarketAnalysis(
         market=AnalysisMarket.SCORE,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=inputs.score_direction,
-        confidence=round(top_probability, 4),
+        signal_strength=round(top_probability, 4),
         reasons=("比分使用方向一致条件概率，不输出假精确。",),
         risks=inputs.base_risks + ("比分是分布解释，不是确定结果。",),
         invalidation_conditions=("方向桶变化", "完整 score_matrix 缺失"),
@@ -239,7 +239,7 @@ def _skip(market: AnalysisMarket, reason: str) -> MarketAnalysis:
         market=market,
         decision=AnalysisDecision.SKIP,
         tendency=None,
-        confidence=0.0,
+        signal_strength=0.0,
         reasons=(reason,),
         risks=("数据不足时保持 SKIP。",),
         invalidation_conditions=("补齐 as-of 数据后重新评估",),
@@ -250,13 +250,13 @@ def _no_edge(
     market: AnalysisMarket,
     reason: str,
     *,
-    confidence: float,
+    signal_strength: float,
 ) -> MarketAnalysis:
     return MarketAnalysis(
         market=market,
         decision=AnalysisDecision.NO_EDGE,
         tendency=None,
-        confidence=round(max(min(confidence, 0.49), 0.0), 4),
+        signal_strength=round(max(min(signal_strength, 0.49), 0.0), 4),
         reasons=(reason,),
         risks=("信号强度不足时保持观察，不输出方向。",),
         invalidation_conditions=("盘口或模型分歧增强后重新评估",),
@@ -281,10 +281,10 @@ def _side_tendency(side: TeamSide) -> str:
     return "NO_SIDE_EDGE"
 
 
-def _confidence(intent_confidence: float, feature_set: FeatureSet) -> float:
+def _signal_strength(intent_strength: float, feature_set: FeatureSet) -> float:
     ready_count = sum(1 for item in feature_set.contributions if item.status == FeatureStatus.READY)
     coverage_bonus = min(ready_count / 10, 0.25)
-    return round(min(intent_confidence * 0.75 + coverage_bonus, 1.0), 4)
+    return round(min(intent_strength * 0.75 + coverage_bonus, 1.0), 4)
 
 
 def _assert_compliant_text(*values: str) -> None:

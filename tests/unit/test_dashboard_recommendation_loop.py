@@ -225,6 +225,8 @@ def test_non_formal_ah_market_lean_does_not_hand_build_direction_text() -> None:
 
     assert decorated["lean_cn"] is None
     assert decorated["lean"] is None
+    assert decorated["signal_strength"] == 0.7
+    assert "confidence" not in decorated
     text = json.dumps(decorated, ensure_ascii=False)
     assert "客队方向 0.25" not in text
     assert not re.search(r"(让|受让)\s*[+-]?\d+(?:\.\d+)?", text)

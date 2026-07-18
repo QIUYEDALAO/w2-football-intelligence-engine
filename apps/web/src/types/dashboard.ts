@@ -19,6 +19,8 @@ export interface MarketAnalysis {
   tendency?: string | null;
   lean?: string | null;
   lean_cn?: string | null;
+  signal_strength?: number | string | null;
+  /** Legacy input only; normalized display treats this as signal strength. */
   confidence?: number | string | null;
   line?: string | number | null;
   odds?: string | number | null;
@@ -66,6 +68,8 @@ export interface BookmakerIntentPayload {
   label_cn?: string | null;
   opening_line?: string | number | null;
   current_line?: string | number | null;
+  signal_strength?: number | string | null;
+  /** Legacy input only; new API output omits this heuristic field. */
   confidence?: number | string | null;
 }
 
@@ -456,7 +460,7 @@ export interface DashboardMatchCard {
   current_odds?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
-  bookmaker_intent?: Record<string, unknown>;
+  bookmaker_intent?: BookmakerIntentPayload;
   market_movement?: MarketMovementPayload | null;
   market_divergence?: MarketDivergencePayload | null;
   bookmaker_hypothesis?: BookmakerHypothesisPayload | null;

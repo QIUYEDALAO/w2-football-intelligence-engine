@@ -2681,20 +2681,28 @@ class ReadModelService:
                     str(market.get("decision") or "") != "SKIP"
                     and (
                         (side_price is not None and float(side_price) < 1.40)
-                        or float(market.get("confidence") or 0.0) < 0.50
+                        or float(
+                            market.get("signal_strength", market.get("confidence")) or 0.0
+                        )
+                        < 0.50
                     )
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
                     market["tendency"] = None
-                    market["confidence"] = min(float(market.get("confidence") or 0.0), 0.49)
+                    market["signal_strength"] = min(
+                        float(market.get("signal_strength", market.get("confidence")) or 0.0),
+                        0.49,
+                    )
+                    market.pop("confidence", None)
                     market["reasons"] = ["跟随市场 · 无独立优势 · 仅参考"]
                     market["risks"] = ["低赔率或信号不足时不作为主看。"]
                 continue
             if status in {"EXTREME_LINE_ONLY", "NO_BALANCED_MAINLINE", "UNAVAILABLE"}:
                 market["decision"] = "SKIP"
                 market["tendency"] = None
-                market["confidence"] = 0.0
+                market["signal_strength"] = 0.0
+                market.pop("confidence", None)
                 market["line"] = resolved.get("line")
                 market["balanced_line"] = resolved.get("line")
                 market["balanced_prices"] = resolved.get("side_prices", {})
@@ -4162,7 +4170,7 @@ class ReadModelService:
             "market": market.market.value,
             "decision": market.decision.value,
             "tendency": market.tendency,
-            "confidence": market.confidence,
+            "signal_strength": market.signal_strength,
             "reasons": list(market.reasons),
             "risks": list(market.risks),
             "invalidation_conditions": list(market.invalidation_conditions),
@@ -4368,7 +4376,7 @@ class ReadModelService:
                 "markets": markets,
                 "bookmaker_intent": {
                     "intent": "INSUFFICIENT_DATA",
-                    "confidence": 0.0,
+                    "signal_strength": 0.0,
                     "reason": "BOOKMAKER_INTENT_INPUT_UNAVAILABLE",
                 },
                 "risks": ["数据不足时保持 SKIP。"],
@@ -4386,7 +4394,7 @@ class ReadModelService:
             "market": market,
             "decision": "SKIP",
             "tendency": None,
-            "confidence": 0.0,
+            "signal_strength": 0.0,
             "reasons": [reason],
             "risks": ["数据不足时保持 SKIP。"],
             "invalidation_conditions": ["补齐 as-of 分析输入后重新评估"],
@@ -4727,7 +4735,9 @@ class ReadModelService:
         intent.setdefault("label_cn", INTENT_LABELS_CN.get(intent_value, intent_value))
         intent.setdefault("opening_line", None)
         intent.setdefault("current_line", None)
-        intent.setdefault("confidence", 0.0)
+        if "signal_strength" not in intent:
+            intent["signal_strength"] = intent.get("confidence", 0.0)
+        intent.pop("confidence", None)
         return intent
 
     def _decorate_analysis_market(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -4749,7 +4759,9 @@ class ReadModelService:
         market["lean"] = market["lean_cn"]
         market["reason"] = market["reason_cn"]
         market["risks_cn"] = list(market.get("risks") or ["数据不足时保持 SKIP。"])
-        market.setdefault("confidence", 0.0)
+        if "signal_strength" not in market:
+            market["signal_strength"] = market.get("confidence", 0.0)
+        market.pop("confidence", None)
         market.setdefault("reference_scores", self._reference_scores(market))
         market.setdefault(
             "scores",
@@ -4803,13 +4815,13 @@ class ReadModelService:
     def _watch_level(self, card: dict[str, Any]) -> int:
         if str(card.get("decision")) == "SKIP":
             return 0
-        confidences = [
-            float(item.get("confidence", 0.0))
+        strengths = [
+            _float_or_none(item.get("signal_strength", item.get("confidence"))) or 0.0
             for item in card.get("markets", [])
             if isinstance(item, dict) and item.get("decision") != "SKIP"
         ]
-        confidence = max(confidences, default=0.0)
-        return max(1, min(4, round(confidence * 4)))
+        signal_strength = max(strengths, default=0.0)
+        return max(1, min(4, round(signal_strength * 4)))
 
     def _lean_cn(self, market: dict[str, Any]) -> str | None:
         if market.get("decision") == "SKIP":

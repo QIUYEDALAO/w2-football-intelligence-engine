@@ -43,7 +43,7 @@ class BookmakerIntentPolicy:
     late_reversal_threshold: float = 0.08
     high_divergence_threshold: float = 0.18
     sharp_soft_threshold: float = 0.06
-    min_confidence: float = 0.15
+    min_signal_strength: float = 0.15
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -61,7 +61,7 @@ class BookmakerIntent:
     fixture_id: str
     market_kind: MarketKind
     intent: IntentSignal
-    confidence: float
+    signal_strength: float
     implied_side: TeamSide
     reason: str
     evidence: tuple[IntentEvidence, ...]
@@ -73,7 +73,7 @@ class BookmakerIntent:
             "fixture_id": self.fixture_id,
             "market_kind": self.market_kind,
             "intent": self.intent.value,
-            "confidence": self.confidence,
+            "signal_strength": self.signal_strength,
             "implied_side": self.implied_side.value,
             "reason": self.reason,
             "evidence": [
@@ -190,12 +190,12 @@ def infer_bookmaker_intent(
     has_high_divergence = any(
         item.component == IntentComponent.BOOKMAKER_DIVERGENCE for item in evidence
     )
-    confidence = min(abs(net) * (0.75 if has_high_divergence else 1.0), 1.0)
-    if has_high_divergence and confidence < 0.45:
+    signal_strength = min(abs(net) * (0.75 if has_high_divergence else 1.0), 1.0)
+    if has_high_divergence and signal_strength < 0.45:
         intent = IntentSignal.CONFLICTED
         side = TeamSide.NEUTRAL
         reason = "MARKET_DIVERGENCE_CONFLICTS_WITH_DIRECTION"
-    elif confidence < resolved.min_confidence:
+    elif signal_strength < resolved.min_signal_strength:
         intent = IntentSignal.BALANCED
         side = TeamSide.NEUTRAL
         reason = "NO_CLEAR_BOOKMAKER_LEAN"
@@ -207,7 +207,7 @@ def infer_bookmaker_intent(
         fixture_id=context.fixture_id,
         market_kind=market_kind,
         intent=intent,
-        confidence=round(confidence, 4),
+        signal_strength=round(signal_strength, 4),
         implied_side=side,
         reason=reason,
         evidence=tuple(evidence),
@@ -225,7 +225,7 @@ def _terminal_intent(
         fixture_id=context.fixture_id,
         market_kind=market_kind,
         intent=intent,
-        confidence=0.0,
+        signal_strength=0.0,
         implied_side=TeamSide.NEUTRAL,
         reason=reason,
         evidence=(),

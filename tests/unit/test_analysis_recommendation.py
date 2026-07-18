@@ -18,7 +18,7 @@ from w2.strategy.bookmaker_intent import BookmakerIntent, IntentSignal
 NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 
 
-def intent(signal: IntentSignal, confidence: float = 0.7) -> BookmakerIntent:
+def intent(signal: IntentSignal, signal_strength: float = 0.7) -> BookmakerIntent:
     side = (
         TeamSide.HOME
         if signal in {IntentSignal.HOME_LEAN, IntentSignal.OVER_LEAN}
@@ -28,7 +28,7 @@ def intent(signal: IntentSignal, confidence: float = 0.7) -> BookmakerIntent:
         fixture_id="1489404",
         market_kind="AH" if signal != IntentSignal.OVER_LEAN else "OU",
         intent=signal,
-        confidence=confidence,
+        signal_strength=signal_strength,
         implied_side=side,
         reason="test",
         evidence=(),
@@ -133,7 +133,7 @@ def test_output_rejects_banned_certainty_wording() -> None:
             market=AnalysisMarket.TOTALS,
             decision=AnalysisDecision.ANALYSIS_PICK,
             tendency="OVER",
-            confidence=0.5,
+            signal_strength=0.5,
             reasons=("保证命中",),
             risks=("risk",),
             invalidation_conditions=("condition",),
@@ -144,7 +144,7 @@ def test_leakage_blocked_intent_forces_market_skip() -> None:
     inputs = AnalysisBuildInputs(
         **{
             **complete_inputs().__dict__,
-            "ah_intent": intent(IntentSignal.LEAKAGE_BLOCKED, confidence=0.0),
+            "ah_intent": intent(IntentSignal.LEAKAGE_BLOCKED, signal_strength=0.0),
         }
     )
 
@@ -159,8 +159,8 @@ def test_low_strength_markets_emit_no_edge_not_analysis_pick() -> None:
     inputs = AnalysisBuildInputs(
         **{
             **complete_inputs().__dict__,
-            "ah_intent": intent(IntentSignal.HOME_LEAN, confidence=0.4),
-            "ou_intent": intent(IntentSignal.OVER_LEAN, confidence=0.4),
+            "ah_intent": intent(IntentSignal.HOME_LEAN, signal_strength=0.4),
+            "ou_intent": intent(IntentSignal.OVER_LEAN, signal_strength=0.4),
             "half_goals": HalfGoalModelInput(
                 expected_home_goals=0.78,
                 expected_away_goals=0.78,
@@ -180,4 +180,4 @@ def test_low_strength_markets_emit_no_edge_not_analysis_pick() -> None:
     assert card.decision == AnalysisDecision.NO_EDGE
     assert all(market.decision == AnalysisDecision.NO_EDGE for market in card.markets)
     assert {market.tendency for market in card.markets} == {None}
-    assert all(market.confidence < 0.55 for market in card.markets)
+    assert all(market.signal_strength < 0.55 for market in card.markets)

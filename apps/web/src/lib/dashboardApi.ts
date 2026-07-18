@@ -605,10 +605,10 @@ function demoDashboard(date: string, meta: ReleaseMeta): DashboardView {
     current_odds: { ah: { line: "-1.5", price: "7.5" }, ou: { line: "3.5", price: "1.03" } },
     odds_movement: { ah_open: "-1.75", ah_current: "-1.5" },
     market_strip: [
-      { market: "TOTALS", decision: "PICK", label_cn: "大小球", lean_cn: "大 3.5", confidence: 0.78 },
+      { market: "TOTALS", decision: "PICK", label_cn: "大小球", lean_cn: "大 3.5", signal_strength: 0.78 },
       { market: "ASIAN_HANDICAP", decision: "SKIP", label_cn: "让球", lean_cn: "数据不足" },
     ],
-    bookmaker_intent: { intent: "CONFLICTED", label_cn: "分歧较大", opening_line: "-1.75", current_line: "-1.5" },
+    bookmaker_intent: { intent: "CONFLICTED", label_cn: "分歧较大", opening_line: "-1.75", current_line: "-1.5", signal_strength: 0.4 },
     missing_inputs: ["xG", "交锋", "首发"],
   };
   return {

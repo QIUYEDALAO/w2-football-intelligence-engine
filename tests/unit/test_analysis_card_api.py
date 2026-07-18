@@ -196,6 +196,9 @@ def test_analysis_card_fallback_contains_four_markets_and_intent() -> None:
     }
     assert card["bookmaker_intent"]["intent"] == "INSUFFICIENT_DATA"
     assert card["bookmaker_intent"]["label_cn"] == "数据不足"
+    assert card["bookmaker_intent"]["signal_strength"] == 0.0
+    assert "confidence" not in card["bookmaker_intent"]
+    assert all("confidence" not in market for market in card["markets"])
     assert card["disclaimer"] == "分析参考·非稳赢"
     assert card["disclaimer_cn"] == "分析参考·非稳赢"
     assert card["watch_level"] == 0

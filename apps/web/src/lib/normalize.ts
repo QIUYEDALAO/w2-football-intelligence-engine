@@ -331,6 +331,12 @@ export function confidenceDots(value: unknown): number {
   return Math.max(0, Math.min(5, Math.round(normalized * 5)));
 }
 
+export function signalStrengthLabel(value: unknown): string {
+  const count = confidenceDots(value);
+  const label = count >= 4 ? "强" : count >= 2 ? "中" : count === 1 ? "弱" : "暂无";
+  return `${label}（${count}/5）`;
+}
+
 export function leanLabel(market: MarketAnalysis): string {
   const tendency = textValue(market.tendency);
   return textValue(market.lean_cn ?? market.lean ?? TENDENCY_LABELS[tendency] ?? tendency, "等待判断");

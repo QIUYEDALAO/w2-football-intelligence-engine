@@ -43,6 +43,10 @@ def test_bookmaker_intent_is_labeled_as_unverified_hypothesis() -> None:
     assert "庄家意图" not in odds_mini
     assert "盘口假设 · 未验证" in intent_line
     assert "庄家意图" not in intent_line
+    assert "信号强度" in intent_line
+    assert "不是概率或命中率" in intent_line
+    assert "信号强度" in odds_mini
+    assert "不是概率或命中率" in odds_mini
 
 
 def test_score_display_uses_index_scale_not_raw_scores() -> None:
