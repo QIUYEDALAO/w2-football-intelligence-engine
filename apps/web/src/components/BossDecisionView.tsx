@@ -551,8 +551,10 @@ export function MatchdayHeader({
       <div className="boss-command-meta">
         <span>日期 <strong>{dayView.football_day}</strong></span>
         <span>环境 <strong>{dayView.environment}</strong></span>
-        <span>页面更新 <strong>{dayView.freshness.page_updated_at ? fmtTime(dayView.freshness.page_updated_at) : "--:--"}</strong></span>
-        <span>赔率确认 <strong>{dayView.freshness.odds_last_confirmed_at ? fmtTime(dayView.freshness.odds_last_confirmed_at) : "暂无"}</strong></span>
+        <span>
+          页面更新 <strong>{dayView.freshness.page_updated_at ? fmtTime(dayView.freshness.page_updated_at) : "--:--"}</strong>
+          · 赔率确认 <strong>{dayView.freshness.odds_last_confirmed_at ? fmtTime(dayView.freshness.odds_last_confirmed_at) : "暂无"}</strong>
+        </span>
         <span>下次采集 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
         <span>即将比赛 <strong>{upcoming}</strong></span>
         <span>已出推荐 <strong>{readyRecommendations}</strong></span>

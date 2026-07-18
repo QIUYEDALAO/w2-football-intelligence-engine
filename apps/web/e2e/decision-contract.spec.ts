@@ -175,6 +175,20 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
   await expect(page.locator(".boss-command-meta")).toContainText("页面更新 18:00");
   await expect(page.locator(".boss-command-meta")).toContainText("赔率确认 17:55");
   await expect(page.locator(".boss-command-meta")).toContainText("下次采集 18:15");
+  await expect(page.locator(".boss-command-meta > span")).toHaveCount(6);
+  const headerGeometry = await page.evaluate(() => {
+    const view = document.querySelector(".boss-view-select")?.getBoundingClientRect();
+    const meta = document.querySelector(".boss-command-meta")?.getBoundingClientRect();
+    const release = document.querySelector(".boss-command-release")?.getBoundingClientRect();
+    return {
+      viewRight: view?.right ?? 0,
+      metaLeft: meta?.left ?? 0,
+      metaRight: meta?.right ?? 0,
+      releaseLeft: release?.left ?? 0,
+    };
+  });
+  expect(headerGeometry.viewRight).toBeLessThanOrEqual(headerGeometry.metaLeft);
+  expect(headerGeometry.metaRight).toBeLessThanOrEqual(headerGeometry.releaseLeft);
   const analysis = await page.evaluate(async () => {
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
     return response.json();
