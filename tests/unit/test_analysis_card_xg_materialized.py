@@ -4,11 +4,24 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
+import pytest
+
 from w2.api import repository as api_repository
 from w2.api.repository import ReadModelService
 
 NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(days=1)
+
+
+class FrozenDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return NOW if tz is not None else NOW.replace(tzinfo=None)
+
+
+@pytest.fixture(autouse=True)
+def _freeze_repository_clock(monkeypatch):
+    monkeypatch.setattr(api_repository, "datetime", FrozenDateTime)
 
 
 class FakeReadRepository:
@@ -36,7 +49,9 @@ class FakeReadRepository:
 
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        for index, captured in enumerate((NOW - timedelta(hours=3), NOW - timedelta(hours=1))):
+        for index, captured in enumerate(
+            (NOW - timedelta(hours=3), NOW - timedelta(minutes=10))
+        ):
             for bookmaker_id, bookmaker_name, home_price, away_price, over_price, under_price in (
                 ("1", "Pinnacle", "1.95", "1.96", "1.90", "1.94"),
                 ("2", "SoftBook", "2.04", "1.92", "2.02", "1.86"),
@@ -138,6 +153,13 @@ class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
             "away_team_name": "Away",
             "market_coverage": {},
         }
+
+
+class FakeReadRepositoryWithStaleQuotes(FakeReadRepository):
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        rows = super().future_market_observations()
+        stale = (NOW - timedelta(minutes=31)).isoformat().replace("+00:00", "Z")
+        return [{**row, "captured_at": stale} for row in rows]
 
 
 class FakeDbRepository:
@@ -332,6 +354,24 @@ def test_analysis_card_prefers_future_refresh_observations_over_stale_dashboard(
     assert reasons["TOTALS"] != ["OU_MARKET_UNAVAILABLE"]
 
 
+def test_stale_quotes_remain_auditable_but_are_not_current_or_executable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithStaleQuotes()))
+
+    card = service.analysis_card("1489410")
+
+    assert card is not None
+    assert card["quote_identity_audit"]["ah"]["freshness_status"] == "STALE"
+    assert card["quote_identity_audit"]["ou"]["freshness_status"] == "STALE"
+    assert "current_odds" not in card
+    assert "market_probabilities" not in card
+    for market in card["markets"]:
+        if market["market"] in {"ASIAN_HANDICAP", "TOTALS"}:
+            assert "odds" not in market
+
+
 class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -345,7 +385,9 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
             ):
                 rows.append(
                     {
+                        "observation_id": f"ah-{bookmaker_id}-{selection}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "ASIAN_HANDICAP",
                         "raw_market_label": "Asian Handicap",
                         "selection": selection,
@@ -355,6 +397,8 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": "a" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }
@@ -367,7 +411,9 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
             ):
                 rows.append(
                     {
+                        "observation_id": f"ou-{bookmaker_id}-{selection}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "TOTALS",
                         "selection": selection,
                         "line": line,
@@ -376,6 +422,8 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": "b" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }

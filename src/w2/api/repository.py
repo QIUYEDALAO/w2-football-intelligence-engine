@@ -78,7 +78,11 @@ from w2.markets.poisson import (
     IndependentXgPoissonOutput,
     independent_xg_poisson,
 )
-from w2.markets.quote_identity import project_quote_identity, unavailable_quote_identity
+from w2.markets.quote_identity import (
+    evaluate_quote_freshness,
+    project_quote_identity,
+    unavailable_quote_identity,
+)
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -1910,8 +1914,10 @@ class ReadModelService:
                 home_xg=latest_home_xg,
                 away_xg=latest_away_xg,
                 score_matrix=score_matrix,
+                evaluated_at=context.as_of,
             )
         )
+        self._isolate_non_current_quote_outputs(payload)
         self._attach_xg_reason_values(
             payload,
             home_xg=latest_home_xg,
@@ -3071,6 +3077,7 @@ class ReadModelService:
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
         score_matrix: dict[tuple[int, int], float] | None,
+        evaluated_at: datetime,
     ) -> dict[str, Any]:
         bookmaker_ids = {
             str(row.get("bookmaker_id") or row.get("bookmaker_name"))
@@ -3108,6 +3115,24 @@ class ReadModelService:
                 "statistics_captured_at": statistics_status["captured_at"],
             }
         }
+        quote_identity_audit = {
+            key: evaluate_quote_freshness(
+                project_quote_identity(
+                    market=market,
+                    selected_line=mainline_selection.get(market, {}).get("line"),
+                    authoritative_rows=mainline_selection.get(market, {}).get(
+                        "authoritative_quote_rows"
+                    ),
+                )
+                if mainline_selection.get(market, {}).get("status") == "READY"
+                else unavailable_quote_identity(
+                    market=market,
+                    blocker="AUTHORITATIVE_MAINLINE_NOT_READY",
+                ),
+                evaluated_at=evaluated_at,
+            )
+            for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+        }
         current_odds: dict[str, Any] = {}
         line_movement: dict[str, Any] = {}
         for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
@@ -3120,7 +3145,7 @@ class ReadModelService:
                 continue
             current = ordered[-1]
             odds_entry = self._balanced_odds_entry(selected)
-            if odds_entry:
+            if odds_entry and quote_identity_audit[key]["freshness_status"] == "COMPLETE":
                 current_odds[key] = odds_entry
             first_line = self._line_value(ordered[0])
             current_line = self._line_value(current)
@@ -3130,24 +3155,17 @@ class ReadModelService:
                 line_movement[f"{key}_current"] = current_line
         if current_odds:
             summary["current_odds"] = current_odds
-        summary["quote_identity_audit"] = {
-            key: project_quote_identity(
-                market=market,
-                selected_line=mainline_selection.get(market, {}).get("line"),
-                authoritative_rows=mainline_selection.get(market, {}).get(
-                    "authoritative_quote_rows"
-                ),
-            )
-            if mainline_selection.get(market, {}).get("status") == "READY"
-            else unavailable_quote_identity(
-                market=market,
-                blocker="AUTHORITATIVE_MAINLINE_NOT_READY",
-            )
-            for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
-        }
+        summary["quote_identity_audit"] = quote_identity_audit
         if line_movement:
             summary["line_movement"] = line_movement
-        market_probabilities = self._market_probabilities_from_observations(observations)
+        fresh_markets = {
+            market
+            for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+            if quote_identity_audit[key]["freshness_status"] == "COMPLETE"
+        }
+        market_probabilities = self._market_probabilities_from_observations(
+            [row for row in observations if row.get("canonical_market") in fresh_markets]
+        )
         if market_probabilities:
             summary["market_probabilities"] = market_probabilities
         if score_matrix:
@@ -3155,6 +3173,19 @@ class ReadModelService:
                 score_matrix
             )
         return summary
+
+    def _isolate_non_current_quote_outputs(self, payload: dict[str, Any]) -> None:
+        audit = payload.get("quote_identity_audit")
+        if not isinstance(audit, dict):
+            return
+        market_keys = {"ASIAN_HANDICAP": "ah", "TOTALS": "ou"}
+        for market in payload.get("markets", []):
+            if not isinstance(market, dict):
+                continue
+            key = market_keys.get(str(market.get("market") or ""))
+            quote = audit.get(key) if key else None
+            if isinstance(quote, dict) and quote.get("freshness_status") != "COMPLETE":
+                market.pop("odds", None)
 
     def _xg_readiness_status(
         self,

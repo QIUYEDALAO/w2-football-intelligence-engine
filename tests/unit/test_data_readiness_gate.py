@@ -152,3 +152,61 @@ def test_baseline_prior_and_calibration_report_are_not_readiness_blockers() -> N
 
     assert result.data_status is not DataStatus.BLOCKED
     assert result.reason_code is not DecisionReasonCode.COVERAGE_NONE
+
+
+def test_legacy_gate_uses_authoritative_quote_capture_for_staleness() -> None:
+    captured = NOW - timedelta(minutes=31)
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "generated_at": NOW.isoformat(),
+            "data_readiness": {"market_observations": 2, "bookmakers": 1},
+            "quote_identity_audit": {
+                "ou": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "STALE",
+                    "captured_at": captured.isoformat(),
+                }
+            },
+        },
+        market={"market": "TOTALS"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "PARTIAL",
+            "blockers": ["MARKET_UNAVAILABLE"],
+            "available_inputs": {"market_observations": 2, "odds_snapshots": 1},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    assert result.data_status is DataStatus.STALE
+    assert result.reason_code is DecisionReasonCode.DATA_STALE_ODDS
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at == captured
+
+
+def test_generated_at_does_not_fill_missing_authoritative_quote_time() -> None:
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "generated_at": NOW.isoformat(),
+            "data_readiness": {"market_observations": 2, "bookmakers": 1},
+        },
+        market={"market": "TOTALS"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "PARTIAL",
+            "available_inputs": {"market_observations": 2, "odds_snapshots": 1},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at is None

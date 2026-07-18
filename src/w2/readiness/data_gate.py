@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from w2.domain.enums import DataStatus, DecisionReasonCode
+from w2.markets.quote_identity import QUOTE_IDENTITY_SCHEMA_VERSION
 
 READINESS_SOURCE: Literal["w2.readiness.data_gate.v1"] = "w2.readiness.data_gate.v1"
 
@@ -203,7 +204,6 @@ def build_data_readiness_from_legacy_payload(
     available_inputs = _as_mapping(_get(analysis_readiness, "available_inputs"))
     pricing = _as_mapping(card.get("pricing_shadow"))
     current_odds = _as_mapping(card.get("current_odds"))
-    line_movement = _as_mapping(card.get("line_movement"))
     provider = provider_status or _as_mapping(card.get("provider_status"))
     provider_budget_status = _first_text(
         _get(provider, "provider_budget_status"),
@@ -235,14 +235,7 @@ def build_data_readiness_from_legacy_payload(
         or _has_market_odds(market)
         or _has_market_odds(recommendation)
     )
-    odds_captured_at = _parse_utc(
-        _first_text(
-            _get(current_odds, "captured_at"),
-            _get(line_movement, "captured_at"),
-            _get(raw_data_readiness, "odds_captured_at"),
-            _get(card, "generated_at"),
-        ),
-    )
+    odds_captured_at = _authoritative_quote_captured_at(card)
     lineups_available = _truthy(_get(available_inputs, "lineups")) or _truthy(
         _get(raw_data_readiness, "lineups"),
     )
@@ -290,6 +283,23 @@ def build_data_readiness_from_legacy_payload(
         policy,
     )
     return _merge_legacy_status(result, analysis_readiness, card, market, recommendation, policy)
+
+
+def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None:
+    audit = _as_mapping(card.get("quote_identity_audit"))
+    captured: list[datetime] = []
+    for key in ("ah", "ou"):
+        quote = _as_mapping(audit.get(key))
+        if quote.get("schema_version") != QUOTE_IDENTITY_SCHEMA_VERSION:
+            continue
+        if quote.get("identity_status") != "COMPLETE":
+            continue
+        if quote.get("freshness_status") == "INCOMPLETE":
+            continue
+        parsed = _parse_utc(quote.get("captured_at"))
+        if parsed is not None:
+            captured.append(parsed)
+    return min(captured) if captured else None
 
 
 def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | None:

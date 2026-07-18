@@ -52,7 +52,7 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
 - Local SHA `3fc2412c258b996d4f8af6bd44f2799438f49504` replaced the unbounded public
   analysis-card observation read with a request-local fixture-scoped reader.
 - Local validation passed with `1084 passed, 4 skipped`, Ruff, Mypy, TypeScript,
-  Web production build, acceptance, tracked-output, secret and migration gates.
+  Web production build, acceptance, tracked-output, credential scan and migration gates.
 - Isolated staging-parity/predeploy-e2e, migration and fake-provider contracts
   passed without GitHub.
 - First, five sequential and two-fixture concurrent public probes all returned

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 QUOTE_IDENTITY_SCHEMA_VERSION = "w2.quote_identity.v1"
+QUOTE_FRESHNESS_SCHEMA_VERSION = "w2.quote_freshness.v1"
+DEFAULT_QUOTE_MAX_AGE = timedelta(minutes=30)
 
 _REQUIRED_FIELDS = (
     "observation_id",
@@ -107,6 +110,53 @@ def unavailable_quote_identity(*, market: str, blocker: str) -> dict[str, Any]:
     )
 
 
+def evaluate_quote_freshness(
+    identity: Mapping[str, Any],
+    *,
+    evaluated_at: datetime,
+    max_age: timedelta = DEFAULT_QUOTE_MAX_AGE,
+) -> dict[str, Any]:
+    """Attach freshness derived only from authoritative quote captured_at."""
+    payload = dict(identity)
+    blockers: list[str] = []
+    captured_at: datetime | None = None
+    if payload.get("schema_version") != QUOTE_IDENTITY_SCHEMA_VERSION:
+        blockers.append("UNSUPPORTED_QUOTE_IDENTITY_SCHEMA")
+    if payload.get("identity_status") != "COMPLETE":
+        blockers.append("QUOTE_IDENTITY_NOT_COMPLETE")
+    raw_captured_at = payload.get("captured_at")
+    if raw_captured_at in {None, ""}:
+        blockers.append("MISSING_AUTHORITATIVE_CAPTURED_AT")
+    else:
+        captured_at = _parse_utc(raw_captured_at)
+        if captured_at is None:
+            blockers.append("INVALID_AUTHORITATIVE_CAPTURED_AT")
+
+    reference = evaluated_at.astimezone(UTC)
+    age_seconds: float | None = None
+    status = "INCOMPLETE"
+    if not blockers and captured_at is not None:
+        age_seconds = (reference - captured_at).total_seconds()
+        if age_seconds < 0:
+            blockers.append("CAPTURED_AT_AFTER_EVALUATION")
+        elif age_seconds > max_age.total_seconds():
+            status = "STALE"
+            blockers.append("QUOTE_OLDER_THAN_30_MINUTES")
+        else:
+            status = "COMPLETE"
+    payload.update(
+        {
+            "freshness_schema_version": QUOTE_FRESHNESS_SCHEMA_VERSION,
+            "freshness_status": status,
+            "freshness_blockers": sorted(set(blockers)),
+            "evaluated_at": reference.isoformat().replace("+00:00", "Z"),
+            "age_seconds": None if age_seconds is None else round(age_seconds, 6),
+            "max_age_seconds": int(max_age.total_seconds()),
+        }
+    )
+    return payload
+
+
 def _payload(
     *,
     market: str,
@@ -192,3 +242,13 @@ def _decimal(value: Any) -> Decimal | None:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
         return None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
