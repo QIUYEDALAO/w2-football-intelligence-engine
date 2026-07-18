@@ -47,6 +47,22 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
   restarts after rollback; queue, provider baseline and locks remain unchanged.
 - R0.1b has not started.
 
+### R0.1a-B1 local direct reacceptance
+
+- Local SHA `3fc2412c258b996d4f8af6bd44f2799438f49504` replaced the unbounded public
+  analysis-card observation read with a request-local fixture-scoped reader.
+- Local validation passed with `1084 passed, 4 skipped`, Ruff, Mypy, TypeScript,
+  Web production build, acceptance, tracked-output, secret and migration gates.
+- Isolated staging-parity/predeploy-e2e, migration and fake-provider contracts
+  passed without GitHub.
+- First, five sequential and two-fixture concurrent public probes all returned
+  200. API restart and OOM stayed zero; final RSS was 276.6 MiB.
+- The real staging scoped reader returned 5,388 target rows while the injected
+  global reader was never called.
+- Provider, observation, queue and lock counts were unchanged. Canonical DayView
+  projection bytes were identical before and after deployment.
+- R0.1a is PASS. R0.1b is now authorized.
+
 Detailed canary evidence:
 [W2 R0.1a Staging Canary](docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
 
