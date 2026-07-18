@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T19:40:00Z"
+updated_at: "2026-07-18T19:53:00Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 delivery_status_vocabulary:
   - implemented
@@ -31,6 +31,7 @@ context_read_order:
   - docs/operations/W2_R3_READONLY_RELEASE_GATE_MANIFEST_20260718.json
   - docs/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md
   - docs/operations/W2_DASHBOARD_MARKET_FRESHNESS_STAGING_CANARY_20260719.md
+  - docs/operations/W2_DASHBOARD_LOCALIZATION_STAGING_CANARY_20260719.md
   - docs/operations/W2_DELIVERY_STATUS_LEVELS.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
@@ -38,12 +39,12 @@ context_read_order:
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   remote_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_accepted_implementation_sha: f2389e80418502dc85ad9718c0b3481b32d9ab3f
+  local_accepted_implementation_sha: 5cd3034878abe7522f8b18c8be32dc86f2a3da1e
   github_sync_performed: false
   recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
   remote_main_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_main_contains_sha: f2389e80418502dc85ad9718c0b3481b32d9ab3f
-  tree_sha: 96756ada75e6e6721a149f316452c3678b00a7d5
+  local_main_contains_sha: 5cd3034878abe7522f8b18c8be32dc86f2a3da1e
+  tree_sha: 47c74a6b7c94f440af56d6544fd7a218255e4bca
   baseline_reason: Restore pre-GPT-5.6 expert review baseline
   historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
   prohibited_bulk_restore_range: "#333-#347"
@@ -64,8 +65,8 @@ current_phase:
     R3_repeat_capture_freshness: staging_accepted
 
 staging:
-  deployed_sha: f2389e80418502dc85ad9718c0b3481b32d9ab3f
-  deployed_tree_sha: 96756ada75e6e6721a149f316452c3678b00a7d5
+  deployed_sha: 5cd3034878abe7522f8b18c8be32dc86f2a3da1e
+  deployed_tree_sha: 47c74a6b7c94f440af56d6544fd7a218255e4bca
   tree_matches_main: false
   health_http_status: 200
   canonical_ready_http_status: 200
