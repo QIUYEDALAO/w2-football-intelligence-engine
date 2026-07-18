@@ -578,6 +578,7 @@ export interface ApiVersion {
   read_model_fixture_count: number;
   matchday_card_count: number;
   result_event_count: number;
+  release_identity?: Record<string, unknown>;
   generated_at?: string;
 }
 

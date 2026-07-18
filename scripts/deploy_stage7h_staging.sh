@@ -139,6 +139,12 @@ export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
 sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build
+API_IMAGE_ID=\"\$(sudo docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml images -q api)\"
+if ! printf '%s\n' \"\${API_IMAGE_ID}\" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+  echo \"API image ID unavailable after build\" >&2
+  exit 1
+fi
+printf 'W2_API_IMAGE_ID=%s\n' \"\${API_IMAGE_ID}\" | sudo tee -a /opt/w2/shared/release.env >/dev/null
 echo 'staging images built for current release'
 if [ '${PRUNE_BUILD_CACHE}' = 'true' ]; then
   echo '--- Pruning unused Docker build cache (no volumes) ---'

@@ -91,6 +91,8 @@ from w2.matchday.timezone import (
     next_36_hours_window,
 )
 from w2.operations.leagues import run_top_five_audit
+from w2.operations.observability import default_metric_registry
+from w2.operations.release_evidence import build_release_identity
 from w2.operations.tournament import (
     build_operations_plan,
     load_stage5b_world_cup_fixtures,
@@ -1015,8 +1017,6 @@ class ReadModelService:
     def _cached_future_market_observations(self) -> list[dict[str, Any]]:
         if self._future_market_observations_cache is None:
             if self._bounded_public_request:
-                from w2.operations.observability import default_metric_registry
-
                 default_metric_registry().inc(
                     "w2_public_tripwire_blocks_total",
                     labels={"reader": "global_observation"},
@@ -1169,6 +1169,7 @@ class ReadModelService:
             "read_model_fixture_count": counts["read_model_fixture_count"],
             "matchday_card_count": counts["matchday_card_count"],
             "result_event_count": counts["result_event_count"],
+            "release_identity": build_release_identity(settings),
             "generated_at": generated_at,
         }
 

@@ -84,6 +84,7 @@ function normalizeVersion(payload: unknown): ApiVersion {
     read_model_fixture_count: numberValue(record.read_model_fixture_count),
     matchday_card_count: numberValue(record.matchday_card_count),
     result_event_count: numberValue(record.result_event_count),
+    release_identity: asRecord(record.release_identity),
     generated_at: textValue(record.generated_at),
   };
 }
