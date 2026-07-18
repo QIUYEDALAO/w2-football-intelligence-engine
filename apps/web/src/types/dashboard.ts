@@ -34,6 +34,10 @@ export interface MarketAnalysis {
   risks_cn?: unknown;
   reference_scores?: unknown;
   scores?: unknown;
+  decision_score?: number | string | null;
+  selection_role?: "PRIMARY" | "SECONDARY" | null;
+  lineup_adjustment?: number | string | null;
+  lineup_status?: string | null;
 }
 
 export interface ReadinessPayload {
@@ -726,6 +730,16 @@ export interface DashboardDayViewCard {
     odds?: string | number | null;
     disclaimer?: string | null;
   } | null;
+  secondary_picks?: Array<{
+    market?: string | null;
+    tendency?: string | null;
+    lean?: string | null;
+    line?: string | number | null;
+    odds?: string | number | null;
+    decision_score?: number | string | null;
+  }>;
+  market_selection_audit?: Array<Record<string, unknown>>;
+  lineup_provenance?: Record<string, unknown>;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;

@@ -37,6 +37,13 @@ const REASON_LABELS: Record<string, string> = {
   EDGE_INSUFFICIENT: "优势不足",
   NO_SUPPORTED_MARKET: "无可支持市场",
   FIXTURE_NOT_UPCOMING: "非赛前窗口",
+  LINEUP_SNAPSHOT_INCOMPLETE: "正式首发尚未完整",
+  LINEUP_NOT_CONFIRMED: "正式首发尚未确认",
+  STARTING_XI_INCOMPLETE: "双方首发不足 11 人",
+  PLAYER_IDENTITY_INCOMPLETE: "首发球员身份尚未匹配完整",
+  VALUATION_INCOMPLETE: "首发球员身价覆盖不足",
+  FORMATION_INCOMPLETE: "阵型数据尚未完整",
+  QUOTE_NOT_COMPLETE_OR_FRESH: "临场赔率尚未齐全或已过期",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -131,7 +138,10 @@ function visibleReasonLabel(card: DashboardDayViewCard, now = new Date()): strin
   if (isWaitingForScheduledRefresh(card, now)) {
     return hasLastKnownOdds(card) ? "已有早盘，待临场更新" : "尚无盘口，等待首轮采集";
   }
-  return reasonLabel(card.reason_code);
+  const lineup = asRecord(card.lineup_provenance);
+  const blockers = Array.isArray(lineup.blockers) ? lineup.blockers : [];
+  const lineupReason = blockers.map((value) => REASON_LABELS[String(value)]).find(Boolean);
+  return lineupReason ?? reasonLabel(card.reason_code);
 }
 
 function isWorldCup(dayView: DashboardDayView): boolean {
@@ -575,6 +585,15 @@ function rowMarketSummary(card: DashboardDayViewCard): string {
   return visibleReasonLabel(card);
 }
 
+function secondaryMarketSummary(card: DashboardDayViewCard): string | null {
+  const pick = card.secondary_picks?.[0];
+  if (!pick) return null;
+  const market = pick.market === "TOTALS" ? "大小球" : pick.market === "ASIAN_HANDICAP" ? "让球" : pick.market;
+  const direction = pick.tendency ?? pick.lean;
+  const parts = [market, direction, pick.line, pick.odds ? `@${pick.odds}` : null].filter(Boolean);
+  return parts.length ? `严格次推：${parts.join(" ")}` : null;
+}
+
 function reasonSummary(cards: DashboardDayViewCard[]): Array<{ label: string; count: number }> {
   const counter = new Map<string, number>();
   for (const card of cards) {
@@ -770,7 +789,7 @@ export function DecisionRow({
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>
-          <small>{marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
+          <small>{secondaryMarketSummary(card) ?? marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
         </div>
         <div className="decision-cell decision-data">
           <span>{visibleDataStatusLabel(card, now)}</span>

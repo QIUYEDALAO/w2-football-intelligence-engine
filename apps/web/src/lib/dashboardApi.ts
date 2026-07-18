@@ -829,6 +829,21 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
           disclaimer: textValue(pick.disclaimer) || null,
         }
       : null,
+    secondary_picks: actionable
+      ? asArray(record.secondary_picks).slice(0, 1).map((item) => {
+          const secondary = asRecord(item);
+          return {
+            market: textValue(secondary.market) || null,
+            tendency: textValue(secondary.tendency) || null,
+            lean: textValue(secondary.lean) || null,
+            line: textValue(secondary.line) || null,
+            odds: textValue(secondary.odds) || null,
+            decision_score: numberValue(secondary.decision_score),
+          };
+        })
+      : [],
+    market_selection_audit: asArray(record.market_selection_audit).map((item) => asRecord(item)),
+    lineup_provenance: asRecord(record.lineup_provenance),
     non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
