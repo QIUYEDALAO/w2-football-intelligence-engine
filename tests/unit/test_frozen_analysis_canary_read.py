@@ -22,7 +22,11 @@ from w2.api.repository import ReadModelService
 from w2.dashboard.day_view import build_dashboard_day_view
 
 
-def _artifact(fixture_id: str = "1576804") -> FrozenAnalysisArtifact:
+def _artifact(
+    fixture_id: str = "1576804",
+    *,
+    legacy_heuristic: bool = False,
+) -> FrozenAnalysisArtifact:
     card = {
         "fixture_id": fixture_id,
         "decision": "SKIP",
@@ -34,6 +38,22 @@ def _artifact(fixture_id: str = "1576804") -> FrozenAnalysisArtifact:
         "formal_recommendation": False,
         "lock_eligible": False,
         "outcome_tracked": False,
+        "bookmaker_intent": (
+            {"intent": "CONFLICTED", "confidence": 0.4}
+            if legacy_heuristic
+            else {"intent": "CONFLICTED", "signal_strength": 0.4}
+        ),
+        "markets": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "decision": "NO_EDGE",
+                **(
+                    {"confidence": 0.3}
+                    if legacy_heuristic
+                    else {"signal_strength": 0.3}
+                ),
+            }
+        ],
         "quote_identity_audit": {
             "ah": {
                 "identity_status": "INCOMPLETE",
@@ -130,6 +150,20 @@ def test_canary_reads_only_verified_frozen_artifact() -> None:
     }
     assert repository.reads == ["1576804"]
     assert repository.forbidden_calls == 0
+
+
+def test_legacy_frozen_heuristic_is_projected_as_signal_strength() -> None:
+    artifact = _artifact(legacy_heuristic=True)
+    card = ReadModelService(
+        repository=cast(Any, FrozenRepository(artifact))
+    ).public_analysis_card_bounded("1576804")
+
+    assert card is not None
+    assert card["bookmaker_intent"]["signal_strength"] == 0.4
+    assert "confidence" not in card["bookmaker_intent"]
+    assert card["markets"][0]["signal_strength"] == 0.3
+    assert "confidence" not in card["markets"][0]
+    assert card["frozen_artifact_provenance"]["artifact_hash"] == artifact.artifact_hash
 
 
 def test_canary_response_is_stable_for_sequential_and_concurrent_reads() -> None:

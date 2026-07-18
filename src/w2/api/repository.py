@@ -1909,6 +1909,14 @@ class ReadModelService:
                 blocker="FROZEN_ARTIFACT_MISSING",
             )
         card = cast(dict[str, Any], deepcopy(artifact.payload["analysis_card"]))
+        card["bookmaker_intent"] = self._project_heuristic_signal_strength(
+            card.get("bookmaker_intent")
+        )
+        card["markets"] = [
+            self._project_heuristic_signal_strength(item)
+            for item in card.get("markets", [])
+            if isinstance(item, dict)
+        ]
         card["frozen_artifact_provenance"] = {
             "status": "VERIFIED",
             "schema_version": artifact.payload["schema_version"],
@@ -4729,19 +4737,17 @@ class ReadModelService:
         return ""
 
     def _decorate_bookmaker_intent(self, payload: Any) -> dict[str, Any]:
-        intent = dict(payload) if isinstance(payload, dict) else {}
+        intent = self._project_heuristic_signal_strength(payload)
         intent_value = str(intent.get("intent") or "INSUFFICIENT_DATA")
         intent["intent"] = intent_value
         intent.setdefault("label_cn", INTENT_LABELS_CN.get(intent_value, intent_value))
         intent.setdefault("opening_line", None)
         intent.setdefault("current_line", None)
-        if "signal_strength" not in intent:
-            intent["signal_strength"] = intent.get("confidence", 0.0)
-        intent.pop("confidence", None)
+        intent.setdefault("signal_strength", 0.0)
         return intent
 
     def _decorate_analysis_market(self, payload: dict[str, Any]) -> dict[str, Any]:
-        market = dict(payload)
+        market = self._project_heuristic_signal_strength(payload)
         market_name = str(market.get("market") or "UNKNOWN")
         original_decision = str(market.get("decision") or "SKIP")
         market["analysis_decision"] = original_decision
@@ -4759,9 +4765,7 @@ class ReadModelService:
         market["lean"] = market["lean_cn"]
         market["reason"] = market["reason_cn"]
         market["risks_cn"] = list(market.get("risks") or ["数据不足时保持 SKIP。"])
-        if "signal_strength" not in market:
-            market["signal_strength"] = market.get("confidence", 0.0)
-        market.pop("confidence", None)
+        market.setdefault("signal_strength", 0.0)
         market.setdefault("reference_scores", self._reference_scores(market))
         market.setdefault(
             "scores",
@@ -4774,6 +4778,13 @@ class ReadModelService:
         market["candidate"] = False
         market["formal_recommendation"] = False
         return market
+
+    def _project_heuristic_signal_strength(self, payload: Any) -> dict[str, Any]:
+        projected = dict(payload) if isinstance(payload, dict) else {}
+        if "signal_strength" not in projected and "confidence" in projected:
+            projected["signal_strength"] = projected["confidence"]
+        projected.pop("confidence", None)
+        return projected
 
     def _analysis_context_from_flat_fixture(self, item: dict[str, Any]) -> dict[str, Any]:
         competition = str(item.get("competition_name") or "世界杯")
