@@ -78,6 +78,7 @@ from w2.markets.poisson import (
     IndependentXgPoissonOutput,
     independent_xg_poisson,
 )
+from w2.markets.quote_identity import project_quote_identity, unavailable_quote_identity
 from w2.matchday.coverage import MatchdayCoverageReconciler
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -1936,6 +1937,7 @@ class ReadModelService:
                 "min_price": min(home_price, away_price),
                 "quarantined_observation_count": selected_ah.quarantined_count,
                 "quarantine_reasons": selected_ah.quarantine_reasons or {},
+                "authoritative_quote_rows": selected_ah.authoritative_quote_rows or {},
             }
         grouped: dict[Decimal, list[dict[str, Any]]] = {}
         for row in observations:
@@ -2171,10 +2173,20 @@ class ReadModelService:
         common_bookmakers = set.intersection(*side_bookmakers.values())
         if not common_bookmakers:
             return None
-        pair_candidates: list[tuple[float, float, str, dict[str, float], dict[str, str]]] = []
+        pair_candidates: list[
+            tuple[
+                float,
+                float,
+                str,
+                dict[str, float],
+                dict[str, str],
+                dict[str, dict[str, Any]],
+            ]
+        ] = []
         for bookmaker in common_bookmakers:
             prices: dict[str, float] = {}
             lines: dict[str, str] = {}
+            authoritative_rows: dict[str, dict[str, Any]] = {}
             valid = True
             for side in side_names:
                 row = latest_by_side_bookmaker[(side, bookmaker)]
@@ -2188,15 +2200,28 @@ class ReadModelService:
                     break
                 prices[side.lower()] = price
                 lines[side.lower()] = self._line_value(row) or ""
+                authoritative_rows[side.lower()] = row
             if not valid:
                 continue
             values = list(prices.values())
             balance_distance = self._devig_balance_distance(values)
             balance_gap = abs(values[0] - values[1])
-            pair_candidates.append((balance_distance, balance_gap, str(bookmaker), prices, lines))
+            pair_candidates.append(
+                (
+                    balance_distance,
+                    balance_gap,
+                    str(bookmaker),
+                    prices,
+                    lines,
+                    authoritative_rows,
+                )
+            )
         if not pair_candidates:
             return None
-        _distance, _gap, _bookmaker, prices, lines = min(pair_candidates)
+        _distance, _gap, _bookmaker, prices, lines, authoritative_rows = min(
+            pair_candidates,
+            key=lambda item: (item[0], item[1], item[2]),
+        )
         values = list(prices.values())
         return {
             "side_prices": prices,
@@ -2206,6 +2231,7 @@ class ReadModelService:
             "balance_gap": round(abs(values[0] - values[1]), 4),
             "mid_price": round(sum(values) / len(values), 4),
             "min_price": round(min(values), 4),
+            "authoritative_quote_rows": authoritative_rows,
         }
 
     def _devig_balance_distance(self, values: list[float]) -> float:
@@ -3037,6 +3063,21 @@ class ReadModelService:
                 line_movement[f"{key}_current"] = current_line
         if current_odds:
             summary["current_odds"] = current_odds
+        summary["quote_identity_audit"] = {
+            key: project_quote_identity(
+                market=market,
+                selected_line=mainline_selection.get(market, {}).get("line"),
+                authoritative_rows=mainline_selection.get(market, {}).get(
+                    "authoritative_quote_rows"
+                ),
+            )
+            if mainline_selection.get(market, {}).get("status") == "READY"
+            else unavailable_quote_identity(
+                market=market,
+                blocker="AUTHORITATIVE_MAINLINE_NOT_READY",
+            )
+            for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+        }
         if line_movement:
             summary["line_movement"] = line_movement
         market_probabilities = self._market_probabilities_from_observations(observations)
@@ -3542,6 +3583,16 @@ class ReadModelService:
         normalized.setdefault("fixture_id", fixture_id)
         normalized.setdefault("disclaimer", DISCLAIMER)
         normalized.setdefault("risks", normalized.get("risks_cn", []))
+        normalized.setdefault(
+            "quote_identity_audit",
+            {
+                key: unavailable_quote_identity(
+                    market=market,
+                    blocker="AUTHORITATIVE_OBSERVATION_NOT_AVAILABLE",
+                )
+                for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+            },
+        )
         normalized["candidate"] = False
         normalized["formal_recommendation"] = False
         markets = normalized.get("markets")

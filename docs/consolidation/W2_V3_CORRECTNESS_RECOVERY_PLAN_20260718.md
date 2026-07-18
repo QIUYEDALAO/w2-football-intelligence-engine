@@ -3,6 +3,10 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
+Progress: R0.0 merged in PR #348. R0.1a is in review. Its observation schema is
+`w2.quote_identity.v1`; it is audit-only and does not make freshness or decision
+eligibility claims.
+
 This plan supersedes recovery-era implementation sequencing. PRs #333–#346 are
 specification and failure-case inputs only; they are not a backlog to restore.
 
@@ -46,4 +50,3 @@ specification and failure-case inputs only; they are not a backlog to restore.
 - R0 performance p95: no more than 1.10x the R0.0 baseline.
 - R0 RSS: no more than 1.20x the R0.0 baseline; restart/OOM: 0.
 - R3 canonical forward settled shadow: at least 200 before any R4 review.
-

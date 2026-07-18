@@ -43,7 +43,9 @@ class FakeReadRepository:
             ):
                 rows.append(
                     {
+                        "observation_id": f"ah-home-{index}-{bookmaker_id}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "ASIAN_HANDICAP",
                         "raw_market_label": "Asian Handicap",
                         "selection": "Home -0.5",
@@ -53,13 +55,17 @@ class FakeReadRepository:
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": f"{index + 1}" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }
                 )
                 rows.append(
                     {
+                        "observation_id": f"ah-away-{index}-{bookmaker_id}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "ASIAN_HANDICAP",
                         "raw_market_label": "Asian Handicap",
                         "selection": "Away +0.5",
@@ -69,13 +75,17 @@ class FakeReadRepository:
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": f"{index + 1}" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }
                 )
                 rows.append(
                     {
+                        "observation_id": f"ou-over-{index}-{bookmaker_id}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "TOTALS",
                         "selection": "Over",
                         "line": "2.5",
@@ -84,13 +94,17 @@ class FakeReadRepository:
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": f"{index + 1}" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }
                 )
                 rows.append(
                     {
+                        "observation_id": f"ou-under-{index}-{bookmaker_id}",
                         "fixture_id": "1489410",
+                        "provider": "api-football",
                         "canonical_market": "TOTALS",
                         "selection": "Under",
                         "line": "2.5",
@@ -99,6 +113,8 @@ class FakeReadRepository:
                         "bookmaker_name": bookmaker_name,
                         "provider_last_update": captured.isoformat().replace("+00:00", "Z"),
                         "captured_at": captured.isoformat().replace("+00:00", "Z"),
+                        "raw_payload_sha256": f"{index + 1}" * 64,
+                        "source_revision": "future-refresh.v1",
                         "suspended": False,
                         "live": False,
                     }
@@ -265,6 +281,11 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     }
     assert card["current_odds"]["ou"]["selection_policy"]
     assert card["current_odds"]["ou"]["candidate_lines"]
+    assert card["quote_identity_audit"]["ah"]["identity_status"] == "COMPLETE"
+    assert card["quote_identity_audit"]["ou"]["identity_status"] == "COMPLETE"
+    assert len(card["quote_identity_audit"]["ah"]["observation_ids"]) == 2
+    assert "quote_identity" not in card["current_odds"]["ah"]
+    assert "quote_identity" not in card["pricing_shadow"]
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
