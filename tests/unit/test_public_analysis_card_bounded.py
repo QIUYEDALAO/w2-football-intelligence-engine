@@ -134,6 +134,12 @@ def test_public_analysis_card_uses_fixture_scoped_observation_reader(
     assert response.json()["card"]["quote_identity_audit"]["observed_fixture_ids"] == [
         "target"
     ]
+    assert response.json()["card"]["decision_tier"] == "NOT_READY"
+    assert response.json()["card"]["decision"] == "SKIP"
+    assert response.json()["card"]["pick"] is None
+    assert response.json()["card"]["recommendation_id"] is None
+    assert response.json()["card"]["lock_eligible"] is False
+    assert response.json()["card"]["outcome_tracked"] is False
 
 
 def test_public_analysis_card_never_calls_latest_market_observations(
@@ -263,7 +269,7 @@ def test_large_unrelated_observation_population_does_not_affect_target_read(
     assert repository.latest_calls == 0
 
 
-def test_r0_1a_product_projection_unchanged_after_bounded_read(monkeypatch: Any) -> None:
+def test_public_bounded_read_projects_canonical_no_pick_contract(monkeypatch: Any) -> None:
     _patch_card_builder(monkeypatch)
     repository = BoundedObservationRepository(["target"])
     repository.future_market_observations = lambda: [_observation("target")]  # type: ignore[method-assign]
@@ -275,15 +281,12 @@ def test_r0_1a_product_projection_unchanged_after_bounded_read(monkeypatch: Any)
 
     assert legacy_card is not None
     assert bounded_card is not None
-    product_keys = (
-        "fixture_id",
-        "decision",
-        "markets",
-        "candidate",
-        "formal_recommendation",
-        "lock_eligible",
-        "data_readiness",
-    )
-    assert {key: bounded_card[key] for key in product_keys} == {
-        key: legacy_card[key] for key in product_keys
-    }
+    assert legacy_card["decision"] == "PICK"
+    assert bounded_card["decision_tier"] == "NOT_READY"
+    assert bounded_card["decision"] == "SKIP"
+    assert bounded_card["pick"] is None
+    assert bounded_card["recommendation_id"] is None
+    assert bounded_card["lock_eligible"] is False
+    assert bounded_card["outcome_tracked"] is False
+    assert bounded_card["current_odds"] == {}
+    assert all(market["decision"] != "PICK" for market in bounded_card["markets"])

@@ -1550,7 +1550,100 @@ class ReadModelService:
             )
         request_service._future_market_observations_cache = list(observations)
         request_service._observations_by_fixture_cache = {fixture_id: list(observations)}
-        return request_service.analysis_card(fixture_id)
+        card = request_service.analysis_card(fixture_id)
+        if card is None:
+            return None
+        return request_service._project_public_analysis_decision_contract(
+            fixture_id=fixture_id,
+            card=card,
+        )
+
+    def _project_public_analysis_decision_contract(
+        self,
+        *,
+        fixture_id: str,
+        card: dict[str, Any],
+    ) -> dict[str, Any]:
+        item = self._fixture_payload_by_id(fixture_id)
+        if item is None:
+            return self._fail_closed_public_analysis_card(card)
+        row = self._fixture_summary(item, "UTC")
+        row["_dashboard_source"] = "future_fixture_payload"
+        canonical = self._dashboard_card_from_matchday(row)
+        contract = canonical.get("decision_contract")
+        if not isinstance(contract, dict):
+            return self._fail_closed_public_analysis_card(card)
+        projected = {
+            **card,
+            **{
+                key: canonical.get(key)
+                for key in (
+                    "decision_tier",
+                    "data_status",
+                    "lifecycle_status",
+                    "outcome_tracked",
+                    "lock_eligible",
+                    "recommendation_id",
+                    "pick",
+                    "non_pick",
+                    "reason_code",
+                    "action",
+                    "next_eval_at",
+                    "card_hash",
+                )
+            },
+            "decision_contract": contract,
+        }
+        tier = str(projected.get("decision_tier") or "NOT_READY")
+        projected["decision"] = (
+            "ANALYSIS_PICK"
+            if tier in {"ANALYSIS_PICK", "RECOMMEND"}
+            else "WATCH"
+            if tier == "WATCH"
+            else "SKIP"
+        )
+        if tier not in {"ANALYSIS_PICK", "RECOMMEND"}:
+            projected["current_odds"] = {}
+            projected["candidate"] = False
+            projected["formal_recommendation"] = False
+            self._clear_public_market_picks(projected, watch=tier == "WATCH")
+        return projected
+
+    def _fail_closed_public_analysis_card(self, card: dict[str, Any]) -> dict[str, Any]:
+        projected = {
+            **card,
+            "decision": "SKIP",
+            "decision_tier": "NOT_READY",
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": None,
+            "current_odds": {},
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+        self._clear_public_market_picks(projected, watch=False)
+        return projected
+
+    def _clear_public_market_picks(self, card: dict[str, Any], *, watch: bool) -> None:
+        markets = card.get("markets")
+        if not isinstance(markets, list):
+            return
+        for market in markets:
+            if not isinstance(market, dict):
+                continue
+            if str(market.get("decision") or "").upper() in {
+                "PICK",
+                "ANALYSIS_PICK",
+                "RECOMMEND",
+            }:
+                market["decision"] = "WATCH" if watch else "SKIP"
+                market["analysis_decision"] = market["decision"]
+                market["tendency"] = None
+                market["lean"] = None
+                market.pop("odds", None)
+            market["candidate"] = False
+            market["formal_recommendation"] = False
 
     def _bounded_analysis_card_failure(
         self,
