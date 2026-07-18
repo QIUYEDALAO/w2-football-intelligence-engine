@@ -1215,7 +1215,10 @@ class ReadModelService:
         now = monotonic()
         if cached is not None:
             cached_at, cached_payload = cached
-            if now - cached_at <= self._dashboard_cache_ttl(window, include_debug):
+            if (
+                now - cached_at <= self._dashboard_cache_ttl(window, include_debug)
+                and self._dashboard_cache_matches_market_refresh(cached_payload)
+            ):
                 return cached_payload
 
         self._reset_read_caches()
@@ -1394,6 +1397,33 @@ class ReadModelService:
         if include_debug:
             return 300.0 if window in {"today", "next36", "future"} else 600.0
         return 900.0 if window in {"today", "next36", "future"} else 1800.0
+
+    def _dashboard_cache_matches_market_refresh(
+        self,
+        payload: dict[str, Any],
+    ) -> bool:
+        reader = getattr(self.repository, "public_market_refresh_status", None)
+        if not callable(reader):
+            return True
+        cards = payload.get("all")
+        if not isinstance(cards, list):
+            return True
+        fixture_ids = [
+            str(card.get("fixture_id") or "")
+            for card in cards
+            if isinstance(card, dict) and card.get("fixture_id")
+        ]
+        if not fixture_ids or len(fixture_ids) > MAX_PUBLIC_FIXTURES:
+            return True
+        try:
+            current = cast(dict[str, str | None], reader(fixture_ids))
+        except Exception:
+            return True
+        return (
+            payload.get("odds_last_confirmed_at")
+            == current.get("odds_last_confirmed_at")
+            and payload.get("next_refresh_tick") == current.get("next_refresh_tick")
+        )
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:

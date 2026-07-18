@@ -110,6 +110,22 @@ class RefreshStatusRepository(FutureFixtureRepository):
         }
 
 
+class MutableRefreshStatusRepository(CountingFutureFixtureRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.odds_last_confirmed_at = "2026-06-26T09:45:00Z"
+
+    def public_market_refresh_status(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        assert fixture_ids == ["9001"]
+        return {
+            "odds_last_confirmed_at": self.odds_last_confirmed_at,
+            "next_refresh_tick": "2026-06-26T09:55:00Z",
+        }
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -452,6 +468,25 @@ def test_dashboard_reuses_short_lived_cache_for_same_window() -> None:
     assert len(first["all"]) == 1
     assert second == first
     assert repository.fixture_payload_calls == 1
+
+
+def test_dashboard_invalidates_cache_when_quote_confirmation_advances() -> None:
+    repository = MutableRefreshStatusRepository()
+    service = ReadModelService(repository=cast(Any, repository))
+
+    first = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    cached = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    repository.odds_last_confirmed_at = "2026-06-26T09:50:00Z"
+    refreshed = service.dashboard(
+        target_date="2026-06-26",
+        window="today",
+        include_debug=False,
+    )
+
+    assert cached == first
+    assert repository.fixture_payload_calls == 2
+    assert refreshed["odds_last_confirmed_at"] == "2026-06-26T09:50:00Z"
+    assert refreshed["generated_at"] > first["generated_at"]
 
 
 def test_unbounded_warm_cache_does_not_pollute_public_dashboard() -> None:
