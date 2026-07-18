@@ -118,8 +118,21 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const analysisShadow = asRecord(record.analysis_shadow);
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
+  const forwardOutcomes = asRecord(forwardLedger.outcomes);
+  const validationOutcomes = asRecord(forwardLedger.outcomes_validation);
+  const shadowOutcomes = asRecord(forwardLedger.outcomes_shadow);
+  const evidenceWindow = asRecord(forwardLedger.evidence_window);
+  const coverage = asRecord(forwardLedger.coverage);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
+    hit_count: numberValue(row.hit_count),
+    miss_count: numberValue(row.miss_count),
+    push_count: numberValue(row.push_count),
+    void_count: numberValue(row.void_count),
+    hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+  });
+  const outcomeBucket = (row: Record<string, unknown>) => ({
+    settled_sample_count: numberValue(row.settled_sample_count),
     hit_count: numberValue(row.hit_count),
     miss_count: numberValue(row.miss_count),
     push_count: numberValue(row.push_count),
@@ -173,6 +186,14 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       sample_target: numberValue(forwardLedger.sample_target),
       record_count: numberValue(forwardLedger.record_count),
       fixture_count: numberValue(forwardLedger.fixture_count),
+      validation_fixture_count: numberValue(forwardLedger.validation_fixture_count),
+      validation_settled_fixture_count: numberValue(forwardLedger.validation_settled_fixture_count),
+      validation_pending_fixture_count: numberValue(forwardLedger.validation_pending_fixture_count),
+      canonical_settled_fixture_count: numberValue(forwardLedger.canonical_settled_fixture_count),
+      canonical_excluded_count: numberValue(forwardLedger.canonical_excluded_count),
+      canonical_excluded_by_reason: asRecord(forwardLedger.canonical_excluded_by_reason) as Record<string, number>,
+      validation_excluded_count: numberValue(forwardLedger.validation_excluded_count),
+      validation_excluded_by_reason: asRecord(forwardLedger.validation_excluded_by_reason) as Record<string, number>,
       settled_sample_count: numberValue(forwardLedger.settled_sample_count),
       hit_count: numberValue(forwardLedger.hit_count),
       miss_count: numberValue(forwardLedger.miss_count),
@@ -180,6 +201,22 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       void_count: numberValue(forwardLedger.void_count),
       hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
       accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
+      outcomes: outcomeBucket(forwardOutcomes),
+      outcomes_validation: outcomeBucket(validationOutcomes),
+      outcomes_shadow: outcomeBucket(shadowOutcomes),
+      evidence_window: {
+        first_capture_at: textValue(evidenceWindow.first_capture_at) || null,
+        latest_capture_at: textValue(evidenceWindow.latest_capture_at) || null,
+        latest_outcome_at: textValue(evidenceWindow.latest_outcome_at) || null,
+      },
+      coverage: {
+        captured_fixture_count: numberValue(coverage.captured_fixture_count),
+        validation_coverage: numberValue(coverage.validation_coverage),
+        settlement_coverage: numberValue(coverage.settlement_coverage),
+        stale_fixture_count: numberValue(coverage.stale_fixture_count),
+        stale_rate: numberValue(coverage.stale_rate),
+      },
+      calibration: asRecord(forwardLedger.calibration),
       clv: {
         sample_count: numberValue(forwardClv.sample_count),
         median_decimal: typeof forwardClv.median_decimal === "number" ? forwardClv.median_decimal : null,
@@ -203,6 +240,15 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
           hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
           clv_sample_count: numberValue(row.clv_sample_count),
           clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
+        };
+      }),
+      by_league_market: asArray(forwardLedger.by_league_market).map((item) => {
+        const row = asRecord(item);
+        return {
+          league: textValue(row.league, "UNKNOWN"),
+          market: textValue(row.market, "UNKNOWN"),
+          validation_fixture_count: numberValue(row.validation_fixture_count),
+          validation_settled_fixture_count: numberValue(row.validation_settled_fixture_count),
         };
       }),
       mock_data: Boolean(forwardLedger.mock_data),

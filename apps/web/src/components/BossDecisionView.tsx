@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { fmtTime, formatLine, formatOdds, translateCompetition } from "../lib/formatters";
 import { asRecord, textValue } from "../lib/normalize";
 import type {
@@ -11,7 +11,7 @@ import type {
 import { RecommendationCard } from "./RecommendationCard";
 
 const TIER_LABELS: Record<string, string> = {
-  RECOMMEND: "正式可锁",
+  RECOMMEND: "正式推荐（未开放）",
   ANALYSIS_PICK: "分析参考",
   WATCH: "观察",
   NOT_READY: "未就绪",
@@ -534,37 +534,31 @@ function nextVisibleKickoff(cards: DashboardDayViewCard[]): string | null {
 
 export function MatchdayHeader({
   dayView,
-  release,
 }: {
   dayView: DashboardDayView;
-  release?: ReleaseSyncState;
 }) {
   const upcoming = dayView.cards.filter(isPreMatch).length;
-  const readyRecommendations = orderedForTriage(dayView.cards.filter(isReadyRecommendation)).slice(0, 3).length;
+  const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
   return (
     <header className="boss-commandbar">
       <div className="boss-brand">
         <strong>FOOTBALL</strong>
         <span>INTELLIGENCE</span>
       </div>
-      <button className="boss-view-select" type="button">Boss View</button>
+      <span className="readonly-mode-badge">只读模式</span>
       <div className="boss-command-meta">
         <span>日期 <strong>{dayView.football_day}</strong></span>
-        <span>环境 <strong>{dayView.environment}</strong></span>
-        <span>最后刷新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "--:--"}</strong></span>
-        <span>下次刷新 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
+        <span>数据更新 <strong>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "待同步"}</strong></span>
+        <span>下次检查 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
         <span>即将比赛 <strong>{upcoming}</strong></span>
         <span>已出推荐 <strong>{readyRecommendations}</strong></span>
-      </div>
-      <div className="boss-command-release">
-        Web {shortSha(release?.web_git_sha)} · API {shortSha(release?.api_git_sha)}
       </div>
     </header>
   );
 }
 
 export function DecisionCounts({ dayView, performance }: { dayView: DashboardDayView; performance?: DashboardPerformance }) {
-  const lockLabel = dayView.environment === "production" ? "正式可锁" : "可锁审批";
+  const lockLabel = dayView.environment === "production" ? "正式推荐" : "推荐审批";
   const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
@@ -949,6 +943,207 @@ function CoverageFoldout({ dayView }: { dayView: DashboardDayView }) {
   );
 }
 
+function TodayDecisionSummary({ dayView }: { dayView: DashboardDayView }) {
+  const counts = [
+    ["分析参考", dayView.counts.analysis_pick, "已有明确方向，仍非正式推荐"],
+    ["继续观察", dayView.counts.watch, "等待盘口或信息进一步确认"],
+    ["正式推荐", dayView.counts.recommend, "只读阶段保持关闭"],
+    ["数据不足", dayView.counts.not_ready, "不会强行给出方向"],
+  ] as const;
+  const actionable = dayView.counts.analysis_pick + dayView.counts.recommend;
+  return (
+    <section className="today-decision-summary" aria-labelledby="today-decision-title">
+      <div className="today-decision-copy">
+        <span>今日结论</span>
+        <h1 id="today-decision-title">
+          {actionable ? `今天有 ${actionable} 场值得优先查看` : "今天暂无可执行建议"}
+        </h1>
+        <p>
+          {actionable
+            ? "先看下方重点比赛；所有内容仅用于分析，不会自动锁单。"
+            : `当前以观察和等待数据为主，下次检查 ${dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "时间待定"}。`}
+        </p>
+      </div>
+      <div className="today-decision-counts" aria-label="今日比赛状态">
+        {counts.map(([label, value, hint]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <small>{hint}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AttentionCard({ card, now }: { card: DashboardDayViewCard; now: Date }) {
+  const minutes = minutesUntil(card, now);
+  const ready = isReadyRecommendation(card);
+  return (
+    <article className={`attention-card${ready ? " is-actionable" : ""}`}>
+      <header>
+        <div>
+          <span>{fmtTime(card.kickoff_utc)} · {competitionLabel(card)}</span>
+          <h3>{teamLabel(card)}</h3>
+        </div>
+        <strong>{tierLabel(card.decision_tier)}</strong>
+      </header>
+      <div className="attention-market">
+        <span>{rowMarketSummary(card)}</span>
+        <small>{marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
+      </div>
+      <p>{l1OneLiner(card)}</p>
+      <footer>
+        <span>风险：{dataStatusLabel(card.data_status)} · {reasonLabel(card.reason_code)}</span>
+        <span>
+          {minutes != null && minutes > 0 ? `${minutes} 分钟后开球` : "临近开球"}
+          {card.next_eval_at ? ` · ${fmtTime(card.next_eval_at)} 再检查` : ""}
+        </span>
+      </footer>
+    </article>
+  );
+}
+
+function AttentionBoard({ cards, now }: { cards: DashboardDayViewCard[]; now: Date }) {
+  const recommendations = orderedForTriage(cards.filter(isReadyRecommendation));
+  return (
+    <section className="attention-board" aria-labelledby="attention-title">
+      <header>
+        <div>
+          <span>符合条件的比赛</span>
+          <h2 id="attention-title">
+            {recommendations.length ? "全部分析参考与推荐" : "今天暂无合格比赛"}
+          </h2>
+        </div>
+        <strong>{recommendations.length} 场</strong>
+      </header>
+      {recommendations.length ? (
+        <div className="attention-card-grid">
+          {recommendations.map((card) => <AttentionCard card={card} key={card.fixture_id} now={now} />)}
+        </div>
+      ) : (
+        <div className="decision-empty">
+          <strong>当前没有满足完整数据与决策条件的比赛</strong>
+          <span>WATCH 和数据不足的比赛不会被拿来凑数；可在技术详情查看完整赛程。</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ValidationScorecard({ performance }: { performance?: DashboardPerformance }) {
+  const ledger = performance?.forward_ledger;
+  const outcomes = ledger?.outcomes_validation;
+  return (
+    <section className="validation-scorecard" aria-labelledby="validation-score-title">
+      <header>
+        <div>
+          <span>真实验证成绩</span>
+          <h2 id="validation-score-title">
+            {ledger ? `${ledger.validation_fixture_count} 场验证推荐` : "验证数据正在同步"}
+          </h2>
+        </div>
+        <strong>{outcomes?.hit_rate == null ? "样本积累中" : `命中率 ${percent(outcomes.hit_rate)}`}</strong>
+      </header>
+      <div className="validation-score-grid">
+        <div><span>已结算</span><strong>{ledger?.validation_settled_fixture_count ?? 0}</strong></div>
+        <div><span>等待赛果</span><strong>{ledger?.validation_pending_fixture_count ?? 0}</strong></div>
+        <div><span>命中</span><strong>{outcomes?.hit_count ?? 0}</strong></div>
+        <div><span>未中</span><strong>{outcomes?.miss_count ?? 0}</strong></div>
+        <div><span>走水</span><strong>{outcomes?.push_count ?? 0}</strong></div>
+        <div><span>作废</span><strong>{outcomes?.void_count ?? 0}</strong></div>
+      </div>
+      <p>这里只统计验证推荐；正式轨和影子轨不会混入该命中率。</p>
+    </section>
+  );
+}
+
+function SystemReadStatus({ dayView, release }: { dayView: DashboardDayView; release?: ReleaseSyncState }) {
+  const readOnly = dayView.provider_calls === 0 && dayView.db_writes === 0;
+  return (
+    <section className="system-read-status" aria-labelledby="system-status-title">
+      <header>
+        <div>
+          <span>系统状态</span>
+          <h2 id="system-status-title">{readOnly && !release?.mismatch ? "公开读取正常" : "需要检查发布状态"}</h2>
+        </div>
+        <strong>{readOnly ? "只读安全" : "异常"}</strong>
+      </header>
+      <dl>
+        <div><dt>最后采集</dt><dd>{dayView.freshness.last_refresh ? fmtTime(dayView.freshness.last_refresh) : "待同步"}</dd></div>
+        <div><dt>下次检查</dt><dd>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</dd></div>
+        <div><dt>读取请求</dt><dd>无 provider 调用</dd></div>
+        <div><dt>写入状态</dt><dd>无数据库写入</dd></div>
+      </dl>
+      <p>队列、调度器和依赖健康由每日09:00只读巡检继续核验。</p>
+    </section>
+  );
+}
+
+function TechnicalDetails({
+  dayView,
+  performance,
+  release,
+  cards,
+  legacyById,
+  now,
+}: {
+  dayView: DashboardDayView;
+  performance?: DashboardPerformance;
+  release?: ReleaseSyncState;
+  cards: DashboardDayViewCard[];
+  legacyById: Map<string, DashboardMatchCard>;
+  now: Date;
+}) {
+  const ledger = performance?.forward_ledger;
+  return (
+    <details className="technical-details">
+      <summary>
+        <strong>完整赛程与技术详情</strong>
+        <span>{cards.length} 场比赛 · 环境 {dayView.environment}</span>
+      </summary>
+      <div className="technical-status-grid">
+        <span>版本 Web {shortSha(release?.web_git_sha)} / API {shortSha(release?.api_git_sha)}</span>
+        <span>采集记录 {ledger?.record_count ?? 0}（仅审计，不是比赛数）</span>
+        <span>不同比赛 {ledger?.fixture_count ?? 0}</span>
+        <span>R3 canonical 已结算 {ledger?.canonical_settled_fixture_count ?? 0}/200</span>
+        <span>OFFICIAL 已结算 {ledger?.outcomes.settled_sample_count ?? 0}</span>
+        <span>SHADOW 已结算 {ledger?.outcomes_shadow.settled_sample_count ?? 0}</span>
+      </div>
+      <div className="schedule-row-list technical-schedule-list">
+        <div className="schedule-table-head" aria-hidden="true">
+          <span>开球时间</span><span>联赛</span><span>对阵</span><span>盘口 / 市场概率</span>
+          <span>数据就绪</span><span>决策</span><span>下次检查</span>
+        </div>
+        {cards.map((card) => (
+          <article className="technical-schedule-row" key={card.fixture_id}>
+            <div className="decision-cell decision-time">
+              <strong>{fmtTime(card.kickoff_utc)}</strong>
+              <span>T{minutesUntil(card, now) != null ? `${minutesUntil(card, now)}min` : "--"}</span>
+            </div>
+            <div className="decision-cell decision-league"><span>{competitionLabel(card)}</span></div>
+            <div className="decision-cell decision-teams">
+              <strong>{teamLabel(card)}</strong>
+              <span>{l1OneLiner(card)}</span>
+            </div>
+            <div className="decision-cell decision-market">
+              <span>{rowMarketSummary(card)}</span>
+              <small>{marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
+            </div>
+            <div className="decision-cell decision-data"><span>{dataStatusLabel(card.data_status)}</span><i aria-hidden="true" /></div>
+            <div className="decision-cell decision-tier">
+              <span className={`tier-badge tier-${card.decision_tier.toLowerCase().replace("_", "-")}`}>{tierLabel(card.decision_tier)}</span>
+            </div>
+            <div className="decision-cell decision-next"><span>{nextEvalLabel(card)}</span></div>
+            {legacyById.has(card.fixture_id) ? <span className="sr-only">存在兼容诊断数据</span> : null}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function BossDecisionView({
   dayView,
   legacyMatches,
@@ -962,122 +1157,31 @@ export function BossDecisionView({
 }) {
   const legacyById = byFixtureId(legacyMatches);
   const now = useMemo(() => referenceTime(dayView), [dayView]);
-  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
-  const scheduleDay = dayView.selected_football_day || dayView.football_day || dayView.generated_at;
   const activeCards = useMemo(() => orderedByKickoff(dayView.cards.filter(isPreMatch)), [dayView.cards]);
-  const worthWatching = useMemo(
-    () => orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3),
-    [activeCards],
-  );
-  const worthWatchingIds = useMemo(
-    () => new Set(worthWatching.map((card) => card.fixture_id)),
-    [worthWatching],
-  );
-  const liveCards = useMemo(
-    () => orderedByKickoff(activeCards.filter((card) => isLiveOrRecentlyStarted(card, now) && !worthWatchingIds.has(card.fixture_id))),
-    [activeCards, now, worthWatchingIds],
-  );
-  const liveIds = useMemo(() => new Set(liveCards.map((card) => card.fixture_id)), [liveCards]);
-  const todaySchedule = useMemo(
-    () => orderedByKickoff(activeCards.filter((card) => (
-      isSameShanghaiDate(card.kickoff_utc, scheduleDay)
-      && !worthWatchingIds.has(card.fixture_id)
-      && !liveIds.has(card.fixture_id)
-    ))),
-    [activeCards, liveIds, scheduleDay, worthWatchingIds],
-  );
-  const futureSchedule = useMemo(
-    () => orderedByKickoff(activeCards.filter((card) => (
-      !isSameShanghaiDate(card.kickoff_utc, scheduleDay)
-      && !worthWatchingIds.has(card.fixture_id)
-      && !liveIds.has(card.fixture_id)
-    ))),
-    [activeCards, liveIds, scheduleDay, worthWatchingIds],
-  );
-  const filteredTodaySchedule = useMemo(() => filterScheduleCards(todaySchedule, scheduleFilter), [scheduleFilter, todaySchedule]);
-  const filteredFutureSchedule = useMemo(() => filterScheduleCards(futureSchedule, scheduleFilter), [futureSchedule, scheduleFilter]);
-  const visibleCards = useMemo(
-    () => [...worthWatching, ...liveCards, ...filteredTodaySchedule, ...filteredFutureSchedule],
-    [filteredFutureSchedule, filteredTodaySchedule, liveCards, worthWatching],
-  );
-  const firstCard = worthWatching[0] ?? liveCards[0] ?? filteredTodaySchedule[0] ?? filteredFutureSchedule[0];
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(firstCard?.fixture_id ?? null);
-  const selectedCard = visibleCards.find((card) => card.fixture_id === selectedFixtureId) ?? firstCard;
-  const leagueRows = useMemo(() => buildLeaguePerformanceRows(legacyMatches), [legacyMatches]);
-  const settledCount = useMemo(() => settledMatches(legacyMatches).length, [legacyMatches]);
 
   return (
     <section className="boss-dashboard" aria-label="老板视角决策页">
-      <MatchdayHeader dayView={dayView} release={release} />
-      <TrustStrip performance={performance} leagueRows={leagueRows} />
-      <HealthStrip dayView={dayView} />
+      <MatchdayHeader dayView={dayView} />
+      <TodayDecisionSummary dayView={dayView} />
       {isWorldCup(dayView) ? (
         <aside className="model-caveat">
           世界杯输出按 staging 保守展示：当前拟合模型在五大俱乐部离线验证，尚未对国际赛完成独立验证。
         </aside>
       ) : null}
 
-      <div className="boss-workspace">
-        <section className="schedule-board" aria-label="赛前决策与赛程">
-          <FilterControls filter={scheduleFilter} onFilterChange={setScheduleFilter} />
-          {visibleCards.length ? (
-            <>
-              <ScheduleSection
-                title="值得看"
-                hint="最多 3 场；只有市场锚定且分歧达标才置顶"
-                cards={worthWatching}
-                empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
-                selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
-                now={now}
-                onSelect={setSelectedFixtureId}
-              />
-              <ScheduleSection
-                title="赛中 / 刚开赛"
-                hint="开球后仍保留在台面，避免临场比赛突然消失"
-                cards={liveCards}
-                empty="当前没有赛中或刚开赛比赛"
-                selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
-                now={now}
-                onSelect={setSelectedFixtureId}
-              />
-              <ScheduleSection
-                title="今日赛程"
-                hint="严格按开球时间；未就绪比赛留在原时间位置并说明原因"
-                cards={filteredTodaySchedule}
-                empty="今日没有符合筛选条件的待赛比赛"
-                selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
-                now={now}
-                onSelect={setSelectedFixtureId}
-              />
-              <ScheduleSection
-                title="未来赛程"
-                hint="明天及以后先折叠看摘要，临近窗口再进入今日赛程"
-                cards={filteredFutureSchedule.slice(0, 8)}
-                empty="未来窗口暂无待赛比赛"
-                selectedFixtureId={selectedCard?.fixture_id}
-                legacyById={legacyById}
-                now={now}
-                onSelect={setSelectedFixtureId}
-                collapsed
-              />
-              <CoverageFoldout dayView={dayView} />
-            </>
-          ) : (
-            <div className="decision-empty">
-              <strong>未来 36 小时暂无比赛</strong>
-              <span>{nextVisibleKickoff(dayView.cards) ? `下一场 ${fmtTime(nextVisibleKickoff(dayView.cards))} 进入窗口后自动出现。` : "白名单赛程进入 read-model 后会自动显示。"}</span>
-            </div>
-          )}
-        </section>
-        <aside className="boss-side-rail" aria-label="证据与信任层">
-          <EvidencePanel cards={visibleCards} selectedCard={selectedCard} settledCount={settledCount} />
-          <VerificationPreview matches={legacyMatches} performance={performance} />
-          <LeaguePerformancePreview rows={leagueRows} performance={performance} />
-        </aside>
+      <AttentionBoard cards={activeCards} now={now} />
+      <div className="decision-proof-grid">
+        <ValidationScorecard performance={performance} />
+        <SystemReadStatus dayView={dayView} release={release} />
       </div>
+      <TechnicalDetails
+        cards={activeCards}
+        dayView={dayView}
+        legacyById={legacyById}
+        now={now}
+        performance={performance}
+        release={release}
+      />
 
       <footer className="boss-disclaimer">分析参考·非稳赢·不构成投注建议</footer>
     </section>
