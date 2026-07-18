@@ -1133,5 +1133,42 @@ def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
     assert audit.result["materialized_fixture_ids"] == ["1489404"]
 
 
+def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
+    tmp_path: Path,
+) -> None:
+    checkpoint = {
+        "fixture_id": "1489404",
+        "checkpoint": "T1_LINEUPS",
+        "kickoff_utc": "2026-06-23T17:00:00Z",
+        "due_at": "2026-06-23T16:00:00Z",
+        "endpoints": ["odds"],
+        "source": "scheduled",
+    }
+
+    def fail_materialization(_fixture_ids: list[str]) -> list[str]:
+        raise RuntimeError("artifact write failed")
+
+    audit = run_future_refresh_task(
+        task_id="task-materialize-failure",
+        key="checkpoint-refresh:test:materialize-failure",
+        queued_at=NOW,
+        runtime_root=tmp_path,
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="file",
+        checkpoint_fixture_ids=("1489404",),
+        refresh_checkpoints=(checkpoint,),
+        materialize_public_artifacts=fail_materialization,
+    )
+    refresh_audit = json.loads(
+        (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == ["RuntimeError"]
+    assert refresh_audit["status"] == "PARTIAL_FAILED"
+    assert refresh_audit["error_code"] == "RuntimeError"
+
+
 def test_future_refresh_error_type_is_runtime_error() -> None:
     assert issubclass(FutureRefreshError, RuntimeError)

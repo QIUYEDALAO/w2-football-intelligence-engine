@@ -118,6 +118,7 @@ class FutureRefreshResult:
     status: str = "COMPLETED"
     raw_payload_written_count: int = 0
     error_code: str | None = None
+    materialized_fixture_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -639,6 +640,7 @@ class FutureFixtureRefreshService:
         config: FutureRefreshConfig | None = None,
         now: datetime | None = None,
         sleep: Any | None = None,
+        materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
     ) -> None:
         self.config = config or config_from_policy()
         self.client = client or ApiFootballClient(
@@ -647,6 +649,7 @@ class FutureFixtureRefreshService:
         )
         self.now = now or utc_now()
         self.sleep = sleep or time.sleep
+        self.materialize_public_artifacts = materialize_public_artifacts
         self._attempt_count = 0
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
@@ -1276,9 +1279,28 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
+            materialized_fixture_ids=(
+                self._materialize_refreshed_public_artifacts(
+                    appended=appended,
+                    fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
+                )
+                if self.materialize_public_artifacts is not None
+                else []
+            ),
         )
         self._write_audit(result)
         return result
+
+    def _materialize_refreshed_public_artifacts(
+        self,
+        *,
+        appended: int,
+        fixture_ids: list[str],
+    ) -> list[str]:
+        if not self.config.refresh_checkpoints or appended <= 0:
+            return []
+        materializer = self.materialize_public_artifacts or materialize_refreshed_public_artifacts
+        return materializer(fixture_ids)
 
     def _persist_db(
         self,
@@ -1328,6 +1350,10 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
+            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(
+                appended=appended,
+                fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
+            ),
         )
         self._write_audit(result)
         return result
@@ -1417,6 +1443,7 @@ class FutureFixtureRefreshService:
             "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
             "feature_enrichment_batch_count": self._feature_enrichment_batch_count,
             "ledger_appended_count": result.ledger_appended_count,
+            "materialized_fixture_ids": result.materialized_fixture_ids,
             "raw_payload_written_count": result.raw_payload_written_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
@@ -1505,6 +1532,7 @@ def run_future_fixture_refresh(
     persistence: str | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
+    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -1537,7 +1565,12 @@ def run_future_fixture_refresh(
                 2 + len(set(checkpoint_fixture_ids)) + lineups_count,
             ),
         )
-    return FutureFixtureRefreshService(client=client, config=config, now=now).run()
+    return FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=now,
+        materialize_public_artifacts=materialize_public_artifacts,
+    ).run()
 
 
 def run_future_refresh_task(
@@ -1636,15 +1669,8 @@ def run_future_refresh_task(
             persistence=resolved_persistence,
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
+            materialize_public_artifacts=materialize_public_artifacts,
         )
-        materialized_fixture_ids: list[str] = []
-        if (
-            refresh_checkpoints
-            and result.ledger_appended_count > 0
-            and (resolved_persistence == "db" or materialize_public_artifacts is not None)
-        ):
-            materializer = materialize_public_artifacts or materialize_refreshed_public_artifacts
-            materialized_fixture_ids = materializer(result.selected_market_fixture_ids)
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
             "fixture_count": result.fixture_count,
@@ -1659,7 +1685,7 @@ def run_future_refresh_task(
             "formal_recommendation": False,
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": list(refresh_checkpoints),
-            "materialized_fixture_ids": materialized_fixture_ids,
+            "materialized_fixture_ids": result.materialized_fixture_ids,
         }
     except Exception as exc:
         summary = {
