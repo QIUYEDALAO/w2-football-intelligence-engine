@@ -102,9 +102,18 @@ async function json(route: Route, body: unknown): Promise<void> {
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installRoutes(page: Page, scenario: Scenario, readyCardCount = 1): Promise<void> {
+async function installRoutes(
+  page: Page,
+  scenario: Scenario,
+  readyCardCount = 1,
+  scheduledWait = false,
+): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
+  if (scheduledWait) {
+    dayViewPayload.cards[0].kickoff_utc = "2026-07-20T12:00:00Z";
+    dayViewPayload.cards[0].next_eval_at = "2026-07-20T06:00:00Z";
+  }
   if (scenario === "READY" && readyCardCount > 1) {
     const template = dayViewPayload.cards[0];
     dayViewPayload.cards = Array.from({ length: readyCardCount }, (_, index) => ({
@@ -210,6 +219,19 @@ test("all qualifying recommendations remain visible without a top-three cap", as
 
   await expect(page.locator("article.decision-row").filter({ hasText: "正式可锁" })).toHaveCount(4);
   await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 4");
+});
+
+test("pre-refresh stale odds are shown as a scheduled wait, not a pipeline fault", async ({ page }) => {
+  await installRoutes(page, "STALE", 1, true);
+  await page.goto("/");
+
+  const row = page.locator("article.decision-row").filter({ hasText: "STALE Home" });
+  const visibleRow = row.locator(".decision-row-button");
+  await expect(visibleRow).toContainText("等待赛前刷新");
+  await expect(visibleRow).toContainText("尚未进入赛前采集点");
+  await expect(visibleRow).not.toContainText("数据陈旧");
+  await expect(page.locator(".health-strip")).toContainText("赛前数据按计划等待");
+  await expect(page.locator(".health-strip")).not.toContainText("部分数据需处理");
 });
 
 for (const scenario of ["STALE", "BLOCKED", "INCOMPLETE", "CHECKPOINT_MISSING"] as const) {

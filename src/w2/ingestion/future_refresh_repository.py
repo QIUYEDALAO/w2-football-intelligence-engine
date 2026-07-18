@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, desc, func, select
+from sqlalchemy import Engine, Float, case, cast, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,9 @@ from w2.infrastructure.persistence.ingestion_models import (
 
 class FutureRefreshPersistenceError(RuntimeError):
     pass
+
+
+SCOPED_OBSERVATION_ROWS_PER_MARKET = 128
 
 
 def parse_db_datetime(value: Any) -> datetime:
@@ -165,24 +168,103 @@ class FutureRefreshDbRepository:
             .where(FutureMarketObservationModel.fixture_id.in_(ids))
             .subquery()
         )
+        side = case(
+            (func.lower(FutureMarketObservationModel.selection).like("home%"), "HOME"),
+            (func.lower(FutureMarketObservationModel.selection).like("away%"), "AWAY"),
+            (func.lower(FutureMarketObservationModel.selection).like("over%"), "OVER"),
+            (func.lower(FutureMarketObservationModel.selection).like("under%"), "UNDER"),
+            else_="OTHER",
+        )
+        full_time_label = func.lower(func.trim(FutureMarketObservationModel.raw_market_label))
+        relevant_latest = (
+            select(
+                FutureMarketObservationModel.observation_id.label("observation_id"),
+                FutureMarketObservationModel.fixture_id.label("fixture_id"),
+                FutureMarketObservationModel.canonical_market.label("canonical_market"),
+                FutureMarketObservationModel.bookmaker_id.label("bookmaker_id"),
+                side.label("side"),
+                func.row_number()
+                .over(
+                    partition_by=(
+                        FutureMarketObservationModel.fixture_id,
+                        FutureMarketObservationModel.canonical_market,
+                        FutureMarketObservationModel.bookmaker_id,
+                        side,
+                    ),
+                    order_by=(
+                        func.abs(
+                            cast(FutureMarketObservationModel.decimal_odds, Float) - 1.9
+                        ),
+                        func.abs(cast(FutureMarketObservationModel.line, Float)),
+                        FutureMarketObservationModel.selection,
+                    ),
+                )
+                .label("side_rank"),
+            )
+            .join(ranked, FutureMarketObservationModel.observation_id == ranked.c.observation_id)
+            .where(
+                ranked.c.rank == 1,
+                FutureMarketObservationModel.suspended.is_(False),
+                FutureMarketObservationModel.live.is_(False),
+                side != "OTHER",
+                (
+                    (FutureMarketObservationModel.canonical_market == "ASIAN_HANDICAP")
+                    & (
+                        (FutureMarketObservationModel.raw_market_label.is_(None))
+                        | (full_time_label.in_(("", "asian handicap", "handicap", "ah")))
+                    )
+                )
+                | (
+                    (FutureMarketObservationModel.canonical_market == "TOTALS")
+                    & (
+                        (FutureMarketObservationModel.raw_market_label.is_(None))
+                        | (
+                            full_time_label.in_(
+                                ("", "goals over/under", "total goals", "over/under")
+                            )
+                        )
+                    )
+                ),
+            )
+            .subquery()
+        )
+        market_ranked = (
+            select(
+                relevant_latest.c.observation_id,
+                func.row_number()
+                .over(
+                    partition_by=(
+                        relevant_latest.c.fixture_id,
+                        relevant_latest.c.canonical_market,
+                    ),
+                    order_by=(
+                        relevant_latest.c.side_rank,
+                        relevant_latest.c.bookmaker_id,
+                        relevant_latest.c.side,
+                    ),
+                )
+                .label("market_rank"),
+            )
+            .where(relevant_latest.c.side_rank <= 12)
+            .subquery()
+        )
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
                     select(FutureMarketObservationModel)
                     .join(
-                        ranked,
+                        market_ranked,
                         FutureMarketObservationModel.observation_id
-                        == ranked.c.observation_id,
+                        == market_ranked.c.observation_id,
                     )
-                    .where(ranked.c.rank == 1)
+                    .where(market_ranked.c.market_rank <= SCOPED_OBSERVATION_ROWS_PER_MARKET)
                     .order_by(
                         FutureMarketObservationModel.fixture_id,
-                        FutureMarketObservationModel.captured_at,
                         FutureMarketObservationModel.canonical_market,
                         FutureMarketObservationModel.bookmaker_id,
                         FutureMarketObservationModel.selection,
                     )
-                    .limit(len(ids) * 256)
+                    .limit(len(ids) * SCOPED_OBSERVATION_ROWS_PER_MARKET * 2)
                 )
             )
         return self._latest_observation_dicts(rows)
@@ -522,24 +604,67 @@ class FutureRefreshDbRepository:
                     )
                 )
             )
-        return [
-            {
-                "snapshot_id": row.snapshot_id,
-                "team_id": row.team_id,
-                "as_of_fixture_id": row.as_of_fixture_id,
-                "as_of_time": iso_z(row.as_of_time),
-                "match_count": row.match_count,
-                "rolling_xg_for": row.rolling_xg_for,
-                "rolling_xg_against": row.rolling_xg_against,
-                "rolling_goals_for": row.rolling_goals_for,
-                "rolling_goals_against": row.rolling_goals_against,
-                "regression_index": row.regression_index,
-                "source_system": row.source_system,
-                "candidate": False,
-                "formal_recommendation": False,
-            }
-            for row in rows
-        ]
+        return [self._team_xg_rolling_snapshot_dict(row) for row in rows]
+
+    def team_xg_rolling_snapshots_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids or len(ids) > 2:
+            return []
+        ranked = (
+            select(
+                TeamXgRollingSnapshotModel.snapshot_id.label("snapshot_id"),
+                func.row_number()
+                .over(
+                    partition_by=TeamXgRollingSnapshotModel.team_id,
+                    order_by=TeamXgRollingSnapshotModel.as_of_time.desc(),
+                )
+                .label("rank"),
+            )
+            .where(
+                TeamXgRollingSnapshotModel.team_id.in_(ids),
+                TeamXgRollingSnapshotModel.as_of_time < before,
+            )
+            .subquery()
+        )
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(TeamXgRollingSnapshotModel)
+                    .join(
+                        ranked,
+                        TeamXgRollingSnapshotModel.snapshot_id == ranked.c.snapshot_id,
+                    )
+                    .where(ranked.c.rank == 1)
+                    .order_by(TeamXgRollingSnapshotModel.team_id)
+                    .limit(2)
+                )
+            )
+        return [self._team_xg_rolling_snapshot_dict(row) for row in rows]
+
+    @staticmethod
+    def _team_xg_rolling_snapshot_dict(
+        row: TeamXgRollingSnapshotModel,
+    ) -> dict[str, Any]:
+        return {
+            "snapshot_id": row.snapshot_id,
+            "team_id": row.team_id,
+            "as_of_fixture_id": row.as_of_fixture_id,
+            "as_of_time": iso_z(row.as_of_time),
+            "match_count": row.match_count,
+            "rolling_xg_for": row.rolling_xg_for,
+            "rolling_xg_against": row.rolling_xg_against,
+            "rolling_goals_for": row.rolling_goals_for,
+            "rolling_goals_against": row.rolling_goals_against,
+            "regression_index": row.regression_index,
+            "source_system": row.source_system,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
 
     def market_snapshots(self) -> list[dict[str, Any]]:
         observations = self.latest_market_observations()
@@ -734,6 +859,31 @@ class FutureRefreshDbRepository:
                 iso_z(next_refresh_tick) if next_refresh_tick is not None else None
             ),
         }
+
+    def next_market_refresh_by_fixture(
+        self,
+        fixture_ids: list[str],
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, str]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids or len(ids) > 64:
+            return {}
+        reference = parse_db_datetime(now or datetime.now(UTC))
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(
+                    FutureRefreshCheckpointPlanModel.fixture_id,
+                    func.min(FutureRefreshCheckpointPlanModel.due_at),
+                )
+                .where(
+                    FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
+                    FutureRefreshCheckpointPlanModel.status == "PENDING",
+                    FutureRefreshCheckpointPlanModel.due_at >= reference,
+                )
+                .group_by(FutureRefreshCheckpointPlanModel.fixture_id)
+            ).all()
+        return {str(fixture_id): iso_z(due_at) for fixture_id, due_at in rows}
 
     def write_checkpoint_audit(
         self,

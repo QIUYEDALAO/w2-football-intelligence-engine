@@ -14,6 +14,7 @@ WORLD_CUP_BUDGET_RESERVE = 20
 
 CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
     ("OPEN", timedelta(hours=-48), ("odds",)),
+    ("T6_ODDS", timedelta(hours=-6), ("odds",)),
     ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
     ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
 )
@@ -200,7 +201,7 @@ def world_cup_matchday_budget_projection(
     matchday_budget: int = WORLD_CUP_MATCHDAY_PROVIDER_BUDGET,
     trickle_backfill_budget: int = WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET,
 ) -> dict[str, int | bool]:
-    base_per_fixture = 3  # OPEN, T1 odds, T15 close.
+    base_per_fixture = 4  # OPEN, T6 odds, T1 odds, T15 close.
     lineups_per_fixture = 1
     retry_per_fixture = 2 if include_retries else 0
     fixture_calls = fixture_count * (

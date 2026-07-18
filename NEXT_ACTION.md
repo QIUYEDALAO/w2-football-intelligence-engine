@@ -2,6 +2,10 @@
 
 ## Current gate
 
+R3 is `staging_accepted` and is awaiting three stable read-only cycles.
+R4 is authorized for approval-package preparation only; champion, lock and
+production state changes are not authorized by that preparation.
+
 R3 read-only candidate `94bcd62c67ed3fe50bba5ee65be10133556f83d0`
 is deployed on the existing public staging host. Repeated unchanged odds now
 retain separate append-only capture identities, refreshed fixtures are

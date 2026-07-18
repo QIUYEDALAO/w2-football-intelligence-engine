@@ -286,6 +286,9 @@ def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick
         "odds_last_confirmed_at": "2026-06-23T10:05:00Z",
         "next_refresh_tick": "2026-06-23T10:45:00Z",
     }
+    assert repository.next_market_refresh_by_fixture(["fixture"], now=NOW) == {
+        "fixture": "2026-06-23T10:45:00Z"
+    }
     assert repository.market_refresh_status_for_fixtures([]) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
@@ -510,6 +513,82 @@ def test_fixture_scoped_reader_ignores_large_unrelated_observation_population(
     assert {row["fixture_id"] for row in rows} == {"target"}
 
 
+def test_fixture_scoped_reader_stratifies_full_time_ah_and_totals(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    rows: list[dict[str, Any]] = []
+    for market, label, sides in (
+        ("ASIAN_HANDICAP", "Asian Handicap", ("Home", "Away")),
+        ("TOTALS", "Goals Over/Under", ("Over", "Under")),
+    ):
+        for bookmaker_index in range(8):
+            for line_index in range(20):
+                line = (line_index + 1) / 4
+                for side_index, side in enumerate(sides):
+                    signed_line = (
+                        -line
+                        if market == "ASIAN_HANDICAP" and side == "Away"
+                        else line
+                    )
+                    rows.append(
+                        {
+                            **observation_row(
+                                f"{market}-{bookmaker_index}-{line_index}-{side_index}"
+                            ),
+                            "fixture_id": "target",
+                            "bookmaker_id": f"book-{bookmaker_index}",
+                            "bookmaker_name": f"Book {bookmaker_index}",
+                            "raw_market_label": label,
+                            "canonical_market": market,
+                            "selection": f"{side} {signed_line:+g}",
+                            "line": str(signed_line),
+                            "decimal_odds": str(1.88 + (line_index % 3) * 0.01),
+                            "provider_last_update": NOW,
+                            "captured_at": NOW,
+                            "ingested_at": NOW,
+                        }
+                    )
+    for index in range(400):
+        rows.append(
+            {
+                **observation_row(f"other-market-{index}"),
+                "fixture_id": "target",
+                "bookmaker_id": f"other-{index}",
+                "raw_market_label": "Goals Over/Under First Half",
+                "canonical_market": "TOTALS",
+                "provider_last_update": NOW,
+                "captured_at": NOW,
+                "ingested_at": NOW,
+            }
+        )
+    with Session(engine) as session:
+        session.execute(FutureMarketObservationModel.__table__.insert(), rows)
+        session.commit()
+
+    scoped = FutureRefreshDbRepository(engine=engine).latest_market_observations_for_fixtures(
+        ["target"]
+    )
+
+    assert len(scoped) <= 256
+    assert {row["canonical_market"] for row in scoped} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert {row["raw_market_label"] for row in scoped} == {
+        "Asian Handicap",
+        "Goals Over/Under",
+    }
+    assert {row["selection"].split()[0] for row in scoped} == {
+        "Home",
+        "Away",
+        "Over",
+        "Under",
+    }
+    selected = ReadModelService()._mainline_market_selection(scoped)
+    assert selected["ASIAN_HANDICAP"]["status"] == "READY"
+    assert selected["TOTALS"]["status"] == "READY"
+
+
 def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     tmp_path: Path,
     monkeypatch: Any,
@@ -559,6 +638,47 @@ def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     assert [row["payload"]["parameters"]["fixture"] for row in raw] == ["target"]
     assert len(xg) == 40
     assert {row["team_id"] for row in xg} == {"home", "away"}
+
+
+def test_scoped_xg_snapshot_reader_uses_latest_pre_fixture_team_state(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    snapshots = []
+    for team_id in ("home", "away", "unrelated"):
+        for index in range(3):
+            snapshots.append(
+                {
+                    "snapshot_id": f"{team_id}-{index}",
+                    "team_id": team_id,
+                    "as_of_fixture_id": f"previous-{team_id}-{index}",
+                    "as_of_time": NOW - timedelta(days=3 - index),
+                    "match_count": 6 + index,
+                    "rolling_xg_for": 1.1 + index / 10,
+                    "rolling_xg_against": 0.9,
+                    "rolling_goals_for": 1.0,
+                    "rolling_goals_against": 1.0,
+                    "regression_index": 0.1,
+                    "source_system": "test",
+                }
+            )
+    repository.upsert_team_xg_rolling_snapshots(snapshots)
+
+    selected = repository.team_xg_rolling_snapshots_for_teams(
+        ["home", "away"],
+        before=NOW,
+    )
+
+    assert [(row["team_id"], row["match_count"]) for row in selected] == [
+        ("away", 8),
+        ("home", 8),
+    ]
+    assert {row["as_of_fixture_id"] for row in selected} == {
+        "previous-away-2",
+        "previous-home-2",
+    }
 
 
 def test_request_count_since_includes_provider_request_logs(

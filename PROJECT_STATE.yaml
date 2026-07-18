@@ -51,7 +51,9 @@ repository:
 current_phase:
   id: R3
   name: forward_shadow_and_readonly_release_cycles
-  status: staging_accepted_awaiting_three_cycles
+  status: staging_accepted
+  acceptance_state: awaiting_three_stable_cycles
+  readonly_cycle_count: "0/3"
   next_phase: R4
   next_phase_gate: THREE_CONSECUTIVE_READONLY_CYCLES
   blocker: null
@@ -59,7 +61,6 @@ current_phase:
     R3_ledger_contract: staging_accepted
     R3_dashboard_data_semantics: staging_accepted
     R3_repeat_capture_freshness: staging_accepted
-    R3_readonly_cycle_count: "0/3"
 
 staging:
   deployed_sha: 94bcd62c67ed3fe50bba5ee65be10133556f83d0

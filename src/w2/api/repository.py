@@ -717,6 +717,24 @@ class ReadModelRepository:
                 return cast(dict[str, str | None], reader(ids))
         return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
 
+    def public_next_market_refresh_by_fixture(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids or len(ids) > 64:
+            return {}
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "next_market_refresh_by_fixture", None)
+            if db_repository is not None
+            else None
+        )
+        if callable(reader):
+            with suppress(Exception):
+                return cast(dict[str, str], reader(ids))
+        return {}
+
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
 
@@ -1353,6 +1371,25 @@ class ReadModelService:
             if callable(refresh_reader)
             else {"odds_last_confirmed_at": None, "next_refresh_tick": None}
         )
+        schedule_reader = getattr(
+            self.repository,
+            "public_next_market_refresh_by_fixture",
+            None,
+        )
+        refresh_schedule = (
+            cast(dict[str, str], schedule_reader(visible_fixture_ids))
+            if callable(schedule_reader)
+            else {}
+        )
+        for card in response_cards:
+            fixture_id = str(card.get("fixture_id") or "")
+            scheduled = refresh_schedule.get(fixture_id)
+            current_next = _parse_utc_text(card.get("next_eval_at"))
+            scheduled_at = _parse_utc_text(scheduled)
+            if scheduled_at is not None and (
+                current_next is None or scheduled_at < current_next
+            ):
+                card["next_eval_at"] = scheduled
         generated_at = datetime.now(UTC)
         payload = {
             "generated_at": generated_at,
@@ -2247,14 +2284,27 @@ class ReadModelService:
             as_of=min(self._analysis_evaluation_time_override or datetime.now(UTC), kickoff),
             stage_id="group",
         )
-        snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
+        scoped_snapshot_reader = getattr(
+            repository,
+            "team_xg_rolling_snapshots_for_teams",
+            None,
+        )
+        legacy_snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
         if fixture_id in self._team_xg_snapshots_by_fixture_cache:
             snapshots = self._team_xg_snapshots_by_fixture_cache[fixture_id]
         else:
             try:
-                snapshots = (
-                    snapshot_reader(fixture_id=fixture_id) if callable(snapshot_reader) else []
-                )
+                if callable(scoped_snapshot_reader):
+                    snapshots = scoped_snapshot_reader(
+                        [home_id, away_id],
+                        before=context.as_of,
+                    )
+                else:
+                    snapshots = (
+                        legacy_snapshot_reader(fixture_id=fixture_id)
+                        if callable(legacy_snapshot_reader)
+                        else []
+                    )
             except SQLAlchemyError:
                 snapshots = []
             self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots

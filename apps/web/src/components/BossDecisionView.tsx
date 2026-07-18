@@ -82,11 +82,37 @@ function actionLabel(value?: string | null): string {
   return ACTION_LABELS[value] ?? "继续观察";
 }
 
+function isWaitingForScheduledRefresh(card: DashboardDayViewCard, now = new Date()): boolean {
+  if (!(card.data_status === "STALE" || card.data_status === "BLOCKED")) return false;
+  if (!(card.reason_code === "DATA_STALE_ODDS" || card.reason_code === "MARKET_UNAVAILABLE")) return false;
+  const next = card.next_eval_at ? new Date(card.next_eval_at) : null;
+  const kickoff = card.kickoff_utc ? new Date(card.kickoff_utc) : null;
+  return Boolean(
+    next
+      && kickoff
+      && !Number.isNaN(next.getTime())
+      && !Number.isNaN(kickoff.getTime())
+      && next.getTime() > now.getTime()
+      && next.getTime() < kickoff.getTime(),
+  );
+}
+
+function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): string {
+  return isWaitingForScheduledRefresh(card, now) ? "等待赛前刷新" : dataStatusLabel(card.data_status);
+}
+
+function visibleReasonLabel(card: DashboardDayViewCard, now = new Date()): string {
+  return isWaitingForScheduledRefresh(card, now) ? "等待计划采集" : reasonLabel(card.reason_code);
+}
+
 function isWorldCup(dayView: DashboardDayView): boolean {
   return dayView.cards.some((card) => card.competition_id === "world_cup_2026" || (card.competition_name ?? "").toLowerCase().includes("world cup"));
 }
 
 function l1OneLiner(card: DashboardDayViewCard): string {
+  if (isWaitingForScheduledRefresh(card)) {
+    return `尚未进入赛前采集点；${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}自动刷新。`;
+  }
   const oneLiner = (card.one_liner ?? "").trim();
   if (oneLiner && !oneLiner.includes("缺少人话解释") && !/[A-Z0-9_]{6,}/.test(oneLiner)) {
     return oneLiner;
@@ -480,13 +506,13 @@ function rowMarketSummary(card: DashboardDayViewCard): string {
   if (card.pick) return marketPickLabel(card);
   const odds = oddsSummary(card);
   if (odds) return odds.split(" · ")[0] ?? odds;
-  return reasonLabel(card.reason_code);
+  return visibleReasonLabel(card);
 }
 
 function reasonSummary(cards: DashboardDayViewCard[]): Array<{ label: string; count: number }> {
   const counter = new Map<string, number>();
   for (const card of cards) {
-    const label = reasonLabel(card.reason_code);
+    const label = visibleReasonLabel(card);
     if (label === "暂无阻塞原因") continue;
     counter.set(label, (counter.get(label) ?? 0) + 1);
   }
@@ -520,7 +546,7 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
   return [
     `盘口源:${marketSourceLabel(card)}`,
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
-    `数据:${dataStatusLabel(card.data_status)}; ${trustSignalSummary(card)}`,
+    `数据:${visibleDataStatusLabel(card)}; ${trustSignalSummary(card)}`,
     `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
     `下一步:${actionLabel(card.action)}; ${card.next_eval_at ? fmtTime(card.next_eval_at) : "待定"}再看`,
   ];
@@ -674,7 +700,7 @@ export function DecisionRow({
           <small>{marketProbabilitySummary(card) ?? marketSourceLabel(card)}</small>
         </div>
         <div className="decision-cell decision-data">
-          <span>{dataStatusLabel(card.data_status)}</span>
+          <span>{visibleDataStatusLabel(card, now)}</span>
           <i aria-hidden="true" />
         </div>
         <div className="decision-cell decision-tier">
@@ -703,12 +729,20 @@ export function DecisionRow({
 }
 
 function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
-  const blocked = dayView.counts.blocked + dayView.counts.stale;
+  const waiting = dayView.cards.filter((card) => isWaitingForScheduledRefresh(card)).length;
+  const blocked = dayView.cards.filter(
+    (card) => (card.data_status === "BLOCKED" || card.data_status === "STALE")
+      && !isWaitingForScheduledRefresh(card),
+  ).length;
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
-      <strong>{blocked ? "部分数据需等待" : "白名单正常"}</strong>
+      <strong>{blocked ? "部分数据需处理" : waiting ? "赛前数据按计划等待" : "白名单正常"}</strong>
       <span>14 联赛可用 · {dayView.environment} · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
-      {blocked ? <small>未就绪比赛已保留在赛程中，按 next_eval_at 再评估。</small> : <small>覆盖诊断只在异常时展开。</small>}
+      {blocked
+        ? <small>异常比赛已保留在赛程中，并显示真实原因。</small>
+        : waiting
+          ? <small>{waiting} 场尚未到赛前采集点，到时自动更新。</small>
+          : <small>覆盖诊断只在异常时展开。</small>}
     </section>
   );
 }
