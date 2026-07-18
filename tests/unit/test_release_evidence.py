@@ -138,7 +138,8 @@ def test_release_gate_manifest_hashes_evidence_and_fails_closed(
 def test_staging_deploy_captures_real_image_id_without_faking_digest() -> None:
     script = Path("scripts/deploy_stage7h_staging.sh").read_text(encoding="utf-8")
 
-    assert "images -q api" in script
+    assert "docker image inspect --format='{{.Id}}' w2-staging-api:latest" in script
+    assert "images -q api" not in script
     assert "W2_API_IMAGE_ID=" in script
     assert "W2_API_OCI_DIGEST=" not in script
     assert "W2_API_REGISTRY_DIGEST=" not in script
