@@ -85,6 +85,46 @@ def test_lineup_materialization_rejects_one_team_without_visible_partial_rows() 
         assert session.scalar(select(func.count(StructuredLineupSnapshotModel.id))) == 0
 
 
+def test_saved_lineup_materializer_is_bounded_provider_free_and_idempotent() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    captured_at = datetime(2026, 7, 19, tzinfo=UTC)
+    payload = {
+        "endpoint": "lineups",
+        "parameters": {"fixture": "fixture-saved"},
+        "response": [_team(10, 100), _team(20, 200)],
+    }
+    repository.save_raw_payload(
+        sha256="e" * 64,
+        endpoint="lineups",
+        captured_at=captured_at,
+        payload=payload,
+    )
+    repository.save_raw_payload(
+        sha256="f" * 64,
+        endpoint="lineups",
+        captured_at=captured_at,
+        payload={"endpoint": "lineups", "response": [_team(10, 100), _team(20, 200)]},
+    )
+    assert repository.stored_lineup_materialization_candidates(limit=0) == []
+    assert len(repository.stored_lineup_materialization_candidates(limit=10)) == 1
+    first = repository.materialize_stored_lineup_payloads(limit=10)
+    second = repository.materialize_stored_lineup_payloads(limit=10)
+    assert first == {
+        "candidate_payload_count": 1,
+        "materialized_snapshot_count": 2,
+        "skipped_incomplete_count": 0,
+        "provider_calls": 0,
+    }
+    assert second == {
+        "candidate_payload_count": 1,
+        "materialized_snapshot_count": 0,
+        "skipped_incomplete_count": 0,
+        "provider_calls": 0,
+    }
+
+
 def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -108,15 +148,14 @@ def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() ->
                     "observed_at": observed_at,
                 }
             )
-    assert (
-        repository.import_transfermarkt_player_snapshot(
-            source_url="https://example.invalid/players.csv.gz",
-            source_sha256="c" * 64,
-            observed_at=observed_at,
-            rows=rows,
-        )
-        == 22
-    )
+    import_args = {
+        "source_url": "https://example.invalid/players.csv.gz",
+        "source_sha256": "c" * 64,
+        "observed_at": observed_at,
+        "rows": rows,
+    }
+    assert repository.import_transfermarkt_player_snapshot(**import_args) == 22
+    assert repository.import_transfermarkt_player_snapshot(**import_args) == 0
     captured_at = datetime(2026, 7, 19, tzinfo=UTC)
     repository.save_lineup_snapshots(
         fixture_id="fixture-mapped",

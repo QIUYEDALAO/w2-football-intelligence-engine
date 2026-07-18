@@ -211,10 +211,28 @@ class FakeLiveApiFootballPort:
                 ]
             }
         if endpoint == "lineups":
+            def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id, "name": f"Predeploy Team {team_id}"},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Predeploy Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                                "grid": f"{index // 4 + 1}:{index % 4 + 1}",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
             return {
                 "response": [
-                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
-                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": []},
+                    team_lineup(10, 100),
+                    team_lineup(20, 200),
                 ]
             }
         raise AssertionError(endpoint)
@@ -383,6 +401,14 @@ RUN_AUDIT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'world_cup_2026' and candidate = false and formal_recommendation = false;"
 )"
+LINEUP_SNAPSHOT_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(*) from structured_lineup_snapshots where fixture_id = '${FIXTURE_ID}' and confirmed = true;"
+)"
+LINEUP_STARTER_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(*) from structured_lineup_players p join structured_lineup_snapshots s on s.id = p.lineup_snapshot_id where s.fixture_id = '${FIXTURE_ID}' and p.starter = true;"
+)"
 if [ "${OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing DB market observations" >&2
   exit 1
@@ -397,6 +423,10 @@ if [ "${BLOCKED_ENDPOINT_COUNT}" -ne 0 ]; then
 fi
 if [ "${RUN_AUDIT_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing future refresh run audit" >&2
+  exit 1
+fi
+if [ "${LINEUP_SNAPSHOT_COUNT}" -ne 2 ] || [ "${LINEUP_STARTER_COUNT}" -ne 22 ]; then
+  echo "predeploy_e2e FAIL structured lineup materialization incomplete" >&2
   exit 1
 fi
 echo "predeploy_e2e db assertions PASS"

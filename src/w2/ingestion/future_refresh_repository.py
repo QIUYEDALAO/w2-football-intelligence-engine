@@ -413,12 +413,14 @@ class FutureRefreshDbRepository:
                 return len(rows)
             except IntegrityError:
                 session.rollback()
-                existing = session.scalar(
-                    select(
-                        func.count(TransfermarktPlayerReferenceModel.transfermarkt_player_id)
-                    ).where(TransfermarktPlayerReferenceModel.source_sha256 == source_sha256)
+                source_exists = session.scalar(
+                    select(func.count(LineupSourceSnapshotModel.id)).where(
+                        LineupSourceSnapshotModel.sha256 == source_sha256
+                    )
                 )
-                return int(existing or 0)
+                if source_exists:
+                    return 0
+                raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_CONFLICT") from None
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_FAILED") from exc
@@ -428,6 +430,70 @@ class FutureRefreshDbRepository:
             return list(
                 session.scalars(select(StructuredLineupSnapshotModel.fixture_id).distinct()).all()
             )
+
+    def stored_lineup_materialization_candidates(
+        self,
+        *,
+        limit: int = 512,
+    ) -> list[dict[str, Any]]:
+        """Return bounded, saved lineup payloads for an explicit offline materializer.
+
+        This is an administrative migration reader, not a public-request fallback.
+        Fixture identity must come from the parameters saved with the original
+        provider response; rows without that identity are excluded fail closed.
+        """
+        bounded_limit = max(0, min(int(limit), 4096))
+        if bounded_limit == 0:
+            return []
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == "lineups")
+                    .order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
+                    .limit(bounded_limit)
+                )
+            )
+        candidates: list[dict[str, Any]] = []
+        for row in rows:
+            payload = dict(row.payload)
+            parameters = payload.get("parameters")
+            fixture_id = (
+                str(parameters.get("fixture") or "")
+                if isinstance(parameters, dict)
+                else ""
+            )
+            if not fixture_id:
+                continue
+            candidates.append(
+                {
+                    "fixture_id": fixture_id,
+                    "captured_at": parse_db_datetime(row.captured_at),
+                    "raw_sha256": row.sha256,
+                    "payload": payload,
+                }
+            )
+        return candidates
+
+    def materialize_stored_lineup_payloads(self, *, limit: int = 512) -> dict[str, int]:
+        """Idempotently materialize already-saved lineup payloads without a provider call."""
+        candidates = self.stored_lineup_materialization_candidates(limit=limit)
+        materialized_snapshots = 0
+        skipped_incomplete = 0
+        for candidate in candidates:
+            try:
+                materialized_snapshots += self.save_lineup_snapshots(**candidate)
+            except FutureRefreshPersistenceError as exc:
+                if str(exc) in {"LINEUP_RESPONSE_INVALID", "LINEUP_TEAMS_INCOMPLETE"}:
+                    skipped_incomplete += 1
+                    continue
+                raise
+        return {
+            "candidate_payload_count": len(candidates),
+            "materialized_snapshot_count": materialized_snapshots,
+            "skipped_incomplete_count": skipped_incomplete,
+            "provider_calls": 0,
+        }
 
     @staticmethod
     def _lineup_players(value: Any, *, starter: bool) -> list[dict[str, Any]]:
