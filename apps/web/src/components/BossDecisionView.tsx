@@ -310,7 +310,9 @@ function divergenceLabel(card: DashboardDayViewCard): string {
 
 function signedLine(prefix: string, value: unknown): string {
   const line = formatLine(value);
-  return line === "-" ? `${prefix} --` : `${prefix} ${line}`;
+  if (line === "-") return `${prefix} --`;
+  const numeric = typeof value === "number" ? value : Number(value);
+  return `${prefix} ${Number.isFinite(numeric) && numeric > 0 ? `+${line}` : line}`;
 }
 
 function statusCn(value: string): string {
@@ -539,12 +541,18 @@ function performanceStatus(sampleSize: number): string {
 
 function nextEvalLabel(card: DashboardDayViewCard): string {
   if (!card.next_eval_at) return "待定";
-  const kickoff = card.kickoff_utc ? new Date(card.kickoff_utc) : null;
-  const next = new Date(card.next_eval_at);
-  const delta = kickoff && !Number.isNaN(kickoff.getTime()) && !Number.isNaN(next.getTime())
-    ? Math.round((next.getTime() - kickoff.getTime()) / 60000)
-    : null;
-  return `${fmtTime(card.next_eval_at)}${delta != null ? ` (${delta >= 0 ? "+" : ""}${delta})` : ""}`;
+  return fmtTime(card.next_eval_at);
+}
+
+function countdownLabel(card: DashboardDayViewCard, now: Date): string {
+  const minutes = minutesUntil(card, now);
+  if (minutes == null) return "时间待定";
+  if (minutes < 0) return `已开赛 ${Math.abs(minutes)} 分钟`;
+  if (minutes < 60) return `还有 ${minutes} 分钟`;
+  if (minutes < 1440) return `还有 ${Math.floor(minutes / 60)} 小时`;
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  return `还有 ${days} 天${hours ? ` ${hours} 小时` : ""}`;
 }
 
 function rowMarketSummary(card: DashboardDayViewCard): string {
@@ -692,8 +700,12 @@ export function EvidencePanel({
         </div>
         <div className="tracking-note">
           <span>赛后追踪</span>
-          <strong>{selectedCard.outcome_tracked ? "已纳入 outcome tracking" : "等待完场后追踪"}</strong>
-          <small>结算后会进入赛后验证，和联赛表现一起计入样本。</small>
+          <strong>{selectedCard.outcome_tracked ? "已纳入验证追踪" : "本场尚未产生验证推荐"}</strong>
+          <small>
+            {selectedCard.outcome_tracked
+              ? "结算后会进入赛后验证，并计入对应联赛样本。"
+              : "只有赛前形成分析参考或正式推荐，完场后才计入验证样本。"}
+          </small>
         </div>
       </aside>
     );
@@ -736,7 +748,7 @@ export function DecisionRow({
       <button className="decision-row-button" type="button" onClick={onSelect} aria-pressed={selected}>
         <div className="decision-cell decision-time">
           <strong>{fmtTime(card.kickoff_utc)}</strong>
-          <span>T{minutesUntil(card, now) != null ? `${minutesUntil(card, now)}min` : "--"}</span>
+          <span>{countdownLabel(card, now)}</span>
         </div>
         <div className="decision-cell decision-league">
           <span>{competitionLabel(card)}</span>

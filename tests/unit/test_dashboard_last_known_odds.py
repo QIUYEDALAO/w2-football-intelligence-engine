@@ -60,6 +60,9 @@ def test_dashboard_attaches_reference_only_odds_in_one_scoped_read() -> None:
         assert snapshot["markets"]["ou"]["line"] == "2.75"
         assert snapshot["markets"]["ou"]["over_price"] == 1.91
         assert snapshot["markets"]["ou"]["under_price"] == 1.93
+        assert "candidate_lines" not in snapshot["markets"]["ou"]
+        assert "rejected_lines" not in snapshot["markets"]["ou"]
+        assert "selection_policy" not in snapshot["markets"]["ou"]
 
 
 def test_dashboard_reference_odds_fail_closed_on_cross_fixture_rows() -> None:

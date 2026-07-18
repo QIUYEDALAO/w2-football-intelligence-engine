@@ -5861,6 +5861,22 @@ class ReadModelService:
             entry = self._balanced_odds_entry(selected)
             if entry is None:
                 continue
+            entry = {
+                key: value
+                for key, value in entry.items()
+                if key
+                in {
+                    "line",
+                    "home_line",
+                    "away_line",
+                    "home_price",
+                    "away_price",
+                    "over_line",
+                    "under_line",
+                    "over_price",
+                    "under_price",
+                }
+            }
             entry["bookmaker_count"] = int(selected.get("bookmaker_count") or 0)
             markets[key] = entry
         if not markets:

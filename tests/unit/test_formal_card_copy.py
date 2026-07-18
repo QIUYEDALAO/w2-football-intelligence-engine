@@ -121,6 +121,9 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "已有早盘·待临场更新" in boss_view
     assert "只读决策台" in boss_view
     assert "Boss View</button>" not in boss_view
+    assert "T{minutesUntil" not in boss_view
+    assert "本场尚未产生验证推荐" in boss_view
+    assert "只有赛前形成分析参考或正式推荐" in boss_view
     assert "最后刷新" not in boss_view
 
 
