@@ -247,6 +247,12 @@ assert "injuries" not in [endpoint for endpoint, _ in fake.calls]
 print("predeploy_e2e fake future refresh PASS")
 PY
 
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T api \
+  /app/.venv/bin/python scripts/materialize_analysis_card_canary.py \
+  --fixture-id "${FIXTURE_ID}" \
+  --evaluated-at "2026-06-25T12:00:00Z" \
+  --write
+
 python3 - <<PY
 from __future__ import annotations
 
@@ -278,6 +284,9 @@ assert "稳赢" not in text.replace("非稳赢", ""), text
 
 card = payload["card"]
 assert card["fixture_id"] == fixture_id
+assert card["frozen_artifact_provenance"]["status"] == "VERIFIED"
+assert card["frozen_artifact_provenance"]["fixture_identity"]["fixture_id"] == fixture_id
+assert card["frozen_artifact_provenance"]["artifact_hash"]
 assert card["candidate"] is False
 assert card["formal_recommendation"] is False
 assert card["disclaimer"] == "分析参考·非稳赢"
