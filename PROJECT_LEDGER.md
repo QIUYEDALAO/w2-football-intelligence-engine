@@ -160,6 +160,25 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.4 Staging Canary](docs/operations/W2_R0_4_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.5 frozen analysis-card canary
+
+- Implementation SHA `4b880b49acb0b33376c61d2cf8bba608a8682c47` switches only
+  the three named canary fixtures to verified frozen checkpoint reads.
+- Local validation passed with `1125 passed, 4 skipped`, all static/Web/acceptance
+  guards, isolated predeploy-e2e and staging-parity.
+- Sequential and concurrent staging reads returned stable bytes and the three R0.4
+  artifact hashes. An in-container fail-on-call tripwire recorded three artifact
+  reads and zero legacy/global/provider/model calls.
+- Decision, tier, pick, quote identity/freshness and DayView product semantics
+  stayed unchanged. Frozen `evaluated_at` replaced the live request reference for
+  two audits by design; authoritative quote `captured_at` did not change.
+- Provider, observation, raw, checkpoint, queue, business and lock counts did not
+  change. All services ended healthy with restart zero/OOM false; scheduler and
+  watchdog were restored. R0.5 is PASS and R0.6 is authorized.
+
+Detailed canary evidence:
+[W2 R0.5 Staging Canary](docs/operations/W2_R0_5_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

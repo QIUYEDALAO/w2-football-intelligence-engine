@@ -2,18 +2,20 @@
 
 ## Current gate
 
-R0.4 is **PASS**. The authorized next phase is R0.5.
+R0.5 is **PASS**. The authorized next phase is R0.6.
 
 ## Next implementation
 
-R0.4 passed local, isolated and direct staging acceptance at
-`7a5181f3b0cc0e12ae3dbade225d3725b7b06518`. Three fixture-scoped analysis
-sidecars were written to a versioned canary namespace. Repeated materialization
-was byte/hash identical and public products remained unchanged.
+R0.5 passed local, isolated and direct staging acceptance at
+`4b880b49acb0b33376c61d2cf8bba608a8682c47`. The three canary analysis-card
+routes now read verified frozen artifacts only. Tripwires proved zero online
+rebuild, provider, model and global-reader calls; product semantics remained
+unchanged apart from replacing request time with the frozen evaluation reference.
 
-Implement R0.5 in a separate branch: switch only fixtures `1576804`, `1494701`
-and `1494210` to frozen-only analysis-card reads. Missing, invalid or conflicting
-artifacts must return structured `NOT_READY` without a legacy rebuild.
+Implement R0.6 in a separate branch: materialize every publicly visible staging
+fixture and make DayView, fixture detail, analysis-card, Dashboard, tracking and
+replay project one frozen authority. Missing or invalid artifacts must remain
+`NOT_READY/WATCH` with no pick, lock, provider call, model call or online rebuild.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.

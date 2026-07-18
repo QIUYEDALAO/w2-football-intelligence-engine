@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T07:28:42Z"
+updated_at: "2026-07-18T07:46:03Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 
 context_read_order:
@@ -15,33 +15,34 @@ context_read_order:
   - docs/operations/W2_R0_3_STAGING_CANARY_20260718.md
   - docs/operations/W2_R0_3_PUBLIC_READ_INVENTORY_20260718.md
   - docs/operations/W2_R0_4_STAGING_CANARY_20260718.md
+  - docs/operations/W2_R0_5_STAGING_CANARY_20260718.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   remote_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_accepted_implementation_sha: 7a5181f3b0cc0e12ae3dbade225d3725b7b06518
+  local_accepted_implementation_sha: 4b880b49acb0b33376c61d2cf8bba608a8682c47
   github_sync_performed: false
   recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
   remote_main_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_main_contains_sha: 7a5181f3b0cc0e12ae3dbade225d3725b7b06518
-  tree_sha: 19115fea267cf8396367f9f047875c38df517762
+  local_main_contains_sha: 4b880b49acb0b33376c61d2cf8bba608a8682c47
+  tree_sha: b7afcdfeb59baee4249453375a58ec1fc81291d8
   baseline_reason: Restore pre-GPT-5.6 expert review baseline
   historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
   prohibited_bulk_restore_range: "#333-#346"
 
 current_phase:
-  id: R0.4
-  name: deterministic_sidecar_materializer
+  id: R0.5
+  name: frozen_analysis_card_canary
   status: PASS
-  next_phase: R0.5
+  next_phase: R0.6
   next_phase_gate: AUTHORIZED_BY_FULL_PLAN
   blocker: null
 
 staging:
-  deployed_sha: 7a5181f3b0cc0e12ae3dbade225d3725b7b06518
-  deployed_tree_sha: 19115fea267cf8396367f9f047875c38df517762
+  deployed_sha: 4b880b49acb0b33376c61d2cf8bba608a8682c47
+  deployed_tree_sha: b7afcdfeb59baee4249453375a58ec1fc81291d8
   tree_matches_main: false
   health_http_status: 200
   canonical_ready_http_status: 200
@@ -74,7 +75,7 @@ current_tree_ci:
 
 confirmed_open_boundaries:
   - METRICS_SINK_AND_EXPORTER_DISCONNECTED
-  - PUBLIC_ANALYSIS_CARD_IS_NOT_YET_FROZEN
+  - PUBLIC_NON_CANARY_ENDPOINTS_ARE_NOT_YET_FROZEN
 
 phase_order:
   - R0.0
