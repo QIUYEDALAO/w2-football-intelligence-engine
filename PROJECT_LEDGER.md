@@ -139,6 +139,27 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.3 Staging Canary](docs/operations/W2_R0_3_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.4 deterministic sidecar materializer
+
+- Implementation SHA `7a5181f3b0cc0e12ae3dbade225d3725b7b06518` adds a
+  versioned three-fixture canary namespace without changing public reads.
+- An explicit evaluation reference is part of the input manifest; write time and
+  run identity are excluded from canonical bytes and hashes.
+- Local validation passed with `1118 passed, 4 skipped`, all static/Web/acceptance
+  guards, isolated predeploy-e2e and staging-parity.
+- The three staging fixtures repeated with byte-identical payloads and artifact
+  hashes. Sequential and concurrent reads returned one stable hash per fixture.
+- Missing inputs, old schema, identity conflict and hash mismatch fail closed;
+  batch writes are one transaction and leave no partial visible checkpoint.
+- Public analysis cards and the DayView product projection stayed unchanged.
+  Provider, observation, raw, queue and lock counts did not change; only three
+  canary checkpoint rows were added.
+- All services ended healthy with restart zero/OOM false; scheduler and watchdog
+  were restored. R0.4 is PASS and R0.5 is authorized.
+
+Detailed canary evidence:
+[W2 R0.4 Staging Canary](docs/operations/W2_R0_4_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

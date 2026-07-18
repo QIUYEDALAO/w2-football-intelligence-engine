@@ -2,19 +2,18 @@
 
 ## Current gate
 
-R0.3 is **PASS**. The authorized next phase is R0.4.
+R0.4 is **PASS**. The authorized next phase is R0.5.
 
 ## Next implementation
 
-R0.3 passed local, isolated and direct staging acceptance at
-`7e383e2f21fcd0b488ffc95cd58c6c6394291855`. Public Dashboard, DayView,
-fixture detail, analysis-card, odds timeline and probability reads now use
-fixture/team-scoped bounded dependencies. Injected global observation, raw and
-xG readers were never called.
+R0.4 passed local, isolated and direct staging acceptance at
+`7a5181f3b0cc0e12ae3dbade225d3725b7b06518`. Three fixture-scoped analysis
+sidecars were written to a versioned canary namespace. Repeated materialization
+was byte/hash identical and public products remained unchanged.
 
-Implement R0.4 in a separate branch: materialize deterministic analysis-card
-sidecars for fixtures `1576804`, `1494701` and `1494210` into a versioned canary
-checkpoint namespace. Do not switch public reads during R0.4.
+Implement R0.5 in a separate branch: switch only fixtures `1576804`, `1494701`
+and `1494210` to frozen-only analysis-card reads. Missing, invalid or conflicting
+artifacts must return structured `NOT_READY` without a legacy rebuild.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.

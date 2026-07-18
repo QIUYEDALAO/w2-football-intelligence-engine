@@ -3,10 +3,11 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
-Progress: R0.0 through R0.3 are accepted by local-direct staging evidence.
+Progress: R0.0 through R0.4 are accepted by local-direct staging evidence.
 R0.1a–R0.2 closed quote identity/freshness, non-ready no-pick and canonical
-readiness. R0.3 removed public global observation/raw/history reads. The next
-authorized phase is R0.4 deterministic sidecar materialization.
+readiness. R0.3 removed public global observation/raw/history reads. R0.4 added
+deterministic three-fixture canary sidecars. The next authorized phase is R0.5
+frozen analysis-card canary reads.
 
 This plan supersedes recovery-era implementation sequencing. PRs #333–#346 are
 specification and failure-case inputs only; they are not a backlog to restore.
