@@ -319,6 +319,65 @@ def test_checkpoint_plan_is_idempotent_and_audited(
         )
 
 
+def test_fixture_scoped_reader_ignores_large_unrelated_observation_population(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    common = {
+        "provider": "api_football",
+        "bookmaker_id": "book",
+        "bookmaker_name": "Book",
+        "provider_bet_id": "bet",
+        "raw_market_label": "Goals Over/Under",
+        "canonical_market": "TOTALS",
+        "selection": "Over",
+        "line": "2.5",
+        "decimal_odds": "1.91",
+        "suspended": False,
+        "live": False,
+        "provider_last_update": "2026-07-18T00:00:00Z",
+        "captured_at": NOW,
+        "ingested_at": NOW,
+        "raw_payload_sha256": "a" * 64,
+        "source_revision": "test",
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+    unrelated = [
+        {
+            **common,
+            "observation_id": f"unrelated-{index}",
+            "fixture_id": f"unrelated-{index}",
+        }
+        for index in range(10_000)
+    ]
+    target = [
+        {
+            **common,
+            "observation_id": "target-old",
+            "fixture_id": "target",
+            "captured_at": NOW - timedelta(minutes=1),
+        },
+        {
+            **common,
+            "observation_id": "target-latest",
+            "fixture_id": "target",
+        },
+    ]
+    with Session(engine) as session:
+        session.execute(FutureMarketObservationModel.__table__.insert(), unrelated + target)
+        session.commit()
+
+    rows = FutureRefreshDbRepository(engine=engine).latest_market_observations_for_fixtures(
+        ["target"]
+    )
+
+    assert [row["observation_id"] for row in rows] == ["target-latest"]
+    assert {row["fixture_id"] for row in rows} == {"target"}
+
+
 def test_request_count_since_includes_provider_request_logs(
     tmp_path: Path,
     monkeypatch: Any,

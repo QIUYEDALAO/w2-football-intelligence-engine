@@ -586,12 +586,9 @@ class ReadModelRepository:
     ) -> list[dict[str, Any]]:
         db_repository = future_refresh_db_repository()
         if db_repository is not None:
-            try:
-                reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
-                if callable(reader):
-                    return cast(list[dict[str, Any]], reader(fixture_ids))
-            except Exception:
-                return []
+            reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
+            if callable(reader):
+                return cast(list[dict[str, Any]], reader(fixture_ids))
         return []
 
     def result_events(self) -> list[dict[str, Any]]:
@@ -1525,6 +1522,76 @@ class ReadModelService:
         if item is not None:
             return self._analysis_card_from_provider_payload(fixture_id, item)
         return None
+
+    def public_analysis_card_bounded(self, fixture_id: str) -> dict[str, Any] | None:
+        """Build a public card with request-local, fixture-scoped observations."""
+        request_service = ReadModelService(repository=self.repository)
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        if not callable(reader):
+            return request_service._bounded_analysis_card_failure(
+                fixture_id,
+                blocker="FIXTURE_SCOPED_OBSERVATION_READER_UNAVAILABLE",
+            )
+        try:
+            observations = reader([fixture_id])
+        except Exception:
+            return request_service._bounded_analysis_card_failure(
+                fixture_id,
+                blocker="FIXTURE_SCOPED_OBSERVATION_READ_FAILED",
+            )
+        if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
+            return request_service._bounded_analysis_card_failure(
+                fixture_id,
+                blocker="FIXTURE_SCOPED_OBSERVATION_CROSS_FIXTURE_ROWS",
+            )
+        request_service._future_market_observations_cache = list(observations)
+        request_service._observations_by_fixture_cache = {fixture_id: list(observations)}
+        return request_service.analysis_card(fixture_id)
+
+    def _bounded_analysis_card_failure(
+        self,
+        fixture_id: str,
+        *,
+        blocker: str,
+    ) -> dict[str, Any] | None:
+        self._future_market_observations_cache = []
+        self._observations_by_fixture_cache = {fixture_id: []}
+        existing = self.analysis_card(fixture_id)
+        if existing is None:
+            return None
+        context = {
+            key: existing[key]
+            for key in (
+                "competition_id",
+                "competition_name",
+                "competition_cn",
+                "kickoff_utc",
+                "home_team_id",
+                "away_team_id",
+                "home_team_name",
+                "away_team_name",
+                "home_name",
+                "away_name",
+                "home_cn",
+                "away_cn",
+            )
+            if key in existing
+        }
+        blocked = self._fallback_analysis_card(
+            fixture_id=fixture_id,
+            market_coverage={},
+            source="fixture_scoped_observation_read_blocked",
+            fixture_context=context,
+        )
+        blocked["quote_identity_audit"] = {
+            key: unavailable_quote_identity(market=market, blocker=blocker)
+            for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+        }
+        blocked["bounded_read"] = {"status": "BLOCKED", "blockers": [blocker]}
+        blocked["candidate"] = False
+        blocked["formal_recommendation"] = False
+        blocked["lock_eligible"] = False
+        return blocked
 
     def _analysis_card_from_cached_fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
         item = self._fixture_payload_by_id(fixture_id)

@@ -365,7 +365,7 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
     response_model=AnalysisCardResponse,
 )
 def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
-    card = service.analysis_card(fixture_id)
+    card = service.public_analysis_card_bounded(fixture_id)
     if card is None:
         raise HTTPException(status_code=404, detail="analysis card not found")
     return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}
