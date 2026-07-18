@@ -17,6 +17,7 @@ from w2.api.frozen_analysis import (
 )
 from w2.api.repository import ReadModelService
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.operations.observability import default_metric_registry
 
 
 class ScopedRepository:
@@ -123,6 +124,9 @@ def test_missing_or_conflicting_scoped_inputs_fail_closed(
     repository = ScopedRepository()
     repository.observations = []
     materializer = AnalysisCardCanaryMaterializer(repository)
+    registry = default_metric_registry()
+    error_key = ("w2_materializer_results_total", (("status", "ERROR"),))
+    errors_before = registry.labelled_counters.get(error_key, 0)
 
     with pytest.raises(FrozenAnalysisError, match="observation input missing"):
         materializer.build("1576804", evaluated_at=datetime.now(UTC))
@@ -134,6 +138,7 @@ def test_missing_or_conflicting_scoped_inputs_fail_closed(
     repository.fixture["fixture"]["id"] = "other"
     with pytest.raises(FrozenAnalysisError, match="fixture identity conflict"):
         materializer.build("1576804", evaluated_at=datetime.now(UTC))
+    assert registry.labelled_counters[error_key] == errors_before + 3
 
 
 def test_write_is_idempotent_and_reader_verifies_hash(
@@ -145,6 +150,11 @@ def test_write_is_idempotent_and_reader_verifies_hash(
         evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
     )
     engine = _engine()
+    registry = default_metric_registry()
+    hit_key = ("w2_checkpoint_reads_total", (("status", "HIT"),))
+    invalid_key = ("w2_checkpoint_reads_total", (("status", "INVALID"),))
+    hits_before = registry.labelled_counters.get(hit_key, 0)
+    invalid_before = registry.labelled_counters.get(invalid_key, 0)
 
     write_frozen_analysis_artifacts(engine, [artifact])
     write_frozen_analysis_artifacts(engine, [artifact])
@@ -152,6 +162,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
 
     assert loaded is not None
     assert loaded.canonical_bytes == artifact.canonical_bytes
+    assert registry.labelled_counters[hit_key] == hits_before + 1
     with Session(engine) as session:
         assert session.query(ReadModelCheckpointModel).count() == 1
 
@@ -161,6 +172,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
         session.commit()
     with pytest.raises(FrozenAnalysisError, match="artifact hash mismatch"):
         read_frozen_analysis_artifact(engine, "1576804")
+    assert registry.labelled_counters[invalid_key] == invalid_before + 1
 
 
 def test_old_schema_blocks_entire_atomic_batch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -188,7 +200,11 @@ def test_old_schema_blocks_entire_atomic_batch(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(FrozenAnalysisError, match="schema incompatible"):
         write_frozen_analysis_artifacts(engine, [first, second])
 
+    registry = default_metric_registry()
+    miss_key = ("w2_checkpoint_reads_total", (("status", "MISS"),))
+    misses_before = registry.labelled_counters.get(miss_key, 0)
     assert read_frozen_analysis_artifact(engine, "fixture-a") is None
+    assert registry.labelled_counters[miss_key] == misses_before + 1
 
 
 def test_payload_validation_rejects_fixture_identity_conflict(

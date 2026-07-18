@@ -1015,6 +1015,12 @@ class ReadModelService:
     def _cached_future_market_observations(self) -> list[dict[str, Any]]:
         if self._future_market_observations_cache is None:
             if self._bounded_public_request:
+                from w2.operations.observability import default_metric_registry
+
+                default_metric_registry().inc(
+                    "w2_public_tripwire_blocks_total",
+                    labels={"reader": "global_observation"},
+                )
                 return []
             observation_reader = getattr(self.repository, "future_market_observations", None)
             self._future_market_observations_cache = (

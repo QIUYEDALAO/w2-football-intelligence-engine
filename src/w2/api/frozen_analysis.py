@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from time import monotonic
 from typing import Any, Protocol, cast
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.operations.observability import default_metric_registry
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
@@ -142,6 +144,27 @@ class AnalysisCardCanaryMaterializer:
         self.repository = repository
 
     def build(self, fixture_id: str, *, evaluated_at: datetime) -> FrozenAnalysisArtifact:
+        registry = default_metric_registry()
+        started = monotonic()
+        try:
+            artifact = self._build(fixture_id, evaluated_at=evaluated_at)
+        except Exception:
+            registry.inc(
+                "w2_materializer_results_total",
+                labels={"status": "ERROR"},
+            )
+            raise
+        registry.inc(
+            "w2_materializer_results_total",
+            labels={"status": "SUCCESS"},
+        )
+        registry.observe(
+            "w2_materializer_duration_ms",
+            (monotonic() - started) * 1000,
+        )
+        return artifact
+
+    def _build(self, fixture_id: str, *, evaluated_at: datetime) -> FrozenAnalysisArtifact:
         key = analysis_card_canary_key(fixture_id)
         evaluation_time = _normalize_evaluation_time(evaluated_at)
         fixture_payload = self.repository.fixture_payload(fixture_id)
@@ -282,8 +305,20 @@ def read_frozen_analysis_artifact(
             select(ReadModelCheckpointModel).where(ReadModelCheckpointModel.checkpoint_key == key)
         )
     if row is None:
+        default_metric_registry().inc(
+            "w2_checkpoint_reads_total", labels={"status": "MISS"}
+        )
         return None
-    artifact = validate_frozen_analysis_payload(fixture_id, row.payload)
-    if row.source_hash != artifact.source_hash:
-        raise FrozenAnalysisError("checkpoint source hash mismatch")
+    try:
+        artifact = validate_frozen_analysis_payload(fixture_id, row.payload)
+        if row.source_hash != artifact.source_hash:
+            raise FrozenAnalysisError("checkpoint source hash mismatch")
+    except FrozenAnalysisError:
+        default_metric_registry().inc(
+            "w2_checkpoint_reads_total", labels={"status": "INVALID"}
+        )
+        raise
+    default_metric_registry().inc(
+        "w2_checkpoint_reads_total", labels={"status": "HIT"}
+    )
     return artifact

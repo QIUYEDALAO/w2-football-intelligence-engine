@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.ingestion.ports import API_FOOTBALL_ENDPOINTS, ProviderRequest, ProviderResponse
+from w2.operations.observability import default_metric_registry
 from w2.providers.control import (
     PROVIDER_CALLS_DISABLED,
     ProviderCallsDisabledError,
@@ -101,6 +102,11 @@ class ApiFootballClient:
         )
         started = time.monotonic()
         captured_at = datetime.now(UTC)
+        registry = default_metric_registry()
+        registry.inc(
+            "w2_provider_requests_total",
+            labels={"endpoint": endpoint, "provider": self.provider},
+        )
         try:
             with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
                 raw = response.read()
@@ -110,7 +116,37 @@ class ApiFootballClient:
             raw = exc.read()
             status_code = exc.code
             headers = self._sanitize_headers(exc.headers)
-        payload = json.loads(raw.decode("utf-8")) if raw else {}
+        except (OSError, TimeoutError, urllib.error.URLError):
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            registry.observe(
+                "w2_provider_latency_ms",
+                elapsed_ms,
+                labels={"endpoint": endpoint, "provider": self.provider},
+            )
+            registry.inc(
+                "w2_provider_failures_total",
+                labels={"endpoint": endpoint, "provider": self.provider},
+            )
+            raise
+        try:
+            payload = json.loads(raw.decode("utf-8")) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            registry.inc(
+                "w2_provider_failures_total",
+                labels={"endpoint": endpoint, "provider": self.provider},
+            )
+            raise
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        registry.observe(
+            "w2_provider_latency_ms",
+            elapsed_ms,
+            labels={"endpoint": endpoint, "provider": self.provider},
+        )
+        if status_code >= 400:
+            registry.inc(
+                "w2_provider_failures_total",
+                labels={"endpoint": endpoint, "provider": self.provider},
+            )
         completed_at = datetime.now(UTC)
         ledger = self.request_ledger or provider_request_ledger_from_env()
         if ledger is not None:
@@ -130,7 +166,7 @@ class ApiFootballClient:
             endpoint=endpoint,
             params=params,
             status_code=status_code,
-            elapsed_ms=int((time.monotonic() - started) * 1000),
+            elapsed_ms=elapsed_ms,
             payload=payload,
             headers=headers,
             captured_at=captured_at,

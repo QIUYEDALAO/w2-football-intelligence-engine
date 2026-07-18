@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from time import monotonic
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -10,7 +9,6 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from w2.api.cache import read_cache
-from w2.api.metrics import metrics
 from w2.api.repository import ReadModelService
 from w2.api.schemas import (
     AnalysisCardResponse,
@@ -225,7 +223,6 @@ def list_fixtures(
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
     if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
 ) -> Any:
-    started = monotonic()
     items, total = service.fixtures(
         timezone=timezone,
         page=page,
@@ -241,7 +238,6 @@ def list_fixtures(
         "meta": PageMeta(page=page, page_size=page_size, total=total).model_dump(),
         "items": items,
     }
-    metrics.record("/v1/fixtures", 200, started)
     cache_key = ":".join(
         [
             "fixtures",
@@ -335,13 +331,10 @@ def matchday_coverage(request: Request, date: str | None = None) -> dict[str, An
 
 @public_router.get("/fixtures/{fixture_id}", response_model=FixtureDetailResponse)
 def fixture_detail(fixture_id: str, request: Request, timezone: str = "UTC") -> dict[str, Any]:
-    started = monotonic()
     item = service.fixture(fixture_id, timezone)
     if item is None:
-        metrics.record("/v1/fixtures/{fixture_id}", 404, started)
         raise HTTPException(status_code=404, detail="fixture not found")
     item["request_id"] = request_id(request)
-    metrics.record("/v1/fixtures/{fixture_id}", 200, started)
     return item
 
 
