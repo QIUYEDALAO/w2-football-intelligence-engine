@@ -310,6 +310,26 @@ class PlayerIdentityMappingModel(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(128))
 
 
+class TransfermarktPlayerReferenceModel(Base):
+    __tablename__ = "transfermarkt_player_references"
+    __table_args__ = (
+        Index("ix_tm_player_normalized_name", "normalized_name"),
+        Index("ix_tm_player_club", "current_club_id"),
+    )
+
+    transfermarkt_player_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    player_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    current_club_id: Mapped[str | None] = mapped_column(String(64))
+    current_club_name: Mapped[str | None] = mapped_column(String(255))
+    competition_code: Mapped[str | None] = mapped_column(String(32))
+    position: Mapped[str | None] = mapped_column(String(64))
+    sub_position: Mapped[str | None] = mapped_column(String(128))
+    market_value_eur: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+    source_sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class PlayerValuationObservationModel(Base):
     __tablename__ = "player_valuation_observations"
     __table_args__ = (
@@ -343,6 +363,7 @@ class StructuredLineupSnapshotModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
     team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    team_name: Mapped[str] = mapped_column(String(255), nullable=False)
     formation: Mapped[str | None] = mapped_column(String(32))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)

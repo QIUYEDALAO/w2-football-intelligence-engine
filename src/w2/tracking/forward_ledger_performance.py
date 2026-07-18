@@ -59,6 +59,7 @@ def forward_ledger_performance(
         "record_count": len(records),
         "fixture_count": len(fixture_ids),
         "validation_fixture_count": len(candidates),
+        "validation_market_pick_count": _validation_market_pick_count(candidates),
         "validation_settled_fixture_count": len(validation_rows),
         "validation_pending_fixture_count": max(0, len(candidates) - len(validation_rows)),
         "outcomes_validation": _outcome_summary(validation_counts),
@@ -607,6 +608,21 @@ def _league_market_rows(
         }
         for (league, market), ids in sorted(grouped.items())
     ]
+
+
+def _validation_market_pick_count(
+    candidates: Mapping[str, Mapping[str, Any]],
+) -> int:
+    count = 0
+    for record in candidates.values():
+        if isinstance(record.get("pick"), Mapping):
+            count += 1
+        secondary = record.get("secondary_picks")
+        if isinstance(secondary, Sequence) and not isinstance(
+            secondary, str | bytes | bytearray
+        ):
+            count += min(1, sum(isinstance(item, Mapping) for item in secondary))
+    return count
 
 
 def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:

@@ -151,6 +151,17 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "pick": _mapping_copy(_decision_field(card, contract, "pick"))
         if isinstance(_decision_field(card, contract, "pick"), Mapping)
         else None,
+        "secondary_picks": [
+            _mapping_copy(item)
+            for item in card.get("secondary_picks", [])
+            if isinstance(item, Mapping)
+        ][:1],
+        "market_selection_audit": [
+            _mapping_copy(item)
+            for item in card.get("market_selection_audit", [])
+            if isinstance(item, Mapping)
+        ],
+        "lineup_provenance": _mapping_copy(card.get("lineup_provenance")),
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
         else None,
@@ -191,6 +202,9 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "data_readiness": _mapping_copy(card.get("data_readiness")),
         **_market_context_fields(card),
         "pick": None,
+        "secondary_picks": [],
+        "market_selection_audit": [],
+        "lineup_provenance": {},
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
         else None,

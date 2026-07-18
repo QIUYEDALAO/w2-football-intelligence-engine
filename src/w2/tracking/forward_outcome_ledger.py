@@ -85,6 +85,7 @@ def build_forward_outcome_records(
             "fixture_identity": fixture_identity,
             "recommendation_scope": recommendation_scope,
             "pick": _mapping_copy(card.get("pick")),
+            "secondary_picks": _secondary_picks(card),
             "shadow_pick": shadow_pick,
             "quote_provenance": quote_provenance,
             "artifact_provenance": artifact_provenance,
@@ -113,6 +114,7 @@ def build_forward_outcome_records(
                 "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
                 "shadow_pick": shadow_pick,
                 "pick": _mapping_copy(card.get("pick")),
+                "secondary_picks": _secondary_picks(card),
                 "non_pick": _mapping_copy(card.get("non_pick")),
                 "current_odds": _market_odds_summary(card.get("current_odds")),
                 "card_hash": _optional_text(card.get("card_hash")),
@@ -694,6 +696,13 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _mapping_copy(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _secondary_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    value = card.get("secondary_picks")
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [dict(item) for item in value if isinstance(item, Mapping)][:1]
 
 
 def _optional_text(value: Any) -> str | None:

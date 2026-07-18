@@ -8,11 +8,29 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import StrEnum
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-TOP_FIVE_COMPETITION_CODES = frozenset({"GB1", "ES1", "IT1", "L1", "FR1"})
+TOP_FIVE_COMPETITION_CODES = frozenset(
+    {
+        "GB1",
+        "ES1",
+        "IT1",
+        "L1",
+        "FR1",
+        "premier_league",
+        "la_liga",
+        "serie_a",
+        "bundesliga",
+        "ligue_1",
+    }
+)
 MAX_AH_DELTA = 0.25
 MAX_TOTALS_DELTA = 0.30
+LINEUP_POLICY_PATH = (
+    Path(__file__).resolve().parents[3] / "config/policies/lineup_market_policy.v1.json"
+)
 
 
 class CoverageGrade(StrEnum):
@@ -210,6 +228,23 @@ def grade_coverage(rate: float) -> CoverageGrade:
     if rate >= 0.50:
         return CoverageGrade.B
     return CoverageGrade.C
+
+
+@lru_cache(maxsize=1)
+def lineup_market_policy() -> dict[str, Any]:
+    payload = json.loads(LINEUP_POLICY_PATH.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("LINEUP_POLICY_INVALID")
+    if payload.get("schema_version") != "w2.lineup_market_policy.v1":
+        raise ValueError("LINEUP_POLICY_SCHEMA_INCOMPATIBLE")
+    return {str(key): value for key, value in payload.items()}
+
+
+def audited_coverage_rate(competition_id: str) -> float:
+    grade = str(
+        lineup_market_policy().get("non_top_five_grades", {}).get(competition_id, "C")
+    )
+    return 0.90 if grade == "A" else 0.50 if grade == "B" else 0.0
 
 
 def build_team_baseline(

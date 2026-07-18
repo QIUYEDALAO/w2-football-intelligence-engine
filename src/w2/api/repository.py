@@ -64,6 +64,7 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
+from w2.lineups.intelligence import LineupGate, audited_coverage_rate
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
@@ -120,6 +121,7 @@ from w2.strategy.formal_recommendation import (
     formal_recommendation_id,
     formal_recommendations_enabled,
 )
+from w2.strategy.market_selector import apply_market_selection, enrich_secondary_evidence
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
 from w2.tracking.formal_results import (
@@ -273,8 +275,7 @@ def _is_world_cup_2026_item(
     return (
         competition_id in identifiers
         or (
-            provider_league_id in identifiers
-            and (not provider_season or season == provider_season)
+            provider_league_id in identifiers and (not provider_season or season == provider_season)
         )
         or any("world cup" in name or "世界杯" in name for name in names)
     )
@@ -753,13 +754,9 @@ class ReadModelRepository:
     def public_release_counts(self, *, limit: int = MAX_PUBLIC_FIXTURES) -> dict[str, int]:
         bounded_limit = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
         return {
-            "read_model_fixture_count": len(
-                self.dashboard_latest_fixtures()[:bounded_limit]
-            ),
+            "read_model_fixture_count": len(self.dashboard_latest_fixtures()[:bounded_limit]),
             "matchday_card_count": len(self.matchday_cards()[:bounded_limit]),
-            "future_fixture_count": len(
-                self.public_fixture_payloads(limit=bounded_limit)
-            ),
+            "future_fixture_count": len(self.public_fixture_payloads(limit=bounded_limit)),
             "result_event_count": len(self.result_events()[:bounded_limit]),
         }
 
@@ -850,9 +847,7 @@ class ReadModelRepository:
         locks_count = len(locks)
         run_state = str(replay.get("run_state", "NO_RUN"))
         return {
-            "status": run_state
-            if run_state != "COMPLETED_WITH_RESULTS"
-            else "SHADOW_READY",
+            "status": run_state if run_state != "COMPLETED_WITH_RESULTS" else "SHADOW_READY",
             "strategy_version": str(replay.get("strategy_version", "W2_SHADOW_STRATEGY_V1")),
             "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
             "gate5_status": "PROVISIONAL_BLOCKED_GATE4",
@@ -1233,21 +1228,16 @@ class ReadModelService:
         now = monotonic()
         if cached is not None:
             cached_at, cached_payload = cached
-            if (
-                now - cached_at <= self._dashboard_cache_ttl(window, include_debug)
-                and self._dashboard_cache_matches_market_refresh(cached_payload)
-            ):
+            if now - cached_at <= self._dashboard_cache_ttl(
+                window, include_debug
+            ) and self._dashboard_cache_matches_market_refresh(cached_payload):
                 return cached_payload
 
         self._reset_read_caches()
         version = self.version()
         counts = self._release_counts()
         seed = self.repository.staging_seed_dashboard()
-        if (
-            not counts["read_model_fixture_count"]
-            and not counts["matchday_card_count"]
-            and seed
-        ):
+        if not counts["read_model_fixture_count"] and not counts["matchday_card_count"] and seed:
             return self._seed_dashboard_response(
                 seed,
                 requested_date=requested_date,
@@ -1260,11 +1250,7 @@ class ReadModelService:
 
         today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
         next36_rows = self.matchday_next_36_hours().get("items", [])
-        result_rows = [
-            row
-            for row in self._all_matchday_rows()
-            if self._is_finished_row(row)
-        ]
+        result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
         result_rows = self._filter_rows_for_operational_date(
             result_rows,
             requested_date=requested_date,
@@ -1305,9 +1291,7 @@ class ReadModelService:
             selected_rows = today_rows
 
         if window == "all":
-            all_cards = [
-                self._dashboard_index_card_from_matchday(row) for row in selected_rows
-            ]
+            all_cards = [self._dashboard_index_card_from_matchday(row) for row in selected_rows]
             response_cards = [self._compact_all_window_card(card) for card in all_cards]
         else:
             all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
@@ -1321,14 +1305,10 @@ class ReadModelService:
             in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
         ]
         upcoming = [
-            card
-            for card in response_cards
-            if str(card.get("status", "")).upper() != "FINISHED"
+            card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
         ]
         finished = [
-            card
-            for card in response_cards
-            if str(card.get("status", "")).upper() == "FINISHED"
+            card for card in response_cards if str(card.get("status", "")).upper() == "FINISHED"
         ]
         if window == "all":
             recommendations_payload = [
@@ -1363,9 +1343,7 @@ class ReadModelService:
             performance.update(self._all_window_surface_contract(include=True))
         refresh_reader = getattr(self.repository, "public_market_refresh_status", None)
         visible_fixture_ids = [
-            str(card.get("fixture_id") or "")
-            for card in response_cards
-            if card.get("fixture_id")
+            str(card.get("fixture_id") or "") for card in response_cards if card.get("fixture_id")
         ]
         refresh_status = (
             cast(dict[str, str | None], refresh_reader(visible_fixture_ids))
@@ -1387,9 +1365,7 @@ class ReadModelService:
             scheduled = refresh_schedule.get(fixture_id)
             current_next = _parse_utc_text(card.get("next_eval_at"))
             scheduled_at = _parse_utc_text(scheduled)
-            if scheduled_at is not None and (
-                current_next is None or scheduled_at < current_next
-            ):
+            if scheduled_at is not None and (current_next is None or scheduled_at < current_next):
                 card["next_eval_at"] = scheduled
         generated_at = datetime.now(UTC)
         payload = {
@@ -1457,11 +1433,9 @@ class ReadModelService:
             current = cast(dict[str, str | None], reader(fixture_ids))
         except Exception:
             return True
-        return (
-            payload.get("odds_last_confirmed_at")
-            == current.get("odds_last_confirmed_at")
-            and payload.get("next_refresh_tick") == current.get("next_refresh_tick")
-        )
+        return payload.get("odds_last_confirmed_at") == current.get(
+            "odds_last_confirmed_at"
+        ) and payload.get("next_refresh_tick") == current.get("next_refresh_tick")
 
     def _all_window_surface_contract(self, *, include: bool) -> dict[str, str]:
         if not include:
@@ -1504,8 +1478,7 @@ class ReadModelService:
                 "formal_recommendation": False,
                 "formal_suppressed": True,
                 "formal_suppressed_reason": "FROZEN_INDEX_NOT_FORMAL_AUTHORITY",
-                "decision_tier": card.get("decision_tier")
-                or contract.get("decision_tier"),
+                "decision_tier": card.get("decision_tier") or contract.get("decision_tier"),
                 "data_status": card.get("data_status") or contract.get("data_status"),
                 "lifecycle_status": card.get("lifecycle_status")
                 or contract.get("lifecycle_status"),
@@ -1741,11 +1714,7 @@ class ReadModelService:
         if status:
             rows = [row for row in rows if row["status"] == status]
         if team_id:
-            rows = [
-                row
-                for row in rows
-                if team_id in {row["home_team_id"], row["away_team_id"]}
-            ]
+            rows = [row for row in rows if team_id in {row["home_team_id"], row["away_team_id"]}]
         total = len(rows)
         start = (page - 1) * page_size
         return rows[start : start + page_size], total
@@ -1800,9 +1769,9 @@ class ReadModelService:
             row
             for row in rows
             if start
-            <= datetime.fromisoformat(
-                str(row["kickoff_utc"]).replace("Z", "+00:00")
-            ).astimezone(UTC)
+            <= datetime.fromisoformat(str(row["kickoff_utc"]).replace("Z", "+00:00")).astimezone(
+                UTC
+            )
             < end
         ]
         return {
@@ -2148,6 +2117,8 @@ class ReadModelService:
         return projected
 
     def _clear_public_market_picks(self, card: dict[str, Any], *, watch: bool) -> None:
+        card["primary_market"] = None
+        card["secondary_picks"] = []
         markets = card.get("markets")
         if not isinstance(markets, list):
             return
@@ -2478,11 +2449,7 @@ class ReadModelService:
             reason=str(xg_readiness["status"]),
             xg_sample_status=str(xg_readiness["status"]),
         )
-        if (
-            xg_readiness["status"] != "READY"
-            or latest_home_xg is None
-            or latest_away_xg is None
-        ):
+        if xg_readiness["status"] != "READY" or latest_home_xg is None or latest_away_xg is None:
             missing.update({AnalysisMarket.FIRST_HALF_GOALS, AnalysisMarket.SCORE})
         else:
             scoreline_output = independent_xg_poisson(
@@ -2524,12 +2491,20 @@ class ReadModelService:
         )
         payload = self._analysis_card_payload(card)
         payload["feature_contributions"] = [
-            self._feature_contribution_payload(item)
-            for item in feature_set.contributions
+            self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
         payload["scoreline_readiness"] = scoreline_readiness
         self._apply_mainline_market_selection(payload, mainline_selection)
+        self._apply_lineup_gate(
+            payload,
+            fixture=item,
+            fixture_id=fixture_id,
+            as_of=context.as_of,
+            mainline_selection=mainline_selection,
+        )
+        enrich_secondary_evidence(payload)
+        apply_market_selection(payload)
         payload.update(
             self._analysis_input_summary(
                 fixture_id=fixture_id,
@@ -2552,6 +2527,82 @@ class ReadModelService:
             away_xg=latest_away_xg,
         )
         return payload
+
+    def _apply_lineup_gate(
+        self,
+        payload: dict[str, Any],
+        *,
+        fixture: dict[str, Any],
+        fixture_id: str,
+        as_of: datetime,
+        mainline_selection: dict[str, dict[str, Any]],
+    ) -> None:
+        competition_id = self._competition_id_from_provider_fixture(fixture)
+        repository = self._future_refresh_repository()
+        evidence_reader = getattr(repository, "lineup_gate_evidence", None)
+        try:
+            evidence = (
+                evidence_reader(fixture_id=fixture_id, as_of=as_of)
+                if callable(evidence_reader)
+                else {"status": "INCOMPLETE", "blockers": ["LINEUP_EVIDENCE_UNAVAILABLE"]}
+            )
+        except SQLAlchemyError:
+            evidence = {"status": "INCOMPLETE", "blockers": ["LINEUP_EVIDENCE_UNAVAILABLE"]}
+        starter_counts = evidence.get("starter_counts")
+        counts = starter_counts if isinstance(starter_counts, list) else []
+        quote_ready = all(
+            str(mainline_selection.get(market, {}).get("status") or "") == "READY"
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        )
+        gate = LineupGate().evaluate(
+            competition_code=competition_id,
+            confirmed=bool(evidence.get("confirmed")),
+            home_starters=int(counts[0]) if len(counts) > 0 else 0,
+            away_starters=int(counts[1]) if len(counts) > 1 else 0,
+            uniquely_mapped_starters=parse_int(
+                evidence.get("uniquely_mapped_starters")
+            )
+            or 0,
+            valued_starters=parse_int(evidence.get("valued_starters")) or 0,
+            formation_count=parse_int(evidence.get("formation_count")) or 0,
+            quotes_complete_and_fresh=quote_ready,
+            audited_coverage_rate=audited_coverage_rate(competition_id),
+        )
+        payload["lineup_provenance"] = {
+            **evidence,
+            "competition_id": competition_id,
+            "coverage_grade": gate.grade.value,
+            "gate_eligible": gate.eligible,
+            "numeric_adjustment_enabled": False,
+            "blockers": list(gate.blockers),
+            "policy_version": "w2.lineup_market_policy.v1",
+        }
+        if gate.eligible:
+            return
+        markets = payload.get("markets")
+        if isinstance(markets, list):
+            for market in markets:
+                if not isinstance(market, dict) or market.get("market") not in {
+                    "ASIAN_HANDICAP",
+                    "TOTALS",
+                }:
+                    continue
+                if str(market.get("decision") or "") in {"PICK", "ANALYSIS_PICK"}:
+                    market["decision"] = "WATCH"
+                    market["tendency"] = None
+                    market["reasons"] = ["五大联赛正式首发、身份或身价尚未完整确认。"]
+                    market["risks"] = list(gate.blockers)
+        self._refresh_analysis_card_decision(payload)
+
+    def _competition_id_from_provider_fixture(self, item: dict[str, Any]) -> str:
+        league = item.get("league")
+        provider_id = str(league.get("id") or "") if isinstance(league, dict) else ""
+        if provider_id:
+            registry = CompetitionRegistry()
+            for competition_id, entry in registry.entries().items():
+                if str(entry.provider_mapping.get("api_football_league_id") or "") == provider_id:
+                    return competition_id
+        return "world_cup_2026"
 
     def _mainline_market_selection(
         self,
@@ -2799,15 +2850,9 @@ class ReadModelService:
                 market["balanced_prices"] = resolved.get("side_prices", {})
                 if side_price is not None:
                     market["odds"] = side_price
-                should_downgrade_to_watch = (
-                    str(market.get("decision") or "") != "SKIP"
-                    and (
-                        (side_price is not None and float(side_price) < 1.40)
-                        or float(
-                            market.get("signal_strength", market.get("confidence")) or 0.0
-                        )
-                        < 0.50
-                    )
+                should_downgrade_to_watch = str(market.get("decision") or "") != "SKIP" and (
+                    (side_price is not None and float(side_price) < 1.40)
+                    or float(market.get("signal_strength", market.get("confidence")) or 0.0) < 0.50
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
@@ -2837,9 +2882,7 @@ class ReadModelService:
         if not isinstance(markets, list):
             return
         decisions = {
-            str(market.get("decision") or "")
-            for market in markets
-            if isinstance(market, dict)
+            str(market.get("decision") or "") for market in markets if isinstance(market, dict)
         }
         if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
             payload["decision"] = "ANALYSIS_PICK"
@@ -3540,9 +3583,7 @@ class ReadModelService:
     ) -> list[dict[str, Any]]:
         repository = self._future_refresh_repository()
         reader = (
-            getattr(repository, "raw_payloads_for_scope", None)
-            if repository is not None
-            else None
+            getattr(repository, "raw_payloads_for_scope", None) if repository is not None else None
         )
         rows = self._fixture_response_items_from_runtime_artifacts(
             endpoint=endpoint,
@@ -3552,18 +3593,14 @@ class ReadModelService:
         if not callable(reader):
             if not self._bounded_public_request:
                 offline_reader = (
-                    getattr(repository, "raw_payloads", None)
-                    if repository is not None
-                    else None
+                    getattr(repository, "raw_payloads", None) if repository is not None else None
                 )
                 if callable(offline_reader):
                     with suppress(Exception):
                         for raw in offline_reader(endpoint):
                             payload = raw.get("payload") if isinstance(raw, dict) else None
                             response = (
-                                payload.get("response")
-                                if isinstance(payload, dict)
-                                else None
+                                payload.get("response") if isinstance(payload, dict) else None
                             )
                             if isinstance(response, list):
                                 rows.extend(item for item in response if isinstance(item, dict))
@@ -3582,9 +3619,7 @@ class ReadModelService:
                 response = payload.get("response")
                 if isinstance(response, list):
                     remaining = max(0, 256 - len(rows))
-                    rows.extend(
-                        item for item in response[:remaining] if isinstance(item, dict)
-                    )
+                    rows.extend(item for item in response[:remaining] if isinstance(item, dict))
                     if len(rows) >= 256:
                         break
         return rows
@@ -3621,9 +3656,7 @@ class ReadModelService:
             patterns = ["*.json"]
         rows: list[dict[str, Any]] = []
         try:
-            paths = sorted(
-                {path for pattern in patterns for path in raw_dir.glob(pattern)}
-            )[:32]
+            paths = sorted({path for pattern in patterns for path in raw_dir.glob(pattern)})[:32]
         except OSError:
             return []
         for path in paths:
@@ -3795,9 +3828,7 @@ class ReadModelService:
             if row.get("bookmaker_id") or row.get("bookmaker_name")
         }
         captured_points = {
-            str(row.get("captured_at"))
-            for row in observations
-            if row.get("captured_at")
+            str(row.get("captured_at")) for row in observations if row.get("captured_at")
         }
         lineups_status = self._enrichment_status(fixture_id=fixture_id, endpoint="lineups")
         statistics_status = self._enrichment_status(fixture_id=fixture_id, endpoint="statistics")
@@ -4010,16 +4041,12 @@ class ReadModelService:
     ) -> list[dict[str, Any]]:
         repository = self._future_refresh_repository()
         reader = (
-            getattr(repository, "raw_payloads_for_scope", None)
-            if repository is not None
-            else None
+            getattr(repository, "raw_payloads_for_scope", None) if repository is not None else None
         )
         if not callable(reader):
             if not self._bounded_public_request:
                 offline_reader = (
-                    getattr(repository, "raw_payloads", None)
-                    if repository is not None
-                    else None
+                    getattr(repository, "raw_payloads", None) if repository is not None else None
                 )
                 if callable(offline_reader):
                     with suppress(Exception):
@@ -4037,9 +4064,7 @@ class ReadModelService:
         except Exception:
             return []
         return [
-            row
-            for row in rows
-            if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
+            row for row in rows if self._raw_payload_fixture_id(row.get("payload")) == fixture_id
         ]
 
     def _raw_payloads_for_endpoint(self, endpoint: str) -> list[dict[str, Any]]:
@@ -4124,8 +4149,7 @@ class ReadModelService:
             if len(implied) < 2 or total <= 0:
                 continue
             probabilities[f"{market}:{line}"] = {
-                selection: round(value / total, 4)
-                for selection, value in sorted(implied.items())
+                selection: round(value / total, 4) for selection, value in sorted(implied.items())
             }
         return probabilities
 
@@ -4137,19 +4161,13 @@ class ReadModelService:
         if total <= 0:
             return {}
         home = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals > away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals > away_goals
         )
         draw = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals == away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals == away_goals
         )
         away = sum(
-            value
-            for (home_goals, away_goals), value in matrix.items()
-            if home_goals < away_goals
+            value for (home_goals, away_goals), value in matrix.items() if home_goals < away_goals
         )
         over_2_5 = sum(
             value
@@ -4364,9 +4382,7 @@ class ReadModelService:
                         for row in dashboard.get("all_market_ranking", [])
                         if row.get("market") == "BTTS"
                     ],
-                    "secondary_market_direction": dashboard.get(
-                        "secondary_market_direction"
-                    ),
+                    "secondary_market_direction": dashboard.get("secondary_market_direction"),
                     "source_snapshot_id": dashboard.get("provenance", {}).get("snapshot_id"),
                     "source_captured_at": self._optional_datetime(dashboard.get("captured_at")),
                     "source_phase": dashboard.get("phase"),
@@ -4389,45 +4405,43 @@ class ReadModelService:
         finally:
             self._bounded_public_request = previous_bounded_state
         if item is not None:
-                row = self._fixture_summary(item, timezone)
-                snapshots = self._market_snapshots_bounded(fixture_id)
-                locks: list[dict[str, Any]] = []
-                observations = self._fixture_observations_bounded(fixture_id)
-                observed_markets: set[str] = {
-                    str(item["canonical_market"])
-                    for item in observations
-                    if item.get("canonical_market")
+            row = self._fixture_summary(item, timezone)
+            snapshots = self._market_snapshots_bounded(fixture_id)
+            locks: list[dict[str, Any]] = []
+            observations = self._fixture_observations_bounded(fixture_id)
+            observed_markets: set[str] = {
+                str(item["canonical_market"])
+                for item in observations
+                if item.get("canonical_market")
+            }
+            obs_bookmaker_ids: set[str] = {
+                str(item["bookmaker_id"]) for item in observations if item.get("bookmaker_id")
+            }
+            row.update(
+                {
+                    "request_id": "",
+                    "venue": item.get("fixture", {}).get("venue", {}).get("name"),
+                    "bookmaker_count": max(
+                        [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
+                        + [len(obs_bookmaker_ids)]
+                        or [0]
+                    ),
+                    "market_coverage": {
+                        "ONE_X_TWO": bool(snapshots) or "ONE_X_TWO" in observed_markets,
+                        "ASIAN_HANDICAP": "ASIAN_HANDICAP" in observed_markets,
+                        "TOTALS": "TOTALS" in observed_markets,
+                        "BTTS": "BTTS" in observed_markets,
+                    },
+                    "forward_decision": locks[0]["decision"] if locks else "SKIP",
+                    "provenance": {
+                        "fixture_source": "api_football_cached",
+                        "probability_source": "stage7e_forward_holdout",
+                    },
+                    "risk_notes": [] if snapshots else ["market_not_comparable"],
+                    "analysis_card": self.public_analysis_card_bounded(fixture_id),
                 }
-                obs_bookmaker_ids: set[str] = {
-                    str(item["bookmaker_id"])
-                    for item in observations
-                    if item.get("bookmaker_id")
-                }
-                row.update(
-                    {
-                        "request_id": "",
-                        "venue": item.get("fixture", {}).get("venue", {}).get("name"),
-                        "bookmaker_count": max(
-                            [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
-                            + [len(obs_bookmaker_ids)]
-                            or [0]
-                        ),
-                        "market_coverage": {
-                            "ONE_X_TWO": bool(snapshots) or "ONE_X_TWO" in observed_markets,
-                            "ASIAN_HANDICAP": "ASIAN_HANDICAP" in observed_markets,
-                            "TOTALS": "TOTALS" in observed_markets,
-                            "BTTS": "BTTS" in observed_markets,
-                        },
-                        "forward_decision": locks[0]["decision"] if locks else "SKIP",
-                        "provenance": {
-                            "fixture_source": "api_football_cached",
-                            "probability_source": "stage7e_forward_holdout",
-                        },
-                        "risk_notes": [] if snapshots else ["market_not_comparable"],
-                        "analysis_card": self.public_analysis_card_bounded(fixture_id),
-                    }
-                )
-                return row
+            )
+            return row
         return None
 
     def _normalize_analysis_card(
@@ -4689,9 +4703,7 @@ class ReadModelService:
             pricing_shadow["materialized_market_ah"] = materialized_line
             pricing_shadow["selector_market_ah"] = selector_line
             pricing_shadow["mainline_materialization_status"] = "STALE"
-            pricing_shadow["mainline_materialization_blocker"] = (
-                AH_MAINLINE_STALE_MATERIALIZATION
-            )
+            pricing_shadow["mainline_materialization_blocker"] = AH_MAINLINE_STALE_MATERIALIZATION
         elif materialized_line is not None:
             pricing_shadow["mainline_materialization_status"] = "READY"
         if not overwrite_materialized:
@@ -4713,9 +4725,7 @@ class ReadModelService:
         if not isinstance(ah, dict):
             return
         shadow = card.get("pricing_shadow")
-        market_ah = (
-            self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
-        )
+        market_ah = self._snapshot_float(shadow, "market_ah") if isinstance(shadow, dict) else None
         raw_home_line = self._snapshot_float(ah, "home_line")
         canonical_home_line = market_ah if market_ah is not None else raw_home_line
         if canonical_home_line is None:
@@ -5048,9 +5058,7 @@ class ReadModelService:
                     "market": str(observation.get("canonical_market")),
                     "selection": str(observation.get("selection")),
                     "line": (
-                        None
-                        if observation.get("line") is None
-                        else str(observation.get("line"))
+                        None if observation.get("line") is None else str(observation.get("line"))
                     ),
                     "decimal_odds": str(observation.get("decimal_odds")),
                     "bookmaker_count": 1,
@@ -5146,9 +5154,7 @@ class ReadModelService:
         now = datetime.now(UTC)
         public_reader = getattr(self.repository, "public_fixture_payloads", None)
         payloads = (
-            cast(list[dict[str, Any]], public_reader(limit=512))
-            if callable(public_reader)
-            else []
+            cast(list[dict[str, Any]], public_reader(limit=512)) if callable(public_reader) else []
         )
         for item in payloads:
             row = self._fixture_summary(item, "UTC")
@@ -5445,8 +5451,7 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         filtered.sort(
-            key=lambda row: self._row_kickoff_utc(row)
-            or datetime.max.replace(tzinfo=UTC)
+            key=lambda row: self._row_kickoff_utc(row) or datetime.max.replace(tzinfo=UTC)
         )
         return filtered[:limit]
 
@@ -5571,12 +5576,23 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
-        markets = [
-            item
-            for item in card.get("markets", [])
-            if isinstance(item, dict)
-        ]
-        picked = next((item for item in markets if str(item.get("decision")) == "PICK"), None)
+        markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
+        primary_market = str(card.get("primary_market") or "")
+        picked = next(
+            (
+                item
+                for item in markets
+                if str(item.get("decision")) == "PICK"
+                and str(item.get("market") or "") == primary_market
+            ),
+            None,
+        )
+        if picked is None and not primary_market:
+            # Backward compatibility for immutable pre-LMM frozen artifacts.
+            picked = next(
+                (item for item in markets if str(item.get("decision")) == "PICK"),
+                None,
+            )
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
         analysis_readiness = build_analysis_readiness(
@@ -5682,15 +5698,15 @@ class ReadModelService:
         else:
             decision_contract = (
                 build_decision_contract_fields(
-                card=card,
-                market=picked,
-                recommendation=recommendation,
-                readiness=analysis_readiness,
-                environment=str(os.getenv("W2_DECISION_ENVIRONMENT", "staging")),
-                as_of=as_of_for_contract,
-                kickoff_utc=kickoff_for_contract,
-                competition_id=str(row.get("competition_id") or ""),
-                fixture_id=fixture_id,
+                    card=card,
+                    market=picked,
+                    recommendation=recommendation,
+                    readiness=analysis_readiness,
+                    environment=str(os.getenv("W2_DECISION_ENVIRONMENT", "staging")),
+                    as_of=as_of_for_contract,
+                    kickoff_utc=kickoff_for_contract,
+                    competition_id=str(row.get("competition_id") or ""),
+                    fixture_id=fixture_id,
                 )
                 if kickoff_for_contract is not None
                 else {}
@@ -5789,9 +5805,7 @@ class ReadModelService:
     ) -> dict[str, Any]:
         raw_data_readiness = card.get("data_readiness")
         data_readiness: dict[str, Any] = (
-            cast(dict[str, Any], raw_data_readiness)
-            if isinstance(raw_data_readiness, dict)
-            else {}
+            cast(dict[str, Any], raw_data_readiness) if isinstance(raw_data_readiness, dict) else {}
         )
         raw_available_inputs = readiness.get("available_inputs")
         available_inputs: dict[str, Any] = (
@@ -5837,9 +5851,7 @@ class ReadModelService:
         """Attach bounded, reference-only market snapshots without making them current odds."""
         fixture_ids = list(
             dict.fromkeys(
-                str(card.get("fixture_id") or "")
-                for card in cards
-                if card.get("fixture_id")
+                str(card.get("fixture_id") or "") for card in cards if card.get("fixture_id")
             )
         )
         if not fixture_ids or len(fixture_ids) > 64:
@@ -6061,18 +6073,20 @@ class ReadModelService:
         include_debug: bool,
     ) -> dict[str, Any]:
         cards = [
-            item
-            for item in seed.get("all", seed.get("upcoming", []))
-            if isinstance(item, dict)
+            item for item in seed.get("all", seed.get("upcoming", [])) if isinstance(item, dict)
         ]
-        debug = {
-            **counts,
-            "selected_date": requested_date.isoformat(),
-            "selected_date_has_data": bool(cards),
-            "next_available_date": requested_date.isoformat() if cards else None,
-            "empty_reason": None if cards else "STAGING_SEED_EMPTY",
-            "suggested_actions": ["staging seed is active; run live ingestion for real data"],
-        } if include_debug else {}
+        debug = (
+            {
+                **counts,
+                "selected_date": requested_date.isoformat(),
+                "selected_date_has_data": bool(cards),
+                "next_available_date": requested_date.isoformat() if cards else None,
+                "empty_reason": None if cards else "STAGING_SEED_EMPTY",
+                "suggested_actions": ["staging seed is active; run live ingestion for real data"],
+            }
+            if include_debug
+            else {}
+        )
         return {
             "generated_at": datetime.now(UTC),
             "date": requested_date.isoformat(),

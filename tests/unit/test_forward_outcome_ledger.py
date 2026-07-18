@@ -6,7 +6,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from w2.tracking.forward_outcome_ledger import backfill_outcomes, run_forward_outcome_ledger
+from w2.tracking.forward_outcome_ledger import (
+    backfill_outcomes,
+    build_forward_outcome_records,
+    run_forward_outcome_ledger,
+)
 
 
 def _day_view() -> dict[str, object]:
@@ -66,6 +70,22 @@ def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
     assert payload["record_count"] == 1
     assert payload["written"] == 0
     assert list(tmp_path.glob("*.jsonl")) == []
+
+
+def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["secondary_picks"] = [  # type: ignore[index]
+        {"market": "TOTALS", "selection": "UNDER", "line": "2.5"},
+        {"market": "ASIAN_HANDICAP", "selection": "HOME_AH", "line": "-0.5"},
+    ]
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    assert records[0]["secondary_picks"] == [
+        {"market": "TOTALS", "selection": "UNDER", "line": "2.5"}
+    ]
 
 
 def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:

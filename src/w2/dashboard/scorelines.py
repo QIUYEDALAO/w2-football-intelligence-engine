@@ -52,6 +52,9 @@ def scoreline_reference_from_card(
         "direction_top3": _direction_top3_scorelines(
             simulation,
             recommendation=recommendation,
+            secondary_recommendations=[
+                item for item in card.get("secondary_picks", []) if isinstance(item, dict)
+            ][:1],
         ),
         "high_total": {
             "threshold": 4,
@@ -75,6 +78,7 @@ def _direction_top3_scorelines(
     simulation: dict[str, Any],
     *,
     recommendation: dict[str, Any] | None,
+    secondary_recommendations: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     if not isinstance(recommendation, dict):
         return []
@@ -110,6 +114,12 @@ def _direction_top3_scorelines(
             )
             if outcome not in {"WIN", "HALF_WIN"}:
                 continue
+            if not _matches_secondary_recommendations(
+                secondary_recommendations or [],
+                home_goals=home,
+                away_goals=away,
+            ):
+                continue
             probability = _poisson_probability(lambda_home, home) * _poisson_probability(
                 lambda_away,
                 away,
@@ -128,6 +138,43 @@ def _direction_top3_scorelines(
                 }
             )
     return sorted(matches, key=lambda item: float(item["probability"]), reverse=True)[:3]
+
+
+def _matches_secondary_recommendations(
+    recommendations: list[dict[str, Any]],
+    *,
+    home_goals: int,
+    away_goals: int,
+) -> bool:
+    for recommendation in recommendations:
+        market = str(recommendation.get("market") or "")
+        tendency = str(
+            recommendation.get("selection")
+            or recommendation.get("tendency")
+            or recommendation.get("lean")
+            or ""
+        )
+        selection = (
+            "HOME_AH"
+            if market == "ASIAN_HANDICAP" and "HOME" in tendency
+            else "AWAY_AH"
+            if market == "ASIAN_HANDICAP" and "AWAY" in tendency
+            else "OVER"
+            if market == "TOTALS" and "OVER" in tendency
+            else "UNDER"
+            if market == "TOTALS" and "UNDER" in tendency
+            else tendency
+        )
+        outcome = _recommended_outcome_for_scoreline(
+            market=market,
+            selection=selection,
+            line=_number(recommendation.get("line")),
+            home_goals=home_goals,
+            away_goals=away_goals,
+        )
+        if outcome not in {"WIN", "HALF_WIN"}:
+            return False
+    return True
 
 
 def _recommended_outcome_for_scoreline(

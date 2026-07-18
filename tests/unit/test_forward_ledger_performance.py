@@ -28,6 +28,7 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     assert payload["hit_rate"] is None
     assert payload["accumulation_label"] == "积累中 0/200"
     assert payload["validation_fixture_count"] == 0
+    assert payload["validation_market_pick_count"] == 0
     assert payload["mock_data"] is False
 
 

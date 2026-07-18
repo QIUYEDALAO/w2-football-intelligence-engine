@@ -58,6 +58,30 @@ def upgrade() -> None:
         "ix_lineup_identity_transfermarkt", "player_identity_mappings", ["transfermarkt_player_id"]
     )
     op.create_table(
+        "transfermarkt_player_references",
+        sa.Column("transfermarkt_player_id", sa.String(64), primary_key=True),
+        sa.Column("player_name", sa.String(255), nullable=False),
+        sa.Column("normalized_name", sa.String(255), nullable=False),
+        sa.Column("current_club_id", sa.String(64)),
+        sa.Column("current_club_name", sa.String(255)),
+        sa.Column("competition_code", sa.String(32)),
+        sa.Column("position", sa.String(64)),
+        sa.Column("sub_position", sa.String(128)),
+        sa.Column("market_value_eur", sa.Numeric(16, 2)),
+        sa.Column("source_sha256", sa.String(64), primary_key=True),
+        sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_tm_player_normalized_name",
+        "transfermarkt_player_references",
+        ["normalized_name"],
+    )
+    op.create_index(
+        "ix_tm_player_club",
+        "transfermarkt_player_references",
+        ["current_club_id"],
+    )
+    op.create_table(
         "player_valuation_observations",
         sa.Column("id", sa.String(36), primary_key=True),
         sa.Column("transfermarkt_player_id", sa.String(64), nullable=False),
@@ -83,6 +107,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(36), primary_key=True),
         sa.Column("fixture_id", sa.String(64), nullable=False),
         sa.Column("team_external_id", sa.String(64), nullable=False),
+        sa.Column("team_name", sa.String(255), nullable=False),
         sa.Column("formation", sa.String(32)),
         sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("confirmed", sa.Boolean(), nullable=False),
@@ -156,6 +181,10 @@ def downgrade() -> None:
         ("structured_lineup_players", ("ix_lineup_player_snapshot",)),
         ("structured_lineup_snapshots", ("ix_lineup_snapshot_fixture",)),
         ("player_valuation_observations", ("ix_player_valuation_asof",)),
+        (
+            "transfermarkt_player_references",
+            ("ix_tm_player_normalized_name", "ix_tm_player_club"),
+        ),
         ("player_identity_mappings", ("ix_lineup_identity_transfermarkt",)),
         ("lineup_source_snapshots", ()),
     ):

@@ -8,7 +8,7 @@ import pytest
 
 from w2.api import repository as api_repository
 from w2.api.repository import ReadModelService
-from w2.dashboard.scorelines import scoreline_picks_from_card
+from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
 
 KICKOFF = datetime.now(UTC) + timedelta(hours=12)
 
@@ -140,9 +140,7 @@ class LegacyEmbeddedScorelineRepository(FutureFixtureRepository):
                             "market": "SCORE",
                             "decision": "ANALYSIS_PICK",
                             "score_card": {
-                                "scenarios": [
-                                    {"scoreline": "1-0", "conditional_probability": 0.2}
-                                ]
+                                "scenarios": [{"scoreline": "1-0", "conditional_probability": 0.2}]
                             },
                         }
                     ],
@@ -281,3 +279,29 @@ def test_legacy_embedded_scoreline_card_is_refreshed_for_readiness(
     dashboard_card = service.dashboard(target_date=target_date, window="next36")["all"][0]
     assert dashboard_card["scoreline_readiness"]["status"] == "READY"
     assert dashboard_card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+
+
+def test_recommended_scores_satisfy_primary_and_strict_secondary() -> None:
+    card = {
+        "simulation": {
+            "status": "READY",
+            "lambda_home": 1.8,
+            "lambda_away": 0.8,
+            "ou_probabilities": {},
+        },
+        "secondary_picks": [{"market": "TOTALS", "tendency": "UNDER", "line": 2.5}],
+    }
+    reference = scoreline_reference_from_card(
+        card,
+        recommendation={
+            "tier": "ANALYSIS_PICK",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "line": -0.5,
+        },
+    )
+    assert reference is not None
+    scores = reference["direction_top3"]
+    assert scores
+    assert all(item["home_goals"] > item["away_goals"] for item in scores)
+    assert all(item["home_goals"] + item["away_goals"] < 2.5 for item in scores)

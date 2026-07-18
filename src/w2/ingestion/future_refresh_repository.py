@@ -24,8 +24,17 @@ from w2.infrastructure.persistence.ingestion_models import (
     QuotaUsageModel,
 )
 from w2.infrastructure.persistence.models import (
+    LineupSourceSnapshotModel,
+    PlayerIdentityMappingModel,
+    PlayerValuationObservationModel,
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
+    TransfermarktPlayerReferenceModel,
+)
+from w2.lineups.intelligence import (
+    PlayerIdentityCandidate,
+    normalize_player_name,
+    resolve_player_identity,
 )
 
 
@@ -129,6 +138,7 @@ class FutureRefreshDbRepository:
                 continue
             team = team_row.get("team")
             team_id = str(team.get("id") or "") if isinstance(team, dict) else ""
+            team_name = str(team.get("name") or "") if isinstance(team, dict) else ""
             if not team_id:
                 continue
             starters = self._lineup_players(team_row.get("startXI"), starter=True)
@@ -138,6 +148,7 @@ class FutureRefreshDbRepository:
                     StructuredLineupSnapshotModel(
                         fixture_id=fixture_id,
                         team_external_id=team_id,
+                        team_name=team_name or team_id,
                         formation=str(team_row.get("formation") or "") or None,
                         captured_at=captured_at,
                         confirmed=len(starters) == 11,
@@ -164,13 +175,259 @@ class FutureRefreshDbRepository:
                             )
                         )
                 session.commit()
-                return len(snapshots)
+                materialized = len(snapshots)
             except IntegrityError:
                 session.rollback()
                 return 0
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_FAILED") from exc
+        self.materialize_player_identity_mappings(fixture_id=fixture_id, as_of=captured_at)
+        return materialized
+
+    def materialize_player_identity_mappings(
+        self,
+        *,
+        fixture_id: str,
+        as_of: datetime,
+    ) -> int:
+        with Session(self.engine) as session:
+            snapshots = session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(
+                    StructuredLineupSnapshotModel.fixture_id == fixture_id,
+                    StructuredLineupSnapshotModel.captured_at <= as_of,
+                )
+                .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+            ).all()
+            latest: dict[str, StructuredLineupSnapshotModel] = {}
+            for snapshot in snapshots:
+                latest.setdefault(snapshot.team_external_id, snapshot)
+            pending: list[PlayerIdentityMappingModel] = []
+            for snapshot in latest.values():
+                players = session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
+                        StructuredLineupPlayerModel.starter.is_(True),
+                    )
+                ).all()
+                for player in players:
+                    normalized = normalize_player_name(player.player_name)
+                    references = session.scalars(
+                        select(TransfermarktPlayerReferenceModel)
+                        .where(
+                            TransfermarktPlayerReferenceModel.normalized_name == normalized,
+                            TransfermarktPlayerReferenceModel.observed_at <= as_of,
+                        )
+                        .order_by(TransfermarktPlayerReferenceModel.observed_at.desc())
+                    ).all()
+                    newest_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
+                    for reference in references:
+                        newest_by_id.setdefault(reference.transfermarkt_player_id, reference)
+                    team_name = normalize_player_name(snapshot.team_name)
+                    team_confirmed = [
+                        reference
+                        for reference in newest_by_id.values()
+                        if reference.current_club_name
+                        and (
+                            team_name in normalize_player_name(reference.current_club_name)
+                            or normalize_player_name(reference.current_club_name) in team_name
+                        )
+                    ]
+                    resolution = resolve_player_identity(
+                        api_football_player_id=player.api_football_player_id,
+                        player_name=player.player_name,
+                        team_external_id=snapshot.team_external_id,
+                        provider_position=player.provider_position,
+                        candidates=[
+                            PlayerIdentityCandidate(
+                                transfermarkt_player_id=reference.transfermarkt_player_id,
+                                player_name=reference.player_name,
+                                team_external_id=snapshot.team_external_id,
+                                position=reference.position,
+                            )
+                            for reference in team_confirmed
+                        ],
+                    )
+                    pending.append(
+                        PlayerIdentityMappingModel(
+                            api_football_player_id=player.api_football_player_id,
+                            transfermarkt_player_id=resolution.transfermarkt_player_id,
+                            team_external_id=snapshot.team_external_id,
+                            player_name=player.player_name,
+                            normalized_name=resolution.normalized_name,
+                            provider_position=player.provider_position,
+                            transfermarkt_position=team_confirmed[0].position
+                            if len(team_confirmed) == 1
+                            else None,
+                            mapping_status=resolution.status.value,
+                            evidence={
+                                "reason": resolution.reason,
+                                "candidate_ids": sorted(
+                                    reference.transfermarkt_player_id
+                                    for reference in team_confirmed
+                                ),
+                                "team_name": snapshot.team_name,
+                            },
+                            identity_hash=resolution.identity_hash,
+                            valid_from=snapshot.captured_at,
+                        )
+                    )
+            appended = 0
+            for mapping in pending:
+                try:
+                    with session.begin_nested():
+                        session.add(mapping)
+                        session.flush()
+                    appended += 1
+                except IntegrityError:
+                    continue
+            session.commit()
+            return appended
+
+    def lineup_gate_evidence(
+        self,
+        *,
+        fixture_id: str,
+        as_of: datetime,
+    ) -> dict[str, Any]:
+        with Session(self.engine) as session:
+            snapshots = session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(
+                    StructuredLineupSnapshotModel.fixture_id == fixture_id,
+                    StructuredLineupSnapshotModel.captured_at <= as_of,
+                )
+                .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+            ).all()
+            latest_by_team: dict[str, StructuredLineupSnapshotModel] = {}
+            for snapshot in snapshots:
+                latest_by_team.setdefault(snapshot.team_external_id, snapshot)
+            selected = list(latest_by_team.values())
+            if len(selected) != 2:
+                return {
+                    "status": "INCOMPLETE",
+                    "confirmed": False,
+                    "team_count": len(selected),
+                    "starter_counts": [],
+                    "uniquely_mapped_starters": 0,
+                    "valued_starters": 0,
+                    "formation_count": sum(bool(row.formation) for row in selected),
+                    "blockers": ["LINEUP_SNAPSHOT_INCOMPLETE"],
+                }
+            starter_counts: list[int] = []
+            mappings: list[PlayerIdentityMappingModel] = []
+            for snapshot in selected:
+                players = session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
+                        StructuredLineupPlayerModel.starter.is_(True),
+                    )
+                ).all()
+                starter_counts.append(len(players))
+                api_ids = [player.api_football_player_id for player in players]
+                team_mappings = session.scalars(
+                    select(PlayerIdentityMappingModel)
+                    .where(
+                        PlayerIdentityMappingModel.api_football_player_id.in_(api_ids),
+                        PlayerIdentityMappingModel.team_external_id == snapshot.team_external_id,
+                        PlayerIdentityMappingModel.mapping_status == "MATCHED",
+                        PlayerIdentityMappingModel.valid_from <= as_of,
+                        (PlayerIdentityMappingModel.valid_to.is_(None))
+                        | (PlayerIdentityMappingModel.valid_to > as_of),
+                    )
+                    .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                ).all()
+                newest_mapping: dict[str, PlayerIdentityMappingModel] = {}
+                for mapping in team_mappings:
+                    newest_mapping.setdefault(mapping.api_football_player_id, mapping)
+                mappings.extend(newest_mapping.values())
+            transfermarkt_ids = {
+                str(mapping.transfermarkt_player_id)
+                for mapping in mappings
+                if mapping.transfermarkt_player_id
+            }
+            valued_ids = set(
+                session.scalars(
+                    select(PlayerValuationObservationModel.transfermarkt_player_id)
+                    .where(
+                        PlayerValuationObservationModel.transfermarkt_player_id.in_(
+                            transfermarkt_ids
+                        ),
+                        PlayerValuationObservationModel.observed_at <= as_of,
+                    )
+                    .distinct()
+                ).all()
+            )
+            return {
+                "status": "COMPLETE"
+                if starter_counts == [11, 11] and len(mappings) == 22 and len(valued_ids) == 22
+                else "INCOMPLETE",
+                "confirmed": all(snapshot.confirmed for snapshot in selected),
+                "team_count": 2,
+                "starter_counts": starter_counts,
+                "uniquely_mapped_starters": len(mappings),
+                "valued_starters": len(valued_ids),
+                "formation_count": sum(bool(snapshot.formation) for snapshot in selected),
+                "captured_at": max(snapshot.captured_at for snapshot in selected).isoformat(),
+                "raw_sha256": sorted({snapshot.raw_sha256 for snapshot in selected}),
+                "schema_version": "w2.lineup_gate_evidence.v1",
+            }
+
+    def import_transfermarkt_player_snapshot(
+        self,
+        *,
+        source_url: str,
+        source_sha256: str,
+        observed_at: datetime,
+        rows: list[dict[str, Any]],
+    ) -> int:
+        with Session(self.engine) as session:
+            try:
+                session.add(
+                    LineupSourceSnapshotModel(
+                        source="TRANSFERMARKT_DATASET",
+                        source_revision=source_sha256,
+                        schema_version="w2.transfermarkt_players.v1",
+                        object_uri=source_url,
+                        sha256=source_sha256,
+                        observed_at=observed_at,
+                        ingested_at=datetime.now(UTC),
+                    )
+                )
+                for row in rows:
+                    session.add(TransfermarktPlayerReferenceModel(**row))
+                    value = row.get("market_value_eur")
+                    if value is not None:
+                        session.add(
+                            PlayerValuationObservationModel(
+                                transfermarkt_player_id=row["transfermarkt_player_id"],
+                                observed_at=observed_at,
+                                market_value_eur=value,
+                                source="TRANSFERMARKT_DATASET",
+                                source_sha256=source_sha256,
+                                schema_version="w2.transfermarkt_player_value.v1",
+                            )
+                        )
+                session.commit()
+                return len(rows)
+            except IntegrityError:
+                session.rollback()
+                existing = session.scalar(
+                    select(
+                        func.count(TransfermarktPlayerReferenceModel.transfermarkt_player_id)
+                    ).where(TransfermarktPlayerReferenceModel.source_sha256 == source_sha256)
+                )
+                return int(existing or 0)
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_FAILED") from exc
+
+    def structured_lineup_fixture_ids(self) -> list[str]:
+        with Session(self.engine) as session:
+            return list(
+                session.scalars(select(StructuredLineupSnapshotModel.fixture_id).distinct()).all()
+            )
 
     @staticmethod
     def _lineup_players(value: Any, *, starter: bool) -> list[dict[str, Any]]:
