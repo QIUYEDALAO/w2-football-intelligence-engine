@@ -747,6 +747,9 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
   const pick = asRecord(record.pick);
+  const decisionTier = textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"];
+  const dataStatus = textValue(record.data_status, "PARTIAL") as DashboardDayViewCard["data_status"];
+  const actionable = dataStatus === "READY" && ["RECOMMEND", "ANALYSIS_PICK"].includes(decisionTier);
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc) || null,
@@ -757,12 +760,12 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     away_team_name: textValue(record.away_team_name) || null,
     status: textValue(record.status) || null,
     source: textValue(record.source) || null,
-    decision_tier: textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"],
-    data_status: textValue(record.data_status, "PARTIAL") as DashboardDayViewCard["data_status"],
+    decision_tier: decisionTier,
+    data_status: dataStatus,
     lifecycle_status: textValue(record.lifecycle_status, "DRAFT") as DashboardDayViewCard["lifecycle_status"],
-    outcome_tracked: Boolean(record.outcome_tracked),
-    lock_eligible: Boolean(record.lock_eligible),
-    recommendation_id: textValue(record.recommendation_id) || null,
+    outcome_tracked: actionable && Boolean(record.outcome_tracked),
+    lock_eligible: actionable && Boolean(record.lock_eligible),
+    recommendation_id: actionable ? textValue(record.recommendation_id) || null : null,
     reason_code: textValue(record.reason_code) || null,
     action: textValue(record.action) || null,
     next_eval_at: textValue(record.next_eval_at) || null,
@@ -772,14 +775,14 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
-    current_odds: asRecord(record.current_odds),
+    current_odds: dataStatus === "READY" ? asRecord(record.current_odds) : {},
     market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
     missing_inputs: asArray(record.missing_inputs).map((item) => textValue(item)).filter(Boolean),
-    pick: Object.keys(pick).length
+    pick: actionable && Object.keys(pick).length
       ? {
           market: textValue(pick.market) || null,
           selection: textValue(pick.selection) || null,

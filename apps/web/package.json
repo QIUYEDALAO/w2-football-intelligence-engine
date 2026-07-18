@@ -9,17 +9,19 @@
     "predev": "node scripts/write-meta.mjs",
     "prebuild": "node scripts/write-meta.mjs",
     "build": "tsc && vite build",
+    "test:e2e": "playwright test",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "typescript": "^5.6.2",
-    "vite": "^5.4.8"
+    "typescript": "^5.6.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
     "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7"
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.0.3",
+    "vite": "^8.1.5"
   }
 }
