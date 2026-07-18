@@ -35,7 +35,20 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
 - The projection is audit-only: it does not enter `current_odds`, pricing, pick or tier.
 - Local validation: `1075 passed, 4 skipped`; 55 focused tests, Ruff, Mypy,
   TypeScript and Web production build passed.
-- GitHub CI, merge and staging canary are pending.
+- PR #349 passed `verify`, `staging-parity` and `predeploy-e2e`, then merged as
+  `5849374e61bc7b7fe91b6da41c637b5c65a4b9fb`.
+- The staging canary preserved all 14 DayView cards as WATCH, kept the product
+  projection hash unchanged, and made zero provider calls.
+- A public analysis-card probe then caused an API OOM, exit 137 and two restarts.
+  This is the confirmed read-time rebuild boundary already scheduled for later
+  bounded/frozen-read phases, not a quote projection assertion failure.
+- The hard runtime gate failed, so staging was immediately rolled back to
+  `b5cfd6575ba7274692714c9fc814916a00c13e36`. Four services are healthy with zero
+  restarts after rollback; queue, provider baseline and locks remain unchanged.
+- R0.1b has not started.
+
+Detailed canary evidence:
+[W2 R0.1a Staging Canary](docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
 
 ## Delivery rule
 

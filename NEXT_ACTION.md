@@ -2,13 +2,15 @@
 
 ## Current gate
 
-Complete review, merge and staging canary of **R0.1a quote identity observation**.
+Resolve the **R0.1a staging canary hard blocker** without mixing invariants.
 
 ## Next implementation
 
-R0.0 merged in PR #348 at
-`37767123313483ecd8dc9607b4bb085d7cb6db36`. R0.1a is implemented on
-`codex/w2-r0-1a-quote-identity-observation` from that main.
+R0.1a merged in PR #349 at
+`5849374e61bc7b7fe91b6da41c637b5c65a4b9fb`, with all three CI jobs passing.
+Its staging canary preserved DayView recommendation output but the public
+analysis-card probe triggered an API OOM, exit 137 and two restarts. Staging was
+automatically rolled back to `b5cfd6575ba7274692714c9fc814916a00c13e36`.
 
 R0.1a must:
 
@@ -18,10 +20,13 @@ R0.1a must:
 - prove Fresh, Stale and Compatibility fixtures are explainable;
 - pass full local checks and all three GitHub CI jobs.
 
-After merge, its staging canary must confirm that the audit projection is present,
-provider calls during acceptance remain zero, and recommendation output is unchanged.
+Provider calls during acceptance were zero. The quote projection cannot be accepted
+through the public path while that path still performs the known unbounded read-time
+rebuild.
 
-Do not begin R0.1b or restore historical feature batches before R0.1a is merged and
-its staging canary passes.
+Do not begin R0.1b or restore historical feature batches. Fixing the blocker requires
+either an explicit canary-scope ruling or resequencing the already planned bounded or
+frozen read invariant; both require a plan decision because they change the approved
+phase order.
 The complete phase contract is in
 [W2 V3 Correctness Recovery Plan](docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md).
