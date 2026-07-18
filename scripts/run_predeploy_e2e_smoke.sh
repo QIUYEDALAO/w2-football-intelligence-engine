@@ -256,10 +256,27 @@ print("predeploy_e2e fake future refresh PASS")
 PY
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T api \
-  /app/.venv/bin/python scripts/materialize_analysis_card_canary.py \
-  --fixture-id "${FIXTURE_ID}" \
-  --evaluated-at "2026-06-25T12:00:00Z" \
-  --write
+  /app/.venv/bin/python - "${FIXTURE_ID}" <<'PY'
+from __future__ import annotations
+
+import sys
+from datetime import UTC, datetime
+
+from w2.api.frozen_analysis import (
+    AnalysisCardCanaryMaterializer,
+    write_frozen_analysis_artifacts,
+)
+from w2.api.repository import ReadModelRepository
+from w2.infrastructure.database import create_engine
+
+fixture_id = sys.argv[1]
+artifact = AnalysisCardCanaryMaterializer(ReadModelRepository()).build(
+    fixture_id,
+    evaluated_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+)
+write_frozen_analysis_artifacts(create_engine(), [artifact])
+print(f"predeploy_e2e frozen artifact PASS {artifact.artifact_hash}")
+PY
 
 python3 - <<PY
 from __future__ import annotations
