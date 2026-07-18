@@ -350,9 +350,9 @@ function statusCn(value: string): string {
 function marketPickLabel(card: DashboardDayViewCard): string {
   if (!card.pick) return "等待盘口";
   const market = card.pick.market ? marketLabel(card.pick.market) : "市场";
-  const selection = card.pick.selection ? pickSelectionLabel(card, card.pick.selection) : "方向待确认";
+  const selection = card.pick.selection ? pickSelectionLabel(card.pick.selection) : "方向待确认";
   const line = displayableLine(card.pick.line) ? ` ${formatLine(card.pick.line)}` : "";
-  const odds = card.pick.odds != null ? ` @ ${formatOdds(card.pick.odds)}` : "";
+  const odds = card.pick.odds != null ? ` @${formatOdds(card.pick.odds)}` : "";
   return `${market} ${selection}${line}${odds}`.trim();
 }
 
@@ -380,9 +380,9 @@ function selectionLabel(value: string): string {
   return "方向";
 }
 
-function pickSelectionLabel(card: DashboardDayViewCard, value: string): string {
-  if (value === "HOME_AH") return translateTeam(card.home_team_name);
-  if (value === "AWAY_AH") return translateTeam(card.away_team_name);
+function pickSelectionLabel(value: string): string {
+  if (value === "HOME_AH") return "主";
+  if (value === "AWAY_AH") return "客";
   return selectionLabel(value);
 }
 

@@ -14,10 +14,11 @@ def main() -> int:
         description="Download and inspect the versioned Transfermarkt player snapshot."
     )
     parser.add_argument("--observed-at", required=True)
+    parser.add_argument("--live", action="store_true")
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     observed_at = datetime.fromisoformat(args.observed_at.replace("Z", "+00:00")).astimezone(UTC)
-    snapshot = load_player_snapshot(observed_at=observed_at)
+    snapshot = load_player_snapshot(observed_at=observed_at, allow_network=args.live)
     imported = 0
     mapped = 0
     if args.write:

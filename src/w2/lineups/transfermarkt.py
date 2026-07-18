@@ -27,8 +27,11 @@ def load_player_snapshot(
     *,
     observed_at: datetime,
     compressed: bytes | None = None,
+    allow_network: bool = False,
 ) -> TransfermarktSnapshot:
     source_url = f"{TRANSFERMARKT_R2_ROOT}/players.csv.gz"
+    if compressed is None and not allow_network:
+        raise ValueError("TRANSFERMARKT_NETWORK_REQUIRES_EXPLICIT_--live")
     payload = compressed if compressed is not None else _download(source_url)
     reader = csv.DictReader(
         io.TextIOWrapper(gzip.GzipFile(fileobj=io.BytesIO(payload)), encoding="utf-8")
