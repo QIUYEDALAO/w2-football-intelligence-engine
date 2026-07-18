@@ -75,6 +75,8 @@ SKIP_PARTS = {
     ".ruff_cache",
     "runtime",
     "dist",
+    "test-results",
+    "playwright-report",
 }
 SKIP_SUFFIXES = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".db"}
 
@@ -92,7 +94,10 @@ def iter_files() -> list[Path]:
 def scan() -> list[str]:
     findings: list[str] = []
     for path in iter_files():
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except FileNotFoundError:
+            continue
         for line_number, line in enumerate(text.splitlines(), start=1):
             if not SENSITIVE.search(line):
                 continue

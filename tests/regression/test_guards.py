@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import tests.secret_scan as guard_module
 from tests.secret_scan import scan
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -9,6 +10,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_secret_patterns_are_guarded() -> None:
     assert scan() == []
+
+
+def test_guard_tolerates_disappearing_ignored_artifact(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    transient = tmp_path / "already-removed.txt"
+    monkeypatch.setattr(guard_module, "iter_files", lambda: [transient])
+
+    assert guard_module.scan() == []
 
 
 def test_no_w1_or_legacy_runtime_path_dependency() -> None:
