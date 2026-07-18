@@ -16,6 +16,7 @@ MANIFEST="${TMP_DIR}/staging.v1.json"
 READY_BODY="${TMP_DIR}/ready.json"
 LEGACY_BODY="${TMP_DIR}/legacy-ready.json"
 LEGACY_HEADERS="${TMP_DIR}/legacy-ready.headers"
+mkdir -p "${RUNTIME_SOURCE}"
 RUNTIME_MODE="$(stat -c '%a' "${RUNTIME_SOURCE}")"
 
 for container in "${POSTGRES}" "${REDIS}" "${API}"; do
