@@ -447,6 +447,21 @@ def test_unbounded_warm_cache_does_not_pollute_public_dashboard() -> None:
     assert [card["fixture_id"] for card in public["all"]] == ["9001"]
 
 
+def test_startup_warm_cache_only_materializes_bounded_public_scope() -> None:
+    service = ReadModelService(repository=cast(Any, SplitPublicFixtureRepository()))
+
+    service.warm_dashboard_cache()
+
+    assert len(service._dashboard_response_cache) == 3
+    assert all(cache_key[-1] is True for cache_key in service._dashboard_response_cache)
+    all_payload = next(
+        payload
+        for cache_key, (_, payload) in service._dashboard_response_cache.items()
+        if cache_key[1] == "all"
+    )
+    assert [card["fixture_id"] for card in all_payload["all"]] == ["9001"]
+
+
 def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
     body = Path("apps/web/src/lib/dashboardApi.ts").read_text(encoding="utf-8")
 

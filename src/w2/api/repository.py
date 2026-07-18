@@ -1591,7 +1591,7 @@ class ReadModelService:
     def warm_dashboard_cache(self) -> None:
         for window in ("today", "next36", "all"):
             with suppress(Exception):
-                self.dashboard(window=window, include_debug=False)
+                self.public_dashboard(window=window, include_debug=False)
         self._reset_read_caches()
 
     def fixtures(
