@@ -102,6 +102,24 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.1c Staging Canary](docs/operations/W2_R0_1C_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.2 canonical readiness 503
+
+- Local SHA `87e2ba15b5920c369ca90583b0b0d2dd1a73a74a` separated pure liveness
+  from canonical fail-closed readiness.
+- Root and legacy readiness share one payload/status; the legacy route adds
+  deprecation and canonical Link headers. Docker, release and watchdog probes
+  now use root `/ready`.
+- Local full validation reported `1107 passed, 4 skipped`; static, Web,
+  acceptance, migration, staging-parity and predeploy gates passed.
+- Dedicated temporary dependencies proved DB, Redis, schema, artifact and mount
+  failures return 503 and recover to 200 without touching formal staging.
+- Formal staging remained product-identical and mutation-free. All services are
+  healthy with restart zero/OOM false; scheduler/watchdog state was restored.
+- R0.2 is PASS. `next_phase=R0.3`; this run stops before R0.3.
+
+Detailed canary evidence:
+[W2 R0.2 Staging Canary](docs/operations/W2_R0_2_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,

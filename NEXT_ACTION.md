@@ -2,20 +2,17 @@
 
 ## Current gate
 
-Implement and accept **R0.2 canonical readiness 503**.
+R0.2 is **PASS**. Stop before R0.3 as required by the authorized plan.
 
 ## Next implementation
 
-R0.1c passed local gates and direct staging acceptance at
-`58ca49793f2011148e5bfc7d2f1ac5c9062ffbf8`. The canonical Decision Contract
-now guarantees that every non-ready surface has no pick, recommendation,
-executable odds, lock eligibility or outcome tracking.
+R0.2 passed local, isolated and direct staging acceptance at
+`87e2ba15b5920c369ca90583b0b0d2dd1a73a74a`. Root `/ready` is canonical and
+fail-closed for DB, Redis, schema, artifact and mount failures; `/health` is pure
+liveness. Legacy `/v1/ready` has identical semantics and deprecation headers.
 
-R0.2 must make `/health` pure liveness and make root `/ready` the canonical
-readiness surface. Critical DB, Redis, schema, artifact-manifest or core-mount
-failures must deterministically return 503. `/v1/ready` must share the exact body
-and status while adding deprecation and canonical Link headers. Runtime probes
-must use root `/ready`; fault injection stays isolated from staging dependencies.
+The next phase identifier is R0.3, but no R0.3 implementation, Frozen L2 or later
+phase work is authorized in this run. Await an explicit new instruction.
 
 No GitHub synchronization is authorized. Use local gates, isolated staging-parity,
 predeploy-e2e and direct staging canary.
