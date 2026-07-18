@@ -45,6 +45,19 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                     },
                     "ou": {"line": "2.5", "over_price": 1.91, "under_price": 1.93},
                 },
+                "last_known_odds": {
+                    "status": "REFERENCE_ONLY",
+                    "captured_at": "2026-07-04T10:00:00Z",
+                    "executable": False,
+                    "markets": {
+                        "ah": {
+                            "home_line": "-0.25",
+                            "home_price": 1.95,
+                            "away_line": "0.25",
+                            "away_price": 1.95,
+                        }
+                    },
+                },
                 "market_strip": [
                     {
                         "market": "ASIAN_HANDICAP",
@@ -129,6 +142,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
     assert contract_card["current_odds"] == {}
+    assert contract_card["last_known_odds"]["status"] == "REFERENCE_ONLY"
+    assert contract_card["last_known_odds"]["executable"] is False
     assert contract_card["market_probabilities"] == {}
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"

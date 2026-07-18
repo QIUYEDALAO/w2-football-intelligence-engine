@@ -458,6 +458,7 @@ export interface DashboardMatchCard {
   result?: MatchResult | null;
   validation?: ValidationSummary | null;
   current_odds?: Record<string, unknown>;
+  last_known_odds?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   bookmaker_intent?: BookmakerIntentPayload;
@@ -701,6 +702,7 @@ export interface DashboardDayViewCard {
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
+  last_known_odds?: Record<string, unknown>;
   market_probabilities?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   probability_source?: string | null;

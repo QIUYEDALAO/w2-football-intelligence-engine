@@ -97,12 +97,41 @@ function isWaitingForScheduledRefresh(card: DashboardDayViewCard, now = new Date
   );
 }
 
+function lastKnownOdds(card: DashboardDayViewCard): Record<string, unknown> {
+  return asRecord(card.last_known_odds);
+}
+
+function hasLastKnownOdds(card: DashboardDayViewCard): boolean {
+  return Object.keys(asRecord(lastKnownOdds(card).markets)).length > 0;
+}
+
+function lastKnownCapturedLabel(card: DashboardDayViewCard): string {
+  const capturedAt = textValue(lastKnownOdds(card).captured_at);
+  if (!capturedAt) return "较早快照";
+  const parsed = new Date(capturedAt);
+  if (Number.isNaN(parsed.getTime())) return "较早快照";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
 function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): string {
-  return isWaitingForScheduledRefresh(card, now) ? "等待赛前刷新" : dataStatusLabel(card.data_status);
+  if (isWaitingForScheduledRefresh(card, now)) {
+    return hasLastKnownOdds(card) ? "已有早盘·待临场更新" : "等待首轮盘口";
+  }
+  return dataStatusLabel(card.data_status);
 }
 
 function visibleReasonLabel(card: DashboardDayViewCard, now = new Date()): string {
-  return isWaitingForScheduledRefresh(card, now) ? "等待计划采集" : reasonLabel(card.reason_code);
+  if (isWaitingForScheduledRefresh(card, now)) {
+    return hasLastKnownOdds(card) ? "已有早盘，待临场更新" : "尚无盘口，等待首轮采集";
+  }
+  return reasonLabel(card.reason_code);
 }
 
 function isWorldCup(dayView: DashboardDayView): boolean {
@@ -111,7 +140,10 @@ function isWorldCup(dayView: DashboardDayView): boolean {
 
 function l1OneLiner(card: DashboardDayViewCard): string {
   if (isWaitingForScheduledRefresh(card)) {
-    return `尚未进入赛前采集点；${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}自动刷新。`;
+    if (hasLastKnownOdds(card)) {
+      return `已有 ${lastKnownCapturedLabel(card)} 早盘；仅供参考，${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}更新临场盘口。`;
+    }
+    return `目前尚无盘口；${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}执行首轮采集。`;
   }
   const oneLiner = (card.one_liner ?? "").trim();
   if (oneLiner && !oneLiner.includes("缺少人话解释") && !/[A-Z0-9_]{6,}/.test(oneLiner)) {
@@ -124,7 +156,14 @@ function l1OneLiner(card: DashboardDayViewCard): string {
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
-  const odds = asRecord(card.current_odds);
+  return oddsPayloadSummary(asRecord(card.current_odds));
+}
+
+function lastKnownOddsSummary(card: DashboardDayViewCard): string | null {
+  return oddsPayloadSummary(asRecord(lastKnownOdds(card).markets));
+}
+
+function oddsPayloadSummary(odds: Record<string, unknown>): string | null {
   const ah = asRecord(odds.ah);
   const ou = asRecord(odds.ou);
   const rows: string[] = [];
@@ -220,6 +259,9 @@ function probabilityPercent(value: unknown): string {
 }
 
 function trustSignalSummary(card: DashboardDayViewCard): string {
+  if (isWaitingForScheduledRefresh(card) && hasLastKnownOdds(card)) {
+    return `已有早盘（${lastKnownCapturedLabel(card)}，不可执行） · 临场盘口与分析待更新`;
+  }
   const refresh = card.data_refresh ?? {};
   const odds = textValue(refresh.odds_status, Object.keys(asRecord(card.current_odds)).length ? "READY" : "WAITING");
   const lineups = textValue(refresh.lineups_status, textValue(asRecord(card.data_readiness).lineups_status, "UNKNOWN"));
@@ -244,6 +286,9 @@ function probabilitySourceLabel(card: DashboardDayViewCard): string {
 }
 
 function marketSourceLabel(card: DashboardDayViewCard): string {
+  if (hasLastKnownOdds(card) && !Object.keys(asRecord(card.current_odds)).length) {
+    return `最近盘口 ${lastKnownCapturedLabel(card)} · 已过期，仅参考`;
+  }
   if (card.probability_source !== "MARKET_DEVIG") return "无盘口概率";
   const odds = asRecord(card.current_odds);
   const preferred = card.pick?.market === "TOTALS" ? asRecord(odds.ou) : asRecord(odds.ah);
@@ -506,6 +551,8 @@ function rowMarketSummary(card: DashboardDayViewCard): string {
   if (card.pick) return marketPickLabel(card);
   const odds = oddsSummary(card);
   if (odds) return odds.split(" · ")[0] ?? odds;
+  const historical = lastKnownOddsSummary(card);
+  if (historical) return historical.split(" · ")[0] ?? historical;
   return visibleReasonLabel(card);
 }
 
@@ -543,11 +590,14 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
 }
 
 function evidenceStatements(card: DashboardDayViewCard): string[] {
+  const waitingWithEarlyMarket = isWaitingForScheduledRefresh(card) && hasLastKnownOdds(card);
   return [
     `盘口源:${marketSourceLabel(card)}`,
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
     `数据:${visibleDataStatusLabel(card)}; ${trustSignalSummary(card)}`,
-    `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
+    waitingWithEarlyMarket
+      ? "模型:等待临场盘口更新后重新确认"
+      : `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
     `下一步:${actionLabel(card.action)}; ${card.next_eval_at ? fmtTime(card.next_eval_at) : "待定"}再看`,
   ];
 }
@@ -573,7 +623,7 @@ export function MatchdayHeader({
         <strong>FOOTBALL</strong>
         <span>INTELLIGENCE</span>
       </div>
-      <button className="boss-view-select" type="button">Boss View</button>
+      <span className="boss-view-select">只读决策台</span>
       <div className="boss-command-meta">
         <span>日期 <strong>{dayView.football_day}</strong></span>
         <span>环境 <strong>{dayView.environment}</strong></span>
@@ -582,11 +632,11 @@ export function MatchdayHeader({
             页面更新 <strong>{dayView.freshness.page_updated_at ? fmtTime(dayView.freshness.page_updated_at) : "--:--"}</strong>
           </span>
           <span className="boss-time-line">
-            赔率确认 <strong>{dayView.freshness.odds_last_confirmed_at ? fmtTime(dayView.freshness.odds_last_confirmed_at) : "暂无"}</strong>
+            全局赔率确认 <strong>{dayView.freshness.odds_last_confirmed_at ? fmtTime(dayView.freshness.odds_last_confirmed_at) : "暂无"}</strong>
           </span>
         </span>
         <span>下次采集 <strong>{dayView.freshness.next_refresh_tick ? fmtTime(dayView.freshness.next_refresh_tick) : "待定"}</strong></span>
-        <span>即将比赛 <strong>{upcoming}</strong></span>
+        <span>未来待赛 <strong>{upcoming}</strong></span>
         <span>已出推荐 <strong>{readyRecommendations}</strong></span>
       </div>
       <div className="boss-command-release">
@@ -634,7 +684,7 @@ export function EvidencePanel({
       <aside className="evidence-panel" aria-label="选中比赛证据预览">
         <span>选中比赛证据</span>
         <h2>{teamLabel(selectedCard)}</h2>
-        <p>{marketSourceLabel(selectedCard)}</p>
+        <p>{lastKnownOddsSummary(selectedCard) ?? marketSourceLabel(selectedCard)}</p>
         <div className="trust-grid">
           {evidenceStatements(selectedCard).map((statement) => (
             <strong key={statement}>{statement}</strong>
@@ -730,18 +780,24 @@ export function DecisionRow({
 
 function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
   const waiting = dayView.cards.filter((card) => isWaitingForScheduledRefresh(card)).length;
+  const withEarlyMarket = dayView.cards.filter(
+    (card) => isWaitingForScheduledRefresh(card) && hasLastKnownOdds(card),
+  ).length;
+  const competitionCount = new Set(
+    dayView.cards.map((card) => card.competition_id || card.competition_name).filter(Boolean),
+  ).size;
   const blocked = dayView.cards.filter(
     (card) => (card.data_status === "BLOCKED" || card.data_status === "STALE")
       && !isWaitingForScheduledRefresh(card),
   ).length;
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
-      <strong>{blocked ? "部分数据需处理" : waiting ? "赛前数据按计划等待" : "白名单正常"}</strong>
-      <span>14 联赛可用 · {dayView.environment} · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
+      <strong>{blocked ? "部分数据需处理" : waiting ? "赛前数据持续更新" : "当前窗口正常"}</strong>
+      <span>{competitionCount} 个联赛 · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
       {blocked
         ? <small>异常比赛已保留在赛程中，并显示真实原因。</small>
         : waiting
-          ? <small>{waiting} 场尚未到赛前采集点，到时自动更新。</small>
+          ? <small>{withEarlyMarket} 场已有早盘；{waiting - withEarlyMarket} 场待首轮盘口，均按计划更新。</small>
           : <small>覆盖诊断只在异常时展开。</small>}
     </section>
   );

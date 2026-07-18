@@ -82,6 +82,7 @@ function dayView(scenario: Scenario) {
             away_price: "1.95",
           },
         },
+        last_known_odds: {},
         pick: {
           market: "ASIAN_HANDICAP",
           selection: "HOME_AH",
@@ -113,6 +114,26 @@ async function installRoutes(
   if (scheduledWait) {
     dayViewPayload.cards[0].kickoff_utc = "2026-07-20T12:00:00Z";
     dayViewPayload.cards[0].next_eval_at = "2026-07-20T06:00:00Z";
+    dayViewPayload.cards[0].last_known_odds = {
+      status: "REFERENCE_ONLY",
+      captured_at: "2026-07-17T14:48:45Z",
+      executable: false,
+      bookmaker_count: 10,
+      markets: {
+        ah: {
+          line: "-0.5",
+          home_line: "-0.5",
+          away_line: "+0.5",
+          home_price: 1.82,
+          away_price: 1.86,
+        },
+        ou: {
+          line: "2.75",
+          over_price: 1.91,
+          under_price: 1.93,
+        },
+      },
+    };
   }
   if (scenario === "READY" && readyCardCount > 1) {
     const template = dayViewPayload.cards[0];
@@ -221,16 +242,18 @@ test("all qualifying recommendations remain visible without a top-three cap", as
   await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 4");
 });
 
-test("pre-refresh stale odds are shown as a scheduled wait, not a pipeline fault", async ({ page }) => {
+test("stored early odds remain visible as reference while waiting for the prematch refresh", async ({ page }) => {
   await installRoutes(page, "STALE", 1, true);
   await page.goto("/");
 
   const row = page.locator("article.decision-row").filter({ hasText: "STALE Home" });
   const visibleRow = row.locator(".decision-row-button");
-  await expect(visibleRow).toContainText("等待赛前刷新");
-  await expect(visibleRow).toContainText("尚未进入赛前采集点");
+  await expect(visibleRow).toContainText("已有早盘·待临场更新");
+  await expect(visibleRow).toContainText("让球 主 -0.5 @1.82 / 客 +0.5 @1.86");
+  await expect(visibleRow).toContainText("已过期，仅参考");
   await expect(visibleRow).not.toContainText("数据陈旧");
-  await expect(page.locator(".health-strip")).toContainText("赛前数据按计划等待");
+  await expect(page.locator(".health-strip")).toContainText("赛前数据持续更新");
+  await expect(page.locator(".health-strip")).toContainText("1 场已有早盘");
   await expect(page.locator(".health-strip")).not.toContainText("部分数据需处理");
 });
 

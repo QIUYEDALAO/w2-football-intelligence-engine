@@ -1311,6 +1311,7 @@ class ReadModelService:
             response_cards = [self._compact_all_window_card(card) for card in all_cards]
         else:
             all_cards = [self._dashboard_card_from_matchday(row) for row in selected_rows]
+            self._attach_last_known_odds(all_cards)
             response_cards = all_cards
         recommendations = [
             card
@@ -5811,6 +5812,80 @@ class ReadModelService:
             "lineups_captured_at": data_readiness.get("lineups_captured_at"),
             "statistics_captured_at": data_readiness.get("statistics_captured_at"),
             "last_refresh_hint": row.get("last_captured") or card.get("generated_at"),
+        }
+
+    def _attach_last_known_odds(self, cards: list[dict[str, Any]]) -> None:
+        """Attach bounded, reference-only market snapshots without making them current odds."""
+        fixture_ids = list(
+            dict.fromkeys(
+                str(card.get("fixture_id") or "")
+                for card in cards
+                if card.get("fixture_id")
+            )
+        )
+        if not fixture_ids or len(fixture_ids) > 64:
+            return
+        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        if not callable(reader):
+            return
+        try:
+            observations = cast(list[dict[str, Any]], reader(fixture_ids))
+        except Exception:
+            return
+        allowed = set(fixture_ids)
+        if any(str(row.get("fixture_id") or "") not in allowed for row in observations):
+            return
+        by_fixture: dict[str, list[dict[str, Any]]] = {}
+        for row in observations:
+            fixture_id = str(row.get("fixture_id") or "")
+            if fixture_id:
+                by_fixture.setdefault(fixture_id, []).append(row)
+        for card in cards:
+            fixture_id = str(card.get("fixture_id") or "")
+            snapshot = self._last_known_odds_snapshot(by_fixture.get(fixture_id, []))
+            if snapshot:
+                card["last_known_odds"] = snapshot
+
+    def _last_known_odds_snapshot(
+        self,
+        observations: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not observations:
+            return None
+        selection = self._mainline_market_selection(observations)
+        markets: dict[str, Any] = {}
+        for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
+            selected = selection.get(market, {})
+            if selected.get("status") != "READY":
+                continue
+            entry = self._balanced_odds_entry(selected)
+            if entry is None:
+                continue
+            entry["bookmaker_count"] = int(selected.get("bookmaker_count") or 0)
+            markets[key] = entry
+        if not markets:
+            return None
+        captured_at = max(
+            (
+                str(row.get("captured_at") or row.get("captured_at_utc") or "")
+                for row in observations
+            ),
+            default="",
+        )
+        bookmaker_count = len(
+            {
+                str(row.get("bookmaker_id") or row.get("bookmaker_name") or "")
+                for row in observations
+                if row.get("bookmaker_id") or row.get("bookmaker_name")
+            }
+        )
+        return {
+            "status": "REFERENCE_ONLY",
+            "captured_at": captured_at or None,
+            "executable": False,
+            "observation_count": len(observations),
+            "bookmaker_count": bookmaker_count,
+            "markets": markets,
         }
 
     def _recommendation_from_analysis_market(

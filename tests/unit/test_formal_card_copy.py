@@ -75,7 +75,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "未来 36 小时暂无比赛" in page
     assert "未来 14 天暂无可展示比赛" in page
     assert "BossDecisionView" in page
-    assert "todayShanghai()" in page
+    assert "footballDayShanghai()" in page
     assert "footballDayShanghai" in formatters
     assert "next_available_date" in page
     assert "selected_date_has_data" in page
@@ -114,8 +114,13 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "outcomes_validation" in boss_view
     assert "VALIDATION ledger + outcome" in boss_view
     assert "页面更新" in boss_view
-    assert "赔率确认" in boss_view
+    assert "全局赔率确认" in boss_view
     assert "下次采集" in boss_view
+    assert "最近盘口" in boss_view
+    assert "已过期，仅参考" in boss_view
+    assert "已有早盘·待临场更新" in boss_view
+    assert "只读决策台" in boss_view
+    assert "Boss View</button>" not in boss_view
     assert "最后刷新" not in boss_view
 
 

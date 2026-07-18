@@ -220,6 +220,7 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
+        "last_known_odds": _mapping_copy(card.get("last_known_odds")),
         "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
         "market_strip": _mapping_list(card.get("market_strip")),
