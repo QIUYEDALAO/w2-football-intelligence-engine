@@ -373,3 +373,24 @@
   rollback tags。
 - `next_phase=R2`，只授权离线确定性模型修正；不自动替换 champion，不开放
   RECOMMEND/lock、OFFICIAL 或 production。
+
+### 2026-07-19 · 首发变化与多市场决策任务重新排期
+
+- 用户确认首发的价值不应简化为“首发总身价”；本轮改为建模关键缺席、位置替换、
+  客串、阵型偏移、组合连续性和替补深度。
+- GitHub Transfermarkt 数据只读核验确认：`players` 有 `position/sub_position`，
+  `game_lineups` 有逐场首发/替补与本场位置，`games` 有双方阵型，足以建立赛前常用
+  阵容基线；临场正式首发仍由受控 API-Football 采集提供。
+- 当前代码虽同时产生 AH/OU 分析，但最终使用第一个 `PICK`，且市场顺序 AH 在 OU 前，
+  造成事实上的让球优先；正式 recommendation 路径也只支持 AH。本轮只修
+  `ANALYSIS_PICK` 的 AH/OU 独立准入和择优，不开放正式 RECOMMEND。
+- 五大联赛采用 `lineup_policy=REQUIRED`；其他联赛按真实覆盖审计分 A/B/C，首发作为
+  可选增强，不使用一个硬门阻塞全部非五大赛事。
+- Dashboard 原布局冻结；所有合格比赛继续展示。推荐比分必须服从最终 AH/OU 市场，
+  无最终 pick 时不显示方向性比分。
+- 完整任务清单：
+  `docs/consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md`。
+- 本地上下文：`local_main_sha=8e171dc05efc2fc3a512fff2c334d123d01db922`，
+  `github_w2_main_baseline=a80bcca`，未同步 GitHub，未部署。
+- 本计划属于数据契约和运行时决策变更；全部本地/隔离 Gate 通过后只做一次 staging
+  canary，随后连续三个 09:00 只读周期从 `0/3` 重新累计。

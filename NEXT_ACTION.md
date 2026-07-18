@@ -2,35 +2,32 @@
 
 ## Current gate
 
-R3 is `staging_accepted` and is awaiting three stable read-only cycles.
-R4 is authorized for approval-package preparation only; champion, lock and
-production state changes are not authorized by that preparation.
+R3 is `staging_accepted` and remains the active delivery phase. LMM0-LMM8 is
+the authorized in-progress correction workstream on local branch
+`codex/w2-lmm-lineup-multimarket`, based on local `main@8e171dc`.
 
-R3 read-only candidate `5cd3034878abe7522f8b18c8be32dc86f2a3da1e`
-is deployed on the existing public staging host. Public fixture reads now keep
-bounded full-time AH and totals coverage, use the latest pre-fixture rolling xG
-state, canonicalize API-Football handicap sides, and restore the T6 odds tick.
-Before that scheduled tick the Dashboard reports a planned collection wait
-instead of a false pipeline failure. The pre-noon page continues to use the
-previous football-day date.
-Enabled competition and club names are localized in Chinese across the main
-schedule, evidence rail and league-performance projection.
+The currently accepted staging implementation is `01f8a75`; the LMM candidate
+has not been deployed. Existing read-only cycles must be restarted from `0/3`
+only after the single LMM staging canary succeeds. No GitHub synchronization is
+authorized.
 
-The consecutive Beijing 09:00 read-only cycle count is `0/3`. The first eligible
-cycle is 2026-07-19. No GitHub synchronization is authorized.
+R4 is authorized for approval-package preparation only. Champion,
+RECOMMEND/lock, OFFICIAL and write-enabled production state changes are not
+authorized.
 
 ## Next execution
 
-1. Run the existing real staging read-only patrol at 09:00 Beijing on three
-   consecutive natural days without changing the implementation SHA or images.
-2. A data-contract, statistics or runtime correction resets the count to `0/3`;
-   pure copy changes do not.
-3. Continue append-only canonical settled-fixture accumulation toward 200. The
-   200-fixture threshold does not block the read-only Dashboard cycles and does
-   not automatically promote a model.
-4. After `3/3` PASS, record the same immutable candidate as read-only production
-   approved under the user's existing conditional authorization.
+1. Complete LMM0 coverage evidence from local Transfermarkt data and redacted,
+   read-only staging lineup exports with provider delta zero.
+2. Complete LMM1-LMM7 code, migration, deterministic offline evaluation and all
+   local/isolated gates. Markets whose evaluation gate fails keep lineup weight
+   zero.
+3. Deploy the exact local candidate to staging once, after freezing rollback
+   evidence and stopping scheduler with queue zero.
+4. On staging acceptance, restore scheduler exactly and restart the consecutive
+   Beijing 09:00 read-only count at `0/3` on the same SHA and images.
+5. After `3/3` PASS, record read-only production approval under the user's
+   existing conditional authorization.
 
-Champion, thresholds, league switches, RECOMMEND/lock and OFFICIAL remain
-unchanged and still require their independent R4 approvals. No GitHub fetch,
-pull, push or PR is authorized.
+R3 is `staging_accepted`; R4 is authorized for preparation only. No GitHub
+fetch, pull, push or PR is authorized.

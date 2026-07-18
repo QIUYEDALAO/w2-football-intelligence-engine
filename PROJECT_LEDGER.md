@@ -338,3 +338,15 @@ Detailed evidence:
 R0.1a may start only after the R0.0 PR is merged with `verify`,
 `staging-parity` and `predeploy-e2e` passing. Every later phase follows the same
 merge-before-next-phase rule.
+
+## 2026-07-19 — LMM0-LMM8 implementation started
+
+- User authorized the complete lineup identity, valuation, formation and
+  independent AH/OU decision workstream from local `main@8e171dc`.
+- Work continues on `codex/w2-lmm-lineup-multimarket`; GitHub synchronization
+  remains prohibited and no staging deployment has occurred.
+- The accepted staging implementation remains `01f8a75`. The three-cycle gate
+  will restart at `0/3` only after the exact LMM candidate passes all local and
+  isolated gates and its single staging canary.
+- Champion, RECOMMEND/lock, OFFICIAL and write-enabled production remain
+  unchanged.
