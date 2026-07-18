@@ -548,7 +548,7 @@ button {
   white-space: nowrap;
 }
 
-.boss-command-meta span {
+.boss-command-meta > span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -557,13 +557,27 @@ button {
   border-left: 1px solid rgba(255, 255, 255, 0.13);
 }
 
+.boss-command-meta > .boss-time-pair {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.boss-time-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .boss-command-meta strong {
   color: #f3f6ef;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
-.boss-command-meta span:nth-last-child(-n + 2) strong {
+.boss-command-meta > span:nth-last-child(-n + 2) strong {
   color: #8fe46f;
   font-size: 18px;
 }
@@ -1471,7 +1485,7 @@ button {
     white-space: normal;
   }
 
-  .boss-command-meta span {
+  .boss-command-meta > span {
     min-height: 24px;
     padding: 0 10px 0 0;
     border-left: 0;

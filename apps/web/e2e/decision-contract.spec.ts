@@ -180,15 +180,22 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
     const view = document.querySelector(".boss-view-select")?.getBoundingClientRect();
     const meta = document.querySelector(".boss-command-meta")?.getBoundingClientRect();
     const release = document.querySelector(".boss-command-release")?.getBoundingClientRect();
+    const items = Array.from(document.querySelectorAll(".boss-command-meta > span"));
+    const firstItem = items[0]?.getBoundingClientRect();
+    const lastItem = items[items.length - 1]?.getBoundingClientRect();
+    const metaElement = document.querySelector(".boss-command-meta");
     return {
       viewRight: view?.right ?? 0,
-      metaLeft: meta?.left ?? 0,
-      metaRight: meta?.right ?? 0,
+      firstItemLeft: firstItem?.left ?? 0,
+      lastItemRight: lastItem?.right ?? 0,
       releaseLeft: release?.left ?? 0,
+      metaClientWidth: metaElement?.clientWidth ?? 0,
+      metaScrollWidth: metaElement?.scrollWidth ?? 0,
     };
   });
-  expect(headerGeometry.viewRight).toBeLessThanOrEqual(headerGeometry.metaLeft);
-  expect(headerGeometry.metaRight).toBeLessThanOrEqual(headerGeometry.releaseLeft);
+  expect(headerGeometry.viewRight).toBeLessThanOrEqual(headerGeometry.firstItemLeft);
+  expect(headerGeometry.lastItemRight).toBeLessThanOrEqual(headerGeometry.releaseLeft);
+  expect(headerGeometry.metaScrollWidth).toBeLessThanOrEqual(headerGeometry.metaClientWidth);
   const analysis = await page.evaluate(async () => {
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
     return response.json();
