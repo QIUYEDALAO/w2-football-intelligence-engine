@@ -26,6 +26,7 @@ class CanonicalAhMainline:
     rejected_lines: list[dict[str, Any]] | None = None
     selected_bookmakers: list[str] | None = None
     source_payload_ids: list[str] | None = None
+    authoritative_quote_rows: dict[str, dict[str, Any]] | None = None
     quarantined_count: int = 0
     quarantine_reasons: dict[str, int] | None = None
 
@@ -145,6 +146,10 @@ def select_canonical_ah_mainline(
                 if payload_id
             },
         ),
+        authoritative_quote_rows={
+            side.lower(): dict(representative["sides"][side]["row"])
+            for side in ("HOME", "AWAY")
+        },
         quarantined_count=sum(quarantine_reasons.values()),
         quarantine_reasons=quarantine_reasons,
     )
@@ -211,7 +216,7 @@ def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             pair["source_payload_ids"].add(str(payload_id))
         current = pair["sides"].get(side)
         if current is None or price > float(current["price"]):
-            pair["sides"][side] = {"price": price, "line": line}
+            pair["sides"][side] = {"price": price, "line": line, "row": row}
     per_bookmaker: dict[str, list[dict[str, Any]]] = {}
     for pair in by_bookmaker_line.values():
         sides = pair.get("sides") or {}
@@ -224,6 +229,7 @@ def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]
         vote = {
             "bookmaker": str(pair["bookmaker"]),
             "line": line,
+            "sides": sides,
             "home_price": prices[0],
             "away_price": prices[1],
             "price_gap": round(abs(prices[0] - prices[1]), 6),

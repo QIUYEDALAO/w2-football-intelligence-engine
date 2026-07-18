@@ -313,6 +313,11 @@ def test_embedded_analysis_card_is_normalized_to_false_flags() -> None:
     assert card["markets"][0]["decision"] == "PICK"
     assert card["markets"][0]["analysis_decision"] == "ANALYSIS_PICK"
     assert card["markets"][0]["label_cn"] == "大小球"
+    assert card["quote_identity_audit"]["ah"]["identity_status"] == "INCOMPLETE"
+    assert card["quote_identity_audit"]["ou"]["blockers"] == [
+        "AUTHORITATIVE_OBSERVATION_NOT_AVAILABLE"
+    ]
+    assert card["quote_identity_audit"]["ou"]["observation_ids"] == {}
     assert card["markets"][0]["lean"] == "大球"
     assert card["markets"][0]["reason"] == "大小球意图: OVER_LEAN"
 

@@ -21,9 +21,24 @@ specifications and failure cases, not proof of behavior in the current tree.
 
 Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FREEZE_20260718.md).
 
+- PR #348 passed `verify`, `staging-parity` and `predeploy-e2e`, then merged as
+  `37767123313483ecd8dc9607b4bb085d7cb6db36`.
+
+## 2026-07-18 — R0.1a quote identity observation
+
+- Projects quote identity only from the two authoritative selected observation rows.
+- Records observation IDs, fixture, provider, bookmaker, market, selection, line,
+  odds, captured time, raw payload hash and source revision.
+- Reports `COMPLETE`, `INCOMPLETE` or `CONFLICT` with deterministic blockers.
+- Historical compatibility cards report unavailable authoritative observations;
+  they never synthesize IDs from card fields.
+- The projection is audit-only: it does not enter `current_odds`, pricing, pick or tier.
+- Local validation: `1075 passed, 4 skipped`; 55 focused tests, Ruff, Mypy,
+  TypeScript and Web production build passed.
+- GitHub CI, merge and staging canary are pending.
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
 `staging-parity` and `predeploy-e2e` passing. Every later phase follows the same
 merge-before-next-phase rule.
-
