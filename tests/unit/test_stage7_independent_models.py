@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -66,6 +67,46 @@ def test_sparse_team_shrinkage_and_parameter_isolation() -> None:
     national_builder.update(match(1))
     assert national_builder.features(match(2))["home_sample_size"] == 1.0
     assert club_builder.features(match(2))["home_sample_size"] == 0.0
+
+
+def test_rolling_form_persists_empty_existing_and_multiple_updates() -> None:
+    builder = AsOfFeatureBuilder()
+    assert builder.features(match(1))["rolling_home_form"] == 0.0
+
+    builder.update(match(1))
+    assert builder.states["alpha"].form_points == [3.0]
+    assert builder.states["beta"].form_points == [0.0]
+    assert builder.features(match(2))["rolling_home_form"] == 1.0
+
+    builder.update(match(2))
+    builder.update(match(3))
+    assert builder.states["alpha"].form_points == [3.0, 0.0, 3.0]
+    assert builder.states["beta"].form_points == [0.0, 3.0, 0.0]
+    assert builder.features(match(4))["rolling_home_form"] == pytest.approx(2 / 3)
+
+
+def test_rolling_form_snapshot_roundtrip_and_replay_are_deterministic() -> None:
+    uninterrupted = AsOfFeatureBuilder()
+    restored_source = AsOfFeatureBuilder()
+    for record in (match(1), match(2)):
+        uninterrupted.update(record)
+        restored_source.update(record)
+
+    serialized = json.dumps(restored_source.snapshot(), sort_keys=True)
+    restored = AsOfFeatureBuilder.from_snapshot(json.loads(serialized))
+    assert restored.snapshot() == restored_source.snapshot()
+
+    for record in (match(3), match(4), match(5), match(6)):
+        uninterrupted.update(record)
+        restored.update(record)
+
+    assert restored.snapshot() == uninterrupted.snapshot()
+    assert restored.features(match(10)) == uninterrupted.features(match(10))
+
+
+def test_rolling_form_snapshot_fails_closed_on_unknown_schema() -> None:
+    with pytest.raises(ValueError, match="unsupported"):
+        AsOfFeatureBuilder.from_snapshot({"schema_version": "legacy", "teams": {}})
 
 
 def test_calibration_validation_artifact_and_residual_research_isolation() -> None:
