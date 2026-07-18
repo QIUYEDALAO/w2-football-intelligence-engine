@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import ClassVar, Literal
 
 from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
 from w2.strategy.bookmaker_intent import BookmakerIntent, IntentSignal
@@ -75,10 +75,10 @@ class MultiMarketAnalysisCard:
 
 @dataclass(frozen=True, kw_only=True)
 class HalfGoalModelInput:
+    market_line: ClassVar[float] = 0.5
     expected_home_goals: float
     expected_away_goals: float
     first_half_share: float = 0.45
-    threshold: float = 0.5
 
 
 @dataclass(frozen=True, kw_only=True)

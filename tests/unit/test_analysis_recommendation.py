@@ -67,6 +67,23 @@ def complete_inputs() -> AnalysisBuildInputs:
     )
 
 
+def test_half_goal_model_contract_supports_only_first_half_point_five() -> None:
+    model_input = HalfGoalModelInput(expected_home_goals=1.2, expected_away_goals=0.8)
+    assert model_input.market_line == 0.5
+    with pytest.raises(TypeError):
+        HalfGoalModelInput(  # type: ignore[call-arg]
+            expected_home_goals=1.2,
+            expected_away_goals=0.8,
+            threshold=1.5,
+        )
+    with pytest.raises(TypeError):
+        HalfGoalModelInput(  # type: ignore[call-arg]
+            expected_home_goals=1.2,
+            expected_away_goals=0.8,
+            market_line=1.5,
+        )
+
+
 def test_four_markets_emit_analysis_pick_with_explainable_reasons() -> None:
     card = build_multi_market_analysis(fixture_id="1489404", inputs=complete_inputs())
 
