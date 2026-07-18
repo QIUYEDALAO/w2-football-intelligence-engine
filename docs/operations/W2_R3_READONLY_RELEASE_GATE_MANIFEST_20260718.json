@@ -1,15 +1,15 @@
 {
   "schema_version": "w2.release-gate-manifest.v1",
   "phase": "R3_READONLY_STAGING_CANDIDATE",
-  "generated_at": "2026-07-18T13:33:00Z",
-  "implementation_sha": "7e4c0aea790f2bce678b4ab6a2d20ba51d583316",
+  "generated_at": "2026-07-18T15:48:05Z",
+  "implementation_sha": "94bcd62c67ed3fe50bba5ee65be10133556f83d0",
   "delivery": "local_git_archive",
   "github_sync": false,
   "status": "STAGING_ACCEPTED_AWAITING_THREE_CYCLES",
   "cycle_count": 0,
   "cycle_target": 3,
   "gates": [
-    {"name": "pytest", "result": "PASS", "detail": "1163 passed, 4 skipped"},
+    {"name": "pytest", "result": "PASS", "detail": "1173 passed, 4 skipped"},
     {"name": "ruff", "result": "PASS"},
     {"name": "mypy", "result": "PASS", "detail": "230 source files"},
     {"name": "web", "result": "PASS", "detail": "typecheck, production build, 6 Playwright tests"},
@@ -17,10 +17,14 @@
     {"name": "public-probes", "result": "PASS", "detail": "health, ready, version, DayView and Dashboard HTTP 200"},
     {"name": "release-identity", "result": "PASS", "detail": "API and Web exact implementation SHA"},
     {"name": "schema-and-artifacts", "result": "PASS", "detail": "Alembic current=head; readiness manifest valid"},
-    {"name": "provider-probe-delta", "result": "PASS", "detail": "719 to 719; delta 0"},
-    {"name": "runtime", "result": "PASS", "detail": "queue 0; restart/OOM/exit137 0; scheduler and watchdog active"},
-    {"name": "rss", "result": "PASS", "detail": "API RssAnon ratio 1.194 <= 1.20"},
-    {"name": "dashboard-layout", "result": "PASS", "detail": "original layout retained; data-only correction verified in browser"}
+    {"name": "repeat-capture", "result": "PASS", "detail": "3870 identical quote rows retained in each of two natural captures with distinct observation IDs"},
+    {"name": "frozen-rematerialization", "result": "PASS", "detail": "2 refreshed fixture artifacts atomically written before checkpoint completion"},
+    {"name": "freshness-projection", "result": "PASS", "detail": "odds captured_at advanced to 15:45:16Z; stale=false; quote identity COMPLETE"},
+    {"name": "provider-probe-delta", "result": "PASS", "detail": "734 to 734; delta 0"},
+    {"name": "business-write-delta", "result": "PASS", "detail": "locks, predictions, recommendations and settlements remained 0"},
+    {"name": "runtime", "result": "PASS", "detail": "queue 0; restart/OOM/exit137 0; watchdog active"},
+    {"name": "rss", "result": "PASS", "detail": "maximum RssAnon ratio 1.020 <= 1.20"},
+    {"name": "dashboard-layout", "result": "PASS", "detail": "original layout retained; page, odds and next-collection times separately labeled"}
   ],
   "validation": {
     "fixture_count": 23,
@@ -32,6 +36,16 @@
     "void": 0,
     "decisive_hit_rate": 0.7692307692307693,
     "canonical_settled_fixture_count": 12
+  },
+  "repeat_capture": {
+    "fixture_id": "1494704",
+    "previous_captured_at": "2026-07-18T15:00:29.957318Z",
+    "latest_captured_at": "2026-07-18T15:45:16.642207Z",
+    "identical_quote_rows": 3870,
+    "previous_distinct_observation_ids": 3870,
+    "latest_distinct_observation_ids": 3870,
+    "quote_freshness": "COMPLETE",
+    "stale": false
   },
   "next_eligible_cycle_at": "2026-07-19T09:00:00+08:00",
   "production_approved": false,

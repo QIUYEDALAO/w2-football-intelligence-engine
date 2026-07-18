@@ -2,6 +2,12 @@
 
 ## Result
 
+> Superseded candidate note: the repeated-capture freshness correction was
+> accepted later on 2026-07-18 as implementation
+> `94bcd62c67ed3fe50bba5ee65be10133556f83d0`. The cycle count remains `0/3`
+> and starts from that immutable implementation. See
+> [W2 repeated-capture freshness canary](W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md).
+
 Implementation SHA `7e4c0aea790f2bce678b4ab6a2d20ba51d583316` is the
 staging candidate for the three daily read-only acceptance cycles. The cycle
 count is `0/3`; the first eligible patrol is the real Beijing 09:00 patrol on

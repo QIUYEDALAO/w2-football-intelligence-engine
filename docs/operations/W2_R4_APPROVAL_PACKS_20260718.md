@@ -42,7 +42,7 @@ The user authorized read-only production after three consecutive real Beijing
 
 Current candidate:
 
-- implementation SHA: `7e4c0aea790f2bce678b4ab6a2d20ba51d583316`;
+- implementation SHA: `94bcd62c67ed3fe50bba5ee65be10133556f83d0`;
 - release identity, Alembic current/head and readiness artifacts: MATCH;
 - original Dashboard layout retained with corrected VALIDATION figures;
 - public-request provider delta 0, queue 0, restart/OOM/exit137 0;

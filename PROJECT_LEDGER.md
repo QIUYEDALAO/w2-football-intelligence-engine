@@ -299,13 +299,39 @@ Detailed evidence:
   target and explicit later approval remain required. RECOMMEND, lock and
   OFFICIAL are unchanged.
 - Read-only production has the user's conditional authorization after three
-  consecutive real Beijing 09:00 patrol PASS cycles on implementation SHA
-  `7e4c0ae`; current state remains `0/3` and not production approved.
+  consecutive real Beijing 09:00 patrol PASS cycles. The current immutable
+  implementation is `94bcd62`; state remains `0/3` and not production approved.
 - This documentation-only preparation does not rebuild staging and does not
   reset the cycle candidate.
 
 Detailed evidence:
 [W2 R4 approval packs](docs/operations/W2_R4_APPROVAL_PACKS_20260718.md).
+
+## 2026-07-18 — repeated quote capture and freshness correction
+
+- Final staging implementation `94bcd62c67ed3fe50bba5ee65be10133556f83d0`
+  retains a new append-only observation identity when a later authoritative
+  provider response repeats unchanged odds. It does not overwrite historical
+  `captured_at`, loosen the 30-minute gate or substitute page generation time.
+- Dashboard layout remains unchanged. Page update, odds confirmation and next
+  collection are separately labeled, and cache reuse is invalidated by a newer
+  fixture-scoped refresh watermark.
+- The natural 23:45 T-15 checkpoint proved all 3,870 quotes for fixture 1494704
+  were unchanged from 23:00 while all 3,870 new observation IDs remained
+  distinct. Both refreshed fixtures were rematerialized before checkpoint
+  completion.
+- The public card's odds field is no longer stale and its quote identity is
+  COMPLETE. Its current NOT_READY reason is the truthful, separate
+  `MARKET_UNAVAILABLE` condition; no pick, recommendation or lock was created.
+- Local gates passed with `1173 passed / 4 skipped`; all static, Web, browser,
+  acceptance and safety guards passed. Public probe provider delta and business
+  writes were zero; queue, restart/OOM/exit137 and RSS gates passed.
+- R3 remains `staging_accepted_awaiting_three_cycles`, reset to `0/3`; first
+  eligible patrol is 2026-07-19 09:00 Beijing. GitHub, champion,
+  RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
+
+Detailed evidence:
+[W2 repeated-capture freshness canary](docs/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md).
 
 ## Delivery rule
 

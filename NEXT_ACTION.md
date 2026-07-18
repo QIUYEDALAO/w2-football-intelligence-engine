@@ -2,28 +2,27 @@
 
 ## Current gate
 
-R2 is `staging_accepted` at local candidate
-`6f300d028939bb227683cc644461a7dc67988a77`. R3 is authorized only for
-append-only forward shadow evidence. No GitHub synchronization is authorized.
+R3 read-only candidate `94bcd62c67ed3fe50bba5ee65be10133556f83d0`
+is deployed on the existing public staging host. Repeated unchanged odds now
+retain separate append-only capture identities, refreshed fixtures are
+rematerialized before checkpoint completion, and the Dashboard invalidates its
+cache when the quote or collection watermark advances.
 
-## Next implementation
+The consecutive Beijing 09:00 read-only cycle count is `0/3`. The first eligible
+cycle is 2026-07-19. No GitHub synchronization is authorized.
 
-Build R3 without changing public decision authority:
+## Next execution
 
-1. Freeze fixture identity, quote provenance and settled outcome in an
-   append-only shadow ledger.
-2. Accumulate at least 200 canonical settled fixtures; report push separately
-   and exclude it from the decisive hit-rate denominator.
-3. Report coverage, missingness, stale rate, log loss, Brier/RPS, ECE,
-   research-only ROI, league/market strata and paired bootstrap intervals.
-4. Complete at least three consecutive acceptance cycles with artifact, provider,
-   model, queue, lock, RSS and restart/OOM evidence.
+1. Run the existing real staging read-only patrol at 09:00 Beijing on three
+   consecutive natural days without changing the implementation SHA or images.
+2. A data-contract, statistics or runtime correction resets the count to `0/3`;
+   pure copy changes do not.
+3. Continue append-only canonical settled-fixture accumulation toward 200. The
+   200-fixture threshold does not block the read-only Dashboard cycles and does
+   not automatically promote a model.
+4. After `3/3` PASS, record the same immutable candidate as read-only production
+   approved under the user's existing conditional authorization.
 
-Reaching 200 fixtures does not promote the candidate. Identity gaps, drift or
-insufficient evidence keep R3 in shadow. Champion, thresholds, league scope,
-RECOMMEND/lock, OFFICIAL and production remain unchanged until their separate R4
-human approval gates.
-
-No GitHub synchronization is authorized.
-The complete phase contract remains in
-[W2 V3 Correctness Recovery Plan](docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md).
+Champion, thresholds, league switches, RECOMMEND/lock and OFFICIAL remain
+unchanged and still require their independent R4 approvals. No GitHub fetch,
+pull, push or PR is authorized.
