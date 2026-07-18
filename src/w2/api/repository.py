@@ -947,7 +947,7 @@ class ReadModelService:
         self._formal_snapshots_by_fixture_cache: dict[str, list[dict[str, Any]]] | None = None
         self._formal_settlements_by_snapshot_cache: dict[str, dict[str, Any]] | None = None
         self._dashboard_response_cache: dict[
-            tuple[str, str, str, bool], tuple[float, dict[str, Any]]
+            tuple[str, str, str, bool, bool], tuple[float, dict[str, Any]]
         ] = {}
         self._bounded_public_request = False
         self._analysis_evaluation_time_override: datetime | None = None
@@ -1179,7 +1179,13 @@ class ReadModelService:
             if target_date
             else default_football_day(datetime.now(UTC))
         )
-        cache_key = (requested_date.isoformat(), window, timezone, include_debug)
+        cache_key = (
+            requested_date.isoformat(),
+            window,
+            timezone,
+            include_debug,
+            self._bounded_public_request,
+        )
         cached = self._dashboard_response_cache.get(cache_key)
         now = monotonic()
         if cached is not None:

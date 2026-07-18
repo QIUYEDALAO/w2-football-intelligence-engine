@@ -84,6 +84,20 @@ class CountingFutureFixtureRepository(FutureFixtureRepository):
         return super().fixture_payloads()
 
 
+class SplitPublicFixtureRepository(FutureFixtureRepository):
+    def public_release_counts(self, *, limit: int) -> dict[str, int]:
+        assert limit == 512
+        return {
+            "read_model_fixture_count": 0,
+            "matchday_card_count": 0,
+            "future_fixture_count": 1,
+            "result_event_count": 0,
+        }
+
+    def public_fixture_payloads(self, *, limit: int) -> list[dict[str, Any]]:
+        return self.fixture_payloads()[1:2][:limit]
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -413,6 +427,24 @@ def test_dashboard_reuses_short_lived_cache_for_same_window() -> None:
     assert len(first["all"]) == 1
     assert second == first
     assert repository.fixture_payload_calls == 1
+
+
+def test_unbounded_warm_cache_does_not_pollute_public_dashboard() -> None:
+    service = ReadModelService(repository=cast(Any, SplitPublicFixtureRepository()))
+
+    warmed = service.dashboard(
+        target_date="2026-06-26",
+        window="all",
+        include_debug=False,
+    )
+    public = service.public_dashboard(
+        target_date="2026-06-26",
+        window="all",
+        include_debug=False,
+    )
+
+    assert [card["fixture_id"] for card in warmed["all"]] == ["9001", "9002"]
+    assert [card["fixture_id"] for card in public["all"]] == ["9001"]
 
 
 def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
