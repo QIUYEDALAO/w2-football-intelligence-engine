@@ -935,15 +935,26 @@ class FutureFixtureRefreshService:
             return True, None
         try:
             if self.config.persistence == "db":
-                self._db_repository().save_raw_payload(
+                repository = self._db_repository()
+                repository.save_raw_payload(
                     sha256=payload_hash,
                     endpoint=endpoint,
                     captured_at=response.captured_at,
                     payload=payload,
                 )
+                if endpoint == "lineups":
+                    fixture_id = str(params.get("fixture") or "")
+                    if not fixture_id:
+                        return False, "LINEUP_FIXTURE_ID_MISSING"
+                    repository.save_lineup_snapshots(
+                        fixture_id=fixture_id,
+                        captured_at=response.captured_at,
+                        raw_sha256=payload_hash,
+                        payload=payload,
+                    )
             elif self.config.persistence == "file":
-                fixture_id = params.get("fixture")
-                suffix = f"_{fixture_id}" if fixture_id else ""
+                file_fixture_id = params.get("fixture")
+                suffix = f"_{file_fixture_id}" if file_fixture_id else ""
                 write_raw_once(
                     self.config.runtime_root / "raw" / f"{endpoint}{suffix}_{payload_hash}.json",
                     {
@@ -997,7 +1008,7 @@ class FutureFixtureRefreshService:
             return None
         if response_count == 0:
             return "PROVIDER_LINEUPS_EMPTY"
-        return "LINEUPS_MATERIALIZATION_MISSING"
+        return None if self.config.persistence == "db" else "LINEUPS_MATERIALIZATION_MISSING"
 
     def _provider_hard_cap_preflight(self) -> dict[str, Any]:
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)

@@ -23,6 +23,10 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.infrastructure.persistence.models import (
+    StructuredLineupPlayerModel,
+    StructuredLineupSnapshotModel,
+)
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -108,6 +112,90 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RAW_PAYLOAD_WRITE_FAILED") from exc
 
+    def save_lineup_snapshots(
+        self,
+        *,
+        fixture_id: str,
+        captured_at: datetime,
+        raw_sha256: str,
+        payload: dict[str, Any],
+    ) -> int:
+        response = payload.get("response")
+        if not isinstance(response, list):
+            raise FutureRefreshPersistenceError("LINEUP_RESPONSE_INVALID")
+        snapshots: list[tuple[StructuredLineupSnapshotModel, list[dict[str, Any]]]] = []
+        for team_row in response:
+            if not isinstance(team_row, dict):
+                continue
+            team = team_row.get("team")
+            team_id = str(team.get("id") or "") if isinstance(team, dict) else ""
+            if not team_id:
+                continue
+            starters = self._lineup_players(team_row.get("startXI"), starter=True)
+            substitutes = self._lineup_players(team_row.get("substitutes"), starter=False)
+            snapshots.append(
+                (
+                    StructuredLineupSnapshotModel(
+                        fixture_id=fixture_id,
+                        team_external_id=team_id,
+                        formation=str(team_row.get("formation") or "") or None,
+                        captured_at=captured_at,
+                        confirmed=len(starters) == 11,
+                        authoritative_status="COMPLETE" if len(starters) == 11 else "INCOMPLETE",
+                        raw_sha256=raw_sha256,
+                        schema_version="w2.structured_lineup.v1",
+                    ),
+                    [*starters, *substitutes],
+                )
+            )
+        if len(snapshots) < 2:
+            raise FutureRefreshPersistenceError("LINEUP_TEAMS_INCOMPLETE")
+        with Session(self.engine) as session:
+            try:
+                for snapshot, players in snapshots:
+                    session.add(snapshot)
+                    session.flush()
+                    for player in players:
+                        session.add(
+                            StructuredLineupPlayerModel(
+                                lineup_snapshot_id=snapshot.id,
+                                mapping_status="MISSING",
+                                **player,
+                            )
+                        )
+                session.commit()
+                return len(snapshots)
+            except IntegrityError:
+                session.rollback()
+                return 0
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_FAILED") from exc
+
+    @staticmethod
+    def _lineup_players(value: Any, *, starter: bool) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        players: list[dict[str, Any]] = []
+        for wrapper in value:
+            player = wrapper.get("player") if isinstance(wrapper, dict) else None
+            if not isinstance(player, dict) or player.get("id") is None:
+                continue
+            players.append(
+                {
+                    "api_football_player_id": str(player["id"]),
+                    "player_name": str(player.get("name") or ""),
+                    "starter": starter,
+                    "shirt_number": int(player["number"])
+                    if player.get("number") is not None
+                    else None,
+                    "provider_position": str(player.get("pos") or "") or None,
+                    "grid": str(player.get("grid") or "") or None,
+                    "captain": bool(player.get("captain", False)),
+                }
+            )
+        return players
+
     def append_observations(self, observations: list[dict[str, Any]]) -> int:
         try:
             models = [self._observation_model(row) for row in observations]
@@ -192,9 +280,7 @@ class FutureRefreshDbRepository:
                         side,
                     ),
                     order_by=(
-                        func.abs(
-                            cast(FutureMarketObservationModel.decimal_odds, Float) - 1.9
-                        ),
+                        func.abs(cast(FutureMarketObservationModel.decimal_odds, Float) - 1.9),
                         func.abs(cast(FutureMarketObservationModel.line, Float)),
                         FutureMarketObservationModel.selection,
                     ),
@@ -967,8 +1053,9 @@ class FutureRefreshDbRepository:
         try:
             with Session(self.engine) as session:
                 future_refresh_requests = session.scalar(
-                    select(func.coalesce(func.sum(FutureRefreshRunAuditModel.request_count), 0))
-                    .where(FutureRefreshRunAuditModel.generated_at >= since_utc)
+                    select(
+                        func.coalesce(func.sum(FutureRefreshRunAuditModel.request_count), 0)
+                    ).where(FutureRefreshRunAuditModel.generated_at >= since_utc)
                 )
                 provider_request_logs = session.scalar(
                     select(func.count())

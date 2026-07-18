@@ -265,6 +265,143 @@ class LineupModel(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class LineupSourceSnapshotModel(Base):
+    __tablename__ = "lineup_source_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source", "source_revision", "sha256", name="uq_lineup_source_snapshot"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_revision: Mapped[str] = mapped_column(String(128), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    object_uri: Mapped[str] = mapped_column(String(512), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PlayerIdentityMappingModel(Base):
+    __tablename__ = "player_identity_mappings"
+    __table_args__ = (
+        UniqueConstraint(
+            "api_football_player_id",
+            "team_external_id",
+            "valid_from",
+            name="uq_lineup_player_identity_validity",
+        ),
+        Index("ix_lineup_identity_transfermarkt", "transfermarkt_player_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    api_football_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transfermarkt_player_id: Mapped[str | None] = mapped_column(String(64))
+    team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    player_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_position: Mapped[str | None] = mapped_column(String(64))
+    transfermarkt_position: Mapped[str | None] = mapped_column(String(128))
+    mapping_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+
+
+class PlayerValuationObservationModel(Base):
+    __tablename__ = "player_valuation_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "transfermarkt_player_id",
+            "observed_at",
+            "source_sha256",
+            name="uq_player_valuation_observation",
+        ),
+        Index("ix_player_valuation_asof", "transfermarkt_player_id", "observed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    transfermarkt_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    market_value_eur: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class StructuredLineupSnapshotModel(Base):
+    __tablename__ = "structured_lineup_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "fixture_id", "team_external_id", "captured_at", name="uq_lineup_snapshot"
+        ),
+        Index("ix_lineup_snapshot_fixture", "fixture_id", "captured_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    formation: Mapped[str | None] = mapped_column(String(32))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    authoritative_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class StructuredLineupPlayerModel(Base):
+    __tablename__ = "structured_lineup_players"
+    __table_args__ = (
+        UniqueConstraint(
+            "lineup_snapshot_id", "api_football_player_id", name="uq_lineup_snapshot_player"
+        ),
+        Index("ix_lineup_player_snapshot", "lineup_snapshot_id", "starter"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    lineup_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("structured_lineup_snapshots.id"), nullable=False
+    )
+    api_football_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    player_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    starter: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    shirt_number: Mapped[int | None] = mapped_column(Integer)
+    provider_position: Mapped[str | None] = mapped_column(String(64))
+    grid: Mapped[str | None] = mapped_column(String(32))
+    captain: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    identity_mapping_id: Mapped[str | None] = mapped_column(
+        ForeignKey("player_identity_mappings.id")
+    )
+    mapping_status: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class TeamLineupBaselineModel(Base):
+    __tablename__ = "team_lineup_baselines"
+    __table_args__ = (
+        UniqueConstraint(
+            "team_external_id",
+            "competition_external_id",
+            "season",
+            "as_of_time",
+            name="uq_team_lineup_baseline_asof",
+        ),
+        Index("ix_team_lineup_baseline_lookup", "team_external_id", "as_of_time"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    competition_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    match_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    input_manifest: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    artifact_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class InjuryModel(Base):
     __tablename__ = "injuries"
     __table_args__ = (Index("ix_injuries_as_of_time", "as_of_time"),)

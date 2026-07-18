@@ -36,6 +36,10 @@ class SimulationInputs:
     home_squad_value_eur: float | None = None
     away_squad_value_eur: float | None = None
     lineup_strength_adjustment: float = 0.0
+    lineup_ah_adjustment: float = 0.0
+    lineup_totals_adjustment: float = 0.0
+    lineup_ah_evidence_enabled: bool = False
+    lineup_totals_evidence_enabled: bool = False
     lambda_sigma_home: float = 0.0
     lambda_sigma_away: float = 0.0
     neutral_site: bool = False
@@ -120,6 +124,10 @@ def run_simulation(
         home_squad_value_eur=inputs.home_squad_value_eur,
         away_squad_value_eur=inputs.away_squad_value_eur,
         lineup_strength_adjustment=inputs.lineup_strength_adjustment,
+        lineup_ah_adjustment=inputs.lineup_ah_adjustment,
+        lineup_totals_adjustment=inputs.lineup_totals_adjustment,
+        lineup_ah_evidence_enabled=inputs.lineup_ah_evidence_enabled,
+        lineup_totals_evidence_enabled=inputs.lineup_totals_evidence_enabled,
         apply_home_advantage=not inputs.neutral_site,
     )
     sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
