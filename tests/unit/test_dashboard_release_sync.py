@@ -98,6 +98,18 @@ class SplitPublicFixtureRepository(FutureFixtureRepository):
         return self.fixture_payloads()[1:2][:limit]
 
 
+class RefreshStatusRepository(FutureFixtureRepository):
+    def public_market_refresh_status(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        assert fixture_ids == ["9001"]
+        return {
+            "odds_last_confirmed_at": "2026-06-26T09:45:00Z",
+            "next_refresh_tick": "2026-06-26T09:55:00Z",
+        }
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -226,6 +238,16 @@ def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     assert today["debug"]["future_fixture_max_kickoff_utc"] == "2026-06-28T10:00:00Z"
     assert today["debug"]["next_available_date"] == "2026-06-26"
     assert len(all_payload["all"]) == 2
+
+
+def test_dashboard_exposes_distinct_page_quote_and_planned_refresh_times() -> None:
+    service = ReadModelService(repository=cast(Any, RefreshStatusRepository()))
+
+    payload = service.dashboard(target_date="2026-06-26", window="today")
+
+    assert payload["page_updated_at"] == payload["generated_at"]
+    assert payload["odds_last_confirmed_at"] == "2026-06-26T09:45:00Z"
+    assert payload["next_refresh_tick"] == "2026-06-26T09:55:00Z"
 
 
 def test_dashboard_future_window_uses_full_cards_not_index_rows(monkeypatch) -> None:

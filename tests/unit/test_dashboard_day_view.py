@@ -9,6 +9,9 @@ from w2.dashboard.day_view import build_dashboard_day_view
 def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None:
     payload = {
         "generated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
+        "page_updated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
+        "odds_last_confirmed_at": "2026-07-05T01:00:00Z",
+        "next_refresh_tick": "2026-07-05T01:15:00Z",
         "date": "2026-07-05",
         "selected_football_day": "2026-07-05",
         "timezone": "Asia/Shanghai",
@@ -102,6 +105,10 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
     assert view["counts"]["legacy_fallback"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
+    assert view["freshness"]["page_updated_at"] == "2026-07-05T01:02:00Z"
+    assert view["freshness"]["odds_last_confirmed_at"] == "2026-07-05T01:00:00Z"
+    assert view["freshness"]["next_refresh_tick"] == "2026-07-05T01:15:00Z"
+    assert view["freshness"]["last_refresh"] == view["freshness"]["page_updated_at"]
     assert view["freshness"]["data_status_summary"] == view["counts"]["by_data_status"]
     assert view["navigation"]["current_date"] == "2026-07-05"
     assert view["navigation"]["previous_date"] == "2026-07-04"

@@ -661,6 +661,8 @@ export interface DashboardDayViewCounts {
 }
 
 export interface DashboardDayViewFreshness {
+  page_updated_at?: string | null;
+  odds_last_confirmed_at?: string | null;
   last_refresh?: string | null;
   next_refresh_tick?: string | null;
   provider_budget_status?: string | null;

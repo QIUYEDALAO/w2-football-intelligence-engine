@@ -340,8 +340,14 @@ def _freshness(
     stale = int(data_status_summary.get(DataStatus.STALE.value, 0))
     blocked = int(data_status_summary.get(DataStatus.BLOCKED.value, 0))
     return {
+        "page_updated_at": _format_time(
+            _first(payload.get("page_updated_at"), payload.get("generated_at"))
+        ),
+        "odds_last_confirmed_at": _format_time(payload.get("odds_last_confirmed_at")),
+        # Kept for one compatibility window; it is explicitly the page time,
+        # never an odds timestamp.
         "last_refresh": _format_time(
-            _first(payload.get("last_refresh"), payload.get("generated_at"))
+            _first(payload.get("page_updated_at"), payload.get("generated_at"))
         ),
         "next_refresh_tick": _format_time(
             _first(

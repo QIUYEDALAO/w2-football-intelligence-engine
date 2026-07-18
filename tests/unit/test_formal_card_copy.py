@@ -113,6 +113,10 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "validation_fixture_count" in boss_view
     assert "outcomes_validation" in boss_view
     assert "VALIDATION ledger + outcome" in boss_view
+    assert "页面更新" in boss_view
+    assert "赔率确认" in boss_view
+    assert "下次采集" in boss_view
+    assert "最后刷新" not in boss_view
 
 
 def test_ah_display_helpers_use_home_team_view_contract() -> None:

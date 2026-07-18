@@ -699,6 +699,24 @@ class ReadModelRepository:
                     ]
         return []
 
+    def public_market_refresh_status(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids or len(ids) > 64:
+            return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "market_refresh_status_for_fixtures", None)
+            if db_repository is not None
+            else None
+        )
+        if callable(reader):
+            with suppress(Exception):
+                return cast(dict[str, str | None], reader(ids))
+        return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
 
@@ -1321,8 +1339,23 @@ class ReadModelService:
         performance["forward_ledger"] = forward_ledger_performance(RUNTIME)
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
+        refresh_reader = getattr(self.repository, "public_market_refresh_status", None)
+        visible_fixture_ids = [
+            str(card.get("fixture_id") or "")
+            for card in response_cards
+            if card.get("fixture_id")
+        ]
+        refresh_status = (
+            cast(dict[str, str | None], refresh_reader(visible_fixture_ids))
+            if callable(refresh_reader)
+            else {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        )
+        generated_at = datetime.now(UTC)
         payload = {
-            "generated_at": datetime.now(UTC),
+            "generated_at": generated_at,
+            "page_updated_at": generated_at,
+            "odds_last_confirmed_at": refresh_status.get("odds_last_confirmed_at"),
+            "next_refresh_tick": refresh_status.get("next_refresh_tick"),
             "date": requested_date.isoformat(),
             "selected_date": requested_date.isoformat(),
             "selected_football_day": requested_date.isoformat(),

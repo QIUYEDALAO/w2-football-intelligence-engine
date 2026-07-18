@@ -38,6 +38,8 @@ def parse_db_datetime(value: Any) -> datetime:
 
 
 def iso_z(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
@@ -699,6 +701,35 @@ class FutureRefreshDbRepository:
                 )
             )
         return [self._checkpoint_plan_dict(row) for row in rows]
+
+    def market_refresh_status_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids or len(ids) > 64:
+            return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        with Session(self.engine) as session:
+            odds_last_confirmed_at = session.scalar(
+                select(func.max(FutureMarketObservationModel.captured_at)).where(
+                    FutureMarketObservationModel.fixture_id.in_(ids),
+                    FutureMarketObservationModel.live.is_(False),
+                )
+            )
+            next_refresh_tick = session.scalar(
+                select(func.min(FutureRefreshCheckpointPlanModel.due_at)).where(
+                    FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
+                    FutureRefreshCheckpointPlanModel.status == "PENDING",
+                )
+            )
+        return {
+            "odds_last_confirmed_at": (
+                iso_z(odds_last_confirmed_at) if odds_last_confirmed_at is not None else None
+            ),
+            "next_refresh_tick": (
+                iso_z(next_refresh_tick) if next_refresh_tick is not None else None
+            ),
+        }
 
     def write_checkpoint_audit(
         self,

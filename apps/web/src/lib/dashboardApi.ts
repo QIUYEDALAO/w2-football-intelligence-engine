@@ -847,6 +847,8 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     db_writes: numberValue(record.db_writes),
     counts: normalizeCounts(record.counts),
     freshness: {
+      page_updated_at: textValue(freshness.page_updated_at) || null,
+      odds_last_confirmed_at: textValue(freshness.odds_last_confirmed_at) || null,
       last_refresh: textValue(freshness.last_refresh) || null,
       next_refresh_tick: textValue(freshness.next_refresh_tick) || null,
       provider_budget_status: textValue(freshness.provider_budget_status) || null,

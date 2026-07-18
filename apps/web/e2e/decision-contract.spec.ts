@@ -41,6 +41,8 @@ function dayView(scenario: Scenario) {
       blocked: !ready && scenario !== "STALE" ? 1 : 0,
     },
     freshness: {
+      page_updated_at: "2026-07-18T10:00:00Z",
+      odds_last_confirmed_at: "2026-07-18T09:55:00Z",
       last_refresh: "2026-07-18T10:00:00Z",
       next_refresh_tick: "2026-07-18T10:15:00Z",
       provider_budget_status: "PROTECTED",
@@ -170,6 +172,9 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
   await expect(row).toContainText("正式可锁");
   await expect(row).toContainText("1.91");
   await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 1");
+  await expect(page.locator(".boss-command-meta")).toContainText("页面更新 18:00");
+  await expect(page.locator(".boss-command-meta")).toContainText("赔率确认 17:55");
+  await expect(page.locator(".boss-command-meta")).toContainText("下次采集 18:15");
   const analysis = await page.evaluate(async () => {
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
     return response.json();

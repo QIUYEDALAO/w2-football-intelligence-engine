@@ -228,6 +228,70 @@ def test_observation_batch_validation_failure_writes_no_partial_rows(
     assert count == 0
 
 
+def test_later_confirmation_is_appended_and_selected_without_rewriting_history(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    first = observation_row("capture-one")
+    confirmed = {
+        **observation_row("capture-two"),
+        "captured_at": (NOW + timedelta(minutes=45)).isoformat(),
+        "ingested_at": (NOW + timedelta(minutes=45)).isoformat(),
+    }
+
+    assert repository.append_observations([first]) == 1
+    assert repository.append_observations([first]) == 0
+    assert repository.append_observations([confirmed]) == 1
+
+    latest = repository.latest_market_observations_for_fixtures(["fixture"])
+    assert [row["observation_id"] for row in latest] == ["capture-two"]
+    assert latest[0]["captured_at"] == "2026-06-23T10:45:00Z"
+    with Session(repository.engine) as session:
+        rows = list(
+            session.scalars(
+                select(FutureMarketObservationModel).order_by(
+                    FutureMarketObservationModel.captured_at
+                )
+            )
+        )
+    assert [row.observation_id for row in rows] == ["capture-one", "capture-two"]
+
+
+def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    observation = {
+        **observation_row("confirmed"),
+        "captured_at": (NOW + timedelta(minutes=5)).isoformat(),
+    }
+    plan = {
+        "id": "fixture:T15",
+        "fixture_id": "fixture",
+        "checkpoint": "T15",
+        "kickoff_utc": NOW + timedelta(hours=1),
+        "due_at": NOW + timedelta(minutes=45),
+        "endpoints": ["odds"],
+        "source": "scheduled",
+        "status": "PENDING",
+    }
+    assert repository.append_observations([observation]) == 1
+    assert repository.upsert_checkpoint_plans([plan]) == 1
+
+    assert repository.market_refresh_status_for_fixtures(["fixture"]) == {
+        "odds_last_confirmed_at": "2026-06-23T10:05:00Z",
+        "next_refresh_tick": "2026-06-23T10:45:00Z",
+    }
+    assert repository.market_refresh_status_for_fixtures([]) == {
+        "odds_last_confirmed_at": None,
+        "next_refresh_tick": None,
+    }
+
+
 def test_db_persistence_allows_retry_after_blocked_task_key(
     tmp_path: Path,
     monkeypatch: Any,

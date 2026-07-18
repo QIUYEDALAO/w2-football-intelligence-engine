@@ -547,6 +547,12 @@ def observations_from_odds_payload(
                         "line": line,
                         "decimal_odds": decimal_odds,
                         "raw_payload_sha256": raw_hash,
+                        # A quote observed again in a later provider response is a
+                        # new authoritative capture even when its business value
+                        # and payload hash are unchanged. Keeping the response
+                        # timestamp in the identity preserves append-only history
+                        # while replaying the same response remains idempotent.
+                        "captured_at": captured_at,
                     }
                     observation_id = sha256_payload(identity)
                     rows.append(

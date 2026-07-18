@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,7 @@ from w2.ingestion.future_refresh import (
     parse_line,
     run_future_refresh_task,
 )
+from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -278,6 +279,136 @@ def test_odds_payload_records_split_totals_line_as_quarter_line() -> None:
     totals_rows = [row for row in rows if row["canonical_market"] == "TOTALS"]
     assert {row["line"] for row in totals_rows} == {"2.25"}
     assert {row["decimal_odds"] for row in totals_rows} == {"2.03", "1.85"}
+
+
+def test_unchanged_odds_reobserved_later_get_new_append_only_capture_identity() -> None:
+    client = FakeApiFootballClient()
+    payload = client.payload("odds", {"fixture": "1489404"})
+    first_response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=NOW,
+    )
+    confirmed_at = NOW + timedelta(minutes=45)
+    second_response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=confirmed_at,
+    )
+
+    first = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=first_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+    replay = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=first_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+    confirmed = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=second_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+
+    assert [row["observation_id"] for row in replay] == [
+        row["observation_id"] for row in first
+    ]
+    assert {row["observation_id"] for row in first}.isdisjoint(
+        row["observation_id"] for row in confirmed
+    )
+    assert {row["captured_at"] for row in first} == {
+        NOW.isoformat().replace("+00:00", "Z")
+    }
+    assert {row["captured_at"] for row in confirmed} == {
+        confirmed_at.isoformat().replace("+00:00", "Z")
+    }
+
+
+def test_unchanged_ah_odds_later_confirmation_restores_complete_freshness() -> None:
+    payload = {
+        "response": [
+            {
+                "fixture": {"id": 1489404},
+                "bookmakers": [
+                    {
+                        "id": 1,
+                        "name": "Book A",
+                        "bets": [
+                            {
+                                "id": 4,
+                                "name": "Asian Handicap",
+                                "values": [
+                                    {"value": "Home -0.5", "odd": "1.91"},
+                                    {"value": "Away +0.5", "odd": "1.97"},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    def observations_at(captured_at: datetime) -> list[dict[str, Any]]:
+        response = LiveApiFootballResponse(
+            endpoint="odds",
+            params={"fixture": "1489404"},
+            status_code=200,
+            elapsed_ms=7,
+            payload=payload,
+            headers={},
+            captured_at=captured_at,
+        )
+        return observations_from_odds_payload(
+            fixture_id="1489404",
+            payload=payload,
+            response=response,
+            source_revision="test",
+            raw_payload_sha256="same-payload-hash",
+        )
+
+    first_rows = observations_at(NOW)
+    confirmed_at = NOW + timedelta(minutes=45)
+    confirmed_rows = observations_at(confirmed_at)
+
+    def freshness(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        by_selection = {str(row["selection"]).split()[0].lower(): row for row in rows}
+        identity = project_quote_identity(
+            market="ASIAN_HANDICAP",
+            selected_line="-0.5",
+            authoritative_rows={
+                "home": by_selection["home"],
+                "away": by_selection["away"],
+            },
+        )
+        return evaluate_quote_freshness(
+            identity,
+            evaluated_at=confirmed_at + timedelta(minutes=1),
+        )
+
+    assert freshness(first_rows)["freshness_status"] == "STALE"
+    confirmed_freshness = freshness(confirmed_rows)
+    assert confirmed_freshness["freshness_status"] == "COMPLETE"
+    assert confirmed_freshness["age_seconds"] == 60
+    assert {row["raw_payload_sha256"] for row in confirmed_rows} == {
+        "same-payload-hash"
+    }
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):
