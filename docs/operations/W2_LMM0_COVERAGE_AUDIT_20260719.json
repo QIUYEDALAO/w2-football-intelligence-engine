@@ -1,0 +1,46 @@
+{
+  "schema_version": "w2.lmm0.coverage.v1",
+  "observed_at": "2026-07-19T00:00:00Z",
+  "source": "staging_read_only_aggregate",
+  "source_aggregate_sha256": "a517ad6e513f2ce96377bafd8cb0dc726a358e9595f4a7941adbfa1415d67256",
+  "provider_calls_this_audit": 0,
+  "db_writes": 0,
+  "raw_payload_printed": false,
+  "staging": {
+    "raw_lineup_snapshots": 132,
+    "fixture_count": 91,
+    "team_snapshot_count": 60,
+    "starter_row_count": 660,
+    "position_covered_count": 660,
+    "formation_covered_count": 60,
+    "complete_22_snapshot_count": 30,
+    "latest_lineup_capture_at": "2026-07-18T15:00:32.396079Z"
+  },
+  "transfermarkt": {
+    "dataset_status": "AVAILABLE_FROM_VERSIONED_R2_SNAPSHOT_NOT_YET_IMPORTED",
+    "players_snapshot_sha256": "921f986c8e6ddae235783440ee01725547120473e7e92b2c232780c5c521766a",
+    "players_snapshot_last_modified": "2026-07-11",
+    "registered_player_denominator": null,
+    "regular_starter_denominator": null,
+    "latest_world_cup_starter_count": 638,
+    "unique_name_candidate_count": 505,
+    "unique_name_candidate_rate": 0.791536,
+    "valuation_candidate_count": 403,
+    "valuation_candidate_rate": 0.631661,
+    "identity_conflict_count": 20,
+    "team_scoped_identity_mapped_count": 0
+  },
+  "league_grades": {
+    "allsvenskan": "C",
+    "brasileirao_serie_a": "C",
+    "chinese_super_league": "C",
+    "eliteserien": "C",
+    "world_cup_2026": "C"
+  },
+  "status": "PARTIAL_HARD_GATE_PENDING",
+  "blockers": [
+    "TRANSFERMARKT_DATASET_NOT_IMPORTED",
+    "PLAYER_IDENTITY_MAPPING_NOT_MATERIALIZED",
+    "PLAYER_VALUATION_OBSERVATIONS_NOT_MATERIALIZED"
+  ]
+}
