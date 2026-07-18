@@ -12,6 +12,7 @@ REDIS="${PROJECT}-redis"
 API="${PROJECT}-api"
 VOLUME="${PROJECT}-postgres-data"
 TMP_DIR="$(mktemp -d)"
+chmod 0755 "${TMP_DIR}"
 MANIFEST="${TMP_DIR}/staging.v1.json"
 READY_BODY="${TMP_DIR}/ready.json"
 LEGACY_BODY="${TMP_DIR}/legacy-ready.json"
@@ -118,6 +119,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 expect_ready
+echo "readiness_baseline=PASS"
 
 legacy_status="$(curl -sS -D "${LEGACY_HEADERS}" -o "${LEGACY_BODY}" -w '%{http_code}' \
   "http://127.0.0.1:${PORT}/v1/ready")"
@@ -125,6 +127,7 @@ legacy_status="$(curl -sS -D "${LEGACY_HEADERS}" -o "${LEGACY_BODY}" -w '%{http_
 cmp -s "${READY_BODY}" "${LEGACY_BODY}"
 grep -qi '^Deprecation: true' "${LEGACY_HEADERS}"
 grep -qi '^Link: </ready>; rel="canonical"' "${LEGACY_HEADERS}"
+echo "readiness_alias=PASS"
 
 docker stop "${POSTGRES}" >/dev/null
 [[ "$(http_status /health "${TMP_DIR}/health.json")" == "200" ]]
@@ -132,12 +135,14 @@ expect_not_ready database
 docker start "${POSTGRES}" >/dev/null
 wait_postgres
 expect_ready
+echo "readiness_database_fault=PASS"
 
 docker stop "${REDIS}" >/dev/null
 expect_not_ready redis
 docker start "${REDIS}" >/dev/null
 wait_redis
 expect_ready
+echo "readiness_redis_fault=PASS"
 
 docker exec "${POSTGRES}" psql -U w2_user -d w2 -v ON_ERROR_STOP=1 -q \
   -c "update alembic_version set version_num='0022_extend_recommendation_lock_snapshot'"
@@ -145,16 +150,19 @@ expect_not_ready schema
 docker exec "${POSTGRES}" psql -U w2_user -d w2 -v ON_ERROR_STOP=1 -q \
   -c "update alembic_version set version_num='0023_create_checkpoint_refresh_schedule'"
 expect_ready
+echo "readiness_schema_fault=PASS"
 
 sed -E -i '0,/"sha256": "[0-9a-f]{64}"/s//"sha256": "0000000000000000000000000000000000000000000000000000000000000000"/' \
   "${MANIFEST}"
 expect_not_ready artifacts
 cp "${ROOT}/config/readiness/staging.v1.json" "${MANIFEST}"
 expect_ready
+echo "readiness_artifact_fault=PASS"
 
 chmod 0000 "${RUNTIME_SOURCE}"
 expect_not_ready mounts
 chmod "${RUNTIME_MODE}" "${RUNTIME_SOURCE}"
 expect_ready
+echo "readiness_mount_fault=PASS"
 
 echo "canonical_readiness_fault_injection PASS"
