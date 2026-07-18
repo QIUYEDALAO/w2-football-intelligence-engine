@@ -80,6 +80,30 @@ fi
 rm -f /tmp/check_compose_staging_ports.py
 "
 
+# Preserve the exact accepted image indexes before the fixed staging tags move.
+echo "--- Preserving rollback image identities ---"
+ssh "${SSH_HOST}" "
+set -euo pipefail
+ROLLBACK_TARGET=\"\$(readlink -f /opt/w2/current)\"
+ROLLBACK_REVISION=\"\$(basename \"\${ROLLBACK_TARGET}\")\"
+printf '%s\n' \"\${ROLLBACK_REVISION}\" | grep -Eq '^[0-9a-f]{40}$'
+cd \"\${ROLLBACK_TARGET}\"
+for service in api worker scheduler web; do
+  container_id=\"\$(sudo docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml ps -aq \"\${service}\")\"
+  test -n \"\${container_id}\"
+  image_id=\"\$(sudo docker inspect --format='{{.Image}}' \"\${container_id}\")\"
+  sudo docker image inspect \"\${image_id}\" >/dev/null
+  rollback_tag=\"w2-staging-\${service}:rollback-\${ROLLBACK_REVISION}\"
+  sudo docker image tag \"\${image_id}\" \"\${rollback_tag}\"
+  test \"\$(sudo docker image inspect --format='{{.Id}}' \"\${rollback_tag}\")\" = \"\${image_id}\"
+done
+migration_id=\"\$(sudo docker image inspect --format='{{.Id}}' w2-staging-migration:latest)\"
+migration_tag=\"w2-staging-migration:rollback-\${ROLLBACK_REVISION}\"
+sudo docker image tag \"\${migration_id}\" \"\${migration_tag}\"
+test \"\$(sudo docker image inspect --format='{{.Id}}' \"\${migration_tag}\")\" = \"\${migration_id}\"
+echo \"rollback images preserved for \${ROLLBACK_REVISION}\"
+"
+
 # ── Step 5b: Atomically switch current ──────────────────────
 echo "--- Switching /opt/w2/current -> ${REVISION} ---"
 ssh "${SSH_HOST}" "

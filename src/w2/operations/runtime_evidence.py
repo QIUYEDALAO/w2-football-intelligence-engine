@@ -44,25 +44,32 @@ def _container_evidence(
         raise ValueError("docker inspect state is unavailable")
     health = state.get("Health")
     health_status = health.get("Status") if isinstance(health, dict) else "unavailable"
-    rss_text = runner(
-        [
-            "docker",
-            "exec",
-            container_id,
-            "sh",
-            "-c",
-            "awk '/^RssAnon:/ {sum += $2} END {print sum * 1024}' "
-            "/proc/[0-9]*/status 2>/dev/null",
-        ]
-    )
+    status = str(state.get("Status") or "unknown")
+    rss_bytes: int | None = None
+    rss_status = "UNAVAILABLE_NOT_RUNNING"
+    if status == "running":
+        rss_text = runner(
+            [
+                "docker",
+                "exec",
+                container_id,
+                "sh",
+                "-c",
+                "awk '/^RssAnon:/ {sum += $2} END {print sum * 1024}' "
+                "/proc/[0-9]*/status 2>/dev/null",
+            ]
+        )
+        rss_bytes = int(rss_text)
+        rss_status = "AVAILABLE"
     return {
         "container_id": container_id,
-        "status": str(state.get("Status") or "unknown"),
+        "status": status,
         "health": str(health_status or "unavailable"),
         "restart_count": int(inspection[0].get("RestartCount") or 0),
         "oom_killed": state.get("OOMKilled") is True,
         "exit_code": int(state.get("ExitCode") or 0),
-        "rss_bytes": int(rss_text),
+        "rss_bytes": rss_bytes,
+        "rss_status": rss_status,
     }
 
 

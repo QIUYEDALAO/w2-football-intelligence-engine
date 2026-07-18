@@ -12,7 +12,9 @@ from w2.operations.runtime_evidence import (
 )
 
 
-def fake_runner_factory(*, restart_api: int = 0, oom_worker: bool = False):  # type: ignore[no-untyped-def]
+def fake_runner_factory(  # type: ignore[no-untyped-def]
+    *, restart_api: int = 0, oom_worker: bool = False, stopped_scheduler: bool = False
+):
     ids = {
         "api": "a" * 12,
         "worker": "b" * 12,
@@ -26,15 +28,16 @@ def fake_runner_factory(*, restart_api: int = 0, oom_worker: bool = False):  # t
         if command[:2] == ["docker", "inspect"]:
             container_id = command[-1]
             service = next(name for name, value in ids.items() if value == container_id)
+            stopped = service == "scheduler" and stopped_scheduler
             return json.dumps(
                 [
                     {
                         "RestartCount": restart_api if service == "api" else 0,
                         "State": {
-                            "Status": "running",
-                            "Health": {"Status": "healthy"},
+                            "Status": "exited" if stopped else "running",
+                            "Health": {"Status": "unhealthy" if stopped else "healthy"},
                             "OOMKilled": oom_worker and service == "worker",
-                            "ExitCode": 0,
+                            "ExitCode": 143 if stopped else 0,
                         },
                     }
                 ]
@@ -90,6 +93,23 @@ def test_runtime_evidence_fails_on_restart_oom_and_missing_metric() -> None:
     assert "worker:oom_killed" in payload["failures"]
     assert "checkpoint_lag:unavailable" in payload["failures"]
     assert parse_checkpoint_lag("w2_checkpoint_lag_seconds 1.5\n") == 1.5
+
+
+def test_runtime_evidence_does_not_exec_stopped_scheduler_for_rss() -> None:
+    payload = capture_runtime_evidence(
+        compose_prefix=("docker", "compose"),
+        services=("api", "worker", "scheduler", "web"),
+        baseline=baseline(),
+        scheduler_expected="stopped",
+        metrics_text="w2_checkpoint_lag_seconds 42\n",
+        runner=fake_runner_factory(stopped_scheduler=True),
+    )
+
+    assert payload["result"] == "PASS"
+    scheduler = payload["services"]["scheduler"]
+    assert scheduler["status"] == "exited"
+    assert scheduler["rss_bytes"] is None
+    assert scheduler["rss_status"] == "UNAVAILABLE_NOT_RUNNING"
 
 
 def test_metrics_probe_rejects_non_loopback_network() -> None:

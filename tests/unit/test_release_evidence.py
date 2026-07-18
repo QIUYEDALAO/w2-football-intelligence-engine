@@ -140,6 +140,9 @@ def test_staging_deploy_captures_real_image_id_without_faking_digest() -> None:
 
     assert "docker image inspect --format='{{.Id}}' w2-staging-api:latest" in script
     assert "images -q api" not in script
+    assert r"rollback-\${ROLLBACK_REVISION}" in script
+    assert "docker image tag" in script
+    assert "rollback images preserved" in script
     assert "W2_API_IMAGE_ID=" in script
     assert "W2_API_OCI_DIGEST=" not in script
     assert "W2_API_REGISTRY_DIGEST=" not in script
