@@ -5637,10 +5637,6 @@ class ReadModelService:
                 readiness=analysis_readiness,
                 fixture_status=normalize_match_status(row.get("status")),
             )
-        scoreline_reference = scoreline_reference_from_card(
-            card,
-            recommendation=recommendation,
-        )
         validation = validate_recommendation(
             fixture_id=fixture_id,
             recommendation=recommendation,
@@ -5699,6 +5695,20 @@ class ReadModelService:
                 if kickoff_for_contract is not None
                 else {}
             )
+        decision_pick = decision_contract.get("pick")
+        scoreline_decision = (
+            {
+                **cast(dict[str, Any], decision_pick),
+                "tier": decision_contract.get("decision_tier"),
+            }
+            if isinstance(decision_pick, dict)
+            and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
+            else None
+        )
+        scoreline_reference = scoreline_reference_from_card(
+            card,
+            recommendation=scoreline_decision,
+        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),

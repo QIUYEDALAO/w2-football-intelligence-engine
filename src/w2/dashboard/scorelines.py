@@ -78,31 +78,33 @@ def _direction_top3_scorelines(
 ) -> list[dict[str, Any]]:
     if not isinstance(recommendation, dict):
         return []
-    if recommendation.get("market") != "ASIAN_HANDICAP":
+    if recommendation.get("tier") not in {
+        "ANALYSIS_PICK",
+        "RECOMMEND",
+        "FORMAL",
+    } and not recommendation.get("formal_recommendation"):
         return []
-    if recommendation.get("tier") != "FORMAL" and not recommendation.get("formal_recommendation"):
-        return []
+    market = str(recommendation.get("market") or "")
     selection = str(recommendation.get("selection") or "")
     selected_line = _number(recommendation.get("line"))
     lambda_home = _number(simulation.get("lambda_home"))
     lambda_away = _number(simulation.get("lambda_away"))
-    if selected_line is None or lambda_home is None or lambda_away is None:
+    if lambda_home is None or lambda_away is None:
         return []
-    if selection == "HOME_AH":
-        side = "HOME"
-        home_line = selected_line
-    elif selection == "AWAY_AH":
-        side = "AWAY"
-        home_line = -selected_line
-    else:
+    if market == "ASIAN_HANDICAP" and selected_line is None:
+        return []
+    if market == "TOTALS" and selected_line is None:
+        return []
+    if market not in {"ASIAN_HANDICAP", "TOTALS", "ONE_X_TWO", "1X2"}:
         return []
 
     matches: list[dict[str, Any]] = []
     for home in range(0, 11):
         for away in range(0, 11):
-            outcome = _ah_outcome_for_scoreline(
-                side=side,
-                home_line=home_line,
+            outcome = _recommended_outcome_for_scoreline(
+                market=market,
+                selection=selection,
+                line=selected_line,
                 home_goals=home,
                 away_goals=away,
             )
@@ -122,10 +124,59 @@ def _direction_top3_scorelines(
                     "selection": selection,
                     "line": selected_line,
                     "outcome": outcome,
-                    "source": "formal_simulation_direction_top3",
+                    "source": "decision_simulation_direction_top3",
                 }
             )
     return sorted(matches, key=lambda item: float(item["probability"]), reverse=True)[:3]
+
+
+def _recommended_outcome_for_scoreline(
+    *,
+    market: str,
+    selection: str,
+    line: float | None,
+    home_goals: int,
+    away_goals: int,
+) -> str:
+    if market == "ASIAN_HANDICAP" and line is not None:
+        if selection == "HOME_AH":
+            side = "HOME"
+            home_line = line
+        elif selection == "AWAY_AH":
+            side = "AWAY"
+            home_line = -line
+        else:
+            return "LOSS"
+        return _ah_outcome_for_scoreline(
+            side=side,
+            home_line=home_line,
+            home_goals=home_goals,
+            away_goals=away_goals,
+        )
+    if market == "TOTALS" and line is not None:
+        total_goals = home_goals + away_goals
+        if selection == "OVER":
+            adjustments = [total_goals - part for part in _quarter_line_parts(line)]
+        elif selection == "UNDER":
+            adjustments = [part - total_goals for part in _quarter_line_parts(line)]
+        else:
+            return "LOSS"
+        outcomes = [_single_ah_outcome(value) for value in adjustments]
+        if outcomes[0] == outcomes[1]:
+            return outcomes[0]
+        if set(outcomes) == {"WIN", "PUSH"}:
+            return "HALF_WIN"
+        if set(outcomes) == {"LOSS", "PUSH"}:
+            return "HALF_LOSS"
+        return "PUSH"
+    if market in {"ONE_X_TWO", "1X2"}:
+        if selection == "HOME":
+            return "WIN" if home_goals > away_goals else "LOSS"
+        if selection == "AWAY":
+            return "WIN" if away_goals > home_goals else "LOSS"
+        if selection == "DRAW":
+            return "WIN" if home_goals == away_goals else "LOSS"
+    return "LOSS"
 
 
 def _simulation_from_card(card: dict[str, Any]) -> dict[str, Any] | None:
@@ -277,9 +328,7 @@ def _ah_key_scorelines(
             continue
         settlement_probability = totals.get(outcome)
         item["settlement_probability"] = (
-            round(settlement_probability, 6)
-            if settlement_probability is not None
-            else None
+            round(settlement_probability, 6) if settlement_probability is not None else None
         )
         item["settlement_probability_label"] = _probability_label(None, settlement_probability)
         ordered.append(item)

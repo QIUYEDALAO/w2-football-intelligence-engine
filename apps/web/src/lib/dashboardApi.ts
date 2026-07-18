@@ -417,11 +417,15 @@ function normalizeScorelinePick(payload: unknown) {
 function normalizeScorelineReference(payload: unknown) {
   const record = asRecord(payload);
   const source = textValue(record.source);
-  if (!source && !record.top_scorelines && !record.high_total && !record.ah_key_scorelines) return null;
+  if (!source && !record.top_scorelines && !record.direction_top3 && !record.high_total && !record.ah_key_scorelines) return null;
   return {
     source: source || null,
     label: textValue(record.label) || null,
     top_scorelines: asArray(record.top_scorelines).map(normalizeScorelinePick).filter((row) => row.scoreline),
+    direction_top3: asArray(record.direction_top3).map((item) => ({
+      ...asRecord(item),
+      ...normalizeScorelinePick(item),
+    })).filter((row) => row.scoreline),
     high_total: Object.keys(asRecord(record.high_total)).length ? asRecord(record.high_total) : null,
     very_high_total: Object.keys(asRecord(record.very_high_total)).length ? asRecord(record.very_high_total) : null,
     ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) => asRecord(item)),

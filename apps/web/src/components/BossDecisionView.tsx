@@ -156,22 +156,14 @@ function l1OneLiner(card: DashboardDayViewCard): string {
 }
 
 function scorelineSimulationSummary(card: DashboardDayViewCard): string {
-  if (card.scoreline_readiness?.status === "READY" && card.scoreline_picks.length > 0) {
-    const simulationLabel = card.scoreline_simulations === 10000
-      ? "1万次模拟比分"
-      : card.scoreline_simulations
-        ? `${card.scoreline_simulations.toLocaleString("zh-CN")}次模拟比分`
-        : "模拟比分参考";
-    const scores = card.scoreline_picks.slice(0, 3).map((pick) => {
-      const probability = (pick.probability_label ?? "").trim();
-      return probability ? `${pick.scoreline}（${probability}）` : pick.scoreline;
-    });
-    return `${simulationLabel}：${scores.join(" · ")}`;
+  if (!card.pick || !["ANALYSIS_PICK", "RECOMMEND"].includes(card.decision_tier)) {
+    return "尚未形成推荐盘口，暂无推荐比分";
   }
-  if (card.scoreline_readiness?.status === "INSUFFICIENT_INDEPENDENT_XG") {
-    return "比分模拟输入不足，待数据更新";
+  const scores = card.scoreline_reference?.direction_top3?.slice(0, 3) ?? [];
+  if (card.scoreline_readiness?.status === "READY" && scores.length > 0) {
+    return `推荐比分：${scores.map((pick) => pick.scoreline).join(" · ")}`;
   }
-  return "比分模拟待更新";
+  return "已有推荐盘口，推荐比分暂不可用";
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
@@ -575,11 +567,11 @@ function countdownLabel(card: DashboardDayViewCard, now: Date): string {
 }
 
 function rowMarketSummary(card: DashboardDayViewCard): string {
-  if (card.pick) return marketPickLabel(card);
+  if (card.pick) return `推荐盘口：${marketPickLabel(card)}`;
   const odds = oddsSummary(card);
-  if (odds) return odds.split(" · ")[0] ?? odds;
+  if (odds) return `当前市场盘口（非推荐）：${odds.split(" · ")[0] ?? odds}`;
   const historical = lastKnownOddsSummary(card);
-  if (historical) return historical.split(" · ")[0] ?? historical;
+  if (historical) return `市场早盘（非推荐）：${historical.split(" · ")[0] ?? historical}`;
   return visibleReasonLabel(card);
 }
 

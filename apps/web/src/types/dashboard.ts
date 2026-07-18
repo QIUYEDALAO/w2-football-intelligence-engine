@@ -239,6 +239,12 @@ export interface ScorelineReference {
   source?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
+  direction_top3?: Array<ScorelinePick & {
+    selection?: string | null;
+    line?: string | number | null;
+    outcome?: string | null;
+    source?: string | null;
+  }>;
   high_total?: {
     threshold?: number;
     probability?: number | null;

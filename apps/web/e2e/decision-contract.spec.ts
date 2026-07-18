@@ -96,7 +96,15 @@ function dayView(scenario: Scenario) {
           { scoreline: "1-1", home_goals: 1, away_goals: 1, probability: 0.11, probability_label: "11%" },
           { scoreline: "2-0", home_goals: 2, away_goals: 0, probability: 0.09, probability_label: "9%" },
         ],
-        scoreline_reference: { source: "formal_simulation", label: "模拟比分参考" },
+        scoreline_reference: {
+          source: "formal_simulation",
+          label: "模拟比分参考",
+          direction_top3: [
+            { scoreline: "1-0", home_goals: 1, away_goals: 0, probability: 0.12, probability_label: "12%" },
+            { scoreline: "2-0", home_goals: 2, away_goals: 0, probability: 0.09, probability_label: "9%" },
+            { scoreline: "2-1", home_goals: 2, away_goals: 1, probability: 0.08, probability_label: "8%" },
+          ],
+        },
         scoreline_readiness: { status: "READY", source: "formal_simulation" },
         scoreline_simulations: 10000,
         diagnostics: {
@@ -209,7 +217,9 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
   const row = page.locator("article.decision-row").filter({ hasText: "READY Home" });
   await expect(row).toContainText("正式可锁");
   await expect(row).toContainText("1.91");
-  await expect(row).toContainText("1万次模拟比分：1-0（12%） · 1-1（11%） · 2-0（9%）");
+  await expect(row).toContainText("推荐盘口：让球 主 -0.5 @1.91");
+  await expect(row).toContainText("推荐比分：1-0 · 2-0 · 2-1");
+  await expect(row).not.toContainText("1万次模拟");
   await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 1");
   await expect(page.locator(".boss-command-meta")).toContainText("页面更新 18:00");
   await expect(page.locator(".boss-command-meta")).toContainText("赔率确认 17:55");
@@ -258,8 +268,9 @@ test("stored early odds remain visible as reference while waiting for the premat
   const row = page.locator("article.decision-row").filter({ hasText: "STALE Home" });
   const visibleRow = row.locator(".decision-row-button");
   await expect(visibleRow).toContainText("已有早盘·待临场更新");
-  await expect(visibleRow).toContainText("1万次模拟比分：1-0（12%） · 1-1（11%） · 2-0（9%）");
-  await expect(visibleRow).toContainText("让球 主 -0.5 @1.82 / 客 +0.5 @1.86");
+  await expect(visibleRow).toContainText("尚未形成推荐盘口，暂无推荐比分");
+  await expect(visibleRow).not.toContainText("1万次模拟");
+  await expect(visibleRow).toContainText("市场早盘（非推荐）：让球 主 -0.5 @1.82 / 客 +0.5 @1.86");
   await expect(visibleRow).toContainText("已过期，仅参考");
   await expect(visibleRow).not.toContainText("数据陈旧");
   await expect(page.locator(".health-strip")).toContainText("赛前数据持续更新");
