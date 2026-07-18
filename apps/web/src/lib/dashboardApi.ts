@@ -118,8 +118,20 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const analysisShadow = asRecord(record.analysis_shadow);
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
+  const validationOutcomes = asRecord(forwardLedger.outcomes_validation);
+  const officialOutcomes = asRecord(forwardLedger.outcomes);
+  const shadowOutcomes = asRecord(forwardLedger.outcomes_shadow);
+  const evidenceWindow = asRecord(forwardLedger.evidence_window);
   const bucket = (row: Record<string, unknown>) => ({
     sample_size: numberValue(row.sample_size),
+    hit_count: numberValue(row.hit_count),
+    miss_count: numberValue(row.miss_count),
+    push_count: numberValue(row.push_count),
+    void_count: numberValue(row.void_count),
+    hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+  });
+  const outcomeSummary = (row: Record<string, unknown>) => ({
+    settled_sample_count: numberValue(row.settled_sample_count),
     hit_count: numberValue(row.hit_count),
     miss_count: numberValue(row.miss_count),
     push_count: numberValue(row.push_count),
@@ -179,6 +191,22 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       push_count: numberValue(forwardLedger.push_count),
       void_count: numberValue(forwardLedger.void_count),
       hit_rate: typeof forwardLedger.hit_rate === "number" ? forwardLedger.hit_rate : null,
+      validation_fixture_count: numberValue(forwardLedger.validation_fixture_count),
+      validation_settled_fixture_count: numberValue(forwardLedger.validation_settled_fixture_count),
+      validation_pending_fixture_count: numberValue(forwardLedger.validation_pending_fixture_count),
+      outcomes_validation: outcomeSummary(validationOutcomes),
+      outcomes: outcomeSummary(officialOutcomes),
+      outcomes_shadow: outcomeSummary(shadowOutcomes),
+      canonical_settled_fixture_count: numberValue(forwardLedger.canonical_settled_fixture_count),
+      canonical_excluded_count: numberValue(forwardLedger.canonical_excluded_count),
+      canonical_excluded_by_reason: asRecord(forwardLedger.canonical_excluded_by_reason) as Record<string, number>,
+      validation_excluded_count: numberValue(forwardLedger.validation_excluded_count),
+      validation_excluded_by_reason: asRecord(forwardLedger.validation_excluded_by_reason) as Record<string, number>,
+      evidence_window: {
+        first_capture_at: textValue(evidenceWindow.first_capture_at) || null,
+        latest_capture_at: textValue(evidenceWindow.latest_capture_at) || null,
+        latest_outcome_at: textValue(evidenceWindow.latest_outcome_at) || null,
+      },
       accumulation_label: textValue(forwardLedger.accumulation_label, "积累中 0/200"),
       clv: {
         sample_count: numberValue(forwardClv.sample_count),

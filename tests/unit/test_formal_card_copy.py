@@ -100,6 +100,19 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "displayLineForTeam" in boss_view
     assert "世界杯输出按 staging 保守展示" in boss_view
     assert "L2 技术诊断" in boss_view
+    assert "近 30 天" not in boss_view
+    assert "最多 3 场" not in boss_view
+    assert (
+        "orderedForTriage(dayView.cards.filter(isReadyRecommendation)).slice(0, 3)"
+        not in boss_view
+    )
+    assert (
+        "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
+        not in boss_view
+    )
+    assert "validation_fixture_count" in boss_view
+    assert "outcomes_validation" in boss_view
+    assert "VALIDATION ledger + outcome" in boss_view
 
 
 def test_ah_display_helpers_use_home_team_view_contract() -> None:

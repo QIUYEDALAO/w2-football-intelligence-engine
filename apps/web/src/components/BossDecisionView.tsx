@@ -540,7 +540,7 @@ export function MatchdayHeader({
   release?: ReleaseSyncState;
 }) {
   const upcoming = dayView.cards.filter(isPreMatch).length;
-  const readyRecommendations = orderedForTriage(dayView.cards.filter(isReadyRecommendation)).slice(0, 3).length;
+  const readyRecommendations = orderedForTriage(dayView.cards.filter(isReadyRecommendation)).length;
   return (
     <header className="boss-commandbar">
       <div className="boss-brand">
@@ -566,10 +566,11 @@ export function MatchdayHeader({
 export function DecisionCounts({ dayView, performance }: { dayView: DashboardDayView; performance?: DashboardPerformance }) {
   const lockLabel = dayView.environment === "production" ? "正式可锁" : "可锁审批";
   const readyRecommendations = dayView.cards.filter(isReadyRecommendation).length;
+  const validation = performance?.forward_ledger;
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
     ["已出推荐", readyRecommendations, "数据齐全后才置顶"],
-    ["赛后样本", performance?.sample_size ?? 0, `命中率 ${percent(performance?.hit_rate)}`],
+    ["验证结算", validation?.validation_settled_fixture_count ?? 0, `验证命中率 ${percent(validation?.outcomes_validation.hit_rate)}`],
     ["今日待评估", dayView.counts.not_ready + dayView.counts.watch + dayView.counts.skip, "按开球时间继续观察"],
   ] as const;
   return (
@@ -790,17 +791,22 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     .map((row) => row.label)
     .join(" / ");
   const bestForwardLeagues = forwardLedger?.by_league
-    ?.filter((row) => row.record_count > 0)
+    ?.filter((row) => row.fixture_count > 0)
     .slice(0, 2)
     .map((row) => translateCompetition(row.league))
     .join(" / ");
-  const settled = forwardLedger?.settled_sample_count ?? 0;
+  const validationCount = forwardLedger?.validation_fixture_count ?? 0;
+  const settled = forwardLedger?.validation_settled_fixture_count ?? 0;
+  const pending = forwardLedger?.validation_pending_fixture_count ?? 0;
+  const firstCapture = forwardLedger?.evidence_window.first_capture_at?.slice(5, 10);
+  const latestCapture = forwardLedger?.evidence_window.latest_capture_at?.slice(5, 10);
+  const evidenceRange = firstCapture && latestCapture ? `${firstCapture} 至 ${latestCapture}` : "积累中";
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
-      <strong>近 30 天</strong>
-      <span>前向卡 {forwardLedger?.accumulation_label ?? "积累中 0/200"}</span>
-      <span>结算 {settled ? `${settled} 条` : "积累中"}</span>
-      <span>命中率 {settled ? percent(forwardLedger?.hit_rate) : "积累中"}</span>
+      <strong>真实前向 {evidenceRange}</strong>
+      <span>验证推荐 {validationCount} 场</span>
+      <span>已结算 {settled} · 待结算 {pending}</span>
+      <span>验证命中率 {settled ? percent(forwardLedger?.outcomes_validation.hit_rate) : "积累中"}</span>
       <span>CLV {forwardLedger?.clv.sample_count ? clvUnits(forwardLedger.clv.median_decimal) : "积累中"}</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
@@ -810,21 +816,23 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
 function VerificationPreview({ matches, performance }: { matches: DashboardMatchCard[]; performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
-    const settled = forwardLedger.settled_sample_count;
+    const settled = forwardLedger.validation_settled_fixture_count;
+    const pending = forwardLedger.validation_pending_fixture_count;
+    const outcomes = forwardLedger.outcomes_validation;
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
           <span>赛后验证</span>
-          <strong>{settled ? `真实结算 ${settled} 条` : forwardLedger.accumulation_label}</strong>
+          <strong>验证 {forwardLedger.validation_fixture_count} 场 · 已结算 {settled}</strong>
         </header>
         {settled ? (
           <div className="verification-list">
             <div>
-              <span>真实 forward_ledger + outcome</span>
+              <span>VALIDATION ledger + outcome</span>
               <strong>
-                命中 {forwardLedger.hit_count} · 未中 {forwardLedger.miss_count} · 走水 {forwardLedger.push_count} · 作废 {forwardLedger.void_count}
+                命中 {outcomes.hit_count} · 未中 {outcomes.miss_count} · 走水 {outcomes.push_count} · 作废 {outcomes.void_count}
               </strong>
-              <small>命中率 {percent(forwardLedger.hit_rate)} · 未结算卡不计入</small>
+              <small>命中率 {percent(outcomes.hit_rate)} · 待结算 {pending} 场</small>
             </div>
           </div>
         ) : (
@@ -865,13 +873,13 @@ function LeaguePerformancePreview({ rows, performance }: { rows: LeaguePerforman
       <section className="league-performance-preview" aria-label="联赛表现预览">
         <header>
           <span>联赛表现</span>
-          <strong>{visibleForwardRows.length ? "真实 ledger" : forwardLedger.accumulation_label}</strong>
+          <strong>{visibleForwardRows.length ? "VALIDATION" : "验证样本积累中"}</strong>
         </header>
         {visibleForwardRows.length ? (
           <div className="league-performance-table">
             <div className="league-performance-head">
               <span>联赛</span>
-              <span>前向卡</span>
+              <span>比赛</span>
               <span>结算</span>
               <span>CLV</span>
               <span>状态</span>
@@ -879,7 +887,7 @@ function LeaguePerformancePreview({ rows, performance }: { rows: LeaguePerforman
             {visibleForwardRows.map((row) => (
               <div key={row.league}>
                 <span>{translateCompetition(row.league)}</span>
-                <span>{row.record_count}</span>
+                <span>{row.fixture_count}</span>
                 <span>{row.settled_sample_count || "积累中"}</span>
                 <span>{row.clv_sample_count ? clvUnits(row.clv_median_decimal) : "积累中"}</span>
                 <span>{row.settled_sample_count ? percent(row.hit_rate) : "未结算"}</span>
@@ -966,7 +974,7 @@ export function BossDecisionView({
   const scheduleDay = dayView.selected_football_day || dayView.football_day || dayView.generated_at;
   const activeCards = useMemo(() => orderedByKickoff(dayView.cards.filter(isPreMatch)), [dayView.cards]);
   const worthWatching = useMemo(
-    () => orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3),
+    () => orderedForTriage(activeCards.filter(isReadyRecommendation)),
     [activeCards],
   );
   const worthWatchingIds = useMemo(
@@ -1024,7 +1032,7 @@ export function BossDecisionView({
             <>
               <ScheduleSection
                 title="值得看"
-                hint="最多 3 场；只有市场锚定且分歧达标才置顶"
+                hint="所有符合完整数据与决策条件的比赛均展示"
                 cards={worthWatching}
                 empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
                 selectedFixtureId={selectedCard?.fixture_id}

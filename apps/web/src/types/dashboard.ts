@@ -523,6 +523,15 @@ export interface ForwardLedgerLeaguePerformance {
   clv_median_decimal?: number | null;
 }
 
+export interface ForwardLedgerOutcomeSummary {
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+}
+
 export interface ForwardLedgerPerformance {
   schema_version?: string;
   source?: string;
@@ -535,6 +544,22 @@ export interface ForwardLedgerPerformance {
   push_count: number;
   void_count: number;
   hit_rate?: number | null;
+  validation_fixture_count: number;
+  validation_settled_fixture_count: number;
+  validation_pending_fixture_count: number;
+  outcomes_validation: ForwardLedgerOutcomeSummary;
+  outcomes: ForwardLedgerOutcomeSummary;
+  outcomes_shadow: ForwardLedgerOutcomeSummary;
+  canonical_settled_fixture_count: number;
+  canonical_excluded_count: number;
+  canonical_excluded_by_reason: Record<string, number>;
+  validation_excluded_count: number;
+  validation_excluded_by_reason: Record<string, number>;
+  evidence_window: {
+    first_capture_at?: string | null;
+    latest_capture_at?: string | null;
+    latest_outcome_at?: string | null;
+  };
   accumulation_label: string;
   clv: {
     sample_count: number;

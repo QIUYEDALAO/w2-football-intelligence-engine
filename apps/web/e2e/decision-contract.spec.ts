@@ -100,8 +100,22 @@ async function json(route: Route, body: unknown): Promise<void> {
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installRoutes(page: Page, scenario: Scenario): Promise<void> {
+async function installRoutes(page: Page, scenario: Scenario, readyCardCount = 1): Promise<void> {
   const contract = scenarioContract[scenario];
+  const dayViewPayload = dayView(scenario);
+  if (scenario === "READY" && readyCardCount > 1) {
+    const template = dayViewPayload.cards[0];
+    dayViewPayload.cards = Array.from({ length: readyCardCount }, (_, index) => ({
+      ...template,
+      fixture_id: `fixture-ready-${index + 1}`,
+      home_team_name: `READY Home ${index + 1}`,
+      away_team_name: `READY Away ${index + 1}`,
+    }));
+    dayViewPayload.counts.total = readyCardCount;
+    dayViewPayload.counts.lock_eligible = readyCardCount;
+    dayViewPayload.counts.recommend = readyCardCount;
+    dayViewPayload.counts.ready = readyCardCount;
+  }
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/meta.json") {
@@ -126,7 +140,7 @@ async function installRoutes(page: Page, scenario: Scenario): Promise<void> {
       return json(route, null);
     }
     if (url.pathname === "/v1/dashboard/day-view") {
-      return json(route, dayView(scenario));
+      return json(route, dayViewPayload);
     }
     if (url.pathname.includes("/analysis-card")) {
       const ready = scenario === "READY";
@@ -162,6 +176,14 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
   });
   expect(analysis.card.decision_tier).toBe("RECOMMEND");
   expect(analysis.card.frozen_artifact_provenance.status).toBe("VERIFIED");
+});
+
+test("all qualifying recommendations remain visible without a top-three cap", async ({ page }) => {
+  await installRoutes(page, "READY", 4);
+  await page.goto("/");
+
+  await expect(page.locator("article.decision-row").filter({ hasText: "正式可锁" })).toHaveCount(4);
+  await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 4");
 });
 
 for (const scenario of ["STALE", "BLOCKED", "INCOMPLETE", "CHECKPOINT_MISSING"] as const) {
