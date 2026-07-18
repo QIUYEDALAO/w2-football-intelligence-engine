@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT}/infra/compose/compose.staging.yml"
 PROJECT_NAME="${W2_PREDEPLOY_E2E_PROJECT:-w2-predeploy-e2e}"
 FIXTURE_ID="${W2_PREDEPLOY_E2E_FIXTURE_ID:-predeploy-world-cup-fixture}"
+PREDEPLOY_API_PORT="${W2_PREDEPLOY_E2E_API_PORT:-28000}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "predeploy_e2e SKIP docker is not available"
@@ -43,6 +44,8 @@ EOF
 cat >"${OVERRIDE_FILE}" <<'EOF'
 services:
   api:
+    ports: !override
+      - "127.0.0.1:${W2_PREDEPLOY_E2E_API_PORT:-28000}:8000"
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
       W2_PROVIDER_CALLS_DISABLED: "true"
@@ -253,7 +256,7 @@ import time
 import urllib.request
 
 fixture_id = "${FIXTURE_ID}"
-url = f"http://127.0.0.1:18000/v1/fixtures/{fixture_id}/analysis-card"
+url = f"http://127.0.0.1:${PREDEPLOY_API_PORT}/v1/fixtures/{fixture_id}/analysis-card"
 last_error: Exception | None = None
 payload: dict[str, object] | None = None
 for _ in range(20):
@@ -316,7 +319,7 @@ import json
 import urllib.request
 
 fixture_id = "${FIXTURE_ID}"
-url = f"http://127.0.0.1:18000/v1/fixtures/{fixture_id}/analysis-card"
+url = f"http://127.0.0.1:${PREDEPLOY_API_PORT}/v1/fixtures/{fixture_id}/analysis-card"
 with urllib.request.urlopen(url, timeout=5) as response:
     assert response.status == 200, response.status
     payload = json.loads(response.read().decode("utf-8"))

@@ -99,6 +99,8 @@ def build_forward_outcome_records(
                 "current_odds": _market_odds_summary(card.get("current_odds")),
                 "card_hash": _optional_text(card.get("card_hash")),
                 "outcome_tracked": bool(card.get("outcome_tracked") is True),
+                "lock_eligible": bool(card.get("lock_eligible") is True),
+                "recommendation_id": _optional_text(card.get("recommendation_id")),
                 "source": _optional_text(card.get("source")),
                 "posthoc_only": True,
                 "not_a_lock": True,

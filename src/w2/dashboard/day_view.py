@@ -10,7 +10,6 @@ from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.markets.devig import DevigMethod, devig
 
 CARD_SOURCE_CONTRACT = "decision_contract"
@@ -103,12 +102,20 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
-    decision_tier = _text(_field(card, contract, "decision_tier"), DecisionTier.SKIP.value)
-    data_status = _text(_field(card, contract, "data_status"), DataStatus.PARTIAL.value)
+    decision_tier = _text(
+        _decision_field(card, contract, "decision_tier"), DecisionTier.SKIP.value
+    )
+    data_status = _text(
+        _decision_field(card, contract, "data_status"), DataStatus.PARTIAL.value
+    )
     lifecycle_status = _text(
-        _field(card, contract, "lifecycle_status"),
+        _decision_field(card, contract, "lifecycle_status"),
         LifecycleStatus.DRAFT.value,
     )
+    market_context = _market_context_fields(card)
+    if data_status != DataStatus.READY.value or decision_tier == DecisionTier.NOT_READY.value:
+        market_context["current_odds"] = {}
+        market_context["market_probabilities"] = {}
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
@@ -116,13 +123,17 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "data_status": data_status,
         "lifecycle_status": lifecycle_status,
         "outcome_tracked": _bool_or_default(
-            _field(card, contract, "outcome_tracked"),
+            _decision_field(card, contract, "outcome_tracked"),
             compute_outcome_tracked(DecisionTier(decision_tier))
             if _is_decision_tier(decision_tier)
             else False,
         ),
-        "lock_eligible": _bool_or_default(_field(card, contract, "lock_eligible"), False),
-        "recommendation_id": _optional_text(_field(card, contract, "recommendation_id")),
+        "lock_eligible": _bool_or_default(
+            _decision_field(card, contract, "lock_eligible"), False
+        ),
+        "recommendation_id": _optional_text(
+            _decision_field(card, contract, "recommendation_id")
+        ),
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
@@ -136,9 +147,9 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
-        **_market_context_fields(card),
-        "pick": _mapping_copy(_field(card, contract, "pick"))
-        if isinstance(_field(card, contract, "pick"), Mapping)
+        **market_context,
+        "pick": _mapping_copy(_decision_field(card, contract, "pick"))
+        if isinstance(_decision_field(card, contract, "pick"), Mapping)
         else None,
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
@@ -149,17 +160,21 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
 
 
 def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    recommendation = _mapping(card.get("recommendation"))
-    legacy = legacy_decision_view(card, recommendation)
+    data_status = _text(card.get("data_status"), DataStatus.PARTIAL.value)
+    decision_tier = (
+        DecisionTier.WATCH.value
+        if data_status in {DataStatus.PARTIAL.value, DataStatus.STALE.value}
+        else DecisionTier.NOT_READY.value
+    )
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_LEGACY,
-        "decision_tier": legacy.decision_tier.value,
-        "data_status": _text(card.get("data_status"), DataStatus.PARTIAL.value),
+        "decision_tier": decision_tier,
+        "data_status": data_status,
         "lifecycle_status": _text(card.get("lifecycle_status"), LifecycleStatus.DRAFT.value),
-        "outcome_tracked": compute_outcome_tracked(legacy.decision_tier),
-        "lock_eligible": legacy.lock_eligible,
-        "recommendation_id": legacy.recommendation_id,
+        "outcome_tracked": False,
+        "lock_eligible": False,
+        "recommendation_id": None,
         "reason_code": _optional_text(card.get("reason_code")),
         "action": _optional_text(card.get("action")),
         "next_eval_at": _format_time(card.get("next_eval_at")),
@@ -385,6 +400,10 @@ def _field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> An
     if value is not None:
         return value
     return card.get(key)
+
+
+def _decision_field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> Any:
+    return contract.get(key) if contract else card.get(key)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

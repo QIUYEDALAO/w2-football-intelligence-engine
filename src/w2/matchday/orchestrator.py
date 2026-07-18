@@ -245,6 +245,7 @@ def _fixture_dry_run(
             "source": "w2.matchday.dry_run",
             "fixture_id": fixture_id,
             "competition_id": _optional_text(fixture.get("competition_id")) or "",
+            "quote_identity_audit": fixture.get("quote_identity_audit"),
         },
         market=market_payload,
         recommendation=_recommendation_payload(fixture, market_payload),

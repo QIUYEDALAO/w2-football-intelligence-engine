@@ -98,7 +98,7 @@ def test_analysis_pick_does_not_require_lock_approval() -> None:
     assert plan["would_write_lock"] is False
 
 
-def test_production_analysis_pick_remains_not_lock_eligible() -> None:
+def test_production_missing_quote_provenance_is_not_ready_and_not_lock_eligible() -> None:
     plan = _plan(
         environment="production",
         fixtures=[
@@ -113,7 +113,9 @@ def test_production_analysis_pick_remains_not_lock_eligible() -> None:
     )
     fixture = plan["fixtures"][0]  # type: ignore[index]
 
-    assert fixture["decision_tier"] == "ANALYSIS_PICK"
+    assert fixture["decision_tier"] == "NOT_READY"
+    assert fixture["decision_contract"]["pick"] is None
+    assert fixture["decision_contract"]["outcome_tracked"] is False
     assert fixture["lock_eligible"] is False
     assert plan["lock_candidates"] == []
     assert plan["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]

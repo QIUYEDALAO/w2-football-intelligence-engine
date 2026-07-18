@@ -67,6 +67,11 @@ def build_decision_contract_fields(
         probability_source=probability_source,
         model_market_divergence=model_market_divergence,
     )
+    quote_provenance_status = _quote_provenance_status(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+    )
     lifecycle_status = _lifecycle_status(card)
     recommendation_id = _first_text(
         _get(recommendation, "recommendation_id"),
@@ -86,7 +91,14 @@ def build_decision_contract_fields(
         recommendation_id=recommendation_id,
         forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
     ):
-        tier = DecisionTier.ANALYSIS_PICK if market_complete else DecisionTier.WATCH
+        tier = DecisionTier.WATCH
+    tier = _enforce_non_ready_no_pick(
+        tier=tier,
+        data_status=data_status,
+        quote_provenance_status=quote_provenance_status,
+    )
+    if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
+        recommendation_id = None
     legacy = legacy_decision_view(card, market)
     legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
     pick_payload = (
@@ -138,7 +150,7 @@ def build_decision_contract_fields(
         DecisionPolicyConfig(
             now_utc=as_of,
             data_integrity_passed=data_status is DataStatus.READY,
-            market_complete=market_complete,
+            market_complete=market_complete and quote_provenance_status == "COMPLETE",
             forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
         ),
     )
@@ -239,6 +251,51 @@ def _recommend_prerequisites_satisfied(
         and recommendation_id is not None
         and forward_ev_evidence_satisfied
     )
+
+
+def _enforce_non_ready_no_pick(
+    *,
+    tier: DecisionTier,
+    data_status: DataStatus,
+    quote_provenance_status: str,
+) -> DecisionTier:
+    if data_status is DataStatus.BLOCKED or quote_provenance_status == "INCOMPLETE":
+        return DecisionTier.NOT_READY
+    if data_status in {DataStatus.STALE, DataStatus.PARTIAL} or quote_provenance_status == "STALE":
+        return DecisionTier.WATCH
+    if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
+        if quote_provenance_status != "COMPLETE":
+            return DecisionTier.NOT_READY
+    return tier
+
+
+def _quote_provenance_status(
+    *,
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+) -> str:
+    audit = _as_mapping(_get(card, "quote_identity_audit"))
+    market_name = _first_upper(_get(recommendation, "market"), _get(market, "market"))
+    audit_key = {
+        "AH": "ah",
+        "ASIAN_HANDICAP": "ah",
+        "OU": "ou",
+        "TOTALS": "ou",
+    }.get(market_name or "")
+    if audit_key is None:
+        return "MISSING"
+    identity = _as_mapping(_get(audit, audit_key))
+    if not identity:
+        return "MISSING"
+    if _first_upper(_get(identity, "identity_status")) != "COMPLETE":
+        return "INCOMPLETE"
+    freshness = _first_upper(_get(identity, "freshness_status"))
+    if freshness == "STALE":
+        return "STALE"
+    if freshness != "COMPLETE":
+        return "INCOMPLETE"
+    return "COMPLETE"
 
 
 def _market_anchor_display_tier(

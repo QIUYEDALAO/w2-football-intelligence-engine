@@ -87,17 +87,17 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
     assert view["counts"]["total"] == 2
-    assert view["counts"]["analysis_pick"] == 1
+    assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
-    assert view["counts"]["watch"] == 1
+    assert view["counts"]["watch"] == 2
     assert view["counts"]["not_ready"] == 0
     assert view["counts"]["skip"] == 0
     assert view["counts"]["ready"] == 0
     assert view["counts"]["partial"] == 1
     assert view["counts"]["stale"] == 0
     assert view["counts"]["blocked"] == 1
-    assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 1
-    assert view["counts"]["by_decision_tier"]["WATCH"] == 1
+    assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 0
+    assert view["counts"]["by_decision_tier"]["WATCH"] == 2
     assert view["counts"]["by_data_status"]["READY"] == 0
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
     assert view["counts"]["legacy_fallback"] == 1
@@ -114,29 +114,27 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["navigation"]["warning"] == (
         "未发现 day_view checkpoint，使用只读 read-model fallback"
     )
-    assert view["degradation"]["state"] == "OK"
+    assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
     assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
 
     contract_card = view["cards"][0]
     assert contract_card["source"] == "decision_contract"
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
-    assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
-    assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
-    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502604
+    assert contract_card["current_odds"] == {}
+    assert contract_card["market_probabilities"] == {}
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
-    assert contract_card["pick"]["disclaimer"] == (
-        "分析参考·非稳赢；production 动作需 RECOMMEND"
-    )
+    assert contract_card["pick"] is None
 
     legacy_card = view["cards"][1]
     assert legacy_card["source"] == "legacy_fallback"
-    assert legacy_card["decision_tier"] == "ANALYSIS_PICK"
-    assert legacy_card["lock_eligible"] is True
-    assert legacy_card["recommendation_id"] == "legacy-rec"
+    assert legacy_card["decision_tier"] == "WATCH"
+    assert legacy_card["lock_eligible"] is False
+    assert legacy_card["outcome_tracked"] is False
+    assert legacy_card["recommendation_id"] is None
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:
