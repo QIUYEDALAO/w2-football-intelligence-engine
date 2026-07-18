@@ -106,11 +106,11 @@ docker run -d --name "${API}" --network "${NETWORK}" \
   -e W2_PROVIDER_SCHEDULER_ENABLED=false \
   -e W2_API_FOOTBALL_API_KEY=readiness-fault-fake-key \
   -e W2_READINESS_RELEASE_ROOT=/app \
-  -e W2_READINESS_MANIFEST_PATH=/app/readiness-test.json \
+  -e W2_READINESS_MANIFEST_PATH=/app/readiness-fi/staging.v1.json \
   -v "${ROOT}/config:/app/config:ro" \
   -v "${ROOT}/migrations:/app/migrations:ro" \
   -v "${RUNTIME_SOURCE}:/app/runtime:ro" \
-  -v "${MANIFEST}:/app/readiness-test.json:ro" \
+  -v "${TMP_DIR}:/app/readiness-fi:ro" \
   "${IMAGE_PREFIX}-api:latest" >/dev/null
 
 for _ in $(seq 1 30); do
