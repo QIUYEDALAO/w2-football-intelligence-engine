@@ -179,6 +179,28 @@ Detailed canary evidence:
 Detailed canary evidence:
 [W2 R0.5 Staging Canary](docs/operations/W2_R0_5_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R0.6 frozen public cutover
+
+- Implementation SHA `1d582f1a51370abcb69d3732c2366f28cc80102d` moves
+  analysis-card, fixture detail, Dashboard and DayView onto one bounded frozen
+  authority. Missing artifacts fail closed without legacy rebuild.
+- Final local validation passed with `1132 passed, 4 skipped`, all static/Web/
+  acceptance guards, isolated predeploy-e2e, staging-parity and migration smoke.
+- The 102-fixture inventory produced 44 deterministic artifacts and 58 explicit
+  unavailable results. All 71 visible fixtures were consistent across four
+  endpoints; 15 matched the frozen baseline and 56 were safely NOT_READY.
+- Hard gates found and forced rollback for wall-clock artifact data, a global
+  Dashboard count read, startup cache pollution and excess dual-cache RSS. Each
+  issue was fixed and covered before the accepted canary.
+- Provider, observation, raw, queue, ledger and lock counts did not change. Only
+  44 expected frozen checkpoint rows were added. Final p95 was 0.191 seconds;
+  RSS ratios, restart and OOM gates passed.
+- All services, scheduler and watchdog ended healthy/active. R0.6 is PASS and R1
+  is authorized by the full local execution plan.
+
+Detailed canary evidence:
+[W2 R0.6 Staging Canary](docs/operations/W2_R0_6_STAGING_CANARY_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
