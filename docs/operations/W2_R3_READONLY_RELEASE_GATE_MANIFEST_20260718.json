@@ -1,0 +1,41 @@
+{
+  "schema_version": "w2.release-gate-manifest.v1",
+  "phase": "R3_READONLY_STAGING_CANDIDATE",
+  "generated_at": "2026-07-18T13:33:00Z",
+  "implementation_sha": "7e4c0aea790f2bce678b4ab6a2d20ba51d583316",
+  "delivery": "local_git_archive",
+  "github_sync": false,
+  "status": "STAGING_ACCEPTED_AWAITING_THREE_CYCLES",
+  "cycle_count": 0,
+  "cycle_target": 3,
+  "gates": [
+    {"name": "pytest", "result": "PASS", "detail": "1163 passed, 4 skipped"},
+    {"name": "ruff", "result": "PASS"},
+    {"name": "mypy", "result": "PASS", "detail": "230 source files"},
+    {"name": "web", "result": "PASS", "detail": "typecheck, production build, 6 Playwright tests"},
+    {"name": "acceptance-and-guards", "result": "PASS", "detail": "acceptance, tracked outputs, secret scan, diff check"},
+    {"name": "public-probes", "result": "PASS", "detail": "health, ready, version, DayView and Dashboard HTTP 200"},
+    {"name": "release-identity", "result": "PASS", "detail": "API and Web exact implementation SHA"},
+    {"name": "schema-and-artifacts", "result": "PASS", "detail": "Alembic current=head; readiness manifest valid"},
+    {"name": "provider-probe-delta", "result": "PASS", "detail": "719 to 719; delta 0"},
+    {"name": "runtime", "result": "PASS", "detail": "queue 0; restart/OOM/exit137 0; scheduler and watchdog active"},
+    {"name": "rss", "result": "PASS", "detail": "API RssAnon ratio 1.194 <= 1.20"},
+    {"name": "dashboard-layout", "result": "PASS", "detail": "original layout retained; data-only correction verified in browser"}
+  ],
+  "validation": {
+    "fixture_count": 23,
+    "settled_fixture_count": 15,
+    "pending_fixture_count": 8,
+    "hit": 10,
+    "miss": 3,
+    "push": 2,
+    "void": 0,
+    "decisive_hit_rate": 0.7692307692307693,
+    "canonical_settled_fixture_count": 12
+  },
+  "next_eligible_cycle_at": "2026-07-19T09:00:00+08:00",
+  "production_approved": false,
+  "champion_changed": false,
+  "recommend_lock_changed": false,
+  "official_changed": false
+}

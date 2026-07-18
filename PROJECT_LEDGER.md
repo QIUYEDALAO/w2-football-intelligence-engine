@@ -268,6 +268,29 @@ Detailed evidence:
 Detailed evidence:
 [W2 R2 Staging Canary](docs/operations/W2_R2_STAGING_CANARY_20260718.md).
 
+## 2026-07-18 — R3 read-only staging candidate
+
+- R3 ledger performance v2 now separates VALIDATION, OFFICIAL and SHADOW;
+  `record_count` remains L2 audit only. Historical rows are certified without
+  rewriting, identity conflicts fail closed, and ledger v3 links outcomes to
+  original capture identity.
+- The rejected Dashboard redesign was reverted. Exact implementation SHA
+  `7e4c0aea790f2bce678b4ab6a2d20ba51d583316` retains the original layout and
+  corrects only visible data semantics. All qualifying matches are displayed;
+  no arbitrary three-match cap remains.
+- Local gates passed with `1163 passed / 4 skipped`, all static/Web/acceptance
+  guards and six Chromium contracts. Staging health/readiness/version/DayView/
+  Dashboard probes passed with provider delta zero, queue zero, exact release
+  identity, schema/artifact match and runtime/RSS gates green.
+- Current real figures are 23 validation fixtures, 15 settled, 8 pending,
+  10 hit, 3 miss, 2 push, 0 void and 12 canonical settled fixtures.
+- The candidate is `staging_accepted_awaiting_three_cycles`, not production
+  approved. Consecutive Beijing 09:00 cycles are `0/3`; the first eligible
+  cycle is 2026-07-19. Champion, RECOMMEND/lock and OFFICIAL remain unchanged.
+
+Detailed evidence:
+[W2 R3 read-only staging candidate](docs/operations/W2_R3_READONLY_STAGING_CANDIDATE_20260718.md).
+
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
