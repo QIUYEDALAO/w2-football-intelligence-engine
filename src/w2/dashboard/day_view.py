@@ -227,7 +227,25 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
+        "scoreline_picks": _mapping_list(card.get("scoreline_picks")),
+        "scoreline_reference": _mapping_copy(card.get("scoreline_reference")),
+        "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
+        "scoreline_simulations": _scoreline_simulations(card),
     }
+
+
+def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
+    simulation = _mapping(card.get("simulation"))
+    if not simulation:
+        simulation = _mapping(_mapping(card.get("pricing_shadow")).get("simulation"))
+    value = simulation.get("simulations")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    if isinstance(value, str) and value.isdigit() and int(value) > 0:
+        return int(value)
+    return None
 
 
 def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:

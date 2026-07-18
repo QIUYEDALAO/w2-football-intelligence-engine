@@ -155,6 +155,25 @@ function l1OneLiner(card: DashboardDayViewCard): string {
   return `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
 }
 
+function scorelineSimulationSummary(card: DashboardDayViewCard): string {
+  if (card.scoreline_readiness?.status === "READY" && card.scoreline_picks.length > 0) {
+    const simulationLabel = card.scoreline_simulations === 10000
+      ? "1万次模拟比分"
+      : card.scoreline_simulations
+        ? `${card.scoreline_simulations.toLocaleString("zh-CN")}次模拟比分`
+        : "模拟比分参考";
+    const scores = card.scoreline_picks.slice(0, 3).map((pick) => {
+      const probability = (pick.probability_label ?? "").trim();
+      return probability ? `${pick.scoreline}（${probability}）` : pick.scoreline;
+    });
+    return `${simulationLabel}：${scores.join(" · ")}`;
+  }
+  if (card.scoreline_readiness?.status === "INSUFFICIENT_INDEPENDENT_XG") {
+    return "比分模拟输入不足，待数据更新";
+  }
+  return "比分模拟待更新";
+}
+
 function oddsSummary(card: DashboardDayViewCard): string | null {
   return oddsPayloadSummary(asRecord(card.current_odds));
 }
@@ -755,7 +774,7 @@ export function DecisionRow({
         </div>
         <div className="decision-cell decision-teams">
           <strong>{teamLabel(card)}</strong>
-          <span>{l1OneLiner(card)}</span>
+          <span>{scorelineSimulationSummary(card)}</span>
         </div>
         <div className="decision-cell decision-market">
           <span>{rowMarketSummary(card)}</span>

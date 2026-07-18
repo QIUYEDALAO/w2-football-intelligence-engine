@@ -70,6 +70,29 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                     "lineups_status": "PROVIDER_EMPTY",
                     "xg_status": "INSUFFICIENT_HISTORY",
                 },
+                "pricing_shadow": {
+                    "simulation": {
+                        "status": "READY",
+                        "simulations": 10000,
+                    }
+                },
+                "scoreline_picks": [
+                    {
+                        "scoreline": "1-0",
+                        "home_goals": 1,
+                        "away_goals": 0,
+                        "probability": 0.12,
+                        "probability_label": "12%",
+                    }
+                ],
+                "scoreline_reference": {
+                    "source": "formal_simulation",
+                    "label": "模拟比分参考",
+                },
+                "scoreline_readiness": {
+                    "status": "READY",
+                    "source": "formal_simulation",
+                },
                 "pick": {
                     "market": "ASIAN_HANDICAP",
                     "selection": "HOME_AH",
@@ -147,6 +170,10 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["market_probabilities"] == {}
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
+    assert contract_card["scoreline_simulations"] == 10000
+    assert contract_card["scoreline_picks"][0]["scoreline"] == "1-0"
+    assert contract_card["scoreline_reference"]["label"] == "模拟比分参考"
+    assert contract_card["scoreline_readiness"]["status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"] is None

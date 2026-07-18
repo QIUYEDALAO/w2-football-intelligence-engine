@@ -91,6 +91,14 @@ function dayView(scenario: Scenario) {
         },
         probability_source: "MARKET_DEVIG",
         model_market_divergence: { status: "READY", direction_allowed: true, magnitude: 0.08 },
+        scoreline_picks: [
+          { scoreline: "1-0", home_goals: 1, away_goals: 0, probability: 0.12, probability_label: "12%" },
+          { scoreline: "1-1", home_goals: 1, away_goals: 1, probability: 0.11, probability_label: "11%" },
+          { scoreline: "2-0", home_goals: 2, away_goals: 0, probability: 0.09, probability_label: "9%" },
+        ],
+        scoreline_reference: { source: "formal_simulation", label: "模拟比分参考" },
+        scoreline_readiness: { status: "READY", source: "formal_simulation" },
+        scoreline_simulations: 10000,
         diagnostics: {
           frozen_artifact_status: scenario === "CHECKPOINT_MISSING" ? "MISSING" : "VERIFIED",
         },
@@ -201,6 +209,7 @@ test("READY renders the unified pick and verified analysis-card", async ({ page 
   const row = page.locator("article.decision-row").filter({ hasText: "READY Home" });
   await expect(row).toContainText("正式可锁");
   await expect(row).toContainText("1.91");
+  await expect(row).toContainText("1万次模拟比分：1-0（12%） · 1-1（11%） · 2-0（9%）");
   await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 1");
   await expect(page.locator(".boss-command-meta")).toContainText("页面更新 18:00");
   await expect(page.locator(".boss-command-meta")).toContainText("赔率确认 17:55");
@@ -249,6 +258,7 @@ test("stored early odds remain visible as reference while waiting for the premat
   const row = page.locator("article.decision-row").filter({ hasText: "STALE Home" });
   const visibleRow = row.locator(".decision-row-button");
   await expect(visibleRow).toContainText("已有早盘·待临场更新");
+  await expect(visibleRow).toContainText("1万次模拟比分：1-0（12%） · 1-1（11%） · 2-0（9%）");
   await expect(visibleRow).toContainText("让球 主 -0.5 @1.82 / 客 +0.5 @1.86");
   await expect(visibleRow).toContainText("已过期，仅参考");
   await expect(visibleRow).not.toContainText("数据陈旧");
