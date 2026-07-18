@@ -38,6 +38,17 @@ def _artifact(
         "formal_recommendation": False,
         "lock_eligible": False,
         "outcome_tracked": False,
+        "decision_contract": {
+            "fixture_id": fixture_id,
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "lifecycle_status": "DRAFT",
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": None,
+            "reason_code": "MARKET_INCOMPLETE",
+        },
         "bookmaker_intent": (
             {"intent": "CONFLICTED", "confidence": 0.4}
             if legacy_heuristic
@@ -276,7 +287,9 @@ def test_non_canary_fixture_also_fails_closed_without_frozen_artifact(
     ]
 
 
-def test_fixture_dashboard_and_day_view_share_frozen_authority() -> None:
+def test_fixture_dashboard_and_day_view_share_frozen_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     artifact = _artifact()
 
     class PublicRepository(FrozenRepository):
@@ -298,6 +311,10 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority() -> None:
 
     repository = PublicRepository(artifact)
     service = ReadModelService(repository=cast(Any, repository))
+    monkeypatch.setattr(
+        "w2.api.repository.build_decision_contract_fields",
+        lambda **_kwargs: pytest.fail("verified frozen Decision Contract was re-derived"),
+    )
     analysis = service.public_analysis_card_bounded("1576804")
     detail = service.fixture("1576804", "UTC")
     dashboard_card = service._dashboard_card_from_matchday(

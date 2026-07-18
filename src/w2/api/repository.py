@@ -5675,8 +5675,17 @@ class ReadModelService:
             or _parse_utc_text(card.get("generated_at"))
             or datetime.now(UTC)
         )
-        decision_contract = (
-            build_decision_contract_fields(
+        frozen_provenance = card.get("frozen_artifact_provenance")
+        stored_decision_contract = card.get("decision_contract")
+        if (
+            isinstance(frozen_provenance, dict)
+            and frozen_provenance.get("status") == "VERIFIED"
+            and isinstance(stored_decision_contract, dict)
+        ):
+            decision_contract = dict(stored_decision_contract)
+        else:
+            decision_contract = (
+                build_decision_contract_fields(
                 card=card,
                 market=picked,
                 recommendation=recommendation,
@@ -5686,10 +5695,10 @@ class ReadModelService:
                 kickoff_utc=kickoff_for_contract,
                 competition_id=str(row.get("competition_id") or ""),
                 fixture_id=fixture_id,
+                )
+                if kickoff_for_contract is not None
+                else {}
             )
-            if kickoff_for_contract is not None
-            else {}
-        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
