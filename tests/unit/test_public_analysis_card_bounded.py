@@ -6,7 +6,7 @@ from threading import Barrier
 from typing import Any, cast
 
 from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
+from w2.api.repository import ReadModelRepository, ReadModelService
 
 
 class BoundedObservationRepository:
@@ -341,6 +341,52 @@ def test_public_bounded_read_uses_explicit_evaluation_time_for_next_eval(
     assert card["decision_contract"]["non_pick"]["next_eval_at"] == (
         "2026-07-18T05:30:00Z"
     )
+
+
+def test_bounded_public_service_uses_public_release_counts() -> None:
+    class ReleaseCountRepository:
+        def release_counts(self) -> dict[str, int]:
+            raise AssertionError("unbounded release counts called")
+
+        def public_release_counts(self, *, limit: int) -> dict[str, int]:
+            assert limit == api_repository.MAX_PUBLIC_FIXTURES
+            return {
+                "read_model_fixture_count": 1,
+                "matchday_card_count": 2,
+                "future_fixture_count": 3,
+                "result_event_count": 4,
+            }
+
+    service = ReadModelService(repository=cast(Any, ReleaseCountRepository()))
+    service._bounded_public_request = True
+
+    assert service._release_counts()["future_fixture_count"] == 3
+
+
+def test_public_release_counts_never_reads_global_fixture_inventory(
+    monkeypatch: Any,
+) -> None:
+    repository = ReadModelRepository()
+    monkeypatch.setattr(
+        repository,
+        "fixture_payloads",
+        lambda: (_ for _ in ()).throw(AssertionError("global fixture reader called")),
+    )
+    monkeypatch.setattr(repository, "dashboard_latest_fixtures", lambda: [{}] * 600)
+    monkeypatch.setattr(repository, "matchday_cards", lambda: [{}] * 600)
+    monkeypatch.setattr(repository, "result_events", lambda: [{}] * 600)
+    monkeypatch.setattr(
+        repository,
+        "public_fixture_payloads",
+        lambda *, limit: [{}] * min(limit, 7),
+    )
+
+    assert repository.public_release_counts() == {
+        "read_model_fixture_count": 512,
+        "matchday_card_count": 512,
+        "future_fixture_count": 7,
+        "result_event_count": 512,
+    }
 
 
 def test_fixture_detail_and_odds_timeline_never_call_global_observation_reader(

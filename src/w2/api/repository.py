@@ -134,6 +134,7 @@ from w2.tracking.forward_ledger_performance import forward_ledger_performance
 ROOT = Path(__file__).resolve().parents[3]
 REPORTS = ROOT / "reports"
 RUNTIME = ROOT / "runtime"
+MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
@@ -711,6 +712,19 @@ class ReadModelRepository:
             "result_event_count": len(self.result_events()),
         }
 
+    def public_release_counts(self, *, limit: int = MAX_PUBLIC_FIXTURES) -> dict[str, int]:
+        bounded_limit = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
+        return {
+            "read_model_fixture_count": len(
+                self.dashboard_latest_fixtures()[:bounded_limit]
+            ),
+            "matchday_card_count": len(self.matchday_cards()[:bounded_limit]),
+            "future_fixture_count": len(
+                self.public_fixture_payloads(limit=bounded_limit)
+            ),
+            "result_event_count": len(self.result_events()[:bounded_limit]),
+        }
+
     def world_cup_profile(self) -> dict[str, Any]:
         return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
 
@@ -1118,7 +1132,7 @@ class ReadModelService:
         settings = get_settings()
         database_ready = True
         try:
-            counts = self.repository.release_counts()
+            counts = self._release_counts()
         except Exception:
             database_ready = False
             counts = {
@@ -1175,7 +1189,7 @@ class ReadModelService:
 
         self._reset_read_caches()
         version = self.version()
-        counts = self.repository.release_counts()
+        counts = self._release_counts()
         seed = self.repository.staging_seed_dashboard()
         if (
             not counts["read_model_fixture_count"]
@@ -1322,6 +1336,13 @@ class ReadModelService:
         }
         self._dashboard_response_cache[cache_key] = (now, payload)
         return payload
+
+    def _release_counts(self) -> dict[str, int]:
+        if self._bounded_public_request:
+            public_reader = getattr(self.repository, "public_release_counts", None)
+            if callable(public_reader):
+                return cast(dict[str, int], public_reader(limit=MAX_PUBLIC_FIXTURES))
+        return self.repository.release_counts()
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
