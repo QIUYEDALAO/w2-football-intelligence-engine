@@ -75,8 +75,10 @@ def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
         fixture_id: str,
         *,
         evaluation_time: datetime | None = None,
+        use_frozen_canary: bool = True,
     ) -> dict[str, Any]:
         assert evaluation_time is not None
+        assert use_frozen_canary is False
         return {
             "fixture_id": fixture_id,
             "decision": "SKIP",

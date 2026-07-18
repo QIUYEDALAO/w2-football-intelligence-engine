@@ -16,6 +16,7 @@ from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.canary.v1"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:canary:v1:"
+ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
 
 
@@ -164,6 +165,7 @@ class AnalysisCardCanaryMaterializer:
         card = service.public_analysis_card_bounded(
             fixture_id,
             evaluation_time=evaluated_at,
+            use_frozen_canary=False,
         )
         if card is None:
             raise FrozenAnalysisError("analysis-card projection unavailable")

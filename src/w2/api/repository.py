@@ -419,6 +419,11 @@ def _formal_payload_blocker(formal_result: Any) -> str:
 
 
 class ReadModelRepository:
+    def analysis_card_canary_artifact(self, fixture_id: str) -> Any:
+        from w2.api.frozen_analysis import read_frozen_analysis_artifact
+
+        return read_frozen_analysis_artifact(create_engine(), fixture_id)
+
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()
@@ -1724,8 +1729,14 @@ class ReadModelService:
         fixture_id: str,
         *,
         evaluation_time: datetime | None = None,
+        use_frozen_canary: bool = True,
     ) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
+        if use_frozen_canary:
+            from w2.api.frozen_analysis import ANALYSIS_CARD_CANARY_FIXTURES
+
+            if fixture_id in ANALYSIS_CARD_CANARY_FIXTURES:
+                return self._public_frozen_analysis_card(fixture_id)
         request_service = ReadModelService(repository=self.repository)
         request_service._bounded_public_request = True
         if evaluation_time is not None:
@@ -1759,6 +1770,104 @@ class ReadModelService:
             fixture_id=fixture_id,
             card=card,
         )
+
+    def _public_frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
+        from copy import deepcopy
+
+        from w2.api.frozen_analysis import FrozenAnalysisError
+
+        reader = getattr(self.repository, "analysis_card_canary_artifact", None)
+        if not callable(reader):
+            return self._frozen_analysis_card_failure(
+                fixture_id,
+                blocker="FROZEN_ARTIFACT_READER_UNAVAILABLE",
+            )
+        try:
+            artifact = reader(fixture_id)
+        except FrozenAnalysisError as exc:
+            message = str(exc).lower()
+            blocker = (
+                "FROZEN_ARTIFACT_SCHEMA_INCOMPATIBLE"
+                if "schema" in message
+                else "FROZEN_ARTIFACT_IDENTITY_CONFLICT"
+                if "identity" in message
+                else "FROZEN_ARTIFACT_HASH_INVALID"
+                if "hash" in message
+                else "FROZEN_ARTIFACT_INVALID"
+            )
+            return self._frozen_analysis_card_failure(fixture_id, blocker=blocker)
+        except Exception:
+            return self._frozen_analysis_card_failure(
+                fixture_id,
+                blocker="FROZEN_ARTIFACT_READ_FAILED",
+            )
+        if artifact is None:
+            return self._frozen_analysis_card_failure(
+                fixture_id,
+                blocker="FROZEN_ARTIFACT_MISSING",
+            )
+        card = cast(dict[str, Any], deepcopy(artifact.payload["analysis_card"]))
+        card["frozen_artifact_provenance"] = {
+            "status": "VERIFIED",
+            "schema_version": artifact.payload["schema_version"],
+            "checkpoint_namespace": artifact.payload["checkpoint_namespace"],
+            "checkpoint_key": artifact.checkpoint_key,
+            "source_hash": artifact.source_hash,
+            "artifact_hash": artifact.artifact_hash,
+            "fixture_identity": deepcopy(artifact.payload["fixture_identity"]),
+            "input_manifest": deepcopy(artifact.payload["input_manifest"]),
+        }
+        return card
+
+    def _frozen_analysis_card_failure(
+        self,
+        fixture_id: str,
+        *,
+        blocker: str,
+    ) -> dict[str, Any]:
+        return {
+            "fixture_id": fixture_id,
+            "source": "frozen_analysis_checkpoint",
+            "decision": "SKIP",
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "lifecycle_status": "DRAFT",
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": None,
+            "non_pick": {
+                "reason_code": blocker,
+                "reason_human": "冻结分析制品不可用",
+                "action": "等待有效冻结制品",
+                "next_eval_at": None,
+            },
+            "reason_code": blocker,
+            "action": "等待有效冻结制品",
+            "next_eval_at": None,
+            "current_odds": {},
+            "candidate": False,
+            "formal_recommendation": False,
+            "markets": [],
+            "quote_identity_audit": {
+                key: unavailable_quote_identity(market=market, blocker=blocker)
+                for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou"))
+            },
+            "decision_contract": {
+                "decision_tier": "NOT_READY",
+                "data_status": "BLOCKED",
+                "lifecycle_status": "DRAFT",
+                "outcome_tracked": False,
+                "lock_eligible": False,
+                "recommendation_id": None,
+                "pick": None,
+                "reason_code": blocker,
+            },
+            "frozen_artifact_provenance": {
+                "status": "BLOCKED",
+                "blockers": [blocker],
+            },
+        }
 
     def _project_public_analysis_decision_contract(
         self,
