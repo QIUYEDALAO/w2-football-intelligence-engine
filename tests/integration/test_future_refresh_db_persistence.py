@@ -282,11 +282,35 @@ def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick
     assert repository.append_observations([observation]) == 1
     assert repository.upsert_checkpoint_plans([plan]) == 1
 
-    assert repository.market_refresh_status_for_fixtures(["fixture"]) == {
+    assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": "2026-06-23T10:05:00Z",
         "next_refresh_tick": "2026-06-23T10:45:00Z",
     }
     assert repository.market_refresh_status_for_fixtures([]) == {
+        "odds_last_confirmed_at": None,
+        "next_refresh_tick": None,
+    }
+
+
+def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    plan = {
+        "id": "fixture:T60",
+        "fixture_id": "fixture",
+        "checkpoint": "T60",
+        "kickoff_utc": NOW + timedelta(hours=1),
+        "due_at": NOW - timedelta(minutes=1),
+        "endpoints": ["odds"],
+        "source": "scheduled",
+        "status": "PENDING",
+    }
+    assert repository.upsert_checkpoint_plans([plan]) == 1
+
+    assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }

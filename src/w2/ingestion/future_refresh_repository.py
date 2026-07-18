@@ -705,10 +705,13 @@ class FutureRefreshDbRepository:
     def market_refresh_status_for_fixtures(
         self,
         fixture_ids: list[str],
+        *,
+        now: datetime | None = None,
     ) -> dict[str, str | None]:
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
         if not ids or len(ids) > 64:
             return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        reference = parse_db_datetime(now or datetime.now(UTC))
         with Session(self.engine) as session:
             odds_last_confirmed_at = session.scalar(
                 select(func.max(FutureMarketObservationModel.captured_at)).where(
@@ -720,6 +723,7 @@ class FutureRefreshDbRepository:
                 select(func.min(FutureRefreshCheckpointPlanModel.due_at)).where(
                     FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
                     FutureRefreshCheckpointPlanModel.status == "PENDING",
+                    FutureRefreshCheckpointPlanModel.due_at >= reference,
                 )
             )
         return {
