@@ -90,6 +90,21 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert second["written"] == 0
     assert second["skipped_existing"] == 1
     assert len(rows) == 1
+    assert rows[0]["schema_version"] == "w2.forward_outcome_ledger.v3"
+    assert rows[0]["recommendation_scope"] == "SHADOW"
+    assert rows[0]["fixture_identity"] == {
+        "fixture_id": "fixture-1",
+        "kickoff_utc": "2026-07-07T16:00:00Z",
+        "competition_id": "world_cup_2026",
+        "competition_name": "World Cup",
+        "home_team_id": None,
+        "home_team_name": "Argentina",
+        "away_team_id": None,
+        "away_team_name": "Egypt",
+    }
+    assert len(rows[0]["capture_identity_hash"]) == 64
+    assert rows[0]["quote_provenance"]["schema_version"] == "w2.quote_provenance.v1"
+    assert rows[0]["artifact_provenance"]["artifact_hash"] == "hash-1"
     assert rows[0]["not_a_lock"] is True
     assert rows[0]["posthoc_only"] is True
     assert rows[0]["record_type"] == "capture"

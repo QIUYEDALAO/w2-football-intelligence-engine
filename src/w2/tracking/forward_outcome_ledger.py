@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -9,7 +10,7 @@ from typing import Any
 
 from w2.domain.odds import settle_asian_handicap
 
-SCHEMA_VERSION = "w2.forward_outcome_ledger.v2"
+SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
 FT_STATUSES = {"FT"}
 
@@ -74,6 +75,23 @@ def build_forward_outcome_records(
         fixture_id = _text(card.get("fixture_id"))
         if not fixture_id:
             continue
+        shadow_pick = _shadow_pick(card)
+        recommendation_scope = _recommendation_scope(card, shadow_pick)
+        fixture_identity = _fixture_identity(card)
+        quote_provenance = _quote_provenance(card)
+        artifact_provenance = _artifact_provenance(card)
+        probability_identity = _probability_identity(card)
+        capture_identity = {
+            "fixture_identity": fixture_identity,
+            "recommendation_scope": recommendation_scope,
+            "pick": _mapping_copy(card.get("pick")),
+            "shadow_pick": shadow_pick,
+            "quote_provenance": quote_provenance,
+            "artifact_provenance": artifact_provenance,
+            "probability_identity": probability_identity,
+            "card_hash": _optional_text(card.get("card_hash")),
+            "captured_at": captured,
+        }
         rows.append(
             {
                 "schema_version": SCHEMA_VERSION,
@@ -93,11 +111,17 @@ def build_forward_outcome_records(
                 "action": _optional_text(card.get("action")),
                 "probability_source": _optional_text(card.get("probability_source")),
                 "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-                "shadow_pick": _shadow_pick(card),
+                "shadow_pick": shadow_pick,
                 "pick": _mapping_copy(card.get("pick")),
                 "non_pick": _mapping_copy(card.get("non_pick")),
                 "current_odds": _market_odds_summary(card.get("current_odds")),
                 "card_hash": _optional_text(card.get("card_hash")),
+                "recommendation_scope": recommendation_scope,
+                "fixture_identity": fixture_identity,
+                "quote_provenance": quote_provenance,
+                "artifact_provenance": artifact_provenance,
+                "probability_identity": probability_identity,
+                "capture_identity_hash": _canonical_sha256(capture_identity),
                 "outcome_tracked": bool(card.get("outcome_tracked") is True),
                 "lock_eligible": bool(card.get("lock_eligible") is True),
                 "recommendation_id": _optional_text(card.get("recommendation_id")),
@@ -300,6 +324,7 @@ def _outcome_record(
         "away": away_goals,
         "status": _text(result.get("status") or "FT"),
     }
+    recommendation_scope = _outcome_scope(entry, side)
     base = {
         "schema_version": SCHEMA_VERSION,
         "record_type": "outcome",
@@ -310,6 +335,12 @@ def _outcome_record(
         "competition_id": _optional_text(entry.get("competition_id")),
         "competition_name": _optional_text(entry.get("competition_name")),
         "card_hash": _optional_text(entry.get("card_hash")),
+        "capture_identity_hash": _optional_text(entry.get("capture_identity_hash")),
+        "recommendation_scope": recommendation_scope,
+        "fixture_identity": _mapping_copy(entry.get("fixture_identity")),
+        "quote_provenance": _mapping_copy(entry.get("quote_provenance")),
+        "artifact_provenance": _mapping_copy(entry.get("artifact_provenance")),
+        "probability_identity": _mapping_copy(entry.get("probability_identity")),
         "market": market,
         "selection": selection,
         "settled_side": side,
@@ -541,11 +572,120 @@ def _market_odds_summary(value: Any) -> dict[str, Any]:
                     "under_price",
                     "draw_price",
                     "bookmaker_count",
+                    "bookmaker_id",
+                    "provider",
+                    "captured_at",
                     "as_of",
                 )
                 if item.get(field) is not None
             }
     return summary
+
+
+def _recommendation_scope(
+    card: Mapping[str, Any], shadow_pick: Mapping[str, Any] | None
+) -> str:
+    tier = _text(card.get("decision_tier"))
+    pick = card.get("pick")
+    if tier == "RECOMMEND" and card.get("lock_eligible") is True and isinstance(pick, Mapping):
+        return "OFFICIAL"
+    if (
+        tier == "ANALYSIS_PICK"
+        and card.get("outcome_tracked") is True
+        and isinstance(pick, Mapping)
+    ):
+        return "VALIDATION"
+    if shadow_pick:
+        return "SHADOW"
+    return "NONE"
+
+
+def _outcome_scope(entry: Mapping[str, Any], side: str) -> str:
+    if side == "shadow_pick":
+        return "SHADOW"
+    scope = _text(entry.get("recommendation_scope")).upper()
+    return scope if scope in {"OFFICIAL", "VALIDATION"} else "UNSCOPED"
+
+
+def _fixture_identity(card: Mapping[str, Any]) -> dict[str, Any]:
+    frozen = _mapping(card.get("frozen_artifact_provenance"))
+    frozen_identity = _mapping(frozen.get("fixture_identity"))
+    return {
+        "fixture_id": _text(card.get("fixture_id")),
+        "kickoff_utc": _optional_text(card.get("kickoff_utc")),
+        "competition_id": _optional_text(card.get("competition_id")),
+        "competition_name": _optional_text(card.get("competition_name")),
+        "home_team_id": _optional_text(
+            frozen_identity.get("home_team_id") or card.get("home_team_id")
+        ),
+        "home_team_name": _optional_text(card.get("home_team_name")),
+        "away_team_id": _optional_text(
+            frozen_identity.get("away_team_id") or card.get("away_team_id")
+        ),
+        "away_team_name": _optional_text(card.get("away_team_name")),
+    }
+
+
+def _quote_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
+    audit = _mapping(card.get("quote_identity_audit"))
+    markets: dict[str, Any] = {}
+    for key in ("ah", "ou", "one_x_two"):
+        item = _mapping(audit.get(key))
+        if item:
+            markets[key] = {
+                field: item.get(field)
+                for field in (
+                    "identity_status",
+                    "freshness_status",
+                    "captured_at",
+                    "provider",
+                    "bookmaker_id",
+                    "fixture_id",
+                    "observation_ids",
+                )
+                if item.get(field) is not None
+            }
+    return {
+        "schema_version": "w2.quote_provenance.v1",
+        "markets": markets,
+    }
+
+
+def _artifact_provenance(card: Mapping[str, Any]) -> dict[str, Any]:
+    frozen = _mapping(card.get("frozen_artifact_provenance"))
+    return {
+        "artifact_hash": _optional_text(
+            card.get("artifact_hash") or frozen.get("artifact_hash") or card.get("card_hash")
+        ),
+        "schema_version": _optional_text(frozen.get("schema_version")),
+        "source_hash": _optional_text(frozen.get("source_hash")),
+        "checkpoint_namespace": _optional_text(frozen.get("checkpoint_namespace")),
+    }
+
+
+def _probability_identity(card: Mapping[str, Any]) -> dict[str, Any]:
+    diagnostics = _mapping(card.get("diagnostics"))
+    return {
+        "probability_source": _optional_text(card.get("probability_source")),
+        "market_probabilities": _mapping_copy(card.get("market_probabilities")),
+        "model_probabilities": _mapping_copy(
+            card.get("model_probabilities") or diagnostics.get("model_probabilities")
+        ),
+        "model_family": _optional_text(
+            _mapping(card.get("model_market_divergence")).get("model_family")
+        ),
+        "calibration_hash": _optional_text(diagnostics.get("calibration_hash")),
+    }
+
+
+def _canonical_sha256(value: Mapping[str, Any]) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

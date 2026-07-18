@@ -357,7 +357,10 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     card = payload["all"][0]
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
-    assert len(encoded) < 6500
+    # R3 v2 adds the separated validation/official/shadow scorecard and evidence
+    # window. Heavy per-card diagnostics must still be removed, while the full
+    # two-card response remains bounded.
+    assert len(encoded) < 8000
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",

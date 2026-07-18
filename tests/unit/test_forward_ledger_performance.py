@@ -26,7 +26,8 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     assert payload["fixture_count"] == 2
     assert payload["settled_sample_count"] == 0
     assert payload["hit_rate"] is None
-    assert payload["accumulation_label"] == "积累中 2/200"
+    assert payload["accumulation_label"] == "积累中 0/200"
+    assert payload["validation_fixture_count"] == 0
     assert payload["mock_data"] is False
 
 
@@ -36,9 +37,9 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
         [
-            {**_record("2026-07-07T00:00:00Z", fixture_id="fixture-1"), "outcome": "WIN"},
-            {**_record("2026-07-07T01:00:00Z", fixture_id="fixture-2"), "outcome": "LOSS"},
-            {**_record("2026-07-07T02:00:00Z", fixture_id="fixture-3"), "outcome": "PUSH"},
+            _outcome_record("fixture-1", "WIN", side="pick", scope="OFFICIAL"),
+            _outcome_record("fixture-2", "LOSS", side="pick", scope="OFFICIAL"),
+            _outcome_record("fixture-3", "PUSH", side="pick", scope="OFFICIAL"),
             _record("2026-07-07T03:00:00Z", fixture_id="fixture-4"),
         ],
     )
@@ -104,9 +105,10 @@ def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["record_count"] == 4
-    assert payload["settled_sample_count"] == 2
-    assert payload["push_count"] == 1
+    assert payload["settled_sample_count"] == 0
+    assert payload["push_count"] == 0
     assert payload["outcomes_shadow"]["void_count"] == 1
+    assert payload["validation_excluded_count"] == 0
 
 
 def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_path: Path) -> None:
@@ -211,6 +213,177 @@ def test_forward_ledger_performance_reads_legacy_v1_capture_records(
     assert payload["clv"]["median_decimal"] == 0.15
 
 
+def test_validation_counts_unique_fixtures_and_keeps_scopes_separate(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    duplicate = _validation_capture("fixture-1", "2026-07-07T01:00:00Z")
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            first,
+            duplicate,
+            _outcome_record("fixture-1", "PUSH", side="pick", scope="VALIDATION"),
+            _outcome_record("official-1", "WIN", side="pick", scope="OFFICIAL"),
+            _outcome_record("shadow-1", "LOSS", side="shadow_pick", scope="SHADOW"),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 5
+    assert payload["validation_fixture_count"] == 1
+    assert payload["validation_settled_fixture_count"] == 1
+    assert payload["validation_pending_fixture_count"] == 0
+    assert payload["outcomes_validation"]["push_count"] == 1
+    assert payload["outcomes_validation"]["hit_rate"] is None
+    assert payload["outcomes"]["hit_count"] == 1
+    assert payload["outcomes_shadow"]["miss_count"] == 1
+
+
+def test_validation_identity_conflict_fails_closed(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    conflict = _validation_capture("fixture-1", "2026-07-07T01:00:00Z")
+    conflict["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [first, conflict])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["validation_fixture_count"] == 0
+    assert payload["validation_excluded_by_reason"] == {
+        "RECOMMENDATION_IDENTITY_CONFLICT": 1
+    }
+
+
+def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-1",
+            "artifact_provenance": {"artifact_hash": "artifact-hash-1"},
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": "2026-07-07T00:00:00Z",
+                    }
+                }
+            },
+            "probability_identity": {
+                "market_probabilities": {
+                    "one_x_two": {
+                        "probabilities": {"HOME": 0.5, "DRAW": 0.3, "AWAY": 0.2}
+                    }
+                }
+            },
+        }
+    )
+    outcome = _outcome_record(
+        "fixture-1", "WIN", side="pick", scope="VALIDATION"
+    )
+    outcome.update(
+        {
+            "capture_identity_hash": "capture-hash-1",
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+            "entry_price": 1.9,
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["canonical_excluded_count"] == 0
+    assert payload["calibration"]["sample_count"] == 1
+    assert payload["calibration"]["log_loss"] > 0
+    assert payload["calibration"]["research_roi"] == 0.9
+
+
+def test_legacy_capture_with_unique_outcome_link_is_inherited_without_calibration(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-legacy", "2026-07-07T00:00:00Z")
+    capture["schema_version"] = "w2.forward_outcome_ledger.v2"
+    outcome = _outcome_record(
+        "fixture-legacy", "WIN", side="pick", scope="VALIDATION"
+    )
+    outcome.update(
+        {
+            "source_capture_hash": capture["card_hash"],
+            "source_captured_at": capture["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["canonical_excluded_count"] == 0
+    assert payload["calibration"]["sample_count"] == 0
+
+
+def test_v3_missing_probability_remains_canonical_but_skips_calibration(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-v3", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-v3",
+            "artifact_provenance": {"artifact_hash": "artifact-hash-v3"},
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": "2026-07-07T00:00:00Z",
+                    }
+                }
+            },
+        }
+    )
+    outcome = _outcome_record(
+        "fixture-v3", "WIN", side="pick", scope="VALIDATION"
+    )
+    outcome.update(
+        {
+            "capture_identity_hash": "capture-hash-v3",
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["calibration"]["sample_count"] == 0
+
+
+def _validation_capture(fixture_id: str, captured_at: str) -> dict[str, object]:
+    return {
+        **_record(captured_at, fixture_id=fixture_id, pick=True),
+        "schema_version": "w2.forward_outcome_ledger.v2",
+        "recommendation_scope": "VALIDATION",
+        "competition_id": "league-1",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
+        "card_hash": f"card-{fixture_id}",
+        "decision_tier": "ANALYSIS_PICK",
+        "outcome_tracked": True,
+    }
+
+
 def _record(
     captured_at: str,
     *,
@@ -258,8 +431,9 @@ def _outcome_record(
     settlement_outcome: str,
     *,
     side: str,
+    scope: str | None = None,
 ) -> dict[str, object]:
-    return {
+    row: dict[str, object] = {
         "schema_version": "w2.forward_outcome_ledger.v2",
         "record_type": "outcome",
         "settled_at": "2026-07-08T03:00:00Z",
@@ -273,6 +447,9 @@ def _outcome_record(
         "settled_side": side,
         "settlement_outcome": settlement_outcome,
     }
+    if scope is not None:
+        row["recommendation_scope"] = scope
+    return row
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
