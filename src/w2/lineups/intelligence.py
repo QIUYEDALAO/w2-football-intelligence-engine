@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -28,9 +29,7 @@ TOP_FIVE_COMPETITION_CODES = frozenset(
 )
 MAX_AH_DELTA = 0.25
 MAX_TOTALS_DELTA = 0.30
-LINEUP_POLICY_PATH = (
-    Path(__file__).resolve().parents[3] / "config/policies/lineup_market_policy.v1.json"
-)
+LINEUP_POLICY_RELATIVE_PATH = Path("config/policies/lineup_market_policy.v1.json")
 
 
 class CoverageGrade(StrEnum):
@@ -232,7 +231,7 @@ def grade_coverage(rate: float) -> CoverageGrade:
 
 @lru_cache(maxsize=1)
 def lineup_market_policy() -> dict[str, Any]:
-    payload = json.loads(LINEUP_POLICY_PATH.read_text(encoding="utf-8"))
+    payload = json.loads(_lineup_policy_path().read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("LINEUP_POLICY_INVALID")
     if payload.get("schema_version") != "w2.lineup_market_policy.v1":
@@ -240,10 +239,22 @@ def lineup_market_policy() -> dict[str, Any]:
     return {str(key): value for key, value in payload.items()}
 
 
-def audited_coverage_rate(competition_id: str) -> float:
-    grade = str(
-        lineup_market_policy().get("non_top_five_grades", {}).get(competition_id, "C")
+def _lineup_policy_path() -> Path:
+    configured = os.environ.get("W2_LINEUP_POLICY_PATH")
+    candidates = ((Path(configured),) if configured else ()) + (
+        Path.cwd() / LINEUP_POLICY_RELATIVE_PATH,
+        Path(__file__).resolve().parents[3] / LINEUP_POLICY_RELATIVE_PATH,
     )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        "LINEUP_POLICY_NOT_FOUND: " + ", ".join(str(candidate) for candidate in candidates)
+    )
+
+
+def audited_coverage_rate(competition_id: str) -> float:
+    grade = str(lineup_market_policy().get("non_top_five_grades", {}).get(competition_id, "C"))
     return 0.90 if grade == "A" else 0.50 if grade == "B" else 0.0
 
 

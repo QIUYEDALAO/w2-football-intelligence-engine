@@ -20,6 +20,11 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
         assert "uv sync --no-dev --frozen --no-editable" in text
         assert "COPY src ./src" in text
         assert "COPY config ./config" in text
+        if name in {"Dockerfile.api", "Dockerfile.worker", "Dockerfile.scheduler"}:
+            assert (
+                "COPY config/policies/lineup_market_policy.v1.json "
+                "/app/image_config/policies/lineup_market_policy.v1.json"
+            ) in text
         if name == "Dockerfile.api":
             assert "COPY scripts/run_w2_market_timeline_refresh.py" in text
             assert "scripts/check_w2_market_timeline.py" in text
@@ -54,6 +59,10 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
             assert "test -f /app/scripts/lmm_transfermarkt_snapshot.py" in text
             assert "test -f /app/scripts/lmm_materialize_stored_lineups.py" in text
             assert "test -f /app/scripts/materialize_analysis_card_canary.py" in text
+            assert "from w2.lineups.intelligence import lineup_market_policy" in text
+            assert (
+                "W2_LINEUP_POLICY_PATH=/app/image_config/policies/lineup_market_policy.v1.json"
+            ) in text
         else:
             assert "COPY scripts" not in text
         assert "COPY reports" not in text
@@ -122,6 +131,25 @@ def test_wheel_install_exposes_entrypoints(tmp_path: Path) -> None:
             timeout=30,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+    policy_path = root / "config/policies/lineup_market_policy.v1.json"
+    policy_result = subprocess.run(
+        [
+            str(python),
+            "-c",
+            (
+                "from w2.lineups.intelligence import lineup_market_policy; "
+                "assert lineup_market_policy()['schema_version'] "
+                "== 'w2.lineup_market_policy.v1'"
+            ),
+        ],
+        cwd=tmp_path,
+        env={"W2_LINEUP_POLICY_PATH": str(policy_path)},
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert policy_result.returncode == 0, policy_result.stdout + policy_result.stderr
     env_path = f"{venv / 'bin'}:/bin:/usr/bin"
     for script in scripts:
         result = subprocess.run(

@@ -13,6 +13,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
+COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
 RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-shadow-cycle \
  && test -x /app/.venv/bin/w2-stage7i-observer

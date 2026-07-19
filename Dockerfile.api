@@ -13,6 +13,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
+COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
 COPY migrations ./migrations
 COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/check_w2_market_timeline.py \
@@ -52,7 +53,9 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/debug_w2_s2_calibration_validation.py \
  && test -f /app/scripts/lmm_transfermarkt_snapshot.py \
  && test -f /app/scripts/lmm_materialize_stored_lineups.py \
- && test -f /app/scripts/materialize_analysis_card_canary.py
+ && test -f /app/scripts/materialize_analysis_card_canary.py \
+ && W2_LINEUP_POLICY_PATH=/app/image_config/policies/lineup_market_policy.v1.json \
+    /app/.venv/bin/python -c "from w2.lineups.intelligence import lineup_market_policy; assert lineup_market_policy()['schema_version'] == 'w2.lineup_market_policy.v1'"
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \
