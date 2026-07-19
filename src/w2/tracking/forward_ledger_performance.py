@@ -11,6 +11,7 @@ from statistics import median
 from typing import Any
 
 SAMPLE_TARGET = 200
+MIN_DECISIVE_SAMPLES_FOR_RATE = 5
 SETTLED_OUTCOMES = {
     "HIT": "hit",
     "WIN": "hit",
@@ -45,6 +46,7 @@ def forward_ledger_performance(
     canonical_counts = _counts_for_rows(canonical_rows)
     calibration = _calibration_summary(canonical_rows, candidates)
     clv_rows = _clv_rows(records, key_fn=_clv_key)
+    canonical_clv_rows = _eligible_clv_rows(clv_rows, canonical_rows)
     clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
     clv_shadow_values = _clv_values(clv_shadow_rows)
@@ -57,8 +59,15 @@ def forward_ledger_performance(
         settled=validation_rows,
         now=resolved_now,
     )
+    performance_cohort = _performance_cohort(
+        candidates=candidates,
+        settled=validation_rows,
+        canonical=canonical_rows,
+        canonical_excluded=canonical_excluded,
+        clv_rows=canonical_clv_rows,
+    )
     return {
-        "schema_version": "w2.forward_ledger_performance.v2",
+        "schema_version": "w2.forward_ledger_performance.v3",
         "source": "runtime/forward_outcome_ledger",
         "sample_target": sample_target,
         "record_count": len(records),
@@ -70,6 +79,7 @@ def forward_ledger_performance(
         "validation_pending_status": pending_status,
         "outcomes_validation": _outcome_summary(validation_counts),
         "outcomes_canonical": _outcome_summary(canonical_counts),
+        "performance_cohort": performance_cohort,
         "outcomes": _outcome_summary(official_counts),
         "outcomes_shadow": _outcome_summary(shadow_counts),
         "settled_sample_count": sum(official_counts.values()),
@@ -1005,6 +1015,184 @@ def _validation_league_rows(
             str(row["league"]),
         ),
     )
+
+
+def _eligible_clv_rows(
+    clv_rows: Sequence[Mapping[str, Any]],
+    canonical: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Return at most one CLV observation for each canonical fixture."""
+    eligible_ids = {_text(row.get("fixture_id")) for row in canonical}
+    by_fixture: dict[str, Mapping[str, Any]] = {}
+    for row in clv_rows:
+        fixture_id = _text(row.get("fixture_id"))
+        if fixture_id in eligible_ids and fixture_id not in by_fixture:
+            by_fixture[fixture_id] = row
+    return list(by_fixture.values())
+
+
+def _performance_cohort(
+    *,
+    candidates: Mapping[str, Mapping[str, Any]],
+    settled: Sequence[Mapping[str, Any]],
+    canonical: Sequence[Mapping[str, Any]],
+    canonical_excluded: Mapping[str, str],
+    clv_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    settled_by_fixture = {_text(row.get("fixture_id")): row for row in settled}
+    eligible_by_fixture = {_text(row.get("fixture_id")): row for row in canonical}
+    eligible_ids = set(eligible_by_fixture)
+    excluded_ids = set(canonical_excluded)
+    clv_fixture_ids = {_text(row.get("fixture_id")) for row in clv_rows}
+    processed_count = len(settled_by_fixture)
+    eligible_count = len(eligible_ids)
+    excluded_count = len(excluded_ids)
+    pending_count = max(0, len(candidates) - processed_count)
+    checks = {
+        "validation_partition": len(candidates) == processed_count + pending_count,
+        "processed_partition": processed_count == eligible_count + excluded_count,
+        "eligible_exclusion_disjoint": eligible_ids.isdisjoint(excluded_ids),
+        "clv_subset": clv_fixture_ids <= eligible_ids,
+        "clv_one_per_fixture": len(clv_rows) <= eligible_count,
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise ValueError(f"invalid performance cohort: {', '.join(failed)}")
+
+    counts = _counts_for_rows(canonical)
+    outcomes = _cohort_outcome_summary(counts)
+    league_rows = _cohort_league_rows(
+        candidates=candidates,
+        settled_by_fixture=settled_by_fixture,
+        eligible_by_fixture=eligible_by_fixture,
+        excluded_ids=excluded_ids,
+        clv_rows=clv_rows,
+    )
+    exclusions = [
+        _cohort_exclusion_row(
+            fixture_id,
+            candidates[fixture_id],
+            settled_by_fixture[fixture_id],
+            reason,
+        )
+        for fixture_id, reason in canonical_excluded.items()
+    ]
+    exclusions.sort(key=lambda row: (str(row["kickoff_utc"]), str(row["fixture_id"])))
+    return {
+        "validation_count": len(candidates),
+        "processed_count": processed_count,
+        "eligible_count": eligible_count,
+        "excluded_count": excluded_count,
+        "pending_count": pending_count,
+        "outcomes": outcomes,
+        "clv": _clv_summary(
+            _clv_values(clv_rows),
+            clv_rows,
+            method="entry_minus_closing_decimal_odds_same_line; eligible_fixture_only",
+        ),
+        "by_league": league_rows,
+        "exclusions": exclusions,
+        "invariants": {"status": "PASS", **checks},
+    }
+
+
+def _cohort_outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
+    summary = _outcome_summary(counts)
+    summary["decisive_count"] = int(counts.get("hit", 0)) + int(counts.get("miss", 0))
+    return summary
+
+
+def _cohort_league_rows(
+    *,
+    candidates: Mapping[str, Mapping[str, Any]],
+    settled_by_fixture: Mapping[str, Mapping[str, Any]],
+    eligible_by_fixture: Mapping[str, Mapping[str, Any]],
+    excluded_ids: set[str],
+    clv_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    clv_by_fixture = {
+        _text(row.get("fixture_id")): row
+        for row in clv_rows
+        if isinstance(row.get("clv_decimal"), int | float)
+    }
+    grouped: dict[str, list[tuple[str, Mapping[str, Any]]]] = defaultdict(list)
+    for fixture_id, capture in candidates.items():
+        key = _text(capture.get("competition_id")) or _league_display_name(capture) or "UNKNOWN"
+        grouped[key].append((fixture_id, capture))
+
+    rows: list[dict[str, Any]] = []
+    for key, items in grouped.items():
+        fixture_ids = {fixture_id for fixture_id, _ in items}
+        processed_ids = fixture_ids & set(settled_by_fixture)
+        eligible_ids = fixture_ids & set(eligible_by_fixture)
+        outcomes = [eligible_by_fixture[fixture_id] for fixture_id in eligible_ids]
+        counts = _counts_for_rows(outcomes)
+        decisive_count = counts["hit"] + counts["miss"]
+        league_clv_rows = [clv_by_fixture[item] for item in eligible_ids if item in clv_by_fixture]
+        display_name = next(
+            (
+                _league_display_name(capture)
+                for _, capture in items
+                if _league_display_name(capture)
+            ),
+            key,
+        )
+        rows.append(
+            {
+                "competition_id": _text(items[0][1].get("competition_id")) or None,
+                "league": display_name,
+                "processed_count": len(processed_ids),
+                "eligible_count": len(eligible_ids),
+                "excluded_count": len(processed_ids & excluded_ids),
+                "decisive_count": decisive_count,
+                "outcomes": _cohort_outcome_summary(counts),
+                "clv": _clv_summary(
+                    _clv_values(league_clv_rows),
+                    league_clv_rows,
+                    method="entry_minus_closing_decimal_odds_same_line; eligible_fixture_only",
+                ),
+                "rate_status": (
+                    "AVAILABLE"
+                    if decisive_count >= MIN_DECISIVE_SAMPLES_FOR_RATE
+                    else "INSUFFICIENT"
+                ),
+            }
+        )
+    return sorted(rows, key=lambda row: (-int(row["eligible_count"]), str(row["league"])))
+
+
+_EXCLUSION_REASON_ZH = {
+    "LEGACY_CAPTURE_LINK_MISSING": "历史推荐与赛果身份链缺失",
+    "LEGACY_CAPTURE_LINK_AMBIGUOUS": "历史推荐与赛果身份链不唯一",
+    "LEGACY_FIXTURE_IDENTITY_MISMATCH": "历史比赛身份不一致",
+    "LEGACY_RECOMMENDATION_IDENTITY_MISMATCH": "历史推荐身份不一致",
+    "LEGACY_IDENTITY_INCOMPLETE": "历史身份信息不完整",
+    "CAPTURE_OUTCOME_IDENTITY_MISMATCH": "推荐与赛果身份不一致",
+    "MISSING_ARTIFACT_IDENTITY": "分析产物身份缺失",
+    "MISSING_QUOTE_PROVENANCE": "盘口来源链缺失",
+    "MISSING_SETTLED_SCORE": "结算比分缺失",
+    "UNSUPPORTED_SCHEMA": "历史记录格式不受支持",
+}
+
+
+def _cohort_exclusion_row(
+    fixture_id: str,
+    capture: Mapping[str, Any],
+    outcome: Mapping[str, Any],
+    reason: str,
+) -> dict[str, Any]:
+    identity = _fixture_identity(capture)
+    return {
+        "fixture_id": fixture_id,
+        "competition_id": _text(capture.get("competition_id")) or None,
+        "league": _league_display_name(capture) or _text(identity.get("competition")) or "UNKNOWN",
+        "home_team_name": _text(identity.get("home_team_name")),
+        "away_team_name": _text(identity.get("away_team_name")),
+        "kickoff_utc": _text(identity.get("kickoff_utc")),
+        "settlement_outcome": _outcome(outcome),
+        "reason_code": reason,
+        "reason_label": _EXCLUSION_REASON_ZH.get(reason, "不符合当前统计身份契约"),
+    }
 
 
 def _league_display_name(record: Mapping[str, Any]) -> str:

@@ -16,13 +16,21 @@ import os
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, NoReturn
+from urllib.error import URLError
+from urllib.request import urlopen
+
+COMPOSE_FILE = "/opt/w2/current/infra/compose/compose.staging.yml"
+ENV_FILE = "/opt/w2/shared/.env"
+RELEASE_ENV_FILE = "/opt/w2/shared/release.env"
+COMPOSE_PROJECT = "w2-staging"
 
 
 def ok(msg: str) -> None:
     print(f"  ✅ {msg}")
 
 
-def fail(msg: str) -> None:
+def fail(msg: str) -> NoReturn:
     print(f"  ❌ {msg}")
     raise SystemExit(1)
 
@@ -31,11 +39,44 @@ def warn(msg: str) -> None:
     print(f"  ⚠️  {msg}")
 
 
-def run(*args: str, **kwargs) -> subprocess.CompletedProcess:
+def run(*args: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
     kwargs.setdefault("timeout", 30)
     return subprocess.run(args, **kwargs)  # noqa: S603
+
+
+def docker_command(*args: str) -> tuple[str, ...]:
+    prefix = ("docker",) if os.geteuid() == 0 else ("sudo", "-n", "docker")
+    return (*prefix, *args)
+
+
+def load_json(url: str) -> dict[str, Any]:
+    try:
+        with urlopen(url, timeout=10) as response:  # noqa: S310 - fixed loopback URL
+            payload = json.load(response)
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        fail(f"cannot read {url}: {exc}")
+    return payload if isinstance(payload, dict) else {}
+
+
+def compose_services(output: str) -> list[dict[str, Any]]:
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    services: list[dict[str, Any]] = []
+    for line in output.splitlines():
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            warn(f"Cannot parse compose ps line: {line}")
+            continue
+        if isinstance(item, dict):
+            services.append(item)
+    return services
 
 
 def main() -> None:
@@ -59,28 +100,37 @@ def main() -> None:
         warn("DEPLOYMENT_REVISION file not found")
 
     # ── 2. Docker compose ps ─────────────────────────────────
-    r = run("docker", "compose", "ps", "--format", "json")
+    r = run(
+        *docker_command(
+            "compose",
+            "--project-name",
+            COMPOSE_PROJECT,
+            "--env-file",
+            ENV_FILE,
+            "--env-file",
+            RELEASE_ENV_FILE,
+            "-f",
+            COMPOSE_FILE,
+            "ps",
+            "--format",
+            "json",
+        )
+    )
     if r.returncode != 0:
         fail(f"docker compose ps failed: {r.stderr.strip()}")
 
-    services: list[dict] = []
-    for line in r.stdout.strip().splitlines():
-        if not line.strip():
-            continue
-        try:
-            services.append(json.loads(line))
-        except json.JSONDecodeError:
-            warn(f"Cannot parse compose ps line: {line}")
+    services = compose_services(r.stdout.strip())
 
     expected = {"postgres", "redis", "api", "worker", "scheduler", "web"}
     running_services = set()
     for svc in services:
-        name = svc.get("Name", svc.get("Service", "?"))
+        name = svc.get("Service", "?")
         status = svc.get("Status", svc.get("State", ""))
-        running_services.add(name.rsplit("-", 1)[0] if "-" in name else name)
+        state = svc.get("State", "")
         health = svc.get("Health", "")
         port_str = svc.get("Ports", "")
-        if "Up" in status:
+        if state == "running" and health in {"", "healthy"}:
+            running_services.add(name)
             ok(f"{name}: {status}" + (f" health={health}" if health else ""))
             if port_str and "0.0.0.0" in port_str:  # noqa: S104 — this is a port AUDIT check
                 warn(f"{name}: public 0.0.0.0 port detected: {port_str}")
@@ -118,11 +168,11 @@ def main() -> None:
         warn(".env file missing")
 
     # ── 5. Docker health ─────────────────────────────────────
-    r = run("docker", "system", "df")
+    r = run(*docker_command("system", "df"))
     if r.returncode == 0:
         ok("Docker system df available")
 
-    r = run("docker", "info", "--format", "{{.ServerVersion}}")
+    r = run(*docker_command("info", "--format", "{{.ServerVersion}}"))
     if r.returncode == 0:
         ok(f"Docker Engine: {r.stdout.strip()}")
 
@@ -151,6 +201,39 @@ def main() -> None:
             warn(f"{key}={actual} (expected {expected_val})")
         else:
             ok(f"{key}={actual}")
+
+    # ── 8. Dashboard performance cohort contract ─────────────
+    dashboard = load_json(
+        "http://127.0.0.1:18000/v1/dashboard/day-view?window=future&timezone=Asia%2FShanghai"
+    )
+    performance = dashboard.get("performance", {})
+    ledger = performance.get("forward_ledger", {}) if isinstance(performance, dict) else {}
+    cohort = ledger.get("performance_cohort", {}) if isinstance(ledger, dict) else {}
+    if ledger.get("schema_version") != "w2.forward_ledger_performance.v3":
+        fail("forward ledger performance schema is not v3")
+    required = {
+        "validation_count",
+        "processed_count",
+        "eligible_count",
+        "excluded_count",
+        "pending_count",
+    }
+    if not required <= set(cohort):
+        fail(f"performance cohort fields missing: {sorted(required - set(cohort))}")
+    if cohort["validation_count"] != cohort["processed_count"] + cohort["pending_count"]:
+        fail("performance cohort validation partition failed")
+    if cohort["processed_count"] != cohort["eligible_count"] + cohort["excluded_count"]:
+        fail("performance cohort processed partition failed")
+    clv = cohort.get("clv", {})
+    if not isinstance(clv, dict) or clv.get("sample_count", 0) > cohort["eligible_count"]:
+        fail("performance cohort CLV is not an eligible-fixture subset")
+    if cohort.get("invariants", {}).get("status") != "PASS":
+        fail("performance cohort invariant status is not PASS")
+    ok(
+        "performance cohort: "
+        f"eligible={cohort['eligible_count']} excluded={cohort['excluded_count']} "
+        f"pending={cohort['pending_count']}"
+    )
 
     # ── Summary ──────────────────────────────────────────────
     print("")

@@ -24,6 +24,7 @@ BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
 PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
+ROLLBACK_REVISION="$(ssh "${SSH_HOST}" "basename \"\$(readlink -f /opt/w2/current)\"")"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
 echo "  SSH host:  ${SSH_HOST}"
@@ -199,11 +200,12 @@ echo 'systemd units installed and reloaded'
 
 if [ "${START_AFTER_DEPLOY}" = "true" ]; then
   echo "--- Starting/restarting staging and running stability probe ---"
-  ssh "${SSH_HOST}" "
+  if ! ssh "${SSH_HOST}" "
 set -euo pipefail
 cd /opt/w2/current
 sudo systemctl restart w2-staging.service
 sudo systemctl start w2-staging-watchdog.timer
+probe_passed=false
 for attempt in 1 2 3 4 5 6; do
   echo \"stability_probe_attempt=\${attempt}\"
   ready=false
@@ -215,13 +217,51 @@ for attempt in 1 2 3 4 5 6; do
   echo \"ready=\${ready} version=\${version} meta=\${meta}\"
   if [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
     echo 'stability_probe=PASS'
-    exit 0
+    probe_passed=true
+    break
   fi
   sleep 10
 done
-echo 'stability_probe=FAIL' >&2
-exit 1
+if [ \"\${probe_passed}\" != true ]; then
+  echo 'stability_probe=FAIL' >&2
+  exit 1
+fi
+python3 scripts/check_w2_stage7h.py
+python3 - <<'PY'
+import json
+from pathlib import Path
+from urllib.request import urlopen
+
+expected = Path('/opt/w2/current/DEPLOYMENT_REVISION').read_text().strip()
+with urlopen('http://127.0.0.1:18000/v1/version', timeout=8) as response:
+    api_sha = json.load(response).get('api_git_sha')
+with urlopen('http://127.0.0.1/meta.json', timeout=8) as response:
+    web_sha = json.load(response).get('web_git_sha')
+if api_sha != expected or web_sha != expected:
+    raise SystemExit(f'release SHA mismatch: expected={expected} api={api_sha} web={web_sha}')
+print(f'release_sha=PASS {expected}')
+PY
+"; then
+    echo "--- Acceptance failed; rolling staging back to ${ROLLBACK_REVISION} ---" >&2
+    ssh "${SSH_HOST}" "
+set -euo pipefail
+for service in migration api worker scheduler web; do
+  sudo docker image tag w2-staging-\${service}:rollback-${ROLLBACK_REVISION} w2-staging-\${service}:latest
+done
+ln -sfn /opt/w2/releases/${ROLLBACK_REVISION} /opt/w2/current
+sudo install -o root -g root -m 0644 /dev/stdin /opt/w2/shared/release.env <<'EOF'
+W2_GIT_SHA=${ROLLBACK_REVISION}
+W2_RELEASE_ID=${ROLLBACK_REVISION}
+W2_BUILD_TIME=${BUILD_TIME}
+VITE_GIT_SHA=${ROLLBACK_REVISION}
+VITE_RELEASE_ID=${ROLLBACK_REVISION}
+VITE_BUILD_TIME=${BUILD_TIME}
+EOF
+sudo systemctl restart w2-staging.service
+echo 'staging rollback complete'
 "
+    exit 1
+  fi
 fi
 
 echo ""

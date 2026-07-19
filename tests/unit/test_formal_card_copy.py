@@ -110,9 +110,11 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
         "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
         not in boss_view
     )
-    assert "validation_fixture_count" in boss_view
-    assert "outcomes_canonical" in boss_view
+    assert "performance_cohort" in boss_view
+    assert "outcomes_canonical" not in boss_view
     assert "验证推荐与赛果" in boss_view
+    assert "全部已处理" not in boss_view
+    assert "可核验 {settled}/{processed}" not in boss_view
     assert "页面更新" in boss_view
     assert "全局赔率确认" in boss_view
     assert "下次采集" in boss_view

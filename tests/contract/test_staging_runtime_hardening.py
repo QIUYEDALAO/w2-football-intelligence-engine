@@ -10,6 +10,7 @@ DEPLOY = ROOT / "scripts/deploy_stage7h_staging.sh"
 DIAGNOSE = ROOT / "scripts/diagnose_staging_runtime.sh"
 RECOVER = ROOT / "scripts/recover_staging_runtime.sh"
 WATCH = ROOT / "scripts/watch_staging_runtime.sh"
+HEALTH_CHECK = ROOT / "scripts/check_w2_stage7h.py"
 READINESS_FAULT = ROOT / "scripts/run_readiness_fault_injection.sh"
 WATCHDOG_SERVICE = ROOT / "infra/systemd/w2-staging-watchdog.service"
 WATCHDOG_TIMER = ROOT / "infra/systemd/w2-staging-watchdog.timer"
@@ -81,6 +82,16 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "http://127.0.0.1/meta.json" in text
     assert "docker builder prune -f" in text
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
+
+
+def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None:
+    text = read(HEALTH_CHECK)
+    assert 'COMPOSE_PROJECT = "w2-staging"' in text
+    assert 'COMPOSE_FILE = "/opt/w2/current/infra/compose/compose.staging.yml"' in text
+    assert 'ENV_FILE = "/opt/w2/shared/.env"' in text
+    assert 'name = svc.get("Service", "?")' in text
+    assert 'ledger.get("schema_version") != "w2.forward_ledger_performance.v3"' in text
+    assert 'cohort.get("invariants", {}).get("status") != "PASS"' in text
 
 
 def test_deploy_builds_release_targets_sequentially() -> None:

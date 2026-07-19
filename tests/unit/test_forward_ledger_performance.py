@@ -441,6 +441,72 @@ def test_v3_missing_probability_remains_canonical_but_skips_calibration(
     assert payload["calibration"]["sample_count"] == 0
 
 
+def test_performance_cohort_partitions_samples_and_filters_clv(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    eligible_entry = _validation_capture("eligible", "2026-07-07T00:00:00Z")
+    eligible_close = _validation_capture("eligible", "2026-07-08T00:30:00Z")
+    eligible_close["current_odds"] = {
+        "ah": {
+            "home_line": "-1",
+            "away_line": "+1",
+            "home_price": 1.8,
+            "away_price": 2.0,
+        }
+    }
+    eligible_outcome = _outcome_record("eligible", "WIN", side="pick", scope="VALIDATION")
+    eligible_outcome.update(
+        {
+            "source_capture_hash": eligible_entry["card_hash"],
+            "source_captured_at": eligible_entry["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    excluded = _validation_capture("excluded", "2026-07-07T00:05:00Z")
+    excluded["competition_id"] = "169"
+    excluded["competition_name"] = "中超 · 常规赛第19轮"
+    excluded_outcome = _outcome_record("excluded", "LOSS", side="pick", scope="VALIDATION")
+    excluded_outcome.update({"final_score": {"home": 0, "away": 1, "status": "FT"}})
+    pending = _validation_capture("pending", "2026-07-07T00:10:00Z")
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [eligible_entry, eligible_close, eligible_outcome, excluded, excluded_outcome, pending],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+    cohort = payload["performance_cohort"]
+
+    assert payload["schema_version"] == "w2.forward_ledger_performance.v3"
+    assert cohort["validation_count"] == 3
+    assert cohort["processed_count"] == 2
+    assert cohort["eligible_count"] == 1
+    assert cohort["excluded_count"] == 1
+    assert cohort["pending_count"] == 1
+    assert cohort["outcomes"]["decisive_count"] == 1
+    assert cohort["outcomes"]["hit_rate"] == 1.0
+    assert cohort["clv"]["sample_count"] == 1
+    assert cohort["clv"]["median_decimal"] == 0.2
+    assert cohort["invariants"]["status"] == "PASS"
+    assert cohort["exclusions"] == [
+        {
+            "fixture_id": "excluded",
+            "competition_id": "169",
+            "league": "中超",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "kickoff_utc": "2026-07-08T01:00:00Z",
+            "settlement_outcome": "LOSS",
+            "reason_code": "LEGACY_CAPTURE_LINK_MISSING",
+            "reason_label": "历史推荐与赛果身份链缺失",
+        }
+    ]
+    csl = next(row for row in cohort["by_league"] if row["competition_id"] == "169")
+    assert csl["processed_count"] == 1
+    assert csl["eligible_count"] == 0
+    assert csl["excluded_count"] == 1
+    assert csl["rate_status"] == "INSUFFICIENT"
+
+
 def _validation_capture(fixture_id: str, captured_at: str) -> dict[str, object]:
     return {
         **_record(captured_at, fixture_id=fixture_id, pick=True),
