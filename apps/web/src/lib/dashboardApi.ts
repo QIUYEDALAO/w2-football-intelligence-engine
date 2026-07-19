@@ -346,6 +346,10 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
                 ),
               };
             }),
+            integrity_status: textValue(
+              performanceCohort.integrity_status,
+              "UNKNOWN",
+            ),
             invariants: asRecord(performanceCohort.invariants) as Record<
               string,
               boolean | string

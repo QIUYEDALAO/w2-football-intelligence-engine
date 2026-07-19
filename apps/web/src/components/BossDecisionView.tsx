@@ -1309,23 +1309,6 @@ function VerificationPreview({
     const pending = cohort.pending_count;
     const outcomes = cohort.outcomes;
     const decisive = outcomes.decisive_count;
-    const pendingStatus = forwardLedger.validation_pending_status;
-    const pendingBreakdown = [
-      pendingStatus?.waiting_finish_count
-        ? `等待完赛 ${pendingStatus.waiting_finish_count}`
-        : "",
-      pendingStatus?.postponed_count
-        ? `延期 ${pendingStatus.postponed_count}`
-        : "",
-      pendingStatus?.result_missing_count
-        ? `缺少赛果 ${pendingStatus.result_missing_count}`
-        : "",
-      pendingStatus?.settlement_error_count
-        ? `结算异常 ${pendingStatus.settlement_error_count}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
@@ -1344,63 +1327,9 @@ function VerificationPreview({
               <small>
                 有效输赢 {decisive} 场 · 命中率{" "}
                 {decisive ? percent(outcomes.hit_rate) : "暂无有效分母"}
-                {cohort.recovered_count
-                  ? ` · 其中 ${cohort.recovered_count} 场经唯一历史快照审计恢复`
-                  : ""}
-                {pending
-                  ? ` · ${pendingBreakdown || `待处理 ${pending} 场`}`
-                  : ""}
+                {pending ? ` · 待结算 ${pending} 场` : ""}
               </small>
             </div>
-            {cohort.recovered_count ? (
-              <details className="verification-recoveries">
-                <summary>查看 {cohort.recovered_count} 场恢复明细</summary>
-                <div className="verification-recovery-list">
-                  {cohort.recoveries.map((row) => (
-                    <article key={row.fixture_id}>
-                      <strong>
-                        {translateTeam(row.home_team_name)} vs{" "}
-                        {translateTeam(row.away_team_name)}
-                      </strong>
-                      <span>
-                        {translateCompetition(row.league)} ·{" "}
-                        {fmtTime(row.kickoff_utc)} ·{" "}
-                        {settlementLabel(row.settlement_outcome)}
-                      </span>
-                      <small>
-                        {row.recovery_label} · {row.recovery_code}
-                      </small>
-                    </article>
-                  ))}
-                </div>
-              </details>
-            ) : null}
-            {cohort.excluded_count ? (
-              <details className="verification-exclusions">
-                <summary>
-                  另有 {cohort.excluded_count}{" "}
-                  场赛果已处理，因历史身份链缺失未纳入
-                </summary>
-                <div className="verification-exclusion-list">
-                  {cohort.exclusions.map((row) => (
-                    <article key={row.fixture_id}>
-                      <strong>
-                        {translateTeam(row.home_team_name)} vs{" "}
-                        {translateTeam(row.away_team_name)}
-                      </strong>
-                      <span>
-                        {translateCompetition(row.league)} ·{" "}
-                        {fmtTime(row.kickoff_utc)} ·{" "}
-                        {settlementLabel(row.settlement_outcome)}
-                      </span>
-                      <small>
-                        {row.reason_label} · {row.reason_code}
-                      </small>
-                    </article>
-                  ))}
-                </div>
-              </details>
-            ) : null}
           </div>
         ) : (
           <p>

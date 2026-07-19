@@ -462,6 +462,7 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
             excluded_count: 7,
             recovered_count: 4,
             pending_count: 0,
+            integrity_status: "PASS",
             outcomes: {
               settled_sample_count: 16,
               decisive_count: 14,
@@ -581,15 +582,12 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   await expect(page.locator(".verification-preview")).toContainText(
     "有效输赢 14 场 · 命中率 79%",
   );
-  await expect(page.locator(".verification-preview")).toContainText(
-    "其中 4 场经唯一历史快照审计恢复",
-  );
-  await expect(page.locator(".verification-preview")).toContainText(
-    "另有 7 场赛果已处理，因历史身份链缺失未纳入",
-  );
-  await expect(page.locator(".verification-preview")).not.toContainText(
-    "全部已处理",
-  );
+  const verification = page.locator(".verification-preview");
+  await expect(verification).not.toContainText("全部已处理");
+  await expect(verification).not.toContainText("历史");
+  await expect(verification).not.toContainText("恢复");
+  await expect(verification).not.toContainText("审计");
+  await expect(verification).not.toContainText("LEGACY");
   const csl = page
     .locator(".league-performance-table > div")
     .filter({ hasText: "中超" });
@@ -610,18 +608,8 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
     .filter({ hasText: "意甲" });
   await expect(serieA).toContainText("暂无临场盘（n=0）");
 
-  const exclusions = page.locator(".verification-exclusions summary");
-  await exclusions.focus();
-  await expect(exclusions).toBeFocused();
-  await exclusions.press("Enter");
-  await expect(
-    page.locator(".verification-exclusion-list article"),
-  ).toHaveCount(7);
-  const recoveries = page.locator(".verification-recoveries summary");
-  await recoveries.press("Enter");
-  await expect(page.locator(".verification-recovery-list article")).toHaveCount(
-    4,
-  );
+  await expect(page.locator(".verification-exclusions")).toHaveCount(0);
+  await expect(page.locator(".verification-recoveries")).toHaveCount(0);
 
   await page.setViewportSize({ width: 824, height: 1100 });
   const hasHorizontalOverflow = await page.evaluate(

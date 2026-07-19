@@ -233,8 +233,11 @@ def main() -> None:
         "candidate_count", 0
     ):
         fail("performance cohort CLV candidate partition is inconsistent")
-    if cohort.get("invariants", {}).get("status") != "PASS":
+    invariants = cohort.get("invariants", {})
+    if invariants.get("status") != "PASS":
         fail("performance cohort invariant status is not PASS")
+    if cohort.get("integrity_status") != "PASS":
+        fail("performance cohort evidence and settlement integrity is not PASS")
     recovery_ids = {
         item.get("fixture_id")
         for item in cohort.get("recoveries", [])

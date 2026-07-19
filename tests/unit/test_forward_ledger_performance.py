@@ -4,6 +4,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from w2.tracking.forward_ledger_performance import _eligible_clv_rows, forward_ledger_performance
 
 
@@ -372,6 +374,14 @@ def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_pat
             },
         }
     )
+    capture["current_odds"] = {
+        "ah": {
+            "home_line": "-1",
+            "away_line": "+1",
+            "home_price": 1.9,
+            "away_price": 1.8,
+        }
+    }
     outcome = _outcome_record("fixture-1", "WIN", side="pick", scope="VALIDATION")
     outcome.update(
         {
@@ -545,6 +555,7 @@ def test_performance_cohort_partitions_samples_and_filters_clv(tmp_path: Path) -
     assert cohort["clv"]["sample_count"] == 1
     assert cohort["clv"]["median_decimal"] == 0.2
     assert cohort["invariants"]["status"] == "PASS"
+    assert cohort["integrity_status"] == "PASS"
     assert cohort["exclusions"] == [
         {
             "fixture_id": "excluded",
@@ -592,6 +603,25 @@ def test_unique_legacy_capture_can_be_recovered_by_audited_manifest(tmp_path: Pa
     assert cohort["recoveries"][0]["recovery_code"] == (
         "UNIQUE_LEGACY_CAPTURE_RECONSTRUCTED"
     )
+
+
+def test_performance_cohort_fails_closed_on_settlement_quote_mismatch(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-mismatch", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("fixture-mismatch", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "source_capture_hash": capture["card_hash"],
+            "source_captured_at": capture["captured_at"],
+            "entry_price": 1.99,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    with pytest.raises(ValueError, match="settlement_chain_complete"):
+        forward_ledger_performance(tmp_path)
 
 
 def test_legacy_recovery_rejects_tampered_capture(tmp_path: Path) -> None:
@@ -720,6 +750,8 @@ def _outcome_record(
         "card_hash": f"hash-{fixture_id}",
         "market": "ASIAN_HANDICAP",
         "selection": "HOME_AH",
+        "entry_line": "-1",
+        "entry_price": 2.0,
         "settled_side": side,
         "settlement_outcome": settlement_outcome,
     }

@@ -70,6 +70,7 @@ def forward_ledger_performance(
     )
     performance_cohort = _performance_cohort(
         candidates=candidates,
+        captures=captures,
         settled=validation_rows,
         canonical=canonical_rows,
         canonical_excluded=canonical_excluded,
@@ -1205,9 +1206,72 @@ def _eligible_clv_rows(
     return list(by_fixture.values())
 
 
+def _canonical_evidence_chain_complete(
+    canonical: Sequence[Mapping[str, Any]],
+    *,
+    candidates: Mapping[str, Mapping[str, Any]],
+    captures: Sequence[Mapping[str, Any]],
+    recovered: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    for outcome in canonical:
+        fixture_id = _text(outcome.get("fixture_id"))
+        capture = candidates.get(fixture_id)
+        if capture is None:
+            return False
+        related_captures = [
+            item
+            for item in captures
+            if _text(item.get("fixture_id")) == fixture_id
+            and _capture_scope(item) == "VALIDATION"
+        ]
+        reason = _canonical_issue(capture, outcome, related_captures)
+        if reason is None:
+            continue
+        recovery = recovered.get(fixture_id)
+        if (
+            reason != "LEGACY_CAPTURE_LINK_MISSING"
+            or recovery is None
+            or not _legacy_recovery_matches(recovery, capture, outcome, related_captures)
+        ):
+            return False
+    return True
+
+
+def _settlement_chain_complete(
+    outcome: Mapping[str, Any],
+    *,
+    candidates: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    fixture_id = _text(outcome.get("fixture_id"))
+    capture = candidates.get(fixture_id)
+    if capture is None or _outcome(outcome) not in SETTLED_OUTCOMES:
+        return False
+    signature = _recommendation_signature(capture)
+    if signature is None or (
+        _text(outcome.get("market")),
+        _text(outcome.get("selection")),
+    ) != signature[:2]:
+        return False
+    quote = _quote(capture, signature[0], signature[1])
+    if quote is None or (
+        _text(outcome.get("entry_line")) != quote[0]
+        or _number(outcome.get("entry_price")) != quote[1]
+    ):
+        return False
+    score = outcome.get("final_score")
+    return (
+        _parse_time(outcome.get("settled_at")) is not None
+        and isinstance(score, Mapping)
+        and _number(score.get("home")) is not None
+        and _number(score.get("away")) is not None
+        and _text(score.get("status")).upper() in {"FT", "AET", "PEN"}
+    )
+
+
 def _performance_cohort(
     *,
     candidates: Mapping[str, Mapping[str, Any]],
+    captures: Sequence[Mapping[str, Any]],
     settled: Sequence[Mapping[str, Any]],
     canonical: Sequence[Mapping[str, Any]],
     canonical_excluded: Mapping[str, str],
@@ -1224,10 +1288,33 @@ def _performance_cohort(
     eligible_count = len(eligible_ids)
     excluded_count = len(excluded_ids)
     pending_count = max(0, len(candidates) - processed_count)
+    counts = _counts_for_rows(canonical)
     checks = {
         "validation_partition": len(candidates) == processed_count + pending_count,
         "processed_partition": processed_count == eligible_count + excluded_count,
         "eligible_exclusion_disjoint": eligible_ids.isdisjoint(excluded_ids),
+        "eligible_unique_fixture": len(canonical) == eligible_count,
+        "eligible_unique_recommendation": len(
+            {
+                (
+                    _text(row.get("fixture_id")),
+                    _text(row.get("market")),
+                    _text(row.get("selection")),
+                )
+                for row in canonical
+            }
+        )
+        == eligible_count,
+        "evidence_chain_complete": _canonical_evidence_chain_complete(
+            canonical,
+            candidates=candidates,
+            captures=captures,
+            recovered=recovered,
+        ),
+        "settlement_chain_complete": all(
+            _settlement_chain_complete(row, candidates=candidates) for row in canonical
+        ),
+        "outcome_partition": sum(counts.values()) == eligible_count,
         "recovery_subset": recovered_ids <= eligible_ids,
         "recovery_exclusion_disjoint": recovered_ids.isdisjoint(excluded_ids),
         "clv_subset": clv_fixture_ids <= eligible_ids,
@@ -1237,7 +1324,6 @@ def _performance_cohort(
     if failed:
         raise ValueError(f"invalid performance cohort: {', '.join(failed)}")
 
-    counts = _counts_for_rows(canonical)
     outcomes = _cohort_outcome_summary(counts)
     league_rows = _cohort_league_rows(
         candidates=candidates,
@@ -1265,6 +1351,18 @@ def _performance_cohort(
         for fixture_id in recovered
     ]
     recovery_rows.sort(key=lambda row: (str(row["kickoff_utc"]), str(row["fixture_id"])))
+    public_invariants = {
+        name: checks[name]
+        for name in (
+            "validation_partition",
+            "processed_partition",
+            "eligible_exclusion_disjoint",
+            "recovery_subset",
+            "recovery_exclusion_disjoint",
+            "clv_subset",
+            "clv_one_per_fixture",
+        )
+    }
     return {
         "validation_count": len(candidates),
         "processed_count": processed_count,
@@ -1282,7 +1380,8 @@ def _performance_cohort(
         "by_league": league_rows,
         "exclusions": exclusions,
         "recoveries": recovery_rows,
-        "invariants": {"status": "PASS", **checks},
+        "integrity_status": "PASS",
+        "invariants": {"status": "PASS", **public_invariants},
     }
 
 

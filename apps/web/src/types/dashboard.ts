@@ -680,6 +680,7 @@ export interface ForwardLedgerPerformanceCohort {
   by_league: ForwardLedgerCohortLeaguePerformance[];
   exclusions: ForwardLedgerCohortExclusion[];
   recoveries: ForwardLedgerCohortRecovery[];
+  integrity_status: string;
   invariants: Record<string, boolean | string>;
 }
 
