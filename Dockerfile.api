@@ -31,6 +31,7 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/debug_w2_s2_calibration_validation.py \
      scripts/lmm_transfermarkt_snapshot.py \
      scripts/lmm_materialize_stored_lineups.py \
+     scripts/materialize_analysis_card_canary.py \
      ./scripts/
 RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-gate5-preflight
@@ -50,7 +51,8 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/debug_w2_modeling_sanity.py \
  && test -f /app/scripts/debug_w2_s2_calibration_validation.py \
  && test -f /app/scripts/lmm_transfermarkt_snapshot.py \
- && test -f /app/scripts/lmm_materialize_stored_lineups.py
+ && test -f /app/scripts/lmm_materialize_stored_lineups.py \
+ && test -f /app/scripts/materialize_analysis_card_canary.py
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \

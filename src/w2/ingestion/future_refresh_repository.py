@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -29,10 +30,13 @@ from w2.infrastructure.persistence.models import (
     PlayerValuationObservationModel,
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
+    TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
 )
 from w2.lineups.intelligence import (
     PlayerIdentityCandidate,
+    build_team_baseline,
+    derive_lineup_change_features,
     normalize_player_name,
     resolve_player_identity,
 )
@@ -317,15 +321,19 @@ class FutureRefreshDbRepository:
                 }
             starter_counts: list[int] = []
             mappings: list[PlayerIdentityMappingModel] = []
+            baseline_hashes: list[str] = []
+            change_features: list[dict[str, Any]] = []
+            evidence_blockers: list[str] = []
             for snapshot in selected:
                 players = session.scalars(
                     select(StructuredLineupPlayerModel).where(
-                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
-                        StructuredLineupPlayerModel.starter.is_(True),
+                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id
                     )
                 ).all()
-                starter_counts.append(len(players))
-                api_ids = [player.api_football_player_id for player in players]
+                starters = [player for player in players if player.starter]
+                substitutes = [player for player in players if not player.starter]
+                starter_counts.append(len(starters))
+                api_ids = [player.api_football_player_id for player in starters]
                 team_mappings = session.scalars(
                     select(PlayerIdentityMappingModel)
                     .where(
@@ -342,6 +350,58 @@ class FutureRefreshDbRepository:
                 for mapping in team_mappings:
                     newest_mapping.setdefault(mapping.api_football_player_id, mapping)
                 mappings.extend(newest_mapping.values())
+                baseline = session.scalar(
+                    select(TeamLineupBaselineModel)
+                    .where(
+                        TeamLineupBaselineModel.team_external_id
+                        == snapshot.team_external_id,
+                        TeamLineupBaselineModel.as_of_time <= snapshot.captured_at,
+                    )
+                    .order_by(TeamLineupBaselineModel.as_of_time.desc())
+                    .limit(1)
+                )
+                if baseline is None:
+                    evidence_blockers.append("LINEUP_BASELINE_MISSING")
+                    change_features.append(
+                        {
+                            "team_external_id": snapshot.team_external_id,
+                            "status": "INCOMPLETE",
+                            "blockers": ["LINEUP_BASELINE_MISSING"],
+                        }
+                    )
+                else:
+                    baseline_hashes.append(baseline.artifact_hash)
+                    features = derive_lineup_change_features(
+                        baseline=baseline.payload,
+                        starters=[
+                            {
+                                "player_id": player.api_football_player_id,
+                                "position": player.provider_position,
+                                "value_delta_eur": 0.0,
+                            }
+                            for player in starters
+                        ],
+                        substitutes=[
+                            {
+                                "player_id": player.api_football_player_id,
+                                "position": player.provider_position,
+                                "market_value_eur": 0.0,
+                            }
+                            for player in substitutes
+                        ],
+                        formation=snapshot.formation,
+                    )
+                    change_features.append(
+                        {
+                            "team_external_id": snapshot.team_external_id,
+                            **asdict(features),
+                            "blockers": list(features.blockers),
+                            "baseline_artifact_hash": baseline.artifact_hash,
+                        }
+                    )
+                    evidence_blockers.extend(features.blockers)
+            if len({snapshot.captured_at for snapshot in selected}) != 1:
+                evidence_blockers.append("LINEUP_SNAPSHOT_TIME_MISMATCH")
             transfermarkt_ids = {
                 str(mapping.transfermarkt_player_id)
                 for mapping in mappings
@@ -371,6 +431,9 @@ class FutureRefreshDbRepository:
                 "formation_count": sum(bool(snapshot.formation) for snapshot in selected),
                 "captured_at": max(snapshot.captured_at for snapshot in selected).isoformat(),
                 "raw_sha256": sorted({snapshot.raw_sha256 for snapshot in selected}),
+                "baseline_artifact_hashes": sorted(set(baseline_hashes)),
+                "lineup_change_features": change_features,
+                "blockers": sorted(set(evidence_blockers)),
                 "schema_version": "w2.lineup_gate_evidence.v1",
             }
 
@@ -492,6 +555,147 @@ class FutureRefreshDbRepository:
             "candidate_payload_count": len(candidates),
             "materialized_snapshot_count": materialized_snapshots,
             "skipped_incomplete_count": skipped_incomplete,
+            "provider_calls": 0,
+        }
+
+    def materialize_team_lineup_baselines(self, *, limit: int = 512) -> dict[str, int]:
+        """Build deterministic, as-of-safe baselines from structured saved lineups."""
+        bounded_limit = max(0, min(int(limit), 4096))
+        if bounded_limit == 0:
+            return {
+                "baseline_candidate_count": 0,
+                "materialized_baseline_count": 0,
+                "skipped_fixture_metadata_count": 0,
+                "provider_calls": 0,
+            }
+        fixture_payloads = self.fixture_payloads()
+        fixture_metadata: dict[str, dict[str, Any]] = {}
+        for payload in fixture_payloads:
+            fixture = payload.get("fixture")
+            league = payload.get("league")
+            if not isinstance(fixture, dict) or not isinstance(league, dict):
+                continue
+            fixture_id = str(fixture.get("id") or "")
+            kickoff = fixture.get("date")
+            if not fixture_id or not kickoff:
+                continue
+            fixture_metadata[fixture_id] = {
+                "kickoff_at": parse_db_datetime(kickoff),
+                "competition_external_id": str(league.get("id") or "unknown"),
+                "season": str(league.get("season") or "unknown"),
+            }
+        with Session(self.engine) as session:
+            snapshots = list(
+                session.scalars(
+                    select(StructuredLineupSnapshotModel)
+                    .order_by(
+                        StructuredLineupSnapshotModel.captured_at,
+                        StructuredLineupSnapshotModel.fixture_id,
+                        StructuredLineupSnapshotModel.team_external_id,
+                    )
+                    .limit(bounded_limit)
+                )
+            )
+            rows: list[dict[str, Any]] = []
+            for snapshot in snapshots:
+                metadata = fixture_metadata.get(snapshot.fixture_id)
+                if metadata is None:
+                    continue
+                starters = list(
+                    session.scalars(
+                        select(StructuredLineupPlayerModel).where(
+                            StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
+                            StructuredLineupPlayerModel.starter.is_(True),
+                        )
+                    )
+                )
+                rows.append(
+                    {
+                        "fixture_id": snapshot.fixture_id,
+                        "team_external_id": snapshot.team_external_id,
+                        "kickoff_at": metadata["kickoff_at"],
+                        "captured_at": parse_db_datetime(snapshot.captured_at),
+                        "formation": snapshot.formation,
+                        "raw_sha256": snapshot.raw_sha256,
+                        "competition_external_id": metadata["competition_external_id"],
+                        "season": metadata["season"],
+                        "starters": [
+                            {
+                                "player_id": player.api_football_player_id,
+                                "position": player.provider_position,
+                            }
+                            for player in starters
+                        ],
+                    }
+                )
+            materialized = 0
+            for target in rows:
+                history_by_fixture: dict[str, dict[str, Any]] = {}
+                for row in rows:
+                    if (
+                        row["team_external_id"] != target["team_external_id"]
+                        or row["kickoff_at"] >= target["captured_at"]
+                        or row["captured_at"] > target["captured_at"]
+                    ):
+                        continue
+                    current = history_by_fixture.get(str(row["fixture_id"]))
+                    if current is None or row["captured_at"] > current["captured_at"]:
+                        history_by_fixture[str(row["fixture_id"])] = row
+                history_rows = list(history_by_fixture.values())
+                baseline = build_team_baseline(
+                    history_rows,
+                    team_external_id=str(target["team_external_id"]),
+                    as_of=parse_db_datetime(target["captured_at"]),
+                )
+                selected_ids = set(baseline["input_fixture_ids"])
+                input_rows = [
+                    row
+                    for row in history_rows
+                    if row["team_external_id"] == target["team_external_id"]
+                    and row["fixture_id"] in selected_ids
+                ]
+                input_manifest = {
+                    "team_external_id": target["team_external_id"],
+                    "as_of": parse_db_datetime(target["captured_at"]).isoformat(),
+                    "input_fixture_ids": list(baseline["input_fixture_ids"]),
+                    "input_raw_sha256": sorted(
+                        {str(row["raw_sha256"]) for row in input_rows}
+                    ),
+                    "schema_version": "w2.lineup_baseline.input.v1",
+                }
+                existing = session.scalar(
+                    select(TeamLineupBaselineModel).where(
+                        TeamLineupBaselineModel.team_external_id
+                        == target["team_external_id"],
+                        TeamLineupBaselineModel.competition_external_id
+                        == target["competition_external_id"],
+                        TeamLineupBaselineModel.season == target["season"],
+                        TeamLineupBaselineModel.as_of_time == target["captured_at"],
+                    )
+                )
+                if existing is not None:
+                    if existing.artifact_hash != baseline["artifact_hash"]:
+                        raise FutureRefreshPersistenceError("LINEUP_BASELINE_CONFLICT")
+                    continue
+                session.add(
+                    TeamLineupBaselineModel(
+                        team_external_id=str(target["team_external_id"]),
+                        competition_external_id=str(target["competition_external_id"]),
+                        season=str(target["season"]),
+                        as_of_time=parse_db_datetime(target["captured_at"]),
+                        match_count=int(baseline["match_count"]),
+                        payload=baseline,
+                        input_manifest=input_manifest,
+                        artifact_hash=str(baseline["artifact_hash"]),
+                        schema_version="w2.lineup_baseline.v1",
+                    )
+                )
+                materialized += 1
+            session.commit()
+        return {
+            "baseline_candidate_count": len(rows),
+            "materialized_baseline_count": materialized,
+            "skipped_fixture_metadata_count": len(snapshots) - len(rows),
             "provider_calls": 0,
         }
 

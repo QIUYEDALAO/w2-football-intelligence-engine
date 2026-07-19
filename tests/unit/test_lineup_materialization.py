@@ -10,6 +10,7 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
+    TeamLineupBaselineModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
@@ -123,6 +124,68 @@ def test_saved_lineup_materializer_is_bounded_provider_free_and_idempotent() -> 
         "skipped_incomplete_count": 0,
         "provider_calls": 0,
     }
+
+
+def test_saved_lineups_materialize_asof_safe_deterministic_team_baselines() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    fixture_payload = {
+        "response": [
+            {
+                "fixture": {"id": "fixture-1", "date": "2026-07-01T18:00:00Z"},
+                "league": {"id": 39, "season": 2026},
+            },
+            {
+                "fixture": {"id": "fixture-2", "date": "2026-07-10T18:00:00Z"},
+                "league": {"id": 39, "season": 2026},
+            },
+        ]
+    }
+    repository.save_raw_payload(
+        sha256="1" * 64,
+        endpoint="fixtures",
+        captured_at=datetime(2026, 6, 30, tzinfo=UTC),
+        payload=fixture_payload,
+    )
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-1",
+        captured_at=datetime(2026, 7, 1, 17, tzinfo=UTC),
+        raw_sha256="2" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+    )
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-2",
+        captured_at=datetime(2026, 7, 10, 17, tzinfo=UTC),
+        raw_sha256="3" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+    )
+
+    first = repository.materialize_team_lineup_baselines(limit=10)
+    second = repository.materialize_team_lineup_baselines(limit=10)
+
+    assert first["materialized_baseline_count"] == 4
+    assert second["materialized_baseline_count"] == 0
+    with Session(engine) as session:
+        baselines = list(
+            session.scalars(
+                select(TeamLineupBaselineModel).order_by(
+                    TeamLineupBaselineModel.as_of_time,
+                    TeamLineupBaselineModel.team_external_id,
+                )
+            )
+        )
+    assert len(baselines) == 4
+    assert [row.match_count for row in baselines] == [0, 0, 1, 1]
+    assert baselines[-1].payload["input_fixture_ids"] == ["fixture-1"]
+    evidence = repository.lineup_gate_evidence(
+        fixture_id="fixture-2",
+        as_of=datetime(2026, 7, 10, 17, tzinfo=UTC),
+    )
+    assert len(evidence["baseline_artifact_hashes"]) == 2
+    assert all(
+        item["status"] == "COMPLETE" for item in evidence["lineup_change_features"]
+    )
 
 
 def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() -> None:

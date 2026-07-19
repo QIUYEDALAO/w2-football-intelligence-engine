@@ -64,7 +64,12 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
-from w2.lineups.intelligence import LineupGate, audited_coverage_rate
+from w2.lineups.intelligence import (
+    TOP_FIVE_COMPETITION_CODES,
+    LineupGate,
+    audited_coverage_rate,
+    lineup_market_policy,
+)
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
     select_canonical_ah_mainline,
@@ -2587,16 +2592,43 @@ class ReadModelService:
             quotes_complete_and_fresh=quote_ready,
             audited_coverage_rate=audited_coverage_rate(competition_id),
         )
+        evidence_blockers = [
+            str(blocker)
+            for blocker in evidence.get("blockers", [])
+            if str(blocker)
+        ]
+        strict_evidence_blockers = (
+            evidence_blockers if competition_id in TOP_FIVE_COMPETITION_CODES else []
+        )
+        gate_blockers = list(dict.fromkeys([*gate.blockers, *strict_evidence_blockers]))
+        gate_eligible = gate.eligible and not strict_evidence_blockers
+        adjustment_policy = lineup_market_policy().get("numeric_adjustment", {})
+        adjustment_policy = (
+            adjustment_policy if isinstance(adjustment_policy, dict) else {}
+        )
+        ah_adjustment_enabled = bool(adjustment_policy.get("ah_enabled")) and bool(
+            gate.numeric_adjustment_enabled
+        )
+        totals_adjustment_enabled = bool(
+            adjustment_policy.get("totals_enabled")
+        ) and bool(gate.numeric_adjustment_enabled)
         payload["lineup_provenance"] = {
             **evidence,
             "competition_id": competition_id,
             "coverage_grade": gate.grade.value,
-            "gate_eligible": gate.eligible,
-            "numeric_adjustment_enabled": False,
-            "blockers": list(gate.blockers),
+            "gate_eligible": gate_eligible,
+            "numeric_adjustment_enabled": (
+                ah_adjustment_enabled or totals_adjustment_enabled
+            ),
+            "lineup_ah_adjustment": 0.0,
+            "lineup_totals_adjustment": 0.0,
+            "lineup_ah_evidence_enabled": ah_adjustment_enabled,
+            "lineup_totals_evidence_enabled": totals_adjustment_enabled,
+            "adjustment_gate_reason": adjustment_policy.get("reason"),
+            "blockers": gate_blockers,
             "policy_version": "w2.lineup_market_policy.v1",
         }
-        if gate.eligible:
+        if gate_eligible:
             return
         markets = payload.get("markets")
         if isinstance(markets, list):
@@ -2610,7 +2642,7 @@ class ReadModelService:
                     market["decision"] = "WATCH"
                     market["tendency"] = None
                     market["reasons"] = ["五大联赛正式首发、身份或身价尚未完整确认。"]
-                    market["risks"] = list(gate.blockers)
+                    market["risks"] = gate_blockers
         self._refresh_analysis_card_decision(payload)
 
     def _competition_id_from_provider_fixture(self, item: dict[str, Any]) -> str:

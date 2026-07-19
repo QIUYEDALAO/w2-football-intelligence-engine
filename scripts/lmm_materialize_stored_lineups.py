@@ -26,6 +26,7 @@ def main() -> int:
     }
     if args.write:
         result.update(repository.materialize_stored_lineup_payloads(limit=args.limit))
+        result.update(repository.materialize_team_lineup_baselines(limit=args.limit))
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

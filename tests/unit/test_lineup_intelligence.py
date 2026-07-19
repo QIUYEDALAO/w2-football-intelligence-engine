@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
+import pytest
+
+from w2.api.repository import ReadModelService
 from w2.lineups.intelligence import (
     CoverageGrade,
     LineupAdjustment,
@@ -172,3 +176,64 @@ def test_non_top_five_grade_controls_numeric_enhancement_not_pick_gate() -> None
     assert not result.numeric_adjustment_enabled
     assert grade_coverage(0.5) is CoverageGrade.B
     assert grade_coverage(0.9) is CoverageGrade.A
+
+
+@pytest.mark.parametrize(
+    ("competition_id", "expected_eligible", "expected_decision"),
+    [
+        ("allsvenskan", True, "PICK"),
+        ("premier_league", False, "WATCH"),
+    ],
+)
+def test_public_lineup_gate_projects_policy_and_strict_baseline_blocker(
+    monkeypatch: pytest.MonkeyPatch,
+    competition_id: str,
+    expected_eligible: bool,
+    expected_decision: str,
+) -> None:
+    class EvidenceRepository:
+        def lineup_gate_evidence(self, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "status": "INCOMPLETE",
+                "confirmed": True,
+                "starter_counts": [11, 11],
+                "uniquely_mapped_starters": 22,
+                "valued_starters": 22,
+                "formation_count": 2,
+                "blockers": ["LINEUP_BASELINE_MISSING"],
+            }
+
+    service = ReadModelService(repository=cast(Any, object()))
+    monkeypatch.setattr(service, "_future_refresh_repository", lambda: EvidenceRepository())
+    monkeypatch.setattr(
+        service,
+        "_competition_id_from_provider_fixture",
+        lambda _fixture: competition_id,
+    )
+    payload: dict[str, Any] = {
+        "markets": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "decision": "PICK",
+                "tendency": "HOME_AH",
+            }
+        ]
+    }
+
+    service._apply_lineup_gate(
+        payload,
+        fixture={},
+        fixture_id="fixture-1",
+        as_of=datetime(2026, 7, 19, tzinfo=UTC),
+        mainline_selection={
+            "ASIAN_HANDICAP": {"status": "READY"},
+            "TOTALS": {"status": "READY"},
+        },
+    )
+
+    provenance = payload["lineup_provenance"]
+    assert provenance["coverage_grade"] == "C"
+    assert provenance["gate_eligible"] is expected_eligible
+    assert provenance["numeric_adjustment_enabled"] is False
+    assert provenance["lineup_ah_adjustment"] == 0.0
+    assert payload["markets"][0]["decision"] == expected_decision
