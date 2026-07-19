@@ -166,6 +166,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
         "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
+        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
     }
 
 
@@ -207,6 +208,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
         "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
+        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
     }
 
 

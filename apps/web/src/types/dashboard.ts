@@ -876,6 +876,7 @@ export interface DashboardDayViewCard {
   status?: string | null;
   source?: string | null;
   decision_tier: DecisionTier;
+  recommendation_decision_v3?: RecommendationDecisionV3 | null;
   data_status: DataStatus;
   lifecycle_status: LifecycleStatus;
   outcome_tracked: boolean;

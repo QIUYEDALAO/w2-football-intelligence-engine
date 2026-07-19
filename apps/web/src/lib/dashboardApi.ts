@@ -1200,12 +1200,12 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
+  const decisionV3 = normalizeRecommendationDecisionV3(record.recommendation_decision_v3);
   const nonPick = asRecord(record.non_pick);
-  const pick = asRecord(record.pick);
-  const decisionTier = textValue(
-    record.decision_tier,
-    "SKIP",
-  ) as DashboardDayViewCard["decision_tier"];
+  const pick = decisionV3 ? asRecord(decisionV3.selected_candidate) : asRecord(record.pick);
+  const decisionTier = decisionV3
+    ? ({ FORMAL_RECOMMEND: "RECOMMEND", ANALYSIS_PICK: "ANALYSIS_PICK", NOT_READY: "NOT_READY", NO_EDGE: "SKIP", SYSTEM_DEGRADED: "NOT_READY" }[decisionV3.outcome] as DashboardDayViewCard["decision_tier"])
+    : textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"];
   const dataStatus = textValue(
     record.data_status,
     "PARTIAL",
@@ -1234,9 +1234,8 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     recommendation_id: actionable
       ? textValue(record.recommendation_id) || null
       : null,
-    reason_code:
-      textValue(record.reason_code) || textValue(nonPick.reason_code) || null,
-    action: textValue(record.action) || textValue(nonPick.action) || null,
+    reason_code: decisionV3?.reason?.code || textValue(record.reason_code) || textValue(nonPick.reason_code) || null,
+    action: decisionV3?.next_action || textValue(record.action) || textValue(nonPick.action) || null,
     next_eval_at:
       textValue(record.next_eval_at) || textValue(nonPick.next_eval_at) || null,
     provider_budget_status: textValue(record.provider_budget_status) || null,
@@ -1249,7 +1248,7 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
-    current_odds: dataStatus === "READY" ? asRecord(record.current_odds) : {},
+    current_odds: dataStatus === "READY" && Boolean(decisionV3?.selected_candidate ?? !decisionV3) ? asRecord(record.current_odds) : {},
     last_known_odds: asRecord(record.last_known_odds),
     market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
@@ -1301,6 +1300,7 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     non_pick: Object.keys(nonPick).length ? nonPick : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
+    recommendation_decision_v3: decisionV3,
     diagnostics: asRecord(record.diagnostics),
   };
 }

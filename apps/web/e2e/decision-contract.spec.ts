@@ -181,6 +181,25 @@ function dayView(scenario: Scenario) {
           frozen_artifact_status:
             scenario === "CHECKPOINT_MISSING" ? "MISSING" : "VERIFIED",
         },
+        ...(ready ? { recommendation_decision_v3: {
+          schema_version: "w2.recommendation_decision.v3",
+          outcome: "FORMAL_RECOMMEND",
+          reason: {
+            code: "FORMAL_ADMITTED",
+            message: "正式推荐已通过能力门",
+          },
+          next_action: "MONITOR",
+          selected_candidate: {
+            market: "ASIAN_HANDICAP",
+            selection: "HOME_AH",
+            line: "-0.5",
+            odds: "1.91",
+          },
+          statuses: {},
+          warnings: [],
+          audit_refs: {},
+          decision_hash: `hash-${scenario}`,
+        } } : {}),
       },
     ],
   };
