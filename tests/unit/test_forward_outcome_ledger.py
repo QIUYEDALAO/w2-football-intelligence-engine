@@ -144,6 +144,64 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
 
 
+def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    next_day = dict(capture)
+    next_day["football_day"] = "2026-07-08"
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    _write_jsonl(root / "2026-07-08_staging.jsonl", [next_day])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    outcomes = [
+        json.loads(line)
+        for path in root.glob("*.jsonl")
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if json.loads(line).get("record_type") == "outcome"
+    ]
+    assert payload["written"] == 1
+    assert payload["record_count"] == 1
+    assert len(outcomes) == 1
+
+
+def test_forward_outcome_backfill_does_not_void_shadow_without_quote(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    capture["decision_tier"] = "WATCH"
+    capture["recommendation_scope"] = "SHADOW"
+    capture["outcome_tracked"] = False
+    capture["pick"] = None
+    capture["shadow_pick"] = {
+        "market": "TOTALS",
+        "selection": "OVER",
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 1)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert payload["written"] == 0
+    assert payload["record_count"] == 0
+    assert payload["unresolved_count"] == 1
+    assert payload["status"] == "PARTIAL"
+
+
 def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
     tmp_path: Path,
 ) -> None:
@@ -256,7 +314,8 @@ def test_forward_outcome_backfill_is_idempotent(tmp_path: Path) -> None:
 
     assert first["written"] == 1
     assert second["written"] == 0
-    assert second["skipped_existing"] == 1
+    assert second["skipped_existing"] == 0
+    assert second["status"] == "NO_DUE_WORK"
 
 
 def test_forward_outcome_backfill_ignores_non_ft_results(tmp_path: Path) -> None:

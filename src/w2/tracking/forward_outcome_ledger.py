@@ -151,20 +151,19 @@ def backfill_outcomes(
     ledger_rows = _ledger_rows_by_file(root)
     pending_before = _pending_entries(ledger_rows)
     outcome_records: list[tuple[Path, dict[str, Any]]] = []
-    for path, records in ledger_rows.items():
-        for entry, side, item in _settlement_entries(records, results):
-            outcome_records.append(
-                (
-                    path,
-                    _outcome_record(
-                        entry,
-                        side=side,
-                        item=item,
-                        result=results[_text(entry.get("fixture_id"))],
-                        settled_at=resolved_settled_at,
-                    ),
-                )
-            )
+    for path, entry, side, item in pending_before.values():
+        result = results.get(_text(entry.get("fixture_id")))
+        if result is None:
+            continue
+        record = _outcome_record(
+            entry,
+            side=side,
+            item=item,
+            result=result,
+            settled_at=resolved_settled_at,
+        )
+        if record is not None:
+            outcome_records.append((path, record))
 
     written = 0
     skipped_existing = 0
@@ -378,7 +377,7 @@ def _outcome_record(
     item: Mapping[str, Any],
     result: Mapping[str, Any],
     settled_at: datetime,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     market = _text(item.get("market"))
     selection = _text(item.get("selection"))
     quote = _quote(entry, market, selection)
@@ -424,28 +423,14 @@ def _outcome_record(
             "void_reason": void_reason or f"TERMINAL_STATUS_{status}",
         }
     if home_goals is None or away_goals is None:
-        return {
-            **base,
-            "settlement_outcome": "VOID",
-            "void_reason": "MISSING_FULLTIME_SCORE",
-        }
+        return None
     if quote is None:
-        return {
-            **base,
-            "settlement_outcome": "VOID",
-            "void_reason": "MISSING_ENTRY_LINE_OR_PRICE",
-        }
+        return None
     line, _price = quote
     settlement_selection = _settlement_selection(market, selection)
     decimal_line = _decimal(line)
     if settlement_selection is None or decimal_line is None:
-        return {
-            **base,
-            "entry_line": line,
-            "entry_price": _price,
-            "settlement_outcome": "VOID",
-            "void_reason": "INVALID_ENTRY_LINE_OR_SELECTION",
-        }
+        return None
     if market == "ASIAN_HANDICAP":
         outcome = settle_asian_handicap(
             home_goals,
@@ -650,6 +635,8 @@ def _pending_entries(
         tuple[Path, Mapping[str, Any], str, Mapping[str, Any]],
     ] = {}
     settled: set[tuple[str, str, str, str, str]] = set()
+    all_records = [record for records in rows_by_file.values() for record in records]
+    globally_conflicted_validation = _conflicted_validation_fixtures(all_records)
     for path, records in rows_by_file.items():
         for record in records:
             if _text(record.get("record_type")) == "outcome":
@@ -664,6 +651,8 @@ def _pending_entries(
         )
         # _settlement_entries only needs fixture membership here; settlement payload is unused.
         for entry, side, item in grouped:
+            if side == "pick" and _text(entry.get("fixture_id")) in globally_conflicted_validation:
+                continue
             identity = _settlement_identity_from_parts(entry, side, item)
             pending.setdefault(identity, (path, entry, side, item))
     return {identity: value for identity, value in pending.items() if identity not in settled}
