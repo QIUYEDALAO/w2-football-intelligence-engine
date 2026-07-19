@@ -23,6 +23,15 @@ class FakeRepository:
         return f"db://raw_payload/{payload['sha256']}"
 
 
+class StatusRefreshRepository(FakeRepository):
+    def __init__(self, fixtures: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self.fixtures = fixtures
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return self.fixtures
+
+
 class FakeClient:
     def __init__(self, payloads: dict[str, dict[str, Any]]) -> None:
         self.payloads = payloads
@@ -160,6 +169,47 @@ def test_finished_unsettleable_capture_is_not_requeried(tmp_path: Path) -> None:
     assert second["status"] == "NO_DUE_WORK"
     assert second["provider_calls"] == 0
     assert client.calls == ["104"]
+
+
+def test_result_refresh_reconciles_completed_non_ledger_fixture_status(tmp_path: Path) -> None:
+    repository = StatusRefreshRepository(
+        [
+            {
+                "fixture": {
+                    "id": 105,
+                    "date": "2026-07-19T00:00:00Z",
+                    "status": {"short": "NS"},
+                }
+            }
+        ]
+    )
+    client = FakeClient(
+        {
+            "105": _fixture_payload(
+                fixture_id="105",
+                status="FT",
+                fulltime=(1, 0),
+                goals=(1, 0),
+            )
+        }
+    )
+
+    result = run_outcome_result_refresh(
+        runtime_root=tmp_path,
+        client=client,
+        repository=repository,  # type: ignore[arg-type]
+        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["provider_calls"] == 1
+    assert result["db_writes"] == 1
+    assert result["settlement"]["written"] == 0
+    assert client.calls == ["105"]
+    assert result["selected"][0]["status"] == "FT"
+    assert result["selected"][0]["next_check_at_utc"] is None
 
 
 def _write_capture(

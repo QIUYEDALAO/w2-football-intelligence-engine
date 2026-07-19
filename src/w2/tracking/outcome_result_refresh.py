@@ -20,6 +20,7 @@ from w2.tracking.forward_outcome_ledger import (
 REFRESH_SCHEMA_VERSION = "w2.outcome_result_refresh.v1"
 STATE_FILE = "forward_outcome_result_refresh_state.json"
 CHECKPOINT_HOURS = (3, 6, 12, 24, 48)
+POST_MATCH_STATUS_WINDOW_HOURS = 48
 
 
 class FixtureResultClient(Protocol):
@@ -42,21 +43,28 @@ def run_outcome_result_refresh(
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     pending = pending_outcome_entries(runtime_root, now=resolved_now)
+    repo = repository or FutureRefreshDbRepository()
+    # Fixtures which were never selected for validation still need their
+    # provider status reconciled after kickoff. Otherwise the last pre-match
+    # NS snapshot keeps a completed match in the Dashboard's upcoming bucket.
+    refreshable = _merge_refresh_candidates(
+        pending,
+        _post_match_status_candidates(repo, now=resolved_now),
+    )
     state_path = runtime_root / STATE_FILE
     state = _load_state(state_path)
-    fixtures = _due_fixtures(pending, state=state, now=resolved_now)
+    fixtures = _due_fixtures(refreshable, state=state, now=resolved_now)
     selected = fixtures[: max(0, min(max_fixtures, 20))]
     if not selected:
         return _result(
             status="NO_DUE_WORK",
-            pending=pending,
+            pending=refreshable,
             selected=[],
             provider_calls=0,
             db_writes=0,
             settlement=None,
         )
 
-    repo = repository or FutureRefreshDbRepository()
     day_start = resolved_now.replace(hour=0, minute=0, second=0, microsecond=0)
     daily_cap = max(env_int("W2_PROVIDER_DAILY_HARD_CAP", default=120), 0)
     calls_today = repo.request_count_since(day_start)
@@ -64,7 +72,7 @@ def run_outcome_result_refresh(
     if remaining <= 0:
         return _result(
             status="PARTIAL",
-            pending=pending,
+            pending=refreshable,
             selected=[],
             provider_calls=0,
             db_writes=0,
@@ -159,7 +167,7 @@ def run_outcome_result_refresh(
     status = "PASS" if not blockers and unresolved == 0 else "PARTIAL"
     return _result(
         status=status,
-        pending=pending,
+        pending=refreshable,
         selected=checks,
         provider_calls=provider_calls,
         db_writes=db_writes,
@@ -189,6 +197,13 @@ def _due_fixtures(
             and str(saved.get("pending_identity_hash") or "") == pending_hash
         ):
             continue
+        if (
+            isinstance(saved, Mapping)
+            and str(saved.get("status") or "").upper()
+            in {"FT", "AET", "PEN", *VOID_STATUSES}
+            and str(saved.get("pending_identity_hash") or "") == pending_hash
+        ):
+            continue
         next_check = (
             _parse_time(saved.get("next_check_at_utc")) if isinstance(saved, Mapping) else None
         )
@@ -198,6 +213,61 @@ def _due_fixtures(
     return sorted(
         unique.values(), key=lambda row: (str(row.get("kickoff_utc")), str(row["fixture_id"]))
     )
+
+
+def _post_match_status_candidates(
+    repository: Any,
+    *,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    loader = getattr(repository, "fixture_payloads", None)
+    if not callable(loader):
+        return []
+    try:
+        payloads = loader()
+    except Exception:
+        return []
+    candidates: list[dict[str, Any]] = []
+    for item in payloads:
+        if not isinstance(item, Mapping):
+            continue
+        fixture_value = item.get("fixture")
+        fixture = fixture_value if isinstance(fixture_value, Mapping) else {}
+        fixture_id = str(fixture.get("id") or "")
+        kickoff = _parse_time(fixture.get("date"))
+        status_value = fixture.get("status")
+        status = status_value if isinstance(status_value, Mapping) else {}
+        if (
+            not fixture_id
+            or kickoff is None
+            or str(status.get("short") or "").upper() not in {"NS", "TBD"}
+            or kickoff > now - timedelta(hours=3)
+            or kickoff < now - timedelta(hours=POST_MATCH_STATUS_WINDOW_HOURS)
+        ):
+            continue
+        candidates.append(
+            {
+                "fixture_id": fixture_id,
+                "kickoff_utc": kickoff.isoformat().replace("+00:00", "Z"),
+                "due": True,
+                "identity": {"source": "post_match_status_refresh"},
+            }
+        )
+    return candidates
+
+
+def _merge_refresh_candidates(
+    pending: list[dict[str, Any]],
+    status_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for row in [*status_candidates, *pending]:
+        fixture_id = str(row.get("fixture_id") or "")
+        if fixture_id:
+            # Ledger entries retain their settlement identity when both
+            # sources point at the same fixture.
+            merged[fixture_id] = dict(row)
+    return list(merged.values())
 
 
 def _pending_identity_hash(pending: list[dict[str, Any]], fixture_id: str) -> str:
