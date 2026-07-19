@@ -411,3 +411,16 @@
   2026-07-20、2026-07-21 各 09:00；三个自然日必须保持同一 SHA、镜像和数据契约。
   GitHub、champion、RECOMMEND/lock、OFFICIAL 与 write-enabled production
   均未变更。
+
+### 2026-07-19 · Dashboard ledger authority 修复验收
+
+- 10:00 巡检发现 staging Dashboard 将真实验证 23 场错误显示为 0。真实共享 ledger
+  完整未丢失；根因是非 editable 安装后 API 从 site-packages 路径推导了错误 runtime。
+- `438ac07e8ad3b30dbe1c4107b759100e1cae7418` 显式绑定 `/app/runtime` 后恢复
+  23 场、已结算 15、待结算 8、命中 10、未中 3、走水 2；ledger hash、provider、
+  queue 均无变化。
+- Dashboard 将“数据陈旧”替换为实际缺项、现有早盘采集时间和下一采集时点。当前三场
+  瑞典超缺的是 30 分钟新鲜度内的临场 AH/OU 赔率，预计 16:30 正常采集后重新判断；
+  非五大联赛不以首发为硬门，也不承诺必然形成 pick。
+- 该运行时修复使三周期重置为 `0/3`；10:00 故障巡检不计数，下一组为 7 月 20–22
+  日各 09:00。GitHub 和所有高风险开关不变。

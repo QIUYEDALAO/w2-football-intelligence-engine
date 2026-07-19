@@ -379,3 +379,26 @@ merge-before-next-phase rule.
 
 Detailed evidence:
 [W2 LMM staging acceptance](docs/operations/W2_LMM_STAGING_CANARY_20260719.md).
+
+## 2026-07-19 — Dashboard ledger authority regression fixed
+
+- The 10:00 patrol correctly exposed that the new API showed zero validation
+  fixtures. The real 12-file shared ledger was intact; the installed package had
+  derived an invalid runtime root under `/app/.venv/lib/python3.12/runtime`.
+- Exact repair `438ac07e8ad3b30dbe1c4107b759100e1cae7418` explicitly binds API, worker
+  and scheduler to `/app/runtime`. Dashboard validation recovered to 23
+  fixtures, 15 settled, 8 pending, 10 hit, 3 miss, 2 push and 0 void.
+- Ledger hash, provider count, queue and business state remained unchanged.
+  Full local gate passed with `1207 passed / 4 skipped`; exact-archive isolated
+  predeploy and formal staging probes passed. All services ended healthy with
+  restart/OOM zero and scheduler/watchdog restored.
+- Dashboard no longer hides the cause behind “数据陈旧”. For the current three
+  fixtures it states that the missing hard input is an odds quote within the
+  30-minute freshness window, identifies the old early market and gives the
+  next scheduled collection time, without promising a recommendation.
+- The failed 10:00 patrol does not count. Because a runtime fix was deployed,
+  the sequence resets to `0/3`; next eligible patrols are July 20–22 at 09:00
+  Beijing on the same SHA and images.
+
+Detailed evidence:
+[W2 Dashboard ledger authority fix](docs/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md).
