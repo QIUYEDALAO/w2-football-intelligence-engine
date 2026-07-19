@@ -2,32 +2,32 @@
 
 ## Current gate
 
-R3 is `staging_accepted` and remains the active delivery phase. LMM0-LMM8 is
-the authorized in-progress correction workstream on local branch
-`codex/w2-lmm-lineup-multimarket`, based on local `main@8e171dc`.
+R3 and LMM0–LMM8 are `staging_accepted` on the exact local implementation
+`198c603db424371014e1f738596a9befa8a9486c`. The single LMM staging deployment
+and canary passed. GitHub was not accessed or synchronized.
 
-The currently accepted staging implementation is `01f8a75`; the LMM candidate
-has not been deployed. Existing read-only cycles must be restarted from `0/3`
-only after the single LMM staging canary succeeds. No GitHub synchronization is
-authorized.
+The consecutive Beijing 09:00 read-only count is reset to `0/3`. The first
+eligible patrol is 2026-07-20 09:00 Asia/Shanghai because the accepted LMM
+deployment occurred after the 2026-07-19 patrol window.
 
-R4 is authorized for approval-package preparation only. Champion,
-RECOMMEND/lock, OFFICIAL and write-enabled production state changes are not
-authorized.
+LMM4's public numeric lineup weights remain zero until a frozen offline
+evaluation satisfies the registered sample and quality gates. This does not
+block the accepted identity, readiness, provenance, explanation or independent
+AH/OU market-selection behavior; it prevents unsupported xG adjustments.
 
 ## Next execution
 
-1. Complete LMM0 coverage evidence from local Transfermarkt data and redacted,
-   read-only staging lineup exports with provider delta zero.
-2. Complete LMM1-LMM7 code, migration, deterministic offline evaluation and all
-   local/isolated gates. Markets whose evaluation gate fails keep lineup weight
-   zero.
-3. Deploy the exact local candidate to staging once, after freezing rollback
-   evidence and stopping scheduler with queue zero.
-4. On staging acceptance, restore scheduler exactly and restart the consecutive
-   Beijing 09:00 read-only count at `0/3` on the same SHA and images.
-5. After `3/3` PASS, record read-only production approval under the user's
-   existing conditional authorization.
+1. Run the existing real staging read-only patrol at 09:00 on three consecutive
+   Beijing natural days against the same implementation SHA, images and data
+   contract.
+2. Count at most one PASS per natural day. UNKNOWN and hard failures do not
+   count. A data-contract, decision or runtime correction resets the sequence;
+   a pure wording correction does not.
+3. After `3/3`, record the already conditionally authorized read-only
+   production status without rebuilding or changing the candidate.
+4. Continue canonical settled-fixture accumulation separately. It does not
+   block read-only Dashboard recognition, but still constrains later champion,
+   RECOMMEND/lock and OFFICIAL decisions.
 
-R3 is `staging_accepted`; R4 is authorized for preparation only. No GitHub
-fetch, pull, push or PR is authorized.
+Champion switching, formal RECOMMEND, lock, OFFICIAL and write-enabled
+production remain unauthorized. No GitHub fetch, pull, push or PR is authorized.

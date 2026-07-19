@@ -394,3 +394,19 @@
   `github_w2_main_baseline=a80bcca`，未同步 GitHub，未部署。
 - 本计划属于数据契约和运行时决策变更；全部本地/隔离 Gate 通过后只做一次 staging
   canary，随后连续三个 09:00 只读周期从 `0/3` 重新累计。
+
+### 2026-07-19 · LMM0–LMM8 正式 staging 验收
+
+- Exact candidate `198c603db424371014e1f738596a9befa8a9486c` 通过本地全量、
+  Web/Playwright、隔离 predeploy/parity、迁移往返和正式 staging canary，状态为
+  `staging_accepted_awaiting_three_cycles`。
+- 0024、Transfermarkt 身份/身价、结构化阵容、确定性球队基线、阵容完整性、AH/OU
+  独立择优、统一 Decision Contract 和原 Dashboard 数据投影已在 staging 验收。
+- 当前覆盖政策为 C，LMM4 数值阵容权重保持 0；未通过冻结离线证据门前不对公开 xG
+  施加推测性影响。该限制不撤销阵容 readiness、provenance、解释和市场独立择优。
+- 公开顺序/并发读取 provider、业务表、checkpoint、ledger、lock 和 queue 增量均为
+  0；无 pick 时不再显示方向性推荐比分。四服务健康，restart/OOM/exit137 为 0，
+  scheduler/watchdog 已恢复。
+- 三周期重新从 `0/3` 累计，首个合格时点为 2026-07-20 09:00 北京时间；三个周期
+  必须保持同一 SHA、镜像和数据契约。GitHub、champion、RECOMMEND/lock、OFFICIAL
+  与 write-enabled production 均未变更。

@@ -350,3 +350,31 @@ merge-before-next-phase rule.
   isolated gates and its single staging canary.
 - Champion, RECOMMEND/lock, OFFICIAL and write-enabled production remain
   unchanged.
+
+## 2026-07-19 — LMM0-LMM8 staging acceptance
+
+- Exact local implementation
+  `198c603db424371014e1f738596a9befa8a9486c` passed `1206 passed / 4 skipped`,
+  all static/Web/Playwright/acceptance guards, exact-archive predeploy,
+  staging parity and isolated migration roundtrip.
+- Migration `0024_create_lineup_intelligence` is active. Staging contains
+  50,149 Transfermarkt player references, 31,507 valuation observations,
+  60 structured lineup snapshots, 1,527 lineup players, 60 deterministic team
+  baselines and 660 player identity mappings.
+- Formal sequential and concurrent public canaries kept provider, business,
+  checkpoint, ledger, lock and queue deltas at zero. Non-ready cards exposed no
+  pick or directional scoreline. All four services finished healthy with
+  restart/OOM/exit137 zero and scheduler/watchdog restored.
+- Earlier candidates with scoreline leakage, missing persisted baselines,
+  hidden runtime policy and runtime `uv run` dependency sync were rejected,
+  rolled back and covered by regression or release contract tests before the
+  successful deployment.
+- LMM4 numeric lineup adjustment remains zero because its frozen offline
+  evidence gate has not passed; readiness, provenance, explanation and AH/OU
+  independent market selection are accepted without inventing an effect.
+- The three-cycle gate is reset to `0/3`; first eligible patrol is
+  2026-07-20 09:00 Beijing on the same SHA and images. GitHub, champion,
+  RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
+
+Detailed evidence:
+[W2 LMM staging acceptance](docs/operations/W2_LMM_STAGING_CANARY_20260719.md).
