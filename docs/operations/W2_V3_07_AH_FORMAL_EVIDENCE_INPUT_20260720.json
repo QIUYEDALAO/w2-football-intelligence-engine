@@ -1,0 +1,15 @@
+{
+  "schema_version": "w2.ah_formal_evidence_input.v1",
+  "frozen_at_utc": "2026-07-20T00:00:00Z",
+  "source": "V3-00 canonical cohort baseline plus local runtime audit exports",
+  "reference_canonical_performance_cohort": {
+    "eligible_count": 16,
+    "hit_count": 11,
+    "miss_count": 3,
+    "push_count": 2,
+    "void_count": 0,
+    "cohort_sha256": "f48f798e9719b5094ee03d392bb37e730cb012a76e551a75a89e145f889c989a"
+  },
+  "explanation": "The frozen canonical performance cohort contains settlement outcomes, but no rows with the full immutable AH model settlement distribution, devig market settlement distribution, entry odds, and closing devig probability required by V3-07. Empty records is deliberate: it prevents a non-AH or incomplete historical row from being represented as formal-AH evidence.",
+  "records": []
+}
