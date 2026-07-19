@@ -12,6 +12,8 @@ from typing import Any
 
 SAMPLE_TARGET = 200
 MIN_DECISIVE_SAMPLES_FOR_RATE = 5
+CLV_CLOSING_WINDOW = timedelta(minutes=30)
+CLV_METHOD = "entry_minus_closing_decimal_odds_same_line; closing_within_30m_before_kickoff"
 SETTLED_OUTCOMES = {
     "HIT": "hit",
     "WIN": "hit",
@@ -108,12 +110,12 @@ def forward_ledger_performance(
         "clv": _clv_summary(
             clv_values,
             clv_rows,
-            method="entry_minus_closing_decimal_odds_same_line",
+            method=CLV_METHOD,
         ),
         "clv_shadow": _clv_summary(
             clv_shadow_values,
             clv_shadow_rows,
-            method="shadow_pick_entry_minus_closing_same_line; not_displayed_direction",
+            method=f"shadow_pick_{CLV_METHOD}; not_displayed_direction",
         ),
         "accrual_note": (
             "shadow CLV 为积累期证据流,用于未来按预注册规则放行 direction_allowed;非展示战绩"
@@ -870,8 +872,9 @@ def _clv_summary(
     rows: Sequence[Mapping[str, Any]],
     *,
     method: str,
+    include_coverage: bool = False,
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "sample_count": len(values),
         "median_decimal": median(values) if values else None,
         "positive_count": len([value for value in values if value > 0]),
@@ -880,6 +883,28 @@ def _clv_summary(
         "line_changed_count": len([row for row in rows if row.get("line_changed") is True]),
         "method": method,
     }
+    if include_coverage:
+        summary.update(
+            {
+                "candidate_count": len(rows),
+                "missing_count": len(rows) - len(values),
+                "stale_closing_count": len(
+                    [
+                        row
+                        for row in rows
+                        if row.get("clv_status") == "CLOSING_WINDOW_MISSING"
+                    ]
+                ),
+                "insufficient_snapshot_count": len(
+                    [
+                        row
+                        for row in rows
+                        if row.get("clv_status") == "INSUFFICIENT_SNAPSHOTS"
+                    ]
+                ),
+            }
+        )
+    return summary
 
 
 def _clv_rows(
@@ -901,13 +926,34 @@ def _clv_rows(
                 _parse_time(item.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
-        if len(ordered) < 2:
-            continue
         entry = _entry_record(ordered)
-        closing = _closing_record(ordered)
         entry_quote = _quote(entry, market, selection)
+        base_row = {
+            "fixture_id": fixture_id,
+            "league": _league_key(entry),
+            "market": market,
+            "selection": selection,
+            "entry_captured_at": _text(entry.get("captured_at")),
+            "closing_captured_at": None,
+            "line_changed": False,
+            "clv_decimal": None,
+        }
+        if len(ordered) < 2:
+            rows.append({**base_row, "clv_status": "INSUFFICIENT_SNAPSHOTS"})
+            continue
+        closing = _closing_record(ordered)
+        if closing is None:
+            rows.append({**base_row, "clv_status": "CLOSING_WINDOW_MISSING"})
+            continue
         closing_quote = _quote(closing, market, selection)
         if entry_quote is None or closing_quote is None:
+            rows.append(
+                {
+                    **base_row,
+                    "closing_captured_at": _text(closing.get("captured_at")),
+                    "clv_status": "QUOTE_MISSING",
+                }
+            )
             continue
         entry_line, entry_price = entry_quote
         closing_line, closing_price = closing_quote
@@ -922,6 +968,7 @@ def _clv_rows(
                 "closing_captured_at": _text(closing.get("captured_at")),
                 "line_changed": line_changed,
                 "clv_decimal": None if line_changed else round(entry_price - closing_price, 6),
+                "clv_status": "LINE_CHANGED" if line_changed else "AVAILABLE",
             }
         )
     return rows
@@ -936,15 +983,15 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     return records[0]
 
 
-def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+def _closing_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any] | None:
     before_kickoff = [
         record
         for record in records
         if (kickoff := _parse_time(record.get("kickoff_utc")))
         and (captured := _parse_time(record.get("captured_at")))
-        and captured <= kickoff
+        and kickoff - CLV_CLOSING_WINDOW <= captured <= kickoff
     ]
-    return before_kickoff[-1] if before_kickoff else records[-1]
+    return before_kickoff[-1] if before_kickoff else None
 
 
 def _clv_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
@@ -1136,12 +1183,24 @@ def _eligible_clv_rows(
     clv_rows: Sequence[Mapping[str, Any]],
     canonical: Sequence[Mapping[str, Any]],
 ) -> list[Mapping[str, Any]]:
-    """Return at most one CLV observation for each canonical fixture."""
-    eligible_ids = {_text(row.get("fixture_id")) for row in canonical}
+    """Return the CLV observation for each canonical recommendation identity."""
+    eligible_recommendations = {
+        (
+            _text(row.get("fixture_id")),
+            _text(row.get("market")),
+            _text(row.get("selection")),
+        )
+        for row in canonical
+    }
     by_fixture: dict[str, Mapping[str, Any]] = {}
     for row in clv_rows:
         fixture_id = _text(row.get("fixture_id"))
-        if fixture_id in eligible_ids and fixture_id not in by_fixture:
+        recommendation = (
+            fixture_id,
+            _text(row.get("market")),
+            _text(row.get("selection")),
+        )
+        if recommendation in eligible_recommendations and fixture_id not in by_fixture:
             by_fixture[fixture_id] = row
     return list(by_fixture.values())
 
@@ -1217,7 +1276,8 @@ def _performance_cohort(
         "clv": _clv_summary(
             _clv_values(clv_rows),
             clv_rows,
-            method="entry_minus_closing_decimal_odds_same_line; eligible_fixture_only",
+            method=f"{CLV_METHOD}; eligible_fixture_only",
+            include_coverage=True,
         ),
         "by_league": league_rows,
         "exclusions": exclusions,
@@ -1279,7 +1339,7 @@ def _cohort_league_rows(
                 "clv": _clv_summary(
                     _clv_values(league_clv_rows),
                     league_clv_rows,
-                    method="entry_minus_closing_decimal_odds_same_line; eligible_fixture_only",
+                    method=f"{CLV_METHOD}; eligible_fixture_only",
                 ),
                 "rate_status": (
                     "AVAILABLE"

@@ -96,6 +96,8 @@ def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None
     assert 'name = svc.get("Service", "?")' in text
     assert 'ledger.get("schema_version") != "w2.forward_ledger_performance.v3"' in text
     assert 'cohort.get("invariants", {}).get("status") != "PASS"' in text
+    assert '"closing_within_30m_before_kickoff" not in clv.get("method", "")' in text
+    assert 'fail("performance cohort CLV candidate partition is inconsistent")' in text
 
 
 def test_staging_legacy_recovery_manifest_contains_only_unique_capture_cases() -> None:

@@ -472,19 +472,23 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
               hit_rate: 11 / 14,
             },
             clv: {
-              sample_count: 13,
+              sample_count: 3,
+              candidate_count: 16,
+              missing_count: 13,
               median_decimal: 0,
-              positive_count: 2,
-              negative_count: 2,
-              push_count: 6,
+              positive_count: 1,
+              negative_count: 1,
+              push_count: 1,
               line_changed_count: 0,
+              stale_closing_count: 8,
+              insufficient_snapshot_count: 4,
             },
             by_league: [
-              ["league-no", "挪威超", 7, 6, 1, 4, 1, 1, 0.8, 6],
-              ["league-se", "瑞典超", 6, 4, 2, 3, 1, 0, 0.75, 4],
-              ["169", "中超", 5, 1, 4, 0, 1, 0, 0, 1],
-              ["serie-a", "意甲", 3, 3, 0, 3, 0, 0, 1, 1],
-              ["world-cup", "世界杯", 2, 2, 0, 1, 0, 1, 1, 1],
+              ["league-no", "挪威超", 7, 6, 1, 4, 1, 1, 0.8, 1, 0.04],
+              ["league-se", "瑞典超", 6, 4, 2, 3, 1, 0, 0.75, 1, -0.02],
+              ["169", "中超", 5, 1, 4, 0, 1, 0, 0, 1, 0],
+              ["serie-a", "意甲", 3, 3, 0, 3, 0, 0, 1, 0, null],
+              ["world-cup", "世界杯", 2, 2, 0, 1, 0, 1, 1, 0, null],
             ].map(
               ([
                 competitionId,
@@ -497,6 +501,7 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
                 push,
                 hitRate,
                 clvSamples,
+                clvMedian,
               ]) => ({
                 competition_id: competitionId,
                 league,
@@ -515,11 +520,15 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
                 },
                 clv: {
                   sample_count: clvSamples,
-                  median_decimal: clvSamples ? 0 : null,
-                  positive_count: 0,
-                  negative_count: 0,
-                  push_count: clvSamples,
+                  candidate_count: eligible,
+                  missing_count: Number(eligible) - Number(clvSamples),
+                  median_decimal: clvMedian,
+                  positive_count: Number(clvMedian) > 0 ? 1 : 0,
+                  negative_count: Number(clvMedian) < 0 ? 1 : 0,
+                  push_count: clvMedian === 0 ? 1 : 0,
                   line_changed_count: 0,
+                  stale_closing_count: 0,
+                  insufficient_snapshot_count: 0,
                 },
                 rate_status:
                   Number(hit) + Number(miss) >= 5
@@ -560,6 +569,9 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
 
   await expect(page.locator(".league-performance-table > div")).toHaveCount(6);
   await expect(page.locator(".league-performance-table")).toContainText("中超");
+  await expect(page.locator(".league-performance-table")).toContainText(
+    "临场 CLV＝推荐赔率－开赛前 30 分钟内的同盘口赔率",
+  );
   await expect(page.locator(".verification-preview")).toContainText(
     "纳入统计 16 场",
   );
@@ -585,6 +597,18 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   await expect(csl).toContainText("0-1-0");
   await expect(csl).toContainText("样本不足（1）");
   await expect(csl).not.toContainText("0%");
+  const norway = page
+    .locator(".league-performance-table > div")
+    .filter({ hasText: "挪威超" });
+  await expect(norway).toContainText("+0.040（n=1）");
+  const sweden = page
+    .locator(".league-performance-table > div")
+    .filter({ hasText: "瑞典超" });
+  await expect(sweden).toContainText("-0.020（n=1）");
+  const serieA = page
+    .locator(".league-performance-table > div")
+    .filter({ hasText: "意甲" });
+  await expect(serieA).toContainText("暂无临场盘（n=0）");
 
   const exclusions = page.locator(".verification-exclusions summary");
   await exclusions.focus();

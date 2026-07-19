@@ -1355,6 +1355,15 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.league-performance-table .league-clv-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .verification-list strong {
   color: var(--text);
   font-size: 13px;

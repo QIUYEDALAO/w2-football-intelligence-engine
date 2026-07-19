@@ -227,6 +227,12 @@ def main() -> None:
     clv = cohort.get("clv", {})
     if not isinstance(clv, dict) or clv.get("sample_count", 0) > cohort["eligible_count"]:
         fail("performance cohort CLV is not an eligible-fixture subset")
+    if "closing_within_30m_before_kickoff" not in clv.get("method", ""):
+        fail("performance cohort CLV does not enforce the 30-minute closing window")
+    if clv.get("sample_count", 0) + clv.get("missing_count", 0) != clv.get(
+        "candidate_count", 0
+    ):
+        fail("performance cohort CLV candidate partition is inconsistent")
     if cohort.get("invariants", {}).get("status") != "PASS":
         fail("performance cohort invariant status is not PASS")
     recovery_ids = {

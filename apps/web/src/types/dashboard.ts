@@ -620,11 +620,15 @@ export interface ForwardLedgerCohortOutcomeSummary extends ForwardLedgerOutcomeS
 
 export interface ForwardLedgerCohortClvSummary {
   sample_count: number;
+  candidate_count: number;
+  missing_count: number;
   median_decimal?: number | null;
   positive_count: number;
   negative_count: number;
   push_count: number;
   line_changed_count: number;
+  stale_closing_count: number;
+  insufficient_snapshot_count: number;
   method?: string;
 }
 
@@ -724,11 +728,15 @@ export interface ForwardLedgerPerformance {
   accumulation_label: string;
   clv: {
     sample_count: number;
+    candidate_count: number;
+    missing_count: number;
     median_decimal?: number | null;
     positive_count: number;
     negative_count: number;
     push_count: number;
     line_changed_count: number;
+    stale_closing_count: number;
+    insufficient_snapshot_count: number;
     method?: string;
   };
   by_league: ForwardLedgerLeaguePerformance[];

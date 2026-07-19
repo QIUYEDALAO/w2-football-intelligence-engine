@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from w2.tracking.forward_ledger_performance import forward_ledger_performance
+from w2.tracking.forward_ledger_performance import _eligible_clv_rows, forward_ledger_performance
 
 
 def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: Path) -> None:
@@ -145,6 +145,63 @@ def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_p
     assert payload["by_league"][0]["clv_median_decimal"] == 0.15
 
 
+def test_forward_ledger_performance_excludes_stale_last_snapshot_from_clv(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    entry = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    closing = _validation_capture("fixture-1", "2026-07-08T00:29:00Z")
+    outcome = _outcome_record("fixture-1", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "source_capture_hash": entry["card_hash"],
+            "source_captured_at": entry["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [entry, closing, outcome],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+    clv = payload["performance_cohort"]["clv"]
+
+    assert clv["sample_count"] == 0
+    assert clv["candidate_count"] == 1
+    assert clv["missing_count"] == 1
+    assert clv["stale_closing_count"] == 1
+    assert clv["median_decimal"] is None
+    assert "closing_within_30m_before_kickoff" in clv["method"]
+
+
+def test_eligible_clv_matches_canonical_market_and_selection() -> None:
+    rows = [
+        {
+            "fixture_id": "fixture-1",
+            "market": "TOTALS",
+            "selection": "OVER",
+            "clv_decimal": 0.2,
+        },
+        {
+            "fixture_id": "fixture-1",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "clv_decimal": -0.1,
+        },
+    ]
+    canonical = [
+        {
+            "fixture_id": "fixture-1",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+        }
+    ]
+
+    assert _eligible_clv_rows(rows, canonical) == [rows[1]]
+
+
 def test_forward_ledger_performance_tracks_shadow_clv_separately(
     tmp_path: Path,
 ) -> None:
@@ -176,7 +233,8 @@ def test_forward_ledger_performance_tracks_shadow_clv_separately(
     assert payload["clv_shadow"]["sample_count"] == 1
     assert payload["clv_shadow"]["median_decimal"] == 0.15
     assert payload["clv_shadow"]["method"] == (
-        "shadow_pick_entry_minus_closing_same_line; not_displayed_direction"
+        "shadow_pick_entry_minus_closing_decimal_odds_same_line; "
+        "closing_within_30m_before_kickoff; not_displayed_direction"
     )
     assert "shadow CLV" in payload["accrual_note"]
     assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15

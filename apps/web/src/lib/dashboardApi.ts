@@ -165,12 +165,16 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   });
   const clvSummary = (row: Record<string, unknown>) => ({
     sample_count: numberValue(row.sample_count),
+    candidate_count: numberValue(row.candidate_count),
+    missing_count: numberValue(row.missing_count),
     median_decimal:
       typeof row.median_decimal === "number" ? row.median_decimal : null,
     positive_count: numberValue(row.positive_count),
     negative_count: numberValue(row.negative_count),
     push_count: numberValue(row.push_count),
     line_changed_count: numberValue(row.line_changed_count),
+    stale_closing_count: numberValue(row.stale_closing_count),
+    insufficient_snapshot_count: numberValue(row.insufficient_snapshot_count),
     method: textValue(row.method) || undefined,
   });
   const cohortOutcomeSummary = (row: Record<string, unknown>) => ({

@@ -1471,7 +1471,9 @@ function LeaguePerformancePreview({
               <span>联赛</span>
               <span>纳入统计</span>
               <span>结果</span>
-              <span>CLV</span>
+              <span title="推荐赔率减去开赛前 30 分钟内的同盘口赔率">
+                临场 CLV
+              </span>
               <span>统计状态</span>
             </div>
             {visibleForwardRows.map((row) => (
@@ -1484,10 +1486,10 @@ function LeaguePerformancePreview({
                   {row.outcomes.hit_count}-{row.outcomes.miss_count}-
                   {row.outcomes.push_count}
                 </span>
-                <span data-label="CLV">
+                <span data-label="临场 CLV">
                   {row.clv.sample_count
                     ? `${clvUnits(row.clv.median_decimal)}（n=${row.clv.sample_count}）`
-                    : "—（n=0）"}
+                    : "暂无临场盘（n=0）"}
                 </span>
                 <span data-label="统计状态">
                   {row.rate_status === "AVAILABLE"
@@ -1496,6 +1498,10 @@ function LeaguePerformancePreview({
                 </span>
               </div>
             ))}
+            <p className="league-clv-note">
+              临场 CLV＝推荐赔率－开赛前 30 分钟内的同盘口赔率；正数更优，n
+              为有效临场样本。
+            </p>
           </div>
         ) : (
           <p>还没有形成验证推荐；未产生验证身份的比赛不计入联赛表现。</p>
