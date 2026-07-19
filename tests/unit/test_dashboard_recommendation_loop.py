@@ -185,8 +185,8 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["validation"]["score_exact_hit"] is True
     assert card["validation"]["counted_in_official"] is False
     assert card["validation"]["counted_in_analysis_shadow"] is True
-    assert len(card["scoreline_picks"]) == 3
-    assert card["scoreline_picks"][0]["probability_label"] == "22%"
+    assert card["scoreline_picks"] == []
+    assert card["scoreline_reference"] is None
 
     performance = payload["performance"]
     assert performance["sample_size"] == 0
@@ -1432,7 +1432,7 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
 
 
-def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
+def test_dashboard_hides_formal_simulation_scorelines_without_public_pick() -> None:
     service = ReadModelService(
         repository=cast(
             Any,
@@ -1470,14 +1470,10 @@ def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
-    assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
-    assert card["scoreline_picks"][0]["scoreline"] != "4-4"
-    assert card["scoreline_reference"]["source"] == "formal_simulation"
-    assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert card["scoreline_reference"]["direction_top3"] == []
-    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
-    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
-    assert card["scoreline_reference"]["ah_key_scorelines"] == []
+    assert card["decision_tier"] not in {"ANALYSIS_PICK", "RECOMMEND"}
+    assert card["pick"] is None
+    assert card["scoreline_picks"] == []
+    assert card["scoreline_reference"] is None
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

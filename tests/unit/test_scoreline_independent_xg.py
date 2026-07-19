@@ -211,7 +211,9 @@ def test_xg_ready_emits_scoreline_readiness_and_dashboard_picks(
     dashboard = service.dashboard(target_date=target_date, window="next36")
     dashboard_card = dashboard["all"][0]
     assert dashboard_card["scoreline_readiness"]["status"] == "READY"
-    assert dashboard_card["scoreline_picks"]
+    assert dashboard_card["pick"] is None
+    assert dashboard_card["scoreline_picks"] == []
+    assert dashboard_card["scoreline_reference"] is None
 
 
 def test_market_ou_does_not_change_independent_scoreline(

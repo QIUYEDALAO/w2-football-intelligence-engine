@@ -1997,6 +1997,7 @@ class ReadModelService:
             "fixture_identity": deepcopy(artifact.payload["fixture_identity"]),
             "input_manifest": deepcopy(artifact.payload["input_manifest"]),
         }
+        self._enforce_non_pick_scoreline_invariant(card)
         return card
 
     def _frozen_analysis_card_failure(
@@ -2098,6 +2099,7 @@ class ReadModelService:
             projected["candidate"] = False
             projected["formal_recommendation"] = False
             self._clear_public_market_picks(projected, watch=tier == "WATCH")
+        self._enforce_non_pick_scoreline_invariant(projected)
         return projected
 
     def _fail_closed_public_analysis_card(self, card: dict[str, Any]) -> dict[str, Any]:
@@ -2114,7 +2116,24 @@ class ReadModelService:
             "formal_recommendation": False,
         }
         self._clear_public_market_picks(projected, watch=False)
+        self._enforce_non_pick_scoreline_invariant(projected)
         return projected
+
+    def _enforce_non_pick_scoreline_invariant(self, card: dict[str, Any]) -> None:
+        """Do not expose directional scorelines without a canonical public pick."""
+        contract = card.get("decision_contract")
+        contract_mapping = contract if isinstance(contract, dict) else {}
+        tier = str(
+            contract_mapping.get("decision_tier")
+            or card.get("decision_tier")
+            or "NOT_READY"
+        )
+        pick = contract_mapping.get("pick", card.get("pick"))
+        if tier in {"ANALYSIS_PICK", "RECOMMEND"} and isinstance(pick, dict):
+            return
+        card["scoreline_picks"] = []
+        card["scoreline_reference"] = None
+        card["secondary_picks"] = []
 
     def _clear_public_market_picks(self, card: dict[str, Any], *, watch: bool) -> None:
         card["primary_market"] = None
@@ -5721,9 +5740,11 @@ class ReadModelService:
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        scoreline_reference = scoreline_reference_from_card(
-            card,
-            recommendation=scoreline_decision,
+        public_scoreline_picks = scoreline_picks if scoreline_decision is not None else []
+        scoreline_reference = (
+            scoreline_reference_from_card(card, recommendation=scoreline_decision)
+            if scoreline_decision is not None
+            else None
         )
         return {
             "fixture_id": fixture_id,
@@ -5746,7 +5767,7 @@ class ReadModelService:
             "formal_suppressed": formal_suppressed,
             "formal_suppressed_reason": formal_suppressed_reason,
             "locked_pre_match_recommendation": locked_recommendation,
-            "scoreline_picks": scoreline_picks,
+            "scoreline_picks": public_scoreline_picks,
             "scoreline_reference": scoreline_reference,
             "scoreline_readiness": self._dashboard_scoreline_readiness(card),
             "result": result,

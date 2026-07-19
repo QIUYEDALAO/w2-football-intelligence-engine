@@ -116,6 +116,14 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
     if data_status != DataStatus.READY.value or decision_tier == DecisionTier.NOT_READY.value:
         market_context["current_odds"] = {}
         market_context["market_probabilities"] = {}
+    decision_pick = _decision_field(card, contract, "pick")
+    has_directional_pick = (
+        decision_tier in {DecisionTier.ANALYSIS_PICK.value, DecisionTier.RECOMMEND.value}
+        and isinstance(decision_pick, Mapping)
+    )
+    if not has_directional_pick:
+        market_context["scoreline_picks"] = []
+        market_context["scoreline_reference"] = {}
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
@@ -148,14 +156,16 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
         **market_context,
-        "pick": _mapping_copy(_decision_field(card, contract, "pick"))
-        if isinstance(_decision_field(card, contract, "pick"), Mapping)
+        "pick": _mapping_copy(decision_pick)
+        if isinstance(decision_pick, Mapping)
         else None,
         "secondary_picks": [
             _mapping_copy(item)
             for item in card.get("secondary_picks", [])
             if isinstance(item, Mapping)
-        ][:1],
+        ][:1]
+        if has_directional_pick
+        else [],
         "market_selection_audit": [
             _mapping_copy(item)
             for item in card.get("market_selection_audit", [])

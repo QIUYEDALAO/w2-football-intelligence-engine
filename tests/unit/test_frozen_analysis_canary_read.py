@@ -33,6 +33,18 @@ def _artifact(
         "decision_tier": "NOT_READY",
         "data_status": "BLOCKED",
         "pick": None,
+        "scoreline_picks": [
+            {
+                "scoreline": "1-0",
+                "home_goals": 1,
+                "away_goals": 0,
+                "probability": 0.12,
+            }
+        ],
+        "scoreline_reference": {
+            "source": "formal_simulation",
+            "direction_top3": [{"scoreline": "1-0", "probability": 0.12}],
+        },
         "current_odds": {},
         "candidate": False,
         "formal_recommendation": False,
@@ -148,6 +160,8 @@ def test_canary_reads_only_verified_frozen_artifact() -> None:
     assert card["decision"] == "SKIP"
     assert card["decision_tier"] == "NOT_READY"
     assert card["pick"] is None
+    assert card["scoreline_picks"] == []
+    assert card["scoreline_reference"] is None
     assert card["quote_identity_audit"] == artifact.payload["analysis_card"]["quote_identity_audit"]
     assert card["frozen_artifact_provenance"] == {
         "status": "VERIFIED",
@@ -353,6 +367,8 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
         assert card["decision_tier"] == "NOT_READY"
         assert card["pick"] is None
+        assert card["scoreline_picks"] == []
+        assert not card["scoreline_reference"]
         assert card["lock_eligible"] is False
         assert card["quote_identity_audit"] == analysis["quote_identity_audit"]
     assert repository.forbidden_calls == 0

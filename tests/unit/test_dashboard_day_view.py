@@ -171,8 +171,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
     assert contract_card["scoreline_simulations"] == 10000
-    assert contract_card["scoreline_picks"][0]["scoreline"] == "1-0"
-    assert contract_card["scoreline_reference"]["label"] == "模拟比分参考"
+    assert contract_card["scoreline_picks"] == []
+    assert contract_card["scoreline_reference"] == {}
     assert contract_card["scoreline_readiness"]["status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
