@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
@@ -242,6 +243,38 @@ def test_validation_counts_unique_fixtures_and_keeps_scopes_separate(tmp_path: P
     assert payload["outcomes_shadow"]["miss_count"] == 1
 
 
+def test_validation_pending_status_explains_missing_result(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    (tmp_path / "forward_outcome_result_refresh_state.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.outcome_result_refresh.v1",
+                "fixtures": {
+                    "fixture-1": {
+                        "status": "RESULT_MISSING",
+                        "checked_at_utc": "2026-07-08T04:00:00Z",
+                        "next_check_at_utc": "2026-07-08T05:00:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 8, 6, 0, tzinfo=UTC),
+    )
+
+    status = payload["validation_pending_status"]
+    assert status["result_missing_count"] == 1
+    assert status["settlement_error_count"] == 0
+    assert status["details"][0]["category"] == "RESULT_MISSING"
+
+
 def test_validation_identity_conflict_fails_closed(tmp_path: Path) -> None:
     root = tmp_path / "forward_outcome_ledger"
     root.mkdir()
@@ -253,9 +286,7 @@ def test_validation_identity_conflict_fails_closed(tmp_path: Path) -> None:
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["validation_fixture_count"] == 0
-    assert payload["validation_excluded_by_reason"] == {
-        "RECOMMENDATION_IDENTITY_CONFLICT": 1
-    }
+    assert payload["validation_excluded_by_reason"] == {"RECOMMENDATION_IDENTITY_CONFLICT": 1}
 
 
 def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_path: Path) -> None:
@@ -278,16 +309,12 @@ def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_pat
             },
             "probability_identity": {
                 "market_probabilities": {
-                    "one_x_two": {
-                        "probabilities": {"HOME": 0.5, "DRAW": 0.3, "AWAY": 0.2}
-                    }
+                    "one_x_two": {"probabilities": {"HOME": 0.5, "DRAW": 0.3, "AWAY": 0.2}}
                 }
             },
         }
     )
-    outcome = _outcome_record(
-        "fixture-1", "WIN", side="pick", scope="VALIDATION"
-    )
+    outcome = _outcome_record("fixture-1", "WIN", side="pick", scope="VALIDATION")
     outcome.update(
         {
             "capture_identity_hash": "capture-hash-1",
@@ -313,9 +340,7 @@ def test_legacy_capture_with_unique_outcome_link_is_inherited_without_calibratio
     root.mkdir()
     capture = _validation_capture("fixture-legacy", "2026-07-07T00:00:00Z")
     capture["schema_version"] = "w2.forward_outcome_ledger.v2"
-    outcome = _outcome_record(
-        "fixture-legacy", "WIN", side="pick", scope="VALIDATION"
-    )
+    outcome = _outcome_record("fixture-legacy", "WIN", side="pick", scope="VALIDATION")
     outcome.update(
         {
             "source_capture_hash": capture["card_hash"],
@@ -354,9 +379,7 @@ def test_v3_missing_probability_remains_canonical_but_skips_calibration(
             },
         }
     )
-    outcome = _outcome_record(
-        "fixture-v3", "WIN", side="pick", scope="VALIDATION"
-    )
+    outcome = _outcome_record("fixture-v3", "WIN", side="pick", scope="VALIDATION")
     outcome.update(
         {
             "capture_identity_hash": "capture-hash-v3",

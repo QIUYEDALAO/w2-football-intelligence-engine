@@ -197,10 +197,20 @@ def forward_outcome_backfill(
     self: object,
     queued_at_utc: str | None = None,
     window: str = "next36",
+    max_fixtures: int = 20,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "forward-outcome-backfill")
-    result = _run_forward_outcome_backfill(window=window)
+    if not provider_scheduler_enabled():
+        return {
+            "task_id": task_id,
+            "queued_at_utc": queued_at_utc,
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "result": {"provider_calls": 0, "db_writes": 0},
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    result = _run_forward_outcome_backfill(window=window, max_fixtures=max_fixtures)
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
@@ -233,17 +243,18 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     )
 
 
-def _run_forward_outcome_backfill(*, window: str) -> dict[str, object]:
-    from pathlib import Path
+def _run_forward_outcome_backfill(
+    *, window: str, max_fixtures: int = 20
+) -> dict[str, object]:
+    del window  # retained for task compatibility; pending ledger is the authority.
+    from w2.tracking.outcome_result_refresh import (
+        run_outcome_result_refresh,
+        runtime_root_from_env,
+    )
 
-    from w2.api.repository import ReadModelService
-    from w2.tracking.forward_outcome_ledger import backfill_outcomes
-
-    service = ReadModelService()
-    dashboard = service.dashboard(window=window, include_debug=False)
-    return backfill_outcomes(
-        Path.cwd(),
-        dashboard,
+    return run_outcome_result_refresh(
+        runtime_root=runtime_root_from_env(),
         dry_run=False,
         write_artifacts=True,
+        max_fixtures=max_fixtures,
     )

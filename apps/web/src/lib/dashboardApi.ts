@@ -194,6 +194,24 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
       validation_fixture_count: numberValue(forwardLedger.validation_fixture_count),
       validation_settled_fixture_count: numberValue(forwardLedger.validation_settled_fixture_count),
       validation_pending_fixture_count: numberValue(forwardLedger.validation_pending_fixture_count),
+      validation_pending_status: (() => {
+        const status = asRecord(forwardLedger.validation_pending_status);
+        return {
+          waiting_finish_count: numberValue(status.waiting_finish_count),
+          postponed_count: numberValue(status.postponed_count),
+          result_missing_count: numberValue(status.result_missing_count),
+          settlement_error_count: numberValue(status.settlement_error_count),
+          details: Array.isArray(status.details) ? status.details.map((item) => {
+            const detail = asRecord(item);
+            return {
+              fixture_id: textValue(detail.fixture_id),
+              category: textValue(detail.category),
+              last_checked_at_utc: textValue(detail.last_checked_at_utc) || null,
+              next_check_at_utc: textValue(detail.next_check_at_utc) || null,
+            };
+          }) : [],
+        };
+      })(),
       outcomes_validation: outcomeSummary(validationOutcomes),
       outcomes: outcomeSummary(officialOutcomes),
       outcomes_shadow: outcomeSummary(shadowOutcomes),

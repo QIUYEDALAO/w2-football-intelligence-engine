@@ -558,6 +558,18 @@ export interface ForwardLedgerPerformance {
   validation_fixture_count: number;
   validation_settled_fixture_count: number;
   validation_pending_fixture_count: number;
+  validation_pending_status?: {
+    waiting_finish_count: number;
+    postponed_count: number;
+    result_missing_count: number;
+    settlement_error_count: number;
+    details?: Array<{
+      fixture_id: string;
+      category: string;
+      last_checked_at_utc?: string | null;
+      next_check_at_utc?: string | null;
+    }>;
+  };
   outcomes_validation: ForwardLedgerOutcomeSummary;
   outcomes: ForwardLedgerOutcomeSummary;
   outcomes_shadow: ForwardLedgerOutcomeSummary;

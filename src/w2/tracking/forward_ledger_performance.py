@@ -5,7 +5,7 @@ import math
 import random
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -27,7 +27,9 @@ def forward_ledger_performance(
     runtime_root: Path,
     *,
     sample_target: int = SAMPLE_TARGET,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
+    resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     root = runtime_root / "forward_outcome_ledger"
     records = list(load_forward_ledger_records(root))
     captures = [record for record in records if _record_type(record) == "capture"]
@@ -39,19 +41,21 @@ def forward_ledger_performance(
     validation_counts = _counts_for_rows(validation_rows)
     official_counts = _counts_for_rows(official_rows)
     shadow_counts = _counts_for_rows(shadow_rows)
-    canonical_rows, canonical_excluded = _canonical_rows(
-        validation_rows, candidates, captures
-    )
+    canonical_rows, canonical_excluded = _canonical_rows(validation_rows, candidates, captures)
     calibration = _calibration_summary(canonical_rows, candidates)
     clv_rows = _clv_rows(records, key_fn=_clv_key)
     clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
     clv_values = _clv_values(clv_rows)
     clv_shadow_values = _clv_values(clv_shadow_rows)
     fixture_ids = {
-        _text(record.get("fixture_id"))
-        for record in records
-        if _text(record.get("fixture_id"))
+        _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
+    pending_status = _pending_status_summary(
+        runtime_root,
+        candidates=candidates,
+        settled=validation_rows,
+        now=resolved_now,
+    )
     return {
         "schema_version": "w2.forward_ledger_performance.v2",
         "source": "runtime/forward_outcome_ledger",
@@ -62,6 +66,7 @@ def forward_ledger_performance(
         "validation_market_pick_count": _validation_market_pick_count(candidates),
         "validation_settled_fixture_count": len(validation_rows),
         "validation_pending_fixture_count": max(0, len(candidates) - len(validation_rows)),
+        "validation_pending_status": pending_status,
         "outcomes_validation": _outcome_summary(validation_counts),
         "outcomes": _outcome_summary(official_counts),
         "outcomes_shadow": _outcome_summary(shadow_counts),
@@ -91,8 +96,7 @@ def forward_ledger_performance(
             method="shadow_pick_entry_minus_closing_same_line; not_displayed_direction",
         ),
         "accrual_note": (
-            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 "
-            "direction_allowed;非展示战绩"
+            "shadow CLV 为积累期证据流,用于未来按预注册规则放行 direction_allowed;非展示战绩"
         ),
         "by_league": _league_rows(
             records,
@@ -124,8 +128,9 @@ def _validation_candidates(
     for fixture_id, items in grouped.items():
         ordered = sorted(
             items,
-            key=lambda item: _parse_time(item.get("captured_at"))
-            or datetime.max.replace(tzinfo=UTC),
+            key=lambda item: (
+                _parse_time(item.get("captured_at")) or datetime.max.replace(tzinfo=UTC)
+            ),
         )
         complete = [item for item in ordered if _validation_capture_issue(item) is None]
         if not complete:
@@ -202,9 +207,10 @@ def _fixture_identity(record: Mapping[str, Any]) -> dict[str, Any]:
 
 def _fixture_signature(record: Mapping[str, Any]) -> tuple[str, ...] | None:
     identity = _fixture_identity(record)
-    values = tuple(_text(identity.get(key)) for key in (
-        "fixture_id", "kickoff_utc", "competition", "home_team_name", "away_team_name"
-    ))
+    values = tuple(
+        _text(identity.get(key))
+        for key in ("fixture_id", "kickoff_utc", "competition", "home_team_name", "away_team_name")
+    )
     return values if all(values) else None
 
 
@@ -252,9 +258,7 @@ def _validation_settlements(
     return settled, excluded
 
 
-def _scoped_outcomes(
-    records: Sequence[Mapping[str, Any]], scope: str
-) -> list[Mapping[str, Any]]:
+def _scoped_outcomes(records: Sequence[Mapping[str, Any]], scope: str) -> list[Mapping[str, Any]]:
     grouped: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for record in records:
         if _record_type(record) != "outcome":
@@ -264,11 +268,13 @@ def _scoped_outcomes(
             actual = "SHADOW"
         if actual != scope:
             continue
-        grouped[(
-            _text(record.get("fixture_id")),
-            _text(record.get("market")),
-            _text(record.get("selection")),
-        )].append(record)
+        grouped[
+            (
+                _text(record.get("fixture_id")),
+                _text(record.get("market")),
+                _text(record.get("selection")),
+            )
+        ].append(record)
     rows: list[Mapping[str, Any]] = []
     for items in grouped.values():
         outcomes = {_outcome(item) for item in items if _outcome(item)}
@@ -299,8 +305,7 @@ def _canonical_rows(
         related_captures = [
             item
             for item in captures
-            if _text(item.get("fixture_id")) == fixture_id
-            and _capture_scope(item) == "VALIDATION"
+            if _text(item.get("fixture_id")) == fixture_id and _capture_scope(item) == "VALIDATION"
         ]
         reason = _canonical_issue(capture, outcome, related_captures)
         if reason:
@@ -330,9 +335,7 @@ def _canonical_issue(
         "w2.forward_outcome_ledger.v1",
         "w2.forward_outcome_ledger.v2",
     }:
-        legacy_issue = _legacy_capture_link_issue(
-            capture, outcome, related_captures
-        )
+        legacy_issue = _legacy_capture_link_issue(capture, outcome, related_captures)
         if legacy_issue:
             return legacy_issue
     else:
@@ -454,13 +457,9 @@ def _calibration_summary(
         }
     return {
         "sample_count": len(observations),
-        "log_loss": sum(
-            _log_loss(prob, actual) for prob, actual in observations
-        )
+        "log_loss": sum(_log_loss(prob, actual) for prob, actual in observations)
         / len(observations),
-        "multiclass_brier": sum(
-            _brier(prob, actual) for prob, actual in observations
-        )
+        "multiclass_brier": sum(_brier(prob, actual) for prob, actual in observations)
         / len(observations),
         "rps": sum(_rps(prob, actual) for prob, actual in observations) / len(observations),
         "ece": _ece(observations),
@@ -494,10 +493,10 @@ def _ece(observations: Sequence[tuple[tuple[float, float, float], int]]) -> floa
         buckets[min(9, int(confidence * 10))].append((confidence, predicted == actual))
     total = len(observations)
     return sum(
-        len(items) / total
+        len(items)
+        / total
         * abs(
-            sum(conf for conf, _ in items) / len(items)
-            - sum(hit for _, hit in items) / len(items)
+            sum(conf for conf, _ in items) / len(items) - sum(hit for _, hit in items) / len(items)
         )
         for items in buckets.values()
     )
@@ -550,14 +549,10 @@ def _reason_counts(excluded: Mapping[str, str]) -> dict[str, int]:
 
 def _evidence_window(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     captures = sorted(
-        _text(record.get("captured_at"))
-        for record in records
-        if _text(record.get("captured_at"))
+        _text(record.get("captured_at")) for record in records if _text(record.get("captured_at"))
     )
     outcomes = sorted(
-        _text(record.get("settled_at"))
-        for record in records
-        if _text(record.get("settled_at"))
+        _text(record.get("settled_at")) for record in records if _text(record.get("settled_at"))
     )
     return {
         "first_capture_at": captures[0] if captures else None,
@@ -572,9 +567,7 @@ def _coverage_summary(
     settled: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     fixture_ids = {
-        _text(record.get("fixture_id"))
-        for record in captures
-        if _text(record.get("fixture_id"))
+        _text(record.get("fixture_id")) for record in captures if _text(record.get("fixture_id"))
     }
     stale = {
         _text(record.get("fixture_id"))
@@ -618,11 +611,62 @@ def _validation_market_pick_count(
         if isinstance(record.get("pick"), Mapping):
             count += 1
         secondary = record.get("secondary_picks")
-        if isinstance(secondary, Sequence) and not isinstance(
-            secondary, str | bytes | bytearray
-        ):
+        if isinstance(secondary, Sequence) and not isinstance(secondary, str | bytes | bytearray):
             count += min(1, sum(isinstance(item, Mapping) for item in secondary))
     return count
+
+
+def _pending_status_summary(
+    runtime_root: Path,
+    *,
+    candidates: Mapping[str, Mapping[str, Any]],
+    settled: Sequence[Mapping[str, Any]],
+    now: datetime,
+) -> dict[str, Any]:
+    settled_ids = {_text(row.get("fixture_id")) for row in settled}
+    pending_ids = set(candidates) - settled_ids
+    state_path = runtime_root / "forward_outcome_result_refresh_state.json"
+    try:
+        state_payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        state_payload = {}
+    states = state_payload.get("fixtures") if isinstance(state_payload, Mapping) else {}
+    if not isinstance(states, Mapping):
+        states = {}
+    counts = {
+        "waiting_finish_count": 0,
+        "postponed_count": 0,
+        "result_missing_count": 0,
+        "settlement_error_count": 0,
+    }
+    details: list[dict[str, Any]] = []
+    for fixture_id in sorted(pending_ids):
+        capture = candidates[fixture_id]
+        kickoff = _parse_time(capture.get("kickoff_utc"))
+        state = states.get(fixture_id)
+        state = state if isinstance(state, Mapping) else {}
+        provider_status = _text(state.get("status")).upper()
+        if provider_status == "PST":
+            category = "POSTPONED"
+            counts["postponed_count"] += 1
+        elif kickoff is not None and now < kickoff + timedelta(hours=3):
+            category = "WAITING_FINISH"
+            counts["waiting_finish_count"] += 1
+        elif provider_status == "RESULT_MISSING":
+            category = "RESULT_MISSING"
+            counts["result_missing_count"] += 1
+        else:
+            category = "SETTLEMENT_BACKLOG"
+            counts["settlement_error_count"] += 1
+        details.append(
+            {
+                "fixture_id": fixture_id,
+                "category": category,
+                "last_checked_at_utc": state.get("checked_at_utc"),
+                "next_check_at_utc": state.get("next_check_at_utc"),
+            }
+        )
+    return {**counts, "details": details}
 
 
 def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
@@ -684,9 +728,7 @@ def _outcome_summary(counts: Mapping[str, int]) -> dict[str, Any]:
 
 def _clv_values(rows: Sequence[Mapping[str, Any]]) -> list[float]:
     return [
-        float(row["clv_decimal"])
-        for row in rows
-        if isinstance(row.get("clv_decimal"), int | float)
+        float(row["clv_decimal"]) for row in rows if isinstance(row.get("clv_decimal"), int | float)
     ]
 
 
@@ -723,8 +765,7 @@ def _clv_rows(
         ordered = sorted(
             items,
             key=lambda item: (
-                _parse_time(item.get("captured_at"))
-                or datetime.min.replace(tzinfo=UTC)
+                _parse_time(item.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
         if len(ordered) < 2:
@@ -858,9 +899,7 @@ def _league_rows(
         values = clv_by_league.get(league, [])
         shadow_values = clv_shadow_by_league.get(league, [])
         fixture_ids = {
-            _text(item.get("fixture_id"))
-            for item in items
-            if _text(item.get("fixture_id"))
+            _text(item.get("fixture_id")) for item in items if _text(item.get("fixture_id"))
         }
         rows.append(
             {
@@ -882,9 +921,7 @@ def _league_rows(
                 "clv_sample_count": len(values),
                 "clv_median_decimal": median(values) if values else None,
                 "clv_shadow_sample_count": len(shadow_values),
-                "clv_shadow_median_decimal": median(shadow_values)
-                if shadow_values
-                else None,
+                "clv_shadow_median_decimal": median(shadow_values) if shadow_values else None,
             }
         )
     return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))

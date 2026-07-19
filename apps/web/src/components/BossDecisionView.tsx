@@ -972,7 +972,7 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>真实前向 {evidenceRange}</strong>
       <span>验证推荐 {validationCount} 场</span>
-      <span>已结算 {settled} · 待结算 {pending}</span>
+      <span>已结算 {settled} · 待处理 {pending}</span>
       <span>验证命中率 {settled ? percent(forwardLedger?.outcomes_validation.hit_rate) : "积累中"}</span>
       <span>CLV {forwardLedger?.clv.sample_count ? clvUnits(forwardLedger.clv.median_decimal) : "积累中"}</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
@@ -986,6 +986,13 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
     const settled = forwardLedger.validation_settled_fixture_count;
     const pending = forwardLedger.validation_pending_fixture_count;
     const outcomes = forwardLedger.outcomes_validation;
+    const pendingStatus = forwardLedger.validation_pending_status;
+    const pendingBreakdown = [
+      pendingStatus?.waiting_finish_count ? `等待完赛 ${pendingStatus.waiting_finish_count}` : "",
+      pendingStatus?.postponed_count ? `延期 ${pendingStatus.postponed_count}` : "",
+      pendingStatus?.result_missing_count ? `缺少赛果 ${pendingStatus.result_missing_count}` : "",
+      pendingStatus?.settlement_error_count ? `结算异常 ${pendingStatus.settlement_error_count}` : "",
+    ].filter(Boolean).join(" · ");
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
@@ -999,7 +1006,9 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
               <strong>
                 命中 {outcomes.hit_count} · 未中 {outcomes.miss_count} · 走水 {outcomes.push_count} · 作废 {outcomes.void_count}
               </strong>
-              <small>命中率 {percent(outcomes.hit_rate)} · 待结算 {pending} 场</small>
+              <small>
+                命中率 {percent(outcomes.hit_rate)} · {pending ? pendingBreakdown || `待处理 ${pending} 场` : "全部已处理"}
+              </small>
             </div>
           </div>
         ) : (

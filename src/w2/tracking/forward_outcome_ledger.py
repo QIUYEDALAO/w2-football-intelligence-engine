@@ -3,16 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from w2.domain.odds import settle_asian_handicap
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
 DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
-FT_STATUSES = {"FT"}
+SETTLED_STATUSES = {"FT", "AET", "PEN"}
+VOID_STATUSES = {"CANC", "ABD", "AWD", "WO"}
+SUPPORTED_MARKETS = {"ASIAN_HANDICAP", "TOTALS"}
 
 
 def run_forward_outcome_ledger(
@@ -147,6 +149,7 @@ def backfill_outcomes(
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
     results = _finished_results(day_view_or_results_source)
     ledger_rows = _ledger_rows_by_file(root)
+    pending_before = _pending_entries(ledger_rows)
     outcome_records: list[tuple[Path, dict[str, Any]]] = []
     for path, records in ledger_rows.items():
         for entry, side, item in _settlement_entries(records, results):
@@ -178,9 +181,17 @@ def backfill_outcomes(
             existing_keys.add(key)
             written += 1
 
+    processed_keys = {_settlement_identity(record) for _, record in outcome_records}
+    unresolved_count = sum(1 for identity in pending_before if identity not in processed_keys)
+    if not pending_before:
+        status = "NO_DUE_WORK"
+    elif unresolved_count:
+        status = "PARTIAL"
+    else:
+        status = "PASS"
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "PASS",
+        "status": status,
         "dry_run": bool(dry_run),
         "write_artifacts": bool(write_artifacts),
         "provider_calls": 0,
@@ -190,6 +201,8 @@ def backfill_outcomes(
         "settlement_write": False,
         "runtime_root": str(runtime_root),
         "result_fixture_count": len(results),
+        "pending_count": len(pending_before),
+        "unresolved_count": unresolved_count,
         "record_count": len(outcome_records),
         "written": written,
         "skipped_existing": skipped_existing,
@@ -274,21 +287,38 @@ def _settlement_entries(
     results: Mapping[str, Mapping[str, Any]],
 ) -> list[tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
     grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
+    conflicted_validation = _conflicted_validation_fixtures(records)
     for record in records:
         if _text(record.get("record_type") or "capture") != "capture":
             continue
         fixture_id = _text(record.get("fixture_id"))
         if fixture_id not in results:
             continue
-        for side, item in (
-            ("pick", record.get("pick")),
-            ("shadow_pick", record.get("shadow_pick")),
+        sides = [("shadow_pick", record.get("shadow_pick"))]
+        schema_version = _text(record.get("schema_version"))
+        legacy_capture = schema_version in {
+            "w2.forward_outcome_ledger.v1",
+            "w2.forward_outcome_ledger.v2",
+        }
+        scope = _text(record.get("recommendation_scope")).upper()
+        legacy_tracked = legacy_capture and (
+            scope in {"VALIDATION", "OFFICIAL"}
+            or (
+                _text(record.get("decision_tier")).upper() in {"ANALYSIS_PICK", "RECOMMEND"}
+                and record.get("outcome_tracked") is True
+            )
+        )
+        if legacy_tracked or (
+            record.get("outcome_tracked") is True and scope in {"VALIDATION", "OFFICIAL"}
         ):
+            if fixture_id not in conflicted_validation:
+                sides.insert(0, ("pick", record.get("pick")))
+        for side, item in sides:
             if not isinstance(item, Mapping):
                 continue
             market = _text(item.get("market"))
             selection = _text(item.get("selection"))
-            if market != "ASIAN_HANDICAP" or not selection:
+            if market not in SUPPORTED_MARKETS or not selection:
                 continue
             grouped.setdefault((fixture_id, side, market, selection), []).append(record)
 
@@ -297,8 +327,7 @@ def _settlement_entries(
         ordered = sorted(
             items,
             key=lambda item: (
-                _parse_time(item.get("captured_at"))
-                or datetime.min.replace(tzinfo=UTC)
+                _parse_time(item.get("captured_at")) or datetime.min.replace(tzinfo=UTC)
             ),
         )
         entry = _entry_record(ordered)
@@ -306,6 +335,40 @@ def _settlement_entries(
         if isinstance(pick_item, Mapping):
             entries.append((entry, side, pick_item))
     return entries
+
+
+def _conflicted_validation_fixtures(
+    records: Sequence[Mapping[str, Any]],
+) -> set[str]:
+    signatures: dict[str, set[tuple[str, ...]]] = {}
+    for record in records:
+        if _text(record.get("record_type") or "capture") != "capture":
+            continue
+        if _text(record.get("recommendation_scope")).upper() != "VALIDATION":
+            continue
+        fixture_id = _text(record.get("fixture_id"))
+        pick = record.get("pick")
+        if not fixture_id or not isinstance(pick, Mapping):
+            continue
+        market = _text(pick.get("market"))
+        selection = _text(pick.get("selection"))
+        quote = _quote(record, market, selection)
+        identity = _mapping(record.get("fixture_identity"))
+        signature = (
+            market,
+            selection,
+            quote[0] if quote else "",
+            _text(identity.get("kickoff_utc") or record.get("kickoff_utc")),
+            _text(identity.get("competition_id") or record.get("competition_id")),
+            _text(identity.get("home_team_name") or record.get("home_team_name")),
+            _text(identity.get("away_team_name") or record.get("away_team_name")),
+        )
+        signatures.setdefault(fixture_id, set()).add(signature)
+    return {
+        fixture_id
+        for fixture_id, values in signatures.items()
+        if len(values) != 1 or any(not all(signature) for signature in values)
+    }
 
 
 def _outcome_record(
@@ -319,12 +382,14 @@ def _outcome_record(
     market = _text(item.get("market"))
     selection = _text(item.get("selection"))
     quote = _quote(entry, market, selection)
-    home_goals = int(result["home_goals"])
-    away_goals = int(result["away_goals"])
+    status = _text(result.get("status") or "FT").upper()
+    void_reason = _optional_text(result.get("void_reason"))
+    home_goals = _int(result.get("home_goals"))
+    away_goals = _int(result.get("away_goals"))
     final_score = {
         "home": home_goals,
         "away": away_goals,
-        "status": _text(result.get("status") or "FT"),
+        "status": status,
     }
     recommendation_scope = _outcome_scope(entry, side)
     base = {
@@ -352,6 +417,18 @@ def _outcome_record(
         "lock_capture_write": False,
         "settlement_write": False,
     }
+    if void_reason or status in VOID_STATUSES:
+        return {
+            **base,
+            "settlement_outcome": "VOID",
+            "void_reason": void_reason or f"TERMINAL_STATUS_{status}",
+        }
+    if home_goals is None or away_goals is None:
+        return {
+            **base,
+            "settlement_outcome": "VOID",
+            "void_reason": "MISSING_FULLTIME_SCORE",
+        }
     if quote is None:
         return {
             **base,
@@ -359,7 +436,7 @@ def _outcome_record(
             "void_reason": "MISSING_ENTRY_LINE_OR_PRICE",
         }
     line, _price = quote
-    settlement_selection = _settlement_selection(selection)
+    settlement_selection = _settlement_selection(market, selection)
     decimal_line = _decimal(line)
     if settlement_selection is None or decimal_line is None:
         return {
@@ -369,12 +446,19 @@ def _outcome_record(
             "settlement_outcome": "VOID",
             "void_reason": "INVALID_ENTRY_LINE_OR_SELECTION",
         }
-    outcome = settle_asian_handicap(
-        home_goals,
-        away_goals,
-        settlement_selection,
-        decimal_line,
-    )
+    if market == "ASIAN_HANDICAP":
+        outcome = settle_asian_handicap(
+            home_goals,
+            away_goals,
+            settlement_selection,
+            decimal_line,
+        )
+    else:
+        outcome = settle_total_goals(
+            home_goals + away_goals,
+            settlement_selection,
+            decimal_line,
+        )
     return {
         **base,
         "entry_line": line,
@@ -396,7 +480,19 @@ def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
         fixture_id = _fixture_id(item)
         status = _status(item)
         score = _score(item)
-        if not fixture_id or status not in FT_STATUSES or score is None:
+        void_reason = _optional_text(item.get("void_reason"))
+        if not fixture_id:
+            continue
+        if status in VOID_STATUSES or void_reason:
+            results[fixture_id] = {
+                "fixture_id": fixture_id,
+                "status": status or "VOID",
+                "home_goals": None,
+                "away_goals": None,
+                "void_reason": void_reason or f"TERMINAL_STATUS_{status}",
+            }
+            continue
+        if status not in SETTLED_STATUSES or score is None:
             continue
         home_goals, away_goals = score
         results[fixture_id] = {
@@ -433,11 +529,6 @@ def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
     direct = _score_pair(item.get("home_score"), item.get("away_score"))
     if direct is not None:
         return direct
-    goals = item.get("goals")
-    if isinstance(goals, Mapping):
-        pair = _score_pair(goals.get("home"), goals.get("away"))
-        if pair is not None:
-            return pair
     score = item.get("score")
     if isinstance(score, Mapping):
         for key in ("fulltime", "full_time", "ft"):
@@ -447,6 +538,11 @@ def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
                 if pair is not None:
                     return pair
         pair = _score_pair(score.get("home"), score.get("away"))
+        if pair is not None:
+            return pair
+    goals = item.get("goals")
+    if isinstance(goals, Mapping):
+        pair = _score_pair(goals.get("home"), goals.get("away"))
         if pair is not None:
             return pair
     result = item.get("result")
@@ -465,15 +561,24 @@ def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
 
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
     odds = record.get("current_odds")
-    if not isinstance(odds, Mapping) or market != "ASIAN_HANDICAP":
+    if not isinstance(odds, Mapping):
         return None
-    ah = odds.get("ah")
-    if not isinstance(ah, Mapping):
-        return None
-    if selection == "HOME_AH":
-        return _line_price(ah.get("home_line"), ah.get("home_price"))
-    if selection == "AWAY_AH":
-        return _line_price(ah.get("away_line"), ah.get("away_price"))
+    if market == "ASIAN_HANDICAP":
+        ah = odds.get("ah")
+        if not isinstance(ah, Mapping):
+            return None
+        if selection == "HOME_AH":
+            return _line_price(ah.get("home_line"), ah.get("home_price"))
+        if selection == "AWAY_AH":
+            return _line_price(ah.get("away_line"), ah.get("away_price"))
+    if market == "TOTALS":
+        totals = odds.get("ou")
+        if not isinstance(totals, Mapping):
+            return None
+        if selection == "OVER":
+            return _line_price(totals.get("line"), totals.get("over_price"))
+        if selection == "UNDER":
+            return _line_price(totals.get("line"), totals.get("under_price"))
     return None
 
 
@@ -495,12 +600,95 @@ def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     return records[0]
 
 
-def _settlement_selection(selection: str) -> str | None:
-    if selection == "HOME_AH":
+def _settlement_selection(market: str, selection: str) -> str | None:
+    if market == "ASIAN_HANDICAP" and selection == "HOME_AH":
         return "HOME"
-    if selection == "AWAY_AH":
+    if market == "ASIAN_HANDICAP" and selection == "AWAY_AH":
         return "AWAY"
+    if market == "TOTALS" and selection in {"OVER", "UNDER"}:
+        return selection
     return None
+
+
+def pending_outcome_entries(
+    runtime_root: Path,
+    *,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Return canonical fixture-market captures that still need an outcome."""
+    root = runtime_root / "forward_outcome_ledger"
+    rows = _ledger_rows_by_file(root)
+    pending = _pending_entries(rows)
+    resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
+    output: list[dict[str, Any]] = []
+    for identity, (path, entry, side, item) in pending.items():
+        kickoff = _parse_time(entry.get("kickoff_utc"))
+        due_at = kickoff + timedelta(hours=3) if kickoff else None
+        output.append(
+            {
+                "identity": list(identity),
+                "ledger_file": str(path),
+                "fixture_id": _text(entry.get("fixture_id")),
+                "kickoff_utc": _optional_text(entry.get("kickoff_utc")),
+                "due_at_utc": due_at.isoformat().replace("+00:00", "Z") if due_at else None,
+                "due": bool(due_at is not None and resolved_now >= due_at),
+                "capture_identity_hash": _optional_text(entry.get("capture_identity_hash")),
+                "recommendation_scope": _outcome_scope(entry, side),
+                "settled_side": side,
+                "market": _text(item.get("market")),
+                "selection": _text(item.get("selection")),
+            }
+        )
+    return sorted(output, key=lambda row: (str(row["kickoff_utc"]), str(row["fixture_id"])))
+
+
+def _pending_entries(
+    rows_by_file: Mapping[Path, Sequence[Mapping[str, Any]]],
+) -> dict[tuple[str, str, str, str, str], tuple[Path, Mapping[str, Any], str, Mapping[str, Any]]]:
+    pending: dict[
+        tuple[str, str, str, str, str],
+        tuple[Path, Mapping[str, Any], str, Mapping[str, Any]],
+    ] = {}
+    settled: set[tuple[str, str, str, str, str]] = set()
+    for path, records in rows_by_file.items():
+        for record in records:
+            if _text(record.get("record_type")) == "outcome":
+                settled.add(_settlement_identity(record))
+        grouped = _settlement_entries(
+            records,
+            {
+                str(record.get("fixture_id")): {"fixture_id": record.get("fixture_id")}
+                for record in records
+                if record.get("fixture_id")
+            },
+        )
+        # _settlement_entries only needs fixture membership here; settlement payload is unused.
+        for entry, side, item in grouped:
+            identity = _settlement_identity_from_parts(entry, side, item)
+            pending.setdefault(identity, (path, entry, side, item))
+    return {identity: value for identity, value in pending.items() if identity not in settled}
+
+
+def _settlement_identity(record: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
+    return (
+        _text(record.get("capture_identity_hash") or record.get("card_hash")),
+        _text(record.get("fixture_id")),
+        _text(record.get("settled_side")),
+        _text(record.get("market")),
+        _text(record.get("selection")),
+    )
+
+
+def _settlement_identity_from_parts(
+    entry: Mapping[str, Any], side: str, item: Mapping[str, Any]
+) -> tuple[str, str, str, str, str]:
+    return (
+        _text(entry.get("capture_identity_hash") or entry.get("card_hash")),
+        _text(entry.get("fixture_id")),
+        side,
+        _text(item.get("market")),
+        _text(item.get("selection")),
+    )
 
 
 def _decimal(value: str) -> Decimal | None:
@@ -584,9 +772,7 @@ def _market_odds_summary(value: Any) -> dict[str, Any]:
     return summary
 
 
-def _recommendation_scope(
-    card: Mapping[str, Any], shadow_pick: Mapping[str, Any] | None
-) -> str:
+def _recommendation_scope(card: Mapping[str, Any], shadow_pick: Mapping[str, Any] | None) -> str:
     tier = _text(card.get("decision_tier"))
     pick = card.get("pick")
     if tier == "RECOMMEND" and card.get("lock_eligible") is True and isinstance(pick, Mapping):

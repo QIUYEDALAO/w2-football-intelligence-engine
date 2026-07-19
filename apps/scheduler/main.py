@@ -496,6 +496,10 @@ def forward_outcome_backfill_tick() -> dict[str, object]:
         kwargs={
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
             "window": os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_WINDOW", "next36"),
+            "max_fixtures": min(
+                max(int(os.environ.get("W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES", "20")), 0),
+                20,
+            ),
         },
         task_id=task_id,
     )

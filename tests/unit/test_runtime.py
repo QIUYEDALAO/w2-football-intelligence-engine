@@ -658,6 +658,7 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
 
 
 def test_worker_forward_outcome_backfill_task_reports_safety_flags(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app._run_forward_outcome_backfill",
         lambda **kwargs: {
