@@ -49,6 +49,7 @@ from w2.dashboard.status_labels import (
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -1218,6 +1219,7 @@ class ReadModelService:
             "matchday_card_count": counts["matchday_card_count"],
             "result_event_count": counts["result_event_count"],
             "release_identity": build_release_identity(settings),
+            "capability_manifest": load_recommendation_capability_manifest().public_summary(),
             "generated_at": generated_at,
         }
 

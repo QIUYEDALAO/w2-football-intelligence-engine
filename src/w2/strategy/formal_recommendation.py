@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
@@ -87,12 +88,16 @@ class FormalRecommendationResult:
 
 
 def formal_recommendations_enabled() -> bool:
-    return os.getenv("W2_FORMAL_RECOMMENDATION_ENABLED", "").strip().lower() in {
+    manifest = load_recommendation_capability_manifest()
+    manifest_enabled = manifest.capability("formal_ah").feature_enabled
+    raw_legacy_admission = os.getenv("W2_FORMAL_RECOMMENDATION_ENABLED", "").strip().lower()
+    legacy_admission_enabled = raw_legacy_admission in {
         "1",
         "true",
         "yes",
         "on",
     }
+    return manifest_enabled and legacy_admission_enabled
 
 
 def build_formal_recommendation(

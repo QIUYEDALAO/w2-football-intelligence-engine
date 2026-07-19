@@ -129,6 +129,7 @@ class VersionResponse(BaseModel):
     matchday_card_count: int
     result_event_count: int
     release_identity: dict[str, Any]
+    capability_manifest: dict[str, Any]
     generated_at: datetime
 
 
