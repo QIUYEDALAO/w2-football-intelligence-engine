@@ -95,7 +95,36 @@ run_python scripts/check_w2_future_refresh_staging_contract.py
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait postgres redis
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" run --rm migration
-docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait api worker scheduler
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build api worker scheduler
+
+services_ready=false
+for attempt in $(seq 1 24); do
+  all_healthy=true
+  for service in api worker scheduler; do
+    container_id="$(docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" ps -q "${service}")"
+    test -n "${container_id}"
+    state="$(docker inspect --format='{{.State.Status}}' "${container_id}")"
+    health="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${container_id}")"
+    echo "predeploy_startup attempt=${attempt} service=${service} state=${state} health=${health}"
+    if [ "${state}" = "exited" ] || [ "${state}" = "dead" ]; then
+      docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" logs --no-color --tail=120 "${service}" >&2
+      exit 1
+    fi
+    if [ "${health}" != "healthy" ]; then
+      all_healthy=false
+    fi
+  done
+  if [ "${all_healthy}" = true ]; then
+    services_ready=true
+    break
+  fi
+  sleep 5
+done
+if [ "${services_ready}" != true ]; then
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" logs --no-color --tail=120 api worker scheduler >&2
+  echo "predeploy_e2e services did not become healthy within 120 seconds" >&2
+  exit 1
+fi
 
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T api /app/.venv/bin/python - <<'PY'
 from __future__ import annotations
