@@ -2,15 +2,21 @@
 
 ## Current gate
 
-R3 is `staging_accepted`. LMM0–LMM8 and the Dashboard ledger-authority repair
-are `staging_accepted` on exact local implementation
-`438ac07e8ad3b30dbe1c4107b759100e1cae7418`. GitHub was not accessed or
-synchronized.
+R3 is `staging_accepted`. LMM0–LMM8, the Dashboard ledger-authority repair and
+validation outcome auto-settlement are `staging_accepted` on exact local
+implementation `8aa4a888df463f8cc075c42ed468174f83e15444`. GitHub was not
+accessed or synchronized.
 
-The 2026-07-19 10:00 patrol exposed a real runtime-path regression and does not
-count. The correction resets the consecutive natural-day read-only count to
-`0/3`. The next eligible patrols are 2026-07-20, 2026-07-21 and 2026-07-22 at
-09:00 Asia/Shanghai on the same implementation SHA, images and data contract.
+The settlement runtime change resets the consecutive natural-day read-only
+count to `0/3`. The next eligible patrols are 2026-07-20, 2026-07-21 and
+2026-07-22 at 09:00 Asia/Shanghai on the same implementation SHA, images and
+data contract.
+
+Validation is now 23 handled of 23: 14 hit, 4 miss, 2 push and 3 void. One old
+SHADOW capture has no entry quote and is explicitly quarantined as
+`SETTLEMENT_ERROR`; it is not a validation pending fixture, is not fabricated
+as VOID and will not trigger repeated provider calls unless its identity
+changes.
 
 Current Swedish fixtures have only early odds captured around 2026-07-17 22:48
 Beijing. The hard missing input is an AH/OU quote captured within the executable

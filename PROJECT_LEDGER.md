@@ -402,3 +402,27 @@ Detailed evidence:
 
 Detailed evidence:
 [W2 Dashboard ledger authority fix](docs/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md).
+
+## 2026-07-19 — Validation outcome auto-settlement staging acceptance
+
+- Exact implementation `8aa4a888df463f8cc075c42ed468174f83e15444`
+  now scans canonical pending fixture-market captures from the explicit shared
+  ledger path and refreshes only due fixture IDs under the shared provider cap.
+- Settlement supports AH and TOTALS, uses the 90-minute fulltime score for
+  FT/AET/PEN, handles terminal VOID and postponed-over-48h policy, and keeps
+  VALIDATION, OFFICIAL and SHADOW separate.
+- A dry-run exposed cross-day legacy duplication and a finished shadow capture
+  without a quote. The failed candidate was rolled back, duplicate settlement
+  was removed, and missing settlement inputs now fail closed. The remaining
+  invalid shadow identity is quarantined as `SETTLEMENT_ERROR` and does not
+  repeatedly query the provider.
+- Final validation authority is 23 handled of 23: 14 hit, 4 miss, 2 push and 3
+  void, with 77.78% decisive hit rate. OFFICIAL remains zero; locks and queue
+  remain zero. Four services are healthy at the accepted SHA with restart/OOM
+  zero.
+- Full gate finished at `1217 passed / 4 skipped`; Ruff, Mypy, Web build,
+  Playwright, acceptance guards and exact-archive isolated predeploy passed.
+  The stability sequence is reset to `0/3` for July 20–22 at 09:00 Beijing.
+
+Detailed evidence:
+[W2 validation outcome settlement](docs/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md).

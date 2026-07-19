@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-19T02:42:00Z"
+updated_at: "2026-07-19T03:48:00Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 delivery_status_vocabulary:
   - implemented
@@ -34,6 +34,7 @@ context_read_order:
   - docs/operations/W2_DASHBOARD_LOCALIZATION_STAGING_CANARY_20260719.md
   - docs/operations/W2_LMM_STAGING_CANARY_20260719.md
   - docs/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md
+  - docs/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md
   - docs/operations/W2_DELIVERY_STATUS_LEVELS.md
   - docs/consolidation/W2_DECISION_CONTRACT_V2.md
   - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
@@ -42,11 +43,11 @@ context_read_order:
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   remote_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_accepted_implementation_sha: 438ac07e8ad3b30dbe1c4107b759100e1cae7418
+  local_accepted_implementation_sha: 8aa4a888df463f8cc075c42ed468174f83e15444
   github_sync_performed: false
   recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
   remote_main_baseline_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  local_main_contains_sha: 438ac07e8ad3b30dbe1c4107b759100e1cae7418
+  local_main_contains_sha: 8aa4a888df463f8cc075c42ed468174f83e15444
   tree_sha: 42df1ef65a85c42b56d50bee1b9ec3fa2272a97a
   baseline_reason: Restore pre-GPT-5.6 expert review baseline
   historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
@@ -70,6 +71,7 @@ current_phase:
     R3_ledger_contract: staging_accepted
     R3_dashboard_data_semantics: staging_accepted
     R3_repeat_capture_freshness: staging_accepted
+    R3_validation_outcome_settlement: staging_accepted
 
 active_workstream:
   id: LMM0-LMM8
@@ -78,7 +80,7 @@ active_workstream:
   branch: codex/w2-lmm-lineup-multimarket
   base_sha: 8e171dc05efc2fc3a512fff2c334d123d01db922
   github_sync_performed: false
-  deployment_count: 2
+  deployment_count: 3
   checkpoints:
     LMM0_coverage_audit: staging_accepted
     LMM1_identity_mapping: staging_accepted
@@ -89,9 +91,10 @@ active_workstream:
     LMM6_decision_contract: staging_accepted
     LMM7_league_gates: staging_accepted
     LMM8_staging_and_cycles: staging_accepted_cycles_0_of_3
+    validation_outcome_settlement: staging_accepted
 
 staging:
-  deployed_sha: 438ac07e8ad3b30dbe1c4107b759100e1cae7418
+  deployed_sha: 8aa4a888df463f8cc075c42ed468174f83e15444
   deployed_tree_sha: null
   tree_matches_main: false
   health_http_status: 200
