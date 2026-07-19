@@ -181,6 +181,11 @@ def backfill_outcomes(
             written += 1
 
     processed_keys = {_settlement_identity(record) for _, record in outcome_records}
+    processed_fixture_counts: dict[str, int] = {}
+    for _, record in outcome_records:
+        fixture_id = _text(record.get("fixture_id"))
+        if fixture_id:
+            processed_fixture_counts[fixture_id] = processed_fixture_counts.get(fixture_id, 0) + 1
     unresolved_count = sum(1 for identity in pending_before if identity not in processed_keys)
     if not pending_before:
         status = "NO_DUE_WORK"
@@ -203,6 +208,7 @@ def backfill_outcomes(
         "pending_count": len(pending_before),
         "unresolved_count": unresolved_count,
         "record_count": len(outcome_records),
+        "processed_fixture_counts": processed_fixture_counts,
         "written": written,
         "skipped_existing": skipped_existing,
         "records": [record for _, record in outcome_records]

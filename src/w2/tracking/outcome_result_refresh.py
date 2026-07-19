@@ -131,6 +131,28 @@ def run_outcome_result_refresh(
         write_artifacts=write_artifacts,
         settled_at=resolved_now,
     )
+    produced_value = settlement.get("processed_fixture_counts")
+    produced_by_fixture = (
+        {str(key): int(value) for key, value in produced_value.items()}
+        if isinstance(produced_value, Mapping)
+        else {}
+    )
+    pending_by_fixture: dict[str, int] = {}
+    for row in pending:
+        fixture_id = str(row.get("fixture_id") or "")
+        if fixture_id:
+            pending_by_fixture[fixture_id] = pending_by_fixture.get(fixture_id, 0) + 1
+    result_fixture_ids = {str(item.get("fixture_id") or "") for item in result_items}
+    for check in checks:
+        fixture_id = str(check["fixture_id"])
+        check["pending_identity_hash"] = _pending_identity_hash(pending, fixture_id)
+        if (
+            fixture_id in result_fixture_ids
+            and produced_by_fixture.get(fixture_id, 0) < pending_by_fixture.get(fixture_id, 0)
+        ):
+            check["status"] = "SETTLEMENT_ERROR"
+            check["next_check_at_utc"] = None
+            blockers.append(f"{fixture_id}:SETTLEMENT_ERROR")
     if write_artifacts and not dry_run:
         _save_state(state_path, state, checks)
     unresolved = int(settlement.get("unresolved_count") or 0)
@@ -160,6 +182,13 @@ def _due_fixtures(
         if not fixture_id or not row.get("due"):
             continue
         saved = fixture_state.get(fixture_id) if isinstance(fixture_state, Mapping) else None
+        pending_hash = _pending_identity_hash(pending, fixture_id)
+        if (
+            isinstance(saved, Mapping)
+            and str(saved.get("status") or "").upper() == "SETTLEMENT_ERROR"
+            and str(saved.get("pending_identity_hash") or "") == pending_hash
+        ):
+            continue
         next_check = (
             _parse_time(saved.get("next_check_at_utc")) if isinstance(saved, Mapping) else None
         )
@@ -169,6 +198,17 @@ def _due_fixtures(
     return sorted(
         unique.values(), key=lambda row: (str(row.get("kickoff_utc")), str(row["fixture_id"]))
     )
+
+
+def _pending_identity_hash(pending: list[dict[str, Any]], fixture_id: str) -> str:
+    identities = sorted(
+        json.dumps(row.get("identity"), sort_keys=True, separators=(",", ":"))
+        for row in pending
+        if str(row.get("fixture_id") or "") == fixture_id
+    )
+    return hashlib.sha256(
+        json.dumps(identities, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _single_fixture(payload: Mapping[str, Any], fixture_id: str) -> Mapping[str, Any] | None:

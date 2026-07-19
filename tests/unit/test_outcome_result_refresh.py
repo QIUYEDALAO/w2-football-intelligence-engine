@@ -110,6 +110,58 @@ def test_result_refresh_respects_daily_cap(tmp_path: Path, monkeypatch: Any) -> 
     assert client.calls == []
 
 
+def test_finished_unsettleable_capture_is_not_requeried(tmp_path: Path) -> None:
+    _write_capture(tmp_path, fixture_id="104", market="TOTALS", selection="OVER")
+    ledger_path = tmp_path / "forward_outcome_ledger" / "2026-07-10_staging.jsonl"
+    capture = json.loads(ledger_path.read_text(encoding="utf-8"))
+    capture.update(
+        {
+            "decision_tier": "WATCH",
+            "recommendation_scope": "SHADOW",
+            "outcome_tracked": False,
+            "pick": None,
+            "shadow_pick": {"market": "TOTALS", "selection": "OVER"},
+            "current_odds": {},
+        }
+    )
+    ledger_path.write_text(json.dumps(capture, sort_keys=True) + "\n", encoding="utf-8")
+    client = FakeClient(
+        {
+            "104": _fixture_payload(
+                fixture_id="104",
+                status="FT",
+                fulltime=(2, 1),
+                goals=(2, 1),
+            )
+        }
+    )
+    repository = FakeRepository()
+
+    first = run_outcome_result_refresh(
+        runtime_root=tmp_path,
+        client=client,
+        repository=repository,  # type: ignore[arg-type]
+        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
+        dry_run=False,
+        write_artifacts=True,
+    )
+    second = run_outcome_result_refresh(
+        runtime_root=tmp_path,
+        client=client,
+        repository=repository,  # type: ignore[arg-type]
+        now=datetime(2026, 7, 19, 5, 0, tzinfo=UTC),
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert first["status"] == "PARTIAL"
+    assert first["selected"][0]["status"] == "SETTLEMENT_ERROR"
+    assert first["provider_calls"] == 1
+    assert second["status"] == "NO_DUE_WORK"
+    assert second["provider_calls"] == 0
+    assert client.calls == ["104"]
+
+
 def _write_capture(
     root: Path,
     *,
