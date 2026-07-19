@@ -163,6 +163,11 @@ class LineupGate:
         )
 
 
+def lineup_requirement(competition_id: str) -> str:
+    """Return the only authoritative lineup admission policy for a competition."""
+    return "STRICT" if competition_id in TOP_FIVE_COMPETITION_CODES else "ADVISORY"
+
+
 def normalize_player_name(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value).casefold()
     return "".join(character for character in decomposed if character.isalnum())

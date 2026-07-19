@@ -86,3 +86,29 @@ def test_formal_ah_can_only_consume_executable_candidate_quote() -> None:
 
     candidates["ah"]["quote_status"] = "STALE"
     assert _candidate_executable_odds(candidates["ah"]) is None
+
+
+def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
+    candidates = build_market_candidates(
+        markets=[_market("ASIAN_HANDICAP")],
+        quote_identity_audit={"ah": _audit()},
+        current_odds={},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation={
+            "status": "READY",
+            "model_version": "model",
+            "calibration_version": "calibration",
+            "lambda_home": 1.4,
+            "lambda_away": 0.9,
+            "calibration": {"params": {"dixon_coles_rho": 0.0}},
+        },
+    )
+
+    evidence = candidates["ah"]["analysis_evidence"]
+    assert evidence["status"] == "COMPLETE"
+    assert evidence["quote_identity"]["bookmaker_id"] == "book"
+    assert evidence["market_probability"]["overround"] == 0.052632
+    assert evidence["model_probability"]["settlement_distribution"]
+    assert evidence["evidence_hash"]

@@ -82,6 +82,9 @@ class DataReadinessResult:
     provider_budget_status: str | None
     field_statuses: tuple[DataFieldReadiness, ...]
     source: Literal["w2.readiness.data_gate.v1"] = READINESS_SOURCE
+    blocking_fields: tuple[str, ...] = ()
+    advisory_fields: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -95,6 +98,9 @@ class DataReadinessResult:
             "provider_budget_status": self.provider_budget_status,
             "field_statuses": [field.as_dict() for field in self.field_statuses],
             "source": self.source,
+            "blocking_fields": list(self.blocking_fields),
+            "advisory_fields": list(self.advisory_fields),
+            "warnings": list(self.warnings),
         }
 
 
@@ -103,7 +109,6 @@ def evaluate_data_readiness(
     policy: DataFreshnessPolicy,
 ) -> DataReadinessResult:
     as_of = data.as_of.astimezone(UTC)
-    kickoff = data.kickoff_utc.astimezone(UTC)
     fields = _field_statuses(data, policy)
     missing = tuple(field.field for field in fields if not field.present)
     stale = tuple(field.field for field in fields if field.stale)
@@ -164,28 +169,29 @@ def evaluate_data_readiness(
             next_tick,
             provider_budget_status,
         )
-    if lineups_soft:
-        return _result(
-            DataStatus.PARTIAL,
-            fields,
-            DecisionReasonCode.LINEUPS_PENDING,
-            _lineups_next_eval(kickoff, as_of, policy, next_tick),
-            provider_budget_status,
-        )
-    if independent_soft:
-        return _result(
-            DataStatus.PARTIAL,
-            fields,
-            DecisionReasonCode.DATA_MISSING_XG,
-            next_tick,
-            provider_budget_status,
-        )
-    return _result(
+    result = _result(
         DataStatus.READY,
         fields,
         None,
         None,
         provider_budget_status,
+    )
+    advisory = tuple(
+        field for field in (*missing, *stale) if field in {"lineups", "xg", "ratings", "team_value"}
+    )
+    warnings = tuple(
+        "LINEUPS_NOT_CONFIRMED_ADVISORY" if lineups_soft else "OPTIONAL_ENRICHMENT_ADVISORY"
+        for lineups_soft, independent_soft in [(lineups_soft, independent_soft)]
+        if lineups_soft or independent_soft
+    )
+    return DataReadinessResult(
+        **{
+            field: getattr(result, field)
+            for field in result.__dataclass_fields__
+            if field not in {"advisory_fields", "warnings"}
+        },
+        advisory_fields=advisory,
+        warnings=warnings,
     )
 
 
@@ -248,9 +254,7 @@ def build_data_readiness_from_legacy_payload(
     )
     status = _first_text(_get(analysis_readiness, "status"))
     if status == "READY":
-        lineups_available = (
-            True if _get(available_inputs, "lineups") is None else lineups_available
-        )
+        lineups_available = True if _get(available_inputs, "lineups") is None else lineups_available
         xg_available = True if _get(available_inputs, "xg") is None else xg_available
         ratings_available = (
             True if _get(raw_data_readiness, "ratings") is None else ratings_available

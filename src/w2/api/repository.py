@@ -21,7 +21,7 @@ from w2.analysis.market_movement import (
     build_market_movement,
     build_market_timeline_reference,
 )
-from w2.competitions.registry import CompetitionRegistry
+from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import Environment, get_settings
 from w2.dashboard.date_window import (
     FOOTBALL_DAY_CUTOFF_HOUR,
@@ -70,6 +70,7 @@ from w2.lineups.intelligence import (
     LineupGate,
     audited_coverage_rate,
     lineup_market_policy,
+    lineup_requirement,
 )
 from w2.markets.asian_handicap_mainline import (
     CANONICAL_AH_MAINLINE_POLICY,
@@ -2293,10 +2294,13 @@ class ReadModelService:
         away_id = str(away.get("id") or "")
         if not fixture_id or kickoff is None or not home_id or not away_id:
             return None
+        competition_id = self._competition_id_from_provider_fixture(item)
+        if competition_id is None:
+            return None
         repository = self._future_refresh_repository()
         context = FeatureContext(
             fixture_id=fixture_id,
-            competition_id="world_cup_2026",
+            competition_id=competition_id,
             home_team_id=home_id,
             away_team_id=away_id,
             kickoff_at=kickoff,
@@ -2390,7 +2394,10 @@ class ReadModelService:
         if not market_snapshots and not home_xg and not away_xg:
             return None
         registry = CompetitionRegistry()
-        coverage = registry.require_enabled("world_cup_2026").coverage_profile
+        try:
+            coverage = registry.require_enabled(competition_id).coverage_profile
+        except CompetitionRegistryError:
+            return None
         feature_set = build_feature_set(
             context=context,
             inputs=FeatureInputs(
@@ -2597,20 +2604,19 @@ class ReadModelService:
             evidence = {"status": "INCOMPLETE", "blockers": ["LINEUP_EVIDENCE_UNAVAILABLE"]}
         starter_counts = evidence.get("starter_counts")
         counts = starter_counts if isinstance(starter_counts, list) else []
-        quote_ready = all(
-            str(mainline_selection.get(market, {}).get("status") or "") == "READY"
-            for market in ("ASIAN_HANDICAP", "TOTALS")
-        )
+        competition_code = competition_id or ""
+        requirement = lineup_requirement(competition_code)
         gate = LineupGate().evaluate(
-            competition_code=competition_id,
+            competition_code=competition_code,
             confirmed=bool(evidence.get("confirmed")),
             home_starters=int(counts[0]) if len(counts) > 0 else 0,
             away_starters=int(counts[1]) if len(counts) > 1 else 0,
             uniquely_mapped_starters=parse_int(evidence.get("uniquely_mapped_starters")) or 0,
             valued_starters=parse_int(evidence.get("valued_starters")) or 0,
             formation_count=parse_int(evidence.get("formation_count")) or 0,
-            quotes_complete_and_fresh=quote_ready,
-            audited_coverage_rate=audited_coverage_rate(competition_id),
+            # Market quote readiness is evaluated per candidate, not by lineup policy.
+            quotes_complete_and_fresh=True,
+            audited_coverage_rate=audited_coverage_rate(competition_code),
         )
         evidence_blockers = [
             str(blocker) for blocker in evidence.get("blockers", []) if str(blocker)
@@ -2623,7 +2629,7 @@ class ReadModelService:
             in {"PLAYER_IDENTITY_INCOMPLETE", "VALUATION_INCOMPLETE", "FORMATION_INCOMPLETE"}
         ]
         gate_blockers = list(dict.fromkeys([*confirmation_blockers, *enrichment_blockers]))
-        gate_eligible = gate.eligible
+        gate_eligible = gate.eligible if requirement == "STRICT" else True
         adjustment_policy = lineup_market_policy().get("numeric_adjustment", {})
         adjustment_policy = adjustment_policy if isinstance(adjustment_policy, dict) else {}
         ah_adjustment_enabled = bool(adjustment_policy.get("ah_enabled")) and bool(
@@ -2635,6 +2641,7 @@ class ReadModelService:
         payload["lineup_provenance"] = {
             **evidence,
             "competition_id": competition_id,
+            "requirement": requirement,
             "coverage_grade": gate.grade.value,
             "gate_eligible": gate_eligible,
             "lineup_confirmation_gate": {
@@ -2651,10 +2658,15 @@ class ReadModelService:
             "lineup_ah_evidence_enabled": ah_adjustment_enabled,
             "lineup_totals_evidence_enabled": totals_adjustment_enabled,
             "adjustment_gate_reason": adjustment_policy.get("reason"),
-            "blockers": gate_blockers,
+            "blockers": gate_blockers if requirement == "STRICT" else [],
+            "warnings": (
+                []
+                if requirement == "STRICT" or bool(evidence.get("confirmed"))
+                else ["LINEUPS_NOT_CONFIRMED_ADVISORY"]
+            ),
             "policy_version": "w2.lineup_market_policy.v1",
         }
-        if gate_eligible:
+        if gate_eligible or requirement != "STRICT":
             return
         markets = payload.get("markets")
         if isinstance(markets, list):
@@ -2671,15 +2683,17 @@ class ReadModelService:
                     market["risks"] = gate_blockers
         self._refresh_analysis_card_decision(payload)
 
-    def _competition_id_from_provider_fixture(self, item: dict[str, Any]) -> str:
+    def _competition_id_from_provider_fixture(self, item: dict[str, Any]) -> str | None:
         league = item.get("league")
         provider_id = str(league.get("id") or "") if isinstance(league, dict) else ""
         if provider_id:
             registry = CompetitionRegistry()
+            if provider_id in registry.entries():
+                return provider_id
             for competition_id, entry in registry.entries().items():
                 if str(entry.provider_mapping.get("api_football_league_id") or "") == provider_id:
                     return competition_id
-        return "world_cup_2026"
+        return None
 
     def _mainline_market_selection(
         self,
@@ -4707,7 +4721,32 @@ class ReadModelService:
             pricing_shadow=decorated.get("pricing_shadow")
             if isinstance(decorated.get("pricing_shadow"), dict)
             else None,
+            simulation=decorated.get("simulation")
+            if isinstance(decorated.get("simulation"), dict)
+            else None,
+            fixture_id=str(decorated.get("fixture_id") or ""),
+            competition_id=str(decorated.get("competition_id") or ""),
         )
+        for market in decorated["markets"]:
+            if isinstance(market, dict):
+                candidate_key = {
+                    "ASIAN_HANDICAP": "ah",
+                    "TOTALS": "ou",
+                }.get(str(market.get("market") or ""))
+                candidate = (
+                    decorated["market_candidates"].get(candidate_key)
+                    if candidate_key is not None
+                    else None
+                )
+                if isinstance(candidate, dict):
+                    market["market_candidate"] = candidate
+                    if candidate.get("analysis_evidence_status") == "COMPLETE":
+                        market["decision"] = (
+                            "ANALYSIS_PICK"
+                            if candidate.get("analysis_direction_allowed")
+                            else "WATCH"
+                        )
+        apply_market_selection(decorated)
         return decorated
 
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:

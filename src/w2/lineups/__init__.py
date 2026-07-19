@@ -14,6 +14,7 @@ from w2.lineups.intelligence import (
     build_team_baseline,
     derive_lineup_change_features,
     grade_coverage,
+    lineup_requirement,
     resolve_player_identity,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "build_team_baseline",
     "derive_lineup_change_features",
     "grade_coverage",
+    "lineup_requirement",
     "resolve_player_identity",
 ]

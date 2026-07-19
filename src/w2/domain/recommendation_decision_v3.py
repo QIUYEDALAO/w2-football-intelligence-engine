@@ -33,6 +33,7 @@ class RecommendationDecisionV3:
     reason_message: str
     next_action: str
     selected_candidate: dict[str, Any] | None
+    evaluated_candidate: dict[str, Any] | None
     statuses: dict[str, str]
     warnings: tuple[str, ...]
     audit_refs: dict[str, str]
@@ -59,6 +60,7 @@ class RecommendationDecisionV3:
             },
             "next_action": self.next_action,
             "selected_candidate": self.selected_candidate,
+            "evaluated_candidate": self.evaluated_candidate,
             "statuses": self.statuses,
             "warnings": list(self.warnings),
             "audit_refs": self.audit_refs,
@@ -69,8 +71,9 @@ class RecommendationDecisionV3:
 def project_decision_v3(
     contract_v2: Mapping[str, Any], *, manifest: RecommendationCapabilityManifest
 ) -> RecommendationDecisionV3:
+    evaluated = _evaluated_candidate(contract_v2)
     candidate = _candidate(contract_v2)
-    outcome, reason_code, reason_message = _outcome(contract_v2, candidate, manifest)
+    outcome, reason_code, reason_message = _outcome(contract_v2, candidate, evaluated, manifest)
     if outcome not in PICK_OUTCOMES:
         candidate = None
     statuses = {
@@ -85,6 +88,7 @@ def project_decision_v3(
         "competition_id": _text(contract_v2.get("competition_id")),
         "outcome": outcome.value,
         "selected_candidate": candidate,
+        "evaluated_candidate": evaluated,
         "reason_code": reason_code,
         "model_version": _text(contract_v2.get("model_version")),
         "quote_identity": _quote_identity(candidate),
@@ -98,6 +102,7 @@ def project_decision_v3(
         reason_message=reason_message,
         next_action="MONITOR" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "WAIT",
         selected_candidate=candidate,
+        evaluated_candidate=evaluated,
         statuses=statuses,
         warnings=tuple(_strings(contract_v2.get("warnings"))),
         audit_refs={"v2_card_hash": _text(contract_v2.get("card_hash"))},
@@ -108,12 +113,25 @@ def project_decision_v3(
 def _outcome(
     contract: Mapping[str, Any],
     candidate: dict[str, Any] | None,
+    evaluated: dict[str, Any] | None,
     manifest: RecommendationCapabilityManifest,
 ) -> tuple[RecommendationOutcomeV3, str, str]:
     integrity = _text(contract.get("integrity_status"), "PASS")
     quote = _text(contract.get("quote_provenance_status"), "UNKNOWN")
     if integrity not in {"PASS", "READY", ""} or quote in {"CONFLICT", "INVALID"}:
         return RecommendationOutcomeV3.SYSTEM_DEGRADED, "INTEGRITY_CONFLICT", "数据身份链冲突"
+    evidence = _mapping(evaluated.get("analysis_evidence")) if evaluated else {}
+    evidence_status = _text(evidence.get("status"))
+    if evidence_status not in {"", "COMPLETE"}:
+        return (
+            RecommendationOutcomeV3.NOT_READY,
+            "ANALYSIS_EVIDENCE_NOT_READY",
+            "选定盘口的报价或模型证据尚未就绪",
+        )
+    if evidence_status == "COMPLETE" and not _truthy(
+        _mapping(evidence.get("comparison")).get("analysis_direction_allowed")
+    ):
+        return RecommendationOutcomeV3.NO_EDGE, "NO_ANALYSIS_EDGE", "同盘口模型与市场比较未形成优势"
     data = _text(contract.get("data_status"), "PARTIAL")
     if data != "READY":
         return RecommendationOutcomeV3.NOT_READY, "DATA_NOT_READY", "数据或可执行盘口尚未就绪"
@@ -138,6 +156,13 @@ def _outcome(
 def _candidate(contract: Mapping[str, Any]) -> dict[str, Any] | None:
     raw = contract.get("pick")
     return dict(raw) if isinstance(raw, Mapping) else None
+
+
+def _evaluated_candidate(contract: Mapping[str, Any]) -> dict[str, Any] | None:
+    raw = contract.get("selected_market_candidate")
+    if isinstance(raw, Mapping):
+        return dict(raw)
+    return _candidate(contract)
 
 
 def _capability_status(
@@ -165,3 +190,11 @@ def _text(value: object, default: str = "") -> str:
 
 def _strings(value: object) -> list[str]:
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+
+def _mapping(value: object) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _truthy(value: object) -> bool:
+    return value is True or str(value).strip().lower() in {"1", "true", "yes"}

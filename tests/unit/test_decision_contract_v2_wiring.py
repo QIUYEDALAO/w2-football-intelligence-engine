@@ -43,7 +43,7 @@ def _fields(
     )
 
 
-def test_missing_lineups_soft_gate_forces_watch_without_pick() -> None:
+def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
     fields = _fields(
         market={
             "market": "ASIAN_HANDICAP",
@@ -55,14 +55,12 @@ def test_missing_lineups_soft_gate_forces_watch_without_pick() -> None:
         readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
-    assert fields["data_status"] == DataStatus.PARTIAL.value
-    assert fields["outcome_tracked"] is False
-    assert fields["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
-    assert fields["action"] == "等官方首发"
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["data_status"] == DataStatus.READY.value
+    assert fields["outcome_tracked"] is True
     assert fields["missing_fields"] == ["lineups", "xg", "ratings", "team_value"]
-    assert fields["pick"] is None
-    assert fields["non_pick"] is not None
+    assert fields["pick"] is not None
+    assert fields["non_pick"] is None
 
 
 def test_totals_pick_uses_totals_pricing_shadow_not_ah_lines() -> None:
@@ -143,17 +141,21 @@ def test_readiness_status_mapping_is_not_optimistic() -> None:
     }
     assert _fields(market=ready_market, readiness={"status": "READY", "blockers": []})[
         "data_status"
-    ] == (
-        DataStatus.READY.value
+    ] == (DataStatus.READY.value)
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+        )["data_status"]
+        == DataStatus.READY.value
     )
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
-    )["data_status"] == DataStatus.PARTIAL.value
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
-    )["data_status"] == DataStatus.STALE.value
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+        )["data_status"]
+        == DataStatus.STALE.value
+    )
 
 
 def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
@@ -233,7 +235,7 @@ def test_analysis_pick_and_lock_policy_are_environmental() -> None:
     assert "非稳赢" in staging["pick"]["disclaimer"]  # type: ignore[index]
 
 
-def test_partial_readiness_forces_watch_and_clears_pick() -> None:
+def test_advisory_readiness_keeps_analysis_pick() -> None:
     fields = _fields(
         market={
             "market": "ASIAN_HANDICAP",
@@ -245,12 +247,12 @@ def test_partial_readiness_forces_watch_and_clears_pick() -> None:
         readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
-    assert fields["pick"] is None
-    assert fields["non_pick"] is not None
-    assert fields["outcome_tracked"] is False
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["pick"] is not None
+    assert fields["non_pick"] is None
+    assert fields["outcome_tracked"] is True
     assert fields["lock_eligible"] is False
-    assert fields["data_status"] == DataStatus.PARTIAL.value
+    assert fields["data_status"] == DataStatus.READY.value
 
 
 def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
@@ -536,9 +538,9 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
         readiness={"status": "BLOCKED", "blockers": ["FIXTURE_NOT_UPCOMING"]},
     )
 
-    assert analysis["decision_tier"] == DecisionTier.WATCH.value
-    assert analysis["pick"] is None
-    assert analysis["non_pick"] is not None
+    assert analysis["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert analysis["pick"] is not None
+    assert analysis["non_pick"] is None
     assert watch["decision_tier"] == DecisionTier.WATCH.value
     assert watch["pick"] is None
     assert watch["non_pick"] is not None

@@ -99,34 +99,34 @@ def test_stale_odds_marks_stale() -> None:
     assert result.stale_fields == ("odds",)
 
 
-def test_lineups_missing_before_t90_is_partial_not_blocked() -> None:
+def test_lineups_missing_before_t90_is_advisory_not_blocked() -> None:
     as_of = KICKOFF - timedelta(minutes=120)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("lineups",)
     assert result.missing_fields == ("lineups",)
 
 
-def test_lineups_missing_after_t30_is_still_partial_by_default() -> None:
+def test_lineups_missing_after_t30_is_advisory_by_default() -> None:
     as_of = KICKOFF - timedelta(minutes=20)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("lineups",)
 
 
-def test_missing_xg_is_partial() -> None:
+def test_missing_xg_is_advisory_when_not_hard_required() -> None:
     result = evaluate_data_readiness(_input(xg_available=False), POLICY)
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.DATA_MISSING_XG
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("xg",)
     assert "xg" in result.missing_fields
 
 

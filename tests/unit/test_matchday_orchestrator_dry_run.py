@@ -64,8 +64,8 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     refresh = payload["refresh_plan_summary"]  # type: ignore[assignment]
     labels = {tick["label"] for tick in refresh["ticks"]}  # type: ignore[index]
 
-    assert fixture["data_status"] == DataStatus.PARTIAL.value
-    assert fixture["decision_tier"] == DecisionTier.WATCH.value
+    assert fixture["data_status"] == DataStatus.READY.value
+    assert fixture["decision_tier"] == DecisionTier.NOT_READY.value
     assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
     assert fixture["decision_contract"]["outcome_tracked"] is False  # type: ignore[index]
     assert {"T_24H", "T_3H", "T_90M", "T_30M", "T_15M"}.issubset(labels)

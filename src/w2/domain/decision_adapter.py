@@ -31,6 +31,17 @@ MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
 MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
 
 
+def _selected_market_candidate(
+    card: Mapping[str, Any], market: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """Return the market-scoped evidence even when no pick was selected."""
+    name = str(_get(market, "market") or _get(card, "primary_market") or "")
+    candidates = _as_mapping(_get(card, "market_candidates"))
+    key = {"ASIAN_HANDICAP": "ah", "TOTALS": "ou"}.get(name, name)
+    candidate = _as_mapping(candidates.get(key))
+    return dict(candidate) if candidate else None
+
+
 def build_decision_contract_fields(
     *,
     card: Mapping[str, Any],
@@ -144,6 +155,7 @@ def build_decision_contract_fields(
         "non_pick": non_pick_payload,
         "one_liner": _one_liner(tier, non_pick_payload),
     }
+    evaluated_candidate = _selected_market_candidate(card, market)
     lock_eligible = compute_lock_eligible(
         core,
         environment,
@@ -164,6 +176,16 @@ def build_decision_contract_fields(
         "environment": environment,
         "lock_eligible": lock_eligible,
         "legacy_formal": legacy_formal,
+        "integrity_status": "PASS",
+        "quote_provenance_status": quote_provenance_status,
+        "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "selected_market_candidate": evaluated_candidate,
+        "analysis_evidence": _as_mapping(evaluated_candidate.get("analysis_evidence"))
+        if evaluated_candidate
+        else {},
+        "analysis_evidence_hash": evaluated_candidate.get("evidence_hash")
+        if evaluated_candidate
+        else None,
     }
     summary["card_hash"] = _validated_card_hash(
         core=core,
