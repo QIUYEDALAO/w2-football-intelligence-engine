@@ -2544,6 +2544,9 @@ class ReadModelService:
             ),
         )
         payload = self._analysis_card_payload(card)
+        # The public card, frozen artifact, V2 and V3 must carry the same
+        # provider-mapped competition identity as the feature context.
+        payload["competition_id"] = competition_id
         payload["feature_contributions"] = [
             self._feature_contribution_payload(item) for item in feature_set.contributions
         ]

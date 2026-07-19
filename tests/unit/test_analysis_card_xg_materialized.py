@@ -256,6 +256,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["home_name"] == "Home"
     assert card["away_name"] == "Away"
     assert card["competition_name"] == "World Cup"
+    assert card["competition_id"] == "world_cup_2026"
     assert card["data_readiness"] == {
         "market_observations": 16,
         "bookmakers": 2,
