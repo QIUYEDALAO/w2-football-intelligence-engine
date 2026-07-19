@@ -67,7 +67,6 @@ from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
 from w2.lineups.intelligence import (
-    TOP_FIVE_COMPETITION_CODES,
     LineupGate,
     audited_coverage_rate,
     lineup_market_policy,
@@ -2616,11 +2615,15 @@ class ReadModelService:
         evidence_blockers = [
             str(blocker) for blocker in evidence.get("blockers", []) if str(blocker)
         ]
-        strict_evidence_blockers = (
-            evidence_blockers if competition_id in TOP_FIVE_COMPETITION_CODES else []
-        )
-        gate_blockers = list(dict.fromkeys([*gate.blockers, *strict_evidence_blockers]))
-        gate_eligible = gate.eligible and not strict_evidence_blockers
+        confirmation_blockers = list(gate.blockers)
+        enrichment_blockers = [
+            blocker
+            for blocker in evidence_blockers
+            if blocker
+            in {"PLAYER_IDENTITY_INCOMPLETE", "VALUATION_INCOMPLETE", "FORMATION_INCOMPLETE"}
+        ]
+        gate_blockers = list(dict.fromkeys([*confirmation_blockers, *enrichment_blockers]))
+        gate_eligible = gate.eligible
         adjustment_policy = lineup_market_policy().get("numeric_adjustment", {})
         adjustment_policy = adjustment_policy if isinstance(adjustment_policy, dict) else {}
         ah_adjustment_enabled = bool(adjustment_policy.get("ah_enabled")) and bool(
@@ -2634,6 +2637,14 @@ class ReadModelService:
             "competition_id": competition_id,
             "coverage_grade": gate.grade.value,
             "gate_eligible": gate_eligible,
+            "lineup_confirmation_gate": {
+                "status": "READY" if gate_eligible else "NOT_READY",
+                "blockers": confirmation_blockers,
+            },
+            "lineup_enrichment_status": {
+                "status": "INCOMPLETE" if enrichment_blockers else "READY",
+                "blockers": enrichment_blockers,
+            },
             "numeric_adjustment_enabled": (ah_adjustment_enabled or totals_adjustment_enabled),
             "lineup_ah_adjustment": 0.0,
             "lineup_totals_adjustment": 0.0,

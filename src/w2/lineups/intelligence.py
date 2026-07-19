@@ -147,14 +147,11 @@ class LineupGate:
                 eligible=quotes_complete_and_fresh,
                 grade=grade,
                 blockers=() if quotes_complete_and_fresh else ("QUOTE_NOT_COMPLETE_OR_FRESH",),
-                numeric_adjustment_enabled=grade is not CoverageGrade.C,
+                numeric_adjustment_enabled=False,
             )
         checks = {
             "LINEUP_NOT_CONFIRMED": confirmed,
             "STARTING_XI_INCOMPLETE": home_starters == 11 and away_starters == 11,
-            "PLAYER_IDENTITY_INCOMPLETE": uniquely_mapped_starters == 22,
-            "VALUATION_INCOMPLETE": valued_starters == 22,
-            "FORMATION_INCOMPLETE": formation_count == 2,
             "QUOTE_NOT_COMPLETE_OR_FRESH": quotes_complete_and_fresh,
         }
         blockers = tuple(reason for reason, passed in checks.items() if not passed)
@@ -162,7 +159,7 @@ class LineupGate:
             eligible=not blockers,
             grade=grade,
             blockers=blockers,
-            numeric_adjustment_enabled=not blockers,
+            numeric_adjustment_enabled=False,
         )
 
 

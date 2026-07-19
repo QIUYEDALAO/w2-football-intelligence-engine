@@ -302,7 +302,10 @@ def _blockers(
         )
         if consensus_blocker:
             blockers.append(consensus_blocker)
-    signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))
+    signal_count = _number(
+        (pricing_shadow or {}).get("distinct_evidence_group_count")
+        or (pricing_shadow or {}).get("independent_signal_count")
+    )
     if signal_count is None or signal_count < FORMAL_MIN_INDEPENDENT_SIGNALS:
         blockers.append("INSUFFICIENT_INDEPENDENT_SIGNALS")
     readiness_blockers = []

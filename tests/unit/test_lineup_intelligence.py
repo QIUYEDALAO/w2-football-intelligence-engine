@@ -141,7 +141,7 @@ def test_lineup_changes_are_position_aware_and_fail_closed() -> None:
     assert features.bench_value_eur == 2_000_000
 
 
-def test_top_five_gate_requires_complete_22_player_identity_and_value() -> None:
+def test_top_five_confirmation_gate_does_not_require_identity_or_value_enrichment() -> None:
     gate = LineupGate()
     blocked = gate.evaluate(
         competition_code="GB1",
@@ -154,8 +154,9 @@ def test_top_five_gate_requires_complete_22_player_identity_and_value() -> None:
         quotes_complete_and_fresh=True,
         audited_coverage_rate=0.95,
     )
-    assert not blocked.eligible
-    assert blocked.blockers == ("PLAYER_IDENTITY_INCOMPLETE",)
+    assert blocked.eligible
+    assert blocked.blockers == ()
+    assert not blocked.numeric_adjustment_enabled
 
 
 def test_non_top_five_grade_controls_numeric_enhancement_not_pick_gate() -> None:
@@ -182,7 +183,7 @@ def test_non_top_five_grade_controls_numeric_enhancement_not_pick_gate() -> None
     ("competition_id", "expected_eligible", "expected_decision"),
     [
         ("allsvenskan", True, "PICK"),
-        ("premier_league", False, "WATCH"),
+        ("premier_league", True, "PICK"),
     ],
 )
 def test_public_lineup_gate_projects_policy_and_strict_baseline_blocker(
