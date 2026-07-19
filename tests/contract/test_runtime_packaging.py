@@ -97,6 +97,10 @@ def test_runtime_entrypoints_do_not_resync_the_environment() -> None:
     assert services["scheduler"]["command"][0] == "python"
     assert services["worker"]["healthcheck"]["test"][1] == "python"
     assert services["scheduler"]["healthcheck"]["test"][1] == "python"
+    for service in ("api", "worker", "scheduler"):
+        environment = services[service]["environment"]
+        assert environment["W2_APP_ROOT"] == "/app"
+        assert environment["W2_RUNTIME_ROOT"] == "/app/runtime"
 
 
 def test_dockerignore_excludes_runtime_reports_and_private_inputs() -> None:

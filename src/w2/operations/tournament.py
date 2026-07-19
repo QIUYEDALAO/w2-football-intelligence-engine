@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum
@@ -10,7 +11,7 @@ from typing import Any
 
 from w2.domain.time import require_utc
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
 
 
 class ContextValidationStatus(StrEnum):

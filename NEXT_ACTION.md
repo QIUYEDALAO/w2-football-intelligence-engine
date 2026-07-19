@@ -2,9 +2,10 @@
 
 ## Current gate
 
-R3 and LMM0–LMM8 are `staging_accepted` on the exact local implementation
-`198c603db424371014e1f738596a9befa8a9486c`. The single LMM staging deployment
-and canary passed. GitHub was not accessed or synchronized.
+R3 is `staging_accepted`. LMM0–LMM8 is also `staging_accepted` on the exact
+local implementation `198c603db424371014e1f738596a9befa8a9486c`. The single
+LMM staging deployment and canary passed. GitHub was not accessed or
+synchronized.
 
 The consecutive natural-day read-only count is reset to `0/3`. Under the
 user-approved accelerated schedule, the first eligible post-deployment patrol
@@ -32,3 +33,5 @@ AH/OU market-selection behavior; it prevents unsupported xG adjustments.
 
 Champion switching, formal RECOMMEND, lock, OFFICIAL and write-enabled
 production remain unauthorized. No GitHub fetch, pull, push or PR is authorized.
+R4 is authorized for approval-package preparation only; no R4 switch is
+implicitly approved.

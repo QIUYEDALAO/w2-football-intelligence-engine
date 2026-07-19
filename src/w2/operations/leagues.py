@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
 TOP_FIVE_CONFIG_DIR = ROOT / "config/competitions/top_five"
 STAGE5B_RAW = ROOT / "runtime/stage5b/raw"
 STAGE5B_CLUB_REPORT = ROOT / "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json"

@@ -267,14 +267,14 @@ test("stored early odds remain visible as reference while waiting for the premat
 
   const row = page.locator("article.decision-row").filter({ hasText: "STALE Home" });
   const visibleRow = row.locator(".decision-row-button");
-  await expect(visibleRow).toContainText("已有早盘·待临场更新");
-  await expect(visibleRow).toContainText("尚未形成推荐盘口，暂无推荐比分");
+  await expect(visibleRow).toContainText("缺临场赔率·14:00更新");
+  await expect(visibleRow).toContainText("暂无推荐比分：缺临场赔率，14:00刷新后再判断");
   await expect(visibleRow).not.toContainText("1万次模拟");
   await expect(visibleRow).toContainText("市场早盘（非推荐）：让球 主 -0.5 @1.82 / 客 +0.5 @1.86");
   await expect(visibleRow).toContainText("已过期，仅参考");
   await expect(visibleRow).not.toContainText("数据陈旧");
-  await expect(page.locator(".health-strip")).toContainText("赛前数据持续更新");
-  await expect(page.locator(".health-strip")).toContainText("1 场已有早盘");
+  await expect(page.locator(".health-strip")).toContainText("缺少最新临场赔率");
+  await expect(page.locator(".health-strip")).toContainText("1 场当前只有过期早盘；14:00采集后重新判断能否形成推荐");
   await expect(page.locator(".health-strip")).not.toContainText("部分数据需处理");
 });
 

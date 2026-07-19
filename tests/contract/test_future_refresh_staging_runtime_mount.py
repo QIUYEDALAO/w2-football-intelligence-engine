@@ -65,6 +65,15 @@ def test_api_worker_scheduler_share_one_runtime_mount_per_compose() -> None:
         assert len(sources) == 1
 
 
+def test_runtime_environment_points_installed_services_at_mounted_authority() -> None:
+    for path in (STANDALONE, LITE):
+        compose = load_compose(path)
+        for service in ("api", "worker", "scheduler"):
+            environment = compose["services"][service]["environment"]
+            assert environment["W2_APP_ROOT"] == "/app"
+            assert environment["W2_RUNTIME_ROOT"] == "/app/runtime"
+
+
 def test_web_mounts_static_report_public_root_read_only() -> None:
     expected_sources = {
         STANDALONE: "../../runtime/reports/public",

@@ -21,7 +21,7 @@ const TIER_LABELS: Record<string, string> = {
 const DATA_STATUS_LABELS: Record<string, string> = {
   READY: "数据齐",
   PARTIAL: "部分就绪",
-  STALE: "数据陈旧",
+  STALE: "缺少最新数据",
   BLOCKED: "数据阻塞",
 };
 
@@ -127,7 +127,21 @@ function lastKnownCapturedLabel(card: DashboardDayViewCard): string {
   }).format(parsed);
 }
 
+function nextRefreshLabel(card: DashboardDayViewCard): string {
+  return card.next_eval_at ? fmtTime(card.next_eval_at) : "下一次计划采集";
+}
+
+function staleOddsExplanation(card: DashboardDayViewCard): string {
+  const existing = hasLastKnownOdds(card)
+    ? `当前只有 ${lastKnownCapturedLabel(card)} 的早盘`
+    : "当前没有可执行赔率";
+  return `缺少开赛前 30 分钟内的最新赔率；${existing}，${nextRefreshLabel(card)} 刷新后重新判断是否形成推荐`;
+}
+
 function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): string {
+  if (card.reason_code === "DATA_STALE_ODDS") {
+    return `缺临场赔率·${nextRefreshLabel(card)}更新`;
+  }
   if (isWaitingForScheduledRefresh(card, now)) {
     return hasLastKnownOdds(card) ? "已有早盘·待临场更新" : "等待首轮盘口";
   }
@@ -135,6 +149,7 @@ function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): s
 }
 
 function visibleReasonLabel(card: DashboardDayViewCard, now = new Date()): string {
+  if (card.reason_code === "DATA_STALE_ODDS") return "缺少开赛前 30 分钟内的最新赔率";
   if (isWaitingForScheduledRefresh(card, now)) {
     return hasLastKnownOdds(card) ? "已有早盘，待临场更新" : "尚无盘口，等待首轮采集";
   }
@@ -149,6 +164,7 @@ function isWorldCup(dayView: DashboardDayView): boolean {
 }
 
 function l1OneLiner(card: DashboardDayViewCard): string {
+  if (card.reason_code === "DATA_STALE_ODDS") return `${staleOddsExplanation(card)}。`;
   if (isWaitingForScheduledRefresh(card)) {
     if (hasLastKnownOdds(card)) {
       return `已有 ${lastKnownCapturedLabel(card)} 早盘；仅供参考，${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}更新临场盘口。`;
@@ -167,6 +183,9 @@ function l1OneLiner(card: DashboardDayViewCard): string {
 
 function scorelineSimulationSummary(card: DashboardDayViewCard): string {
   if (!card.pick || !["ANALYSIS_PICK", "RECOMMEND"].includes(card.decision_tier)) {
+    if (card.reason_code === "DATA_STALE_ODDS") {
+      return `暂无推荐比分：缺临场赔率，${nextRefreshLabel(card)}刷新后再判断`;
+    }
     return "尚未形成推荐盘口，暂无推荐比分";
   }
   const scores = card.scoreline_reference?.direction_top3?.slice(0, 3) ?? [];
@@ -632,7 +651,9 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
   return [
     `盘口源:${marketSourceLabel(card)}`,
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
-    `数据:${visibleDataStatusLabel(card)}; ${trustSignalSummary(card)}`,
+    card.reason_code === "DATA_STALE_ODDS"
+      ? `数据:${staleOddsExplanation(card)}`
+      : `数据:${visibleDataStatusLabel(card)}; ${trustSignalSummary(card)}`,
     waitingWithEarlyMarket
       ? "模型:等待临场盘口更新后重新确认"
       : `模型:${applicabilityLabel(card)}; ${divergenceLabel(card)}`,
@@ -832,11 +853,18 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
     (card) => (card.data_status === "BLOCKED" || card.data_status === "STALE")
       && !isWaitingForScheduledRefresh(card),
   ).length;
+  const staleOdds = dayView.cards.filter((card) => card.reason_code === "DATA_STALE_ODDS");
+  const staleOddsNext = staleOdds
+    .map((card) => card.next_eval_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()[0];
   return (
     <section className={`health-strip${blocked ? " has-warning" : ""}`} aria-label="白名单健康状态">
-      <strong>{blocked ? "部分数据需处理" : waiting ? "赛前数据持续更新" : "当前窗口正常"}</strong>
+      <strong>{staleOdds.length ? "缺少最新临场赔率" : blocked ? "部分数据需处理" : waiting ? "赛前数据持续更新" : "当前窗口正常"}</strong>
       <span>{competitionCount} 个联赛 · 待赛 {dayView.cards.filter(isPreMatch).length} 场</span>
-      {blocked
+      {staleOdds.length
+        ? <small>{staleOdds.length} 场当前只有过期早盘；{staleOddsNext ? fmtTime(staleOddsNext) : "下一计划时点"}采集后重新判断能否形成推荐。</small>
+        : blocked
         ? <small>异常比赛已保留在赛程中，并显示真实原因。</small>
         : waiting
           ? <small>{withEarlyMarket} 场已有早盘；{waiting - withEarlyMarket} 场待首轮盘口，均按计划更新。</small>

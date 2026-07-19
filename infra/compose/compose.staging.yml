@@ -106,6 +106,8 @@ services:
       - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
@@ -188,6 +190,8 @@ services:
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
@@ -259,6 +263,8 @@ services:
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}

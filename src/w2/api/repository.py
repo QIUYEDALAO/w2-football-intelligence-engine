@@ -140,9 +140,9 @@ from w2.tracking.formal_results import (
 )
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
 REPORTS = ROOT / "reports"
-RUNTIME = ROOT / "runtime"
+RUNTIME = Path(os.getenv("W2_RUNTIME_ROOT", ROOT / "runtime")).resolve()
 MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
