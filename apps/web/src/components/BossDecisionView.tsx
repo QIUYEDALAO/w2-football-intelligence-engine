@@ -84,6 +84,10 @@ function reasonLabel(value?: string | null): string {
   return REASON_LABELS[value] ?? "未就绪原因";
 }
 
+function effectiveReasonCode(card: DashboardDayViewCard): string | null {
+  return card.reason_code ?? (textValue(asRecord(card.non_pick).reason_code) || null);
+}
+
 function actionLabel(value?: string | null): string {
   if (!value) return "等待下一次刷新";
   return ACTION_LABELS[value] ?? "继续观察";
@@ -91,7 +95,8 @@ function actionLabel(value?: string | null): string {
 
 function isWaitingForScheduledRefresh(card: DashboardDayViewCard, now = new Date()): boolean {
   if (!(card.data_status === "STALE" || card.data_status === "BLOCKED")) return false;
-  if (!(card.reason_code === "DATA_STALE_ODDS" || card.reason_code === "MARKET_UNAVAILABLE")) return false;
+  const reasonCode = effectiveReasonCode(card);
+  if (!(reasonCode === "DATA_STALE_ODDS" || reasonCode === "MARKET_UNAVAILABLE")) return false;
   const next = card.next_eval_at ? new Date(card.next_eval_at) : null;
   const kickoff = card.kickoff_utc ? new Date(card.kickoff_utc) : null;
   return Boolean(
@@ -139,7 +144,7 @@ function staleOddsExplanation(card: DashboardDayViewCard): string {
 }
 
 function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): string {
-  if (card.reason_code === "DATA_STALE_ODDS") {
+  if (effectiveReasonCode(card) === "DATA_STALE_ODDS") {
     return `缺临场赔率·${nextRefreshLabel(card)}更新`;
   }
   if (isWaitingForScheduledRefresh(card, now)) {
@@ -149,14 +154,14 @@ function visibleDataStatusLabel(card: DashboardDayViewCard, now = new Date()): s
 }
 
 function visibleReasonLabel(card: DashboardDayViewCard, now = new Date()): string {
-  if (card.reason_code === "DATA_STALE_ODDS") return "缺少开赛前 30 分钟内的最新赔率";
+  if (effectiveReasonCode(card) === "DATA_STALE_ODDS") return "缺少开赛前 30 分钟内的最新赔率";
   if (isWaitingForScheduledRefresh(card, now)) {
     return hasLastKnownOdds(card) ? "已有早盘，待临场更新" : "尚无盘口，等待首轮采集";
   }
   const lineup = asRecord(card.lineup_provenance);
   const blockers = Array.isArray(lineup.blockers) ? lineup.blockers : [];
   const lineupReason = blockers.map((value) => REASON_LABELS[String(value)]).find(Boolean);
-  return lineupReason ?? reasonLabel(card.reason_code);
+  return lineupReason ?? reasonLabel(effectiveReasonCode(card));
 }
 
 function isWorldCup(dayView: DashboardDayView): boolean {
@@ -164,7 +169,7 @@ function isWorldCup(dayView: DashboardDayView): boolean {
 }
 
 function l1OneLiner(card: DashboardDayViewCard): string {
-  if (card.reason_code === "DATA_STALE_ODDS") return `${staleOddsExplanation(card)}。`;
+  if (effectiveReasonCode(card) === "DATA_STALE_ODDS") return `${staleOddsExplanation(card)}。`;
   if (isWaitingForScheduledRefresh(card)) {
     if (hasLastKnownOdds(card)) {
       return `已有 ${lastKnownCapturedLabel(card)} 早盘；仅供参考，${card.next_eval_at ? fmtTime(card.next_eval_at) : "下一时点"}更新临场盘口。`;
@@ -178,12 +183,12 @@ function l1OneLiner(card: DashboardDayViewCard): string {
   if (card.decision_tier === "ANALYSIS_PICK" && card.pick) {
     return `${tierLabel(card.decision_tier)}：${marketPickLabel(card)}；分析参考·非稳赢。`;
   }
-  return `${reasonLabel(card.reason_code)}，${actionLabel(card.action)}。`;
+  return `${reasonLabel(effectiveReasonCode(card))}，${actionLabel(card.action)}。`;
 }
 
 function scorelineSimulationSummary(card: DashboardDayViewCard): string {
   if (!card.pick || !["ANALYSIS_PICK", "RECOMMEND"].includes(card.decision_tier)) {
-    if (card.reason_code === "DATA_STALE_ODDS") {
+    if (effectiveReasonCode(card) === "DATA_STALE_ODDS") {
       return `暂无推荐比分：缺临场赔率，${nextRefreshLabel(card)}刷新后再判断`;
     }
     return "尚未形成推荐盘口，暂无推荐比分";
@@ -306,7 +311,9 @@ function trustSignalSummary(card: DashboardDayViewCard): string {
   const odds = textValue(refresh.odds_status, Object.keys(asRecord(card.current_odds)).length ? "READY" : "WAITING");
   const lineups = textValue(refresh.lineups_status, textValue(asRecord(card.data_readiness).lineups_status, "UNKNOWN"));
   const xg = textValue(refresh.xg_status, textValue(asRecord(card.data_readiness).xg_status, "UNKNOWN"));
-  return `盘口 ${statusCn(odds)} · 首发 ${statusCn(lineups)} · xG ${statusCn(xg)}`;
+  const lineupLabel = textValue(refresh.lineups_status_label)
+    || (lineups === "NOT_REQUESTED" ? "未到采集时间" : statusCn(lineups));
+  return `盘口 ${statusCn(odds)} · 首发 ${lineupLabel} · xG ${statusCn(xg)}`;
 }
 
 function applicabilityLabel(card: DashboardDayViewCard): string {
@@ -358,10 +365,11 @@ function signedLine(prefix: string, value: unknown): string {
 function statusCn(value: string): string {
   const status = value.toUpperCase();
   if (status === "READY") return "已就绪";
+  if (status === "STALE") return "已过期";
   if (status === "WAITING") return "等待";
-  if (status === "PROVIDER_EMPTY") return "provider 空返";
+  if (status === "PROVIDER_EMPTY") return "数据源空返";
   if (status === "INSUFFICIENT_HISTORY") return "样本不足";
-  if (status === "NOT_REQUESTED") return "未请求";
+  if (status === "NOT_REQUESTED") return "未到采集时间";
   if (status === "UNKNOWN") return "未知";
   return value;
 }
@@ -633,7 +641,7 @@ function diagnosticRows(card: DashboardDayViewCard): Array<[string, string]> {
   return [
     ["decision", tierLabel(card.decision_tier)],
     ["data", dataStatusLabel(card.data_status)],
-    ["reason", reasonLabel(card.reason_code)],
+    ["reason", reasonLabel(effectiveReasonCode(card))],
     ["action", actionLabel(card.action)],
     ["next_eval_at", textValue(card.next_eval_at, "-")],
     ["probability_source", probabilitySourceLabel(card)],
@@ -651,7 +659,7 @@ function evidenceStatements(card: DashboardDayViewCard): string[] {
   return [
     `盘口源:${marketSourceLabel(card)}`,
     `决策:${tierLabel(card.decision_tier)}; ${l1OneLiner(card)}`,
-    card.reason_code === "DATA_STALE_ODDS"
+    effectiveReasonCode(card) === "DATA_STALE_ODDS"
       ? `数据:${staleOddsExplanation(card)}`
       : `数据:${visibleDataStatusLabel(card)}; ${trustSignalSummary(card)}`,
     waitingWithEarlyMarket
@@ -712,7 +720,7 @@ export function DecisionCounts({ dayView, performance }: { dayView: DashboardDay
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
     ["已出推荐", readyRecommendations, "数据齐全后才置顶"],
-    ["验证结算", validation?.validation_settled_fixture_count ?? 0, `验证命中率 ${percent(validation?.outcomes_validation.hit_rate)}`],
+    ["可核验结算", validation?.canonical_settled_fixture_count ?? 0, `可核验命中率 ${percent(validation?.outcomes_canonical.hit_rate)}`],
     ["今日待评估", dayView.counts.not_ready + dayView.counts.watch + dayView.counts.skip, "按开球时间继续观察"],
   ] as const;
   return (
@@ -853,7 +861,7 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
     (card) => (card.data_status === "BLOCKED" || card.data_status === "STALE")
       && !isWaitingForScheduledRefresh(card),
   ).length;
-  const staleOdds = dayView.cards.filter((card) => card.reason_code === "DATA_STALE_ODDS");
+  const staleOdds = dayView.cards.filter((card) => effectiveReasonCode(card) === "DATA_STALE_ODDS");
   const staleOddsNext = staleOdds
     .map((card) => card.next_eval_at)
     .filter((value): value is string => Boolean(value))
@@ -876,7 +884,7 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
 function FilterControls({ filter, onFilterChange }: { filter: ScheduleFilter; onFilterChange: (filter: ScheduleFilter) => void }) {
   const filters: Array<[ScheduleFilter, string]> = [
     ["all", "全部赛程"],
-    ["recommended", "只看值得看"],
+    ["recommended", "只看已形成建议"],
     ["hide-not-ready", "隐藏未就绪"],
   ];
   return (
@@ -957,13 +965,13 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     .slice(0, 2)
     .map((row) => row.label)
     .join(" / ");
-  const bestForwardLeagues = forwardLedger?.by_league
-    ?.filter((row) => row.fixture_count > 0)
+  const bestForwardLeagues = forwardLedger?.by_league_validation
+    ?.filter((row) => row.validation_fixture_count > 0)
     .slice(0, 2)
     .map((row) => translateCompetition(row.league))
     .join(" / ");
   const validationCount = forwardLedger?.validation_fixture_count ?? 0;
-  const settled = forwardLedger?.validation_settled_fixture_count ?? 0;
+  const settled = forwardLedger?.canonical_settled_fixture_count ?? 0;
   const pending = forwardLedger?.validation_pending_fixture_count ?? 0;
   const firstCapture = forwardLedger?.evidence_window.first_capture_at?.slice(5, 10);
   const latestCapture = forwardLedger?.evidence_window.latest_capture_at?.slice(5, 10);
@@ -972,8 +980,8 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>真实前向 {evidenceRange}</strong>
       <span>验证推荐 {validationCount} 场</span>
-      <span>已结算 {settled} · 待处理 {pending}</span>
-      <span>验证命中率 {settled ? percent(forwardLedger?.outcomes_validation.hit_rate) : "积累中"}</span>
+      <span>可核验 {settled} · 待处理 {pending}</span>
+      <span>可核验命中率 {settled ? percent(forwardLedger?.outcomes_canonical.hit_rate) : "积累中"}</span>
       <span>CLV {forwardLedger?.clv.sample_count ? clvUnits(forwardLedger.clv.median_decimal) : "积累中"}</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
@@ -983,9 +991,11 @@ function TrustStrip({ performance, leagueRows }: { performance?: DashboardPerfor
 function VerificationPreview({ matches, performance }: { matches: DashboardMatchCard[]; performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
-    const settled = forwardLedger.validation_settled_fixture_count;
+    const processed = forwardLedger.validation_settled_fixture_count;
+    const settled = forwardLedger.canonical_settled_fixture_count;
     const pending = forwardLedger.validation_pending_fixture_count;
-    const outcomes = forwardLedger.outcomes_validation;
+    const outcomes = forwardLedger.outcomes_canonical;
+    const decisive = outcomes.hit_count + outcomes.miss_count;
     const pendingStatus = forwardLedger.validation_pending_status;
     const pendingBreakdown = [
       pendingStatus?.waiting_finish_count ? `等待完赛 ${pendingStatus.waiting_finish_count}` : "",
@@ -997,17 +1007,19 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
           <span>赛后验证</span>
-          <strong>验证 {forwardLedger.validation_fixture_count} 场 · 已结算 {settled}</strong>
+          <strong>可核验 {settled}/{processed} 场</strong>
         </header>
         {settled ? (
           <div className="verification-list">
             <div>
-              <span>VALIDATION ledger + outcome</span>
+              <span>验证推荐与赛果</span>
               <strong>
                 命中 {outcomes.hit_count} · 未中 {outcomes.miss_count} · 走水 {outcomes.push_count} · 作废 {outcomes.void_count}
               </strong>
               <small>
-                命中率 {percent(outcomes.hit_rate)} · {pending ? pendingBreakdown || `待处理 ${pending} 场` : "全部已处理"}
+                命中率 {decisive ? percent(outcomes.hit_rate) : "暂无有效分母"}（命中/未中 {decisive} 场）
+                {forwardLedger.canonical_excluded_count ? ` · 历史链路不完整 ${forwardLedger.canonical_excluded_count} 场未计胜率` : ""}
+                {pending ? ` · ${pendingBreakdown || `待处理 ${pending} 场`}` : " · 全部已处理"}
               </small>
             </div>
           </div>
@@ -1044,34 +1056,34 @@ function VerificationPreview({ matches, performance }: { matches: DashboardMatch
 function LeaguePerformancePreview({ rows, performance }: { rows: LeaguePerformanceRow[]; performance?: DashboardPerformance }) {
   const forwardLedger = performance?.forward_ledger;
   if (forwardLedger) {
-    const visibleForwardRows = forwardLedger.by_league.slice(0, 6);
+    const visibleForwardRows = forwardLedger.by_league_validation;
     return (
       <section className="league-performance-preview" aria-label="联赛表现预览">
         <header>
           <span>联赛表现</span>
-          <strong>{visibleForwardRows.length ? "VALIDATION" : "验证样本积累中"}</strong>
+          <strong>{visibleForwardRows.length ? "验证样本" : "验证样本积累中"}</strong>
         </header>
         {visibleForwardRows.length ? (
           <div className="league-performance-table">
             <div className="league-performance-head">
               <span>联赛</span>
-              <span>比赛</span>
-              <span>结算</span>
-              <span>CLV</span>
-              <span>状态</span>
+              <span>验证</span>
+              <span>结算/可核验</span>
+              <span>CLV（样本）</span>
+              <span>命中率</span>
             </div>
             {visibleForwardRows.map((row) => (
-              <div key={row.league}>
+              <div key={row.competition_id || row.league}>
                 <span>{translateCompetition(row.league)}</span>
-                <span>{row.fixture_count}</span>
-                <span>{row.settled_sample_count || "积累中"}</span>
-                <span>{row.clv_sample_count ? clvUnits(row.clv_median_decimal) : "积累中"}</span>
-                <span>{row.settled_sample_count ? percent(row.hit_rate) : "未结算"}</span>
+                <span>{row.validation_fixture_count}</span>
+                <span>{row.validation_settled_fixture_count}/{row.canonical_settled_fixture_count}</span>
+                <span>{row.clv_sample_count ? `${clvUnits(row.clv_median_decimal)}（${row.clv_sample_count}）` : "—（0）"}</span>
+                <span>{row.canonical_settled_fixture_count ? percent(row.hit_rate) : "暂无可核验结算"}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p>真实 ledger 还没有足够联赛样本；当前只显示积累状态,不制造胜率。</p>
+          <p>还没有形成验证推荐；未产生验证身份的比赛不计入联赛表现。</p>
         )}
       </section>
     );
@@ -1207,10 +1219,10 @@ export function BossDecisionView({
           {visibleCards.length ? (
             <>
               <ScheduleSection
-                title="值得看"
+                title="已形成建议"
                 hint="所有符合完整数据与决策条件的比赛均展示"
                 cards={worthWatching}
-                empty="现在没有值得置顶的比赛 · 不是系统坏了，是分歧门槛未过"
+                empty="现在没有已形成建议的比赛 · 当前分歧门槛未通过"
                 selectedFixtureId={selectedCard?.fixture_id}
                 legacyById={legacyById}
                 now={now}

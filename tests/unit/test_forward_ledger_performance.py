@@ -333,6 +333,53 @@ def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_pat
     assert payload["calibration"]["research_roi"] == 0.9
 
 
+def test_validation_league_rows_merge_rounds_and_use_canonical_outcomes(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    captures = []
+    outcomes = []
+    for fixture_id, round_number, outcome_value in (
+        ("fixture-18", 18, "WIN"),
+        ("fixture-19", 19, "LOSS"),
+    ):
+        capture = _validation_capture(fixture_id, f"2026-07-{round_number:02d}T00:00:00Z")
+        capture["competition_id"] = "169"
+        capture["competition_name"] = f"中超 · 常规赛第{round_number}轮"
+        outcome = _outcome_record(fixture_id, outcome_value, side="pick", scope="VALIDATION")
+        outcome.update(
+            {
+                "source_capture_hash": capture["card_hash"],
+                "source_captured_at": capture["captured_at"],
+                "final_score": {"home": 2, "away": 1, "status": "FT"},
+            }
+        )
+        captures.append(capture)
+        outcomes.append(outcome)
+    _write_jsonl(root / "2026-07-18_staging.jsonl", [*captures, *outcomes])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["outcomes_canonical"]["settled_sample_count"] == 2
+    assert payload["outcomes_canonical"]["hit_rate"] == 0.5
+    assert payload["by_league_validation"] == [
+        {
+            "competition_id": "169",
+            "league": "中超",
+            "validation_fixture_count": 2,
+            "validation_settled_fixture_count": 2,
+            "canonical_settled_fixture_count": 2,
+            "canonical_excluded_count": 0,
+            "hit_count": 1,
+            "miss_count": 1,
+            "push_count": 0,
+            "void_count": 0,
+            "hit_rate": 0.5,
+            "clv_sample_count": 0,
+            "clv_median_decimal": None,
+        }
+    ]
+
+
 def test_legacy_capture_with_unique_outcome_link_is_inherited_without_calibration(
     tmp_path: Path,
 ) -> None:

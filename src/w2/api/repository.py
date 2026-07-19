@@ -1372,6 +1372,9 @@ class ReadModelService:
             scheduled_at = _parse_utc_text(scheduled)
             if scheduled_at is not None and (current_next is None or scheduled_at < current_next):
                 card["next_eval_at"] = scheduled
+            non_pick = card.get("non_pick")
+            if isinstance(non_pick, dict) and card.get("next_eval_at"):
+                non_pick["next_eval_at"] = card["next_eval_at"]
         generated_at = datetime.now(UTC)
         payload = {
             "generated_at": generated_at,
@@ -5762,6 +5765,11 @@ class ReadModelService:
                 if kickoff_for_contract is not None
                 else {}
             )
+        non_pick = decision_contract.get("non_pick")
+        if isinstance(non_pick, dict):
+            for key in ("reason_code", "action", "next_eval_at"):
+                if not decision_contract.get(key) and non_pick.get(key):
+                    decision_contract[key] = non_pick[key]
         decision_pick = decision_contract.get("pick")
         scoreline_decision = (
             {
@@ -5869,6 +5877,19 @@ class ReadModelService:
         odds_ready = bool(
             available_inputs.get("current_odds") or available_inputs.get("market_observations")
         )
+        non_pick = card.get("non_pick")
+        reason_code = str(
+            card.get("reason_code")
+            or (
+                cast(dict[str, Any], non_pick).get("reason_code")
+                if isinstance(non_pick, dict)
+                else ""
+            )
+            or ""
+        )
+        odds_stale = (
+            str(card.get("data_status") or "") == "STALE" or reason_code == "DATA_STALE_ODDS"
+        )
         lineups_status = str(data_readiness.get("lineups_status") or "UNKNOWN")
         statistics_status = str(data_readiness.get("statistics_status") or "UNKNOWN")
         xg_ready = bool(available_inputs.get("xg") or data_readiness.get("xg"))
@@ -5889,7 +5910,7 @@ class ReadModelService:
             "status_label": provider_status_label(status),
             "provider": "api_football",
             "source": str(card.get("source") or row.get("_dashboard_source") or "read-model"),
-            "odds_status": "READY" if odds_ready else "WAITING",
+            "odds_status": "STALE" if odds_stale else "READY" if odds_ready else "WAITING",
             "lineups_status": lineups_status,
             "lineups_status_label": lineups_status_label(lineups_status),
             "xg_status": xg_status,
@@ -5929,6 +5950,9 @@ class ReadModelService:
             snapshot = self._last_known_odds_snapshot(by_fixture.get(fixture_id, []))
             if snapshot:
                 card["last_known_odds"] = snapshot
+                data_refresh = card.get("data_refresh")
+                if isinstance(data_refresh, dict) and not data_refresh.get("last_refresh_hint"):
+                    data_refresh["last_refresh_hint"] = snapshot.get("captured_at")
 
     def _last_known_odds_snapshot(
         self,

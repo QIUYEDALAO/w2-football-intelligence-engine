@@ -88,7 +88,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "futureSchedule" in boss_view
     assert "ScheduleSection" in boss_view
     assert "CoverageFoldout" in boss_view
-    assert "值得看" in boss_view
+    assert "已形成建议" in boss_view
     assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
@@ -111,8 +111,8 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
         not in boss_view
     )
     assert "validation_fixture_count" in boss_view
-    assert "outcomes_validation" in boss_view
-    assert "VALIDATION ledger + outcome" in boss_view
+    assert "outcomes_canonical" in boss_view
+    assert "验证推荐与赛果" in boss_view
     assert "页面更新" in boss_view
     assert "全局赔率确认" in boss_view
     assert "下次采集" in boss_view

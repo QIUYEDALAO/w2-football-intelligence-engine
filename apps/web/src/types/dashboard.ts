@@ -534,6 +534,22 @@ export interface ForwardLedgerLeaguePerformance {
   clv_median_decimal?: number | null;
 }
 
+export interface ForwardLedgerValidationLeaguePerformance {
+  competition_id?: string | null;
+  league: string;
+  validation_fixture_count: number;
+  validation_settled_fixture_count: number;
+  canonical_settled_fixture_count: number;
+  canonical_excluded_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  clv_sample_count: number;
+  clv_median_decimal?: number | null;
+}
+
 export interface ForwardLedgerOutcomeSummary {
   settled_sample_count: number;
   hit_count: number;
@@ -571,6 +587,7 @@ export interface ForwardLedgerPerformance {
     }>;
   };
   outcomes_validation: ForwardLedgerOutcomeSummary;
+  outcomes_canonical: ForwardLedgerOutcomeSummary;
   outcomes: ForwardLedgerOutcomeSummary;
   outcomes_shadow: ForwardLedgerOutcomeSummary;
   canonical_settled_fixture_count: number;
@@ -594,6 +611,7 @@ export interface ForwardLedgerPerformance {
     method?: string;
   };
   by_league: ForwardLedgerLeaguePerformance[];
+  by_league_validation: ForwardLedgerValidationLeaguePerformance[];
   mock_data?: boolean;
 }
 

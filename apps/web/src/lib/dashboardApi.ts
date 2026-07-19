@@ -119,6 +119,7 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
   const forwardLedger = asRecord(record.forward_ledger);
   const forwardClv = asRecord(forwardLedger.clv);
   const validationOutcomes = asRecord(forwardLedger.outcomes_validation);
+  const canonicalOutcomes = asRecord(forwardLedger.outcomes_canonical);
   const officialOutcomes = asRecord(forwardLedger.outcomes);
   const shadowOutcomes = asRecord(forwardLedger.outcomes_shadow);
   const evidenceWindow = asRecord(forwardLedger.evidence_window);
@@ -213,6 +214,7 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
         };
       })(),
       outcomes_validation: outcomeSummary(validationOutcomes),
+      outcomes_canonical: outcomeSummary(canonicalOutcomes),
       outcomes: outcomeSummary(officialOutcomes),
       outcomes_shadow: outcomeSummary(shadowOutcomes),
       canonical_settled_fixture_count: numberValue(forwardLedger.canonical_settled_fixture_count),
@@ -242,6 +244,24 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
           record_count: numberValue(row.record_count),
           fixture_count: numberValue(row.fixture_count),
           settled_sample_count: numberValue(row.settled_sample_count),
+          hit_count: numberValue(row.hit_count),
+          miss_count: numberValue(row.miss_count),
+          push_count: numberValue(row.push_count),
+          void_count: numberValue(row.void_count),
+          hit_rate: typeof row.hit_rate === "number" ? row.hit_rate : null,
+          clv_sample_count: numberValue(row.clv_sample_count),
+          clv_median_decimal: typeof row.clv_median_decimal === "number" ? row.clv_median_decimal : null,
+        };
+      }),
+      by_league_validation: asArray(forwardLedger.by_league_validation).map((item) => {
+        const row = asRecord(item);
+        return {
+          competition_id: textValue(row.competition_id) || null,
+          league: textValue(row.league, "UNKNOWN"),
+          validation_fixture_count: numberValue(row.validation_fixture_count),
+          validation_settled_fixture_count: numberValue(row.validation_settled_fixture_count),
+          canonical_settled_fixture_count: numberValue(row.canonical_settled_fixture_count),
+          canonical_excluded_count: numberValue(row.canonical_excluded_count),
           hit_count: numberValue(row.hit_count),
           miss_count: numberValue(row.miss_count),
           push_count: numberValue(row.push_count),
@@ -797,6 +817,7 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
+  const nonPick = asRecord(record.non_pick);
   const pick = asRecord(record.pick);
   const decisionTier = textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"];
   const dataStatus = textValue(record.data_status, "PARTIAL") as DashboardDayViewCard["data_status"];
@@ -817,9 +838,9 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     outcome_tracked: actionable && Boolean(record.outcome_tracked),
     lock_eligible: actionable && Boolean(record.lock_eligible),
     recommendation_id: actionable ? textValue(record.recommendation_id) || null : null,
-    reason_code: textValue(record.reason_code) || null,
-    action: textValue(record.action) || null,
-    next_eval_at: textValue(record.next_eval_at) || null,
+    reason_code: textValue(record.reason_code) || textValue(nonPick.reason_code) || null,
+    action: textValue(record.action) || textValue(nonPick.action) || null,
+    next_eval_at: textValue(record.next_eval_at) || textValue(nonPick.next_eval_at) || null,
     provider_budget_status: textValue(record.provider_budget_status) || null,
     missing_fields: asArray(record.missing_fields).map((item) => textValue(item)).filter(Boolean),
     stale_fields: asArray(record.stale_fields).map((item) => textValue(item)).filter(Boolean),
@@ -862,7 +883,7 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
       : [],
     market_selection_audit: asArray(record.market_selection_audit).map((item) => asRecord(item)),
     lineup_provenance: asRecord(record.lineup_provenance),
-    non_pick: Object.keys(asRecord(record.non_pick)).length ? asRecord(record.non_pick) : null,
+    non_pick: Object.keys(nonPick).length ? nonPick : null,
     one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
     diagnostics: asRecord(record.diagnostics),

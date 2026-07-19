@@ -42,6 +42,7 @@ def forward_ledger_performance(
     official_counts = _counts_for_rows(official_rows)
     shadow_counts = _counts_for_rows(shadow_rows)
     canonical_rows, canonical_excluded = _canonical_rows(validation_rows, candidates, captures)
+    canonical_counts = _counts_for_rows(canonical_rows)
     calibration = _calibration_summary(canonical_rows, candidates)
     clv_rows = _clv_rows(records, key_fn=_clv_key)
     clv_shadow_rows = _clv_rows(records, key_fn=_clv_shadow_key)
@@ -68,6 +69,7 @@ def forward_ledger_performance(
         "validation_pending_fixture_count": max(0, len(candidates) - len(validation_rows)),
         "validation_pending_status": pending_status,
         "outcomes_validation": _outcome_summary(validation_counts),
+        "outcomes_canonical": _outcome_summary(canonical_counts),
         "outcomes": _outcome_summary(official_counts),
         "outcomes_shadow": _outcome_summary(shadow_counts),
         "settled_sample_count": sum(official_counts.values()),
@@ -104,6 +106,12 @@ def forward_ledger_performance(
             clv_shadow_rows,
             outcome_counts_by_league(validation_rows, side="pick"),
             outcome_counts_by_league(shadow_rows, side="shadow_pick"),
+        ),
+        "by_league_validation": _validation_league_rows(
+            candidates,
+            validation_rows,
+            canonical_rows,
+            clv_rows,
         ),
         "by_league_market": _league_market_rows(candidates, validation_rows),
         "provider_calls": 0,
@@ -925,6 +933,83 @@ def _league_rows(
             }
         )
     return sorted(rows, key=lambda row: (-int(row["record_count"]), str(row["league"])))
+
+
+def _validation_league_rows(
+    candidates: Mapping[str, Mapping[str, Any]],
+    settled: Sequence[Mapping[str, Any]],
+    canonical: Sequence[Mapping[str, Any]],
+    clv_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Aggregate the public league table from validation fixtures, not raw ledger volume."""
+    settled_by_fixture = {_text(row.get("fixture_id")): row for row in settled}
+    canonical_by_fixture = {_text(row.get("fixture_id")): row for row in canonical}
+    clv_by_fixture = {
+        _text(row.get("fixture_id")): float(value)
+        for row in clv_rows
+        if (value := row.get("clv_decimal")) is not None and isinstance(value, int | float)
+    }
+    grouped: dict[str, list[tuple[str, Mapping[str, Any]]]] = defaultdict(list)
+    for fixture_id, capture in candidates.items():
+        competition_id = _text(capture.get("competition_id"))
+        key = competition_id or _league_display_name(capture) or "UNKNOWN"
+        grouped[key].append((fixture_id, capture))
+
+    rows: list[dict[str, Any]] = []
+    for key, items in grouped.items():
+        fixture_ids = [fixture_id for fixture_id, _ in items]
+        validation_outcomes = [
+            settled_by_fixture[fixture_id]
+            for fixture_id in fixture_ids
+            if fixture_id in settled_by_fixture
+        ]
+        canonical_outcomes = [
+            canonical_by_fixture[fixture_id]
+            for fixture_id in fixture_ids
+            if fixture_id in canonical_by_fixture
+        ]
+        counts = _counts_for_rows(canonical_outcomes)
+        clv_values = [
+            clv_by_fixture[fixture_id] for fixture_id in fixture_ids if fixture_id in clv_by_fixture
+        ]
+        display_name = next(
+            (
+                _league_display_name(capture)
+                for _, capture in items
+                if _league_display_name(capture)
+            ),
+            key,
+        )
+        rows.append(
+            {
+                "competition_id": _text(items[0][1].get("competition_id")) or None,
+                "league": display_name,
+                "validation_fixture_count": len(fixture_ids),
+                "validation_settled_fixture_count": len(validation_outcomes),
+                "canonical_settled_fixture_count": len(canonical_outcomes),
+                "canonical_excluded_count": len(validation_outcomes) - len(canonical_outcomes),
+                "hit_count": counts["hit"],
+                "miss_count": counts["miss"],
+                "push_count": counts["push"],
+                "void_count": counts["void"],
+                "hit_rate": _hit_rate(counts),
+                "clv_sample_count": len(clv_values),
+                "clv_median_decimal": median(clv_values) if clv_values else None,
+            }
+        )
+    return sorted(
+        rows,
+        key=lambda row: (
+            -int(row["validation_fixture_count"]),
+            -int(row["validation_settled_fixture_count"]),
+            str(row["league"]),
+        ),
+    )
+
+
+def _league_display_name(record: Mapping[str, Any]) -> str:
+    name = _text(record.get("competition_name"))
+    return name.split(" · ", maxsplit=1)[0].strip() if name else ""
 
 
 def _league_key(record: Mapping[str, Any]) -> str:

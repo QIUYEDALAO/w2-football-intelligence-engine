@@ -130,6 +130,12 @@ async function installRoutes(
   if (scheduledWait) {
     dayViewPayload.cards[0].kickoff_utc = "2026-07-20T12:00:00Z";
     dayViewPayload.cards[0].next_eval_at = "2026-07-20T06:00:00Z";
+    dayViewPayload.cards[0].reason_code = null;
+    dayViewPayload.cards[0].non_pick = {
+      reason_code: "DATA_STALE_ODDS",
+      action: "WAIT_NEXT_REFRESH",
+      next_eval_at: "2026-07-20T06:00:00Z",
+    };
     dayViewPayload.cards[0].last_known_odds = {
       status: "REFERENCE_ONLY",
       captured_at: "2026-07-17T14:48:45Z",
@@ -296,6 +302,54 @@ test("enabled leagues and club teams render localized Chinese names", async ({ p
   await expect(row).toContainText("22:30");
   await expect(row).not.toContainText("IF Elfsborg");
   await expect(row).not.toContainText("Allsvenskan");
+});
+
+test("league performance shows every validation league with canonical denominators", async ({ page }) => {
+  await installRoutes(page, "STALE", 1, true);
+  await page.route("**/v1/dashboard/day-view?**", async (route) => {
+    const payload = {
+      ...dayView("STALE"),
+      performance: {
+        forward_ledger: {
+          validation_fixture_count: 23,
+          validation_settled_fixture_count: 23,
+          canonical_settled_fixture_count: 12,
+          canonical_excluded_count: 11,
+          outcomes_canonical: {
+            settled_sample_count: 12,
+            hit_count: 7,
+            miss_count: 3,
+            push_count: 2,
+            void_count: 0,
+            hit_rate: 0.7,
+          },
+          by_league_validation: Array.from({ length: 7 }, (_, index) => ({
+            competition_id: index === 6 ? "169" : `league-${index}`,
+            league: index === 6 ? "中超" : `联赛 ${index + 1}`,
+            validation_fixture_count: index === 6 ? 5 : 3,
+            validation_settled_fixture_count: index === 6 ? 5 : 3,
+            canonical_settled_fixture_count: index === 6 ? 2 : 1,
+            canonical_excluded_count: index === 6 ? 3 : 2,
+            hit_count: 1,
+            miss_count: 0,
+            push_count: 0,
+            void_count: 0,
+            hit_rate: 1,
+            clv_sample_count: 0,
+            clv_median_decimal: null,
+          })),
+        },
+      },
+    };
+    await json(route, payload);
+  });
+  await page.goto("/");
+
+  await expect(page.locator(".league-performance-table > div")).toHaveCount(8);
+  await expect(page.locator(".league-performance-table")).toContainText("中超");
+  await expect(page.locator(".league-performance-table")).toContainText("结算/可核验");
+  await expect(page.locator(".verification-preview")).toContainText("可核验 12/23 场");
+  await expect(page.locator(".verification-preview")).toContainText("命中率 70%（命中/未中 10 场）");
 });
 
 for (const scenario of ["STALE", "BLOCKED", "INCOMPLETE", "CHECKPOINT_MISSING"] as const) {

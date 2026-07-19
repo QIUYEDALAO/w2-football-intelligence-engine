@@ -652,6 +652,23 @@ def test_dashboard_card_exposes_data_refresh_status_without_promoting_flags() ->
     assert card["formal_recommendation"] is False
 
 
+def test_dashboard_data_refresh_does_not_mark_historical_odds_ready_when_stale() -> None:
+    service = ReadModelService(repository=cast(Any, object()))
+
+    refresh = service._dashboard_data_refresh(
+        card={
+            "data_status": "STALE",
+            "non_pick": {"reason_code": "DATA_STALE_ODDS"},
+            "data_readiness": {"lineups_status": "NOT_REQUESTED"},
+        },
+        readiness={"available_inputs": {"market_observations": 3}},
+        row={},
+    )
+
+    assert refresh["odds_status"] == "STALE"
+    assert refresh["lineups_status_label"] == "未到首发请求时点"
+
+
 def test_dashboard_exposes_market_movement_without_promoting_flags(
     tmp_path: Path,
     monkeypatch: Any,
