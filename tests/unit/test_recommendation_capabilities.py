@@ -9,6 +9,7 @@ import pytest
 from w2.domain.recommendation_capabilities import (
     REQUIRED_CAPABILITIES,
     CapabilityManifestError,
+    default_manifest_path,
     load_recommendation_capability_manifest,
 )
 from w2.strategy.formal_recommendation import formal_recommendations_enabled
@@ -39,6 +40,12 @@ def test_default_manifest_is_complete_and_keeps_restricted_capabilities_closed()
     assert manifest.capability("lineup_numeric_adjustment_ah").feature_enabled is False
     assert manifest.capability("lineup_numeric_adjustment_ou").feature_enabled is False
     assert manifest.capability("production_recommendation").production_enabled is False
+
+
+def test_default_manifest_prefers_explicit_runtime_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("W2_APP_ROOT", str(Path.cwd()))
+    assert default_manifest_path().is_file()
+    assert default_manifest_path().parent.name == "capabilities"
 
 
 def test_manifest_fails_closed_for_missing_capability(tmp_path: Path) -> None:

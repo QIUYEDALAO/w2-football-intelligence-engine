@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -94,12 +95,16 @@ class RecommendationCapabilityManifest:
 
 
 def default_manifest_path() -> Path:
-    return (
-        Path(__file__).resolve().parents[3]
-        / "config"
-        / "capabilities"
-        / "recommendation_capabilities.v1.json"
-    )
+    relative = Path("config/capabilities/recommendation_capabilities.v1.json")
+    configured_root = os.getenv("W2_APP_ROOT")
+    candidates: list[Path] = []
+    if configured_root:
+        candidates.append(Path(configured_root) / relative)
+    candidates.extend((Path.cwd() / relative, Path(__file__).resolve().parents[3] / relative))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[0]
 
 
 def load_recommendation_capability_manifest(
@@ -167,8 +172,7 @@ def _capability_from_mapping(name: str, raw: object) -> RecommendationCapability
     if verified["production_enabled"] and not verified["publicly_available"]:
         raise CapabilityManifestError(f"capability {name} is production enabled while not public")
     if implementation is CapabilityImplementation.NOT_IMPLEMENTED and any(
-        verified[field]
-        for field in ("feature_enabled", "publicly_available", "production_enabled")
+        verified[field] for field in ("feature_enabled", "publicly_available", "production_enabled")
     ):
         raise CapabilityManifestError(f"unimplemented capability {name} cannot be enabled")
     evidence_status = raw.get("evidence_status")
