@@ -110,17 +110,22 @@ def build_formal_recommendation(
     home_team_name: str,
     away_team_name: str,
     enabled: bool | None = None,
+    ah_market_candidate: dict[str, Any] | None = None,
 ) -> FormalRecommendationResult:
     enabled = formal_recommendations_enabled() if enabled is None else enabled
-    ah = canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow)
+    executable_odds = _candidate_executable_odds(ah_market_candidate)
+    canonical_odds = {"ah": executable_odds} if executable_odds is not None else current_odds
+    ah = canonical_ah_market(current_odds=canonical_odds, pricing_shadow=pricing_shadow)
     blockers = _blockers(
         fixture_status=fixture_status,
         simulation=simulation,
         canonical_market=ah,
-        current_odds=current_odds,
+        current_odds=canonical_odds,
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
+    if ah_market_candidate is not None and executable_odds is None:
+        blockers.append("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
     if blockers:
         return FormalRecommendationResult(
             tier="WATCH",
@@ -247,6 +252,25 @@ def build_formal_recommendation(
         blockers=[],
         canonical_ah_market=ah.as_dict(),
     )
+
+
+def _candidate_executable_odds(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return AH odds only from a complete executable V3 candidate.
+
+    Legacy callers may omit the candidate during the compatibility period.  Once
+    supplied, an incomplete, stale, or reference-only candidate must fail closed
+    rather than falling back to the top-level legacy odds map.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    if candidate.get("market") != "ASIAN_HANDICAP":
+        return None
+    if candidate.get("quote_status") != "COMPLETE" or candidate.get("quote_usage") != "EXECUTABLE":
+        return None
+    quotes = candidate.get("quotes")
+    executable = quotes.get("executable") if isinstance(quotes, dict) else None
+    return dict(executable) if isinstance(executable, dict) else None
+
 
 def _blockers(
     *,
@@ -469,9 +493,7 @@ def _settlement_distribution_from_ladder(
             if row_line is None or abs(row_line - (line if side == "HOME" else -line)) > 0.001:
                 continue
             key = (
-                "home_settlement_distribution"
-                if side == "HOME"
-                else "away_settlement_distribution"
+                "home_settlement_distribution" if side == "HOME" else "away_settlement_distribution"
             )
             distribution = row.get(key)
             if isinstance(distribution, dict):
@@ -553,8 +575,7 @@ def _canonical_ah_blocker(
     if not _is_quarter_line(home_line) or not _is_quarter_line(away_line):
         return "AH_MARKET_LINE_NOT_QUARTER"
     if not (
-        AH_PRICE_MIN <= home_price <= AH_PRICE_MAX
-        and AH_PRICE_MIN <= away_price <= AH_PRICE_MAX
+        AH_PRICE_MIN <= home_price <= AH_PRICE_MAX and AH_PRICE_MIN <= away_price <= AH_PRICE_MAX
     ):
         return "AH_MARKET_PRICE_OUT_OF_RANGE"
     if abs(home_price - away_price) > AH_MAX_PRICE_GAP:
@@ -654,11 +675,7 @@ def _scoreline_dominant_side(
     *,
     min_direction_margin: float,
 ) -> str:
-    summary = (
-        score_matrix_summary
-        if isinstance(score_matrix_summary, dict)
-        else {}
-    )
+    summary = score_matrix_summary if isinstance(score_matrix_summary, dict) else {}
     home = _number(summary.get("home_win"))
     away = _number(summary.get("away_win"))
     if home is None or away is None:
@@ -682,7 +699,7 @@ def _reason(
 ) -> str:
     team = home_team_name if side == "HOME" else away_team_name
     base = (
-        f"模拟公平盘 { _format_line(fair_ah) }，市场盘 { _format_line(market_line) }，"
+        f"模拟公平盘 {_format_line(fair_ah)}，市场盘 {_format_line(market_line)}，"
         f"{team} 亚洲让球结算期望为 {round(expected_value * 100)}pct；"
         f"有效覆盖概率 {round(model_probability * 100)}%，市场基准 "
         f"{round(devig_probability * 100)}%。"

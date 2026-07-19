@@ -25,7 +25,11 @@ def select_analysis_markets(markets: Iterable[dict[str, Any]]) -> MarketSelectio
         name = str(market.get("market") or "")
         score = _number(market.get("decision_score"), market.get("signal_strength"))
         decision = str(market.get("decision") or "")
-        line_ready = str(market.get("line_status") or "READY") == "READY"
+        candidate = market.get("market_candidate")
+        candidate_ready = (
+            bool(candidate.get("ev_eligible")) if isinstance(candidate, dict) else True
+        )
+        line_ready = str(market.get("line_status") or "READY") == "READY" and candidate_ready
         complete = (
             decision in {"PICK", "ANALYSIS_PICK"} and line_ready and score >= PRIMARY_THRESHOLD
         )
@@ -38,6 +42,9 @@ def select_analysis_markets(markets: Iterable[dict[str, Any]]) -> MarketSelectio
             "calibration_error": _number(market.get("calibration_error"), 1.0),
             "quote_age_seconds": _number(market.get("quote_age_seconds"), 10**12),
             "bookmaker_count": int(market.get("bookmaker_count") or 0),
+            "ranking_basis": "CALIBRATED"
+            if market.get("calibration_comparable") is True
+            else "ANALYSIS_ONLY_UNCALIBRATED",
         }
         audited.append(row)
         if row["eligible"]:
@@ -85,6 +92,14 @@ def apply_market_selection(payload: dict[str, Any]) -> None:
             else "SECONDARY"
             if row.get("market") in selection.secondary_markets
             else None
+        )
+        row["ranking_basis"] = next(
+            (
+                audit["ranking_basis"]
+                for audit in selection.audit
+                if audit["market"] == row.get("market")
+            ),
+            "ANALYSIS_ONLY_UNCALIBRATED",
         )
 
 

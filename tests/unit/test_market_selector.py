@@ -63,6 +63,28 @@ def test_apply_selection_exposes_backward_compatible_primary_and_audit() -> None
     assert len(payload["market_selection_audit"]) == 2  # type: ignore[arg-type]
 
 
+def test_candidate_quote_incomplete_excludes_only_its_market_from_selection() -> None:
+    ah = market("ASIAN_HANDICAP", 0.80)
+    ah["market_candidate"] = {"ev_eligible": False}
+    ou = market("TOTALS", 0.70)
+    ou["market_candidate"] = {"ev_eligible": True}
+
+    result = select_analysis_markets([ah, ou])
+
+    assert result.primary_market == "TOTALS"
+    ah_audit = next(row for row in result.audit if row["market"] == "ASIAN_HANDICAP")
+    assert ah_audit["reason"] == "QUOTE_NOT_COMPLETE_OR_FRESH"
+
+
+def test_uncalibrated_ranking_is_explicitly_analysis_only() -> None:
+    payload: dict[str, object] = {"markets": [market("ASIAN_HANDICAP", 0.70)]}
+
+    apply_market_selection(payload)
+
+    market_row = payload["markets"][0]  # type: ignore[index]
+    assert market_row["ranking_basis"] == "ANALYSIS_ONLY_UNCALIBRATED"  # type: ignore[index]
+
+
 def test_secondary_evidence_is_derived_from_the_same_score_matrix() -> None:
     payload: dict[str, object] = {
         "markets": [

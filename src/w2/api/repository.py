@@ -80,6 +80,7 @@ from w2.markets.asian_handicap_scope import (
     is_full_time_asian_handicap_observation,
     is_full_time_totals_observation,
 )
+from w2.markets.market_candidate import build_market_candidates
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -2154,9 +2155,7 @@ class ReadModelService:
         contract = card.get("decision_contract")
         contract_mapping = contract if isinstance(contract, dict) else {}
         tier = str(
-            contract_mapping.get("decision_tier")
-            or card.get("decision_tier")
-            or "NOT_READY"
+            contract_mapping.get("decision_tier") or card.get("decision_tier") or "NOT_READY"
         )
         pick = contract_mapping.get("pick", card.get("pick"))
         if tier in {"ANALYSIS_PICK", "RECOMMEND"} and isinstance(pick, dict):
@@ -2608,19 +2607,14 @@ class ReadModelService:
             confirmed=bool(evidence.get("confirmed")),
             home_starters=int(counts[0]) if len(counts) > 0 else 0,
             away_starters=int(counts[1]) if len(counts) > 1 else 0,
-            uniquely_mapped_starters=parse_int(
-                evidence.get("uniquely_mapped_starters")
-            )
-            or 0,
+            uniquely_mapped_starters=parse_int(evidence.get("uniquely_mapped_starters")) or 0,
             valued_starters=parse_int(evidence.get("valued_starters")) or 0,
             formation_count=parse_int(evidence.get("formation_count")) or 0,
             quotes_complete_and_fresh=quote_ready,
             audited_coverage_rate=audited_coverage_rate(competition_id),
         )
         evidence_blockers = [
-            str(blocker)
-            for blocker in evidence.get("blockers", [])
-            if str(blocker)
+            str(blocker) for blocker in evidence.get("blockers", []) if str(blocker)
         ]
         strict_evidence_blockers = (
             evidence_blockers if competition_id in TOP_FIVE_COMPETITION_CODES else []
@@ -2628,23 +2622,19 @@ class ReadModelService:
         gate_blockers = list(dict.fromkeys([*gate.blockers, *strict_evidence_blockers]))
         gate_eligible = gate.eligible and not strict_evidence_blockers
         adjustment_policy = lineup_market_policy().get("numeric_adjustment", {})
-        adjustment_policy = (
-            adjustment_policy if isinstance(adjustment_policy, dict) else {}
-        )
+        adjustment_policy = adjustment_policy if isinstance(adjustment_policy, dict) else {}
         ah_adjustment_enabled = bool(adjustment_policy.get("ah_enabled")) and bool(
             gate.numeric_adjustment_enabled
         )
-        totals_adjustment_enabled = bool(
-            adjustment_policy.get("totals_enabled")
-        ) and bool(gate.numeric_adjustment_enabled)
+        totals_adjustment_enabled = bool(adjustment_policy.get("totals_enabled")) and bool(
+            gate.numeric_adjustment_enabled
+        )
         payload["lineup_provenance"] = {
             **evidence,
             "competition_id": competition_id,
             "coverage_grade": gate.grade.value,
             "gate_eligible": gate_eligible,
-            "numeric_adjustment_enabled": (
-                ah_adjustment_enabled or totals_adjustment_enabled
-            ),
+            "numeric_adjustment_enabled": (ah_adjustment_enabled or totals_adjustment_enabled),
             "lineup_ah_adjustment": 0.0,
             "lineup_totals_adjustment": 0.0,
             "lineup_ah_evidence_enabled": ah_adjustment_enabled,
@@ -4695,6 +4685,18 @@ class ReadModelService:
             for item in decorated.get("markets", [])
             if isinstance(item, dict)
         ]
+        decorated["market_candidates"] = build_market_candidates(
+            markets=decorated["markets"],
+            quote_identity_audit=decorated.get("quote_identity_audit")
+            if isinstance(decorated.get("quote_identity_audit"), dict)
+            else None,
+            current_odds=decorated.get("current_odds")
+            if isinstance(decorated.get("current_odds"), dict)
+            else None,
+            pricing_shadow=decorated.get("pricing_shadow")
+            if isinstance(decorated.get("pricing_shadow"), dict)
+            else None,
+        )
         return decorated
 
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
@@ -5683,6 +5685,11 @@ class ReadModelService:
             current_odds=card.get("current_odds")
             if isinstance(card.get("current_odds"), dict)
             else None,
+            ah_market_candidate=(
+                card.get("market_candidates", {}).get("ah")
+                if isinstance(card.get("market_candidates"), dict)
+                else None
+            ),
             pricing_shadow=card.get("pricing_shadow")
             if isinstance(card.get("pricing_shadow"), dict)
             else None,
@@ -5843,6 +5850,7 @@ class ReadModelService:
             "result": result,
             "validation": validation,
             "current_odds": card.get("current_odds", {}),
+            "market_candidates": card.get("market_candidates", {}),
             "odds_movement": card.get("line_movement", {}),
             "market_strip": markets,
             "bookmaker_intent": card.get("bookmaker_intent", {}),

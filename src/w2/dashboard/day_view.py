@@ -102,12 +102,8 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
-    decision_tier = _text(
-        _decision_field(card, contract, "decision_tier"), DecisionTier.SKIP.value
-    )
-    data_status = _text(
-        _decision_field(card, contract, "data_status"), DataStatus.PARTIAL.value
-    )
+    decision_tier = _text(_decision_field(card, contract, "decision_tier"), DecisionTier.SKIP.value)
+    data_status = _text(_decision_field(card, contract, "data_status"), DataStatus.PARTIAL.value)
     lifecycle_status = _text(
         _decision_field(card, contract, "lifecycle_status"),
         LifecycleStatus.DRAFT.value,
@@ -117,10 +113,10 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         market_context["current_odds"] = {}
         market_context["market_probabilities"] = {}
     decision_pick = _decision_field(card, contract, "pick")
-    has_directional_pick = (
-        decision_tier in {DecisionTier.ANALYSIS_PICK.value, DecisionTier.RECOMMEND.value}
-        and isinstance(decision_pick, Mapping)
-    )
+    has_directional_pick = decision_tier in {
+        DecisionTier.ANALYSIS_PICK.value,
+        DecisionTier.RECOMMEND.value,
+    } and isinstance(decision_pick, Mapping)
     if not has_directional_pick:
         market_context["scoreline_picks"] = []
         market_context["scoreline_reference"] = {}
@@ -136,29 +132,19 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
             if _is_decision_tier(decision_tier)
             else False,
         ),
-        "lock_eligible": _bool_or_default(
-            _decision_field(card, contract, "lock_eligible"), False
-        ),
-        "recommendation_id": _optional_text(
-            _decision_field(card, contract, "recommendation_id")
-        ),
+        "lock_eligible": _bool_or_default(_decision_field(card, contract, "lock_eligible"), False),
+        "recommendation_id": _optional_text(_decision_field(card, contract, "recommendation_id")),
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
-        "provider_budget_status": _optional_text(
-            _field(card, contract, "provider_budget_status")
-        ),
+        "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
         "probability_source": _optional_text(_field(card, contract, "probability_source")),
-        "model_market_divergence": _mapping_copy(
-            _field(card, contract, "model_market_divergence")
-        ),
+        "model_market_divergence": _mapping_copy(_field(card, contract, "model_market_divergence")),
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
         **market_context,
-        "pick": _mapping_copy(decision_pick)
-        if isinstance(decision_pick, Mapping)
-        else None,
+        "pick": _mapping_copy(decision_pick) if isinstance(decision_pick, Mapping) else None,
         "secondary_picks": [
             _mapping_copy(item)
             for item in card.get("secondary_picks", [])
@@ -178,9 +164,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "one_liner": _optional_text(_field(card, contract, "one_liner")),
         "card_hash": _optional_text(_field(card, contract, "card_hash")),
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
-        "frozen_artifact_provenance": _mapping_copy(
-            card.get("frozen_artifact_provenance")
-        ),
+        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
     }
 
@@ -221,9 +205,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
-        "frozen_artifact_provenance": _mapping_copy(
-            card.get("frozen_artifact_provenance")
-        ),
+        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
     }
 
@@ -244,6 +226,7 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
+        "market_candidates": _mapping_copy(card.get("market_candidates")),
         "last_known_odds": _mapping_copy(card.get("last_known_odds")),
         "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
