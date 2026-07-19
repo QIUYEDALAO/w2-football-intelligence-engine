@@ -11,6 +11,7 @@ from w2.api.frozen_analysis import (
     ANALYSIS_CARD_CANARY_SCHEMA,
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
+    canonical_sha256,
     read_frozen_analysis_artifact,
     validate_frozen_analysis_payload,
     write_frozen_analysis_artifacts,
@@ -206,6 +207,36 @@ def test_old_schema_blocks_entire_atomic_batch(monkeypatch: pytest.MonkeyPatch) 
     misses_before = registry.labelled_counters.get(miss_key, 0)
     assert read_frozen_analysis_artifact(engine, "fixture-a") is None
     assert registry.labelled_counters[miss_key] == misses_before + 1
+
+
+def test_evidence_missing_checkpoint_is_replaced_by_verified_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = AnalysisCardCanaryMaterializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    old_payload = dict(artifact.payload)
+    old_body = {key: value for key, value in old_payload.items() if key != "artifact_hash"}
+    old_manifest = dict(old_body["input_manifest"])
+    old_manifest.pop("analysis_evidence_sha256")
+    old_body["input_manifest"] = old_manifest
+    old_payload = {**old_body, "artifact_hash": canonical_sha256(old_body)}
+    engine = _engine()
+    with Session(engine) as session:
+        session.add(
+            ReadModelCheckpointModel(
+                checkpoint_key=artifact.checkpoint_key,
+                source_hash="0" * 64,
+                created_at=datetime.now(UTC),
+                payload=old_payload,
+            )
+        )
+        session.commit()
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+    assert read_frozen_analysis_artifact(engine, "1576804") is not None
 
 
 def test_payload_validation_rejects_fixture_identity_conflict(

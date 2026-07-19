@@ -313,7 +313,17 @@ def write_frozen_analysis_artifacts(
                     )
                     continue
                 fixture_id = artifact.checkpoint_key.removeprefix(ANALYSIS_CARD_CANARY_PREFIX)
-                current = validate_frozen_analysis_payload(fixture_id, existing.payload)
+                try:
+                    current = validate_frozen_analysis_payload(fixture_id, existing.payload)
+                except FrozenAnalysisError as exc:
+                    # A pre-evidence checkpoint is intentionally fail-closed for reads,
+                    # but its verified replacement must be allowed to re-materialize.
+                    if str(exc) != "frozen analysis evidence missing":
+                        raise
+                    existing.source_hash = artifact.source_hash
+                    existing.created_at = now
+                    existing.payload = artifact.payload
+                    continue
                 if current.source_hash == artifact.source_hash:
                     if current.canonical_bytes != artifact.canonical_bytes:
                         raise FrozenAnalysisError("same source produced conflicting artifact")
