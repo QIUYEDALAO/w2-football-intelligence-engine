@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -8,7 +9,7 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.repository import ReadModelService
+from w2.api.repository import ReadModelService, _next_future_evaluation
 
 
 class EmptyReleaseRepository:
@@ -264,6 +265,19 @@ def test_dashboard_exposes_distinct_page_quote_and_planned_refresh_times() -> No
     assert payload["page_updated_at"] == payload["generated_at"]
     assert payload["odds_last_confirmed_at"] == "2026-06-26T09:45:00Z"
     assert payload["next_refresh_tick"] == "2026-06-26T09:55:00Z"
+
+
+def test_next_future_evaluation_discards_past_card_time() -> None:
+    selected = _next_future_evaluation(
+        [
+            "2026-07-19T01:30:00Z",
+            "2026-07-19T08:30:00Z",
+            "2026-07-19T09:00:00Z",
+        ],
+        now=datetime(2026, 7, 19, 5, 56, tzinfo=UTC),
+    )
+
+    assert selected == "2026-07-19T08:30:00Z"
 
 
 def test_dashboard_future_window_uses_full_cards_not_index_rows(monkeypatch) -> None:

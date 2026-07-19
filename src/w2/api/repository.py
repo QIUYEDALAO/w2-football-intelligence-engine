@@ -192,6 +192,15 @@ def _parse_utc_text(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _next_future_evaluation(values: list[Any], *, now: datetime) -> str | None:
+    candidates: list[tuple[datetime, str]] = []
+    for value in values:
+        parsed = _parse_utc_text(value)
+        if parsed is not None and parsed > now:
+            candidates.append((parsed, parsed.isoformat().replace("+00:00", "Z")))
+    return min(candidates, key=lambda item: item[0])[1] if candidates else None
+
+
 def _truthy_flag(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -1365,17 +1374,21 @@ class ReadModelService:
             if callable(schedule_reader)
             else {}
         )
+        generated_at = datetime.now(UTC)
         for card in response_cards:
             fixture_id = str(card.get("fixture_id") or "")
             scheduled = refresh_schedule.get(fixture_id)
-            current_next = _parse_utc_text(card.get("next_eval_at"))
-            scheduled_at = _parse_utc_text(scheduled)
-            if scheduled_at is not None and (current_next is None or scheduled_at < current_next):
-                card["next_eval_at"] = scheduled
+            card["next_eval_at"] = _next_future_evaluation(
+                [
+                    card.get("next_eval_at"),
+                    scheduled,
+                    refresh_status.get("next_refresh_tick"),
+                ],
+                now=generated_at,
+            )
             non_pick = card.get("non_pick")
-            if isinstance(non_pick, dict) and card.get("next_eval_at"):
+            if isinstance(non_pick, dict):
                 non_pick["next_eval_at"] = card["next_eval_at"]
-        generated_at = datetime.now(UTC)
         payload = {
             "generated_at": generated_at,
             "page_updated_at": generated_at,
