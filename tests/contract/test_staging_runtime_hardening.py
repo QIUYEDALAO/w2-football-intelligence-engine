@@ -77,6 +77,8 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "w2-staging-watchdog.timer" in text
     assert "W2_STAGING_START_AFTER_DEPLOY" in text
     assert "stability_probe=PASS" in text
+    assert "for health_attempt in 1 2 3 4 5 6; do" in text
+    assert "python3 scripts/check_w2_stage7h.py" in text
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1/meta.json" in text

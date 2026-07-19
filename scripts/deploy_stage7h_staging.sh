@@ -226,7 +226,19 @@ if [ \"\${probe_passed}\" != true ]; then
   echo 'stability_probe=FAIL' >&2
   exit 1
 fi
-python3 scripts/check_w2_stage7h.py
+health_passed=false
+for health_attempt in 1 2 3 4 5 6; do
+  echo "health_check_attempt=\${health_attempt}"
+  if python3 scripts/check_w2_stage7h.py; then
+    health_passed=true
+    break
+  fi
+  sleep 5
+done
+if [ "\${health_passed}" != true ]; then
+  echo 'health_check=FAIL' >&2
+  exit 1
+fi
 python3 - <<'PY'
 import json
 from pathlib import Path
