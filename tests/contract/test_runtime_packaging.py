@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 
 def test_dockerfiles_install_non_editable_package_and_package_required_runtime_scripts() -> None:
     root = Path(__file__).resolve().parents[2]
@@ -69,6 +71,32 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
         assert "w2.runtime.contract.version" in text
         for binary in expected_bins:
             assert f"test -x /app/.venv/bin/{binary}" in text
+
+
+def test_runtime_entrypoints_do_not_resync_the_environment() -> None:
+    root = Path(__file__).resolve().parents[2]
+    dockerfile_commands = {
+        "Dockerfile.api": 'CMD ["uvicorn"',
+        "Dockerfile.worker": 'CMD ["celery"',
+        "Dockerfile.scheduler": 'CMD ["python"',
+        "Dockerfile.migrations": 'CMD ["alembic"',
+    }
+    for name, expected_command in dockerfile_commands.items():
+        text = (root / name).read_text(encoding="utf-8")
+        assert expected_command in text
+        assert 'CMD ["uv", "run"' not in text
+        assert "HEALTHCHECK CMD uv run" not in text
+
+    compose = yaml.safe_load(
+        (root / "infra/compose/compose.staging.yml").read_text(encoding="utf-8")
+    )
+    services = compose["services"]
+    assert services["migration"]["command"][0] == "alembic"
+    assert services["api"]["command"][0] == "uvicorn"
+    assert services["worker"]["command"][0] == "celery"
+    assert services["scheduler"]["command"][0] == "python"
+    assert services["worker"]["healthcheck"]["test"][1] == "python"
+    assert services["scheduler"]["healthcheck"]["test"][1] == "python"
 
 
 def test_dockerignore_excludes_runtime_reports_and_private_inputs() -> None:
