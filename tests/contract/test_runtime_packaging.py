@@ -36,6 +36,8 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
             assert "scripts/export_w2_audit_tables.py" in text
             assert "scripts/debug_w2_modeling_sanity.py" in text
             assert "scripts/debug_w2_s2_calibration_validation.py" in text
+            assert "scripts/lmm_transfermarkt_snapshot.py" in text
+            assert "scripts/lmm_materialize_stored_lineups.py" in text
             assert "test -f /app/scripts/run_w2_market_timeline_refresh.py" in text
             assert "test -f /app/scripts/clean_w2_legacy_ah_pool.py" in text
             assert "test -f /app/scripts/run_w2_formal_tracking.py" in text
@@ -48,6 +50,8 @@ def test_dockerfiles_install_non_editable_package_and_package_required_runtime_s
             assert "test -f /app/scripts/export_w2_audit_tables.py" in text
             assert "test -f /app/scripts/debug_w2_modeling_sanity.py" in text
             assert "test -f /app/scripts/debug_w2_s2_calibration_validation.py" in text
+            assert "test -f /app/scripts/lmm_transfermarkt_snapshot.py" in text
+            assert "test -f /app/scripts/lmm_materialize_stored_lineups.py" in text
         else:
             assert "COPY scripts" not in text
         assert "COPY reports" not in text
