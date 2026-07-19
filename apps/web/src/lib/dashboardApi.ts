@@ -287,6 +287,7 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
             processed_count: numberValue(performanceCohort.processed_count),
             eligible_count: numberValue(performanceCohort.eligible_count),
             excluded_count: numberValue(performanceCohort.excluded_count),
+            recovered_count: numberValue(performanceCohort.recovered_count),
             pending_count: numberValue(performanceCohort.pending_count),
             outcomes: cohortOutcomeSummary(cohortOutcomes),
             clv: clvSummary(cohortClv),
@@ -321,6 +322,23 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
                 reason_label: textValue(
                   row.reason_label,
                   "不符合当前统计身份契约",
+                ),
+              };
+            }),
+            recoveries: asArray(performanceCohort.recoveries).map((item) => {
+              const row = asRecord(item);
+              return {
+                fixture_id: textValue(row.fixture_id),
+                competition_id: textValue(row.competition_id) || null,
+                league: textValue(row.league, "UNKNOWN"),
+                home_team_name: textValue(row.home_team_name),
+                away_team_name: textValue(row.away_team_name),
+                kickoff_utc: textValue(row.kickoff_utc),
+                settlement_outcome: textValue(row.settlement_outcome),
+                recovery_code: textValue(row.recovery_code),
+                recovery_label: textValue(
+                  row.recovery_label,
+                  "经唯一历史快照审计恢复",
                 ),
               };
             }),

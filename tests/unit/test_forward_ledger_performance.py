@@ -507,6 +507,87 @@ def test_performance_cohort_partitions_samples_and_filters_clv(tmp_path: Path) -
     assert csl["rate_status"] == "INSUFFICIENT"
 
 
+def test_unique_legacy_capture_can_be_recovered_by_audited_manifest(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-recovered", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("legacy-recovered", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome)
+
+    payload = forward_ledger_performance(tmp_path, legacy_recovery_manifest=manifest)
+    cohort = payload["performance_cohort"]
+
+    assert cohort["eligible_count"] == 1
+    assert cohort["excluded_count"] == 0
+    assert cohort["recovered_count"] == 1
+    assert cohort["outcomes"]["hit_count"] == 1
+    assert cohort["recoveries"][0]["fixture_id"] == "legacy-recovered"
+    assert cohort["recoveries"][0]["recovery_code"] == (
+        "UNIQUE_LEGACY_CAPTURE_RECONSTRUCTED"
+    )
+
+
+def test_legacy_recovery_rejects_tampered_capture(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-rejected", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("legacy-rejected", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome, capture_hash="tampered")
+
+    payload = forward_ledger_performance(tmp_path, legacy_recovery_manifest=manifest)
+    cohort = payload["performance_cohort"]
+
+    assert cohort["eligible_count"] == 0
+    assert cohort["excluded_count"] == 1
+    assert cohort["recovered_count"] == 0
+    assert cohort["exclusions"][0]["reason_code"] == "LEGACY_CAPTURE_LINK_MISSING"
+
+
+def test_legacy_recovery_rejects_multiple_possible_captures(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-ambiguous", "2026-07-07T00:00:00Z")
+    duplicate = _validation_capture("legacy-ambiguous", "2026-07-07T00:10:00Z")
+    outcome = _outcome_record("legacy-ambiguous", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, duplicate, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome)
+
+    cohort = forward_ledger_performance(
+        tmp_path,
+        legacy_recovery_manifest=manifest,
+    )["performance_cohort"]
+
+    assert cohort["eligible_count"] == 0
+    assert cohort["excluded_count"] == 1
+    assert cohort["recovered_count"] == 0
+
+
 def _validation_capture(fixture_id: str, captured_at: str) -> dict[str, object]:
     return {
         **_record(captured_at, fixture_id=fixture_id, pick=True),
@@ -592,5 +673,40 @@ def _outcome_record(
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text(
         "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows),
+        encoding="utf-8",
+    )
+
+
+def _write_recovery_manifest(
+    path: Path,
+    capture: dict[str, object],
+    outcome: dict[str, object],
+    *,
+    capture_hash: str | None = None,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.forward_ledger_legacy_recovery.v1",
+                "environment": "staging",
+                "entries": [
+                    {
+                        "fixture_id": capture["fixture_id"],
+                        "captured_at": capture["captured_at"],
+                        "capture_hash": capture_hash or capture["card_hash"],
+                        "kickoff_utc": capture["kickoff_utc"],
+                        "competition": capture["competition_id"],
+                        "home_team_name": capture["home_team_name"],
+                        "away_team_name": capture["away_team_name"],
+                        "market": "ASIAN_HANDICAP",
+                        "selection": "HOME_AH",
+                        "line": "-1",
+                        "entry_price": 2.0,
+                        "settlement_outcome": outcome["settlement_outcome"],
+                        "final_score": outcome["final_score"],
+                    }
+                ],
+            }
+        ),
         encoding="utf-8",
     )

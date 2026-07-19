@@ -29,6 +29,7 @@ def forward_ledger_performance(
     *,
     sample_target: int = SAMPLE_TARGET,
     now: datetime | None = None,
+    legacy_recovery_manifest: Path | None = None,
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     root = runtime_root / "forward_outcome_ledger"
@@ -42,7 +43,13 @@ def forward_ledger_performance(
     validation_counts = _counts_for_rows(validation_rows)
     official_counts = _counts_for_rows(official_rows)
     shadow_counts = _counts_for_rows(shadow_rows)
-    canonical_rows, canonical_excluded = _canonical_rows(validation_rows, candidates, captures)
+    legacy_recoveries = _load_legacy_recovery_manifest(legacy_recovery_manifest)
+    canonical_rows, canonical_excluded, recovered = _canonical_rows(
+        validation_rows,
+        candidates,
+        captures,
+        legacy_recoveries=legacy_recoveries,
+    )
     canonical_counts = _counts_for_rows(canonical_rows)
     calibration = _calibration_summary(canonical_rows, candidates)
     clv_rows = _clv_rows(records, key_fn=_clv_key)
@@ -64,6 +71,7 @@ def forward_ledger_performance(
         settled=validation_rows,
         canonical=canonical_rows,
         canonical_excluded=canonical_excluded,
+        recovered=recovered,
         clv_rows=canonical_clv_rows,
     )
     return {
@@ -314,9 +322,13 @@ def _canonical_rows(
     settled: Sequence[Mapping[str, Any]],
     candidates: Mapping[str, Mapping[str, Any]],
     captures: Sequence[Mapping[str, Any]],
-) -> tuple[list[Mapping[str, Any]], dict[str, str]]:
+    *,
+    legacy_recoveries: Mapping[str, Mapping[str, Any]] | None = None,
+) -> tuple[list[Mapping[str, Any]], dict[str, str], dict[str, Mapping[str, Any]]]:
     rows: list[Mapping[str, Any]] = []
     excluded: dict[str, str] = {}
+    recovered: dict[str, Mapping[str, Any]] = {}
+    recovery_entries = legacy_recoveries or {}
     for outcome in settled:
         fixture_id = _text(outcome.get("fixture_id"))
         capture = candidates[fixture_id]
@@ -326,11 +338,114 @@ def _canonical_rows(
             if _text(item.get("fixture_id")) == fixture_id and _capture_scope(item) == "VALIDATION"
         ]
         reason = _canonical_issue(capture, outcome, related_captures)
+        recovery = recovery_entries.get(fixture_id)
+        if (
+            reason == "LEGACY_CAPTURE_LINK_MISSING"
+            and recovery is not None
+            and _legacy_recovery_matches(recovery, capture, outcome, related_captures)
+        ):
+            rows.append(outcome)
+            recovered[fixture_id] = recovery
+            continue
         if reason:
             excluded[fixture_id] = reason
         else:
             rows.append(outcome)
-    return rows, excluded
+    return rows, excluded, recovered
+
+
+def _load_legacy_recovery_manifest(
+    path: Path | None,
+) -> dict[str, Mapping[str, Any]]:
+    if path is None or not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid legacy recovery manifest: {path}") from exc
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != (
+        "w2.forward_ledger_legacy_recovery.v1"
+    ):
+        raise ValueError("unsupported legacy recovery manifest schema")
+    if _text(payload.get("environment")) != "staging":
+        raise ValueError("legacy recovery manifest must be staging-only")
+    entries = payload.get("entries")
+    if not isinstance(entries, Sequence) or isinstance(entries, str | bytes | bytearray):
+        raise ValueError("legacy recovery manifest entries must be a list")
+    by_fixture: dict[str, Mapping[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise ValueError("legacy recovery manifest entry must be an object")
+        fixture_id = _text(entry.get("fixture_id"))
+        if not fixture_id or fixture_id in by_fixture:
+            raise ValueError("legacy recovery fixture IDs must be unique")
+        by_fixture[fixture_id] = entry
+    return by_fixture
+
+
+def _legacy_recovery_matches(
+    recovery: Mapping[str, Any],
+    capture: Mapping[str, Any],
+    outcome: Mapping[str, Any],
+    related_captures: Sequence[Mapping[str, Any]],
+) -> bool:
+    if len(related_captures) != 1 or related_captures[0] is not capture:
+        return False
+    if _text(capture.get("environment")) != "staging":
+        return False
+    identity = _fixture_identity(capture)
+    expected_identity = (
+        _text(recovery.get("fixture_id")),
+        _text(recovery.get("kickoff_utc")),
+        _text(recovery.get("competition")),
+        _text(recovery.get("home_team_name")),
+        _text(recovery.get("away_team_name")),
+    )
+    actual_identity = tuple(
+        _text(identity.get(key))
+        for key in ("fixture_id", "kickoff_utc", "competition", "home_team_name", "away_team_name")
+    )
+    if actual_identity != expected_identity:
+        return False
+    capture_hashes = {
+        _text(capture.get("card_hash")),
+        _text(capture.get("evidence_hash")),
+    }
+    if (
+        _text(recovery.get("capture_hash")) not in capture_hashes
+        or _parse_time(recovery.get("captured_at")) != _parse_time(capture.get("captured_at"))
+    ):
+        return False
+    recommendation = _recommendation_signature(capture)
+    expected_recommendation = (
+        _text(recovery.get("market")),
+        _text(recovery.get("selection")),
+        _text(recovery.get("line")),
+    )
+    if recommendation != expected_recommendation:
+        return False
+    quote = _quote(capture, expected_recommendation[0], expected_recommendation[1])
+    expected_price = _number(recovery.get("entry_price"))
+    if (
+        quote is None
+        or expected_price is None
+        or quote != (expected_recommendation[2], expected_price)
+    ):
+        return False
+    if (
+        _text(outcome.get("fixture_id")) != expected_identity[0]
+        or _text(outcome.get("market")) != expected_recommendation[0]
+        or _text(outcome.get("selection")) != expected_recommendation[1]
+        or _text(outcome.get("entry_line")) != expected_recommendation[2]
+        or _number(outcome.get("entry_price")) != expected_price
+        or _outcome(outcome) != _text(recovery.get("settlement_outcome"))
+    ):
+        return False
+    expected_score = recovery.get("final_score")
+    actual_score = outcome.get("final_score")
+    return isinstance(expected_score, Mapping) and isinstance(actual_score, Mapping) and all(
+        actual_score.get(key) == expected_score.get(key) for key in ("home", "away", "status")
+    )
 
 
 def _canonical_issue(
@@ -1037,12 +1152,14 @@ def _performance_cohort(
     settled: Sequence[Mapping[str, Any]],
     canonical: Sequence[Mapping[str, Any]],
     canonical_excluded: Mapping[str, str],
+    recovered: Mapping[str, Mapping[str, Any]],
     clv_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     settled_by_fixture = {_text(row.get("fixture_id")): row for row in settled}
     eligible_by_fixture = {_text(row.get("fixture_id")): row for row in canonical}
     eligible_ids = set(eligible_by_fixture)
     excluded_ids = set(canonical_excluded)
+    recovered_ids = set(recovered)
     clv_fixture_ids = {_text(row.get("fixture_id")) for row in clv_rows}
     processed_count = len(settled_by_fixture)
     eligible_count = len(eligible_ids)
@@ -1052,6 +1169,8 @@ def _performance_cohort(
         "validation_partition": len(candidates) == processed_count + pending_count,
         "processed_partition": processed_count == eligible_count + excluded_count,
         "eligible_exclusion_disjoint": eligible_ids.isdisjoint(excluded_ids),
+        "recovery_subset": recovered_ids <= eligible_ids,
+        "recovery_exclusion_disjoint": recovered_ids.isdisjoint(excluded_ids),
         "clv_subset": clv_fixture_ids <= eligible_ids,
         "clv_one_per_fixture": len(clv_rows) <= eligible_count,
     }
@@ -1078,11 +1197,21 @@ def _performance_cohort(
         for fixture_id, reason in canonical_excluded.items()
     ]
     exclusions.sort(key=lambda row: (str(row["kickoff_utc"]), str(row["fixture_id"])))
+    recovery_rows = [
+        _cohort_recovery_row(
+            fixture_id,
+            candidates[fixture_id],
+            settled_by_fixture[fixture_id],
+        )
+        for fixture_id in recovered
+    ]
+    recovery_rows.sort(key=lambda row: (str(row["kickoff_utc"]), str(row["fixture_id"])))
     return {
         "validation_count": len(candidates),
         "processed_count": processed_count,
         "eligible_count": eligible_count,
         "excluded_count": excluded_count,
+        "recovered_count": len(recovery_rows),
         "pending_count": pending_count,
         "outcomes": outcomes,
         "clv": _clv_summary(
@@ -1092,6 +1221,7 @@ def _performance_cohort(
         ),
         "by_league": league_rows,
         "exclusions": exclusions,
+        "recoveries": recovery_rows,
         "invariants": {"status": "PASS", **checks},
     }
 
@@ -1192,6 +1322,25 @@ def _cohort_exclusion_row(
         "settlement_outcome": _outcome(outcome),
         "reason_code": reason,
         "reason_label": _EXCLUSION_REASON_ZH.get(reason, "不符合当前统计身份契约"),
+    }
+
+
+def _cohort_recovery_row(
+    fixture_id: str,
+    capture: Mapping[str, Any],
+    outcome: Mapping[str, Any],
+) -> dict[str, Any]:
+    identity = _fixture_identity(capture)
+    return {
+        "fixture_id": fixture_id,
+        "competition_id": _text(capture.get("competition_id")) or None,
+        "league": _league_display_name(capture) or _text(identity.get("competition")) or "UNKNOWN",
+        "home_team_name": _text(identity.get("home_team_name")),
+        "away_team_name": _text(identity.get("away_team_name")),
+        "kickoff_utc": _text(identity.get("kickoff_utc")),
+        "settlement_outcome": _outcome(outcome),
+        "recovery_code": "UNIQUE_LEGACY_CAPTURE_RECONSTRUCTED",
+        "recovery_label": "经唯一历史快照审计恢复",
     }
 
 

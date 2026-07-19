@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -11,6 +12,7 @@ DIAGNOSE = ROOT / "scripts/diagnose_staging_runtime.sh"
 RECOVER = ROOT / "scripts/recover_staging_runtime.sh"
 WATCH = ROOT / "scripts/watch_staging_runtime.sh"
 HEALTH_CHECK = ROOT / "scripts/check_w2_stage7h.py"
+LEGACY_RECOVERY = ROOT / "config/policies/forward_ledger_legacy_recovery.staging.v1.json"
 READINESS_FAULT = ROOT / "scripts/run_readiness_fault_injection.sh"
 WATCHDOG_SERVICE = ROOT / "infra/systemd/w2-staging-watchdog.service"
 WATCHDOG_TIMER = ROOT / "infra/systemd/w2-staging-watchdog.timer"
@@ -94,6 +96,22 @@ def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None
     assert 'name = svc.get("Service", "?")' in text
     assert 'ledger.get("schema_version") != "w2.forward_ledger_performance.v3"' in text
     assert 'cohort.get("invariants", {}).get("status") != "PASS"' in text
+
+
+def test_staging_legacy_recovery_manifest_contains_only_unique_capture_cases() -> None:
+    payload = json.loads(read(LEGACY_RECOVERY))
+    entries = payload["entries"]
+
+    assert payload["schema_version"] == "w2.forward_ledger_legacy_recovery.v1"
+    assert payload["environment"] == "staging"
+    assert payload["policy"] == "unique_validation_capture_exact_identity"
+    assert {entry["fixture_id"] for entry in entries} == {
+        "1492295",
+        "1492297",
+        "1492299",
+        "1576804",
+    }
+    assert all(len(entry["capture_hash"]) == 64 for entry in entries)
 
 
 def test_deploy_builds_release_targets_sequentially() -> None:

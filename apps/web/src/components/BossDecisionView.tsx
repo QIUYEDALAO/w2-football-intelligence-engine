@@ -1344,11 +1344,37 @@ function VerificationPreview({
               <small>
                 有效输赢 {decisive} 场 · 命中率{" "}
                 {decisive ? percent(outcomes.hit_rate) : "暂无有效分母"}
+                {cohort.recovered_count
+                  ? ` · 其中 ${cohort.recovered_count} 场经唯一历史快照审计恢复`
+                  : ""}
                 {pending
                   ? ` · ${pendingBreakdown || `待处理 ${pending} 场`}`
                   : ""}
               </small>
             </div>
+            {cohort.recovered_count ? (
+              <details className="verification-recoveries">
+                <summary>查看 {cohort.recovered_count} 场恢复明细</summary>
+                <div className="verification-recovery-list">
+                  {cohort.recoveries.map((row) => (
+                    <article key={row.fixture_id}>
+                      <strong>
+                        {translateTeam(row.home_team_name)} vs{" "}
+                        {translateTeam(row.away_team_name)}
+                      </strong>
+                      <span>
+                        {translateCompetition(row.league)} ·{" "}
+                        {fmtTime(row.kickoff_utc)} ·{" "}
+                        {settlementLabel(row.settlement_outcome)}
+                      </span>
+                      <small>
+                        {row.recovery_label} · {row.recovery_code}
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              </details>
+            ) : null}
             {cohort.excluded_count ? (
               <details className="verification-exclusions">
                 <summary>

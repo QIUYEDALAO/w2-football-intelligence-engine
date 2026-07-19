@@ -229,10 +229,24 @@ def main() -> None:
         fail("performance cohort CLV is not an eligible-fixture subset")
     if cohort.get("invariants", {}).get("status") != "PASS":
         fail("performance cohort invariant status is not PASS")
+    recovery_ids = {
+        item.get("fixture_id")
+        for item in cohort.get("recoveries", [])
+        if isinstance(item, dict)
+    }
+    exclusion_ids = {
+        item.get("fixture_id")
+        for item in cohort.get("exclusions", [])
+        if isinstance(item, dict)
+    }
+    if len(recovery_ids) != cohort.get("recovered_count", 0):
+        fail("performance cohort recovery count does not match recovery details")
+    if recovery_ids & exclusion_ids:
+        fail("recovered fixtures overlap exclusions")
     ok(
         "performance cohort: "
         f"eligible={cohort['eligible_count']} excluded={cohort['excluded_count']} "
-        f"pending={cohort['pending_count']}"
+        f"recovered={cohort.get('recovered_count', 0)} pending={cohort['pending_count']}"
     )
 
     # ── Summary ──────────────────────────────────────────────

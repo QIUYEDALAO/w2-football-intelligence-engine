@@ -652,16 +652,30 @@ export interface ForwardLedgerCohortExclusion {
   reason_label: string;
 }
 
+export interface ForwardLedgerCohortRecovery {
+  fixture_id: string;
+  competition_id?: string | null;
+  league: string;
+  home_team_name: string;
+  away_team_name: string;
+  kickoff_utc: string;
+  settlement_outcome: string;
+  recovery_code: string;
+  recovery_label: string;
+}
+
 export interface ForwardLedgerPerformanceCohort {
   validation_count: number;
   processed_count: number;
   eligible_count: number;
   excluded_count: number;
+  recovered_count: number;
   pending_count: number;
   outcomes: ForwardLedgerCohortOutcomeSummary;
   clv: ForwardLedgerCohortClvSummary;
   by_league: ForwardLedgerCohortLeaguePerformance[];
   exclusions: ForwardLedgerCohortExclusion[];
+  recoveries: ForwardLedgerCohortRecovery[];
   invariants: Record<string, boolean | string>;
 }
 

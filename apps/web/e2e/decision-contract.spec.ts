@@ -445,33 +445,34 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
           schema_version: "w2.forward_ledger_performance.v3",
           validation_fixture_count: 23,
           validation_settled_fixture_count: 23,
-          canonical_settled_fixture_count: 12,
-          canonical_excluded_count: 11,
+          canonical_settled_fixture_count: 16,
+          canonical_excluded_count: 7,
           outcomes_canonical: {
-            settled_sample_count: 12,
-            hit_count: 7,
+            settled_sample_count: 16,
+            hit_count: 11,
             miss_count: 3,
             push_count: 2,
             void_count: 0,
-            hit_rate: 0.7,
+            hit_rate: 11 / 14,
           },
           performance_cohort: {
             validation_count: 23,
             processed_count: 23,
-            eligible_count: 12,
-            excluded_count: 11,
+            eligible_count: 16,
+            excluded_count: 7,
+            recovered_count: 4,
             pending_count: 0,
             outcomes: {
-              settled_sample_count: 12,
-              decisive_count: 10,
-              hit_count: 7,
+              settled_sample_count: 16,
+              decisive_count: 14,
+              hit_count: 11,
               miss_count: 3,
               push_count: 2,
               void_count: 0,
-              hit_rate: 0.7,
+              hit_rate: 11 / 14,
             },
             clv: {
-              sample_count: 10,
+              sample_count: 13,
               median_decimal: 0,
               positive_count: 2,
               negative_count: 2,
@@ -482,8 +483,8 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
               ["league-no", "挪威超", 7, 6, 1, 4, 1, 1, 0.8, 6],
               ["league-se", "瑞典超", 6, 4, 2, 3, 1, 0, 0.75, 4],
               ["169", "中超", 5, 1, 4, 0, 1, 0, 0, 1],
-              ["world-cup", "世界杯", 2, 1, 1, 0, 0, 1, null, 0],
-              ["serie-a", "意甲", 3, 0, 3, 0, 0, 0, null, 0],
+              ["serie-a", "意甲", 3, 3, 0, 3, 0, 0, 1, 1],
+              ["world-cup", "世界杯", 2, 2, 0, 1, 0, 1, 1, 1],
             ].map(
               ([
                 competitionId,
@@ -526,7 +527,7 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
                     : "INSUFFICIENT",
               }),
             ),
-            exclusions: Array.from({ length: 11 }, (_, index) => ({
+            exclusions: Array.from({ length: 7 }, (_, index) => ({
               fixture_id: `excluded-${index}`,
               competition_id: index < 4 ? "169" : "legacy",
               league: index < 4 ? "中超" : "历史联赛",
@@ -536,6 +537,17 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
               settlement_outcome: "LOSS",
               reason_code: "LEGACY_CAPTURE_LINK_MISSING",
               reason_label: "历史推荐与赛果身份链缺失",
+            })),
+            recoveries: Array.from({ length: 4 }, (_, index) => ({
+              fixture_id: `recovered-${index}`,
+              competition_id: index === 3 ? "world-cup" : "serie-a",
+              league: index === 3 ? "世界杯" : "意甲",
+              home_team_name: `恢复主队 ${index + 1}`,
+              away_team_name: `恢复客队 ${index + 1}`,
+              kickoff_utc: "2026-07-10T12:00:00Z",
+              settlement_outcome: "WIN",
+              recovery_code: "UNIQUE_LEGACY_CAPTURE_RECONSTRUCTED",
+              recovery_label: "经唯一历史快照审计恢复",
             })),
             invariants: { status: "PASS" },
           },
@@ -549,16 +561,19 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   await expect(page.locator(".league-performance-table > div")).toHaveCount(6);
   await expect(page.locator(".league-performance-table")).toContainText("中超");
   await expect(page.locator(".verification-preview")).toContainText(
-    "纳入统计 12 场",
+    "纳入统计 16 场",
   );
   await expect(page.locator(".verification-preview")).toContainText(
-    "命中 7 · 未中 3 · 走水 2",
+    "命中 11 · 未中 3 · 走水 2",
   );
   await expect(page.locator(".verification-preview")).toContainText(
-    "有效输赢 10 场 · 命中率 70%",
+    "有效输赢 14 场 · 命中率 79%",
   );
   await expect(page.locator(".verification-preview")).toContainText(
-    "另有 11 场赛果已处理，因历史身份链缺失未纳入",
+    "其中 4 场经唯一历史快照审计恢复",
+  );
+  await expect(page.locator(".verification-preview")).toContainText(
+    "另有 7 场赛果已处理，因历史身份链缺失未纳入",
   );
   await expect(page.locator(".verification-preview")).not.toContainText(
     "全部已处理",
@@ -577,7 +592,12 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   await exclusions.press("Enter");
   await expect(
     page.locator(".verification-exclusion-list article"),
-  ).toHaveCount(11);
+  ).toHaveCount(7);
+  const recoveries = page.locator(".verification-recoveries summary");
+  await recoveries.press("Enter");
+  await expect(page.locator(".verification-recovery-list article")).toHaveCount(
+    4,
+  );
 
   await page.setViewportSize({ width: 824, height: 1100 });
   const hasHorizontalOverflow = await page.evaluate(
