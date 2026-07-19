@@ -14,6 +14,8 @@ WORLD_CUP_BUDGET_RESERVE = 20
 
 CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
     ("OPEN", timedelta(hours=-48), ("odds",)),
+    ("T24_ODDS", timedelta(hours=-24), ("odds",)),
+    ("T12_ODDS", timedelta(hours=-12), ("odds",)),
     ("T6_ODDS", timedelta(hours=-6), ("odds",)),
     ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
     ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
@@ -67,7 +69,11 @@ def checkpoint_plan_for_fixture(
     plans: list[FixtureCheckpointPlan] = []
     for checkpoint, offset, endpoints in CHECKPOINT_OFFSETS:
         due_at = kickoff + offset
-        if checkpoint == "OPEN" and due_at < generated_at:
+        # A fixture can enter the refresh horizon after an intermediate
+        # checkpoint has passed (for example after a scheduler restart).
+        # Run the missed market capture immediately rather than leaving the
+        # dashboard with an expired opening quote until T-6.
+        if due_at < generated_at:
             due_at = generated_at
         plans.append(
             FixtureCheckpointPlan(
