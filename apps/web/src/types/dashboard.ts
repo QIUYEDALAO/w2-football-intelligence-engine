@@ -531,7 +531,26 @@ export interface DashboardMatchCard {
   market_divergence?: MarketDivergencePayload | null;
   bookmaker_hypothesis?: BookmakerHypothesisPayload | null;
   pricing_shadow?: PricingShadow | null;
+  recommendation_decision_v3?: RecommendationDecisionV3 | null;
   missing_inputs: string[];
+}
+
+export type RecommendationOutcomeV3 =
+  | "NOT_READY"
+  | "NO_EDGE"
+  | "ANALYSIS_PICK"
+  | "FORMAL_RECOMMEND"
+  | "SYSTEM_DEGRADED";
+
+export interface RecommendationDecisionV3 {
+  schema_version: "w2.recommendation_decision.v3";
+  outcome: RecommendationOutcomeV3;
+  reason?: { code?: string; message?: string } | null;
+  next_action?: string | null;
+  selected_candidate?: Record<string, unknown> | null;
+  statuses?: Record<string, string>;
+  warnings?: string[];
+  decision_hash?: string;
 }
 
 export interface DashboardPerformance {

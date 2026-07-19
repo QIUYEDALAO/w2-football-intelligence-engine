@@ -18,6 +18,7 @@ import type {
   PricingShadow,
   PricingShadowFactor,
   RecommendationPick,
+  RecommendationDecisionV3,
   ReleaseMeta,
   ReleaseSyncState,
   ValidationSummary,
@@ -820,6 +821,9 @@ function normalizeRecommendationPick(
 
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
+  const decisionV3 = normalizeRecommendationDecisionV3(record.recommendation_decision_v3);
+  const v3Pick = decisionV3 ? recommendationFromV3(decisionV3) : null;
+  const v3IsPick = decisionV3?.outcome === "ANALYSIS_PICK" || decisionV3?.outcome === "FORMAL_RECOMMEND";
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc),
@@ -837,9 +841,9 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
-    recommendation: normalizeRecommendationPick(record.recommendation),
+    recommendation: decisionV3 ? v3Pick : normalizeRecommendationPick(record.recommendation),
     candidate: record.candidate === true,
-    formal_recommendation: record.formal_recommendation === true,
+    formal_recommendation: decisionV3 ? decisionV3.outcome === "FORMAL_RECOMMEND" : record.formal_recommendation === true,
     formal_suppressed: record.formal_suppressed === true,
     formal_suppressed_reason:
       textValue(record.formal_suppressed_reason) || null,
@@ -861,7 +865,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     validation: record.validation
       ? (asRecord(record.validation) as unknown as ValidationSummary)
       : null,
-    current_odds: asRecord(record.current_odds),
+    current_odds: v3IsPick ? asRecord(record.current_odds) : {},
     last_known_odds: asRecord(record.last_known_odds),
     odds_movement: asRecord(record.odds_movement),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
@@ -872,9 +876,46 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
       record.bookmaker_hypothesis,
     ),
     pricing_shadow: normalizePricingShadow(record.pricing_shadow),
+    recommendation_decision_v3: decisionV3,
     missing_inputs: asArray(record.missing_inputs)
       .map((item) => textValue(item))
       .filter(Boolean),
+  };
+}
+
+function normalizeRecommendationDecisionV3(payload: unknown): RecommendationDecisionV3 | null {
+  const record = asRecord(payload);
+  if (textValue(record.schema_version) !== "w2.recommendation_decision.v3") return null;
+  const outcome = textValue(record.outcome);
+  if (!["NOT_READY", "NO_EDGE", "ANALYSIS_PICK", "FORMAL_RECOMMEND", "SYSTEM_DEGRADED"].includes(outcome)) return null;
+  const reason = asRecord(record.reason);
+  return {
+    schema_version: "w2.recommendation_decision.v3",
+    outcome: outcome as RecommendationDecisionV3["outcome"],
+    reason: Object.keys(reason).length ? { code: textValue(reason.code), message: textValue(reason.message) } : null,
+    next_action: textValue(record.next_action) || null,
+    selected_candidate: Object.keys(asRecord(record.selected_candidate)).length ? asRecord(record.selected_candidate) : null,
+    statuses: asRecord(record.statuses) as Record<string, string>,
+    warnings: asArray(record.warnings).map((item) => textValue(item)).filter(Boolean),
+    decision_hash: textValue(record.decision_hash),
+  };
+}
+
+function recommendationFromV3(decision: RecommendationDecisionV3): RecommendationPick | null {
+  const candidate = asRecord(decision.selected_candidate);
+  if (!candidate || !["ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(decision.outcome)) return null;
+  const market = textValue(candidate.market);
+  return {
+    tier: decision.outcome === "FORMAL_RECOMMEND" ? "FORMAL" : "ANALYSIS_PICK",
+    market,
+    market_label_cn: market === "TOTALS" ? "大小球" : market === "ASIAN_HANDICAP" ? "让球" : market,
+    selection: textValue(candidate.selection),
+    selection_label_cn: textValue(candidate.selection),
+    line: textValue(candidate.line) || undefined,
+    odds: textValue(candidate.odds) || undefined,
+    confidence: 0,
+    reasons: decision.reason?.message ? [decision.reason.message] : [],
+    risks: decision.warnings ?? [],
   };
 }
 
