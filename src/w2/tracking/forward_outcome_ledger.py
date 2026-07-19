@@ -80,74 +80,78 @@ def build_forward_outcome_records(
             continue
         v3 = _mapping(card.get("recommendation_decision_v3"))
         canonical = project_canonical_decision(v3) if v3 else {}
-        shadow_pick = canonical.get("pick") if v3 else _shadow_pick(card)
-        recommendation_scope = _recommendation_scope(card, shadow_pick)
-        fixture_identity = _fixture_identity(card)
-        quote_provenance = _quote_provenance(card)
-        artifact_provenance = _artifact_provenance(card)
-        probability_identity = _probability_identity(card)
-        capture_identity = {
-            "fixture_identity": fixture_identity,
-            "recommendation_scope": recommendation_scope,
-            "pick": _mapping_copy(card.get("pick")),
-            "secondary_picks": _secondary_picks(card),
-            "shadow_pick": shadow_pick,
-            "quote_provenance": quote_provenance,
-            "artifact_provenance": artifact_provenance,
-            "probability_identity": probability_identity,
-            "card_hash": _optional_text(card.get("card_hash")),
-            "captured_at": captured,
-        }
-        rows.append(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "record_type": "capture",
-                "captured_at": captured,
-                "football_day": football_day,
-                "environment": environment,
-                "fixture_id": fixture_id,
-                "kickoff_utc": _optional_text(card.get("kickoff_utc")),
-                "competition_id": _optional_text(card.get("competition_id")),
-                "competition_name": _optional_text(card.get("competition_name")),
-                "home_team_name": _optional_text(card.get("home_team_name")),
-                "away_team_name": _optional_text(card.get("away_team_name")),
-                "decision_tier": _text(
-                    canonical.get("decision_tier") or card.get("decision_tier") or "SKIP"
-                ),
-                "data_status": _text(card.get("data_status") or "PARTIAL"),
-                "reason_code": _optional_text(
-                    canonical.get("reason_code") or card.get("reason_code")
-                ),
-                "action": _optional_text(canonical.get("next_action") or card.get("action")),
-                "probability_source": _optional_text(card.get("probability_source")),
-                "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-                "shadow_pick": shadow_pick,
-                "pick": _mapping_copy(shadow_pick),
-                "secondary_picks": _secondary_picks(card),
-                "non_pick": _mapping_copy(card.get("non_pick")),
-                "current_odds": _market_odds_summary(card.get("current_odds")),
-                "card_hash": _optional_text(card.get("card_hash")),
-                "recommendation_scope": recommendation_scope,
+        if v3 and isinstance(canonical.get("pick"), Mapping):
+            shadow_picks = [canonical["pick"]]
+        else:
+            shadow_picks = _shadow_picks(card) if not v3 else []
+        for shadow_pick in shadow_picks or [None]:
+            recommendation_scope = _recommendation_scope(card, shadow_pick)
+            fixture_identity = _fixture_identity(card)
+            quote_provenance = _quote_provenance(card)
+            artifact_provenance = _artifact_provenance(card)
+            probability_identity = _probability_identity(card)
+            capture_identity = {
                 "fixture_identity": fixture_identity,
+                "recommendation_scope": recommendation_scope,
+                "pick": _mapping_copy(card.get("pick")),
+                "secondary_picks": _secondary_picks(card),
+                "shadow_pick": shadow_pick,
                 "quote_provenance": quote_provenance,
                 "artifact_provenance": artifact_provenance,
                 "probability_identity": probability_identity,
-                "capture_identity_hash": _canonical_sha256(capture_identity),
-                "outcome_tracked": bool(canonical.get("outcome_tracked"))
-                if v3
-                else bool(card.get("outcome_tracked") is True),
-                "lock_eligible": bool(canonical.get("lock_eligible"))
-                if v3
-                else bool(card.get("lock_eligible") is True),
-                "decision_hash": _optional_text(
-                    canonical.get("decision_hash") or v3.get("decision_hash")
-                ),
-                "recommendation_id": _optional_text(card.get("recommendation_id")),
-                "source": _optional_text(card.get("source")),
-                "posthoc_only": True,
-                "not_a_lock": True,
+                "card_hash": _optional_text(card.get("card_hash")),
+                "captured_at": captured,
             }
-        )
+            rows.append(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "record_type": "capture",
+                    "captured_at": captured,
+                    "football_day": football_day,
+                    "environment": environment,
+                    "fixture_id": fixture_id,
+                    "kickoff_utc": _optional_text(card.get("kickoff_utc")),
+                    "competition_id": _optional_text(card.get("competition_id")),
+                    "competition_name": _optional_text(card.get("competition_name")),
+                    "home_team_name": _optional_text(card.get("home_team_name")),
+                    "away_team_name": _optional_text(card.get("away_team_name")),
+                    "decision_tier": _text(
+                        canonical.get("decision_tier") or card.get("decision_tier") or "SKIP"
+                    ),
+                    "data_status": _text(card.get("data_status") or "PARTIAL"),
+                    "reason_code": _optional_text(
+                        canonical.get("reason_code") or card.get("reason_code")
+                    ),
+                    "action": _optional_text(canonical.get("next_action") or card.get("action")),
+                    "probability_source": _optional_text(card.get("probability_source")),
+                    "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
+                    "shadow_pick": shadow_pick,
+                    "pick": _mapping_copy(shadow_pick),
+                    "secondary_picks": _secondary_picks(card),
+                    "non_pick": _mapping_copy(card.get("non_pick")),
+                    "current_odds": _market_odds_summary(card.get("current_odds")),
+                    "card_hash": _optional_text(card.get("card_hash")),
+                    "recommendation_scope": recommendation_scope,
+                    "fixture_identity": fixture_identity,
+                    "quote_provenance": quote_provenance,
+                    "artifact_provenance": artifact_provenance,
+                    "probability_identity": probability_identity,
+                    "capture_identity_hash": _canonical_sha256(capture_identity),
+                    "outcome_tracked": bool(canonical.get("outcome_tracked"))
+                    if v3
+                    else bool(card.get("outcome_tracked") is True),
+                    "lock_eligible": bool(canonical.get("lock_eligible"))
+                    if v3
+                    else bool(card.get("lock_eligible") is True),
+                    "decision_hash": _optional_text(
+                        canonical.get("decision_hash") or v3.get("decision_hash")
+                    ),
+                    "recommendation_id": _optional_text(card.get("recommendation_id")),
+                    "source": _optional_text(card.get("source")),
+                    "posthoc_only": True,
+                    "not_a_lock": True,
+                }
+            )
     return rows
 
 
@@ -268,6 +272,9 @@ def _record_key(record: Mapping[str, Any]) -> str:
                 _text(record.get("selection")),
             ]
         )
+    elif _text(record.get("recommendation_scope")).upper() == "SHADOW":
+        shadow_pick = _mapping(record.get("shadow_pick"))
+        parts.extend([_text(shadow_pick.get("market")), _text(shadow_pick.get("selection"))])
     return "|".join(parts)
 
 
@@ -721,9 +728,13 @@ def _parse_time(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _shadow_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return one independent, non-display shadow capture per complete market."""
+    picks = [_shadow_pick(card), _shadow_totals_pick(card)]
+    return [pick for pick in picks if pick is not None]
+
+
 def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
-    # v2 shadow capture starts with AH only. TOTALS shadow capture needs a separate
-    # fair_ou/market_ou contract before it can be made deterministic.
     divergence = _mapping(card.get("model_market_divergence"))
     fair_line = _number(divergence.get("model_fair_line"))
     market_line = _number(divergence.get("market_line"))
@@ -739,6 +750,42 @@ def _shadow_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
         "market_line_at_capture": market_line,
         "divergence_line_units": round(delta, 4),
         "derived_from": "model_market_divergence",
+        "display_tier_at_capture": _text(card.get("decision_tier") or "SKIP"),
+        "shadow": True,
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
+
+
+def _shadow_totals_pick(card: Mapping[str, Any]) -> dict[str, Any] | None:
+    pricing = _mapping(card.get("pricing_shadow"))
+    fair_line = _number(pricing.get("fair_ou"))
+    market_line = _number(pricing.get("market_ou"))
+    odds = _mapping(_mapping(card.get("current_odds")).get("ou"))
+    quote_line = _number(odds.get("line"))
+    over_price = _number(odds.get("over_price"))
+    under_price = _number(odds.get("under_price"))
+    if (
+        fair_line is None
+        or market_line is None
+        or quote_line is None
+        or abs(quote_line - market_line) > 0.005
+        or over_price is None
+        or under_price is None
+        or over_price <= 1
+        or under_price <= 1
+    ):
+        return None
+    delta = fair_line - market_line
+    if abs(delta) <= 0.005:
+        return None
+    return {
+        "market": "TOTALS",
+        "selection": "OVER" if delta > 0 else "UNDER",
+        "model_fair_line": fair_line,
+        "market_line_at_capture": market_line,
+        "divergence_line_units": round(delta, 4),
+        "derived_from": "pricing_shadow_same_line_ou",
         "display_tier_at_capture": _text(card.get("decision_tier") or "SKIP"),
         "shadow": True,
         "not_a_recommendation": True,

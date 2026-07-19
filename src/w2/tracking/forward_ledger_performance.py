@@ -1018,7 +1018,7 @@ def _clv_shadow_key(record: Mapping[str, Any]) -> tuple[str, str, str] | None:
         return None
     market = _text(shadow_pick.get("market"))
     selection = _text(shadow_pick.get("selection"))
-    if market not in {"ASIAN_HANDICAP"} or not selection:
+    if market not in {"ASIAN_HANDICAP", "TOTALS"} or not selection:
         return None
     return (fixture_id, market, selection)
 

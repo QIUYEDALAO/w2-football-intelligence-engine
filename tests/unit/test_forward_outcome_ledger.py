@@ -144,6 +144,79 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
 
 
+def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    capture = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert capture["written"] == 2
+    capture_rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert {
+        (row["shadow_pick"]["market"], row["shadow_pick"]["selection"])
+        for row in capture_rows
+    } == {("ASIAN_HANDICAP", "HOME_AH"), ("TOTALS", "OVER")}
+    assert all(row["shadow_pick"]["not_a_recommendation"] is True for row in capture_rows)
+    assert all(row["shadow_pick"]["not_displayed"] is True for row in capture_rows)
+
+    settlement = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 1)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert settlement["written"] == 2
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    assert {(row["market"], row["selection"], row["settlement_outcome"]) for row in outcomes} == {
+        ("ASIAN_HANDICAP", "HOME_AH", "HALF_LOSS"),
+        ("TOTALS", "OVER", "WIN"),
+    }
+
+
+def test_forward_outcome_ledger_rejects_cross_line_ou_shadow(tmp_path: Path) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.75",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert [row["shadow_pick"]["market"] for row in records] == ["ASIAN_HANDICAP"]
+
+
 def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(
     tmp_path: Path,
 ) -> None:
