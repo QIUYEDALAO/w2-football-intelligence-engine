@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-19T01:45:00Z"
+updated_at: "2026-07-19T01:54:00Z"
 authority: LOCAL_DIRECT_ACCEPTANCE
 delivery_status_vocabulary:
   - implemented
@@ -58,6 +58,10 @@ current_phase:
   status: staging_accepted
   acceptance_state: awaiting_three_stable_cycles
   readonly_cycle_count: "0/3"
+  readonly_cycle_schedule:
+    - "2026-07-19T10:00:00+08:00"
+    - "2026-07-20T09:00:00+08:00"
+    - "2026-07-21T09:00:00+08:00"
   next_phase: R4
   next_phase_gate: THREE_CONSECUTIVE_READONLY_CYCLES
   blocker: null

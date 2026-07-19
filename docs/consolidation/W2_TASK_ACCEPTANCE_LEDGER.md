@@ -407,6 +407,7 @@
 - 公开顺序/并发读取 provider、业务表、checkpoint、ledger、lock 和 queue 增量均为
   0；无 pick 时不再显示方向性推荐比分。四服务健康，restart/OOM/exit137 为 0，
   scheduler/watchdog 已恢复。
-- 三周期重新从 `0/3` 累计，首个合格时点为 2026-07-20 09:00 北京时间；三个周期
-  必须保持同一 SHA、镜像和数据契约。GitHub、champion、RECOMMEND/lock、OFFICIAL
-  与 write-enabled production 均未变更。
+- 三周期重新从 `0/3` 累计。用户批准加速为 2026-07-19 10:00 首次巡检，随后
+  2026-07-20、2026-07-21 各 09:00；三个自然日必须保持同一 SHA、镜像和数据契约。
+  GitHub、champion、RECOMMEND/lock、OFFICIAL 与 write-enabled production
+  均未变更。

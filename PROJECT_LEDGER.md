@@ -372,8 +372,9 @@ merge-before-next-phase rule.
 - LMM4 numeric lineup adjustment remains zero because its frozen offline
   evidence gate has not passed; readiness, provenance, explanation and AH/OU
   independent market selection are accepted without inventing an effect.
-- The three-cycle gate is reset to `0/3`; first eligible patrol is
-  2026-07-20 09:00 Beijing on the same SHA and images. GitHub, champion,
+- The three-cycle gate is reset to `0/3`. The user approved an accelerated
+  natural-day schedule: 2026-07-19 10:00, then 2026-07-20 and 2026-07-21 at
+  09:00 Beijing, all on the same SHA and images. GitHub, champion,
   RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
 
 Detailed evidence:

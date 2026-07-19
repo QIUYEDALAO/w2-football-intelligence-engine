@@ -7,10 +7,11 @@ LMM0–LMM8 is `staging_accepted` on the exact local implementation
 deployed directly from the local repository; GitHub was not accessed or
 synchronized.
 
-The three consecutive Beijing 09:00 read-only cycles are reset to `0/3`.
-Because this deployment was accepted after the 2026-07-19 patrol window, the
-first eligible cycle is 2026-07-20 09:00 Asia/Shanghai. The same implementation
-SHA, images and data contract must remain in place for all three cycles.
+The three consecutive Beijing natural-day read-only cycles are reset to `0/3`.
+The user approved an accelerated first post-deployment patrol at
+2026-07-19 10:00 Asia/Shanghai, followed by 2026-07-20 and 2026-07-21 at 09:00.
+The same implementation SHA, images and data contract must remain in place for
+all three cycles.
 
 ## Immutable candidate
 
