@@ -217,6 +217,34 @@ def test_forward_outcome_ledger_rejects_cross_line_ou_shadow(tmp_path: Path) -> 
     assert [row["shadow_pick"]["market"] for row in records] == ["ASIAN_HANDICAP"]
 
 
+def test_v3_no_edge_still_captures_isolated_same_line_shadow_markets() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
+    card["outcome_tracked"] = True  # type: ignore[index]
+    card["recommendation_decision_v3"] = {  # type: ignore[index]
+        "schema_version": "w2.recommendation_decision.v3",
+        "outcome": "NO_EDGE",
+    }
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert {
+        (row["recommendation_scope"], row["shadow_pick"]["market"])
+        for row in records
+    } == {("SHADOW", "ASIAN_HANDICAP"), ("SHADOW", "TOTALS")}
+    assert all(row["not_a_lock"] is True for row in records)
+
+
 def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(
     tmp_path: Path,
 ) -> None:

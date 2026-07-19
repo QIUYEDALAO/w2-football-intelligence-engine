@@ -83,7 +83,11 @@ def build_forward_outcome_records(
         if v3 and isinstance(canonical.get("pick"), Mapping):
             shadow_picks = [canonical["pick"]]
         else:
-            shadow_picks = _shadow_picks(card) if not v3 else []
+            # A V3 NO_EDGE/NOT_READY decision has no canonical pick, but it
+            # may still contain a complete same-line pricing snapshot.  Keep
+            # that snapshot in the isolated shadow ledger so evidence can
+            # accumulate without making a recommendation visible or formal.
+            shadow_picks = _shadow_picks(card)
         for shadow_pick in shadow_picks or [None]:
             recommendation_scope = _recommendation_scope(card, shadow_pick)
             fixture_identity = _fixture_identity(card)
@@ -829,6 +833,8 @@ def _market_odds_summary(value: Any) -> dict[str, Any]:
 
 
 def _recommendation_scope(card: Mapping[str, Any], shadow_pick: Mapping[str, Any] | None) -> str:
+    if shadow_pick and shadow_pick.get("shadow") is True:
+        return "SHADOW"
     tier = _text(card.get("decision_tier"))
     pick = card.get("pick")
     if tier == "RECOMMEND" and card.get("lock_eligible") is True and isinstance(pick, Mapping):
