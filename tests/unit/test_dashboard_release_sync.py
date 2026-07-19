@@ -191,6 +191,36 @@ def test_public_dashboard_defaults_to_lightweight_response(monkeypatch) -> None:
     assert dashboard["all"] == []
 
 
+def test_dashboard_dedupe_prefers_terminal_provider_result_over_stale_matchday_card() -> None:
+    service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+
+    rows = service._dedupe_dashboard_rows(
+        [
+            {
+                "fixture_id": "1494210",
+                "status": "UPCOMING",
+                "kickoff_utc": "2026-07-19T14:30:00Z",
+                "_result": None,
+            },
+            {
+                "fixture_id": "1494210",
+                "status": "FT",
+                "kickoff_utc": "2026-07-19T14:30:00Z",
+                "_result": {"home": 2, "away": 1},
+            },
+        ]
+    )
+
+    assert rows == [
+        {
+            "fixture_id": "1494210",
+            "status": "FT",
+            "kickoff_utc": "2026-07-19T14:30:00Z",
+            "_result": {"home": 2, "away": 1},
+        }
+    ]
+
+
 def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -> None:
     monkeypatch.setattr(
         routers,

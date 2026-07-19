@@ -5593,13 +5593,23 @@ class ReadModelService:
         return parse_provider_time(value)
 
     def _dedupe_dashboard_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        seen: set[str] = set()
         deduped: list[dict[str, Any]] = []
+        index_by_fixture: dict[str, int] = {}
         for row in rows:
             fixture_id = str(row.get("fixture_id") or "")
-            if not fixture_id or fixture_id in seen:
+            if not fixture_id:
                 continue
-            seen.add(fixture_id)
+            existing_index = index_by_fixture.get(fixture_id)
+            if existing_index is not None:
+                # The matchday card is a pre-match snapshot.  A subsequent
+                # provider payload may carry the terminal result for the same
+                # fixture; it must replace the stale upcoming projection.
+                if self._is_finished_row(row) and not self._is_finished_row(
+                    deduped[existing_index]
+                ):
+                    deduped[existing_index] = row
+                continue
+            index_by_fixture[fixture_id] = len(deduped)
             deduped.append(row)
         return deduped
 
