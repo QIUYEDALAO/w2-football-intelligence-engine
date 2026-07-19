@@ -153,12 +153,14 @@ def test_saved_lineups_materialize_asof_safe_deterministic_team_baselines() -> N
         captured_at=datetime(2026, 7, 1, 17, tzinfo=UTC),
         raw_sha256="2" * 64,
         payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
     )
     repository.save_lineup_snapshots(
         fixture_id="fixture-2",
         captured_at=datetime(2026, 7, 10, 17, tzinfo=UTC),
         raw_sha256="3" * 64,
         payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
     )
 
     first = repository.materialize_team_lineup_baselines(limit=10)

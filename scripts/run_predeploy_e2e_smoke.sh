@@ -332,6 +332,9 @@ assert card["frozen_artifact_provenance"]["fixture_identity"]["fixture_id"] == f
 assert card["frozen_artifact_provenance"]["artifact_hash"]
 assert card["candidate"] is False
 assert card["formal_recommendation"] is False
+assert card["lineup_provenance"]["coverage_grade"] == "C"
+assert len(card["lineup_provenance"]["baseline_artifact_hashes"]) == 2
+assert card["lineup_provenance"]["numeric_adjustment_enabled"] is False
 assert card["disclaimer"] == "分析参考·非稳赢"
 assert "bookmaker_intent" in card
 assert card["risks"]
@@ -409,6 +412,10 @@ LINEUP_STARTER_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from structured_lineup_players p join structured_lineup_snapshots s on s.id = p.lineup_snapshot_id where s.fixture_id = '${FIXTURE_ID}' and p.starter = true;"
 )"
+LINEUP_BASELINE_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(*) from team_lineup_baselines;"
+)"
 if [ "${OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing DB market observations" >&2
   exit 1
@@ -427,6 +434,10 @@ if [ "${RUN_AUDIT_COUNT}" -lt 1 ]; then
 fi
 if [ "${LINEUP_SNAPSHOT_COUNT}" -ne 2 ] || [ "${LINEUP_STARTER_COUNT}" -ne 22 ]; then
   echo "predeploy_e2e FAIL structured lineup materialization incomplete" >&2
+  exit 1
+fi
+if [ "${LINEUP_BASELINE_COUNT}" -ne 2 ]; then
+  echo "predeploy_e2e FAIL lineup baselines were not materialized" >&2
   exit 1
 fi
 echo "predeploy_e2e db assertions PASS"

@@ -132,6 +132,7 @@ class FutureRefreshDbRepository:
         captured_at: datetime,
         raw_sha256: str,
         payload: dict[str, Any],
+        materialize_baselines: bool = True,
     ) -> int:
         response = payload.get("response")
         if not isinstance(response, list):
@@ -187,6 +188,8 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_FAILED") from exc
         self.materialize_player_identity_mappings(fixture_id=fixture_id, as_of=captured_at)
+        if materialize_baselines:
+            self.materialize_team_lineup_baselines(limit=4096)
         return materialized
 
     def materialize_player_identity_mappings(
@@ -545,7 +548,10 @@ class FutureRefreshDbRepository:
         skipped_incomplete = 0
         for candidate in candidates:
             try:
-                materialized_snapshots += self.save_lineup_snapshots(**candidate)
+                materialized_snapshots += self.save_lineup_snapshots(
+                    **candidate,
+                    materialize_baselines=False,
+                )
             except FutureRefreshPersistenceError as exc:
                 if str(exc) in {"LINEUP_RESPONSE_INVALID", "LINEUP_TEAMS_INCOMPLETE"}:
                     skipped_incomplete += 1
