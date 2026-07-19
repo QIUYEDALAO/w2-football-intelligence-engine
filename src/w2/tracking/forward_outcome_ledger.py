@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from w2.domain.canonical_decision_projection import project_canonical_decision
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
@@ -77,7 +78,9 @@ def build_forward_outcome_records(
         fixture_id = _text(card.get("fixture_id"))
         if not fixture_id:
             continue
-        shadow_pick = _shadow_pick(card)
+        v3 = _mapping(card.get("recommendation_decision_v3"))
+        canonical = project_canonical_decision(v3) if v3 else {}
+        shadow_pick = canonical.get("pick") if v3 else _shadow_pick(card)
         recommendation_scope = _recommendation_scope(card, shadow_pick)
         fixture_identity = _fixture_identity(card)
         quote_provenance = _quote_provenance(card)
@@ -108,14 +111,18 @@ def build_forward_outcome_records(
                 "competition_name": _optional_text(card.get("competition_name")),
                 "home_team_name": _optional_text(card.get("home_team_name")),
                 "away_team_name": _optional_text(card.get("away_team_name")),
-                "decision_tier": _text(card.get("decision_tier") or "SKIP"),
+                "decision_tier": _text(
+                    canonical.get("decision_tier") or card.get("decision_tier") or "SKIP"
+                ),
                 "data_status": _text(card.get("data_status") or "PARTIAL"),
-                "reason_code": _optional_text(card.get("reason_code")),
-                "action": _optional_text(card.get("action")),
+                "reason_code": _optional_text(
+                    canonical.get("reason_code") or card.get("reason_code")
+                ),
+                "action": _optional_text(canonical.get("next_action") or card.get("action")),
                 "probability_source": _optional_text(card.get("probability_source")),
                 "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
                 "shadow_pick": shadow_pick,
-                "pick": _mapping_copy(card.get("pick")),
+                "pick": _mapping_copy(shadow_pick),
                 "secondary_picks": _secondary_picks(card),
                 "non_pick": _mapping_copy(card.get("non_pick")),
                 "current_odds": _market_odds_summary(card.get("current_odds")),
@@ -126,8 +133,15 @@ def build_forward_outcome_records(
                 "artifact_provenance": artifact_provenance,
                 "probability_identity": probability_identity,
                 "capture_identity_hash": _canonical_sha256(capture_identity),
-                "outcome_tracked": bool(card.get("outcome_tracked") is True),
-                "lock_eligible": bool(card.get("lock_eligible") is True),
+                "outcome_tracked": bool(canonical.get("outcome_tracked"))
+                if v3
+                else bool(card.get("outcome_tracked") is True),
+                "lock_eligible": bool(canonical.get("lock_eligible"))
+                if v3
+                else bool(card.get("lock_eligible") is True),
+                "decision_hash": _optional_text(
+                    canonical.get("decision_hash") or v3.get("decision_hash")
+                ),
                 "recommendation_id": _optional_text(card.get("recommendation_id")),
                 "source": _optional_text(card.get("source")),
                 "posthoc_only": True,
