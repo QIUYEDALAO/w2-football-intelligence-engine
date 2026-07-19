@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from w2.api.repository import ReadModelRepository, ReadModelService
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 
@@ -198,9 +199,19 @@ class AnalysisCardCanaryMaterializer:
 
         input_manifest = {
             "evaluated_at": evaluation_time,
+            "competition_id": str(card.get("competition_id") or identity["competition_id"]),
             "fixture_payload_sha256": canonical_sha256(fixture_payload),
             "observation_count": len(observations),
             "observation_sha256": sorted(canonical_sha256(row) for row in observations),
+            "quote_identity_sha256": canonical_sha256(card.get("quote_identity_audit") or {}),
+            "simulation_sha256": canonical_sha256(card.get("simulation") or {}),
+            "analysis_evidence_sha256": canonical_sha256(_analysis_evidence(card)),
+            "capability_manifest_sha256": load_recommendation_capability_manifest().sha256,
+            "lineup_policy_version": str(
+                (card.get("lineup_provenance") or {}).get("policy_version")
+                if isinstance(card.get("lineup_provenance"), dict)
+                else "w2.lineup_market_policy.v1"
+            ),
         }
         artifact_body = {
             "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
@@ -233,6 +244,16 @@ def validate_frozen_analysis_payload(
     card = payload.get("analysis_card")
     if not isinstance(manifest, dict) or not isinstance(card, dict):
         raise FrozenAnalysisError("checkpoint payload incomplete")
+    required_evidence = {
+        "competition_id",
+        "quote_identity_sha256",
+        "simulation_sha256",
+        "analysis_evidence_sha256",
+        "capability_manifest_sha256",
+        "lineup_policy_version",
+    }
+    if not required_evidence.issubset(manifest):
+        raise FrozenAnalysisError("frozen analysis evidence missing")
     if str(card.get("fixture_id") or "") != fixture_id:
         raise FrozenAnalysisError("checkpoint card identity conflict")
     artifact_hash = str(payload.get("artifact_hash") or "")
@@ -246,6 +267,17 @@ def validate_frozen_analysis_payload(
         payload=payload,
         canonical_bytes=canonical_json_bytes(payload),
     )
+
+
+def _analysis_evidence(card: dict[str, Any]) -> dict[str, Any]:
+    candidates = card.get("market_candidates")
+    if not isinstance(candidates, dict):
+        return {}
+    return {
+        str(key): value.get("analysis_evidence")
+        for key, value in candidates.items()
+        if isinstance(value, dict) and isinstance(value.get("analysis_evidence"), dict)
+    }
 
 
 def write_frozen_analysis_artifacts(
@@ -305,9 +337,7 @@ def read_frozen_analysis_artifact(
             select(ReadModelCheckpointModel).where(ReadModelCheckpointModel.checkpoint_key == key)
         )
     if row is None:
-        default_metric_registry().inc(
-            "w2_checkpoint_reads_total", labels={"status": "MISS"}
-        )
+        default_metric_registry().inc("w2_checkpoint_reads_total", labels={"status": "MISS"})
         return None
     created_at = row.created_at
     if created_at.tzinfo is None:
@@ -321,11 +351,7 @@ def read_frozen_analysis_artifact(
         if row.source_hash != artifact.source_hash:
             raise FrozenAnalysisError("checkpoint source hash mismatch")
     except FrozenAnalysisError:
-        default_metric_registry().inc(
-            "w2_checkpoint_reads_total", labels={"status": "INVALID"}
-        )
+        default_metric_registry().inc("w2_checkpoint_reads_total", labels={"status": "INVALID"})
         raise
-    default_metric_registry().inc(
-        "w2_checkpoint_reads_total", labels={"status": "HIT"}
-    )
+    default_metric_registry().inc("w2_checkpoint_reads_total", labels={"status": "HIT"})
     return artifact

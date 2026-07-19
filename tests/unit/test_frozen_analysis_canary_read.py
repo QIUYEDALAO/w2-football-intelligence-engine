@@ -70,11 +70,7 @@ def _artifact(
             {
                 "market": "ASIAN_HANDICAP",
                 "decision": "NO_EDGE",
-                **(
-                    {"confidence": 0.3}
-                    if legacy_heuristic
-                    else {"signal_strength": 0.3}
-                ),
+                **({"confidence": 0.3} if legacy_heuristic else {"signal_strength": 0.3}),
             }
         ],
         "quote_identity_audit": {
@@ -90,9 +86,15 @@ def _artifact(
     }
     manifest = {
         "evaluated_at": "2026-07-18T05:00:00Z",
+        "competition_id": "league",
         "fixture_payload_sha256": "1" * 64,
         "observation_count": 2,
         "observation_sha256": ["2" * 64, "3" * 64],
+        "quote_identity_sha256": "4" * 64,
+        "simulation_sha256": "5" * 64,
+        "analysis_evidence_sha256": "6" * 64,
+        "capability_manifest_sha256": "7" * 64,
+        "lineup_policy_version": "w2.lineup_market_policy.v1",
     }
     body = {
         "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
@@ -296,9 +298,7 @@ def test_non_canary_fixture_also_fails_closed_without_frozen_artifact(
     assert card is not None
     assert card["decision_tier"] == "NOT_READY"
     assert card["pick"] is None
-    assert card["frozen_artifact_provenance"]["blockers"] == [
-        "FROZEN_ARTIFACT_MISSING"
-    ]
+    assert card["frozen_artifact_provenance"]["blockers"] == ["FROZEN_ARTIFACT_MISSING"]
 
 
 def test_fixture_dashboard_and_day_view_share_frozen_authority(
@@ -359,9 +359,7 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     assert detail is not None
     expected_hash = artifact.artifact_hash
     assert analysis["frozen_artifact_provenance"]["artifact_hash"] == expected_hash
-    assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (
-        expected_hash
-    )
+    assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (expected_hash)
     assert dashboard_card["artifact_hash"] == expected_hash
     assert day_view["cards"][0]["artifact_hash"] == expected_hash
     for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
