@@ -50,6 +50,7 @@ from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_decision_v3 import project_decision_v3
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -5807,6 +5808,14 @@ class ReadModelService:
             if scoreline_decision is not None
             else None
         )
+        decision_v3 = (
+            project_decision_v3(
+                decision_contract,
+                manifest=load_recommendation_capability_manifest(),
+            ).as_dict()
+            if decision_contract
+            else None
+        )
         return {
             "fixture_id": fixture_id,
             "kickoff_utc": row.get("kickoff_utc") or card.get("kickoff_utc"),
@@ -5854,6 +5863,7 @@ class ReadModelService:
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
             if recommendation
             else False,
+            "recommendation_decision_v3": decision_v3,
             **decision_contract,
         }
 
