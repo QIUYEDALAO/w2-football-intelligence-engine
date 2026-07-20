@@ -15,6 +15,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
+    MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
@@ -32,7 +33,8 @@ def _dt(value: Any) -> datetime:
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    normalized = value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 class MatchdayRuntimeRepository:
@@ -426,6 +428,42 @@ class MatchdayRuntimeRepository:
             session.commit()
         return count
 
+    def insert_fixture_identities(self, fixtures: Sequence[Mapping[str, Any]]) -> int:
+        count = 0
+        with Session(self.engine) as session:
+            for row in fixtures:
+                normalized = _normalized_fixture_identity_payload(row)
+                try:
+                    with session.begin_nested():
+                        session.add(self._fixture_identity_model(row))
+                        session.flush()
+                    count += 1
+                except IntegrityError:
+                    existing = session.get(
+                        MatchdayFixtureIdentityModel,
+                        str(row["fixture_id"]),
+                    )
+                    if (
+                        existing is not None
+                        and _fixture_identity_payload(existing) == normalized
+                    ):
+                        continue
+                    provider_existing = session.scalar(
+                        select(MatchdayFixtureIdentityModel).where(
+                            MatchdayFixtureIdentityModel.provider == str(row["provider"]),
+                            MatchdayFixtureIdentityModel.provider_fixture_id
+                            == str(row["provider_fixture_id"]),
+                        )
+                    )
+                    if (
+                        provider_existing is not None
+                        and _fixture_identity_payload(provider_existing) == normalized
+                    ):
+                        continue
+                    raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT") from None
+            session.commit()
+        return count
+
     def insert_manifest(self, manifest: Mapping[str, Any]) -> str:
         manifest_hash = validate_manifest_identity(manifest)
         fixture_id = str(manifest["fixture_identity"]["fixture_id"])
@@ -519,6 +557,28 @@ class MatchdayRuntimeRepository:
             ingested_at=_dt(row["ingested_at"]),
             raw_payload_sha256=str(row["raw_payload_sha256"]),
             source_revision=str(row["source_revision"]),
+        )
+
+    def _fixture_identity_model(self, row: Mapping[str, Any]) -> MatchdayFixtureIdentityModel:
+        return MatchdayFixtureIdentityModel(
+            fixture_id=str(row["fixture_id"]),
+            provider=str(row["provider"]),
+            provider_fixture_id=str(row["provider_fixture_id"]),
+            competition_id=str(row["competition_id"]),
+            provider_league_id=str(row["provider_league_id"]),
+            season=str(row["season"]),
+            kickoff_utc=_dt(row["kickoff_utc"]),
+            fixture_status=str(row["fixture_status"]),
+            home_provider_team_id=str(row["home_provider_team_id"]),
+            away_provider_team_id=str(row["away_provider_team_id"]),
+            home_w2_team_id=str(row.get("home_w2_team_id") or "") or None,
+            away_w2_team_id=str(row.get("away_w2_team_id") or "") or None,
+            team_identity_status=str(row["team_identity_status"]),
+            raw_payload_sha256=str(row["raw_payload_sha256"]),
+            endpoint_capture_id=str(row.get("endpoint_capture_id") or "") or None,
+            captured_at=_dt(row["captured_at"]),
+            identity_hash=str(row["identity_hash"]),
+            payload=dict(row["payload"]),
         )
 
     def _plan_dict(self, row: MatchdayCheckpointPlanModel) -> dict[str, Any]:
@@ -723,6 +783,54 @@ def _normalized_observation_payload(row: Mapping[str, Any]) -> dict[str, Any]:
         "ingested_at": _iso(_dt(row["ingested_at"])),
         "raw_payload_sha256": str(row["raw_payload_sha256"]),
         "source_revision": str(row["source_revision"]),
+    }
+
+
+def _fixture_identity_payload(row: MatchdayFixtureIdentityModel) -> dict[str, Any]:
+    return {
+        "fixture_id": row.fixture_id,
+        "provider": row.provider,
+        "provider_fixture_id": row.provider_fixture_id,
+        "competition_id": row.competition_id,
+        "provider_league_id": row.provider_league_id,
+        "season": row.season,
+        "kickoff_utc": _iso(row.kickoff_utc),
+        "fixture_status": row.fixture_status,
+        "home_provider_team_id": row.home_provider_team_id,
+        "away_provider_team_id": row.away_provider_team_id,
+        "home_w2_team_id": row.home_w2_team_id,
+        "away_w2_team_id": row.away_w2_team_id,
+        "team_identity_status": row.team_identity_status,
+        "raw_payload_sha256": row.raw_payload_sha256,
+        "endpoint_capture_id": row.endpoint_capture_id,
+        "captured_at": _iso(row.captured_at),
+        "identity_hash": row.identity_hash,
+        "payload": dict(row.payload),
+        "schema_version": "MatchdayFixtureIdentityV1",
+    }
+
+
+def _normalized_fixture_identity_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "fixture_id": str(row["fixture_id"]),
+        "provider": str(row["provider"]),
+        "provider_fixture_id": str(row["provider_fixture_id"]),
+        "competition_id": str(row["competition_id"]),
+        "provider_league_id": str(row["provider_league_id"]),
+        "season": str(row["season"]),
+        "kickoff_utc": _iso(_dt(row["kickoff_utc"])),
+        "fixture_status": str(row["fixture_status"]),
+        "home_provider_team_id": str(row["home_provider_team_id"]),
+        "away_provider_team_id": str(row["away_provider_team_id"]),
+        "home_w2_team_id": str(row.get("home_w2_team_id") or "") or None,
+        "away_w2_team_id": str(row.get("away_w2_team_id") or "") or None,
+        "team_identity_status": str(row["team_identity_status"]),
+        "raw_payload_sha256": str(row["raw_payload_sha256"]),
+        "endpoint_capture_id": str(row.get("endpoint_capture_id") or "") or None,
+        "captured_at": _iso(_dt(row["captured_at"])),
+        "identity_hash": str(row["identity_hash"]),
+        "payload": dict(row["payload"]),
+        "schema_version": "MatchdayFixtureIdentityV1",
     }
 
 

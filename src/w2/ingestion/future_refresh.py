@@ -6,7 +6,7 @@ import json
 import os
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -762,12 +762,7 @@ class FutureFixtureRefreshService:
             self._request("status", {})
             fixtures_response = self._request(
                 "fixtures",
-                {
-                    "league": self.config.league_id,
-                    "season": self.config.season,
-                    "from": self.now.date().isoformat(),
-                    "to": (self.now + timedelta(days=self.config.horizon_days)).date().isoformat(),
-                },
+                self._fixtures_request_params(),
             )
             future_fixtures = self._future_fixtures(fixtures_response.payload)
             odds_responses = self._fetch_market_snapshots(future_fixtures)
@@ -1479,10 +1474,17 @@ class FutureFixtureRefreshService:
         blockers: list[str],
     ) -> FutureRefreshResult:
         try:
+            from w2.matchday.repository import MatchdayRuntimeRepository
+
+            repository = MatchdayRuntimeRepository()
+            fixture_identities = self._fixture_identities_from_response(
+                fixtures_response=fixtures_response,
+                fixtures=fixtures,
+            )
+            repository.insert_fixture_identities(fixture_identities)
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
                 from w2.matchday.intake_v2 import normalize_matchday_odds_payload
-                from w2.matchday.repository import MatchdayRuntimeRepository
 
                 raw_record = self._raw_payload_record(
                     endpoint="odds",
@@ -1515,7 +1517,7 @@ class FutureFixtureRefreshService:
                 ):
                     raise FutureRefreshError("OBSERVATION_NORMALIZATION_CONFLICT")
                 observations.extend(rows)
-            appended = MatchdayRuntimeRepository().insert_market_observations(observations)
+            appended = repository.insert_market_observations(observations)
             latest_rows = [
                 {
                     **row,
@@ -1550,6 +1552,80 @@ class FutureFixtureRefreshService:
         )
         self._write_audit(result)
         return result
+
+    def _fixtures_request_params(self) -> dict[str, str]:
+        return {
+            "league": self.config.league_id,
+            "season": self.config.season,
+            "from": self.now.date().isoformat(),
+            "to": (self.now + timedelta(days=self.config.horizon_days)).date().isoformat(),
+        }
+
+    def _fixture_identities_from_response(
+        self,
+        *,
+        fixtures_response: LiveApiFootballResponse,
+        fixtures: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        raw_record = self._raw_payload_record(
+            endpoint="fixtures",
+            params=self._fixtures_request_params(),
+            payload=fixtures_response.payload,
+        )
+        raw_sha = sha256_payload(raw_record)
+        capture = self._matchday_capture_by_payload.get(
+            self._capture_lookup_key(
+                endpoint="fixtures",
+                params=self._fixtures_request_params(),
+                raw_payload_sha256=raw_sha,
+                captured_at=fixtures_response.captured_at,
+            )
+        )
+        rows: list[dict[str, Any]] = []
+        for item in fixtures:
+            if not isinstance(item, dict):
+                continue
+            provider_fixture_id = fixture_id_from_payload(item)
+            kickoff = kickoff_from_payload(item)
+            teams_value = item.get("teams")
+            fixture_value = item.get("fixture")
+            league_value = item.get("league")
+            teams: Mapping[str, Any] = teams_value if isinstance(teams_value, dict) else {}
+            fixture: Mapping[str, Any] = (
+                fixture_value if isinstance(fixture_value, dict) else {}
+            )
+            league: Mapping[str, Any] = league_value if isinstance(league_value, dict) else {}
+            status_value = fixture.get("status")
+            home_value = teams.get("home")
+            away_value = teams.get("away")
+            status: Mapping[str, Any] = status_value if isinstance(status_value, dict) else {}
+            home: Mapping[str, Any] = home_value if isinstance(home_value, dict) else {}
+            away: Mapping[str, Any] = away_value if isinstance(away_value, dict) else {}
+            if not provider_fixture_id or kickoff is None:
+                continue
+            fixture_id = f"api_football:{provider_fixture_id}"
+            identity_body = {
+                "fixture_id": fixture_id,
+                "provider": "api_football",
+                "provider_fixture_id": provider_fixture_id,
+                "competition_id": self.config.competition_id,
+                "provider_league_id": str(league.get("id") or self.config.league_id),
+                "season": str(league.get("season") or self.config.season),
+                "kickoff_utc": iso(kickoff),
+                "fixture_status": str(status.get("short") or ""),
+                "home_provider_team_id": str(home.get("id") or ""),
+                "away_provider_team_id": str(away.get("id") or ""),
+                "home_w2_team_id": None,
+                "away_w2_team_id": None,
+                "team_identity_status": "REVIEW_REQUIRED",
+                "raw_payload_sha256": raw_sha,
+                "endpoint_capture_id": str(capture["capture_id"]) if capture else None,
+                "captured_at": iso(fixtures_response.captured_at),
+                "payload": item,
+                "schema_version": "MatchdayFixtureIdentityV1",
+            }
+            rows.append({**identity_body, "identity_hash": sha256_payload(identity_body)})
+        return rows
 
     def _audit_for_payload(self, payload_hash: str) -> dict[str, Any] | None:
         for item in self._audit:

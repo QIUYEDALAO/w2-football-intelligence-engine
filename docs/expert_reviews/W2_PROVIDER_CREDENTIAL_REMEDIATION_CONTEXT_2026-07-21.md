@@ -8,7 +8,7 @@ Why was the provider credential missing, and can Codex resolve it?
 
 ## Answer
 
-Codex can resolve the configuration and deployment wiring once the credential value exists in an authorized source. Codex cannot invent, recover, or obtain the API-Football credential if it is absent from the server, local workspace, or connected secret store.
+Codex can resolve the configuration and deployment wiring once the provider auth value exists in an authorized source. Codex cannot invent or retrieve that value when it is absent from the server, local workspace, and connected storage.
 
 The diagnosed blocker remains:
 
