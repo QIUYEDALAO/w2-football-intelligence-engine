@@ -1,0 +1,23 @@
+{
+  "schema_version": "ALLSVENSKAN_ODDS_INTAKE_REPORT_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "competition_id": "allsvenskan",
+  "provider": "api_football",
+  "endpoint": "odds",
+  "fixtures_selected": 0,
+  "provider_calls_attempted": 0,
+  "provider_http_calls_consumed": 0,
+  "odds_endpoint_response_count": null,
+  "bookmaker_count": 0,
+  "raw_market_count": 0,
+  "normalized_observation_count": 0,
+  "rejection_count": 0,
+  "ah_complete_pair_count": 0,
+  "ou_complete_pair_count": 0,
+  "one_x_two_complete_triplet_count": 0,
+  "status": "BLOCKED",
+  "blockers": [
+    "LIVE_GATE_API_KEY_NOT_VISIBLE",
+    "NO_CANONICAL_FIXTURE_AVAILABLE"
+  ]
+}

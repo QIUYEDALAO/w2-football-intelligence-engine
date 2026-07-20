@@ -104,6 +104,41 @@ class MatchdayMarketObservationModel(Base):
     source_revision: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
+class MatchdayFixtureIdentityModel(Base):
+    __tablename__ = "matchday_fixture_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_fixture_id",
+            name="uq_matchday_fixture_identity_provider_fixture",
+        ),
+        Index("ix_matchday_fixture_identity_competition", "competition_id", "kickoff_utc"),
+        Index("ix_matchday_fixture_identity_status", "team_identity_status"),
+        Index("ix_matchday_fixture_identity_raw_payload", "raw_payload_sha256"),
+    )
+
+    fixture_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_league_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fixture_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    home_provider_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    away_provider_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    home_w2_team_id: Mapped[str | None] = mapped_column(String(128))
+    away_w2_team_id: Mapped[str | None] = mapped_column(String(128))
+    team_identity_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    endpoint_capture_id: Mapped[str | None] = mapped_column(
+        ForeignKey("matchday_endpoint_captures.capture_id")
+    )
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
 class MatchdayCheckpointPlanModel(Base):
     __tablename__ = "matchday_checkpoint_plans"
     __table_args__ = (

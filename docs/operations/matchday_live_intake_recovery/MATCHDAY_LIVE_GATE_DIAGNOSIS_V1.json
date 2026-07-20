@@ -1,0 +1,33 @@
+{
+  "schema_version": "MATCHDAY_LIVE_GATE_DIAGNOSIS_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "status": "MATCHDAY_LIVE_INTAKE_REMEDIATION_REQUIRED",
+  "diagnosis": {
+    "exception_class": "LiveNetworkDisabledError",
+    "exception_message": "provider credential is not visible to the process",
+    "reason_code": "LIVE_GATE_API_KEY_NOT_VISIBLE",
+    "module": "w2.providers.api_football",
+    "function": "ApiFootballClient.request_live",
+    "process": "worker",
+    "endpoint": "status",
+    "allow_live": true,
+    "provider_calls_disabled": false,
+    "endpoint_allowlist": [
+      "fixtures",
+      "lineups",
+      "odds",
+      "status"
+    ],
+    "api_key_visible": false
+  },
+  "wrong_interface": {
+    "runtime_uses_fetch": false,
+    "evidence": "FutureFixtureRefreshService creates ApiFootballClient(allow_live=True) and live diagnostic used request_live()."
+  },
+  "provider_http_calls_consumed": 0,
+  "redaction_handling": {
+    "api_key_value_logged": false,
+    "api_key_length_logged": false,
+    "api_key_hash_logged": false
+  }
+}

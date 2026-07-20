@@ -1,0 +1,46 @@
+{
+  "schema_version": "MATCHDAY_LIVE_INTAKE_ACCEPTANCE_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "final_status": "MATCHDAY_LIVE_INTAKE_REMEDIATION_REQUIRED",
+  "reason_code": "LIVE_GATE_API_KEY_NOT_VISIBLE",
+  "answers": {
+    "1_live_network_disabled_reason_code": "LIVE_GATE_API_KEY_NOT_VISIBLE",
+    "2_function_and_process": "worker -> w2.providers.api_football.ApiFootballClient.request_live",
+    "3_runtime_misused_fetch": false,
+    "4_worker_can_see_api_key": false,
+    "5_provider_calls_disabled": false,
+    "6_scheduler_enabled": true,
+    "7_future_fixture_refresh_enabled": true,
+    "8_competition_ids_include_allsvenskan": true,
+    "9_fixtures_endpoint_returned": null,
+    "10_canonical_fixtures_written": 0,
+    "11_provider_team_identities_written": 0,
+    "12_odds_endpoint_called_fixtures": 0,
+    "13_canonical_market_observations_written": 0,
+    "14_complete_markets": {
+      "AH": 0,
+      "OU": 0,
+      "1X2": 0
+    },
+    "15_exact_quote_identity_formed": false,
+    "16_team_crosswalk": {
+      "READY": 0,
+      "REVIEW": 0,
+      "CONFLICT": 0
+    },
+    "17_f5_f8_status": {
+      "F5": "NOT_EVALUATED_NO_FIXTURE",
+      "F8": "NOT_EVALUATED_NO_FIXTURE"
+    },
+    "18_model_evidence_blocker": "NO_EXACT_QUOTE_IDENTITY",
+    "19_v3_outputs": [],
+    "20_formal_lock_official_cohort_unchanged": true
+  },
+  "safety": {
+    "FORMAL_DISABLED": true,
+    "LOCK_DISABLED": true,
+    "PRODUCTION_DISABLED": true,
+    "MANUAL_APPROVAL_REQUIRED": true,
+    "EXPERT_REVIEW_REQUIRED": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "ALLSVENSKAN_FIXTURE_INTAKE_REPORT_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "competition_id": "allsvenskan",
+  "provider": "api_football",
+  "endpoint": "fixtures",
+  "provider_calls_attempted": 0,
+  "provider_http_calls_consumed": 0,
+  "fixtures_endpoint_response_count": null,
+  "canonical_fixtures_written": 0,
+  "provider_team_identities_written": 0,
+  "endpoint_capture_ids": [],
+  "raw_payload_hashes": [],
+  "status": "BLOCKED",
+  "blockers": [
+    "LIVE_GATE_API_KEY_NOT_VISIBLE"
+  ]
+}

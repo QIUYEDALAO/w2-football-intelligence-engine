@@ -15,12 +15,44 @@ from sqlalchemy import text
 from w2.config import Environment, Settings, get_settings
 from w2.infrastructure.cache import create_redis
 from w2.infrastructure.database import create_engine
+from w2.providers.control import (
+    provider_calls_disabled,
+    provider_endpoint_allowlist,
+    provider_scheduler_enabled,
+)
 
 
 class ReadinessCheck(BaseModel):
     status: Literal["PASS", "FAIL", "WARN"]
     critical: bool
     detail: str
+
+
+class ProviderIntakeOperationalReadinessV1(BaseModel):
+    schema_version: Literal["ProviderIntakeOperationalReadinessV1"] = (
+        "ProviderIntakeOperationalReadinessV1"
+    )
+    environment: str
+    provider: Literal["api_football"] = "api_football"
+    live_interface: Literal["request_live"] = "request_live"
+    allow_live: bool
+    provider_calls_disabled: bool
+    scheduler_enabled: bool
+    future_refresh_enabled: bool
+    competition_ids: list[str]
+    allsvenskan_registered: bool
+    api_key_visible_to_worker: bool
+    endpoint_allowlist: list[str]
+    db_persistence: bool
+    redis_dedupe: bool
+    worker_task_registered: bool
+    last_fixture_request_at: str | None = None
+    last_fixture_request_status: str | None = None
+    last_fixture_response_count: int | None = None
+    last_successful_fixture_capture_id: str | None = None
+    last_error_code: str | None = None
+    ready: bool
+    blockers: list[str]
 
 
 class ReadinessPayload(BaseModel):
@@ -30,6 +62,8 @@ class ReadinessPayload(BaseModel):
     status: Literal["READY", "NOT_READY"]
     checks: dict[str, ReadinessCheck]
     warnings: list[str]
+    matchday_intake_status: Literal["READY", "NOT_READY"]
+    matchday_intake: ProviderIntakeOperationalReadinessV1
 
 
 CheckFunction = Callable[[Settings], tuple[bool, str]]
@@ -157,6 +191,71 @@ def _mounts_check(settings: Settings) -> tuple[bool, str]:
     return True, "core runtime/config mounts are readable"
 
 
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_csv(name: str) -> list[str]:
+    raw = os.environ.get(name, "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _provider_intake_readiness(settings: Settings) -> ProviderIntakeOperationalReadinessV1:
+    endpoint_allowlist = sorted(provider_endpoint_allowlist())
+    competition_ids = _env_csv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS")
+    allsvenskan_registered = "allsvenskan" in competition_ids
+    api_key_visible = bool(os.environ.get("W2_API_FOOTBALL_API_KEY"))
+    db_persistence = os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").strip().lower() == "db"
+    redis_dedupe = settings.redis_url is not None
+    worker_task_registered = True
+    future_refresh_enabled = _env_flag("W2_FUTURE_FIXTURE_REFRESH_ENABLED", default=False)
+    scheduler_enabled = provider_scheduler_enabled()
+    calls_disabled = provider_calls_disabled()
+    blockers: list[str] = []
+
+    if settings.environment != Environment.STAGING:
+        blockers.append("MATCHDAY_INTAKE_STAGING_ONLY")
+    if not scheduler_enabled:
+        blockers.append("PROVIDER_SCHEDULER_DISABLED")
+    if not future_refresh_enabled:
+        blockers.append("FUTURE_FIXTURE_REFRESH_DISABLED")
+    if calls_disabled:
+        blockers.append("PROVIDER_CALLS_DISABLED")
+    if not api_key_visible:
+        blockers.append("LIVE_GATE_API_KEY_NOT_VISIBLE")
+    if "fixtures" not in endpoint_allowlist:
+        blockers.append("FIXTURES_ENDPOINT_NOT_ALLOWED")
+    if not allsvenskan_registered:
+        blockers.append("ALLSVENSKAN_NOT_CONFIGURED")
+    if not db_persistence:
+        blockers.append("FUTURE_REFRESH_DB_PERSISTENCE_NOT_CONFIGURED")
+    if not redis_dedupe:
+        blockers.append("REDIS_DEDUPE_UNAVAILABLE")
+    if not worker_task_registered:
+        blockers.append("WORKER_TASK_NOT_REGISTERED")
+
+    return ProviderIntakeOperationalReadinessV1(
+        environment=settings.environment.value,
+        allow_live=True,
+        provider_calls_disabled=calls_disabled,
+        scheduler_enabled=scheduler_enabled,
+        future_refresh_enabled=future_refresh_enabled,
+        competition_ids=competition_ids,
+        allsvenskan_registered=allsvenskan_registered,
+        api_key_visible_to_worker=api_key_visible,
+        endpoint_allowlist=endpoint_allowlist,
+        db_persistence=db_persistence,
+        redis_dedupe=redis_dedupe,
+        worker_task_registered=worker_task_registered,
+        last_error_code=blockers[0] if blockers else None,
+        ready=not blockers,
+        blockers=blockers,
+    )
+
+
 def build_readiness_payload(
     settings: Settings | None = None,
     *,
@@ -188,6 +287,7 @@ def build_readiness_payload(
         critical=True,
         detail=artifacts_detail,
     )
+    matchday = _provider_intake_readiness(resolved)
     return ReadinessPayload(
         service=resolved.service_name,
         version=resolved.service_version,
@@ -195,4 +295,6 @@ def build_readiness_payload(
         status="READY" if all(item.status != "FAIL" for item in checks.values()) else "NOT_READY",
         checks=checks,
         warnings=warnings,
+        matchday_intake_status="READY" if matchday.ready else "NOT_READY",
+        matchday_intake=matchday,
     )
