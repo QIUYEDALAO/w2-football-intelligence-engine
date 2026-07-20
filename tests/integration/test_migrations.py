@@ -87,6 +87,10 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
         ["downgrade", "base"],
         ["upgrade", "0017_create_stage9a_shadow_strategy"],
         ["upgrade", "head"],
+        ["downgrade", "0028_create_matchday_evidence_authority"],
+        ["upgrade", "head"],
+        ["downgrade", "0027_finalize_fah_authority_constraints"],
+        ["upgrade", "head"],
     ):
         result = subprocess.run(
             [sys.executable, "-m", "alembic", *command],
@@ -100,3 +104,4 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
     tables = set(inspect(create_engine(database_url)).get_table_names())
     assert "shadow_strategy_run" in tables
     assert "future_market_observation" in tables
+    assert "matchday_market_observations" in tables

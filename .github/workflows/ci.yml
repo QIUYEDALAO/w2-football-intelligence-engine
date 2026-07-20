@@ -34,6 +34,7 @@ jobs:
     env:
       W2_ENVIRONMENT: test
       W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
       W2_REDIS_URL: redis://127.0.0.1:6379/0
       W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
       W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
@@ -63,7 +64,9 @@ jobs:
       - name: Alembic smoke
         run: |
           uv run --python 3.12 alembic upgrade head
-          uv run --python 3.12 alembic downgrade base
+          uv run --python 3.12 alembic downgrade 0028_create_matchday_evidence_authority
+          uv run --python 3.12 alembic upgrade head
+          uv run --python 3.12 alembic downgrade 0027_finalize_fah_authority_constraints
           uv run --python 3.12 alembic upgrade head
       - name: Docker Compose config
         run: docker compose config

@@ -172,7 +172,14 @@ def _refresh_safety_acceptance() -> dict[str, Any]:
     ticks = _mapping_list(refresh.get("ticks"))
     labels = {str(tick.get("label")) for tick in ticks}
     blockers: list[str] = []
-    expected_labels = {"T_24H", "T_3H", "T_90M", "T_30M", "T_15M"}
+    expected_labels = {
+        "T24_ODDS",
+        "T6_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T30_FINAL_PREMATCH",
+    }
     if not expected_labels.issubset(labels):
         blockers.append("MISSING_REFRESH_TICKS")
     endpoint_allowlist = _string_list(refresh.get("endpoint_allowlist"))
