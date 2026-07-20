@@ -188,7 +188,7 @@ def test_lock_eligible_is_recommend_only_and_keeps_core_hash_stable() -> None:
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
-def test_recommend_is_lock_eligible_in_all_environments(environment: str) -> None:
+def test_recommend_requires_explicit_lock_gates(environment: str) -> None:
     card = _pick_card(DecisionTier.RECOMMEND)
 
     assert (
@@ -200,6 +200,19 @@ def test_recommend_is_lock_eligible_in_all_environments(environment: str) -> Non
                 data_integrity_passed=False,
                 market_complete=False,
                 forward_ev_evidence_satisfied=False,
+            ),
+        )
+        is False
+    )
+    assert (
+        compute_lock_eligible(
+            card,
+            environment,
+            DecisionPolicyConfig(
+                recommendation_lock_feature_enabled=True,
+                recommendation_lock_production_enabled=True,
+                immutable_recommendation_identity_complete=True,
+                production_recommendation_capability_enabled=True,
             ),
         )
         is True

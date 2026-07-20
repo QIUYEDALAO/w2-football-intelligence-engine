@@ -35,13 +35,22 @@ def _row(index: int, kickoff: datetime, *, legacy: bool = False) -> dict[str, ob
         "model_probabilities": model,
         "market_devig_probabilities": market,
         "selection_odds": 2.0,
+        "entry_devig_probability": 0.42,
         "closing_devig_probability": 0.46,
+        "closing_quote_identity_hash": f"closing-{index}",
+        "closing_quote_captured_at": (kickoff - timedelta(minutes=10)).isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+        "model_expected_value": 0.05,
+        "model_market_probability_delta": 0.05,
         "league": "test-league",
         "line": -0.5,
         "selection_side": "HOME",
         "distinct_evidence_groups": ["ratings", "xg", "lineup"],
         "model_version": "frozen-model",
         "calibration_version": "frozen-calibration",
+        "factor_registry_sha": "factor-registry",
     }
 
 

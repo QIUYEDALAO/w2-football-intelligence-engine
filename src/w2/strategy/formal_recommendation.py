@@ -6,6 +6,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.markets.settlement_probability import effective_settlement_probability
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
@@ -539,15 +540,7 @@ def _simulation_rho(simulation: SimulationOutput) -> float:
 
 
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
-    win = _number(distribution.get("WIN")) or 0.0
-    half_win = _number(distribution.get("HALF_WIN")) or 0.0
-    push = _number(distribution.get("PUSH")) or 0.0
-    half_loss = _number(distribution.get("HALF_LOSS")) or 0.0
-    loss = _number(distribution.get("LOSS")) or 0.0
-    total = win + half_win + push + half_loss + loss
-    if abs(total - 1.0) > 0.02:
-        return None
-    return round(win + half_win * 0.5 + push * 0.5, 6)
+    return effective_settlement_probability(distribution)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:
