@@ -63,6 +63,7 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
         ingested_at=NOW,
         raw_payload_sha256=capture["raw_payload_sha256"],
         source_revision="unit",
+        capture_id=str(capture["capture_id"]),
         competition_id="allsvenskan",
     )
     audit = market_batch_audit(rows, evaluated_at=NOW, max_age_seconds=3600)
@@ -110,6 +111,7 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
                 scheduled_at=first_plan.scheduled_at,
                 window_start=first_plan.window_start,
                 window_end=first_plan.window_end,
+                endpoints=list(first_plan.endpoints),
                 status=first_plan.status,
                 missed_at=first_plan.missed_at,
                 capture_id=None,
@@ -149,6 +151,7 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
                 scheduled_at=first_plan.scheduled_at + timedelta(minutes=1),
                 window_start=first_plan.window_start,
                 window_end=first_plan.window_end,
+                endpoints=list(first_plan.endpoints),
                 status="CONFLICT",
                 missed_at=None,
                 capture_id=None,

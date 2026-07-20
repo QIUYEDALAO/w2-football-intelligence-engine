@@ -24,7 +24,7 @@ AUTO_LOCK_WINDOW = timedelta(hours=1)
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
 
-_CHECKPOINT_OFFSETS = {
+_TIMELINE_SELECTION_TARGETS = {
     "T-24h": timedelta(hours=24),
     "T-12h": timedelta(hours=12),
     "T-6h": timedelta(hours=6),
@@ -75,7 +75,7 @@ def due_checkpoints(kickoff: datetime, now: datetime, checkpoint: str) -> list[s
     due = ["opening"]
     kickoff_utc = kickoff.astimezone(UTC)
     now_utc = now.astimezone(UTC)
-    for item, offset in _CHECKPOINT_OFFSETS.items():
+    for item, offset in _TIMELINE_SELECTION_TARGETS.items():
         target = kickoff_utc - offset
         if target <= now_utc <= target + AUTO_CHECKPOINT_GRACE:
             due.append(item)
@@ -130,7 +130,9 @@ def select_mainline_snapshot_result(
         if selected_ah.status != "READY" or selected_ah.line is None:
             return SnapshotSelectionResult(
                 snapshot=None,
-                reason=selected_ah.status if selected_ah.status != "UNAVAILABLE" else (
+                reason=selected_ah.status
+                if selected_ah.status != "UNAVAILABLE"
+                else (
                     _missing_snapshot_reason(
                         observations=observations,
                         fixture_id=fixture_id,
@@ -392,7 +394,7 @@ def _checkpoint_target(*, checkpoint: str, kickoff: datetime) -> datetime:
         return kickoff
     if checkpoint == "lock":
         return kickoff
-    return kickoff - _CHECKPOINT_OFFSETS[checkpoint]
+    return kickoff - _TIMELINE_SELECTION_TARGETS[checkpoint]
 
 
 def _market_groups(
@@ -575,11 +577,7 @@ def _line_candidate_summary(
     mid_distances = [float(group.get("mid_distance") or 999.0) for group in groups]
     implied_sums = [float(group.get("implied_sum") or 0.0) for group in groups]
     bookmakers = sorted(
-        {
-            str(bookmaker)
-            for group in groups
-            for bookmaker in group.get("bookmakers", set())
-        }
+        {str(bookmaker) for group in groups for bookmaker in group.get("bookmakers", set())}
     )
     summary = {
         "line": _json_number(float(line)),

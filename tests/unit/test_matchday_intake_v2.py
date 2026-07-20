@@ -26,6 +26,7 @@ from w2.matchday.intake_v2 import (
     normalize_matchday_odds_payload,
     public_manifest_read,
     team_crosswalk_contract,
+    validate_manifest_identity,
 )
 
 NOW = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
@@ -217,6 +218,7 @@ def test_market_normalization_pairs_freshness_and_joint_same_family() -> None:
         ingested_at=NOW,
         raw_payload_sha256="c" * 64,
         source_revision="unit",
+        capture_id="capture-unit",
         competition_id="allsvenskan",
     )
     audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
@@ -227,6 +229,55 @@ def test_market_normalization_pairs_freshness_and_joint_same_family() -> None:
     assert audit["one_x_two_complete_sets"] == 1
     assert audit["same_family_joint_sets"] == 1
     assert audit["joint_status"] == "JOINT_MARKET_BASELINE_READY"
+    assert audit["recommendation_quote_max_age_seconds"] == 1800
+
+
+def test_same_raw_payload_different_checkpoint_preserves_distinct_capture_identity() -> None:
+    payload = _odds_payload()
+    first = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW,
+        status_code=200,
+        elapsed_ms=1,
+        payload=payload,
+        fixture_id="api_football:100",
+        checkpoint="T6_ODDS",
+    )
+    second = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW,
+        status_code=200,
+        elapsed_ms=1,
+        payload=payload,
+        fixture_id="api_football:100",
+        checkpoint="T3_ODDS",
+    )
+    rows_one, _ = normalize_matchday_odds_payload(
+        payload,
+        captured_at=NOW,
+        ingested_at=NOW,
+        raw_payload_sha256=first["raw_payload_sha256"],
+        source_revision="unit",
+        capture_id=str(first["capture_id"]),
+        competition_id="allsvenskan",
+    )
+    rows_two, _ = normalize_matchday_odds_payload(
+        payload,
+        captured_at=NOW,
+        ingested_at=NOW,
+        raw_payload_sha256=second["raw_payload_sha256"],
+        source_revision="unit",
+        capture_id=str(second["capture_id"]),
+        competition_id="allsvenskan",
+    )
+
+    assert first["raw_payload_sha256"] == second["raw_payload_sha256"]
+    assert first["capture_id"] != second["capture_id"]
+    assert rows_one[0]["observation_id"] != rows_two[0]["observation_id"]
 
 
 def test_malformed_live_suspended_and_mixed_batch_rejected() -> None:
@@ -243,6 +294,7 @@ def test_malformed_live_suspended_and_mixed_batch_rejected() -> None:
         ingested_at=NOW,
         raw_payload_sha256="d" * 64,
         source_revision="unit",
+        capture_id="capture-unit",
         competition_id="allsvenskan",
     )
     audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
@@ -309,6 +361,7 @@ def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
         ingested_at=NOW,
         raw_payload_sha256="e" * 64,
         source_revision="unit",
+        capture_id="capture-unit",
         competition_id="allsvenskan",
     )
     audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
@@ -345,6 +398,8 @@ def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
     public = public_manifest_read(first)
 
     assert first["manifest_hash"] == second["manifest_hash"]
+    assert first["audit"]["manifest_hash"] == first["manifest_hash"]
+    assert validate_manifest_identity(first) == first["manifest_hash"]
     assert first["decision"]["outcome"] == "ANALYSIS_PICK"
     assert first["decision"]["formal_readiness"] is False
     assert first["recommendation_lock"] is False
@@ -361,6 +416,7 @@ def test_v3_not_ready_no_edge_and_system_degraded() -> None:
         ingested_at=NOW,
         raw_payload_sha256="f" * 64,
         source_revision="unit",
+        capture_id="capture-unit",
         competition_id="allsvenskan",
     )
     audit = market_batch_audit(rows, evaluated_at=NOW, max_age_seconds=3600)

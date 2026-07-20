@@ -22,20 +22,6 @@ WORLD_CUP_MATCHDAY_PROVIDER_BUDGET = 80
 WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET = 0
 WORLD_CUP_BUDGET_RESERVE = 20
 
-CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
-    ("OPEN", timedelta(hours=-48), ("odds",)),
-    ("T24_ODDS", timedelta(hours=-24), ("odds",)),
-    ("T12_ODDS", timedelta(hours=-12), ("odds",)),
-    ("T6_ODDS", timedelta(hours=-6), ("odds",)),
-    ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
-    ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
-)
-
-LINEUPS_RETRY_CHECKPOINTS: tuple[tuple[str, timedelta], ...] = (
-    ("T45_LINEUPS_RETRY", timedelta(minutes=-45)),
-    ("T30_LINEUPS_RETRY", timedelta(minutes=-30)),
-)
-
 JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
 
 
@@ -73,52 +59,37 @@ def checkpoint_plan_for_fixture(
     generated_at_utc: datetime,
 ) -> list[FixtureCheckpointPlan]:
     policy = _v2_policy_for_legacy_checkpoint()
-    if policy is not None:
-        v2_plans = build_checkpoint_plans(
-            fixture_id=str(fixture_id),
-            competition_id=policy.competition_id,
-            season=policy.season,
-            kickoff_utc=kickoff_utc,
-            now=generated_at_utc,
-            policy=policy,
+    v2_plans = build_checkpoint_plans(
+        fixture_id=str(fixture_id),
+        competition_id=policy.competition_id,
+        season=policy.season,
+        kickoff_utc=kickoff_utc,
+        now=generated_at_utc,
+        policy=policy,
+    )
+    return [
+        FixtureCheckpointPlan(
+            fixture_id=item.fixture_id,
+            checkpoint=item.checkpoint,
+            kickoff_utc=item.kickoff_utc,
+            due_at_utc=item.scheduled_at,
+            endpoints=item.endpoints,
+            source="matchday_intake_v2_adapter",
+            status=item.status,
         )
-        return [
-            FixtureCheckpointPlan(
-                fixture_id=item.fixture_id,
-                checkpoint=item.checkpoint,
-                kickoff_utc=item.kickoff_utc,
-                due_at_utc=item.scheduled_at,
-                endpoints=item.endpoints,
-                source="matchday_intake_v2_adapter",
-                status=item.status,
-            )
-            for item in v2_plans
-        ]
-    kickoff = normalize_utc(kickoff_utc)
-    generated_at = normalize_utc(generated_at_utc)
-    if kickoff < generated_at - timedelta(hours=3):
-        return []
-    legacy_plans: list[FixtureCheckpointPlan] = []
-    for checkpoint, offset, endpoints in CHECKPOINT_OFFSETS:
-        due_at = kickoff + offset
-        legacy_plans.append(
-            FixtureCheckpointPlan(
-                fixture_id=str(fixture_id),
-                checkpoint=checkpoint,
-                kickoff_utc=kickoff,
-                due_at_utc=due_at,
-                endpoints=endpoints,
-            )
-        )
-    return legacy_plans
+        for item in v2_plans
+    ]
 
 
-def _v2_policy_for_legacy_checkpoint() -> MatchdayCompetitionPolicy | None:
+def _v2_policy_for_legacy_checkpoint() -> MatchdayCompetitionPolicy:
     try:
         policies = competition_policies(load_matchday_policy())
-    except (FileNotFoundError, ValueError, KeyError, TypeError):
-        return None
-    return policies.get("world_cup_2026") or next(iter(policies.values()), None)
+    except (FileNotFoundError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE") from exc
+    policy = policies.get("world_cup_2026")
+    if policy is None:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    return policy
 
 
 def checkpoint_plans_from_fixture_payloads(
@@ -160,16 +131,20 @@ def lineups_retry_plans(
     status = lineups_status.upper()
     if status not in {"PROVIDER_EMPTY", "MISSING_LINEUPS", "NOT_READY"}:
         return []
+    policy = _v2_policy_for_legacy_checkpoint()
+    lineup_checkpoints = [
+        item for item in policy.checkpoints if item.enabled and item.endpoints == ("lineups",)
+    ]
     kickoff = normalize_utc(kickoff_utc)
     current = normalize_utc(now)
     plans: list[FixtureCheckpointPlan] = []
-    for checkpoint, offset in LINEUPS_RETRY_CHECKPOINTS:
-        due_at = kickoff + offset
+    for checkpoint in lineup_checkpoints:
+        due_at = kickoff - timedelta(seconds=checkpoint.offset_seconds_before_kickoff)
         if current <= kickoff and current >= due_at - timedelta(minutes=5):
             plans.append(
                 FixtureCheckpointPlan(
                     fixture_id=str(fixture_id),
-                    checkpoint=checkpoint,
+                    checkpoint=checkpoint.name,
                     kickoff_utc=kickoff,
                     due_at_utc=due_at,
                     endpoints=("lineups",),

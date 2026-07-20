@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from w2.domain.recommendation_decision_v3 import RecommendationOutcomeV3
+from w2.strategy.market_selector import select_analysis_markets
 
 POLICY_VERSION = "w2.matchday_intake_policy.v2"
 MATCHDAY_FIXTURE_IDENTITY_VERSION = "MatchdayFixtureIdentityV1"
@@ -40,6 +41,16 @@ CANONICAL_OUTCOMES = {
     "FORMAL_RECOMMEND",
     "SYSTEM_DEGRADED",
 }
+REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
+    {
+        "world_cup_2026",
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    }
+)
+MANIFEST_HASH_EXCLUDED_FIELDS = frozenset({"manifest_hash", "audit"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -160,6 +171,14 @@ def load_matchday_policy(
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("version") != POLICY_VERSION:
         raise ValueError("MATCHDAY_POLICY_VERSION_INVALID")
+    competition_ids = {
+        str(item.get("competition_id"))
+        for item in _list(payload.get("competitions"))
+        if isinstance(item, Mapping)
+    }
+    missing = REQUIRED_MATCHDAY_COMPETITIONS - competition_ids
+    if missing:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE:" + ",".join(sorted(missing)))
     return dict(payload)
 
 
@@ -202,7 +221,20 @@ def competition_policies(payload: Mapping[str, Any]) -> dict[str, MatchdayCompet
                 str(k): str(v) for k, v in _mapping(item.get("feature_enrichment_policy")).items()
             },
         )
+    missing = REQUIRED_MATCHDAY_COMPETITIONS - set(output)
+    if missing:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE:" + ",".join(sorted(missing)))
     return output
+
+
+def require_competition_policy(
+    policies: Mapping[str, MatchdayCompetitionPolicy],
+    competition_id: str,
+) -> MatchdayCompetitionPolicy:
+    policy = policies.get(competition_id)
+    if policy is None or not policy.enabled:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    return policy
 
 
 def policy_fingerprint(path: Path = Path("config/policies/matchday_intake.v2.json")) -> str:
@@ -491,9 +523,15 @@ def endpoint_capture_contract(
     status_code: int,
     elapsed_ms: int,
     payload: Mapping[str, Any],
+    fixture_id: str | None = None,
+    checkpoint: str | None = None,
     quota_values: Mapping[str, Any] | None = None,
     provider_event_time: str | None = None,
 ) -> dict[str, Any]:
+    requested = normalize_utc(requested_at)
+    captured = normalize_utc(provider_captured_at)
+    if captured < requested - timedelta(minutes=10):
+        raise ValueError("CAPTURED_AT_BEFORE_REQUEST_WINDOW")
     response = payload.get("response")
     response_count = len(response) if isinstance(response, list) else 0
     raw_sha = stable_hash(payload)
@@ -503,12 +541,14 @@ def endpoint_capture_contract(
     sanitized = sanitize_params(params)
     capture = {
         "schema_version": MATCHDAY_ENDPOINT_CAPTURE_VERSION,
+        "fixture_id": fixture_id,
+        "checkpoint": checkpoint,
         "endpoint": endpoint,
         "sanitized_params": sanitized,
         "params_hash": stable_hash(sanitized),
         "request_task_key": request_task_key(endpoint, sanitized),
-        "requested_at": iso_z(requested_at),
-        "provider_captured_at": iso_z(provider_captured_at),
+        "requested_at": iso_z(requested),
+        "provider_captured_at": iso_z(captured),
         "status_code": status_code,
         "elapsed_ms": elapsed_ms,
         "response_count": response_count,
@@ -529,6 +569,7 @@ def normalize_matchday_odds_payload(
     ingested_at: datetime,
     raw_payload_sha256: str,
     source_revision: str,
+    capture_id: str,
     provider: str = "api_football",
     competition_id: str = "UNKNOWN",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -574,6 +615,7 @@ def normalize_matchday_odds_payload(
                         "bookmaker_id": bookmaker_id,
                         "bookmaker_name": bookmaker_name,
                         "capture_batch_id": raw_payload_sha256,
+                        "capture_id": capture_id,
                         "provider_bet_id": provider_bet_id,
                         "raw_market_label": raw_market,
                         "canonical_market": market,
@@ -601,7 +643,7 @@ def normalize_matchday_odds_payload(
                             "fixture_id": row["fixture_id"],
                             "provider": provider,
                             "bookmaker_id": bookmaker_id,
-                            "capture_batch_id": raw_payload_sha256,
+                            "capture_id": capture_id,
                             "market": market,
                             "selection": row["canonical_selection"],
                             "line": row["line"],
@@ -634,9 +676,14 @@ def market_batch_audit(
     joint_ready = []
     rejections = []
     freshness = {}
+    recommendation_max_age_seconds = min(max_age_seconds, 30 * 60)
     for key, rows in grouped.items():
         fixture_id, provider, bookmaker_id, batch_id = key
-        fresh = freshness_status(rows, evaluated_at=evaluated_at, max_age_seconds=max_age_seconds)
+        fresh = freshness_status(
+            rows,
+            evaluated_at=evaluated_at,
+            max_age_seconds=recommendation_max_age_seconds,
+        )
         for row in rows:
             freshness[str(row.get("observation_id"))] = fresh
         ah = _ah_pair(rows)
@@ -703,6 +750,8 @@ def market_batch_audit(
         "independent_candidates": [*ah_candidates, *ou_candidates],
         "rejections": rejections,
         "freshness": freshness,
+        "collection_refresh_max_age_seconds": max_age_seconds,
+        "recommendation_quote_max_age_seconds": recommendation_max_age_seconds,
     }
     payload["audit_hash"] = stable_hash(payload)
     return payload
@@ -734,6 +783,15 @@ def freshness_status(
         }
     captured = captures[0]
     age = int((normalize_utc(evaluated_at) - captured).total_seconds())
+    if age < 0:
+        return {
+            "freshness_status": "CONFLICT",
+            "captured_at": iso_z(captured),
+            "evaluated_at": iso_z(evaluated_at),
+            "age_seconds": age,
+            "max_age_seconds": max_age_seconds,
+            "error_code": "CAPTURED_AT_AFTER_EVALUATION",
+        }
     return {
         "freshness_status": "COMPLETE" if age <= max_age_seconds else "STALE",
         "captured_at": iso_z(captured),
@@ -846,18 +904,31 @@ def materialize_evidence_manifest(
             "model_evidence": payload["model_evidence"],
         }
     )
-    payload["manifest_hash"] = stable_hash(payload)
     payload["audit"] = {
         "input_manifest_hash": payload["input_manifest_hash"],
-        "manifest_hash": payload["manifest_hash"],
         "source_refs": {
             "endpoint_capture_hashes": [
                 capture.get("raw_payload_sha256") for capture in endpoint_captures
             ],
         },
     }
-    payload["manifest_hash"] = stable_hash(payload)
+    payload["manifest_hash"] = canonical_manifest_hash(payload)
+    payload["audit"]["manifest_hash"] = payload["manifest_hash"]
     return payload
+
+
+def canonical_manifest_hash(manifest: Mapping[str, Any]) -> str:
+    return stable_hash(
+        {key: value for key, value in manifest.items() if key not in MANIFEST_HASH_EXCLUDED_FIELDS}
+    )
+
+
+def validate_manifest_identity(manifest: Mapping[str, Any]) -> str:
+    expected = canonical_manifest_hash(manifest)
+    audit_hash = _mapping(manifest.get("audit")).get("manifest_hash")
+    if manifest.get("manifest_hash") != expected or audit_hash != expected:
+        raise ValueError("MANIFEST_IDENTITY_CONFLICT")
+    return expected
 
 
 def v3_decision_from_matchday(
@@ -868,6 +939,7 @@ def v3_decision_from_matchday(
     movement: Mapping[str, Any],
     as_of: datetime,
 ) -> dict[str, Any]:
+    selected_candidate = _selected_analysis_candidate(market_audit)
     if market_audit.get("integrity_status") == "CONFLICT":
         outcome = RecommendationOutcomeV3.SYSTEM_DEGRADED
         reason = "INTEGRITY_CONFLICT"
@@ -877,7 +949,7 @@ def v3_decision_from_matchday(
     elif not market_audit.get("independent_candidates"):
         outcome = RecommendationOutcomeV3.NOT_READY
         reason = "CURRENT_QUOTE_MISSING"
-    elif _selected_candidate_stale(market_audit):
+    elif _selected_candidate_stale(selected_candidate):
         outcome = RecommendationOutcomeV3.NOT_READY
         reason = "CURRENT_QUOTE_STALE"
     elif model_evidence.get("status") != "COMPLETE":
@@ -886,12 +958,13 @@ def v3_decision_from_matchday(
     elif not _truthy(_mapping(model_evidence.get("comparison")).get("analysis_direction_allowed")):
         outcome = RecommendationOutcomeV3.NO_EDGE
         reason = "NO_ANALYSIS_EDGE"
+    elif selected_candidate is None:
+        outcome = RecommendationOutcomeV3.NO_EDGE
+        reason = "NO_ANALYSIS_EDGE"
     else:
         outcome = RecommendationOutcomeV3.ANALYSIS_PICK
         reason = "ANALYSIS_ONLY"
-    selected = (
-        _first_candidate(market_audit) if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else None
-    )
+    selected = selected_candidate if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else None
     if outcome is RecommendationOutcomeV3.FORMAL_RECOMMEND:
         raise AssertionError("FORMAL_RECOMMEND_DISABLED_FOR_MATCHDAY_INTAKE_V2")
     warnings = []
@@ -905,7 +978,7 @@ def v3_decision_from_matchday(
         "outcome": outcome.value,
         "reason": reason,
         "next_action": "MONITOR" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "WAIT",
-        "evaluated_candidate": _first_candidate(market_audit),
+        "evaluated_candidate": selected_candidate,
         "selected_candidate": selected,
         "formal_readiness": False,
         "capability_status": "ANALYSIS_ONLY",
@@ -939,9 +1012,9 @@ def execute_matchday_intake(
                 endpoint=str(payload.get("endpoint", "fixtures")),
                 params=_mapping(payload.get("params")),
                 requested_at=parse_utc(payload.get("requested_at"))
-                or datetime(2026, 1, 1, tzinfo=UTC),
+                or _raise_invalid_replay_time("INVALID_REQUESTED_AT"),
                 provider_captured_at=parse_utc(payload.get("captured_at"))
-                or datetime(2026, 1, 1, tzinfo=UTC),
+                or _raise_invalid_replay_time("INVALID_CAPTURED_AT"),
                 status_code=int(payload.get("status_code", 200)),
                 elapsed_ms=int(payload.get("elapsed_ms", 0)),
                 payload=_mapping(payload.get("payload")),
@@ -986,6 +1059,10 @@ def execute_matchday_intake(
 
 def public_manifest_read(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return {"provider_calls": 0, "db_writes": 0, "manifest": dict(manifest)}
+
+
+def _raise_invalid_replay_time(code: str) -> datetime:
+    raise ValueError(code)
 
 
 def stable_hash(payload: Any) -> str:
@@ -1216,15 +1293,40 @@ def _dedupe_observations(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
     return [seen[key] for key in sorted(seen)]
 
 
-def _selected_candidate_stale(market_audit: Mapping[str, Any]) -> bool:
-    candidate = _first_candidate(market_audit)
+def _selected_candidate_stale(candidate: Mapping[str, Any] | None) -> bool:
     fresh = _mapping(candidate.get("freshness")) if candidate else {}
     return fresh.get("freshness_status") in {"STALE", "INCOMPLETE", "CONFLICT"}
 
 
-def _first_candidate(market_audit: Mapping[str, Any]) -> dict[str, Any] | None:
+def _selected_analysis_candidate(market_audit: Mapping[str, Any]) -> dict[str, Any] | None:
     candidates = _list(market_audit.get("independent_candidates"))
-    return dict(candidates[0]) if candidates else None
+    selectable = []
+    for item in candidates:
+        if not isinstance(item, Mapping):
+            continue
+        fresh = _mapping(item.get("freshness"))
+        score = 1.0 if str(fresh.get("freshness_status")) == "COMPLETE" else 0.0
+        selectable.append(
+            {
+                **dict(item),
+                "decision": "ANALYSIS_PICK" if score > 0 else "SKIP",
+                "decision_score": score,
+                "signal_strength": score,
+                "line_status": "READY" if score > 0 else "STALE",
+                "market_candidate": True,
+                "calibration_error": 0.0,
+                "quote_age_seconds": fresh.get("age_seconds") or 0,
+                "bookmaker_count": 1,
+                "calibration_comparable": True,
+            }
+        )
+    selection = select_analysis_markets(selectable)
+    if selection.primary_market is None:
+        return None
+    for item in selectable:
+        if item.get("market") == selection.primary_market:
+            return item
+    return None
 
 
 def _lineup_response_status(response: Sequence[Any]) -> str:

@@ -26,13 +26,21 @@ def test_generates_kickoff_aware_controlled_ticks() -> None:
         policy=MatchdayRefreshPolicy(),
     )
 
-    assert [tick.label for tick in ticks] == ["T_24H", "T_3H", "T_90M", "T_30M", "T_15M"]
+    assert [tick.label for tick in ticks] == [
+        "T24_ODDS",
+        "T6_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T30_FINAL_PREMATCH",
+    ]
     assert [tick.offset_seconds_before_kickoff for tick in ticks] == [
         24 * 60 * 60,
-        3 * 60 * 60,
-        90 * 60,
+        6 * 60 * 60,
+        60 * 60,
+        45 * 60,
         30 * 60,
-        15 * 60,
+        30 * 60,
     ]
     assert all(tick.scheduled_at >= AS_OF for tick in ticks)
 
@@ -79,9 +87,7 @@ def test_projected_calls_for_nine_fixtures_stays_under_default_cap() -> None:
         [f"fixture-{index}" for index in range(9)],
         ("status", "fixtures", "odds", "lineups", "statistics"),
     )
-    tick = build_matchday_refresh_plan(_fixtures(9), as_of=AS_OF, policy=MatchdayRefreshPolicy())[
-        0
-    ]
+    tick = build_matchday_refresh_plan(_fixtures(9), as_of=AS_OF, policy=MatchdayRefreshPolicy())[0]
 
     assert calls == {"status": 1, "fixtures": 1, "odds": 9, "lineups": 9}
     assert tick.projected_calls == 20

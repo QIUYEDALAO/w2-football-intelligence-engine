@@ -2,27 +2,23 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from w2.matchday.intake_v2 import POLICY_VERSION as MATCHDAY_INTAKE_POLICY_VERSION
+from w2.matchday.intake_v2 import competition_policies, load_matchday_policy
 
 AUTHORIZED_MATCHDAY_ENDPOINTS = frozenset({"status", "fixtures", "odds", "lineups"})
 MATCHDAY_SCHEDULE_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
-DEFAULT_TICK_OFFSETS: tuple[tuple[str, int], ...] = (
-    ("T_24H", 24 * 60 * 60),
-    ("T_3H", 3 * 60 * 60),
-    ("T_90M", 90 * 60),
-    ("T_30M", 30 * 60),
-    ("T_15M", 15 * 60),
-)
 PROVIDER_REFRESH_BUDGET_TOO_HIGH = "PROVIDER_REFRESH_BUDGET_TOO_HIGH"
 
 
 @dataclass(frozen=True)
 class MatchdayRefreshPolicy:
-    tick_offsets: tuple[tuple[str, int], ...] = DEFAULT_TICK_OFFSETS
+    tick_offsets: tuple[tuple[str, int], ...] = field(
+        default_factory=lambda: canonical_tick_offsets()
+    )
     allowed_endpoints: tuple[str, ...] = ("status", "fixtures", "odds", "lineups")
     tick_hard_cap: int = 30
     min_interval_seconds: int = 900
@@ -31,6 +27,18 @@ class MatchdayRefreshPolicy:
     @property
     def effective_min_interval_seconds(self) -> int:
         return max(int(self.min_interval_seconds), 900)
+
+
+def canonical_tick_offsets(competition_id: str = "world_cup_2026") -> tuple[tuple[str, int], ...]:
+    policies = competition_policies(load_matchday_policy())
+    policy = policies.get(competition_id)
+    if policy is None:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    return tuple(
+        (item.name, item.offset_seconds_before_kickoff)
+        for item in policy.checkpoints
+        if item.enabled
+    )
 
 
 @dataclass(frozen=True)

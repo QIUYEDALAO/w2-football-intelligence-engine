@@ -228,9 +228,7 @@ def test_odds_payload_does_not_put_half_or_card_handicap_into_full_time_ah_pool(
     assert {row["raw_market_label"] for row in full_time_ah_rows} == {"Asian Handicap"}
     assert {row["line"] for row in full_time_ah_rows} == {"-1.25", "+1.25"}
     assert {
-        row["canonical_market"]
-        for row in rows
-        if row["raw_market_label"] != "Asian Handicap"
+        row["canonical_market"] for row in rows if row["raw_market_label"] != "Asian Handicap"
     } == {"ASIAN_HANDICAP_FIRST_HALF", "CARDS_ASIAN_HANDICAP"}
 
 
@@ -326,15 +324,11 @@ def test_unchanged_odds_reobserved_later_get_new_append_only_capture_identity() 
         raw_payload_sha256="same-payload",
     )
 
-    assert [row["observation_id"] for row in replay] == [
-        row["observation_id"] for row in first
-    ]
+    assert [row["observation_id"] for row in replay] == [row["observation_id"] for row in first]
     assert {row["observation_id"] for row in first}.isdisjoint(
         row["observation_id"] for row in confirmed
     )
-    assert {row["captured_at"] for row in first} == {
-        NOW.isoformat().replace("+00:00", "Z")
-    }
+    assert {row["captured_at"] for row in first} == {NOW.isoformat().replace("+00:00", "Z")}
     assert {row["captured_at"] for row in confirmed} == {
         confirmed_at.isoformat().replace("+00:00", "Z")
     }
@@ -406,9 +400,7 @@ def test_unchanged_ah_odds_later_confirmation_restores_complete_freshness() -> N
     confirmed_freshness = freshness(confirmed_rows)
     assert confirmed_freshness["freshness_status"] == "COMPLETE"
     assert confirmed_freshness["age_seconds"] == 60
-    assert {row["raw_payload_sha256"] for row in confirmed_rows} == {
-        "same-payload-hash"
-    }
+    assert {row["raw_payload_sha256"] for row in confirmed_rows} == {"same-payload-hash"}
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):
@@ -824,12 +816,10 @@ def test_future_refresh_endpoint_allowlist_skips_unauthorized_enrichment(
     ]
     assert result.feature_enrichment_payload_count == 1
     assert any(
-        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:statistics"
-        for item in audit["requests"]
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:statistics" for item in audit["requests"]
     )
     assert any(
-        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:injuries"
-        for item in audit["requests"]
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:injuries" for item in audit["requests"]
     )
 
 
@@ -1046,7 +1036,7 @@ def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> 
     assert config.daily_hard_cap == 120
     assert config.daily_reserve == 0
     assert config.request_budget == 30
-    assert config.checkpoint_mode == "world_cup_three_checkpoint"
+    assert config.checkpoint_mode == "matchday_intake_v2_compatibility"
     assert config.trickle_backfill_daily_budget == 0
 
 
@@ -1160,9 +1150,7 @@ def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
         refresh_checkpoints=(checkpoint,),
         materialize_public_artifacts=fail_materialization,
     )
-    refresh_audit = json.loads(
-        (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
-    )
+    refresh_audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
 
     assert audit.status == "BLOCKED"
     assert audit.result["blockers"] == ["RuntimeError"]

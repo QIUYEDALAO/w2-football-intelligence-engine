@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CoverageProfile
+from w2.data_assets.registry import build_football_data_registry
 from w2.features.framework import FeatureContext
 from w2.features.team_factors import TeamMatchHistory, recent_ah_cover_factor
 from w2.historical.fah_repository import FahDataFoundationRepository
@@ -63,7 +64,7 @@ def _registry(path: Path, *, local_path: str, **overrides: object) -> Path:
                 "canonical_bookmaker_policy": {"type": "SINGLE_BOOK_SOURCE"},
                 **overrides,
             }
-        ]
+        ],
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -665,9 +666,7 @@ def test_fah_repository_writes_idempotently_and_rolls_back_conflicts() -> None:
 
     first = repository.write_team_crosswalks([row])
     second = repository.write_team_crosswalks([row])
-    conflict = repository.write_team_crosswalks(
-        [{**row, "transfermarkt_club_id": "club-2"}]
-    )
+    conflict = repository.write_team_crosswalks([{**row, "transfermarkt_club_id": "club-2"}])
 
     with Session(engine) as session:
         count = len(session.scalars(select(TeamIdentityCrosswalkModel)).all())
@@ -750,24 +749,122 @@ def test_fah_repository_import_and_query_authorities() -> None:
         as_of=datetime(2024, 6, 1, tzinfo=UTC),
     )
     assert facts[0]["canonical_key"] == fact["canonical_key"]
-    assert repository.team_crosswalk_at(
-        api_football_team_id="1",
-        competition_id="allsvenskan",
-        as_of=AS_OF,
-    )["crosswalk_hash"] == team.crosswalk_hash
-    assert len(
-        repository.player_crosswalks_for_roster(
+    assert (
+        repository.team_crosswalk_at(
             api_football_team_id="1",
             competition_id="allsvenskan",
             as_of=AS_OF,
+        )["crosswalk_hash"]
+        == team.crosswalk_hash
+    )
+    assert (
+        len(
+            repository.player_crosswalks_for_roster(
+                api_football_team_id="1",
+                competition_id="allsvenskan",
+                as_of=AS_OF,
+            )
         )
-    ) == 1
+        == 1
+    )
     assert len(repository.registered_roster_at(transfermarkt_club_id="club-1", as_of=AS_OF)) == 1
 
     with Session(engine) as session:
         assert len(session.scalars(select(CanonicalHistoricalAhFactModel)).all()) == 1
         assert len(session.scalars(select(PlayerIdentityCrosswalkModel)).all()) == 1
         assert len(session.scalars(select(RegisteredRosterSnapshotModel)).all()) == 1
+
+
+def test_f5_runtime_query_requires_approved_mapping_and_returns_canonical_rows() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    source_root = _source_root_for_repo_test()
+    fact = build_canonical_ah_facts(
+        source_root=source_root,
+        registry_path=source_root / "registry.json",
+    )["facts"][0]
+    team, _player = _approved_player_crosswalk()
+    repository.import_source_snapshots(
+        [
+            {
+                "source_id": "src-1",
+                "provider": "local-approved",
+                "schema_version": "test.v1",
+                "snapshot_semantics": "CAPTURED_AT",
+                "canonical_bookmaker_policy": {"type": "SINGLE_BOOK_SOURCE"},
+                "object_uri": "approved.csv",
+                "sha256": fact["source_sha256"],
+                "license_status": "APPROVED",
+                "row_count": 2,
+            }
+        ]
+    )
+    repository.import_canonical_ah_facts([fact])
+    assert (
+        repository.canonical_f5_team_history(
+            team_ids=["home-1"],
+            competition_id="allsvenskan",
+            before=datetime(2024, 6, 1, tzinfo=UTC),
+        )["status"]
+        == "W2_RUNTIME_F5_NOT_READY"
+    )
+
+    repository.import_team_crosswalks([{**team.as_dict(), "api_football_team_id": "home-1"}])
+    result = repository.canonical_f5_team_history(
+        team_ids=["home-1"],
+        competition_id="allsvenskan",
+        before=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+
+    assert result["status"] == "W2_RUNTIME_F5_READY"
+    assert result["rows"][0]["canonical_key"] == fact["canonical_key"]
+
+
+def test_f8_authority_keeps_static_or_unreviewed_values_out_of_formal() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    repository.write_team_value_artifacts(
+        [
+            {
+                "team_external_id": "1",
+                "transfermarkt_club_id": "club-1",
+                "competition_id": "allsvenskan",
+                "as_of": "2024-05-02T00:00:00Z",
+                "status": "READY",
+                "review_status": "REVIEW_REQUIRED",
+                "artifact_hash": "d" * 64,
+            }
+        ]
+    )
+
+    result = repository.f8_authority_at(
+        team_external_id="1",
+        competition_id="allsvenskan",
+        as_of=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+
+    assert result["authority"] == "TeamValueAsOfArtifactModel"
+    assert result["status"] == "INCOMPLETE"
+    assert result["formal_eligible"] is False
+
+
+def test_data_asset_registry_uses_aliases_and_backup_missing_is_external_blocker(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "football-data"
+    _write_csv(data_root / "sample.csv", [{"A": 1, "B": 2}])
+
+    registry = build_football_data_registry(
+        data_root=data_root, now=datetime(2026, 7, 20, tzinfo=UTC)
+    )
+    payload = registry.as_dict()
+    text = json.dumps(payload, sort_keys=True)
+
+    assert payload["private_storage_location_alias"] == "$W2_FOOTBALL_DATA_ROOT"
+    assert str(data_root) not in text
+    assert "BACKUP_LOCATION_REQUIRED" in payload["blockers"]
 
 
 def _source_root_for_repo_test() -> Path:

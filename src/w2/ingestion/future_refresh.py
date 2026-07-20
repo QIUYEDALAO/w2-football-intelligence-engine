@@ -95,7 +95,7 @@ class FutureRefreshConfig:
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
     daily_usage_scope: str = "w2_ledger"
-    checkpoint_mode: str = "world_cup_three_checkpoint"
+    checkpoint_mode: str = "matchday_intake_v2_compatibility"
     trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
@@ -264,7 +264,7 @@ def load_refresh_policy(
             daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
             daily_reserve=int(item.get("daily_reserve", quota_reserve)),
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
-            checkpoint_mode=str(item.get("checkpoint_mode", "legacy_full_checkpoint")),
+            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_intake_v2_compatibility")),
             trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
         )
     raise FutureRefreshError("FUTURE_REFRESH_COMPETITION_NOT_REGISTERED")
@@ -326,9 +326,7 @@ class RefreshSingletonLock:
         if redis_client is not None:
             self._backend = "redis"
             try:
-                return bool(
-                    redis_client.set(self.key, self.owner, nx=True, ex=self.ttl_seconds)
-                )
+                return bool(redis_client.set(self.key, self.owner, nx=True, ex=self.ttl_seconds))
             except RedisError:
                 return False
         current = now or utc_now()
@@ -664,9 +662,7 @@ class FutureFixtureRefreshService:
     def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
         base = {"status", "fixtures", "odds"}
         enrichment = (
-            set(config.feature_enrichment_endpoints)
-            if config.feature_enrichment_enabled
-            else set()
+            set(config.feature_enrichment_endpoints) if config.feature_enrichment_enabled else set()
         )
         configured = base | (enrichment & {"statistics", "lineups", "injuries"})
         return frozenset(configured & set(provider_endpoint_allowlist()))
@@ -873,6 +869,12 @@ class FutureFixtureRefreshService:
                 payload_hash=payload_sha,
                 payload=raw_payload,
             )
+            endpoint_capture_id, endpoint_capture_error = self._persist_matchday_endpoint_capture(
+                endpoint=endpoint,
+                params=params,
+                response=response,
+                payload=raw_payload,
+            )
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -893,6 +895,8 @@ class FutureFixtureRefreshService:
                     "payload_sha256": payload_sha,
                     "raw_payload_persisted": raw_payload_persisted,
                     "raw_payload_error": raw_payload_error,
+                    "matchday_endpoint_capture_id": endpoint_capture_id,
+                    "matchday_endpoint_capture_error": endpoint_capture_error,
                     "diagnostic_code": self._diagnostic_code_for_response(
                         endpoint=endpoint,
                         response_count=response_size,
@@ -921,6 +925,60 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
+
+    def _persist_matchday_endpoint_capture(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        response: LiveApiFootballResponse,
+        payload: dict[str, Any],
+    ) -> tuple[str | None, str | None]:
+        if self.config.persistence != "db":
+            return None, "NON_DB_PERSISTENCE"
+        try:
+            from w2.matchday.intake_v2 import endpoint_capture_contract
+            from w2.matchday.repository import MatchdayRuntimeRepository
+
+            fixture_id = str(params.get("fixture") or "") or None
+            quota = parse_api_football_quota(
+                headers=response.headers,
+                payload=response.payload,
+                observed_at=response.captured_at,
+            )
+            capture = endpoint_capture_contract(
+                endpoint=endpoint,
+                params=params,
+                requested_at=response.captured_at,
+                provider_captured_at=response.captured_at,
+                status_code=response.status_code,
+                elapsed_ms=response.elapsed_ms,
+                payload=payload,
+                fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
+                checkpoint=self._checkpoint_for_fixture(fixture_id),
+                quota_values={
+                    "daily_remaining": quota.daily_remaining,
+                    "daily_limit": quota.daily_limit,
+                    "burst_remaining": quota.burst_remaining,
+                    "observed_at": iso(quota.observed_at),
+                    "daily_source": quota.daily_source,
+                    "daily_limit_source": quota.daily_limit_source,
+                    "burst_source": quota.burst_source,
+                },
+            )
+            MatchdayRuntimeRepository().insert_endpoint_capture(capture)
+            return str(capture["capture_id"]), None
+        except Exception as exc:
+            return None, exc.__class__.__name__
+
+    def _checkpoint_for_fixture(self, fixture_id: str | None) -> str | None:
+        if not fixture_id:
+            return None
+        for item in self.config.refresh_checkpoints:
+            raw = str(item.get("fixture_id") or "")
+            if raw == fixture_id or raw == f"api_football:{fixture_id}":
+                return str(item.get("checkpoint") or "") or None
+        return None
 
     def _save_raw_payload_first(
         self,
@@ -1164,9 +1222,7 @@ class FutureFixtureRefreshService:
             return []
         allowed = {"statistics", "lineups", "injuries"}
         endpoints = [
-            endpoint
-            for endpoint in self.config.feature_enrichment_endpoints
-            if endpoint in allowed
+            endpoint for endpoint in self.config.feature_enrichment_endpoints if endpoint in allowed
         ]
         if not endpoints:
             return []
@@ -1554,9 +1610,7 @@ def run_future_fixture_refresh(
         config = replace(config, persistence=persistence)
     if checkpoint_fixture_ids or refresh_checkpoints:
         lineups_count = sum(
-            1
-            for item in refresh_checkpoints
-            if "lineups" in set(item.get("endpoints") or [])
+            1 for item in refresh_checkpoints if "lineups" in set(item.get("endpoints") or [])
         )
         config = replace(
             config,
@@ -1564,9 +1618,7 @@ def run_future_fixture_refresh(
             refresh_checkpoints=tuple(refresh_checkpoints),
             max_fixture_candidates=max(len(set(checkpoint_fixture_ids)), 1),
             max_odds_requests=sum(
-                1
-                for item in refresh_checkpoints
-                if "odds" in set(item.get("endpoints") or [])
+                1 for item in refresh_checkpoints if "odds" in set(item.get("endpoints") or [])
             ),
             feature_enrichment_enabled=lineups_count > 0,
             feature_enrichment_endpoints=("lineups",),

@@ -68,7 +68,14 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     assert fixture["decision_tier"] == DecisionTier.NOT_READY.value
     assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
     assert fixture["decision_contract"]["outcome_tracked"] is False  # type: ignore[index]
-    assert {"T_24H", "T_3H", "T_90M", "T_30M", "T_15M"}.issubset(labels)
+    assert {
+        "T24_ODDS",
+        "T6_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T30_FINAL_PREMATCH",
+    }.issubset(labels)
     assert refresh["endpoint_allowlist"] == ["status", "fixtures", "odds", "lineups"]  # type: ignore[index]
     assert refresh["skipped_endpoints"] == ["statistics"]  # type: ignore[index]
     assert payload["next_refresh_tick"] is not None
