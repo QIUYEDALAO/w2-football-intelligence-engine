@@ -655,6 +655,7 @@ class FutureFixtureRefreshService:
         self._raw_payload_written: set[str] = set()
         self._raw_payload_written_count = 0
         self._feature_enrichment_batch_count = 0
+        self._matchday_capture_by_payload: dict[str, dict[str, Any]] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -869,12 +870,22 @@ class FutureFixtureRefreshService:
                 payload_hash=payload_sha,
                 payload=raw_payload,
             )
+            if not raw_payload_persisted:
+                raise FutureRefreshError(f"RAW_PAYLOAD_WRITE_FAILED:{raw_payload_error}")
             endpoint_capture_id, endpoint_capture_error = self._persist_matchday_endpoint_capture(
                 endpoint=endpoint,
                 params=params,
+                attempt=attempt,
                 response=response,
                 payload=raw_payload,
             )
+            if (
+                self.config.persistence == "db"
+                and (endpoint_capture_error is not None or endpoint_capture_id is None)
+            ):
+                raise FutureRefreshError(
+                    f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}"
+                )
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -931,6 +942,7 @@ class FutureFixtureRefreshService:
         *,
         endpoint: str,
         params: dict[str, str],
+        attempt: int,
         response: LiveApiFootballResponse,
         payload: dict[str, Any],
     ) -> tuple[str | None, str | None]:
@@ -949,13 +961,15 @@ class FutureFixtureRefreshService:
             capture = endpoint_capture_contract(
                 endpoint=endpoint,
                 params=params,
-                requested_at=response.captured_at,
+                requested_at=response.requested_at or response.captured_at,
                 provider_captured_at=response.captured_at,
                 status_code=response.status_code,
                 elapsed_ms=response.elapsed_ms,
                 payload=payload,
                 fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
+                competition_id=self.config.competition_id,
                 checkpoint=self._checkpoint_for_fixture(fixture_id),
+                attempt=attempt,
                 quota_values={
                     "daily_remaining": quota.daily_remaining,
                     "daily_limit": quota.daily_limit,
@@ -967,9 +981,10 @@ class FutureFixtureRefreshService:
                 },
             )
             MatchdayRuntimeRepository().insert_endpoint_capture(capture)
+            self._matchday_capture_by_payload[str(capture["raw_payload_sha256"])] = capture
             return str(capture["capture_id"]), None
         except Exception as exc:
-            return None, exc.__class__.__name__
+            raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{exc}") from exc
 
     def _checkpoint_for_fixture(self, fixture_id: str | None) -> str | None:
         if not fixture_id:
@@ -1377,27 +1392,45 @@ class FutureFixtureRefreshService:
         enrichment_responses: list[tuple[str, str, int]],
         blockers: list[str],
     ) -> FutureRefreshResult:
-        repository = self._db_repository()
         try:
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
-                observations.extend(
-                    observations_from_odds_payload(
-                        fixture_id=fixture_id,
-                        payload=response.payload,
-                        response=response,
-                        source_revision=self.config.source_revision,
-                        raw_payload_sha256=self._request_payload_hash(
-                            endpoint="odds",
-                            params={"fixture": fixture_id},
-                            payload=response.payload,
-                        ),
-                    )
+                from w2.matchday.intake_v2 import normalize_matchday_odds_payload
+                from w2.matchday.repository import MatchdayRuntimeRepository
+
+                raw_record = self._raw_payload_record(
+                    endpoint="odds",
+                    params={"fixture": fixture_id},
+                    payload=response.payload,
                 )
-            appended = repository.append_observations(observations)
-            latest_rows = repository.latest_market_observations_for_fixtures(
-                [fixture_id for fixture_id, _response in odds_responses]
-            )
+                raw_sha = sha256_payload(raw_record)
+                capture = self._matchday_capture_by_payload.get(raw_sha)
+                if capture is None:
+                    raise FutureRefreshError("ENDPOINT_CAPTURE_REQUIRED_BEFORE_NORMALIZATION")
+                rows, rejections = normalize_matchday_odds_payload(
+                    response.payload,
+                    captured_at=response.captured_at,
+                    ingested_at=utc_now(),
+                    raw_payload_sha256=raw_sha,
+                    source_revision=self.config.source_revision,
+                    capture_id=str(capture["capture_id"]),
+                    competition_id=self.config.competition_id,
+                )
+                if any(
+                    item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT"
+                    for item in rejections
+                ):
+                    raise FutureRefreshError("OBSERVATION_NORMALIZATION_CONFLICT")
+                observations.extend(rows)
+            appended = MatchdayRuntimeRepository().insert_market_observations(observations)
+            latest_rows = [
+                {
+                    **row,
+                    "fixture_id": str(row.get("provider_fixture_id") or row.get("fixture_id")),
+                    "selection": row.get("canonical_selection"),
+                }
+                for row in observations
+            ]
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         mappings = [self._mapping_from_fixture(item) for item in fixtures]

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from w2.historical.formal_ah import parse_utc, stable_hash
 from w2.infrastructure.persistence.models import (
     CanonicalHistoricalAhFactModel,
+    FootballDataTeamCrosswalkModel,
     HistoricalMarketSourceSnapshotModel,
     PlayerClubMembershipObservationModel,
     PlayerIdentityCrosswalkModel,
@@ -100,6 +101,19 @@ class FahDataFoundationRepository:
 
     write_team_value_artifacts = import_team_value_artifacts
 
+    def import_football_data_team_crosswalks(
+        self,
+        rows: Iterable[Mapping[str, Any]],
+    ) -> FahWriteSummary:
+        return self._write(
+            rows,
+            model=FootballDataTeamCrosswalkModel,
+            hash_key="crosswalk_hash",
+            natural_key=_football_data_team_crosswalk_identity,
+            factory=_football_data_team_crosswalk_model,
+            identity_fields=("football_data_source_identity", "competition_id", "valid_from"),
+        )
+
     def import_canonical_ah_facts(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -173,23 +187,36 @@ class FahDataFoundationRepository:
         phase_policy: str = "CLOSING",
         limit: int = 10,
     ) -> dict[str, Any]:
-        requested_team_ids = {str(item) for item in team_ids}
-        approved = {
-            str(team_id)
-            for team_id in requested_team_ids
-            if self.team_crosswalk_at(
+        requested_api_team_ids = {str(item) for item in team_ids}
+        api_to_w2 = {
+            team_id: str(mapping.get("w2_team_id") or mapping.get("transfermarkt_club_id"))
+            for team_id in requested_api_team_ids
+            if (
+                mapping := self.team_crosswalk_at(
                 api_football_team_id=str(team_id),
                 competition_id=competition_id,
                 as_of=before,
+                )
             )
             is not None
         }
-        if not approved:
+        approved_w2_ids = {value for value in api_to_w2.values() if value}
+        football_data_crosswalks = self.football_data_crosswalks_for_w2_teams(
+            w2_team_ids=approved_w2_ids,
+            competition_id=competition_id,
+            as_of=before,
+        )
+        approved_source_ids = {
+            str(item["football_data_source_identity"]) for item in football_data_crosswalks
+        }
+        if not approved_w2_ids or not approved_source_ids:
             return {
                 "status": "W2_RUNTIME_F5_NOT_READY",
                 "team_mapping_status": "TEAM_MAPPING_PARTIAL",
+                "api_to_w2_approved_count": len(api_to_w2),
+                "football_data_to_w2_approved_count": len(football_data_crosswalks),
                 "rows": [],
-                "missing_team_ids": sorted(requested_team_ids),
+                "missing_team_ids": sorted(requested_api_team_ids - set(api_to_w2)),
             }
         with Session(self.engine) as session:
             rows = list(
@@ -205,23 +232,31 @@ class FahDataFoundationRepository:
         filtered = [
             dict(row.payload)
             for row in rows
-            if (row.home_team_provider_id in approved or row.away_team_provider_id in approved)
+            if (
+                row.home_team_provider_id in approved_source_ids
+                or row.away_team_provider_id in approved_source_ids
+            )
             and str(dict(row.payload).get("phase") or phase_policy).upper() == phase_policy.upper()
         ][: max(limit, 0)]
         status = (
             "W2_RUNTIME_F5_READY"
-            if filtered and len(approved) == len(requested_team_ids)
+            if filtered
+            and len(api_to_w2) == len(requested_api_team_ids)
+            and len(football_data_crosswalks) >= len(approved_w2_ids)
             else "W2_RUNTIME_F5_PARTIAL"
         )
         return {
             "status": status,
             "team_mapping_status": "APPROVED"
-            if len(approved) == len(requested_team_ids)
+            if len(api_to_w2) == len(requested_api_team_ids)
+            and len(football_data_crosswalks) >= len(approved_w2_ids)
             else "TEAM_MAPPING_PARTIAL",
+            "api_to_w2_approved_count": len(api_to_w2),
+            "football_data_to_w2_approved_count": len(football_data_crosswalks),
             "phase_policy": phase_policy,
             "limit": limit,
             "rows": filtered,
-            "missing_team_ids": sorted(requested_team_ids - approved),
+            "missing_team_ids": sorted(requested_api_team_ids - set(api_to_w2)),
         }
 
     def team_crosswalk_at(
@@ -241,7 +276,36 @@ class FahDataFoundationRepository:
                 )
             ).all()
         valid = [row for row in rows if row.valid_to is None or as_of < row.valid_to]
-        return dict(valid[-1].payload) if len(valid) == 1 else None
+        if len(valid) != 1:
+            return None
+        payload = dict(valid[-1].payload)
+        payload.setdefault("w2_team_id", valid[-1].transfermarkt_club_id)
+        return payload
+
+    def football_data_crosswalks_for_w2_teams(
+        self,
+        *,
+        w2_team_ids: Iterable[str],
+        competition_id: str,
+        as_of: datetime,
+    ) -> list[dict[str, Any]]:
+        teams = {str(item) for item in w2_team_ids if str(item)}
+        if not teams:
+            return []
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(FootballDataTeamCrosswalkModel).where(
+                    FootballDataTeamCrosswalkModel.competition_id == competition_id,
+                    FootballDataTeamCrosswalkModel.review_status == "APPROVED",
+                    FootballDataTeamCrosswalkModel.valid_from <= as_of,
+                )
+            ).all()
+        valid = [
+            row
+            for row in rows
+            if row.w2_team_id in teams and (row.valid_to is None or as_of < row.valid_to)
+        ]
+        return [dict(row.payload) for row in valid]
 
     def player_crosswalks_for_roster(
         self,
@@ -318,12 +382,13 @@ class FahDataFoundationRepository:
                 "authority": "TeamValueAsOfArtifactModel",
                 "blockers": ["F8_DATA_INCOMPLETE"],
             }
-        if artifact.get("review_status") != "APPROVED":
+        blockers = _f8_blockers(artifact, as_of=as_of)
+        if blockers:
             return {
                 "status": "INCOMPLETE",
                 "formal_eligible": False,
                 "authority": "TeamValueAsOfArtifactModel",
-                "blockers": ["TEAM_CROSSWALK_REVIEW_REQUIRED"],
+                "blockers": blockers,
                 "artifact": artifact,
             }
         return {
@@ -531,6 +596,32 @@ def _team_value_model(row: Mapping[str, Any]) -> TeamValueAsOfArtifactModel:
     )
 
 
+def _football_data_team_crosswalk_model(row: Mapping[str, Any]) -> FootballDataTeamCrosswalkModel:
+    payload = dict(row)
+    crosswalk_hash = str(row.get("crosswalk_hash") or stable_hash(_football_data_team_payload(row)))
+    payload.setdefault("schema_version", "FootballDataTeamCrosswalkV1")
+    payload.setdefault("crosswalk_hash", crosswalk_hash)
+    return FootballDataTeamCrosswalkModel(
+        football_data_source_identity=str(row.get("football_data_source_identity") or ""),
+        football_data_team_name=str(row.get("football_data_team_name") or ""),
+        league=str(row.get("league") or row.get("competition_id") or ""),
+        competition_id=str(row.get("competition_id") or ""),
+        season_coverage=[str(item) for item in _list(row.get("season_coverage"))],
+        w2_team_id=str(row.get("w2_team_id") or ""),
+        api_football_team_ids=[str(item) for item in _list(row.get("api_football_team_ids"))],
+        valid_from=_required_time(row.get("valid_from")),
+        valid_to=parse_utc(row.get("valid_to")),
+        evidence=dict(row.get("evidence") or {}),
+        source_hashes=[str(item) for item in _list(row.get("source_hashes"))],
+        candidate_generation_method=str(row.get("candidate_generation_method") or ""),
+        review_status=str(row.get("review_status") or "REVIEW_REQUIRED"),
+        reviewed_by=str(row.get("reviewed_by") or "") or None,
+        reviewed_at=parse_utc(row.get("reviewed_at")),
+        crosswalk_hash=crosswalk_hash,
+        payload=payload,
+    )
+
+
 def _canonical_ah_model(
     row: Mapping[str, Any],
     session: Session | None = None,
@@ -668,6 +759,18 @@ def _team_crosswalk_identity(row: Mapping[str, Any]) -> str:
     )
 
 
+def _football_data_team_crosswalk_identity(row: Mapping[str, Any]) -> str:
+    return stable_hash(_football_data_team_payload(row))
+
+
+def _football_data_team_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "football_data_source_identity": row.get("football_data_source_identity"),
+        "competition_id": row.get("competition_id"),
+        "valid_from": row.get("valid_from"),
+    }
+
+
 def _player_crosswalk_identity(row: Mapping[str, Any]) -> str:
     return stable_hash(
         {
@@ -713,3 +816,45 @@ def _team_value_identity(row: Mapping[str, Any]) -> str:
             }
         )
     )
+
+
+def _f8_blockers(artifact: Mapping[str, Any], *, as_of: datetime) -> list[str]:
+    blockers = set(str(item) for item in _list(artifact.get("blockers")) if str(item))
+    if artifact.get("status") != "READY":
+        blockers.add("F8_ARTIFACT_NOT_READY")
+    if artifact.get("review_status") != "APPROVED":
+        blockers.add("TEAM_CROSSWALK_REVIEW_REQUIRED")
+    if int(artifact.get("conflict_count") or 0) != 0:
+        blockers.add("F8_CONFLICTS_PRESENT")
+    if int(artifact.get("missing_mapping_count") or 0) != 0:
+        blockers.add("F8_MAPPING_INCOMPLETE")
+    if int(artifact.get("missing_valuation_count") or 0) != 0:
+        blockers.add("F8_VALUATION_INCOMPLETE")
+    player_count = int(artifact.get("player_count") or 0)
+    if player_count == 0:
+        blockers.add("F8_ROSTER_EMPTY")
+    if player_count != int(artifact.get("uniquely_mapped_count") or 0):
+        blockers.add("F8_PLAYER_MAPPING_INCOMPLETE")
+    if player_count != int(artifact.get("valued_count") or 0):
+        blockers.add("F8_PLAYER_VALUATION_INCOMPLETE")
+    if artifact.get("roster_snapshot_status") != "COMPLETE":
+        blockers.add("F8_ROSTER_SNAPSHOT_INCOMPLETE")
+    observed_at = parse_utc(artifact.get("valuation_observed_at"))
+    if observed_at is None or observed_at > as_of:
+        blockers.add("F8_VALUATION_AS_OF_INVALID")
+    expected_hash = str(artifact.get("artifact_hash") or "")
+    if expected_hash:
+        comparable = {
+            key: value
+            for key, value in artifact.items()
+            if key not in {"artifact_hash", "id"}
+        }
+        if stable_hash(comparable) != expected_hash and artifact.get("hash_verified") is not True:
+            blockers.add("F8_ARTIFACT_HASH_MISMATCH")
+    else:
+        blockers.add("F8_ARTIFACT_HASH_MISSING")
+    return sorted(blockers)
+
+
+def _list(value: object) -> list[Any]:
+    return value if isinstance(value, list) else []

@@ -42,6 +42,7 @@ class LiveApiFootballResponse:
     payload: dict[str, Any]
     headers: dict[str, str]
     captured_at: datetime
+    requested_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,7 @@ class ApiFootballClient:
             headers={self.auth_header_name: api_key},
         )
         started = time.monotonic()
-        captured_at = datetime.now(UTC)
+        requested_at = datetime.now(UTC)
         registry = default_metric_registry()
         registry.inc(
             "w2_provider_requests_total",
@@ -156,7 +157,7 @@ class ApiFootballClient:
                 params=params,
                 live=True,
                 status_code=status_code,
-                requested_at=captured_at,
+                requested_at=requested_at,
                 completed_at=completed_at,
                 headers=headers,
                 payload=payload,
@@ -169,7 +170,8 @@ class ApiFootballClient:
             elapsed_ms=elapsed_ms,
             payload=payload,
             headers=headers,
-            captured_at=captured_at,
+            captured_at=completed_at,
+            requested_at=requested_at,
         )
 
     def fixtures_by_team(

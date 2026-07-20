@@ -24,6 +24,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
     PlayerIdentityMappingModel,
@@ -741,6 +742,9 @@ class FutureRefreshDbRepository:
         return appended
 
     def latest_market_observations(self) -> list[dict[str, Any]]:
+        canonical = self._canonical_market_observations_for_fixtures(None)
+        if canonical:
+            return canonical
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
@@ -762,6 +766,9 @@ class FutureRefreshDbRepository:
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
         if not ids or len(ids) > 64:
             return []
+        canonical = self._canonical_market_observations_for_fixtures(ids)
+        if canonical:
+            return canonical
         partition = (
             FutureMarketObservationModel.fixture_id,
             FutureMarketObservationModel.canonical_market,
@@ -880,6 +887,84 @@ class FutureRefreshDbRepository:
                 )
             )
         return self._latest_observation_dicts(rows)
+
+    def _canonical_market_observations_for_fixtures(
+        self,
+        fixture_ids: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        with Session(self.engine) as session:
+            query = select(MatchdayMarketObservationModel).where(
+                MatchdayMarketObservationModel.suspended.is_(False),
+                MatchdayMarketObservationModel.live.is_(False),
+            )
+            if fixture_ids is not None:
+                canonical_ids = {
+                    fixture_id
+                    if fixture_id.startswith("api_football:")
+                    else f"api_football:{fixture_id}"
+                    for fixture_id in fixture_ids
+                }
+                query = query.where(MatchdayMarketObservationModel.fixture_id.in_(canonical_ids))
+            rows = list(
+                session.scalars(
+                    query.order_by(
+                        MatchdayMarketObservationModel.fixture_id,
+                        MatchdayMarketObservationModel.captured_at,
+                        MatchdayMarketObservationModel.canonical_market,
+                        MatchdayMarketObservationModel.bookmaker_id,
+                        MatchdayMarketObservationModel.canonical_selection,
+                    )
+                )
+            )
+        latest: dict[tuple[str, str, str, str, str | None], dict[str, Any]] = {}
+        for model in rows:
+            row = self._matchday_observation_dict(model)
+            key = (
+                row["fixture_id"],
+                row["canonical_market"],
+                row["bookmaker_id"],
+                row["selection"],
+                row["line"],
+            )
+            current = latest.get(key)
+            if current is None or row["captured_at"] > current["captured_at"]:
+                latest[key] = row
+        return sorted(
+            latest.values(),
+            key=lambda row: (
+                row["fixture_id"],
+                row["canonical_market"],
+                row["bookmaker_id"],
+                row["selection"],
+            ),
+        )
+
+    def _matchday_observation_dict(self, model: MatchdayMarketObservationModel) -> dict[str, Any]:
+        return {
+            "observation_id": model.observation_id,
+            "fixture_id": (
+                model.provider_fixture_id
+                or model.fixture_id.removeprefix("api_football:")
+            ),
+            "provider": model.provider,
+            "bookmaker_id": model.bookmaker_id,
+            "bookmaker_name": model.bookmaker_name,
+            "provider_bet_id": model.provider_bet_id,
+            "raw_market_label": model.raw_market_label,
+            "canonical_market": model.canonical_market,
+            "selection": model.canonical_selection,
+            "line": model.line,
+            "decimal_odds": model.decimal_odds,
+            "suspended": model.suspended,
+            "live": model.live,
+            "provider_last_update": model.provider_updated_at,
+            "captured_at": iso_z(model.captured_at),
+            "ingested_at": iso_z(model.ingested_at),
+            "raw_payload_sha256": model.raw_payload_sha256,
+            "source_revision": model.source_revision,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
 
     def _latest_observation_dicts(
         self,

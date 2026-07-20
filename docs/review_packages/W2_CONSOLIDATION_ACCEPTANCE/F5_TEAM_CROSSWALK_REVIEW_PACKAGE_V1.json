@@ -1,0 +1,35 @@
+{
+  "auto_approval_allowed": false,
+  "blockers": [
+    "F5_CROSSWALK_EXPERT_REVIEW_REQUIRED_FOR_RUNTIME_READY"
+  ],
+  "contains_private_data": false,
+  "generated_at": "2026-07-20T15:39:10Z",
+  "mapping_summary": {
+    "APPROVED_EXISTING": 0,
+    "CONFLICT": 0,
+    "MISSING_REVIEW_PACKAGE_DATA": true,
+    "REVIEW_REQUIRED": 0
+  },
+  "redaction_status": "AGGREGATE_ONLY_NO_RAW_CSV_ROWS",
+  "review_items": [],
+  "runtime_rule": "API-Football team id -> approved W2 team id -> approved Football-Data source identity -> canonical facts",
+  "schema_version": "F5_TEAM_CROSSWALK_REVIEW_PACKAGE_V1",
+  "source_local_candidate": {
+    "canonical_inputs": 35,
+    "closing_ah_facts": 12459,
+    "content_conflicts": 0,
+    "decisive_team_rows": 46500,
+    "exact_duplicates": 0,
+    "f5_coverage_status": "SOURCE_LOCAL_F5_READY_CANDIDATE",
+    "market_baseline_status": "PHASE_EVIDENCE_READY_CANDIDATE",
+    "other_league_phase_evidence": 0,
+    "pre_closing_ah_facts": 12452,
+    "push_team_rows": 3322,
+    "same_family_phase_evidence": 36395,
+    "team_history_rows": 49822,
+    "top_five_phase_evidence": 36395,
+    "unique_fixtures": 12459
+  },
+  "status": "REVIEW_REQUIRED"
+}

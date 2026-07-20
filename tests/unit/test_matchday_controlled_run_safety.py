@@ -11,6 +11,7 @@ KICKOFF = NOW + timedelta(hours=25)
 def _fixture(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "fixture_id": "fixture-1",
+        "competition_id": "allsvenskan",
         "kickoff_utc": KICKOFF,
         "market": "ASIAN_HANDICAP",
         "line": "-0.25",

@@ -1,0 +1,37 @@
+{
+  "activation_conditions": [
+    "source_remediation_passed",
+    "GitHub_CI_passed",
+    "PostgreSQL_migration_passed",
+    "staging_acceptance_passed",
+    "F5_review_completed",
+    "F8_review_completed_or_explicitly_excluded",
+    "license_review_completed",
+    "expert_final_acceptance"
+  ],
+  "approvals": {
+    "desktop_backup": {
+      "approved": true,
+      "location_alias": "$W2_DESKTOP_BACKUP_ROOT"
+    },
+    "formal_production_intent": {
+      "activation_status": "HELD_FOR_EVIDENCE_REVIEW",
+      "approved": true
+    },
+    "staging_full_validation": {
+      "approved": true,
+      "deploy": true,
+      "migrations": true,
+      "provider_canary": true,
+      "scheduler_worker_validation": true,
+      "ssh_access": true,
+      "staging_db_writes": true
+    }
+  },
+  "contains_private_data": false,
+  "owner_role": "SYSTEM_OWNER",
+  "recorded_at": "2026-07-20T15:39:10Z",
+  "redaction_status": "REDACTED_NO_NAMES_NO_HOSTS_NO_KEYS_NO_CREDENTIAL_VALUES",
+  "schema_version": "W2_OWNER_APPROVAL_INTENT_V1",
+  "technical_gate_statement": "Owner approval is necessary but does not bypass technical gates."
+}

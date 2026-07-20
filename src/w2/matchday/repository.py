@@ -16,7 +16,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEvidenceManifestModel,
     MatchdayMarketObservationModel,
 )
-from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash
+from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
 
 
 class MatchdayRepositoryError(RuntimeError):
@@ -157,13 +157,17 @@ class MatchdayRuntimeRepository:
             session.commit()
 
     def due_checkpoint_plans(self, *, now: datetime, limit: int = 100) -> list[dict[str, Any]]:
+        current = normalize_repo_time(now)
         with Session(self.engine) as session:
+            self._advance_checkpoint_windows(session, now=current)
             rows = list(
                 session.scalars(
                     select(MatchdayCheckpointPlanModel)
                     .where(
                         MatchdayCheckpointPlanModel.status == "DUE",
-                        MatchdayCheckpointPlanModel.scheduled_at <= now,
+                        MatchdayCheckpointPlanModel.window_start <= current,
+                        MatchdayCheckpointPlanModel.window_end >= current,
+                        MatchdayCheckpointPlanModel.claimed_at.is_(None),
                     )
                     .order_by(
                         MatchdayCheckpointPlanModel.scheduled_at,
@@ -174,18 +178,59 @@ class MatchdayRuntimeRepository:
                     .limit(limit)
                 )
             )
-        return [self._plan_dict(row) for row in rows]
+            result = [self._plan_dict(row) for row in rows]
+            session.commit()
+        return result
+
+    def claim_due_checkpoint_plans(
+        self,
+        *,
+        now: datetime,
+        worker_id: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        current = normalize_repo_time(now)
+        with Session(self.engine) as session:
+            self._advance_checkpoint_windows(session, now=current)
+            query = (
+                select(MatchdayCheckpointPlanModel)
+                .where(
+                    MatchdayCheckpointPlanModel.status == "DUE",
+                    MatchdayCheckpointPlanModel.window_start <= current,
+                    MatchdayCheckpointPlanModel.window_end >= current,
+                    MatchdayCheckpointPlanModel.claimed_at.is_(None),
+                )
+                .order_by(
+                    MatchdayCheckpointPlanModel.scheduled_at,
+                    MatchdayCheckpointPlanModel.kickoff_utc,
+                    MatchdayCheckpointPlanModel.fixture_id,
+                    MatchdayCheckpointPlanModel.checkpoint,
+                )
+                .limit(limit)
+            )
+            if self.engine.dialect.name == "postgresql":
+                query = query.with_for_update(skip_locked=True)
+            rows = list(session.scalars(query))
+            for row in rows:
+                row.claimed_at = current
+                row.claimed_by = worker_id
+                row.attempt_count = int(row.attempt_count or 0) + 1
+            result = [self._plan_dict(row) for row in rows]
+            session.commit()
+        return result
 
     def insert_endpoint_capture(self, capture: Mapping[str, Any]) -> str:
         with Session(self.engine) as session:
             model = MatchdayEndpointCaptureModel(
                 capture_id=str(capture["capture_id"]),
                 fixture_id=str(capture.get("fixture_id") or "") or None,
+                competition_id=str(capture.get("competition_id") or "") or None,
                 checkpoint=str(capture.get("checkpoint") or "") or None,
                 endpoint=str(capture["endpoint"]),
                 sanitized_params=dict(capture["sanitized_params"]),
                 params_hash=str(capture["params_hash"]),
                 request_task_key=str(capture["request_task_key"]),
+                attempt=int(capture.get("attempt") or 1),
                 requested_at=_dt(capture["requested_at"]),
                 provider_captured_at=_dt(capture["provider_captured_at"]),
                 status_code=int(capture["status_code"]),
@@ -202,6 +247,10 @@ class MatchdayRuntimeRepository:
                 session.commit()
             except IntegrityError:
                 session.rollback()
+                existing = session.get(MatchdayEndpointCaptureModel, str(capture["capture_id"]))
+                if existing is not None and _capture_payload(existing) == dict(capture):
+                    return str(capture["capture_id"])
+                raise MatchdayRepositoryError("CAPTURE_IDENTITY_CONFLICT") from None
         return str(capture["capture_id"])
 
     def insert_market_observations(self, observations: Sequence[Mapping[str, Any]]) -> int:
@@ -214,14 +263,22 @@ class MatchdayRuntimeRepository:
                         session.flush()
                     count += 1
                 except IntegrityError:
-                    continue
+                    existing = session.get(
+                        MatchdayMarketObservationModel,
+                        str(row["observation_id"]),
+                    )
+                    if existing is not None and _observation_payload(
+                        existing,
+                    ) == _normalized_observation_payload(row):
+                        continue
+                    raise MatchdayRepositoryError("OBSERVATION_IDENTITY_CONFLICT") from None
             session.commit()
         return count
 
     def insert_manifest(self, manifest: Mapping[str, Any]) -> str:
+        manifest_hash = validate_manifest_identity(manifest)
         fixture_id = str(manifest["fixture_identity"]["fixture_id"])
         as_of = _dt(manifest["as_of"])
-        manifest_hash = str(manifest["manifest_hash"])
         natural_key_hash = stable_hash(
             {
                 "fixture_id": fixture_id,
@@ -256,7 +313,9 @@ class MatchdayRuntimeRepository:
                     manifest_hash=manifest_hash,
                     input_manifest_hash=str(manifest["input_manifest_hash"]),
                     decision_hash=str(decision.get("decision_hash") or "") or None,
-                    manifest_integrity_status="PASS",
+                    manifest_integrity_status=str(
+                        _manifest_integrity_status(manifest)
+                    ),
                     natural_key_hash=natural_key_hash,
                     payload=dict(manifest),
                 )
@@ -324,22 +383,153 @@ class MatchdayRuntimeRepository:
             "endpoints": list(row.endpoints or []),
             "source": "matchday_intake.v2",
             "status": row.status,
+            "window_start": _iso(row.window_start),
+            "window_end": _iso(row.window_end),
+            "claimed_at": _iso(row.claimed_at) if row.claimed_at else None,
+            "claimed_by": row.claimed_by,
+            "attempt_count": int(row.attempt_count or 0),
+            "test_only": bool(row.test_only),
+            "namespace": row.namespace,
         }
+
+    def _advance_checkpoint_windows(self, session: Session, *, now: datetime) -> None:
+        rows = list(
+            session.scalars(
+                select(MatchdayCheckpointPlanModel).where(
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE"))
+                )
+            )
+        )
+        for row in rows:
+            window_end = normalize_repo_time(row.window_end)
+            window_start = normalize_repo_time(row.window_start)
+            if now > window_end:
+                row.status = "MISSED"
+                row.missed_at = row.missed_at or now
+                row.blockers = sorted({*list(row.blockers or []), "CHECKPOINT_MISSING"})
+                row.claimed_at = None
+                row.claimed_by = None
+            elif row.status == "PLANNED" and window_start <= now <= window_end:
+                row.status = "DUE"
 
 
 def _transition_status(current: str, incoming: str) -> str:
     if current == incoming:
         return current
-    if current == "MISSED":
-        return "MISSED"
-    if incoming in {
-        "CAPTURED",
-        "PROVIDER_EMPTY",
-        "FAILED",
-        "MISSED",
-        "SKIPPED_POLICY",
-        "SKIPPED_BUDGET",
-        "CONFLICT",
-    }:
+    if incoming == "CONFLICT":
         return incoming
-    return current
+    allowed = {
+        "PLANNED": {"DUE", "MISSED", "SKIPPED_POLICY", "SKIPPED_BUDGET", "CONFLICT"},
+        "DUE": {
+            "CAPTURED",
+            "PROVIDER_EMPTY",
+            "FAILED",
+            "MISSED",
+            "SKIPPED_POLICY",
+            "SKIPPED_BUDGET",
+            "CONFLICT",
+        },
+        "CAPTURED": {"CONFLICT"},
+        "PROVIDER_EMPTY": {"CONFLICT"},
+        "FAILED": {"DUE", "CONFLICT"},
+        "MISSED": {"CONFLICT"},
+        "SKIPPED_POLICY": {"CONFLICT"},
+        "SKIPPED_BUDGET": {"CONFLICT"},
+        "CONFLICT": set(),
+    }
+    if incoming in allowed.get(current, set()):
+        return incoming
+    raise MatchdayRepositoryError(f"CHECKPOINT_STATUS_TRANSITION_INVALID:{current}->{incoming}")
+
+
+def normalize_repo_time(value: datetime) -> datetime:
+    return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _capture_payload(row: MatchdayEndpointCaptureModel) -> dict[str, Any]:
+    return {
+        "capture_id": row.capture_id,
+        "fixture_id": row.fixture_id,
+        "competition_id": row.competition_id,
+        "checkpoint": row.checkpoint,
+        "endpoint": row.endpoint,
+        "sanitized_params": dict(row.sanitized_params),
+        "params_hash": row.params_hash,
+        "request_task_key": row.request_task_key,
+        "attempt": int(row.attempt or 1),
+        "requested_at": _iso(row.requested_at),
+        "provider_captured_at": _iso(row.provider_captured_at),
+        "status_code": int(row.status_code),
+        "elapsed_ms": int(row.elapsed_ms),
+        "response_count": int(row.response_count),
+        "quota_values": dict(row.quota_values),
+        "raw_payload_sha256": row.raw_payload_sha256,
+        "provider_event_time": row.provider_event_time,
+        "capture_status": row.capture_status,
+        "error_code": row.error_code,
+        "schema_version": "MatchdayEndpointCaptureV1",
+    }
+
+
+def _observation_payload(row: MatchdayMarketObservationModel) -> dict[str, Any]:
+    return {
+        "observation_id": row.observation_id,
+        "fixture_id": row.fixture_id,
+        "provider_fixture_id": row.provider_fixture_id,
+        "competition_id": row.competition_id,
+        "provider": row.provider,
+        "bookmaker_id": row.bookmaker_id,
+        "bookmaker_name": row.bookmaker_name,
+        "capture_id": row.capture_id,
+        "provider_bet_id": row.provider_bet_id,
+        "raw_market_label": row.raw_market_label,
+        "canonical_market": row.canonical_market,
+        "canonical_selection": row.canonical_selection,
+        "provider_selection": row.provider_selection,
+        "line": row.line,
+        "decimal_odds": row.decimal_odds,
+        "suspended": bool(row.suspended),
+        "live": bool(row.live),
+        "provider_updated_at": row.provider_updated_at,
+        "captured_at": _iso(row.captured_at),
+        "ingested_at": _iso(row.ingested_at),
+        "raw_payload_sha256": row.raw_payload_sha256,
+        "source_revision": row.source_revision,
+    }
+
+
+def _normalized_observation_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "observation_id": str(row["observation_id"]),
+        "fixture_id": str(row["fixture_id"]),
+        "provider_fixture_id": str(row["provider_fixture_id"]),
+        "competition_id": str(row["competition_id"]),
+        "provider": str(row["provider"]),
+        "bookmaker_id": str(row["bookmaker_id"]),
+        "bookmaker_name": str(row["bookmaker_name"]),
+        "capture_id": str(row["capture_id"]),
+        "provider_bet_id": str(row["provider_bet_id"]),
+        "raw_market_label": str(row["raw_market_label"]),
+        "canonical_market": str(row["canonical_market"]),
+        "canonical_selection": str(row["canonical_selection"]),
+        "provider_selection": str(row["provider_selection"]),
+        "line": None if row.get("line") is None else str(row["line"]),
+        "decimal_odds": str(row["decimal_odds"]),
+        "suspended": bool(row["suspended"]),
+        "live": bool(row["live"]),
+        "provider_updated_at": str(row["provider_updated_at"]),
+        "captured_at": _iso(_dt(row["captured_at"])),
+        "ingested_at": _iso(_dt(row["ingested_at"])),
+        "raw_payload_sha256": str(row["raw_payload_sha256"]),
+        "source_revision": str(row["source_revision"]),
+    }
+
+
+def _manifest_integrity_status(manifest: Mapping[str, Any]) -> str:
+    decision = manifest.get("decision")
+    if isinstance(decision, Mapping) and decision.get("outcome") == "SYSTEM_DEGRADED":
+        return "SYSTEM_DEGRADED"
+    market = manifest.get("market_evidence")
+    if isinstance(market, Mapping) and market.get("integrity_status") == "CONFLICT":
+        return "SYSTEM_DEGRADED"
+    return "PASS"

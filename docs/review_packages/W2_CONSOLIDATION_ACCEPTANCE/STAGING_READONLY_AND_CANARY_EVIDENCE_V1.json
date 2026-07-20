@@ -1,0 +1,34 @@
+{
+  "alembic": {
+    "current": null,
+    "head": null,
+    "status": "PENDING"
+  },
+  "capability_manifest": "PENDING",
+  "cohort_before_after": "PENDING",
+  "contains_private_data": false,
+  "db_deltas": {},
+  "decision_hash_parity": "PENDING",
+  "formal_lock_official_counts": {
+    "OFFICIAL_captures": null,
+    "formal_recommendation_ids": null,
+    "locks": null
+  },
+  "generated_at": "2026-07-20T15:39:10Z",
+  "old_new_table_deltas": {},
+  "provider_canary_calls": [],
+  "public_read_invariants": "PENDING",
+  "quota": {
+    "remaining": null,
+    "used": null
+  },
+  "redaction_status": "NO_HOST_IP_NO_DB_URL_NO_RAW_PAYLOAD_NO_CREDENTIALS",
+  "release_api_web_sha": {
+    "api": null,
+    "release": null,
+    "web": null
+  },
+  "schema_version": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1",
+  "service_image_health": "PENDING",
+  "status": "PENDING_GITHUB_CI_AND_STAGING_VALIDATION"
+}
