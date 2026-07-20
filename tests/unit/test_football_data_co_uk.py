@@ -13,6 +13,7 @@ from w2.historical.football_data_co_uk import (
     discover_football_data_files,
     football_data_row,
     settle_home_ah,
+    write_football_data_ingest_artifacts,
 )
 
 HEADER = (
@@ -194,6 +195,43 @@ def test_raw_private_data_not_tracked() -> None:
     ]
 
     assert offenders == []
+
+
+def test_ingest_artifacts_build_canonical_outputs(tmp_path: Path) -> None:
+    season = tmp_path / "2021"
+    season.mkdir()
+    path = season / "sample.csv"
+    path.write_text(HEADER + _row("E0", "1", "0", "-0.25", "-0.5"), encoding="utf-8")
+    artifact_root = tmp_path / "artifacts"
+
+    result = write_football_data_ingest_artifacts(tmp_path, artifact_root)
+    manifest = result["manifest"]
+    coverage = result["f5_coverage"]
+    baseline = result["market_baseline_candidate"]
+
+    assert manifest["source_snapshot_count"] == 2
+    assert manifest["closing_ah_fact_count"] == 1
+    assert manifest["pre_closing_ah_fact_count"] == 1
+    assert manifest["phase_market_evidence_count"] == 1
+    assert manifest["f5_ready_count"] == 2
+    assert coverage["query_contract"] == {"team": True, "before_kickoff": True, "limit": True}
+    assert baseline["status"] == "READY_CANDIDATE"
+    assert baseline["exact_captured_at"] is False
+    assert (artifact_root / "FOOTBALL_DATA_CLOSING_AH_FACTS.jsonl").is_file()
+
+
+def test_ingest_rejects_duplicate_fixture_per_phase(tmp_path: Path) -> None:
+    season = tmp_path / "2021"
+    season.mkdir()
+    row = _row("E0", "1", "0", "-0.25", "-0.5")
+    (season / "sample.csv").write_text(HEADER + row + row, encoding="utf-8")
+
+    manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "manifest"
+    ]
+
+    assert manifest["closing_ah_fact_count"] == 1
+    assert manifest["pre_closing_ah_fact_count"] == 1
 
 
 def _row(div: str, home_goals: str, away_goals: str, ahh: str, ahch: str) -> str:
