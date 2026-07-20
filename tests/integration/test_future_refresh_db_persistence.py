@@ -280,15 +280,13 @@ def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick
         "status": "PENDING",
     }
     assert repository.append_observations([observation]) == 1
-    assert repository.upsert_checkpoint_plans([plan]) == 1
+    assert repository.upsert_checkpoint_plans([plan]) == 0
 
     assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": "2026-06-23T10:05:00Z",
-        "next_refresh_tick": "2026-06-23T10:45:00Z",
+        "next_refresh_tick": None,
     }
-    assert repository.next_market_refresh_by_fixture(["fixture"], now=NOW) == {
-        "fixture": "2026-06-23T10:45:00Z"
-    }
+    assert repository.next_market_refresh_by_fixture(["fixture"], now=NOW) == {}
     assert repository.market_refresh_status_for_fixtures([]) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
@@ -311,7 +309,7 @@ def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
         "source": "scheduled",
         "status": "PENDING",
     }
-    assert repository.upsert_checkpoint_plans([plan]) == 1
+    assert repository.upsert_checkpoint_plans([plan]) == 0
 
     assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": None,
@@ -426,11 +424,9 @@ def test_checkpoint_plan_is_idempotent_and_audited(
         "status": "PENDING",
     }
 
-    assert repository.upsert_checkpoint_plans([row]) == 1
-    assert repository.upsert_checkpoint_plans([row]) == 1
-    assert [item["id"] for item in repository.due_checkpoint_plans(now=NOW)] == [
-        "1489404:T24"
-    ]
+    assert repository.upsert_checkpoint_plans([row]) == 0
+    assert repository.upsert_checkpoint_plans([row]) == 0
+    assert repository.due_checkpoint_plans(now=NOW) == []
     audit_id = repository.write_checkpoint_audit(
         fixture_id="1489404",
         checkpoint="T24",
@@ -445,12 +441,10 @@ def test_checkpoint_plan_is_idempotent_and_audited(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel))
-            == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel)) == 0
         )
         assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel))
-            == 1
+            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
         )
 
 
@@ -528,11 +522,7 @@ def test_fixture_scoped_reader_stratifies_full_time_ah_and_totals(
             for line_index in range(20):
                 line = (line_index + 1) / 4
                 for side_index, side in enumerate(sides):
-                    signed_line = (
-                        -line
-                        if market == "ASIAN_HANDICAP" and side == "Away"
-                        else line
-                    )
+                    signed_line = -line if market == "ASIAN_HANDICAP" and side == "Away" else line
                     rows.append(
                         {
                             **observation_row(

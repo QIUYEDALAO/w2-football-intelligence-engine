@@ -351,8 +351,7 @@ class FutureRefreshDbRepository:
                 baseline = session.scalar(
                     select(TeamLineupBaselineModel)
                     .where(
-                        TeamLineupBaselineModel.team_external_id
-                        == snapshot.team_external_id,
+                        TeamLineupBaselineModel.team_external_id == snapshot.team_external_id,
                         TeamLineupBaselineModel.as_of_time <= snapshot.captured_at,
                     )
                     .order_by(TeamLineupBaselineModel.as_of_time.desc())
@@ -524,9 +523,7 @@ class FutureRefreshDbRepository:
             payload = dict(row.payload)
             parameters = payload.get("parameters")
             fixture_id = (
-                str(parameters.get("fixture") or "")
-                if isinstance(parameters, dict)
-                else ""
+                str(parameters.get("fixture") or "") if isinstance(parameters, dict) else ""
             )
             if not fixture_id:
                 continue
@@ -663,15 +660,12 @@ class FutureRefreshDbRepository:
                     "team_external_id": target["team_external_id"],
                     "as_of": parse_db_datetime(target["captured_at"]).isoformat(),
                     "input_fixture_ids": list(baseline["input_fixture_ids"]),
-                    "input_raw_sha256": sorted(
-                        {str(row["raw_sha256"]) for row in input_rows}
-                    ),
+                    "input_raw_sha256": sorted({str(row["raw_sha256"]) for row in input_rows}),
                     "schema_version": "w2.lineup_baseline.input.v1",
                 }
                 existing = session.scalar(
                     select(TeamLineupBaselineModel).where(
-                        TeamLineupBaselineModel.team_external_id
-                        == target["team_external_id"],
+                        TeamLineupBaselineModel.team_external_id == target["team_external_id"],
                         TeamLineupBaselineModel.competition_external_id
                         == target["competition_external_id"],
                         TeamLineupBaselineModel.season == target["season"],
@@ -1384,40 +1378,9 @@ class FutureRefreshDbRepository:
         return row is not None
 
     def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
-        if not plans:
-            return 0
-        upserted = 0
-        with Session(self.engine) as session:
-            for row in plans:
-                plan_id = str(row["id"])
-                existing = session.get(FutureRefreshCheckpointPlanModel, plan_id)
-                if existing is not None and existing.status == "COMPLETED":
-                    continue
-                session.merge(
-                    FutureRefreshCheckpointPlanModel(
-                        id=plan_id,
-                        fixture_id=str(row["fixture_id"]),
-                        checkpoint=str(row["checkpoint"]),
-                        kickoff_utc=parse_db_datetime(row["kickoff_utc"]),
-                        due_at=parse_db_datetime(row["due_at"]),
-                        endpoints=list(row["endpoints"]),
-                        source=str(row["source"]),
-                        status=str(row.get("status") or "PENDING"),
-                        executed_at=(
-                            parse_db_datetime(row["executed_at"])
-                            if row.get("executed_at")
-                            else None
-                        ),
-                        last_audit_id=row.get("last_audit_id"),
-                    )
-                )
-                upserted += 1
-            try:
-                session.commit()
-            except Exception as exc:
-                session.rollback()
-                raise FutureRefreshPersistenceError("CHECKPOINT_PLAN_WRITE_FAILED") from exc
-        return upserted
+        # Compatibility API only. Runtime checkpoint authority moved to
+        # MatchdayRuntimeRepository / matchday_checkpoint_plans in 0029.
+        return 0
 
     def due_checkpoint_plans(
         self,
