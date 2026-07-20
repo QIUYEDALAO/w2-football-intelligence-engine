@@ -26,6 +26,24 @@ SUPPORTED_BOOKMAKER_POLICIES = {
     "EXACT_BOOKMAKER_ID",
     "ORDERED_BOOKMAKER_PRIORITY",
 }
+REQUIRED_CANONICAL_IDENTITY_FIELDS = (
+    "provider_fixture_id",
+    "competition_id",
+    "season",
+    "kickoff_utc",
+    "home_team_provider_id",
+    "away_team_provider_id",
+    "provider",
+    "bookmaker_id",
+    "quote_captured_at",
+    "home_observation_id",
+    "away_observation_id",
+    "source_id",
+    "source_snapshot_id",
+    "source_sha256",
+    "source_schema_version",
+    "result_source_sha256",
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -64,7 +82,7 @@ class CanonicalHistoricalAhFactV1:
     source_registry_version: str
     source_license_status: str
     source_schema_version: str
-    bookmaker_policy: str
+    bookmaker_policy: dict[str, Any]
     provider_fixture_id: str
     w2_fixture_id: str | None
     competition_id: str
@@ -89,6 +107,8 @@ class CanonicalHistoricalAhFactV1:
     final_home_goals_90: int
     final_away_goals_90: int
     result_source_sha256: str
+    result_reference_id: str | None
+    result_row_hash: str
     result_identity_hash: str
     home_settlement: str
     away_settlement: str
@@ -227,7 +247,7 @@ def audit_registered_source(
     reasons: list[str] = []
     registry_schema = str(metadata.get("_registry_schema_version") or "")
     snapshot_semantics = str(metadata.get("snapshot_semantics") or "")
-    bookmaker_policy = str(metadata.get("canonical_bookmaker_policy") or "")
+    bookmaker_policy, bookmaker_policy_reason = _bookmaker_policy(metadata)
     if (
         registry_schema != FORMAL_AH_SOURCE_REGISTRY_SCHEMA
         or not source_id
@@ -237,8 +257,8 @@ def audit_registered_source(
         reasons.append("BLOCKED_REGISTRY_SCHEMA_INVALID")
     if snapshot_semantics != "CAPTURED_AT":
         reasons.append("BLOCKED_SNAPSHOT_SEMANTICS_NOT_CAPTURED_AT")
-    if bookmaker_policy not in SUPPORTED_BOOKMAKER_POLICIES:
-        reasons.append("BLOCKED_BOOKMAKER_POLICY_INVALID")
+    if bookmaker_policy is None:
+        reasons.append(bookmaker_policy_reason or "BLOCKED_BOOKMAKER_POLICY_INVALID")
     if license_status != "APPROVED" or not retention or not backtest:
         reasons.append(
             "BLOCKED_LICENSE_UNKNOWN"
@@ -259,7 +279,7 @@ def audit_registered_source(
         reasons.append("BLOCKED_MISSING_RESULT_LINK")
     if not has_fixture_id:
         reasons.append("BLOCKED_FIXTURE_IDENTITY")
-    if not _has_exact_pair_preflight(ah_rows, audit_provider=provider):
+    if not _has_exact_pair_preflight(rows, audit_provider=provider):
         reasons.append("BLOCKED_EXACT_PAIR_PREFLIGHT")
     status = APPROVED_SOURCE_STATUS if not reasons else _primary_source_status(reasons)
     return HistoricalSourceAudit(
@@ -469,6 +489,12 @@ def _fact_for_fixture(
                     pairs.append((captured, home, away))
     if not pairs:
         return None, "quote_conflict"
+    policy, policy_reason = _bookmaker_policy(source_meta)
+    if policy is None:
+        return None, policy_reason or "BLOCKED_BOOKMAKER_POLICY_INVALID"
+    pairs, policy_reason = _apply_bookmaker_policy(pairs, policy=policy)
+    if not pairs:
+        return None, policy_reason or "quote_conflict"
     pairs.sort(key=lambda item: (item[0], _text(item[1].get("observation_id"))), reverse=True)
     if len(pairs) > 1 and pairs[0][0] == pairs[1][0]:
         return None, "quote_conflict"
@@ -478,6 +504,10 @@ def _fact_for_fixture(
     pair_reason = _quote_pair_identity_conflict(home, away, audit)
     if pair_reason is not None:
         return None, pair_reason
+    registry_provider = _text(source_meta.get("provider"))
+    selected_provider = _text(home.get("provider") or audit.provider)
+    if registry_provider and selected_provider != registry_provider:
+        return None, "REGISTRY_PROVIDER_MISMATCH"
     result_status = _text(result.get("result_status") or result.get("status"))
     if result_status not in {"FINAL", "FT"}:
         return None, "result_conflict"
@@ -541,8 +571,12 @@ def _fact_for_fixture(
     source_registry_version = str(
         source_meta.get("_registry_schema_version") or FORMAL_AH_SOURCE_REGISTRY_SCHEMA
     )
-    bookmaker_policy = str(source_meta.get("canonical_bookmaker_policy") or "")
+    bookmaker_policy = policy
+    source_snapshot_id = str(source_meta.get("source_snapshot_id") or audit.source_id)
+    result_reference_id = _text(result.get("result_reference_id") or result.get("result_id"))
+    result_row_hash = _text(result.get("result_row_hash")) or stable_hash(dict(result))
     core = {
+        "canonical_key": canonical_key,
         "fixture_identity": {
             "provider_fixture_id": _fixture_id(home),
             "competition_id": _text(home.get("competition_id")),
@@ -551,23 +585,65 @@ def _fact_for_fixture(
             "home_team_provider_id": _text(home.get("home_team_provider_id")),
             "away_team_provider_id": _text(home.get("away_team_provider_id")),
         },
+        "source_identity": {
+            "source_id": audit.source_id,
+            "source_snapshot_id": source_snapshot_id,
+            "source_sha256": source_sha,
+            "source_schema_version": audit.schema_version or "",
+            "source_registry_version": source_registry_version,
+            "source_license_status": audit.source_license_status,
+        },
+        "registry_provider": registry_provider,
         "quote_identity_hash": quote_hash,
+        "observation_ids": {
+            "home": _text(home.get("observation_id")),
+            "away": _text(away.get("observation_id")),
+        },
+        "bookmaker_policy": bookmaker_policy,
+        "selected_bookmaker_id": _text(home.get("bookmaker_id") or home.get("bookmaker")),
+        "lines": {"home": home_line_text, "away": away_line_text},
+        "odds": {
+            "home_decimal_odds": str(decimal_odds(home.get("decimal_odds"))),
+            "away_decimal_odds": str(decimal_odds(away.get("decimal_odds"))),
+        },
+        "captured_at": iso(captured),
         "checkpoint_policy": CHECKPOINT_POLICY,
         "as_of_utc": iso(captured),
-        "result_identity_hash": result_hash,
+        "result_identity": {
+            "result_identity_hash": result_hash,
+            "result_source_sha256": result_sha,
+            "result_reference_id": result_reference_id,
+            "result_row_hash": result_row_hash,
+        },
         "home_settlement": home_settlement.value,
         "away_settlement": away_settlement.value,
         "settlement_version": SETTLEMENT_VERSION,
         "schema_version": CANONICAL_HISTORICAL_AH_FACT_SCHEMA,
-        "canonical_key": canonical_key,
+    }
+    identity_payload = {
+        "provider_fixture_id": _fixture_id(home),
+        "competition_id": _text(home.get("competition_id")),
+        "season": _text(home.get("season")),
+        "kickoff_utc": iso(kickoff),
+        "home_team_provider_id": _text(home.get("home_team_provider_id")),
+        "away_team_provider_id": _text(home.get("away_team_provider_id")),
+        "provider": selected_provider,
+        "bookmaker_id": _text(home.get("bookmaker_id") or home.get("bookmaker")),
+        "quote_captured_at": iso(captured),
+        "home_observation_id": _text(home.get("observation_id")),
+        "away_observation_id": _text(away.get("observation_id")),
         "source_id": audit.source_id,
-        "source_snapshot_id": str(source_meta.get("source_snapshot_id") or audit.source_id),
+        "source_snapshot_id": source_snapshot_id,
         "source_sha256": source_sha,
         "source_schema_version": audit.schema_version or "",
-        "source_registry_version": source_registry_version,
-        "source_license_status": audit.source_license_status,
-        "bookmaker_policy": bookmaker_policy,
+        "result_source_sha256": result_sha,
+        "result_reference_id": result_reference_id,
+        "result_row_hash": result_row_hash,
     }
+    if any(not _text(identity_payload.get(field)) for field in REQUIRED_CANONICAL_IDENTITY_FIELDS):
+        return None, "MISSING_REQUIRED_CANONICAL_IDENTITY"
+    if not (result_reference_id or result_row_hash):
+        return None, "MISSING_REQUIRED_CANONICAL_IDENTITY"
     fact_hash = stable_hash(core)
     return (
         CanonicalHistoricalAhFactV1(
@@ -575,7 +651,7 @@ def _fact_for_fixture(
             canonical_key=canonical_key,
             fact_id=f"canonical-ah:{canonical_key}",
             fact_hash=fact_hash,
-            source_snapshot_id=str(source_meta.get("source_snapshot_id") or audit.source_id),
+            source_snapshot_id=source_snapshot_id,
             source_id=audit.source_id,
             source_sha256=source_sha,
             source_registry_version=source_registry_version,
@@ -606,6 +682,8 @@ def _fact_for_fixture(
             final_home_goals_90=home_goals,
             final_away_goals_90=away_goals,
             result_source_sha256=result_sha,
+            result_reference_id=result_reference_id or None,
+            result_row_hash=result_row_hash,
             result_identity_hash=result_hash,
             home_settlement=home_settlement.value,
             away_settlement=away_settlement.value,
@@ -613,6 +691,73 @@ def _fact_for_fixture(
         ),
         None,
     )
+
+
+def _bookmaker_policy(metadata: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    raw = metadata.get("canonical_bookmaker_policy")
+    if not isinstance(raw, Mapping):
+        return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+    policy_type = _text(raw.get("type"))
+    if policy_type not in SUPPORTED_BOOKMAKER_POLICIES:
+        return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+    if policy_type == "SINGLE_BOOK_SOURCE":
+        extra = set(raw) - {"type"}
+        if extra:
+            return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+        return {"type": policy_type}, None
+    if policy_type == "EXACT_BOOKMAKER_ID":
+        bookmaker_id = _text(raw.get("bookmaker_id"))
+        if not bookmaker_id or set(raw) - {"type", "bookmaker_id"}:
+            return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+        return {"type": policy_type, "bookmaker_id": bookmaker_id}, None
+    if policy_type == "ORDERED_BOOKMAKER_PRIORITY":
+        ids = raw.get("bookmaker_ids")
+        if (
+            not isinstance(ids, list)
+            or not ids
+            or any(not isinstance(item, str) or not item.strip() for item in ids)
+            or len({item.strip() for item in ids}) != len(ids)
+            or set(raw) - {"type", "bookmaker_ids"}
+        ):
+            return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+        return {"type": policy_type, "bookmaker_ids": [item.strip() for item in ids]}, None
+    return None, "BLOCKED_BOOKMAKER_POLICY_INVALID"
+
+
+def _apply_bookmaker_policy(
+    pairs: list[tuple[datetime, dict[str, Any], dict[str, Any]]],
+    *,
+    policy: Mapping[str, Any],
+) -> tuple[list[tuple[datetime, dict[str, Any], dict[str, Any]]], str | None]:
+    policy_type = _text(policy.get("type"))
+    bookmakers = {
+        _text(home.get("bookmaker_id") or home.get("bookmaker"))
+        for _captured, home, _away in pairs
+    }
+    if policy_type == "SINGLE_BOOK_SOURCE":
+        if len(bookmakers) != 1:
+            return [], "BOOKMAKER_POLICY_CONFLICT"
+        return pairs, None
+    if policy_type == "EXACT_BOOKMAKER_ID":
+        expected = _text(policy.get("bookmaker_id"))
+        selected = [
+            item
+            for item in pairs
+            if _text(item[1].get("bookmaker_id") or item[1].get("bookmaker")) == expected
+        ]
+        return (selected, None) if selected else ([], "BOOKMAKER_POLICY_NO_MATCH")
+    if policy_type == "ORDERED_BOOKMAKER_PRIORITY":
+        ids = [str(item) for item in policy.get("bookmaker_ids", [])]
+        for bookmaker_id in ids:
+            selected = [
+                item
+                for item in pairs
+                if _text(item[1].get("bookmaker_id") or item[1].get("bookmaker")) == bookmaker_id
+            ]
+            if selected:
+                return selected, None
+        return [], "BOOKMAKER_POLICY_NO_MATCH"
+    return [], "BLOCKED_BOOKMAKER_POLICY_INVALID"
 
 
 def _source_audit_report(audits: list[HistoricalSourceAudit]) -> dict[str, Any]:
@@ -793,6 +938,7 @@ def _quote_pair_identity_conflict(
 
 
 def _has_exact_pair_preflight(rows: Sequence[Mapping[str, Any]], *, audit_provider: str) -> bool:
+    result_fixtures = {_fixture_id(row) for row in rows if _result_ready(row)}
     by_pair: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in rows:
         if not _quote_row_minimal_valid(row):
@@ -818,8 +964,7 @@ def _has_exact_pair_preflight(rows: Sequence[Mapping[str, Any]], *, audit_provid
                     and _text(home.get("observation_id"))
                     and _text(away.get("observation_id"))
                     and _text(home.get("observation_id")) != _text(away.get("observation_id"))
-                    and _result_ready(home)
-                    and _result_ready(away)
+                    and _fixture_id(home) in result_fixtures
                 ):
                     return True
     return False

@@ -1,5 +1,0 @@
-# DATA_REQUEST
-
-- status: DATA_REQUIRED
-- source_status: SOURCE_NOT_AVAILABLE
-- sha256: 721f47aa4ee9203bc4d0542b42ae54eeefd7d0bf1be93d2089c2f3b7f186e6fb

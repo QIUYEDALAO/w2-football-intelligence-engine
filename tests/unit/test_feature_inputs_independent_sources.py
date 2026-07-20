@@ -38,6 +38,7 @@ def api_fixture(
             :64
         ]
         row["source"] = "canonical_historical_ah_fact"
+        row["source_group"] = "canonical_historical_ah_fact"
         row["collection_status"] = "CANONICAL_AH_FACT"
     return row
 
@@ -287,7 +288,7 @@ def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_pat
 
     assert card is not None
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
-    assert factors["F3_REST_FITNESS"]["source_group"] == "team_fixture_history"
+    assert factors["F3_REST_FITNESS"]["source_group"] == "canonical_historical_ah_fact"
     assert factors["F3_REST_FITNESS"]["is_independent_signal"] is True
     assert factors["F3_REST_FITNESS"]["inputs"]["home_rest_days"] > 0
     assert factors["F5_RECENT_AH_COVER"]["status"] == "READY"

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import replace
 
+from w2.formal.readiness import evaluate_formal_ah_readiness
 from w2.strategy.formal_recommendation import (
     _settlement_distribution_with_ev_se,
     build_formal_recommendation,
@@ -31,14 +34,56 @@ def ready_shadow(*, fair_ah: float = -1.25, leader: str = "HOME") -> dict[str, o
 
 
 def ready_analysis() -> dict[str, object]:
+    calibration = {
+        "status": "PASS_FOR_SHADOW",
+        "artifact_hash": "a" * 64,
+        "code_sha": "b" * 64,
+        "factor_registry_sha": "c" * 64,
+    }
+    f5 = {"status": "READY", "manifest_hash": "d" * 64}
+    f8 = {"status": "READY", "manifest_hash": "e" * 64}
+    offline = {"conclusion": "PASS_FOR_SHADOW", "report_hash": "f" * 64}
+    forward = {"conclusion": "PASS_FOR_FORMAL_REVIEW", "report_hash": "1" * 64}
+    accepted_hashes = {
+        "calibration_artifact": "a" * 64,
+        "f5_manifest": "d" * 64,
+        "f8_manifest": "e" * 64,
+        "offline_evidence_report": "f" * 64,
+        "forward_shadow_report": "1" * 64,
+        "code_sha": "b" * 64,
+        "factor_registry_sha": "c" * 64,
+    }
+    approval = {
+        "schema_version": "w2.formal_ah_approval_manifest.v1",
+        "approved": True,
+        "reviewed_by": "reviewer",
+        "reviewed_at": "2026-07-20T00:00:00Z",
+        "accepted_hashes": accepted_hashes,
+        "accepted_hash_manifest_sha256": hashlib.sha256(
+            json.dumps(accepted_hashes, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
     return {
         "status": "READY",
         "blockers": [],
-        "formal_ah_readiness": {
-            "admission_ready": True,
-            "formal_eligible": True,
-            "blockers": [],
-        },
+        "formal_ah_readiness": evaluate_formal_ah_readiness(
+            calibration=calibration,
+            f5_historical_ah=f5,
+            f8_identity_value=f8,
+            offline_evidence=offline,
+            forward_shadow=forward,
+            approval_manifest=approval,
+            fixture_evidence={
+                "prematch": True,
+                "executable_ah_quote": True,
+                "freshness_complete": True,
+                "same_pair_identity": True,
+                "simulation_ready": True,
+                "approved_calibration_version": True,
+                "integrity_asof": True,
+            },
+            capability_enabled=True,
+        ),
     }
 
 
@@ -776,6 +821,31 @@ def test_config_off_suppresses_formal_and_keeps_formal_ineligible() -> None:
     assert result.formal_eligible is False
     assert result.formal_suppressed is True
     assert result.formal_suppressed_reason == "W2_FORMAL_RECOMMENDATION_ENABLED=false"
+
+
+def test_formal_builder_rejects_forged_readiness_dict() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
+        analysis_readiness={
+            "status": "READY",
+            "blockers": [],
+            "formal_ah_readiness": {
+                "admission_ready": True,
+                "formal_eligible": True,
+                "blockers": [],
+            },
+        },
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert result.formal_eligible is False
+    assert result.blockers == ["FORMAL_AH_READINESS_SCHEMA_INVALID"]
 
 
 def test_reverse_value_requires_explicit_price_value_copy() -> None:

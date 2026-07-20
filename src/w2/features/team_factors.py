@@ -235,6 +235,8 @@ def _canonical_ah_rows(
             continue
         if row.source != "canonical_historical_ah_fact":
             continue
+        if row.source_group != "canonical_historical_ah_fact":
+            continue
         if row.collection_status != "CANONICAL_AH_FACT":
             continue
         if row.proxy_of or row.collection_status in {"XG_PROXY", "SCORE_ONLY", "MANUAL_STRING"}:
