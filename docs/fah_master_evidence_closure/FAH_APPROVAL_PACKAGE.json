@@ -1,0 +1,64 @@
+{
+  "all_blockers": [
+    "DATA_REQUIRED",
+    "SOURCE_NOT_AVAILABLE"
+  ],
+  "all_conclusions": [
+    "DATA_REQUIRED",
+    "SOURCE_NOT_AVAILABLE",
+    "CODE_COMPLETE_DATA_PENDING",
+    "MANUAL_APPROVAL_REQUIRED"
+  ],
+  "calibration_artifact_sha": "9d1812df63cf346e5ed35f144f037865e179b1cda52a346bedb185a0ee97e6d1",
+  "canonical_fact_manifest_sha": "6e8658b5c9914eb7c8389d9574b7712d7294ea1c43b642270dfd81694e4e29bb",
+  "capabilities": {
+    "formal_ah": false,
+    "formal_ou": false,
+    "lineup_numeric_adjustment_ah": false,
+    "lineup_numeric_adjustment_ou": false,
+    "production_recommendation": false,
+    "recommendation_lock": false
+  },
+  "capability_manifest_sha": "26fca60d7b9b23729b1fb5c701c1ab0f484d7132",
+  "code_sha": "cdff48bcb8f6df6304f39d895d2ccac0b59cfba6",
+  "f5_manifest_sha": "61dd811ae27f527d770dbba39a0b0d4b574b83968cef92f9bc32b3b0d2b5eb26",
+  "f8_manifest_sha": "dfb5fd87111bd7669f322fad9c8b175ae1652e95b17f353aedebcd836c937923",
+  "factor_registry_sha": "73d06a404c790734892f5a615fb709baae3626e7",
+  "formal_readiness_sha": "3d2d99410ffd53271cdc86bcf1a408dffe8e314fbb91e328254aaee4531f91d2",
+  "forward_report_sha": "cc4044b7802185c20ff1a07e3ae4cc47743c4753999b8a952426e4a8c1d47854",
+  "market_baseline_manifest_sha": "83c2ba8142fe82880ea6c834832a9100b809f8ae5fc2b545c68b2065b64f6092",
+  "offline_evidence_report_sha": "4b4cb7ae8c409aae90439e4ae80e7618bc55d3c8365f4fc6ab135c12a767e278",
+  "pr_number": null,
+  "sample_counts": {
+    "forward": 0,
+    "holdout": 0,
+    "train": 0,
+    "validation": 0
+  },
+  "schema_version": "w2.fah.approval_package.v1",
+  "sha256": "a5f1421b1114d8dbe9de37c9863e511d50826ad8ae0c291265201f1f999d91eb",
+  "sha256_manifest": {
+    "DATA_REQUEST.json": "e4eb4d54dca89ce2479e42466a1c131d79224f281b3f5d1a479e5a4565825eb9",
+    "FAH_CALIBRATION_ARTIFACT.json": "9d1812df63cf346e5ed35f144f037865e179b1cda52a346bedb185a0ee97e6d1",
+    "FAH_CANONICAL_FACT_AUDIT.json": "6e8658b5c9914eb7c8389d9574b7712d7294ea1c43b642270dfd81694e4e29bb",
+    "FAH_CODE_AUDIT.json": "453eb584f187ffc0a7693e70f86d72d47e29660eba402378fe4a9bfb11f55c7f",
+    "FAH_F5_AUDIT.json": "61dd811ae27f527d770dbba39a0b0d4b574b83968cef92f9bc32b3b0d2b5eb26",
+    "FAH_F8_AUDIT.json": "dfb5fd87111bd7669f322fad9c8b175ae1652e95b17f353aedebcd836c937923",
+    "FAH_FORMAL_READINESS.json": "3d2d99410ffd53271cdc86bcf1a408dffe8e314fbb91e328254aaee4531f91d2",
+    "FAH_FORWARD_SHADOW_REPORT.json": "cc4044b7802185c20ff1a07e3ae4cc47743c4753999b8a952426e4a8c1d47854",
+    "FAH_MARKET_BASELINE_AUDIT.json": "83c2ba8142fe82880ea6c834832a9100b809f8ae5fc2b545c68b2065b64f6092",
+    "FAH_OFFLINE_EVIDENCE_REPORT.json": "4b4cb7ae8c409aae90439e4ae80e7618bc55d3c8365f4fc6ab135c12a767e278",
+    "FAH_SOURCE_AUDIT.json": "8e3d7bc82311892e074e2bb0588f5d64d26ca5335f1f8aa598c00c478e8ff8a8",
+    "SOURCE_AUDIT.json": "8e3d7bc82311892e074e2bb0588f5d64d26ca5335f1f8aa598c00c478e8ff8a8"
+  },
+  "source_manifest_sha": "8e3d7bc82311892e074e2bb0588f5d64d26ca5335f1f8aa598c00c478e8ff8a8",
+  "status": "MANUAL_APPROVAL_REQUIRED",
+  "writes_and_calls": {
+    "new_locks": 0,
+    "new_recommendation_ids": 0,
+    "official_captures": 0,
+    "production_access": 0,
+    "provider_calls": 0,
+    "staging_writes": 0
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "conclusion": "INSUFFICIENT_EVIDENCE",
+  "real_formal_evidence_count": 0,
+  "remaining_count": 200,
+  "report_hash": "",
+  "schema_version": "w2.forward_shadow_evidence_report.v1",
+  "sha256": "80e9d5f1a25301ce2ba0085fce10cb122cfa8837dbad036d27df4033a775bf8a"
+}

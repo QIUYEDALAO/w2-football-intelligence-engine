@@ -1,0 +1,12 @@
+{
+  "approved_source_count": 0,
+  "blocked_reasons": {
+    "W2_FAH_DATA_ROOT_MISSING": 1
+  },
+  "file_hashes": {},
+  "license_statuses": {},
+  "schema_version": "w2.fah.source_audit.v1",
+  "sha256": "3ef43e5689d7045afefc7c0c7e25d7c1d4a789dcf0a7ccd7a13f3273e64e935a",
+  "source_files": [],
+  "status": "SOURCE_NOT_AVAILABLE"
+}
