@@ -26,11 +26,14 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         fixture_id="fixture-1",
         kickoff_utc=kickoff,
         generated_at_utc=NOW,
+        competition_id="allsvenskan",
     )
 
     assert [plan.checkpoint for plan in plans] == [
         "T24_ODDS",
+        "T12_ODDS",
         "T6_ODDS",
+        "T3_ODDS",
         "T60_ODDS_LINEUPS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
@@ -53,13 +56,14 @@ def test_checkpoint_plan_marks_missed_intermediate_market_capture_without_backfi
         fixture_id="fixture-1",
         kickoff_utc=kickoff,
         generated_at_utc=generated_at,
+        competition_id="allsvenskan",
     )
 
     due = {plan.checkpoint: plan.due_at_utc for plan in plans}
     statuses = {plan.checkpoint: plan.status for plan in plans}
     assert due["T24_ODDS"] == datetime(2026, 7, 19, 17, tzinfo=UTC)
     assert statuses["T24_ODDS"] == "MISSED"
-    assert "T12_ODDS" not in due
+    assert due["T12_ODDS"] == datetime(2026, 7, 20, 5, tzinfo=UTC)
     assert due["T6_ODDS"] == datetime(2026, 7, 20, 11, tzinfo=UTC)
 
 
@@ -70,6 +74,7 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
         fixture_id="fixture-tz",
         kickoff_utc=kickoff_tokyo,
         generated_at_utc=NOW,
+        competition_id="allsvenskan",
     )
 
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
@@ -119,12 +124,14 @@ def test_lineups_provider_empty_schedules_t45_and_t30_retries_at_due_windows() -
         kickoff_utc=kickoff,
         now=NOW + timedelta(minutes=20),
         lineups_status="PROVIDER_EMPTY",
+        competition_id="allsvenskan",
     )
     t30_plans = lineups_retry_plans(
         fixture_id="fixture-lineups",
         kickoff_utc=kickoff,
         now=NOW + timedelta(minutes=30),
         lineups_status="PROVIDER_EMPTY",
+        competition_id="allsvenskan",
     )
 
     assert [plan.checkpoint for plan in t45_plans] == ["T45_LINEUPS_RETRY"]
@@ -143,11 +150,13 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
             fixture_id="a",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
+            competition_id="allsvenskan",
         )[:2],
         *checkpoint_plan_for_fixture(
             fixture_id="b",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
+            competition_id="allsvenskan",
         )[:2],
     ]
 

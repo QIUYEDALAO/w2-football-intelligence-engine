@@ -23,6 +23,8 @@ def test_matchday_refresh_plan_cli_dry_run_json_is_side_effect_free(monkeypatch)
             "--json",
             "--as-of",
             "2026-07-04T00:00:00Z",
+            "--competition-id",
+            "allsvenskan",
             "--fixture-id",
             "fixture-1",
             "--kickoff-utc",

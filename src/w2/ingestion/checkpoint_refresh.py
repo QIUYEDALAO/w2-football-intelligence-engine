@@ -57,15 +57,17 @@ def checkpoint_plan_for_fixture(
     fixture_id: str,
     kickoff_utc: datetime,
     generated_at_utc: datetime,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
 ) -> list[FixtureCheckpointPlan]:
-    policy = _v2_policy_for_legacy_checkpoint()
+    resolved_policy = policy or _v2_policy_for_legacy_checkpoint(competition_id=competition_id)
     v2_plans = build_checkpoint_plans(
         fixture_id=str(fixture_id),
-        competition_id=policy.competition_id,
-        season=policy.season,
+        competition_id=resolved_policy.competition_id,
+        season=resolved_policy.season,
         kickoff_utc=kickoff_utc,
         now=generated_at_utc,
-        policy=policy,
+        policy=resolved_policy,
     )
     return [
         FixtureCheckpointPlan(
@@ -81,12 +83,17 @@ def checkpoint_plan_for_fixture(
     ]
 
 
-def _v2_policy_for_legacy_checkpoint() -> MatchdayCompetitionPolicy:
+def _v2_policy_for_legacy_checkpoint(
+    *,
+    competition_id: str | None,
+) -> MatchdayCompetitionPolicy:
+    if not competition_id:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
     try:
         policies = competition_policies(load_matchday_policy())
     except (FileNotFoundError, ValueError, KeyError, TypeError) as exc:
         raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE") from exc
-    policy = policies.get("world_cup_2026")
+    policy = policies.get(competition_id)
     if policy is None:
         raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
     return policy
@@ -96,6 +103,8 @@ def checkpoint_plans_from_fixture_payloads(
     fixtures: list[dict[str, Any]],
     *,
     now: datetime,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
     horizon: timedelta = timedelta(hours=48),
 ) -> list[FixtureCheckpointPlan]:
     current = normalize_utc(now)
@@ -116,6 +125,8 @@ def checkpoint_plans_from_fixture_payloads(
                 fixture_id=fixture_id,
                 kickoff_utc=kickoff,
                 generated_at_utc=current,
+                competition_id=competition_id,
+                policy=policy,
             )
         )
     return plans
@@ -127,13 +138,17 @@ def lineups_retry_plans(
     kickoff_utc: datetime,
     now: datetime,
     lineups_status: str,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
 ) -> list[FixtureCheckpointPlan]:
     status = lineups_status.upper()
     if status not in {"PROVIDER_EMPTY", "MISSING_LINEUPS", "NOT_READY"}:
         return []
-    policy = _v2_policy_for_legacy_checkpoint()
+    resolved_policy = policy or _v2_policy_for_legacy_checkpoint(competition_id=competition_id)
     lineup_checkpoints = [
-        item for item in policy.checkpoints if item.enabled and item.endpoints == ("lineups",)
+        item
+        for item in resolved_policy.checkpoints
+        if item.enabled and item.endpoints == ("lineups",)
     ]
     kickoff = normalize_utc(kickoff_utc)
     current = normalize_utc(now)

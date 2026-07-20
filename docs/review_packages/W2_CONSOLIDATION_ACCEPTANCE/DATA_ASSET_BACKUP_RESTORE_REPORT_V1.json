@@ -1,0 +1,60 @@
+{
+  "all_file_manifest_hash": "9736a26d616281d64f924fedf242ea61ef64360ef103cbb478763325dbe480a7",
+  "backup_alias": "$W2_DESKTOP_BACKUP_ROOT/football-data-co-uk/9736a26d616281d64f924fedf242ea61ef64360ef103cbb478763325dbe480a7",
+  "backup_manifest_hash": "9736a26d616281d64f924fedf242ea61ef64360ef103cbb478763325dbe480a7",
+  "blockers": [
+    "LICENSE_HUMAN_REVIEW_REQUIRED"
+  ],
+  "contains_private_data": false,
+  "durability_status": "NOT_DURABLE_AGAINST_DEVICE_FAILURE",
+  "durability_warning": "Desktop backup is owner-approved but same-device; it is not durable against full device failure.",
+  "file_counts": {
+    "backup_hashed_files": 74,
+    "source_hashed_files": 74
+  },
+  "generated_at": "2026-07-20T15:39:10Z",
+  "ingest_aggregate_comparison": {
+    "backup": {
+      "canonical_inputs": 35,
+      "closing_ah_facts": 12459,
+      "content_conflicts": 0,
+      "decisive_team_rows": 46500,
+      "exact_duplicates": 0,
+      "f5_coverage_status": "SOURCE_LOCAL_F5_READY_CANDIDATE",
+      "market_baseline_status": "PHASE_EVIDENCE_READY_CANDIDATE",
+      "other_league_phase_evidence": 0,
+      "pre_closing_ah_facts": 12452,
+      "push_team_rows": 3322,
+      "same_family_phase_evidence": 36395,
+      "team_history_rows": 49822,
+      "top_five_phase_evidence": 36395,
+      "unique_fixtures": 12459
+    },
+    "mismatch_list": [],
+    "source": {
+      "canonical_inputs": 35,
+      "closing_ah_facts": 12459,
+      "content_conflicts": 0,
+      "decisive_team_rows": 46500,
+      "exact_duplicates": 0,
+      "f5_coverage_status": "SOURCE_LOCAL_F5_READY_CANDIDATE",
+      "market_baseline_status": "PHASE_EVIDENCE_READY_CANDIDATE",
+      "other_league_phase_evidence": 0,
+      "pre_closing_ah_facts": 12452,
+      "push_team_rows": 3322,
+      "same_family_phase_evidence": 36395,
+      "team_history_rows": 49822,
+      "top_five_phase_evidence": 36395,
+      "unique_fixtures": 12459
+    }
+  },
+  "inventory_result": {
+    "status": "SOURCE_BACKUP_AGGREGATES_MATCH"
+  },
+  "redaction_status": "ALIASES_AND_HASHES_ONLY",
+  "restore_manifest_hash": "9736a26d616281d64f924fedf242ea61ef64360ef103cbb478763325dbe480a7",
+  "restore_result": "RESTORE_DRILL_PASS",
+  "schema_version": "DATA_ASSET_BACKUP_RESTORE_REPORT_V1",
+  "source_alias": "$W2_FOOTBALL_DATA_ROOT",
+  "source_backup_device_classification": "OWNER_APPROVED_SAME_DEVICE_DESKTOP_BACKUP"
+}

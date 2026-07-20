@@ -24,6 +24,10 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayMarketObservationModel,
+)
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
@@ -58,8 +62,9 @@ def observation_row(observation_id: str) -> dict[str, Any]:
 
 
 class FakeApiFootballClient:
-    def __init__(self) -> None:
+    def __init__(self, *, requested_at: datetime | None = None) -> None:
         self.calls: list[tuple[str, dict[str, str]]] = []
+        self.requested_at = requested_at
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         self.calls.append((endpoint, params))
@@ -71,6 +76,7 @@ class FakeApiFootballClient:
             payload=self.payload(endpoint, params),
             headers={"x-ratelimit-requests-remaining": "7000"},
             captured_at=NOW,
+            requested_at=self.requested_at,
         )
 
     def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
@@ -196,7 +202,8 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
 
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 1
+        assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 0
+        assert session.scalar(select(func.count()).select_from(MatchdayMarketObservationModel)) == 1
         assert session.scalar(select(func.count()).select_from(FutureRefreshTaskAuditModel)) == 2
         assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 1
         assert set(session.scalars(select(RawPayloadModel.endpoint)).all()) == {
@@ -205,10 +212,123 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
             "lineups",
             "status",
         }
-        observation = session.scalar(select(FutureMarketObservationModel))
+        observation = session.scalar(select(MatchdayMarketObservationModel))
         assert observation is not None
-        assert observation.candidate is False
-        assert observation.formal_recommendation is False
+        assert observation.live is False
+
+
+def test_raw_payload_failure_blocks_db_runtime_processing(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        FutureRefreshDbRepository,
+        "save_raw_payload",
+        lambda self, **kwargs: (_ for _ in ()).throw(RuntimeError("raw failed")),
+    )
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+
+    audit = run_future_refresh_task(
+        task_id="task-raw-fail",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+    )
+
+    assert audit.status == "BLOCKED"
+    assert "RAW_PAYLOAD_WRITE_FAILED:RuntimeError" in audit.result["blockers"]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 0
+        assert session.scalar(select(func.count()).select_from(MatchdayEndpointCaptureModel)) == 0
+        assert session.scalar(select(func.count()).select_from(MatchdayMarketObservationModel)) == 0
+
+
+def test_endpoint_capture_failure_blocks_normalization(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+
+    def reject_capture(self: Any, capture: dict[str, Any]) -> str:
+        raise RuntimeError("capture failed")
+
+    monkeypatch.setattr(
+        "w2.matchday.repository.MatchdayRuntimeRepository.insert_endpoint_capture",
+        reject_capture,
+    )
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+
+    audit = run_future_refresh_task(
+        task_id="task-capture-fail",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+    )
+
+    assert audit.status == "BLOCKED"
+    assert any(
+        str(item).startswith("ENDPOINT_CAPTURE_WRITE_FAILED:")
+        for item in audit.result["blockers"]
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 1
+        assert session.scalar(select(func.count()).select_from(MatchdayEndpointCaptureModel)) == 0
+        assert session.scalar(select(func.count()).select_from(MatchdayMarketObservationModel)) == 0
+
+
+def test_endpoint_capture_preserves_request_start_time(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    requested_at = NOW - timedelta(seconds=3)
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+
+    audit = run_future_refresh_task(
+        task_id="task-requested-at",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(requested_at=requested_at),
+        now=NOW,
+        persistence="db",
+    )
+
+    assert audit.status == "COMPLETED"
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        capture = session.scalar(
+            select(MatchdayEndpointCaptureModel).where(
+                MatchdayEndpointCaptureModel.endpoint == "status",
+            )
+        )
+        assert capture is not None
+        assert capture.requested_at == requested_at.replace(tzinfo=None)
+        assert capture.provider_captured_at == NOW.replace(tzinfo=None)
 
 
 def test_observation_batch_validation_failure_writes_no_partial_rows(

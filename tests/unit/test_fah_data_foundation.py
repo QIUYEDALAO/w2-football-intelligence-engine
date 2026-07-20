@@ -811,6 +811,35 @@ def test_f5_runtime_query_requires_approved_mapping_and_returns_canonical_rows()
     )
 
     repository.import_team_crosswalks([{**team.as_dict(), "api_football_team_id": "home-1"}])
+    partial = repository.canonical_f5_team_history(
+        team_ids=["home-1"],
+        competition_id="allsvenskan",
+        before=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+    assert partial["status"] == "W2_RUNTIME_F5_NOT_READY"
+
+    repository.import_football_data_team_crosswalks(
+        [
+            {
+                "schema_version": "FootballDataTeamCrosswalkV1",
+                "football_data_source_identity": "home-1",
+                "football_data_team_name": "Home",
+                "league": "allsvenskan",
+                "competition_id": "allsvenskan",
+                "season_coverage": ["2024"],
+                "w2_team_id": "club-1",
+                "api_football_team_ids": ["home-1"],
+                "valid_from": "2024-01-01T00:00:00Z",
+                "valid_to": None,
+                "evidence": {"basis": "unit"},
+                "source_hashes": [fact["source_sha256"]],
+                "candidate_generation_method": "manual_unit",
+                "review_status": "APPROVED",
+                "reviewed_by": "unit",
+                "reviewed_at": "2024-01-02T00:00:00Z",
+            }
+        ]
+    )
     result = repository.canonical_f5_team_history(
         team_ids=["home-1"],
         competition_id="allsvenskan",
@@ -848,6 +877,46 @@ def test_f8_authority_keeps_static_or_unreviewed_values_out_of_formal() -> None:
     assert result["authority"] == "TeamValueAsOfArtifactModel"
     assert result["status"] == "INCOMPLETE"
     assert result["formal_eligible"] is False
+    assert "TEAM_CROSSWALK_REVIEW_REQUIRED" in result["blockers"]
+
+
+def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    repository.write_team_value_artifacts(
+        [
+            {
+                "team_external_id": "1",
+                "transfermarkt_club_id": "club-1",
+                "competition_id": "allsvenskan",
+                "as_of": "2024-05-02T00:00:00Z",
+                "status": "READY",
+                "review_status": "APPROVED",
+                "artifact_hash": "e" * 64,
+                "hash_verified": True,
+                "conflict_count": 0,
+                "missing_mapping_count": 0,
+                "missing_valuation_count": 0,
+                "player_count": 2,
+                "uniquely_mapped_count": 2,
+                "valued_count": 2,
+                "roster_snapshot_status": "COMPLETE",
+                "valuation_observed_at": "2024-05-01T00:00:00Z",
+                "blockers": [],
+            }
+        ]
+    )
+
+    result = repository.f8_authority_at(
+        team_external_id="1",
+        competition_id="allsvenskan",
+        as_of=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+
+    assert result["status"] == "READY"
+    assert result["formal_eligible"] is False
+    assert result["blockers"] == ["FORMAL_CAPABILITY_DISABLED"]
 
 
 def test_data_asset_registry_uses_aliases_and_backup_missing_is_external_blocker(
@@ -865,6 +934,42 @@ def test_data_asset_registry_uses_aliases_and_backup_missing_is_external_blocker
     assert payload["private_storage_location_alias"] == "$W2_FOOTBALL_DATA_ROOT"
     assert str(data_root) not in text
     assert "BACKUP_LOCATION_REQUIRED" in payload["blockers"]
+
+
+def test_data_asset_registry_hashes_all_allowed_file_types_and_restores_manifest(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "football-data"
+    backup_root = tmp_path / "W2_BACKUP"
+    backup_root.mkdir()
+    for suffix in (".zip", ".gz", ".csv", ".json", ".jsonl", ".txt", ".html", ".xlsx", ".xls"):
+        path = data_root / f"sample{suffix}"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(f"payload-{suffix}".encode())
+    (data_root / "ignored.bin").write_bytes(b"not part of manifest")
+
+    registry = build_football_data_registry(
+        data_root=data_root,
+        backup_root=backup_root,
+        now=datetime(2026, 7, 20, tzinfo=UTC),
+    )
+    payload = registry.as_dict()
+
+    assert sorted(payload["source_file_hashes"]) == [
+        "sample.csv",
+        "sample.gz",
+        "sample.html",
+        "sample.json",
+        "sample.jsonl",
+        "sample.txt",
+        "sample.xls",
+        "sample.xlsx",
+        "sample.zip",
+    ]
+    assert payload["restore_test_status"] == "RESTORE_DRILL_PASS"
+    assert payload["backup_location"].startswith("$W2_DESKTOP_BACKUP_ROOT/football-data-co-uk/")
+    assert payload["backup_classification"] == "OWNER_APPROVED_SAME_DEVICE_DESKTOP_BACKUP"
+    assert payload["durability_status"] == "NOT_DURABLE_AGAINST_DEVICE_FAILURE"
 
 
 def _source_root_for_repo_test() -> Path:

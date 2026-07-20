@@ -154,9 +154,15 @@ def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:
 
 def test_matchday_refresh_plan_excludes_xg_backfill_by_default() -> None:
     plan = build_matchday_refresh_plan(
-        [{"fixture_id": "fixture-1", "kickoff_utc": "2026-07-05T03:00:00Z"}],
+        [
+            {
+                "fixture_id": "fixture-1",
+                "competition_id": "allsvenskan",
+                "kickoff_utc": "2026-07-05T03:00:00Z",
+            }
+        ],
         as_of=datetime(2026, 7, 4, 0, 0, tzinfo=UTC),
-        policy=MatchdayRefreshPolicy(),
+        policy=MatchdayRefreshPolicy(competition_id="allsvenskan"),
     )
 
     assert plan

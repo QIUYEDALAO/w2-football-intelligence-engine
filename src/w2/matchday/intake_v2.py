@@ -11,7 +11,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Literal
 
-from w2.domain.recommendation_decision_v3 import RecommendationOutcomeV3
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_decision_v3 import (
+    RecommendationOutcomeV3,
+    project_decision_v3,
+)
 from w2.strategy.market_selector import select_analysis_markets
 
 POLICY_VERSION = "w2.matchday_intake_policy.v2"
@@ -524,7 +528,9 @@ def endpoint_capture_contract(
     elapsed_ms: int,
     payload: Mapping[str, Any],
     fixture_id: str | None = None,
+    competition_id: str | None = None,
     checkpoint: str | None = None,
+    attempt: int = 1,
     quota_values: Mapping[str, Any] | None = None,
     provider_event_time: str | None = None,
 ) -> dict[str, Any]:
@@ -542,11 +548,13 @@ def endpoint_capture_contract(
     capture = {
         "schema_version": MATCHDAY_ENDPOINT_CAPTURE_VERSION,
         "fixture_id": fixture_id,
+        "competition_id": competition_id,
         "checkpoint": checkpoint,
         "endpoint": endpoint,
         "sanitized_params": sanitized,
         "params_hash": stable_hash(sanitized),
         "request_task_key": request_task_key(endpoint, sanitized),
+        "attempt": attempt,
         "requested_at": iso_z(requested),
         "provider_captured_at": iso_z(captured),
         "status_code": status_code,
@@ -651,7 +659,7 @@ def normalize_matchday_odds_payload(
                         }
                     )
                     rows.append(row)
-    return _dedupe_observations(rows), rejected
+    return _dedupe_observations(rows, rejected), rejected
 
 
 def market_batch_audit(
@@ -659,6 +667,7 @@ def market_batch_audit(
     *,
     evaluated_at: datetime,
     max_age_seconds: int,
+    normalization_rejections: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in observations:
@@ -674,7 +683,7 @@ def market_batch_audit(
     ou_candidates = []
     one_x_two_batches = []
     joint_ready = []
-    rejections = []
+    rejections = [dict(item) for item in normalization_rejections]
     freshness = {}
     recommendation_max_age_seconds = min(max_age_seconds, 30 * 60)
     for key, rows in grouped.items():
@@ -749,6 +758,9 @@ def market_batch_audit(
         "joint_market_baselines": joint_ready,
         "independent_candidates": [*ah_candidates, *ou_candidates],
         "rejections": rejections,
+        "integrity_status": "CONFLICT"
+        if any(item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT" for item in rejections)
+        else "PASS",
         "freshness": freshness,
         "collection_refresh_max_age_seconds": max_age_seconds,
         "recommendation_quote_max_age_seconds": recommendation_max_age_seconds,
@@ -914,6 +926,10 @@ def materialize_evidence_manifest(
     }
     payload["manifest_hash"] = canonical_manifest_hash(payload)
     payload["audit"]["manifest_hash"] = payload["manifest_hash"]
+    if payload["decision"]["outcome"] == "SYSTEM_DEGRADED":
+        payload["audit"]["manifest_integrity_status"] = "SYSTEM_DEGRADED"
+    else:
+        payload["audit"]["manifest_integrity_status"] = "PASS"
     return payload
 
 
@@ -939,7 +955,7 @@ def v3_decision_from_matchday(
     movement: Mapping[str, Any],
     as_of: datetime,
 ) -> dict[str, Any]:
-    selected_candidate = _selected_analysis_candidate(market_audit)
+    selected_candidate = _selected_analysis_candidate(model_evidence)
     if market_audit.get("integrity_status") == "CONFLICT":
         outcome = RecommendationOutcomeV3.SYSTEM_DEGRADED
         reason = "INTEGRITY_CONFLICT"
@@ -965,26 +981,37 @@ def v3_decision_from_matchday(
         outcome = RecommendationOutcomeV3.ANALYSIS_PICK
         reason = "ANALYSIS_ONLY"
     selected = selected_candidate if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else None
+    evaluated_candidate = selected_candidate or _evaluated_candidate_from_model(model_evidence)
     if outcome is RecommendationOutcomeV3.FORMAL_RECOMMEND:
         raise AssertionError("FORMAL_RECOMMEND_DISABLED_FOR_MATCHDAY_INTAKE_V2")
     warnings = []
     if movement.get("checkpoint_coverage") == "PARTIAL":
         warnings.append("CHECKPOINT_HISTORY_PARTIAL")
-    decision = {
-        "schema_version": "w2.recommendation_decision.v3",
+    contract = {
         "fixture_id": fixture_identity.get("fixture_id"),
         "competition_id": fixture_identity.get("competition_id"),
         "as_of": iso_z(as_of),
-        "outcome": outcome.value,
-        "reason": reason,
-        "next_action": "MONITOR" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "WAIT",
-        "evaluated_candidate": selected_candidate,
-        "selected_candidate": selected,
-        "formal_readiness": False,
-        "capability_status": "ANALYSIS_ONLY",
+        "integrity_status": "CONFLICT"
+        if outcome is RecommendationOutcomeV3.SYSTEM_DEGRADED
+        else "PASS",
+        "quote_provenance_status": "VALID",
+        "data_status": "READY" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "PARTIAL",
+        "decision_tier": outcome.value,
+        "reason_code": reason,
+        "model_version": str(model_evidence.get("model_version") or ""),
+        "calibration_version": str(model_evidence.get("calibration_version") or ""),
+        "selected_market_candidate": evaluated_candidate,
+        "pick": selected,
         "warnings": warnings,
     }
-    decision["decision_hash"] = stable_hash(decision)
+    decision = project_decision_v3(
+        contract,
+        manifest=load_recommendation_capability_manifest(),
+    ).as_dict()
+    decision["reason_code"] = reason
+    decision["reason"] = reason
+    decision["formal_readiness"] = False
+    decision["capability_status"] = "ANALYSIS_ONLY"
     return decision
 
 
@@ -1281,13 +1308,22 @@ def _decimal_or_none(value: Any) -> Decimal | None:
         return None
 
 
-def _dedupe_observations(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+def _dedupe_observations(
+    rows: Sequence[dict[str, Any]],
+    rejections: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     seen: dict[str, dict[str, Any]] = {}
     for row in rows:
         existing = seen.get(str(row["observation_id"]))
         if existing is not None and existing != row:
-            conflict = dict(row)
-            conflict["normalization_rejection"] = "OBSERVATION_IDENTITY_CONFLICT"
+            rejections.append(
+                {
+                    "reason": "OBSERVATION_IDENTITY_CONFLICT",
+                    "observation_id": row["observation_id"],
+                    "existing_hash": stable_hash(existing),
+                    "incoming_hash": stable_hash(row),
+                }
+            )
             continue
         seen[str(row["observation_id"])] = row
     return [seen[key] for key in sorted(seen)]
@@ -1298,26 +1334,53 @@ def _selected_candidate_stale(candidate: Mapping[str, Any] | None) -> bool:
     return fresh.get("freshness_status") in {"STALE", "INCOMPLETE", "CONFLICT"}
 
 
-def _selected_analysis_candidate(market_audit: Mapping[str, Any]) -> dict[str, Any] | None:
-    candidates = _list(market_audit.get("independent_candidates"))
+def _evaluated_candidate_from_model(model_evidence: Mapping[str, Any]) -> dict[str, Any] | None:
+    if model_evidence.get("status") != "COMPLETE":
+        return None
+    comparison = _mapping(model_evidence.get("comparison"))
+    return {
+        "market": str(model_evidence.get("market") or "ASIAN_HANDICAP"),
+        "selection": model_evidence.get("selection"),
+        "line": model_evidence.get("line"),
+        "model_status": "READY",
+        "analysis_evidence": {
+            "status": "COMPLETE",
+            "model_probability": model_evidence.get("model_probability"),
+            "market_probability": model_evidence.get("market_probability"),
+            "probability_delta": model_evidence.get("probability_delta"),
+            "expected_value": model_evidence.get("expected_value"),
+            "uncertainty": model_evidence.get("uncertainty"),
+            "comparison": {
+                "analysis_direction_allowed": _truthy(
+                    comparison.get("analysis_direction_allowed")
+                )
+            },
+        },
+    }
+
+
+def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str, Any] | None:
+    candidates = _list(model_evidence.get("analysis_markets"))
     selectable = []
     for item in candidates:
         if not isinstance(item, Mapping):
             continue
-        fresh = _mapping(item.get("freshness"))
-        score = 1.0 if str(fresh.get("freshness_status")) == "COMPLETE" else 0.0
+        evidence = _mapping(item.get("analysis_evidence"))
+        if evidence.get("status") != "COMPLETE":
+            continue
+        score = _decimal_or_none(item.get("decision_score") or item.get("signal_strength"))
+        if score is None:
+            continue
         selectable.append(
             {
                 **dict(item),
-                "decision": "ANALYSIS_PICK" if score > 0 else "SKIP",
-                "decision_score": score,
-                "signal_strength": score,
-                "line_status": "READY" if score > 0 else "STALE",
-                "market_candidate": True,
-                "calibration_error": 0.0,
-                "quote_age_seconds": fresh.get("age_seconds") or 0,
-                "bookmaker_count": 1,
-                "calibration_comparable": True,
+                "analysis_evidence": dict(evidence),
+                "decision": str(item.get("decision") or "ANALYSIS_PICK"),
+                "decision_score": float(score),
+                "line_status": str(item.get("line_status") or "READY"),
+                "market_candidate": item.get("market_candidate") or {"ev_eligible": True},
+                "quote_age_seconds": int(item.get("quote_age_seconds") or 0),
+                "calibration_comparable": item.get("calibration_comparable") is True,
             }
         )
     selection = select_analysis_markets(selectable)

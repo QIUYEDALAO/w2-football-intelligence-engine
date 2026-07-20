@@ -13,7 +13,8 @@ from typing import Any
 
 SCHEMA_VERSION = "W2DataAssetRegistryV1"
 FOOTBALL_DATA_ALIAS = "$W2_FOOTBALL_DATA_ROOT"
-BACKUP_ALIAS = "$W2_DATA_BACKUP_ROOT"
+BACKUP_ALIAS = "$W2_DESKTOP_BACKUP_ROOT"
+HASHED_SUFFIXES = {".zip", ".gz", ".csv", ".json", ".jsonl", ".txt", ".html", ".xlsx", ".xls"}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -33,6 +34,8 @@ class W2DataAssetRegistryV1:
     restore_command: str
     backup_location: str
     restore_test_status: str
+    backup_classification: str
+    durability_status: str
     consumers: tuple[str, ...]
     blockers: tuple[str, ...] = field(default_factory=tuple)
 
@@ -54,6 +57,8 @@ class W2DataAssetRegistryV1:
             "restore_command": self.restore_command,
             "backup_location": self.backup_location,
             "restore_test_status": self.restore_test_status,
+            "backup_classification": self.backup_classification,
+            "durability_status": self.durability_status,
             "consumers": list(self.consumers),
             "blockers": list(self.blockers),
             "registry_hash": self.registry_hash,
@@ -80,6 +85,8 @@ class W2DataAssetRegistryV1:
             "restore_command": self.restore_command,
             "backup_location": self.backup_location,
             "restore_test_status": self.restore_test_status,
+            "backup_classification": self.backup_classification,
+            "durability_status": self.durability_status,
             "consumers": list(self.consumers),
             "blockers": list(self.blockers),
         }
@@ -94,7 +101,11 @@ def build_football_data_registry(
 ) -> W2DataAssetRegistryV1:
     current = now or datetime.now(UTC)
     resolved_data_root = data_root or _env_path("W2_FOOTBALL_DATA_ROOT")
-    resolved_backup_root = backup_root or _env_path("W2_DATA_BACKUP_ROOT")
+    resolved_backup_root = (
+        backup_root
+        or _env_path("W2_DESKTOP_BACKUP_ROOT")
+        or _env_path("W2_DATA_BACKUP_ROOT")
+    )
     blockers: list[str] = []
     source_hashes: dict[str, str] = {}
     manifest_hash = "SOURCE_LOCAL_NOT_AVAILABLE"
@@ -107,15 +118,27 @@ def build_football_data_registry(
         manifest_hash = stable_hash(source_hashes)
     backup_location = "BACKUP_LOCATION_REQUIRED"
     restore_status = "RESTORE_DRILL_NOT_EXECUTED"
+    backup_classification = "NO_BACKUP"
+    durability_status = "NOT_DURABLE"
     if resolved_backup_root is None:
         blockers.append("BACKUP_LOCATION_REQUIRED")
     elif not resolved_backup_root.exists():
         blockers.append("BACKUP_LOCATION_NOT_FOUND")
     elif resolved_data_root is not None and resolved_data_root.exists():
-        backup_location = BACKUP_ALIAS
-        restore_status = restore_drill(
+        backup_location = f"{BACKUP_ALIAS}/football-data-co-uk/{manifest_hash}"
+        backup_classification = backup_device_classification(
             data_root=resolved_data_root,
             backup_root=resolved_backup_root,
+        )
+        durability_status = (
+            "NOT_DURABLE_AGAINST_DEVICE_FAILURE"
+            if backup_classification == "OWNER_APPROVED_SAME_DEVICE_DESKTOP_BACKUP"
+            else "DURABLE_DEVICE_SEPARATION_OBSERVED"
+        )
+        restore_status = backup_and_restore_drill(
+            data_root=resolved_data_root,
+            backup_root=resolved_backup_root,
+            dataset_manifest_hash=manifest_hash,
             expected_hashes=source_hashes,
         )
         if restore_status != "RESTORE_DRILL_PASS":
@@ -138,6 +161,8 @@ def build_football_data_registry(
         restore_command=("python -m w2.data_assets.registry --asset football-data --json"),
         backup_location=backup_location,
         restore_test_status=restore_status,
+        backup_classification=backup_classification,
+        durability_status=durability_status,
         consumers=("football_data_co_uk_adapter.v2", "F5_runtime_query"),
         blockers=tuple(sorted(set(blockers))),
     )
@@ -151,13 +176,14 @@ def hash_source_files(root: Path) -> dict[str, str]:
     return hashes
 
 
-def restore_drill(
+def backup_and_restore_drill(
     *,
     data_root: Path,
     backup_root: Path,
+    dataset_manifest_hash: str,
     expected_hashes: Mapping[str, str],
 ) -> str:
-    target = backup_root / data_root.name
+    target = backup_root / "football-data-co-uk" / dataset_manifest_hash
     if not target.exists():
         target.mkdir(parents=True, exist_ok=True)
         for path in _iter_source_files(data_root):
@@ -174,6 +200,17 @@ def restore_drill(
         if restored_hashes == dict(expected_hashes)
         else "RESTORE_HASH_MISMATCH"
     )
+
+
+def backup_device_classification(*, data_root: Path, backup_root: Path) -> str:
+    try:
+        source_device = data_root.stat().st_dev
+        backup_device = backup_root.stat().st_dev
+    except OSError:
+        return "DEVICE_CLASSIFICATION_UNAVAILABLE"
+    if source_device == backup_device:
+        return "OWNER_APPROVED_SAME_DEVICE_DESKTOP_BACKUP"
+    return "SEPARATE_DEVICE_BACKUP"
 
 
 def stable_hash(payload: Any) -> str:
@@ -199,7 +236,7 @@ def write_registry(path: Path, registry: W2DataAssetRegistryV1) -> None:
 
 def _iter_source_files(root: Path) -> Iterable[Path]:
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in {".csv", ".json", ".jsonl", ".txt"}:
+        if path.is_file() and path.suffix.lower() in HASHED_SUFFIXES:
             yield path
 
 

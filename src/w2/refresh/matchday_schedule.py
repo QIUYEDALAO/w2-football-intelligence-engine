@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -16,9 +16,8 @@ PROVIDER_REFRESH_BUDGET_TOO_HIGH = "PROVIDER_REFRESH_BUDGET_TOO_HIGH"
 
 @dataclass(frozen=True)
 class MatchdayRefreshPolicy:
-    tick_offsets: tuple[tuple[str, int], ...] = field(
-        default_factory=lambda: canonical_tick_offsets()
-    )
+    competition_id: str | None = None
+    tick_offsets: tuple[tuple[str, int], ...] = ()
     allowed_endpoints: tuple[str, ...] = ("status", "fixtures", "odds", "lineups")
     tick_hard_cap: int = 30
     min_interval_seconds: int = 900
@@ -28,8 +27,18 @@ class MatchdayRefreshPolicy:
     def effective_min_interval_seconds(self) -> int:
         return max(int(self.min_interval_seconds), 900)
 
+    def __post_init__(self) -> None:
+        if not self.tick_offsets:
+            if not self.competition_id:
+                raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+            object.__setattr__(
+                self, "tick_offsets", canonical_tick_offsets(self.competition_id)
+            )
 
-def canonical_tick_offsets(competition_id: str = "world_cup_2026") -> tuple[tuple[str, int], ...]:
+
+def canonical_tick_offsets(competition_id: str | None = None) -> tuple[tuple[str, int], ...]:
+    if not competition_id:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
     policies = competition_policies(load_matchday_policy())
     policy = policies.get(competition_id)
     if policy is None:

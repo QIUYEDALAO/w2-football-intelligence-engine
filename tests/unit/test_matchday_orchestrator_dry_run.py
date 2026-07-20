@@ -14,6 +14,10 @@ def _payload(
     environment: str = "staging",
     fixtures: list[dict[str, object]],
 ) -> dict[str, object]:
+    fixtures = [
+        {"competition_id": "allsvenskan", **fixture}
+        for fixture in fixtures
+    ]
     return build_matchday_dry_run(
         football_day=date(2026, 7, 5),
         environment=environment,

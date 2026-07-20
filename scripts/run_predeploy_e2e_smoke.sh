@@ -417,9 +417,13 @@ PY
 	chmod 0555 runtime/stage7c/raw
 	chmod 0555 runtime
 
-OBS_COUNT="$(
+CANONICAL_OBS_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
-    psql -U w2_user -d w2 -tAc "select count(*) from future_market_observation where fixture_id = '${FIXTURE_ID}' and candidate = false and formal_recommendation = false;"
+    psql -U w2_user -d w2 -tAc "select count(*) from matchday_market_observations where provider_fixture_id = '${FIXTURE_ID}';"
+)"
+LEGACY_OBS_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(*) from future_market_observation where fixture_id = '${FIXTURE_ID}';"
 )"
 RAW_ENDPOINT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
@@ -445,8 +449,12 @@ LINEUP_BASELINE_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from team_lineup_baselines;"
 )"
-if [ "${OBS_COUNT}" -lt 1 ]; then
-  echo "predeploy_e2e FAIL missing DB market observations" >&2
+if [ "${CANONICAL_OBS_COUNT}" -lt 1 ]; then
+  echo "predeploy_e2e FAIL missing canonical DB market observations" >&2
+  exit 1
+fi
+if [ "${LEGACY_OBS_COUNT}" -ne 0 ]; then
+  echo "predeploy_e2e FAIL legacy market observations were written" >&2
   exit 1
 fi
 if [ "${RAW_ENDPOINT_COUNT}" -ne 1 ]; then

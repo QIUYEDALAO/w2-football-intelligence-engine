@@ -192,7 +192,8 @@ def _refresh_safety_acceptance() -> dict[str, Any]:
         blockers.append(f"UNEXPECTED_SKIPPED_ENDPOINTS:{sorted(skipped - FORBIDDEN_ENDPOINTS)}")
     if FORBIDDEN_ENDPOINTS.intersection(endpoint_allowlist):
         blockers.append("FORBIDDEN_ENDPOINT_IN_ALLOWLIST")
-    if _int(refresh.get("projected_calls_total")) > _int(refresh.get("hard_cap")):
+    hard_cap = _int(refresh.get("hard_cap"))
+    if any(_int(tick.get("projected_calls")) > hard_cap for tick in ticks):
         blockers.append("PROJECTED_CALLS_ABOVE_HARD_CAP")
     if _int(payload.get("provider_calls")) != 0:
         blockers.append("PROVIDER_CALLS_NON_ZERO")
@@ -347,6 +348,7 @@ def _matchday_payload() -> dict[str, Any]:
         fixtures=[
             {
                 "fixture_id": "fixture-analysis",
+                "competition_id": "allsvenskan",
                 "kickoff_utc": now + timedelta(hours=25),
                 "home_team": "Home Analysis",
                 "away_team": "Away Analysis",

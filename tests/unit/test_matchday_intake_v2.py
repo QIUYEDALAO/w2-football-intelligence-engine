@@ -45,6 +45,7 @@ def test_single_canonical_policy_and_legacy_adapter_keeps_scheduled_at() -> None
         fixture_id="fx-1",
         kickoff_utc=KICKOFF,
         generated_at_utc=KICKOFF - timedelta(hours=1),
+        competition_id="allsvenskan",
     )
 
     t24 = next(item for item in plans if item.checkpoint == "T24_ODDS")
@@ -373,7 +374,7 @@ def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
         now=KICKOFF - timedelta(minutes=50),
         policy=policy,
     )
-    model = {"status": "COMPLETE", "comparison": {"analysis_direction_allowed": True}}
+    model = _analysis_model(edge=True)
 
     first = materialize_evidence_manifest(
         fixture_identity=fixture,
@@ -437,12 +438,12 @@ def test_v3_not_ready_no_edge_and_system_degraded() -> None:
     no_edge = materialize_evidence_manifest(
         **base,
         market_audit=audit,
-        model_evidence={"status": "COMPLETE", "comparison": {"analysis_direction_allowed": False}},
+        model_evidence=_analysis_model(edge=False),
     )
     degraded = materialize_evidence_manifest(
         **base,
         market_audit={**audit, "integrity_status": "CONFLICT"},
-        model_evidence={"status": "COMPLETE", "comparison": {"analysis_direction_allowed": True}},
+        model_evidence=_analysis_model(edge=True),
     )
 
     assert not_ready["decision"]["outcome"] == "NOT_READY"
@@ -496,6 +497,47 @@ def _fixture_identity(*, team_ready: bool) -> dict[str, object]:
         "team_identity_status": "READY" if team_ready else "TEAM_IDENTITY_NOT_READY",
         "source_payload_sha256": "z" * 64,
         "captured_at": NOW.isoformat(),
+    }
+
+
+def _analysis_model(*, edge: bool) -> dict[str, object]:
+    return {
+        "status": "COMPLETE",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "model_probability": {"status": "READY", "value": 0.57},
+        "market_probability": {"value": 0.52},
+        "probability_delta": 0.05,
+        "expected_value": 0.04,
+        "uncertainty": 0.1,
+        "model_version": "unit-model",
+        "calibration_version": "unit-calibration",
+        "comparison": {"analysis_direction_allowed": edge},
+        "analysis_markets": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME",
+                "line": "-0.25",
+                "decision": "ANALYSIS_PICK" if edge else "SKIP",
+                "decision_score": 0.72 if edge else 0.2,
+                "line_status": "READY",
+                "quote_age_seconds": 120,
+                "bookmaker_count": 3,
+                "calibration_error": 0.04,
+                "calibration_comparable": True,
+                "market_candidate": {"ev_eligible": edge},
+                "analysis_evidence": {
+                    "status": "COMPLETE",
+                    "model_probability": {"status": "READY", "value": 0.57},
+                    "market_probability": {"value": 0.52},
+                    "probability_delta": 0.05,
+                    "expected_value": 0.04,
+                    "uncertainty": 0.1,
+                    "comparison": {"analysis_direction_allowed": edge},
+                },
+            }
+        ],
     }
 
 
