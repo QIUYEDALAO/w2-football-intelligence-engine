@@ -56,6 +56,7 @@ def test_http_middleware_records_templated_route_status_and_latency() -> None:
 
 def test_provider_transport_failure_is_counted(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-only")
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status")
     monkeypatch.setattr(
         "urllib.request.urlopen",

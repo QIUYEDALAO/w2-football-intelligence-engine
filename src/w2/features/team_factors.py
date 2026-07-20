@@ -229,8 +229,13 @@ def _canonical_ah_rows(
     as_of: datetime,
 ) -> list[TeamMatchHistory]:
     by_fixture: dict[tuple[str, datetime], TeamMatchHistory] = {}
+    conflicted: set[tuple[str, datetime]] = set()
     for row in history:
         if row.kickoff_at >= as_of:
+            continue
+        if row.source != "canonical_historical_ah_fact":
+            continue
+        if row.collection_status != "CANONICAL_AH_FACT":
             continue
         if row.proxy_of or row.collection_status in {"XG_PROXY", "SCORE_ONLY", "MANUAL_STRING"}:
             continue
@@ -240,6 +245,13 @@ def _canonical_ah_rows(
         if mapped is None:
             continue
         key = (row.ah_fact_id, row.kickoff_at)
+        existing = by_fixture.get(key)
+        if existing is not None and existing.ah_fact_hash != row.ah_fact_hash:
+            conflicted.add(key)
+            by_fixture.pop(key, None)
+            continue
+        if key in conflicted:
+            continue
         by_fixture.setdefault(
             key,
             TeamMatchHistory(

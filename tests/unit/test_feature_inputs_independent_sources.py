@@ -37,6 +37,8 @@ def api_fixture(
         row["result_identity_hash"] = f"result-{fixture_id}".encode().hex().ljust(64, "0")[
             :64
         ]
+        row["source"] = "canonical_historical_ah_fact"
+        row["collection_status"] = "CANONICAL_AH_FACT"
     return row
 
 

@@ -140,9 +140,9 @@ def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
     candidate = candidates["ah"]
     assert candidate["selection"] is None
     assert candidate["quote_status"] == "COMPLETE"
-    assert candidate["quote_usage"] == "REFERENCE_ONLY"
-    assert candidate["analysis_evidence_status"] == "COMPLETE"
-    assert candidate["analysis_evidence"]["comparison"]["status"] == "NO_SELECTION"
+    assert candidate["quote_usage"] == "COMPARISON_ONLY"
+    assert candidate["analysis_evidence_status"] == "NO_EDGE"
+    assert candidate["analysis_evidence"]["comparison"]["status"] == "NO_EDGE"
     assert set(candidate["side_evidence"]) == {"HOME", "AWAY"}
     assert all(
         row["model_probability"]["status"] == "READY"
