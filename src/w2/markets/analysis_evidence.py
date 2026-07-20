@@ -36,6 +36,7 @@ def build_analysis_market_evidence(
     normalized_selection = _selection(market, selection)
     base: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
+        "evidence_contract_version": "w2.analysis-market-evidence.v2",
         "fixture_id": fixture_id,
         "competition_id": competition_id,
         "market": market,
@@ -63,6 +64,7 @@ def build_analysis_market_evidence(
         )
     }
     base["quote_identity"] = quote_identity
+    base["quote_observation_ids"] = dict(_mapping(quote_identity.get("observation_ids")))
     quotes = _mapping(audit.get("quotes"))
     prices = {
         side: _decimal(_mapping(quotes.get(side.lower())).get("decimal_odds")) for side in sides
@@ -159,8 +161,10 @@ def _model_evidence(
     if sim.get("status") != "READY" or home is None or away is None or home <= 0 or away <= 0:
         return {
             "status": "NOT_READY",
+            "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
+            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
         }
     matrix = {
         score: Decimal(str(probability))
@@ -184,8 +188,10 @@ def _model_evidence(
     )
     return {
         "status": "READY",
+        "calibration_status": sim.get("calibration_status") or "UNKNOWN",
         "model_version": sim.get("model_version"),
         "calibration_version": sim.get("calibration_version"),
+        "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
         "settlement_distribution": {
             key.replace("_probability", "").upper(): float(value) for key, value in result.items()
         },
@@ -202,6 +208,19 @@ def _finish(payload: dict[str, Any], status: str) -> dict[str, Any]:
     )
     payload["evidence_hash"] = hashlib.sha256(encoded.encode()).hexdigest()
     return payload
+
+
+def _hash_mapping(value: object) -> str | None:
+    if not isinstance(value, Mapping) or not value:
+        return None
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode()).hexdigest()
 
 
 def _selection(market: str, value: object) -> str | None:

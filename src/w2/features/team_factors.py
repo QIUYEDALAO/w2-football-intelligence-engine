@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from w2.competitions.registry import CoverageProfile
@@ -48,6 +48,7 @@ class TeamRatingSnapshot:
     is_independent_signal: bool = True
     proxy_of: str | None = None
     collection_status: str = "READY"
+    artifact_provenance: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -61,6 +62,7 @@ class TeamValueSnapshot:
     is_independent_signal: bool = True
     proxy_of: str | None = None
     collection_status: str = "READY"
+    artifact_provenance: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -291,6 +293,8 @@ def strength_form_factor(
             "away_elo": away.elo,
             "attack_defence_gap": attack_defence_gap,
             "form_gap": form_gap,
+            "home_artifact_provenance": home.artifact_provenance,
+            "away_artifact_provenance": away.artifact_provenance,
         },
         source=home.source if home.source == away.source else "mixed_ratings",
         source_group=home.source_group
@@ -354,6 +358,8 @@ def squad_value_factor(
             "home_value_eur": home.squad_value_eur,
             "away_value_eur": away.squad_value_eur,
             "source_system": home.source_system,
+            "home_artifact_provenance": home.artifact_provenance,
+            "away_artifact_provenance": away.artifact_provenance,
         },
         source=home.source_system,
         source_group="squad_value",

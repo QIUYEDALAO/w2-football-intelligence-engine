@@ -267,7 +267,7 @@ def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
         readiness={"status": "READY", "blockers": []},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["decision_tier"] == DecisionTier.SKIP.value
     assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
     assert fields["pick"] is None
     assert fields["non_pick"] is not None

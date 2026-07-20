@@ -290,6 +290,15 @@ def build_data_readiness_from_legacy_payload(
 
 
 def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None:
+    candidate = _selected_or_evaluated_market_candidate(card)
+    if candidate:
+        quote_identity = _as_mapping(candidate.get("quote_identity"))
+        if (
+            _first_text(quote_identity.get("identity_status")) == "COMPLETE"
+            and _first_text(quote_identity.get("freshness_status")) != "INCOMPLETE"
+        ):
+            return _parse_utc(quote_identity.get("captured_at"))
+
     audit = _as_mapping(card.get("quote_identity_audit"))
     captured: list[datetime] = []
     for key in ("ah", "ou"):
@@ -304,6 +313,25 @@ def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None
         if parsed is not None:
             captured.append(parsed)
     return min(captured) if captured else None
+
+
+def _selected_or_evaluated_market_candidate(card: Mapping[str, Any]) -> Mapping[str, Any]:
+    decision_v3 = _as_mapping(card.get("recommendation_decision_v3"))
+    for key in ("selected_candidate", "evaluated_candidate"):
+        candidate = _as_mapping(decision_v3.get(key))
+        if candidate:
+            return candidate
+    contract = _as_mapping(card.get("decision_contract"))
+    for key in ("selected_market_candidate", "pick"):
+        candidate = _as_mapping(contract.get(key))
+        if candidate:
+            return candidate
+    candidates = _as_mapping(card.get("market_candidates"))
+    for key in ("selected", "evaluated"):
+        candidate = _as_mapping(candidates.get(key))
+        if candidate:
+            return candidate
+    return {}
 
 
 def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | None:
@@ -334,6 +362,9 @@ def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | Non
             for item in _list(payload.get("field_statuses"))
             if isinstance(item, Mapping)
         ),
+        blocking_fields=tuple(str(item) for item in _list(payload.get("blocking_fields"))),
+        advisory_fields=tuple(str(item) for item in _list(payload.get("advisory_fields"))),
+        warnings=tuple(str(item) for item in _list(payload.get("warnings"))),
     )
 
 

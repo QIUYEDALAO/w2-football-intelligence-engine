@@ -56,3 +56,32 @@ def test_v3_never_promotes_ou_to_formal() -> None:
     )
 
     assert decision.outcome is RecommendationOutcomeV3.ANALYSIS_PICK
+
+
+def test_v3_no_edge_keeps_evaluated_candidate_and_ready_model_status() -> None:
+    manifest = load_recommendation_capability_manifest()
+    evaluated = {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "model_status": "READY",
+        "analysis_evidence": {
+            "status": "COMPLETE",
+            "model_probability": {"status": "READY"},
+            "comparison": {"analysis_direction_allowed": False},
+        },
+    }
+
+    decision = project_decision_v3(
+        _contract(
+            decision_tier="SKIP",
+            pick=None,
+            selected_market_candidate=evaluated,
+        ),
+        manifest=manifest,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV3.NO_EDGE
+    assert decision.selected_candidate is None
+    assert decision.evaluated_candidate == evaluated
+    assert decision.statuses["model"] == "READY"

@@ -107,10 +107,15 @@ def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
     )
 
     evidence = candidates["ah"]["analysis_evidence"]
+    assert candidates["ah"]["formal_capability"] == "CODE_PRESENT_BUT_DISABLED"
+    assert candidates["ou"]["formal_capability"] == "NOT_IMPLEMENTED"
     assert evidence["status"] == "COMPLETE"
+    assert evidence["evidence_contract_version"] == "w2.analysis-market-evidence.v2"
     assert evidence["quote_identity"]["bookmaker_id"] == "book"
+    assert evidence["quote_observation_ids"] == {"home": "h", "away": "a"}
     assert evidence["market_probability"]["overround"] == 0.052632
     assert evidence["model_probability"]["settlement_distribution"]
+    assert evidence["model_probability"]["calibration_status"] == "UNKNOWN"
     assert evidence["evidence_hash"]
 
 

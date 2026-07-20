@@ -31,6 +31,15 @@ class AnalysisBlocker(StrEnum):
     UNKNOWN_BLOCKER = "UNKNOWN_BLOCKER"
 
 
+TOP_FIVE_COMPETITIONS = {
+    "premier_league",
+    "la_liga",
+    "bundesliga",
+    "serie_a",
+    "ligue_1",
+}
+
+
 class AnalysisNextAction(StrEnum):
     READY_FOR_ANALYSIS = "READY_FOR_ANALYSIS"
     WAIT_MARKET_OBSERVATIONS = "WAIT_MARKET_OBSERVATIONS"
@@ -67,11 +76,11 @@ def build_analysis_readiness(
         blockers.append(AnalysisBlocker.MISSING_ODDS_TIMELINE)
     if not available["xg"]:
         blockers.append(AnalysisBlocker.MISSING_XG)
-    if not available["lineups"]:
+    if not available["lineups"] and _strict_lineups_required(card):
         blockers.append(AnalysisBlocker.MISSING_LINEUPS)
-    if not available["market_probabilities"]:
+    if not available["market_probabilities"] and not available["analysis_evidence"]:
         blockers.append(AnalysisBlocker.MISSING_MARKET_PROBABILITIES)
-    if not available["model_probabilities"]:
+    if not available["model_probabilities"] and not available["analysis_evidence"]:
         blockers.append(AnalysisBlocker.MISSING_MODEL_PROBABILITIES)
     if not available["score_matrix"]:
         blockers.append(AnalysisBlocker.MISSING_SCORE_MATRIX)
@@ -88,6 +97,7 @@ def build_analysis_readiness(
     return {
         "status": readiness_status.value,
         "blockers": deduped,
+        "advisory_warnings": _advisory_warnings(card, available),
         "available_inputs": available,
         "next_action": _next_action(deduped, readiness_status).value,
     }
@@ -157,6 +167,11 @@ def _available_inputs(card: dict[str, Any] | None) -> dict[str, Any]:
     markets = _markets(card)
     current_odds = card.get("current_odds", {}) if isinstance(card, dict) else {}
     line_movement = card.get("line_movement", {}) if isinstance(card, dict) else {}
+    candidates = _market_candidates(card)
+    analysis_evidence_ready = any(
+        _mapping(candidate.get("analysis_evidence")).get("status") == "COMPLETE"
+        for candidate in candidates.values()
+    )
     market_observations = _number(readiness.get("market_observations"))
     bookmakers = _number(readiness.get("bookmakers"))
     odds_snapshots = _number(readiness.get("odds_snapshots"))
@@ -176,11 +191,44 @@ def _available_inputs(card: dict[str, Any] | None) -> dict[str, Any]:
             or score_market.get("reference_scores")
             or score_market.get("scores")
         ),
-        "model_probabilities": bool(card and card.get("model_probabilities")),
-        "market_probabilities": bool(card and card.get("market_probabilities")),
+        "market_candidates": bool(candidates),
+        "analysis_evidence": analysis_evidence_ready,
+        "per_market_quote_status": {
+            market: str(candidate.get("quote_status") or "UNKNOWN")
+            for market, candidate in sorted(candidates.items())
+        },
+        "model_probabilities": bool(card and card.get("model_probabilities"))
+        or analysis_evidence_ready,
+        "market_probabilities": bool(card and card.get("market_probabilities"))
+        or analysis_evidence_ready,
         "current_odds": bool(current_odds) if isinstance(current_odds, dict) else False,
         "line_movement": bool(line_movement) if isinstance(line_movement, dict) else False,
     }
+
+
+def _strict_lineups_required(card: dict[str, Any] | None) -> bool:
+    if not isinstance(card, dict):
+        return True
+    return str(card.get("competition_id") or "").strip() in TOP_FIVE_COMPETITIONS
+
+
+def _advisory_warnings(card: dict[str, Any] | None, available: dict[str, Any]) -> list[str]:
+    if available.get("lineups") or _strict_lineups_required(card):
+        return []
+    return ["LINEUPS_NOT_CONFIRMED_ADVISORY"]
+
+
+def _market_candidates(card: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(card, dict):
+        return {}
+    raw = card.get("market_candidates")
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): value for key, value in raw.items() if isinstance(value, dict)}
+
+
+def _mapping(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _markets(card: dict[str, Any] | None) -> list[dict[str, Any]]:

@@ -241,7 +241,7 @@ def _decision_tier(
         _get(recommendation, "tier"),
     )
     if decision == "NO_EDGE":
-        return DecisionTier.WATCH
+        return DecisionTier.SKIP
     if decision in {"ANALYSIS_PICK", "PICK", "FORMAL"}:
         if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
             return DecisionTier.WATCH
@@ -353,6 +353,8 @@ def _market_anchor_display_tier(
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         return tier
     if not _market_anchor_display_enabled():
+        return tier
+    if str(model_market_divergence.get("compatibility_only") or "").lower() != "true":
         return tier
     if data_status is DataStatus.BLOCKED:
         return DecisionTier.NOT_READY
@@ -550,7 +552,10 @@ def _reason_code(
     if wants_pick and _market_anchor_display_enabled():
         probability_source = _probability_source(card, market, recommendation)
         model_market_divergence = _model_market_divergence(card, market, recommendation)
-        if _market_anchor_blocks_pick(
+        compatibility_only = (
+            str(model_market_divergence.get("compatibility_only") or "").lower() == "true"
+        )
+        if compatibility_only and _market_anchor_blocks_pick(
             probability_source=probability_source,
             model_market_divergence=model_market_divergence,
         ):
@@ -764,13 +769,34 @@ def _model_market_divergence(
 ) -> Mapping[str, Any]:
     explicit = _as_mapping(_get(card, "model_market_divergence"))
     if explicit:
-        return explicit
+        return {
+            **explicit,
+            "compatibility_only": explicit.get("compatibility_only", True),
+        }
+    candidate = _selected_market_candidate(card, market)
+    evidence = _as_mapping(candidate.get("analysis_evidence")) if candidate else {}
+    if str(evidence.get("evidence_contract_version") or "").endswith(".v2"):
+        comparison = _as_mapping(evidence.get("comparison"))
+        return {
+            "source": "analysis_evidence",
+            "status": str(comparison.get("status") or evidence.get("status") or "UNKNOWN"),
+            "magnitude": _number(comparison.get("probability_delta")),
+            "lock_divergence": None,
+            "model_fair_line": _optional_text(candidate.get("fair_line")) if candidate else None,
+            "market_line": _optional_text(candidate.get("market_line")) if candidate else None,
+            "calibration_status": _optional_text(
+                _get(_as_mapping(evidence.get("model_probability")), "calibration_status")
+            ),
+            "direction_allowed": _truthy(comparison.get("analysis_direction_allowed")),
+            "compatibility_only": False,
+        }
     divergence = _as_mapping(_get(card, "market_divergence"))
     pricing = _as_mapping(_get(card, "pricing_shadow"))
     pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
     fair_key, market_key, _edge_key = _pricing_keys_for_market(pick_market)
     return {
         "source": "market_divergence" if divergence else "adapter_fallback",
+        "compatibility_only": True,
         "status": str(_get(divergence, "status") or "UNKNOWN"),
         "magnitude": _number(_get(divergence, "magnitude")),
         "lock_divergence": _number(_get(divergence, "lock_divergence")),

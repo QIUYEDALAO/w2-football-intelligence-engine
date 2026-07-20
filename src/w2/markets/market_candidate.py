@@ -116,7 +116,9 @@ def _candidate(
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
         "market": market,
         "analysis_capability": "AVAILABLE" if market_row else "NOT_AVAILABLE",
-        "formal_capability": "NOT_IMPLEMENTED",
+        "formal_capability": (
+            "CODE_PRESENT_BUT_DISABLED" if market == "ASIAN_HANDICAP" else "NOT_IMPLEMENTED"
+        ),
         "selection": market_row.get("tendency"),
         "line": line,
         "quote_status": quote_status,

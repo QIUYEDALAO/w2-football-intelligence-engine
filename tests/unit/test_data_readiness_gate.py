@@ -8,6 +8,7 @@ from w2.readiness.data_gate import (
     DataReadinessInput,
     build_data_readiness_from_legacy_payload,
     evaluate_data_readiness,
+    result_from_mapping,
 )
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
@@ -210,3 +211,67 @@ def test_generated_at_does_not_fill_missing_authoritative_quote_time() -> None:
 
     odds = next(field for field in result.field_statuses if field.field == "odds")
     assert odds.captured_at is None
+
+
+def test_readiness_result_round_trips_blocking_advisory_and_warnings() -> None:
+    original = evaluate_data_readiness(_input(lineups_available=False), POLICY)
+    payload = {
+        **original.as_dict(),
+        "blocking_fields": ["odds"],
+        "advisory_fields": ["lineups"],
+        "warnings": ["LINEUPS_NOT_CONFIRMED_ADVISORY"],
+    }
+
+    parsed = result_from_mapping(payload)
+
+    assert parsed is not None
+    assert parsed.as_dict() == payload
+
+
+def test_selected_market_quote_time_is_not_polluted_by_other_market() -> None:
+    fresh_ah = NOW - timedelta(minutes=5)
+    stale_ou = NOW - timedelta(minutes=31)
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "data_readiness": {"market_observations": 4, "bookmakers": 1},
+            "decision_contract": {
+                "selected_market_candidate": {
+                    "market": "ASIAN_HANDICAP",
+                    "quote_identity": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": fresh_ah.isoformat(),
+                    },
+                }
+            },
+            "quote_identity_audit": {
+                "ah": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "COMPLETE",
+                    "captured_at": fresh_ah.isoformat(),
+                },
+                "ou": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "STALE",
+                    "captured_at": stale_ou.isoformat(),
+                },
+            },
+        },
+        market={"market": "ASIAN_HANDICAP"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "READY",
+            "available_inputs": {"market_observations": 4, "odds_snapshots": 2},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    assert result.data_status is DataStatus.READY
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at == fresh_ah

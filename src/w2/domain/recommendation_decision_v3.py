@@ -80,7 +80,7 @@ def project_decision_v3(
         "integrity": _text(contract_v2.get("integrity_status"), "PASS"),
         "data": _text(contract_v2.get("data_status"), "PARTIAL"),
         "quote": _text(contract_v2.get("quote_provenance_status"), "UNKNOWN"),
-        "model": "READY" if candidate else "NOT_SELECTED",
+        "model": _model_status(candidate, evaluated),
         "capability": _capability_status(candidate, manifest),
     }
     core = {
@@ -171,6 +171,21 @@ def _capability_status(
     if candidate is None:
         return "NOT_APPLICABLE"
     return "FORMAL_ENABLED" if manifest.capability("formal_ah").feature_enabled else "ANALYSIS_ONLY"
+
+
+def _model_status(
+    candidate: Mapping[str, Any] | None,
+    evaluated: Mapping[str, Any] | None,
+) -> str:
+    if candidate is not None:
+        return "READY"
+    evidence = _mapping(evaluated.get("analysis_evidence")) if evaluated else {}
+    model = _mapping(evidence.get("model_probability"))
+    if _text(model.get("status")) in {"READY", "SIDE_EVIDENCE_AVAILABLE"}:
+        return "READY"
+    if evaluated is not None and _text(evaluated.get("model_status")) == "READY":
+        return "READY"
+    return "NOT_SELECTED"
 
 
 def _quote_identity(candidate: Mapping[str, Any] | None) -> dict[str, Any]:

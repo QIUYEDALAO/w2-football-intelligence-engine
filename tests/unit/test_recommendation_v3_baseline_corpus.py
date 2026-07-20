@@ -10,6 +10,9 @@ REQUIRED_SCENARIOS = {
     "ah_analysis_primary", "major_league_lineups_missing", "major_league_value_coverage_low",
     "non_major_grade_c", "provider_budget_exhausted", "api_web_release_mismatch",
     "live_or_finished", "locked_formal_historical", "canonical_settled",
+    "non_top_five_lineup_advisory_with_edge", "non_top_five_lineup_advisory_no_edge",
+    "complete_quote_model_not_ready", "complete_quote_no_selection",
+    "market_movement_missing_but_analysis_ready", "baseline_prior_not_formal",
 }
 REQUIRED_FIELDS = {
     "analysis_card", "dashboard_card", "day_view", "decision_contract_v2",

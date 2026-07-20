@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -182,6 +183,26 @@ def load_json(path: Path, default: Any) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return default
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
+
+
+def _artifact_provenance(row: dict[str, Any]) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in {
+            "source_path": str(row.get("_artifact_source_path") or ""),
+            "sha256": str(row.get("_artifact_sha256") or ""),
+            "observed_at": str(row.get("_artifact_observed_at") or row.get("observed_at") or ""),
+            "competition_id": str(row.get("_artifact_competition_id") or ""),
+        }.items()
+        if value
+    }
 
 
 def _parse_utc_text(value: Any) -> datetime | None:
@@ -3553,7 +3574,7 @@ class ReadModelService:
         history_home_ratings: list[TeamRatingSnapshot],
         history_away_ratings: list[TeamRatingSnapshot],
     ) -> tuple[list[TeamRatingSnapshot], list[TeamRatingSnapshot]]:
-        ratings = self._team_rating_mapping()
+        ratings = self._team_rating_mapping(context.competition_id)
         home = self._team_rating_snapshot(
             ratings.get(home_team_id),
             context=context,
@@ -3566,19 +3587,36 @@ class ReadModelService:
         )
         return ([home] if home is not None else []), ([away] if away is not None else [])
 
-    def _team_rating_mapping(self) -> dict[str, dict[str, Any]]:
-        path = ROOT / "config/team_ratings/world_cup_2026.v1.json"
+    def _team_rating_mapping(
+        self,
+        competition_id: str = "world_cup_2026",
+    ) -> dict[str, dict[str, Any]]:
+        path = self._competition_scoped_team_artifact_path(
+            competition_id=competition_id,
+            kind="team_ratings",
+        )
+        if path is None:
+            return {}
         payload = load_json(path, {})
         rows = payload.get("items") if isinstance(payload, dict) else None
         if not isinstance(rows, list):
             return {}
+        artifact_hash = _sha256_file(path)
+        artifact_source = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+        observed_at = str(payload.get("observed_at") or payload.get("generated_at") or "")
         mapping: dict[str, dict[str, Any]] = {}
         for row in rows:
             if not isinstance(row, dict):
                 continue
             team_id = str(row.get("team_id") or row.get("provider_team_id") or "")
             if team_id:
-                mapping[team_id] = row
+                mapping[team_id] = {
+                    **row,
+                    "_artifact_source_path": artifact_source,
+                    "_artifact_sha256": artifact_hash,
+                    "_artifact_observed_at": observed_at,
+                    "_artifact_competition_id": competition_id,
+                }
         return mapping
 
     def _team_rating_snapshot(
@@ -3612,7 +3650,8 @@ class ReadModelService:
             source=str(row.get("source_system") or "world_football_elo"),
             source_group="ratings",
             is_independent_signal=True,
-            collection_status="REAL_ELO",
+            collection_status=str(row.get("collection_status") or "REAL_ELO"),
+            artifact_provenance=_artifact_provenance(row),
         )
 
     def _team_values_from_static_mapping(
@@ -3622,25 +3661,54 @@ class ReadModelService:
         home_team_id: str,
         away_team_id: str,
     ) -> tuple[list[TeamValueSnapshot], list[TeamValueSnapshot]]:
-        values = self._team_value_mapping()
+        values = self._team_value_mapping(context.competition_id)
         home = self._team_value_snapshot(values.get(home_team_id), context=context)
         away = self._team_value_snapshot(values.get(away_team_id), context=context)
         return ([home] if home is not None else []), ([away] if away is not None else [])
 
-    def _team_value_mapping(self) -> dict[str, dict[str, Any]]:
-        path = ROOT / "config/team_values/world_cup_2026.v1.json"
+    def _team_value_mapping(
+        self,
+        competition_id: str = "world_cup_2026",
+    ) -> dict[str, dict[str, Any]]:
+        path = self._competition_scoped_team_artifact_path(
+            competition_id=competition_id,
+            kind="team_values",
+        )
+        if path is None:
+            return {}
         payload = load_json(path, {})
         rows = payload.get("items") if isinstance(payload, dict) else None
         if not isinstance(rows, list):
             return {}
+        artifact_hash = _sha256_file(path)
+        artifact_source = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+        observed_at = str(payload.get("observed_at") or payload.get("generated_at") or "")
         mapping: dict[str, dict[str, Any]] = {}
         for row in rows:
             if not isinstance(row, dict):
                 continue
             team_id = str(row.get("team_id") or row.get("provider_team_id") or "")
             if team_id:
-                mapping[team_id] = row
+                mapping[team_id] = {
+                    **row,
+                    "_artifact_source_path": artifact_source,
+                    "_artifact_sha256": artifact_hash,
+                    "_artifact_observed_at": observed_at,
+                    "_artifact_competition_id": competition_id,
+                }
         return mapping
+
+    def _competition_scoped_team_artifact_path(
+        self,
+        *,
+        competition_id: str,
+        kind: str,
+    ) -> Path | None:
+        normalized = str(competition_id or "").strip()
+        if not normalized:
+            return None
+        path = ROOT / f"config/{kind}/{normalized}.v1.json"
+        return path if path.is_file() else None
 
     def _team_value_snapshot(
         self,
@@ -3666,6 +3734,7 @@ class ReadModelService:
             source_group="squad_value",
             is_independent_signal=True,
             collection_status="READY",
+            artifact_provenance=_artifact_provenance(row),
         )
 
     def _fixture_response_items_from_raw_payloads(
@@ -5247,13 +5316,15 @@ class ReadModelService:
     def model_probabilities(self, fixture_id: str) -> dict[str, Any]:
         dashboard = self.repository.dashboard_fixture(fixture_id)
         if dashboard is not None:
+            calibration_status = str(dashboard.get("calibration_status") or "BASELINE_PRIOR")
             return {
                 "probability_type": "independent_model_probability",
                 "probabilities": dashboard.get("independent_model_probabilities", {}),
                 "source": "frozen_stage7b_challenger_dashboard_read_model",
                 "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
                 "quality": dashboard.get("decision_status", "SKIP"),
-                "calibrated": True,
+                "calibration_status": calibration_status,
+                "calibrated": calibration_status in {"PRODUCTION_VALIDATED", "APPROVED_VALIDATED"},
             }
         return {
             "probability_type": "independent_model_probability",

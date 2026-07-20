@@ -244,6 +244,33 @@ def test_no_mapping_file_and_empty_items_are_safe(monkeypatch: Any, tmp_path: Pa
     assert service._team_value_mapping() == {}
 
 
+def test_team_values_do_not_fallback_to_world_cup_for_other_competition(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    write_mapping(tmp_path, valid_mapping_payload())
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    service = ReadModelService(repository=cast(Any, object()))
+    allsvenskan = FeatureContext(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        home_team_id="10",
+        away_team_id="20",
+        kickoff_at=datetime(2026, 7, 10, 18, tzinfo=UTC),
+        as_of=AS_OF,
+        stage_id="league",
+    )
+
+    home, away = service._team_values_from_static_mapping(
+        context=allsvenskan,
+        home_team_id="10",
+        away_team_id="20",
+    )
+
+    assert home == []
+    assert away == []
+
+
 def test_validator_valid_mapping_passes(tmp_path: Path) -> None:
     mapping = valid_mapping_payload()
     summary = validate_mapping(
