@@ -46,6 +46,7 @@ ALLOWLIST = (
     "js-tokens",
     "W2_API_FOOTBALL_API_KEY",
     "BASELIGHT_API_KEY",
+    "W2_FOOTBALL_DATA_ROOT",
     "x-api-key",
     "x-apisports-key",
     "x-rapidapi-key",

@@ -12,6 +12,7 @@ from w2.historical.football_data_co_uk import (
     cover_bucket,
     discover_football_data_files,
     football_data_row,
+    query_team_history,
     settle_home_ah,
     write_football_data_ingest_artifacts,
 )
@@ -198,10 +199,7 @@ def test_raw_private_data_not_tracked() -> None:
 
 
 def test_ingest_artifacts_build_canonical_outputs(tmp_path: Path) -> None:
-    season = tmp_path / "2021"
-    season.mkdir()
-    path = season / "sample.csv"
-    path.write_text(HEADER + _row("E0", "1", "0", "-0.25", "-0.5"), encoding="utf-8")
+    path = _write_manifest_dataset(tmp_path, HEADER + _row("E0", "1", "0", "-0.25", "-0.5"))
     artifact_root = tmp_path / "artifacts"
 
     result = write_football_data_ingest_artifacts(tmp_path, artifact_root)
@@ -209,22 +207,21 @@ def test_ingest_artifacts_build_canonical_outputs(tmp_path: Path) -> None:
     coverage = result["f5_coverage"]
     baseline = result["market_baseline_candidate"]
 
-    assert manifest["source_snapshot_count"] == 2
+    assert path.is_file()
+    assert manifest["canonical_input_count"] == 1
     assert manifest["closing_ah_fact_count"] == 1
     assert manifest["pre_closing_ah_fact_count"] == 1
-    assert manifest["phase_market_evidence_count"] == 1
-    assert manifest["f5_ready_count"] == 2
-    assert coverage["query_contract"] == {"team": True, "before_kickoff": True, "limit": True}
-    assert baseline["status"] == "READY_CANDIDATE"
+    assert manifest["team_history_row_count"] == 4
+    assert manifest["decisive_team_row_count"] == 4
+    assert coverage["query_contract"]["implemented"] is True
+    assert baseline["status"] == "PHASE_EVIDENCE_READY_CANDIDATE"
     assert baseline["exact_captured_at"] is False
-    assert (artifact_root / "FOOTBALL_DATA_CLOSING_AH_FACTS.jsonl").is_file()
+    assert (artifact_root / "FOOTBALL_DATA_CLOSING_AH_FACTS_V2.jsonl").is_file()
 
 
 def test_ingest_rejects_duplicate_fixture_per_phase(tmp_path: Path) -> None:
-    season = tmp_path / "2021"
-    season.mkdir()
     row = _row("E0", "1", "0", "-0.25", "-0.5")
-    (season / "sample.csv").write_text(HEADER + row + row, encoding="utf-8")
+    _write_manifest_dataset(tmp_path, HEADER + row + row)
 
     manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
         "manifest"
@@ -232,14 +229,181 @@ def test_ingest_rejects_duplicate_fixture_per_phase(tmp_path: Path) -> None:
 
     assert manifest["closing_ah_fact_count"] == 1
     assert manifest["pre_closing_ah_fact_count"] == 1
+    assert manifest["exact_duplicate_count"] == 1
 
 
-def _row(div: str, home_goals: str, away_goals: str, ahh: str, ahch: str) -> str:
+def test_home_and_away_rows_and_query_before_kickoff(tmp_path: Path) -> None:
+    first = _row("E0", "1", "0", "-0.25", "-0.5")
+    second = _row(
+        "E0",
+        "0",
+        "2",
+        "0.25",
+        "0.5",
+        date="02/08/2020",
+        home="Away One",
+        away="Third Team",
+    )
+    _write_manifest_dataset(tmp_path, HEADER + first + second)
+
+    write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")
+    rows = _read_jsonl(tmp_path / "artifacts" / "FOOTBALL_DATA_F5_DATASET.jsonl")
+
+    assert {row["side"] for row in rows} == {"HOME", "AWAY"}
+    assert all(row["kickoff_local"] for row in rows)
+    away = next(row for row in rows if row["team"] == "Away One" and row["side"] == "AWAY")
+    assert away["settlement"] == "LOSS"
+    history = query_team_history(
+        rows,
+        source_team_identity=away["source_team_identity"],
+        before_kickoff="2020-08-02T15:00",
+        limit=1,
+        phase_policy=PHASE_CLOSE,
+    )
+    assert len(history) == 1
+    assert history[0]["fixture_key"] == away["fixture_key"]
+
+
+def test_push_kept_but_excluded_only_from_denominator(tmp_path: Path) -> None:
+    _write_manifest_dataset(tmp_path, HEADER + _row("E0", "1", "1", "0", "0"))
+
+    manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "manifest"
+    ]
+
+    assert manifest["team_history_row_count"] == 4
+    assert manifest["push_team_row_count"] == 4
+    assert manifest["decisive_team_row_count"] == 0
+
+
+def test_missing_counts_are_calculated(tmp_path: Path) -> None:
+    body = HEADER + _row("E0", "", "", "", "-0.5")
+    _write_manifest_dataset(tmp_path, body)
+
+    coverage = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "f5_coverage"
+    ]
+
+    assert coverage["totals"]["missing_line"] == 1
+    assert coverage["totals"]["missing_result"] == 1
+
+
+def test_conflicting_duplicate_rejected(tmp_path: Path) -> None:
+    one = _row("E0", "1", "0", "-0.25", "-0.5")
+    two = _row("E0", "2", "0", "-0.25", "-0.5")
+    _write_manifest_dataset(tmp_path, HEADER + one + two)
+
+    manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "manifest"
+    ]
+
+    assert manifest["conflicting_fixture_count"] == 1
+    assert manifest["closing_ah_fact_count"] == 0
+
+
+def test_zip_and_extracted_same_fixture_key_and_member_sha_retained(tmp_path: Path) -> None:
+    content = HEADER + _row("E0", "1", "0", "-0.25", "-0.5")
+    _write_manifest_dataset(tmp_path, content)
+    zip_path = tmp_path / "raw" / "season_zips" / "2021_data.zip"
+    zip_path.parent.mkdir(parents=True)
+    with zipfile.ZipFile(zip_path, "w") as handle:
+        handle.writestr("mmz4281/2021/E0.csv", content)
+
+    manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "manifest"
+    ]
+    facts = _read_jsonl(tmp_path / "artifacts" / "FOOTBALL_DATA_CLOSING_AH_FACTS_V2.jsonl")
+
+    assert manifest["representation_events"][0]["status"] == "SOURCE_REPRESENTATION_DUPLICATE"
+    assert facts[0]["archive_member"] == "mmz4281/2021/E0.csv"
+    assert facts[0]["source_member_sha256"]
+
+
+def test_cp1252_names_decoded_without_replacement(tmp_path: Path) -> None:
+    body = HEADER + _row("E0", "1", "0", "-0.25", "-0.5", home="Caf\xe9 FC")
+    path = _write_manifest_dataset(tmp_path, "")
+    path.write_bytes(body.encode("cp1252"))
+
+    write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")
+    facts = _read_jsonl(tmp_path / "artifacts" / "FOOTBALL_DATA_CLOSING_AH_FACTS_V2.jsonl")
+
+    assert facts[0]["home_team"] == "Café FC"
+
+
+def test_same_family_phase_evidence_accepts_and_rejects_mixed(tmp_path: Path) -> None:
+    complete = _row("E0", "1", "0", "-0.25", "-0.5")
+    mixed = _row("E0", "2", "1", "-0.25", "-0.5", date="02/08/2020").replace(
+        "1.9,1.9,1.8,2.0",
+        ",,,2.0",
+    )
+    _write_manifest_dataset(tmp_path, HEADER + complete + mixed)
+
+    result = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")
+    evidence = _read_jsonl(tmp_path / "artifacts" / "FOOTBALL_DATA_PHASE_MARKET_EVIDENCE.jsonl")
+
+    assert result["manifest"]["same_family_phase_evidence_count"] >= 1
+    assert evidence[0]["odds_family"] in {"B365", "AVERAGE"}
+    assert evidence[0]["result_identity_hash"]
+    assert result["phase_report"]["top_five_phase_evidence_count"] >= 1
+    assert result["phase_report"]["other_league_phase_evidence_count"] == 0
+
+
+def test_manifest_binds_code_sha_and_no_raw_private_data_tracked(tmp_path: Path) -> None:
+    _write_manifest_dataset(tmp_path, HEADER + _row("E0", "1", "0", "-0.25", "-0.5"))
+
+    manifest = write_football_data_ingest_artifacts(tmp_path, tmp_path / "artifacts")[
+        "manifest"
+    ]
+
+    assert manifest["implementation_head_sha"]
+    assert manifest["input_dataset_manifest_hash"]
+    test_raw_private_data_not_tracked()
+
+
+def _row(
+    div: str,
+    home_goals: str,
+    away_goals: str,
+    ahh: str,
+    ahch: str,
+    *,
+    date: str = "01/08/2020",
+    home: str = "Home One",
+    away: str = "Away One",
+) -> str:
     return (
-        f"{div},01/08/2020,15:00,Home One,Away One,{home_goals},{away_goals},H,"
+        f"{div},{date},15:00,{home},{away},{home_goals},{away_goals},H,"
         f"2.1,3.2,3.4,2.0,3.1,3.6,1.9,1.9,1.8,2.0,"
         f"{ahh},{ahch},1.9,1.9,2.0,1.8\n"
     )
+
+
+def _write_manifest_dataset(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "extracted" / "2021" / "E0.csv"
+    path.parent.mkdir(parents=True)
+    path.write_text(body, encoding="utf-8")
+    manifest_path = tmp_path / "manifests" / "DATASET_MANIFEST.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        """{
+  "source_system": "FOOTBALL_DATA_CO_UK",
+  "source_home": "https://www.football-data.co.uk",
+  "source_docs": {"notes.txt": "abc"},
+  "leagues": {"E0": "England Premier"},
+  "per_season_league": {
+    "2021_E0": {"total_rows": 1}
+  }
+}
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    import json
+
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def line_decimal(value: str):

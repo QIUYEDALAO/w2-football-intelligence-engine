@@ -1,0 +1,64 @@
+{
+  "artifact_manifest_hash": "4191c837e4e0c4a92da9d458e0da86a2757d567bc7e04a198499c0d8aa36e079",
+  "capability_flags": [
+    "NO_EXACT_CAPTURED_AT",
+    "SOURCE_LOCAL_F5_READY_CANDIDATE",
+    "W2_TEAM_IDENTITY_MAPPING_REQUIRED",
+    "W2_CANONICAL_IMPORT_NOT_EXECUTED",
+    "W2_RUNTIME_F5_NOT_READY",
+    "CALIBRATION_TRAINING_NOT_EXECUTED",
+    "FORMAL_AH_NOT_ENABLED",
+    "LOCK_NOT_ENABLED",
+    "PRODUCTION_NOT_ENABLED",
+    "MANUAL_APPROVAL_REQUIRED",
+    "PHASE_EVIDENCE_READY_CANDIDATE"
+  ],
+  "capture_semantics": {
+    "capture_time_precision": "SOURCE_PHASE_ONLY",
+    "captured_at": null,
+    "exact_captured_at": false,
+    "source_phases": [
+      "PRE_CLOSING",
+      "CLOSING"
+    ]
+  },
+  "code_sha": "a7f206aee0f603a7a0ee29185e498a535de36b6c",
+  "duplicate_conflict_exclusion_counts": {
+    "content_conflict_count": 0,
+    "exact_duplicate_count": 0,
+    "f5_missing": {
+      "content_conflicts": 0,
+      "exact_duplicates": 0,
+      "invalid_quarter_line": 0,
+      "missing_line": 0,
+      "missing_odds_pair": 0,
+      "missing_result": 0,
+      "source_encoding_unsupported": 0
+    },
+    "phase_exclusions": {
+      "mixed_market_source_family": 0,
+      "result_identity_incomplete": 0
+    }
+  },
+  "input_manifest_sha": "9eeb1fc921270b30ca380a27efd986878260d332f3488b2a0f00e77ce1312ce9",
+  "league_season_aggregate_counts": {
+    "2021_E0": {
+      "total_rows": 1
+    }
+  },
+  "manual_stop": "MANUAL_APPROVAL_REQUIRED",
+  "privacy": {
+    "no_private_absolute_paths": true,
+    "no_raw_rows": true,
+    "no_team_level_records": true,
+    "path_token": "$W2_FOOTBALL_DATA_ROOT"
+  },
+  "runtime_boundaries": {
+    "SOURCE_LOCAL_F5_DATASET": "READY_CANDIDATE",
+    "W2_CANONICAL_IMPORT": "NOT_EXECUTED",
+    "W2_RUNTIME_F5": "NOT_READY",
+    "W2_TEAM_CROSSWALK": "NOT_READY"
+  },
+  "schema_version": "w2.football_data_ingest_01r_summary.v1",
+  "summary_hash": "f55f74468728de0608739ea616cdc4422f6140a6b79131ae5344caea76958116"
+}
