@@ -18,6 +18,7 @@ from w2.historical.formal_ah import (
     audit_formal_ah_sources,
     build_canonical_ah_facts,
     decimal_line,
+    stable_hash,
 )
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
@@ -884,27 +885,27 @@ def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = FahDataFoundationRepository(engine)
+    artifact = {
+        "team_external_id": "1",
+        "transfermarkt_club_id": "club-1",
+        "competition_id": "allsvenskan",
+        "as_of": "2024-05-02T00:00:00Z",
+        "status": "READY",
+        "review_status": "APPROVED",
+        "conflict_count": 0,
+        "missing_mapping_count": 0,
+        "missing_valuation_count": 0,
+        "player_count": 2,
+        "uniquely_mapped_count": 2,
+        "valued_count": 2,
+        "roster_snapshot_status": "COMPLETE",
+        "valuation_observed_at": "2024-05-01T00:00:00Z",
+        "blockers": [],
+    }
+    artifact["artifact_hash"] = stable_hash(artifact)
     repository.write_team_value_artifacts(
         [
-            {
-                "team_external_id": "1",
-                "transfermarkt_club_id": "club-1",
-                "competition_id": "allsvenskan",
-                "as_of": "2024-05-02T00:00:00Z",
-                "status": "READY",
-                "review_status": "APPROVED",
-                "artifact_hash": "e" * 64,
-                "hash_verified": True,
-                "conflict_count": 0,
-                "missing_mapping_count": 0,
-                "missing_valuation_count": 0,
-                "player_count": 2,
-                "uniquely_mapped_count": 2,
-                "valued_count": 2,
-                "roster_snapshot_status": "COMPLETE",
-                "valuation_observed_at": "2024-05-01T00:00:00Z",
-                "blockers": [],
-            }
+            artifact
         ]
     )
 

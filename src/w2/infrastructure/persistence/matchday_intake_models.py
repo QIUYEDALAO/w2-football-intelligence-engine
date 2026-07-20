@@ -45,6 +45,31 @@ class MatchdayEndpointCaptureModel(Base):
     error_code: Mapped[str | None] = mapped_column(String(128))
 
 
+class MatchdayEndpointCapturePlanModel(Base):
+    __tablename__ = "matchday_endpoint_capture_plans"
+    __table_args__ = (
+        UniqueConstraint(
+            "capture_id",
+            "plan_id",
+            "endpoint",
+            name="uq_matchday_endpoint_capture_plan_identity",
+        ),
+        Index("ix_matchday_endpoint_capture_plan_capture", "capture_id"),
+        Index("ix_matchday_endpoint_capture_plan_plan", "plan_id"),
+    )
+
+    link_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    capture_id: Mapped[str] = mapped_column(
+        ForeignKey("matchday_endpoint_captures.capture_id"), nullable=False
+    )
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("matchday_checkpoint_plans.plan_id"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    link_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class MatchdayMarketObservationModel(Base):
     __tablename__ = "matchday_market_observations"
     __table_args__ = (
@@ -108,6 +133,8 @@ class MatchdayCheckpointPlanModel(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     claimed_by: Mapped[str | None] = mapped_column(String(128))
+    claim_token: Mapped[str | None] = mapped_column(String(64))
+    claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     test_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     namespace: Mapped[str | None] = mapped_column(String(128))

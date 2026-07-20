@@ -10,6 +10,7 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
+    MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
 )
 from w2.matchday.intake_v2 import (
@@ -211,10 +212,14 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         policy_version=plan.policy_version,
         status="CAPTURED",
         capture_id="capture-1",
+        now=plan.window_start + timedelta(minutes=2),
+        claim_token=str(first_claim[0]["claim_token"]),
     )
 
     assert [item["checkpoint"] for item in due] == ["T24_ODDS"]
     assert first_claim[0]["claimed_by"] == "worker-a"
+    assert first_claim[0]["claim_token"]
+    assert first_claim[0]["claim_expires_at"]
     assert first_claim[0]["attempt_count"] == 1
     assert second_claim == []
     with Session(engine) as session:
@@ -222,6 +227,91 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row is not None
         assert row.status == "CAPTURED"
         assert row.capture_id == "capture-1"
+        assert row.claim_token is None
+
+
+def test_checkpoint_claim_expiry_releases_due_plan_inside_window() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:lease",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+
+    repository.upsert_checkpoint_plan(plan)
+    first_claim = repository.claim_due_checkpoint_plans(
+        now=plan.window_start + timedelta(minutes=1),
+        worker_id="worker-a",
+        limit=1,
+        lease_seconds=1,
+    )
+    second_claim = repository.claim_due_checkpoint_plans(
+        now=plan.window_start + timedelta(minutes=2),
+        worker_id="worker-b",
+        limit=1,
+    )
+
+    assert first_claim[0]["claim_token"] != second_claim[0]["claim_token"]
+    assert second_claim[0]["claimed_by"] == "worker-b"
+    assert second_claim[0]["attempt_count"] == 2
+
+
+def test_endpoint_capture_can_link_multiple_checkpoint_plans_explicitly() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    base = {
+        "fixture_id": "api_football:100",
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "policy_version": "unit-policy",
+        "kickoff_utc": KICKOFF.isoformat(),
+        "scheduled_at": NOW.isoformat(),
+        "window_start": (NOW - timedelta(minutes=5)).isoformat(),
+        "window_end": (NOW + timedelta(minutes=5)).isoformat(),
+        "endpoints": ["odds"],
+        "status": "DUE",
+        "blockers": [],
+    }
+    plan_ids = []
+    for checkpoint in ("T30_LINEUPS_RETRY", "T30_FINAL_PREMATCH"):
+        payload = {**base, "checkpoint": checkpoint}
+        payload["plan_hash"] = stable_hash(payload)
+        plan_ids.append(repository.upsert_checkpoint_plan(payload))
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW,
+        status_code=200,
+        elapsed_ms=10,
+        payload=_odds_payload(),
+        fixture_id="api_football:100",
+        competition_id="allsvenskan",
+        checkpoint="T30_FINAL_PREMATCH,T30_LINEUPS_RETRY",
+        checkpoint_plan_ids=plan_ids,
+    )
+    repository.insert_endpoint_capture(capture)
+    links = repository.link_endpoint_capture_plans(
+        capture_id=str(capture["capture_id"]),
+        plan_ids=plan_ids,
+        endpoint="odds",
+        linked_at=NOW,
+    )
+
+    assert len(links) == 2
+    with Session(engine) as session:
+        assert session.query(MatchdayEndpointCapturePlanModel).count() == 2
 
 
 def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None:

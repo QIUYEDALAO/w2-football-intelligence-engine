@@ -849,7 +849,7 @@ def _f8_blockers(artifact: Mapping[str, Any], *, as_of: datetime) -> list[str]:
             for key, value in artifact.items()
             if key not in {"artifact_hash", "id"}
         }
-        if stable_hash(comparable) != expected_hash and artifact.get("hash_verified") is not True:
+        if stable_hash(comparable) != expected_hash:
             blockers.add("F8_ARTIFACT_HASH_MISMATCH")
     else:
         blockers.add("F8_ARTIFACT_HASH_MISSING")

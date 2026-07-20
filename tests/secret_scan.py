@@ -41,6 +41,8 @@ ALLOWLIST = (
     "if token",
     "token =",
     "{token}",
+    "claim_token",
+    "CHECKPOINT_CLAIM_TOKEN",
     "real_world_tokens",
     "adapter token",
     "js-tokens",

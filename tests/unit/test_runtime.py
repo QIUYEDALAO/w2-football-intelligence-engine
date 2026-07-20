@@ -725,6 +725,9 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
         def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
             raise AssertionError("must not read global due rows without generated plans")
 
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            raise AssertionError("must not claim rows without generated plans")
+
     monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda **kwargs: [])
     monkeypatch.setattr(
         "w2.matchday.repository.MatchdayRuntimeRepository",
@@ -761,7 +764,7 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
         def upsert_checkpoint_plan(self, plan: object) -> str:
             return "plan"
 
-        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
             return [
                 {
                     "id": "checkpoint:9999:open",
@@ -771,8 +774,13 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
                     "due_at": "2026-06-25T12:00:00Z",
                     "endpoints": ["odds"],
                     "source": "scheduled",
+                    "claim_token": "token",
+                    "claim_expires_at": "2026-06-25T12:15:00Z",
                 }
             ]
+
+        def release_checkpoint_claim(self, **kwargs: object) -> bool:
+            return True
 
     monkeypatch.setattr(
         scheduler_main,
