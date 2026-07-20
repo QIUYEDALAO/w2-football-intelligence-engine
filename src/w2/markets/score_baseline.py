@@ -31,8 +31,11 @@ class MarketScoreBaselineV1:
     actual_ou_line: str | None
     devig_probabilities: dict[str, dict[str, float]]
     baseline_distributions: dict[str, dict[str, Any]]
+    model_fair_odds: dict[str, dict[str, float]]
+    market_fair_odds: dict[str, dict[str, float]]
     fitted_parameters: dict[str, float] | None
     fitted_score_matrix_hash: str | None
+    zero_ev_residuals_by_market: dict[str, float]
     residuals_by_market: dict[str, float]
     max_residual: float | None
     optimizer_status: str
@@ -110,8 +113,10 @@ def build_market_score_baseline(
         quote_hashes=quote_hashes,
         devig_probabilities=devigged,
         baseline_distributions=fit["baseline_distributions"],
+        model_fair_odds=fit["model_fair_odds"],
+        market_fair_odds=fit["market_fair_odds"],
         fitted_parameters=fit["parameters"],
-        residuals_by_market=fit["residuals_by_market"],
+        residuals_by_market=fit["zero_ev_residuals_by_market"],
         optimizer_status=fit["optimizer_status"],
         blockers=["MARKET_BASELINE_RESIDUAL_THRESHOLD_UNVALIDATED"],
     )
@@ -125,6 +130,8 @@ def _baseline(
     quote_hashes: list[str],
     devig_probabilities: dict[str, dict[str, float]],
     baseline_distributions: dict[str, dict[str, Any]] | None = None,
+    model_fair_odds: dict[str, dict[str, float]] | None = None,
+    market_fair_odds: dict[str, dict[str, float]] | None = None,
     fitted_parameters: dict[str, float] | None,
     residuals_by_market: dict[str, float],
     optimizer_status: str,
@@ -147,8 +154,11 @@ def _baseline(
         "actual_ou_line": _line_text(_market_line(quotes, "TOTALS")),
         "devig_probabilities": devig_probabilities,
         "baseline_distributions": baseline_distributions or {},
+        "model_fair_odds": model_fair_odds or {},
+        "market_fair_odds": market_fair_odds or {},
         "fitted_parameters": fitted_parameters,
         "fitted_score_matrix_hash": matrix_hash,
+        "zero_ev_residuals_by_market": residuals_by_market,
         "residuals_by_market": residuals_by_market,
         "max_residual": max(residuals_by_market.values()) if residuals_by_market else None,
         "optimizer_status": optimizer_status,
@@ -217,6 +227,8 @@ def _fit_score_matrix(
     best: tuple[float, float, float] | None = None
     best_residuals: dict[str, float] = {}
     best_distributions: dict[str, dict[str, Any]] = {}
+    best_model_fair: dict[str, dict[str, float]] = {}
+    best_market_fair: dict[str, dict[str, float]] = {}
     for home_step in range(8, 33):
         for away_step in range(8, 33):
             home = home_step / 10
@@ -227,18 +239,16 @@ def _fit_score_matrix(
                 ah_line=ah_line,
                 ou_line=ou_line,
             )
-            residuals = {
-                market: round(
-                    max(abs(implied[market][key] - float(target[key])) for key in target),
-                    6,
-                )
-                for market, target in devigged.items()
-            }
+            model_fair = _model_fair_odds(implied, distributions)
+            market_fair = _market_fair_odds(devigged)
+            residuals = _zero_ev_residuals(implied, devigged, model_fair, market_fair)
             score = max(residuals.values())
             if best is None or score < best[0]:
                 best = (score, home, away)
                 best_residuals = residuals
                 best_distributions = distributions
+                best_model_fair = model_fair
+                best_market_fair = market_fair
     assert best is not None
     return {
         "parameters": {
@@ -251,7 +261,9 @@ def _fit_score_matrix(
             "rounding": 6,
             "solver_version": SOLVER_VERSION,
         },
-        "residuals_by_market": best_residuals,
+        "zero_ev_residuals_by_market": best_residuals,
+        "model_fair_odds": best_model_fair,
+        "market_fair_odds": best_market_fair,
         "baseline_distributions": best_distributions,
         "optimizer_status": "CONVERGED_DIAGNOSTIC",
     }
@@ -409,6 +421,77 @@ def _five_state(value: Any) -> dict[str, float]:
         "HALF_LOSS": float(raw["half_loss_probability"]),
         "LOSS": float(raw["full_loss_probability"]),
     }
+
+
+def fair_decimal_odds(distribution: Mapping[str, Any]) -> float | None:
+    win = _decimal(distribution.get("WIN"))
+    half_win = _decimal(distribution.get("HALF_WIN"))
+    half_loss = _decimal(distribution.get("HALF_LOSS"))
+    loss = _decimal(distribution.get("LOSS"))
+    if win is None or half_win is None or half_loss is None or loss is None:
+        return None
+    denominator = win + Decimal("0.5") * half_win
+    if denominator <= 0:
+        return None
+    numerator = Decimal("0.5") * half_loss + loss
+    return round(float(Decimal("1") + numerator / denominator), 6)
+
+
+def _model_fair_odds(
+    implied: Mapping[str, Mapping[str, float]],
+    distributions: Mapping[str, Mapping[str, Mapping[str, float]]],
+) -> dict[str, dict[str, float]]:
+    output = {
+        "1X2": {
+            selection: round(1 / probability, 6)
+            for selection, probability in implied["1X2"].items()
+            if probability > 0
+        }
+    }
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        output[market] = {}
+        for selection, distribution in distributions[market].items():
+            fair = fair_decimal_odds(distribution)
+            if fair is not None:
+                output[market][selection] = fair
+    return output
+
+
+def _market_fair_odds(devigged: Mapping[str, Mapping[str, float]]) -> dict[str, dict[str, float]]:
+    return {
+        market: {
+            selection: round(1 / probability, 6)
+            for selection, probability in probabilities.items()
+            if probability > 0
+        }
+        for market, probabilities in devigged.items()
+    }
+
+
+def _zero_ev_residuals(
+    implied: Mapping[str, Mapping[str, float]],
+    devigged: Mapping[str, Mapping[str, float]],
+    model_fair: Mapping[str, Mapping[str, float]],
+    market_fair: Mapping[str, Mapping[str, float]],
+) -> dict[str, float]:
+    residuals = {
+        "1X2": round(
+            max(
+                abs(implied["1X2"][selection] - float(devigged["1X2"][selection]))
+                for selection in devigged["1X2"]
+            ),
+            6,
+        )
+    }
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        residuals[market] = round(
+            max(
+                abs(float(model_fair[market][selection]) - float(market_fair[market][selection]))
+                for selection in market_fair[market]
+            ),
+            6,
+        )
+    return residuals
 
 
 def _decimal(value: object) -> Decimal | None:

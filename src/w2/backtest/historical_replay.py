@@ -24,6 +24,10 @@ class HistoricalModelReplayRowV1:
     model_version: str
     factor_registry_sha: str
     source_manifest_sha: str
+    quote_identity_hash: str
+    result_identity_hash: str
+    market_baseline_hash: str
+    calibration_version: str
     f5_status: str
     f5_fact_hashes: list[str]
     f8_status: str
@@ -88,6 +92,10 @@ def build_historical_replay_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "model_version": _text(row.get("model_version")),
         "factor_registry_sha": _text(row.get("factor_registry_sha")),
         "source_manifest_sha": _text(row.get("source_manifest_sha")),
+        "quote_identity_hash": _text(row.get("quote_identity_hash")),
+        "result_identity_hash": _text(row.get("result_identity_hash")),
+        "market_baseline_hash": _text(row.get("market_baseline_hash")),
+        "calibration_version": _text(row.get("calibration_version")),
         "f5_status": _text(row.get("f5_status")),
         "f5_fact_hashes": _strings(row.get("f5_fact_hashes")),
         "f8_status": _text(row.get("f8_status")),
@@ -123,7 +131,27 @@ def build_calibration_artifact(
     evaluator_version: str,
     test_only: bool = False,
 ) -> dict[str, Any]:
-    replay_rows: list[Mapping[str, Any]] = [dict(row) for row in rows]
+    replay_rows: list[Mapping[str, Any]] = [
+        build_historical_replay_row(dict(row)) for row in rows
+    ]
+    by_hash: dict[str, Mapping[str, Any]] = {}
+    conflicts: list[Mapping[str, Any]] = []
+    for row in replay_rows:
+        row_hash = str(row.get("row_hash") or "")
+        existing = by_hash.get(row_hash)
+        if existing is None:
+            by_hash[row_hash] = row
+        elif existing != row:
+            conflicts.append(
+                {
+                    **row,
+                    "blockers": [
+                        *list(row.get("blockers") or []),
+                        "REPLAY_ROW_HASH_CONFLICT",
+                    ],
+                }
+            )
+    replay_rows = [*by_hash.values(), *conflicts]
     accepted_rows = [row for row in replay_rows if not row.get("blockers")]
     rejected_rows = [row for row in replay_rows if row.get("blockers")]
     splits = _split_counts(accepted_rows)
@@ -184,9 +212,21 @@ def _replay_blockers(row: Mapping[str, Any]) -> list[str]:
         blockers.append("MIXED_QUOTE_BATCH")
     if not _text(row.get("source_manifest_sha")):
         blockers.append("MISSING_SOURCE_HASH")
-    for key in ("model_version", "factor_registry_sha", "market_baseline_hash"):
+    for key in (
+        "model_version",
+        "calibration_version",
+        "factor_registry_sha",
+        "market_baseline_hash",
+    ):
         if not _text(row.get(key)):
             blockers.append(f"MISSING_{key.upper()}")
+    for key in ("selection", "line", "odds", "entry_captured_at"):
+        if not _text(row.get(key)):
+            blockers.append(f"MISSING_{key.upper()}")
+    if not _complete_probability(row.get("model_settlement_distribution")):
+        blockers.append("MISSING_MODEL_SETTLEMENT_DISTRIBUTION")
+    if not _complete_probability(row.get("market_baseline_distribution")):
+        blockers.append("MISSING_MARKET_BASELINE_DISTRIBUTION")
     if not _text(row.get("quote_identity_hash")):
         blockers.append("MISSING_QUOTE_IDENTITY")
     if not _text(row.get("result_identity_hash")):
@@ -237,6 +277,19 @@ def _float_mapping(value: object) -> dict[str, float]:
     if not isinstance(value, Mapping):
         return {}
     return {str(key): float(item) for key, item in value.items()}
+
+
+def _complete_probability(value: object) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    required = {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    if set(value) != required:
+        return False
+    try:
+        numbers = [float(value[key]) for key in required]
+    except (TypeError, ValueError):
+        return False
+    return all(0 <= item <= 1 for item in numbers) and abs(sum(numbers) - 1) <= 0.000001
 
 
 def _strings(value: object) -> list[str]:

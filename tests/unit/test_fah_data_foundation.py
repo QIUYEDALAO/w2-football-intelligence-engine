@@ -20,10 +20,15 @@ from w2.historical.formal_ah import (
 )
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
+    CanonicalHistoricalAhFactModel,
+    PlayerIdentityCrosswalkModel,
+    RegisteredRosterSnapshotModel,
     TeamIdentityCrosswalkModel,
     TeamValueAsOfArtifactModel,
 )
 from w2.lineups.value_identity import (
+    PlayerIdentityCrosswalkV1,
+    TeamIdentityCrosswalkV1,
     approved_crosswalk_for_team,
     build_player_crosswalk,
     build_team_crosswalk,
@@ -43,6 +48,7 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 def _registry(path: Path, *, local_path: str, **overrides: object) -> Path:
     payload = {
+        "schema_version": "w2.formal_ah_source_registry.v1",
         "sources": [
             {
                 "source_id": "src-1",
@@ -52,6 +58,8 @@ def _registry(path: Path, *, local_path: str, **overrides: object) -> Path:
                 "license_status": "APPROVED",
                 "retention_permitted": True,
                 "internal_backtest_permitted": True,
+                "snapshot_semantics": "CAPTURED_AT",
+                "canonical_bookmaker_policy": "SINGLE_BOOK_SOURCE",
                 **overrides,
             }
         ]
@@ -171,6 +179,8 @@ def test_canonical_fact_uses_latest_t30_pair_and_is_deterministic(tmp_path: Path
 
     assert first["audit"]["canonical_fact_count"] == 1
     assert first["facts"][0]["fact_hash"] == second["facts"][0]["fact_hash"]
+    assert first["facts"][0]["canonical_key"]
+    assert first["facts"][0]["fact_id"] == f"canonical-ah:{first['facts'][0]['canonical_key']}"
     assert first["facts"][0]["home_settlement"] == "WIN"
     assert first["facts"][0]["away_settlement"] == "LOSS"
 
@@ -376,8 +386,8 @@ def test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk
     assert approved.transfermarkt_club_id == "club-1"
 
 
-def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path: Path) -> None:
-    crosswalk = build_team_crosswalk(
+def _approved_player_crosswalk() -> tuple[TeamIdentityCrosswalkV1, PlayerIdentityCrosswalkV1]:
+    team = build_team_crosswalk(
         {
             "api_football_team_id": "1",
             "transfermarkt_club_id": "club-1",
@@ -390,6 +400,26 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             "reviewed_at": "2024-01-02T00:00:00Z",
         }
     )
+    player = build_player_crosswalk(
+        {
+            "api_football_player_id": "api-p1",
+            "transfermarkt_player_id": "p1",
+            "api_football_team_id": "1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "b" * 64,
+            "evidence": {"source": "manual-review"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        },
+        team_crosswalks=[team],
+    )
+    return team, player
+
+
+def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path: Path) -> None:
+    crosswalk, player_crosswalk = _approved_player_crosswalk()
     _write_csv(
         tmp_path / "registered_roster_snapshots.csv",
         [
@@ -424,6 +454,7 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             "as_of": "2024-05-02T00:00:00Z",
         },
         crosswalks=[crosswalk],
+        player_crosswalks=[player_crosswalk],
         source_root=tmp_path,
     )
     rebuilt = materialize_team_value_asof(
@@ -433,6 +464,7 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             "as_of": "2024-05-02T00:00:00Z",
         },
         crosswalks=[crosswalk],
+        player_crosswalks=[player_crosswalk],
         source_root=tmp_path,
     )
 
@@ -445,19 +477,7 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
 
 
 def test_team_value_asof_rejects_same_day_valuation_conflict(tmp_path: Path) -> None:
-    crosswalk = build_team_crosswalk(
-        {
-            "api_football_team_id": "1",
-            "transfermarkt_club_id": "club-1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "a" * 64,
-            "evidence": {"source": "manual-review"},
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        }
-    )
+    crosswalk, player_crosswalk = _approved_player_crosswalk()
     _write_csv(
         tmp_path / "registered_roster_snapshots.csv",
         [
@@ -491,6 +511,7 @@ def test_team_value_asof_rejects_same_day_valuation_conflict(tmp_path: Path) -> 
             "as_of": "2024-05-02T00:00:00Z",
         },
         crosswalks=[crosswalk],
+        player_crosswalks=[player_crosswalk],
         source_root=tmp_path,
     )
 
@@ -556,6 +577,64 @@ def test_fah_repository_can_query_team_value_by_team_and_asof() -> None:
 
     assert summary.inserted == 1
     assert found.artifact_hash == "c" * 64
+
+
+def test_fah_repository_import_and_query_authorities() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    source_root = _source_root_for_repo_test()
+    fact = build_canonical_ah_facts(
+        source_root=source_root,
+        registry_path=source_root / "registry.json",
+    )["facts"][0]
+    team, player = _approved_player_crosswalk()
+    roster = {
+        "transfermarkt_club_id": "club-1",
+        "transfermarkt_player_id": "p1",
+        "snapshot_date": "2024-05-01T00:00:00Z",
+        "source_sha256": "c" * 64,
+        "snapshot_status": "COMPLETE",
+    }
+
+    assert repository.import_canonical_ah_facts([fact]).inserted == 1
+    assert repository.import_team_crosswalks([team.as_dict()]).inserted == 1
+    assert repository.import_player_crosswalks([player.as_dict()]).inserted == 1
+    assert repository.import_registered_roster_snapshots([roster]).inserted == 1
+
+    facts = repository.historical_ah_facts_for_teams(
+        team_ids=["home-1"],
+        competition_id="allsvenskan",
+        as_of=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+    assert facts[0]["canonical_key"] == fact["canonical_key"]
+    assert repository.team_crosswalk_at(
+        api_football_team_id="1",
+        competition_id="allsvenskan",
+        as_of=AS_OF,
+    )["crosswalk_hash"] == team.crosswalk_hash
+    assert len(
+        repository.player_crosswalks_for_roster(
+            api_football_team_id="1",
+            competition_id="allsvenskan",
+            as_of=AS_OF,
+        )
+    ) == 1
+    assert len(repository.registered_roster_at(transfermarkt_club_id="club-1", as_of=AS_OF)) == 1
+
+    with Session(engine) as session:
+        assert len(session.scalars(select(CanonicalHistoricalAhFactModel)).all()) == 1
+        assert len(session.scalars(select(PlayerIdentityCrosswalkModel)).all()) == 1
+        assert len(session.scalars(select(RegisteredRosterSnapshotModel)).all()) == 1
+
+
+def _source_root_for_repo_test() -> Path:
+    import tempfile
+
+    root = Path(tempfile.mkdtemp())
+    _write_csv(root / "approved.csv", _ah_rows())
+    _registry(root / "registry.json", local_path="approved.csv")
+    return root
 
 
 def _history(

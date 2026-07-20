@@ -9,7 +9,7 @@ from w2.backtest.ah_formal_evidence import (
 from w2.backtest.historical_replay import build_calibration_artifact, build_historical_replay_row
 from w2.formal.readiness import evaluate_formal_ah_readiness
 from w2.markets.analysis_evidence import build_analysis_market_evidence
-from w2.markets.score_baseline import build_market_score_baseline
+from w2.markets.score_baseline import build_market_score_baseline, fair_decimal_odds
 from w2.markets.settlement_probability import effective_settlement_probability
 from w2.tracking.forward_shadow_evidence import (
     FORWARD_TARGET_COUNT,
@@ -95,6 +95,9 @@ def test_market_score_baseline_batch_and_unvalidated_residual_gate() -> None:
     ready_like = build_market_score_baseline(_quotes(), entry_checkpoint="2026-01-01T12:00:00Z")
     assert ready_like["status"] == "UNVALIDATED"
     assert ready_like["optimizer_status"] == "CONVERGED_DIAGNOSTIC"
+    assert ready_like["model_fair_odds"]["ASIAN_HANDICAP"]["HOME"] > 1
+    assert ready_like["market_fair_odds"]["TOTALS"]["OVER"] > 1
+    assert ready_like["zero_ev_residuals_by_market"]["ASIAN_HANDICAP"] >= 0
     assert ready_like["baseline_hash"]
 
     mismatch = _quotes()
@@ -123,6 +126,10 @@ def test_market_score_baseline_batch_and_unvalidated_residual_gate() -> None:
     )
 
 
+def test_fair_decimal_odds_uses_five_state_zero_ev_formula() -> None:
+    assert fair_decimal_odds(_dist(win=0.5, half_loss=0.5)) == 1.5
+
+
 def test_replay_and_calibration_artifact_fail_closed_and_deterministic() -> None:
     row = build_historical_replay_row(
         {
@@ -137,6 +144,7 @@ def test_replay_and_calibration_artifact_fail_closed_and_deterministic() -> None
     )
     assert "ASOF_NOT_STRICTLY_PREMATCH" in row["blockers"]
     assert "F5_PROXY_OR_NOT_READY" in row["blockers"]
+    assert "MISSING_CALIBRATION_VERSION" in row["blockers"]
     artifact = build_calibration_artifact(
         [],
         code_sha="code",
@@ -201,6 +209,7 @@ def test_formal_readiness_blockers_and_approval_hash_mismatch() -> None:
     assert readiness["admission_ready"] is False
     assert "FORMAL_CALIBRATION_NOT_VALIDATED" in readiness["blockers"]
     assert "FORMAL_APPROVED_HASH_MISMATCH" in readiness["blockers"]
+    assert "FORMAL_ACTUAL_ARTIFACT_HASH_MISSING" in readiness["blockers"]
     assert readiness["recommendation_id"] is None
 
 
@@ -274,6 +283,7 @@ def _evidence_row(*, kickoff: str) -> dict[str, object]:
         "selection": "HOME",
         "line": "-0.25",
         "entry_devig_probability": 0.3,
+        "entry_captured_at": "2026-01-01T00:00:00Z",
         "closing_devig_probability": 0.34,
         "closing_quote_identity_hash": "h",
         "closing_quote_captured_at": "2026-01-01T01:00:00Z",
@@ -284,6 +294,16 @@ def _evidence_row(*, kickoff: str) -> dict[str, object]:
         "model_version": "m1",
         "calibration_version": "c1",
         "factor_registry_sha": "f1",
+        "code_sha": "code",
+        "source_manifest_sha": "source",
+        "f5_status": "READY",
+        "f5_fact_hashes": ["fact"],
+        "f8_status": "READY",
+        "team_value_artifact_hashes": ["team-value"],
+        "market_baseline_status": "READY",
+        "market_baseline_hash": "market",
+        "quote_identity_hash": "quote",
+        "result_identity_hash": "result",
     }
 
 

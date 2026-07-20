@@ -44,6 +44,9 @@ def evaluate_formal_ah_readiness(
         ),
     }
     global_blockers = [gate["reason"] for gate in gates.values() if not gate["passed"]]
+    missing_actual_hashes = sorted(key for key, value in actual_hashes.items() if not value)
+    if missing_actual_hashes:
+        global_blockers.append("FORMAL_ACTUAL_ARTIFACT_HASH_MISSING")
     fixture_gates = _fixture_gates(fixture_evidence)
     fixture_blockers = [gate["reason"] for gate in fixture_gates if not gate["passed"]]
     blockers = [*global_blockers, *fixture_blockers]
@@ -68,6 +71,7 @@ def evaluate_formal_ah_readiness(
         "approval_status": approval,
         "approved_hashes": approval.get("accepted_hashes") or {},
         "actual_hashes": actual_hashes,
+        "missing_actual_hashes": missing_actual_hashes,
         "blockers": blockers,
         "admission_ready": admission_ready,
         "formal_eligible": formal_eligible,

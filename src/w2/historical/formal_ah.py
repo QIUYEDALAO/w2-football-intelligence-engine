@@ -15,11 +15,17 @@ from typing import Any, TextIO
 from w2.domain.odds import settle_asian_handicap
 
 CANONICAL_HISTORICAL_AH_FACT_SCHEMA = "w2.canonical_historical_ah_fact.v1"
+FORMAL_AH_SOURCE_REGISTRY_SCHEMA = "w2.formal_ah_source_registry.v1"
 TEAM_IDENTITY_CROSSWALK_SCHEMA = "w2.team_identity_crosswalk.v1"
 TEAM_VALUE_ASOF_ARTIFACT_SCHEMA = "w2.team_value_asof_artifact.v1"
 CHECKPOINT_POLICY = "LATEST_COMPLETE_TWO_SIDED_QUOTE_AT_OR_BEFORE_T_MINUS_30"
 SETTLEMENT_VERSION = "w2.settle_asian_handicap.v1"
 APPROVED_SOURCE_STATUS = "APPROVED_CAPTURED_AT"
+SUPPORTED_BOOKMAKER_POLICIES = {
+    "SINGLE_BOOK_SOURCE",
+    "EXACT_BOOKMAKER_ID",
+    "ORDERED_BOOKMAKER_PRIORITY",
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -49,13 +55,16 @@ class HistoricalSourceAudit:
 @dataclass(frozen=True, kw_only=True)
 class CanonicalHistoricalAhFactV1:
     schema_version: str
+    canonical_key: str
     fact_id: str
     fact_hash: str
     source_snapshot_id: str
     source_id: str
     source_sha256: str
+    source_registry_version: str
     source_license_status: str
     source_schema_version: str
+    bookmaker_policy: str
     provider_fixture_id: str
     w2_fixture_id: str | None
     competition_id: str
@@ -141,6 +150,7 @@ def load_source_registry(path: Path | None) -> dict[str, dict[str, Any]]:
     if path is None or not path.is_file():
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
+    registry_schema = payload.get("schema_version") if isinstance(payload, dict) else None
     rows = payload.get("sources") if isinstance(payload, dict) else payload
     if not isinstance(rows, list):
         return {}
@@ -153,7 +163,10 @@ def load_source_registry(path: Path | None) -> dict[str, dict[str, Any]]:
             continue
         if source_id in registry:
             raise ValueError(f"DUPLICATE_SOURCE_ID:{source_id}")
-        registry[source_id] = row
+        registry[source_id] = {
+            **row,
+            "_registry_schema_version": registry_schema or FORMAL_AH_SOURCE_REGISTRY_SCHEMA,
+        }
     return registry
 
 
@@ -212,8 +225,20 @@ def audit_registered_source(
     retention = bool(metadata.get("retention_permitted") is True)
     backtest = bool(metadata.get("internal_backtest_permitted") is True)
     reasons: list[str] = []
-    if not source_id or not provider or not _optional_text(metadata.get("schema_version")):
+    registry_schema = str(metadata.get("_registry_schema_version") or "")
+    snapshot_semantics = str(metadata.get("snapshot_semantics") or "")
+    bookmaker_policy = str(metadata.get("canonical_bookmaker_policy") or "")
+    if (
+        registry_schema != FORMAL_AH_SOURCE_REGISTRY_SCHEMA
+        or not source_id
+        or not provider
+        or not _optional_text(metadata.get("schema_version"))
+    ):
         reasons.append("BLOCKED_REGISTRY_SCHEMA_INVALID")
+    if snapshot_semantics != "CAPTURED_AT":
+        reasons.append("BLOCKED_SNAPSHOT_SEMANTICS_NOT_CAPTURED_AT")
+    if bookmaker_policy not in SUPPORTED_BOOKMAKER_POLICIES:
+        reasons.append("BLOCKED_BOOKMAKER_POLICY_INVALID")
     if license_status != "APPROVED" or not retention or not backtest:
         reasons.append(
             "BLOCKED_LICENSE_UNKNOWN"
@@ -234,6 +259,8 @@ def audit_registered_source(
         reasons.append("BLOCKED_MISSING_RESULT_LINK")
     if not has_fixture_id:
         reasons.append("BLOCKED_FIXTURE_IDENTITY")
+    if not _has_exact_pair_preflight(ah_rows, audit_provider=provider):
+        reasons.append("BLOCKED_EXACT_PAIR_PREFLIGHT")
     status = APPROVED_SOURCE_STATUS if not reasons else _primary_source_status(reasons)
     return HistoricalSourceAudit(
         source_id=source_id,
@@ -272,6 +299,7 @@ def build_canonical_ah_facts(
     facts: list[CanonicalHistoricalAhFactV1] = []
     exclusions: Counter[str] = Counter()
     seen_fact_hashes: set[str] = set()
+    seen_canonical_keys: dict[str, str] = {}
     for audit in audits:
         if audit.source_status != APPROVED_SOURCE_STATUS:
             exclusions.update(audit.exclusion_reasons or [audit.source_status])
@@ -295,8 +323,13 @@ def build_canonical_ah_facts(
             if built is None:
                 exclusions[reason or "excluded"] += 1
                 continue
+            existing_hash = seen_canonical_keys.get(built.canonical_key)
+            if existing_hash is not None and existing_hash != built.fact_hash:
+                exclusions["CANONICAL_FACT_IDENTITY_CONFLICT"] += 1
+                continue
+            seen_canonical_keys.setdefault(built.canonical_key, built.fact_hash)
             if built.fact_hash in seen_fact_hashes:
-                exclusions["duplicate"] += 1
+                exclusions["SKIPPED_IDENTICAL"] += 1
                 continue
             seen_fact_hashes.add(built.fact_hash)
             facts.append(built)
@@ -345,6 +378,11 @@ def canonical_fact_audit(
         "earliest_kickoff": kickoffs[0] if kickoffs else None,
         "latest_kickoff": kickoffs[-1] if kickoffs else None,
         "duplicate_count": exclusions.get("duplicate", 0),
+        "skipped_identical_count": exclusions.get("SKIPPED_IDENTICAL", 0),
+        "canonical_fact_identity_conflicts": exclusions.get(
+            "CANONICAL_FACT_IDENTITY_CONFLICT",
+            0,
+        ),
         "quote_conflicts": exclusions.get("quote_conflict", 0),
         "result_conflicts": exclusions.get("result_conflict", 0),
         "fixture_mapping_conflicts": exclusions.get("fixture_mapping_conflict", 0),
@@ -493,6 +531,17 @@ def _fact_for_fixture(
             "status": result_status,
         }
     )
+    canonical_key = stable_hash(
+        {
+            "competition_id": _text(home.get("competition_id")),
+            "provider_fixture_id": _fixture_id(home),
+            "checkpoint_policy": CHECKPOINT_POLICY,
+        }
+    )
+    source_registry_version = str(
+        source_meta.get("_registry_schema_version") or FORMAL_AH_SOURCE_REGISTRY_SCHEMA
+    )
+    bookmaker_policy = str(source_meta.get("canonical_bookmaker_policy") or "")
     core = {
         "fixture_identity": {
             "provider_fixture_id": _fixture_id(home),
@@ -509,21 +558,30 @@ def _fact_for_fixture(
         "home_settlement": home_settlement.value,
         "away_settlement": away_settlement.value,
         "settlement_version": SETTLEMENT_VERSION,
+        "schema_version": CANONICAL_HISTORICAL_AH_FACT_SCHEMA,
+        "canonical_key": canonical_key,
         "source_id": audit.source_id,
+        "source_snapshot_id": str(source_meta.get("source_snapshot_id") or audit.source_id),
         "source_sha256": source_sha,
+        "source_schema_version": audit.schema_version or "",
+        "source_registry_version": source_registry_version,
         "source_license_status": audit.source_license_status,
+        "bookmaker_policy": bookmaker_policy,
     }
     fact_hash = stable_hash(core)
     return (
         CanonicalHistoricalAhFactV1(
             schema_version=CANONICAL_HISTORICAL_AH_FACT_SCHEMA,
-            fact_id=f"canonical-ah:{fact_hash}",
+            canonical_key=canonical_key,
+            fact_id=f"canonical-ah:{canonical_key}",
             fact_hash=fact_hash,
             source_snapshot_id=str(source_meta.get("source_snapshot_id") or audit.source_id),
             source_id=audit.source_id,
             source_sha256=source_sha,
+            source_registry_version=source_registry_version,
             source_license_status=audit.source_license_status,
             source_schema_version=audit.schema_version or "",
+            bookmaker_policy=bookmaker_policy,
             provider_fixture_id=_fixture_id(home),
             w2_fixture_id=_optional_text(home.get("w2_fixture_id")),
             competition_id=_text(home.get("competition_id")),
@@ -610,6 +668,9 @@ def _primary_source_status(reasons: list[str]) -> str:
         "BLOCKED_MISSING_AH_LINE",
         "BLOCKED_MISSING_RESULT_LINK",
         "BLOCKED_FIXTURE_IDENTITY",
+        "BLOCKED_SNAPSHOT_SEMANTICS_NOT_CAPTURED_AT",
+        "BLOCKED_BOOKMAKER_POLICY_INVALID",
+        "BLOCKED_EXACT_PAIR_PREFLIGHT",
     ):
         if candidate in reasons:
             return candidate
@@ -729,6 +790,51 @@ def _quote_pair_identity_conflict(
     ):
         return "quote_conflict"
     return None
+
+
+def _has_exact_pair_preflight(rows: Sequence[Mapping[str, Any]], *, audit_provider: str) -> bool:
+    by_pair: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if not _quote_row_minimal_valid(row):
+            continue
+        key = (
+            _text(row.get("provider") or audit_provider),
+            _fixture_id(row),
+            _text(row.get("bookmaker_id") or row.get("bookmaker")),
+            _text(row.get("captured_at") or row.get("quote_captured_at")),
+        )
+        by_pair[key].append(row)
+    for pair_rows in by_pair.values():
+        home_rows = [row for row in pair_rows if _side(row) == "HOME"]
+        away_rows = [row for row in pair_rows if _side(row) == "AWAY"]
+        for home in home_rows:
+            for away in away_rows:
+                home_line = decimal_line(home.get("line"))
+                away_line = decimal_line(away.get("line"))
+                if (
+                    home_line is not None
+                    and away_line is not None
+                    and home_line == -away_line
+                    and _text(home.get("observation_id"))
+                    and _text(away.get("observation_id"))
+                    and _text(home.get("observation_id")) != _text(away.get("observation_id"))
+                    and _result_ready(home)
+                    and _result_ready(away)
+                ):
+                    return True
+    return False
+
+
+def _quote_row_minimal_valid(row: Mapping[str, Any]) -> bool:
+    return bool(
+        _fixture_id(row)
+        and _text(row.get("bookmaker_id") or row.get("bookmaker"))
+        and _text(row.get("captured_at") or row.get("quote_captured_at"))
+        and decimal_line(row.get("line")) is not None
+        and decimal_odds(row.get("decimal_odds")) is not None
+        and not _truthy(row.get("live"))
+        and not _truthy(row.get("suspended"))
+    )
 
 
 def _open_text(path: Path) -> TextIO:
