@@ -165,6 +165,11 @@ def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> Non
             goals_for=2,
             goals_against=1,
             ah_result="COVER",
+            ah_fact_id="canonical-ah:home",
+            ah_fact_hash="a" * 64,
+            quote_identity_hash="b" * 64,
+            result_identity_hash="c" * 64,
+            settlement_outcome="WIN",
         )
     ]
     away_history = [
@@ -175,6 +180,11 @@ def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> Non
             goals_for=1,
             goals_against=1,
             ah_result="NO_COVER",
+            ah_fact_id="canonical-ah:away",
+            ah_fact_hash="d" * 64,
+            quote_identity_hash="e" * 64,
+            result_identity_hash="f" * 64,
+            settlement_outcome="LOSS",
         )
     ]
 

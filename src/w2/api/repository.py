@@ -3477,6 +3477,11 @@ class ReadModelService:
             goals_for=goals_for,
             goals_against=goals_against,
             ah_result=self._existing_ah_result(row),
+            ah_fact_id=self._string_or_none(row.get("ah_fact_id")),
+            ah_fact_hash=self._string_or_none(row.get("ah_fact_hash")),
+            quote_identity_hash=self._string_or_none(row.get("quote_identity_hash")),
+            result_identity_hash=self._string_or_none(row.get("result_identity_hash")),
+            settlement_outcome=self._string_or_none(row.get("settlement_outcome")),
             source="team_xg_match_proxy",
             source_group="xg",
             is_independent_signal=False,
@@ -3902,6 +3907,11 @@ class ReadModelService:
             goals_for=goals_for,
             goals_against=goals_against,
             ah_result=self._existing_ah_result(item),
+            ah_fact_id=self._string_or_none(item.get("ah_fact_id")),
+            ah_fact_hash=self._string_or_none(item.get("ah_fact_hash")),
+            quote_identity_hash=self._string_or_none(item.get("quote_identity_hash")),
+            result_identity_hash=self._string_or_none(item.get("result_identity_hash")),
+            settlement_outcome=self._string_or_none(item.get("settlement_outcome")),
             source=source,
             source_group=source_group,
             is_independent_signal=True,
@@ -3931,6 +3941,12 @@ class ReadModelService:
             return None
         text = str(value).upper()
         return text if text in {"COVER", "NO_COVER"} else None
+
+    def _string_or_none(self, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     def _team_ratings_from_existing_xg_snapshots(
         self,

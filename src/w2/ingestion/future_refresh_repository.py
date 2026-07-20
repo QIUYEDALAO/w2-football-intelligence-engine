@@ -231,16 +231,7 @@ class FutureRefreshDbRepository:
                     newest_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
                     for reference in references:
                         newest_by_id.setdefault(reference.transfermarkt_player_id, reference)
-                    team_name = normalize_player_name(snapshot.team_name)
-                    team_confirmed = [
-                        reference
-                        for reference in newest_by_id.values()
-                        if reference.current_club_name
-                        and (
-                            team_name in normalize_player_name(reference.current_club_name)
-                            or normalize_player_name(reference.current_club_name) in team_name
-                        )
-                    ]
+                    team_confirmed: list[TransfermarktPlayerReferenceModel] = []
                     resolution = resolve_player_identity(
                         api_football_player_id=player.api_football_player_id,
                         player_name=player.player_name,
@@ -267,14 +258,18 @@ class FutureRefreshDbRepository:
                             transfermarkt_position=team_confirmed[0].position
                             if len(team_confirmed) == 1
                             else None,
-                            mapping_status=resolution.status.value,
+                            mapping_status="REVIEW_REQUIRED",
                             evidence={
-                                "reason": resolution.reason,
+                                "reason": "TEAM_CROSSWALK_MISSING",
                                 "candidate_ids": sorted(
                                     reference.transfermarkt_player_id
-                                    for reference in team_confirmed
+                                    for reference in newest_by_id.values()
                                 ),
                                 "team_name": snapshot.team_name,
+                                "compatibility_note": (
+                                    "name-only club matching is review-only and cannot "
+                                    "create MATCHED"
+                                ),
                             },
                             identity_hash=resolution.identity_hash,
                             valid_from=snapshot.captured_at,
@@ -422,6 +417,10 @@ class FutureRefreshDbRepository:
                     .distinct()
                 ).all()
             )
+            if len(mappings) != 22:
+                evidence_blockers.append("PLAYER_IDENTITY_MAPPING_INCOMPLETE")
+            if len(valued_ids) != 22:
+                evidence_blockers.append("PLAYER_VALUATION_INCOMPLETE")
             return {
                 "status": "COMPLETE"
                 if starter_counts == [11, 11] and len(mappings) == 22 and len(valued_ids) == 22

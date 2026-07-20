@@ -229,6 +229,7 @@ def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() ->
         payload={"response": [_team(10, 100), _team(20, 200)]},
     )
     evidence = repository.lineup_gate_evidence(fixture_id="fixture-mapped", as_of=captured_at)
-    assert evidence["status"] == "COMPLETE"
-    assert evidence["uniquely_mapped_starters"] == 22
-    assert evidence["valued_starters"] == 22
+    assert evidence["status"] == "INCOMPLETE"
+    assert evidence["uniquely_mapped_starters"] == 0
+    assert evidence["valued_starters"] == 0
+    assert "PLAYER_IDENTITY_MAPPING_INCOMPLETE" in evidence["blockers"]

@@ -30,6 +30,13 @@ def api_fixture(
     }
     if ah_result is not None:
         row["ah_result"] = ah_result
+        row["settlement_outcome"] = "WIN" if ah_result == "COVER" else "LOSS"
+        row["ah_fact_id"] = f"canonical-ah:{fixture_id}"
+        row["ah_fact_hash"] = f"{fixture_id}".encode().hex().ljust(64, "0")[:64]
+        row["quote_identity_hash"] = f"quote-{fixture_id}".encode().hex().ljust(64, "0")[:64]
+        row["result_identity_hash"] = f"result-{fixture_id}".encode().hex().ljust(64, "0")[
+            :64
+        ]
     return row
 
 
