@@ -5,8 +5,18 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from w2.ingestion.future_refresh import parse_utc
+from w2.matchday.intake_v2 import (
+    POLICY_VERSION as MATCHDAY_INTAKE_POLICY_VERSION,
+)
+from w2.matchday.intake_v2 import (
+    MatchdayCompetitionPolicy,
+    build_checkpoint_plans,
+    competition_policies,
+    load_matchday_policy,
+)
 
 CHECKPOINT_REFRESH_CONTRACT = "w2.checkpoint_refresh.v1"
+CHECKPOINT_REFRESH_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
 WORLD_CUP_DAILY_PROVIDER_BUDGET = 100
 WORLD_CUP_MATCHDAY_PROVIDER_BUDGET = 80
 WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET = 0
@@ -62,20 +72,36 @@ def checkpoint_plan_for_fixture(
     kickoff_utc: datetime,
     generated_at_utc: datetime,
 ) -> list[FixtureCheckpointPlan]:
+    policy = _v2_policy_for_legacy_checkpoint()
+    if policy is not None:
+        v2_plans = build_checkpoint_plans(
+            fixture_id=str(fixture_id),
+            competition_id=policy.competition_id,
+            season=policy.season,
+            kickoff_utc=kickoff_utc,
+            now=generated_at_utc,
+            policy=policy,
+        )
+        return [
+            FixtureCheckpointPlan(
+                fixture_id=item.fixture_id,
+                checkpoint=item.checkpoint,
+                kickoff_utc=item.kickoff_utc,
+                due_at_utc=item.scheduled_at,
+                endpoints=item.endpoints,
+                source="matchday_intake_v2_adapter",
+                status=item.status,
+            )
+            for item in v2_plans
+        ]
     kickoff = normalize_utc(kickoff_utc)
     generated_at = normalize_utc(generated_at_utc)
     if kickoff < generated_at - timedelta(hours=3):
         return []
-    plans: list[FixtureCheckpointPlan] = []
+    legacy_plans: list[FixtureCheckpointPlan] = []
     for checkpoint, offset, endpoints in CHECKPOINT_OFFSETS:
         due_at = kickoff + offset
-        # A fixture can enter the refresh horizon after an intermediate
-        # checkpoint has passed (for example after a scheduler restart).
-        # Run the missed market capture immediately rather than leaving the
-        # dashboard with an expired opening quote until T-6.
-        if due_at < generated_at:
-            due_at = generated_at
-        plans.append(
+        legacy_plans.append(
             FixtureCheckpointPlan(
                 fixture_id=str(fixture_id),
                 checkpoint=checkpoint,
@@ -84,7 +110,15 @@ def checkpoint_plan_for_fixture(
                 endpoints=endpoints,
             )
         )
-    return plans
+    return legacy_plans
+
+
+def _v2_policy_for_legacy_checkpoint() -> MatchdayCompetitionPolicy | None:
+    try:
+        policies = competition_policies(load_matchday_policy())
+    except (FileNotFoundError, ValueError, KeyError, TypeError):
+        return None
+    return policies.get("world_cup_2026") or next(iter(policies.values()), None)
 
 
 def checkpoint_plans_from_fixture_payloads(
@@ -210,9 +244,7 @@ def world_cup_matchday_budget_projection(
     base_per_fixture = 4  # OPEN, T6 odds, T1 odds, T15 close.
     lineups_per_fixture = 1
     retry_per_fixture = 2 if include_retries else 0
-    fixture_calls = fixture_count * (
-        base_per_fixture + lineups_per_fixture + retry_per_fixture
-    )
+    fixture_calls = fixture_count * (base_per_fixture + lineups_per_fixture + retry_per_fixture)
     status_fixture_overhead = 2 if include_status_fixture_overhead and fixture_count > 0 else 0
     projected = fixture_calls + status_fixture_overhead
     return {

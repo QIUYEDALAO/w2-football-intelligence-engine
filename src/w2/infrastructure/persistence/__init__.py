@@ -68,6 +68,11 @@ from w2.infrastructure.persistence.market_models import (
     MarketFitDiagnosticModel,
     MarketQualityAssessmentModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
+    MatchdayEndpointCaptureModel,
+    MatchdayEvidenceManifestModel,
+)
 from w2.infrastructure.persistence.migration_models import (
     MigrationDryRunModel,
     MigrationQuarantineRecordModel,
@@ -209,6 +214,9 @@ __all__ = [
     "MarketConsensusModel",
     "MarketFitDiagnosticModel",
     "MarketQualityAssessmentModel",
+    "MatchdayCheckpointPlanModel",
+    "MatchdayEndpointCaptureModel",
+    "MatchdayEvidenceManifestModel",
     "MigrationDryRunModel",
     "MigrationQuarantineRecordModel",
     "MigrationSourceAssetModel",

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from w2.matchday.intake_v2 import POLICY_VERSION as MATCHDAY_INTAKE_POLICY_VERSION
+
 AUTHORIZED_MATCHDAY_ENDPOINTS = frozenset({"status", "fixtures", "odds", "lineups"})
+MATCHDAY_SCHEDULE_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
 DEFAULT_TICK_OFFSETS: tuple[tuple[str, int], ...] = (
     ("T_24H", 24 * 60 * 60),
     ("T_3H", 3 * 60 * 60),

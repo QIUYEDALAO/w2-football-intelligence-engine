@@ -137,6 +137,8 @@ def build_football_data_audits(source_root: Path) -> dict[str, dict[str, Any]]:
 def write_football_data_ingest_artifacts(
     source_root: Path,
     artifact_root: Path,
+    *,
+    sanitized_summary_root: Path | None = None,
 ) -> dict[str, Any]:
     artifact_root.mkdir(parents=True, exist_ok=True)
     source_root = source_root.resolve()
@@ -246,13 +248,14 @@ def write_football_data_ingest_artifacts(
     }
     manifest["manifest_hash"] = stable_hash(manifest)
     _write_json(artifact_root / "FOOTBALL_DATA_INGEST_MANIFEST.json", manifest)
-    _write_sanitized_summary(
-        Path.cwd(),
-        manifest,
-        coverage,
-        phase_report,
-        dataset_manifest,
-    )
+    if sanitized_summary_root is not None:
+        _write_sanitized_summary(
+            sanitized_summary_root,
+            manifest,
+            coverage,
+            phase_report,
+            dataset_manifest,
+        )
     return {
         "manifest": manifest,
         "f5_coverage": coverage,
