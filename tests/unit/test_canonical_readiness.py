@@ -73,6 +73,67 @@ def test_all_critical_checks_recover_to_ready(tmp_path: Path) -> None:
     assert all(check.status == "PASS" for check in payload.checks.values())
 
 
+def test_matchday_intake_readiness_reports_missing_provider_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    monkeypatch.setenv(
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+        "world_cup_2026,allsvenskan",
+    )
+    monkeypatch.delenv("W2_API_FOOTBALL_API_KEY", raising=False)
+
+    payload = build_readiness_payload(
+        _settings(tmp_path, environment=Environment.STAGING),
+        database_check=_pass,
+        redis_check=_pass,
+        schema_check=_pass,
+        mounts_check=_pass,
+        artifact_check=_artifact_pass,
+    )
+
+    assert payload.status == "READY"
+    assert payload.matchday_intake_status == "NOT_READY"
+    assert payload.matchday_intake.ready is False
+    assert payload.matchday_intake.live_interface == "request_live"
+    assert payload.matchday_intake.api_key_visible_to_worker is False
+    assert payload.matchday_intake.last_error_code == "LIVE_GATE_API_KEY_NOT_VISIBLE"
+    assert "LIVE_GATE_API_KEY_NOT_VISIBLE" in payload.matchday_intake.blockers
+
+
+def test_matchday_intake_readiness_ready_when_all_gates_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
+    monkeypatch.setenv(
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+        "world_cup_2026,allsvenskan",
+    )
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
+
+    payload = build_readiness_payload(
+        _settings(tmp_path, environment=Environment.STAGING),
+        database_check=_pass,
+        redis_check=_pass,
+        schema_check=_pass,
+        mounts_check=_pass,
+        artifact_check=_artifact_pass,
+    )
+
+    assert payload.matchday_intake_status == "READY"
+    assert payload.matchday_intake.ready is True
+    assert payload.matchday_intake.blockers == []
+
+
 def test_staging_artifact_manifest_checks_path_and_sha256(tmp_path: Path) -> None:
     settings = _settings(tmp_path, environment=Environment.STAGING)
     artifact = tmp_path / "config" / "required.json"

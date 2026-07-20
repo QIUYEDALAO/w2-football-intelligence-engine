@@ -5,7 +5,11 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.monitoring.readiness import ReadinessCheck, ReadinessPayload
+from w2.monitoring.readiness import (
+    ProviderIntakeOperationalReadinessV1,
+    ReadinessCheck,
+    ReadinessPayload,
+)
 
 
 def _ready_payload(*, ready: bool = True) -> ReadinessPayload:
@@ -23,6 +27,24 @@ def _ready_payload(*, ready: bool = True) -> ReadinessPayload:
             )
         },
         warnings=[],
+        matchday_intake_status="NOT_READY",
+        matchday_intake=ProviderIntakeOperationalReadinessV1(
+            environment="test",
+            allow_live=True,
+            provider_calls_disabled=False,
+            scheduler_enabled=False,
+            future_refresh_enabled=False,
+            competition_ids=[],
+            allsvenskan_registered=False,
+            api_key_visible_to_worker=False,
+            endpoint_allowlist=["fixtures", "odds", "status"],
+            db_persistence=True,
+            redis_dedupe=False,
+            worker_task_registered=True,
+            last_error_code="MATCHDAY_INTAKE_STAGING_ONLY",
+            ready=False,
+            blockers=["MATCHDAY_INTAKE_STAGING_ONLY"],
+        ),
     )
 
 

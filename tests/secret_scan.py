@@ -53,6 +53,7 @@ ALLOWLIST = (
     "x-apisports-key",
     "x-rapidapi-key",
     "api_key",
+    "LIVE_GATE_API_KEY_NOT_VISIBLE",
     "API_KEY_NOT_PRESENT",
     "secrets and environments",
     "Secrets and Environments",

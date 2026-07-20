@@ -1,0 +1,66 @@
+{
+  "schema_version": "MATCHDAY_RUNTIME_ENV_MATRIX_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "environment": "staging",
+  "containers": {
+    "api": {
+      "W2_ENVIRONMENT": "staging",
+      "W2_FUTURE_FIXTURE_REFRESH_ENABLED": null,
+      "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS": null,
+      "W2_PROVIDER_SCHEDULER_ENABLED": false,
+      "W2_PROVIDER_CALLS_DISABLED": true,
+      "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
+      "W2_PROVIDER_REFRESH_TICK_HARD_CAP": 30,
+      "W2_PROVIDER_HTTP_MAX_ATTEMPTS": null,
+      "W2_FUTURE_REFRESH_PERSISTENCE": null,
+      "W2_API_FOOTBALL_API_KEY_PRESENT": false,
+      "W2_DATABASE_URL_PRESENT": true,
+      "W2_REDIS_URL_PRESENT": true,
+      "W2_MATCHDAY_CANARY_APPROVED": null
+    },
+    "worker": {
+      "W2_ENVIRONMENT": "staging",
+      "W2_FUTURE_FIXTURE_REFRESH_ENABLED": null,
+      "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS": null,
+      "W2_PROVIDER_SCHEDULER_ENABLED": true,
+      "W2_PROVIDER_CALLS_DISABLED": false,
+      "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
+      "W2_PROVIDER_REFRESH_TICK_HARD_CAP": 30,
+      "W2_PROVIDER_HTTP_MAX_ATTEMPTS": null,
+      "W2_FUTURE_REFRESH_PERSISTENCE": null,
+      "W2_API_FOOTBALL_API_KEY_PRESENT": false,
+      "W2_DATABASE_URL_PRESENT": true,
+      "W2_REDIS_URL_PRESENT": true,
+      "W2_MATCHDAY_CANARY_APPROVED": null
+    },
+    "scheduler": {
+      "W2_ENVIRONMENT": "staging",
+      "W2_FUTURE_FIXTURE_REFRESH_ENABLED": true,
+      "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS": "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
+      "W2_PROVIDER_SCHEDULER_ENABLED": true,
+      "W2_PROVIDER_CALLS_DISABLED": false,
+      "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
+      "W2_PROVIDER_REFRESH_TICK_HARD_CAP": 30,
+      "W2_PROVIDER_HTTP_MAX_ATTEMPTS": null,
+      "W2_FUTURE_REFRESH_PERSISTENCE": null,
+      "W2_API_FOOTBALL_API_KEY_PRESENT": false,
+      "W2_DATABASE_URL_PRESENT": true,
+      "W2_REDIS_URL_PRESENT": true,
+      "W2_MATCHDAY_CANARY_APPROVED": null
+    }
+  },
+  "derived": {
+    "allsvenskan_configured": true,
+    "fixtures_endpoint_allowed": true,
+    "odds_endpoint_allowed": true,
+    "lineups_endpoint_allowed": true,
+    "provider_calls_disabled_in_worker": false,
+    "api_key_visible_to_worker": false,
+    "redis_dedupe_available": true,
+    "worker_task_registered": true,
+    "ready": false,
+    "blockers": [
+      "LIVE_GATE_API_KEY_NOT_VISIBLE"
+    ]
+  }
+}
