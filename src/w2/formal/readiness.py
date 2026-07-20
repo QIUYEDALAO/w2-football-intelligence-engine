@@ -85,6 +85,37 @@ def evaluate_formal_ah_readiness(
     return payload
 
 
+def validate_formal_ah_readiness(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate an immutable readiness contract and return a normalized dict."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("FORMAL_AH_READINESS_INVALID")
+    if payload.get("schema_version") != FORMAL_AH_READINESS_SCHEMA:
+        raise ValueError("FORMAL_AH_READINESS_SCHEMA_INVALID")
+    expected = payload.get("readiness_hash")
+    if not isinstance(expected, str) or not expected:
+        raise ValueError("FORMAL_AH_READINESS_HASH_MISSING")
+    body = dict(payload)
+    body.pop("readiness_hash", None)
+    actual = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
+    if actual != expected:
+        raise ValueError("FORMAL_AH_READINESS_HASH_MISMATCH")
+    actual_hashes = body.get("actual_hashes")
+    if not isinstance(actual_hashes, Mapping) or any(
+        not isinstance(value, str) or not value for value in actual_hashes.values()
+    ):
+        raise ValueError("FORMAL_AH_READINESS_ACTUAL_HASH_MISSING")
+    accepted_hashes = body.get("approved_hashes")
+    if accepted_hashes:
+        if not isinstance(accepted_hashes, Mapping):
+            raise ValueError("FORMAL_AH_READINESS_APPROVAL_INVALID")
+        for key, value in accepted_hashes.items():
+            if actual_hashes.get(key) != value:
+                raise ValueError("FORMAL_AH_READINESS_APPROVAL_HASH_MISMATCH")
+    return dict(payload)
+
+
 def load_approval_manifest(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {"approved": False, "accepted_hashes": {}, "manifest_status": "MISSING"}

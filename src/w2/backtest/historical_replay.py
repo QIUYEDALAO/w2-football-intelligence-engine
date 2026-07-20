@@ -41,6 +41,7 @@ class HistoricalModelReplayRowV1:
     result: str
     clv: dict[str, Any]
     blockers: list[str]
+    sample_natural_key: str
     row_hash: str
 
     def as_dict(self) -> dict[str, Any]:
@@ -112,8 +113,12 @@ def build_historical_replay_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "closing_devig_probability": row.get("closing_devig_probability"),
             "closing_quote_identity_hash": row.get("closing_quote_identity_hash"),
             "closing_quote_captured_at": row.get("closing_quote_captured_at"),
+            "closing_market": row.get("closing_market"),
+            "closing_selection": row.get("closing_selection"),
+            "closing_line": row.get("closing_line"),
         },
         "blockers": blockers,
+        "sample_natural_key": _sample_natural_key(row),
     }
     payload["row_hash"] = _hash(payload)
     return HistoricalModelReplayRowV1(**payload).as_dict()
@@ -135,9 +140,25 @@ def build_calibration_artifact(
         build_historical_replay_row(dict(row)) for row in rows
     ]
     by_hash: dict[str, Mapping[str, Any]] = {}
+    by_natural_key: dict[str, str] = {}
     conflicts: list[Mapping[str, Any]] = []
     for row in replay_rows:
         row_hash = str(row.get("row_hash") or "")
+        natural_key = str(row.get("sample_natural_key") or "")
+        existing_hash = by_natural_key.get(natural_key)
+        if natural_key and existing_hash is not None and existing_hash != row_hash:
+            conflicts.append(
+                {
+                    **row,
+                    "blockers": [
+                        *list(row.get("blockers") or []),
+                        "REPLAY_SAMPLE_IDENTITY_CONFLICT",
+                    ],
+                }
+            )
+            continue
+        if natural_key:
+            by_natural_key[natural_key] = row_hash
         existing = by_hash.get(row_hash)
         if existing is None:
             by_hash[row_hash] = row
@@ -192,10 +213,15 @@ def _replay_blockers(row: Mapping[str, Any]) -> list[str]:
     blockers: list[str] = []
     kickoff = _parse(row.get("kickoff_utc"))
     as_of = _parse(row.get("as_of_utc"))
+    entry_captured_at = _parse(row.get("entry_captured_at"))
     if kickoff is None or as_of is None:
         blockers.append("INVALID_REPLAY_TIMESTAMP")
     elif as_of >= kickoff:
         blockers.append("ASOF_NOT_STRICTLY_PREMATCH")
+    if kickoff is None or entry_captured_at is None:
+        blockers.append("INVALID_ENTRY_TIMESTAMP")
+    elif entry_captured_at >= kickoff:
+        blockers.append("ENTRY_NOT_STRICTLY_PREMATCH")
     if row.get("f5_status") != "READY" or row.get("f5_proxy") is True:
         blockers.append("F5_PROXY_OR_NOT_READY")
     if not _strings(row.get("f5_fact_hashes")):
@@ -220,7 +246,7 @@ def _replay_blockers(row: Mapping[str, Any]) -> list[str]:
     ):
         if not _text(row.get(key)):
             blockers.append(f"MISSING_{key.upper()}")
-    for key in ("selection", "line", "odds", "entry_captured_at"):
+    for key in ("sample_natural_key", "selection", "line", "odds", "entry_captured_at"):
         if not _text(row.get(key)):
             blockers.append(f"MISSING_{key.upper()}")
     if not _complete_probability(row.get("model_settlement_distribution")):
@@ -231,9 +257,41 @@ def _replay_blockers(row: Mapping[str, Any]) -> list[str]:
         blockers.append("MISSING_QUOTE_IDENTITY")
     if not _text(row.get("result_identity_hash")):
         blockers.append("MISSING_RESULT_IDENTITY")
+    closing_time = _parse(row.get("closing_quote_captured_at"))
+    if closing_time is None:
+        blockers.append("INVALID_CLOSING_TIME")
+    if not _text(row.get("closing_quote_identity_hash")):
+        blockers.append("MISSING_CLOSING_QUOTE_IDENTITY")
+    for key in ("closing_market", "closing_selection", "closing_line", "closing_devig_probability"):
+        if row.get(key) in {None, ""}:
+            blockers.append(f"MISSING_{key.upper()}")
+    if _text(row.get("closing_market")) and _text(row.get("market")):
+        if _text(row.get("closing_market")) != _text(row.get("market")):
+            blockers.append("CLOSING_MARKET_MISMATCH")
+    if _text(row.get("closing_selection")) and _text(row.get("selection")):
+        if _text(row.get("closing_selection")) != _text(row.get("selection")):
+            blockers.append("CLOSING_SELECTION_MISMATCH")
+    if _text(row.get("closing_line")) and _text(row.get("line")):
+        if _text(row.get("closing_line")) != _text(row.get("line")):
+            blockers.append("CLOSING_LINE_MISMATCH")
     if row.get("identity_conflict") is True:
         blockers.append("IDENTITY_CONFLICT")
     return blockers
+
+
+def _sample_natural_key(row: Mapping[str, Any]) -> str:
+    supplied = _text(row.get("sample_natural_key"))
+    if supplied:
+        return supplied
+    return _hash(
+        {
+            "fixture_id": row.get("fixture_id"),
+            "market": row.get("market"),
+            "selection": row.get("selection"),
+            "line": row.get("line"),
+            "as_of_utc": row.get("as_of_utc"),
+        }
+    )
 
 
 def _split_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:

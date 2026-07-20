@@ -6,6 +6,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.formal.readiness import validate_formal_ah_readiness
 from w2.markets.settlement_probability import effective_settlement_probability
 from w2.strategy.simulate import (
     READY,
@@ -290,6 +291,10 @@ def _formal_ah_readiness_gate(
         readiness = nested if isinstance(nested, dict) else None
     if not isinstance(readiness, dict):
         return ["FORMAL_AH_READINESS_MISSING"]
+    try:
+        readiness = validate_formal_ah_readiness(readiness)
+    except ValueError as exc:
+        return [str(exc)]
     blockers = [str(item) for item in readiness.get("blockers", []) if str(item)]
     if readiness.get("formal_eligible") is not True or readiness.get("admission_ready") is not True:
         return blockers or ["FORMAL_AH_ADMISSION_NOT_READY"]

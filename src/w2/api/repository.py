@@ -3860,13 +3860,22 @@ class ReadModelService:
                     team_id=team_id,
                     context=context,
                     source=source,
-                    source_group="team_fixture_history",
+                    source_group=self._fixture_source_group(item),
                 )
             )
             is not None
         ]
         rows.sort(key=lambda row: row.kickoff_at)
         return rows
+
+    def _fixture_source_group(self, item: dict[str, Any]) -> str:
+        if (
+            item.get("source") == "canonical_historical_ah_fact"
+            and item.get("source_group") == "canonical_historical_ah_fact"
+            and item.get("collection_status") == "CANONICAL_AH_FACT"
+        ):
+            return "canonical_historical_ah_fact"
+        return "team_fixture_history"
 
     def _team_history_from_api_fixture(
         self,

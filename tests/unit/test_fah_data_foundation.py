@@ -40,8 +40,9 @@ AS_OF = datetime(2026, 7, 20, tzinfo=UTC)
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = sorted({key for row in rows for key in row})
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -59,7 +60,7 @@ def _registry(path: Path, *, local_path: str, **overrides: object) -> Path:
                 "retention_permitted": True,
                 "internal_backtest_permitted": True,
                 "snapshot_semantics": "CAPTURED_AT",
-                "canonical_bookmaker_policy": "SINGLE_BOOK_SOURCE",
+                "canonical_bookmaker_policy": {"type": "SINGLE_BOOK_SOURCE"},
                 **overrides,
             }
         ]
@@ -185,6 +186,87 @@ def test_canonical_fact_uses_latest_t30_pair_and_is_deterministic(tmp_path: Path
     assert first["facts"][0]["away_settlement"] == "LOSS"
 
 
+def test_canonical_fact_applies_ordered_bookmaker_policy(tmp_path: Path) -> None:
+    rows = _ah_rows()
+    second_book = [
+        {
+            **row,
+            "bookmaker_id": "book-2",
+            "bookmaker_name": "Book 2",
+            "observation_id": f"{row['side']}-obs-book-2",
+            "captured_at": "2024-05-01T18:10:00Z",
+        }
+        for row in rows
+    ]
+    _write_csv(tmp_path / "approved.csv", rows + second_book)
+    registry = _registry(
+        tmp_path / "registry.json",
+        local_path="approved.csv",
+        canonical_bookmaker_policy={
+            "type": "ORDERED_BOOKMAKER_PRIORITY",
+            "bookmaker_ids": ["book-2", "book-1"],
+        },
+    )
+
+    result = build_canonical_ah_facts(source_root=tmp_path, registry_path=registry)
+
+    assert result["audit"]["canonical_fact_count"] == 1
+    assert result["facts"][0]["bookmaker_id"] == "book-2"
+
+
+def test_preflight_accepts_independent_result_row(tmp_path: Path) -> None:
+    quote_rows = [
+        {
+            key: value
+            for key, value in row.items()
+            if key
+            not in {
+                "result_status",
+                "final_home_goals_90",
+                "final_away_goals_90",
+                "result_source_sha256",
+            }
+        }
+        for row in _ah_rows()
+    ]
+    result_row = {
+        "provider_fixture_id": "fx-1",
+        "result_status": "FT",
+        "final_home_goals_90": "2",
+        "final_away_goals_90": "1",
+        "result_source_sha256": "r" * 64,
+        "result_reference_id": "result-1",
+    }
+    _write_csv(tmp_path / "approved.csv", quote_rows + [result_row])
+    registry = _registry(tmp_path / "registry.json", local_path="approved.csv")
+
+    result = build_canonical_ah_facts(source_root=tmp_path, registry_path=registry)
+
+    assert result["audit"]["canonical_fact_count"] == 1
+
+
+def test_provider_mismatch_rejects_source(tmp_path: Path) -> None:
+    rows = [{**row, "provider": "other-provider"} for row in _ah_rows()]
+    _write_csv(tmp_path / "approved.csv", rows)
+    registry = _registry(tmp_path / "registry.json", local_path="approved.csv")
+
+    result = build_canonical_ah_facts(source_root=tmp_path, registry_path=registry)
+
+    assert result["audit"]["canonical_fact_count"] == 0
+    assert result["audit"]["exclusions"]["REGISTRY_PROVIDER_MISMATCH"] == 1
+
+
+def test_missing_canonical_identity_rejects_fact(tmp_path: Path) -> None:
+    rows = [{**row, "home_team_provider_id": ""} for row in _ah_rows()]
+    _write_csv(tmp_path / "approved.csv", rows)
+    registry = _registry(tmp_path / "registry.json", local_path="approved.csv")
+
+    result = build_canonical_ah_facts(source_root=tmp_path, registry_path=registry)
+
+    assert result["audit"]["canonical_fact_count"] == 0
+    assert result["audit"]["exclusions"]["MISSING_REQUIRED_CANONICAL_IDENTITY"] == 1
+
+
 def test_fact_hash_changes_when_odds_change(tmp_path: Path) -> None:
     rows = _ah_rows()
     _write_csv(tmp_path / "first.csv", rows)
@@ -304,6 +386,41 @@ def test_f5_rejects_conflicting_fact_id_hash_identity() -> None:
     assert factor.status.value == "INSUFFICIENT_DATA"
 
 
+def test_f5_rejects_raw_payload_provenance_spoof() -> None:
+    context = FeatureContext(
+        fixture_id="future",
+        competition_id="allsvenskan",
+        home_team_id="home",
+        away_team_id="away",
+        kickoff_at=datetime(2026, 7, 21, tzinfo=UTC),
+        as_of=AS_OF,
+    )
+    profile = CoverageProfile(
+        xg="API_FOOTBALL_STATISTICS",
+        lineups_injuries="API_FOOTBALL_LINEUPS",
+        squad_value="TRANSFERMARKT_REVIEWED_STATIC_MAPPING",
+        bookmaker_depth="API_FOOTBALL_ODDS",
+        h2h="API_FOOTBALL_FIXTURES",
+        settled_ah="INTERNAL_SETTLEMENT",
+    )
+    spoof = TeamMatchHistory(
+        **{
+            **_history("spoof", "WIN").__dict__,
+            "source_group": "raw_provider_fixture",
+        }
+    )
+
+    factor = recent_ah_cover_factor(
+        context=context,
+        profile=profile,
+        home_history=[spoof],
+        away_history=[_history("a1", "LOSS")],
+    )
+
+    assert factor.status.value == "INSUFFICIENT_DATA"
+    assert factor.reason == "MISSING_AH_EVIDENCE"
+
+
 def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
     approved = build_team_crosswalk(
         {
@@ -313,6 +430,7 @@ def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
             "evidence": {"source": "manual-review"},
+            "source_refs": ["manual-review"],
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
@@ -360,6 +478,7 @@ def test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
             "evidence": {"source": "manual-review"},
+            "source_refs": ["manual-review"],
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
@@ -395,6 +514,7 @@ def _approved_player_crosswalk() -> tuple[TeamIdentityCrosswalkV1, PlayerIdentit
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
             "evidence": {"source": "manual-review"},
+            "source_refs": ["manual-review"],
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
@@ -426,6 +546,8 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             {
                 "transfermarkt_player_id": "p1",
                 "club_id": "club-1",
+                "roster_snapshot_id": "club-1-2024-05-01",
+                "snapshot_date": "2024-05-01T00:00:00Z",
                 "observed_at": "2024-05-01T00:00:00Z",
                 "identity_hash": "p1hash",
             }
@@ -484,6 +606,8 @@ def test_team_value_asof_rejects_same_day_valuation_conflict(tmp_path: Path) -> 
             {
                 "transfermarkt_player_id": "p1",
                 "club_id": "club-1",
+                "roster_snapshot_id": "club-1-2024-05-01",
+                "snapshot_date": "2024-05-01T00:00:00Z",
                 "observed_at": "2024-05-01T00:00:00Z",
             }
         ],
@@ -532,6 +656,7 @@ def test_fah_repository_writes_idempotently_and_rolls_back_conflicts() -> None:
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
             "evidence": {"source": "manual-review"},
+            "source_refs": ["manual-review"],
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
@@ -590,6 +715,7 @@ def test_fah_repository_import_and_query_authorities() -> None:
     )["facts"][0]
     team, player = _approved_player_crosswalk()
     roster = {
+        "roster_snapshot_id": "club-1-2024-05-01",
         "transfermarkt_club_id": "club-1",
         "transfermarkt_player_id": "p1",
         "snapshot_date": "2024-05-01T00:00:00Z",
@@ -597,6 +723,22 @@ def test_fah_repository_import_and_query_authorities() -> None:
         "snapshot_status": "COMPLETE",
     }
 
+    source_summary = repository.import_source_snapshots(
+        [
+            {
+                "source_id": "src-1",
+                "provider": "local-approved",
+                "schema_version": "test.v1",
+                "snapshot_semantics": "CAPTURED_AT",
+                "canonical_bookmaker_policy": {"type": "SINGLE_BOOK_SOURCE"},
+                "object_uri": "approved.csv",
+                "sha256": fact["source_sha256"],
+                "license_status": "APPROVED",
+                "row_count": 2,
+            }
+        ]
+    )
+    assert source_summary.inserted == 1
     assert repository.import_canonical_ah_facts([fact]).inserted == 1
     assert repository.import_team_crosswalks([team.as_dict()]).inserted == 1
     assert repository.import_player_crosswalks([player.as_dict()]).inserted == 1
@@ -652,7 +794,7 @@ def _history(
         goals_against=0,
         ah_result="legacy-string-ignored",
         source="canonical_historical_ah_fact",
-        source_group="team_fixture_history",
+        source_group="canonical_historical_ah_fact",
         proxy_of=proxy_of,
         collection_status="CANONICAL_AH_FACT",
         ah_fact_id=fact_id,

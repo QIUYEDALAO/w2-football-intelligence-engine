@@ -56,10 +56,20 @@ def build_market_candidates(
 
 
 def candidate_is_executable(candidate: Mapping[str, Any] | None) -> bool:
+    if not isinstance(candidate, Mapping):
+        return False
+    quotes = candidate.get("quotes")
+    executable = quotes.get("executable") if isinstance(quotes, Mapping) else None
+    price = _selected_price(_mapping(executable), candidate.get("selection"))
     return bool(
         isinstance(candidate, Mapping)
         and candidate.get("quote_status") == "COMPLETE"
         and candidate.get("quote_usage") == "EXECUTABLE"
+        and _text(candidate.get("selection")) in {"HOME", "AWAY", "OVER", "UNDER"}
+        and candidate.get("line") is not None
+        and isinstance(executable, Mapping)
+        and price is not None
+        and price > 1
     )
 
 
@@ -76,11 +86,27 @@ def _candidate(
 ) -> dict[str, Any]:
     identity_status = _text(audit.get("identity_status"), "INCOMPLETE")
     freshness_status = _text(audit.get("freshness_status"), "INCOMPLETE")
-    executable_odds = dict(odds) or _authoritative_executable_quote(
-        audit, market_row.get("tendency")
+    selection = market_row.get("tendency")
+    executable_odds = (
+        _normalize_selected_odds(odds, selection)
+        or _authoritative_executable_quote(audit, selection)
+        if selection is not None
+        else {}
     )
     quote_complete = identity_status == "COMPLETE" and freshness_status == "COMPLETE"
-    executable = quote_complete and bool(executable_odds)
+    line = market_row.get("line")
+    if line is None:
+        line = audit.get("selected_line")
+    selected_side_quote = bool(_authoritative_executable_quote(audit, selection))
+    executable_price = _selected_price(executable_odds, selection)
+    executable = bool(
+        quote_complete
+        and selection is not None
+        and line is not None
+        and selected_side_quote
+        and executable_price is not None
+        and executable_price > 1
+    )
     quote_status = (
         "COMPLETE"
         if quote_complete
@@ -96,9 +122,6 @@ def _candidate(
         blockers.append("NO_DIRECTION_SELECTED")
     elif not executable and not blockers:
         blockers.append("QUOTE_NOT_EXECUTABLE")
-    line = market_row.get("line")
-    if line is None:
-        line = audit.get("selected_line")
     evidence = build_analysis_market_evidence(
         fixture_id=fixture_id,
         competition_id=competition_id,
@@ -111,7 +134,6 @@ def _candidate(
     model = _mapping(evidence.get("model_probability"))
     comparison = _mapping(evidence.get("comparison"))
     model_status = _text(model.get("status"), "NOT_READY")
-    quote_usage = str(evidence.get("quote_usage") or "")
     reference = _reference_quote(audit)
     return {
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
@@ -120,13 +142,13 @@ def _candidate(
         "formal_capability": (
             "CODE_PRESENT_BUT_DISABLED" if market == "ASIAN_HANDICAP" else "NOT_IMPLEMENTED"
         ),
-        "selection": market_row.get("tendency"),
+        "selection": selection,
         "line": line,
         "quote_status": quote_status,
         "quote_usage": "EXECUTABLE"
         if executable
         else "COMPARISON_ONLY"
-        if quote_complete and quote_usage == "COMPARISON_ONLY"
+        if quote_complete
         else "REFERENCE_ONLY",
         "quotes": {
             "executable": executable_odds if executable else None,
@@ -200,9 +222,42 @@ def _authoritative_executable_quote(audit: Mapping[str, Any], selection: object)
     return {"line": quote.get("line"), "decimal_odds": price} if price else {}
 
 
+def _normalize_selected_odds(odds: Mapping[str, Any], selection: object) -> dict[str, Any]:
+    if not odds:
+        return {}
+    return dict(odds)
+
+
+def _selected_price(odds: Mapping[str, Any], selection: object) -> float | None:
+    text = _text(selection).replace("_AH", "").replace("_TOTALS", "")
+    keys = (
+        ("decimal_odds", "home_price")
+        if text.startswith("HOME")
+        else ("decimal_odds", "away_price")
+        if text.startswith("AWAY")
+        else ("decimal_odds", "over_price")
+        if text.startswith("OVER")
+        else ("decimal_odds", "under_price")
+        if text.startswith("UNDER")
+        else ("decimal_odds",)
+    )
+    for key in keys:
+        value = _number(odds.get(key))
+        if value is not None:
+            return value
+    return None
+
+
 def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
 def _text(value: object, default: str = "") -> str:
     return value.strip().upper() if isinstance(value, str) and value.strip() else default
+
+
+def _number(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
