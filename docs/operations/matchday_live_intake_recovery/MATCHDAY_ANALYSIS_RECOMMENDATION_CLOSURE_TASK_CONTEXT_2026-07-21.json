@@ -1,0 +1,38 @@
+{
+  "schema_version": "W2AnalysisRecommendationClosureTaskContextV1",
+  "recorded_at": "2026-07-21",
+  "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+  "current_pull_request": 369,
+  "task": "W2 ANALYSIS-RECOMMENDATION-CLOSURE",
+  "default_provider_calls": 0,
+  "fixture_ids": [
+    "1494224",
+    "1494218"
+  ],
+  "required_worktree": "/Users/liudehua/.hermes/workspace/w2-analysis-recommendation-closure",
+  "required_branch": "codex/w2-analysis-recommendation-closure",
+  "runtime_safety": {
+    "scheduler_stopped": true,
+    "provider_scheduler_enabled": false,
+    "future_fixture_refresh_enabled": false,
+    "provider_calls_disabled": true
+  },
+  "forbidden_writes": [
+    "recommendations",
+    "locks",
+    "OFFICIAL",
+    "settlement",
+    "cohort membership"
+  ],
+  "allowed_final_states": [
+    "ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED",
+    "ANALYSIS_CHAIN_TEAM_IDENTITY_REVIEW_REQUIRED",
+    "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED"
+  ],
+  "always_retained": [
+    "FORMAL_DISABLED",
+    "LOCK_DISABLED",
+    "PRODUCTION_DISABLED",
+    "MANUAL_APPROVAL_REQUIRED"
+  ]
+}
