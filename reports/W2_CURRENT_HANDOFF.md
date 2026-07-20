@@ -11,7 +11,6 @@ handoff_correction: RELEASE_TRAIN_3A_R3B_RETRY_ROLLBACK_RECORDED
 state_captured_on: 2026-06-25
 handoff_operating_protocol_updated_on: 2026-07-20
 handoff_operating_protocol: SOL_STAGE_PLAN_CODEX_EXECUTION_STAGE_REVIEW
-github_context_path: docs/context/W2_GITHUB_CONTEXT.md
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
@@ -264,13 +263,11 @@ original_workspace_dirty_files_included_in_stage7i_final_commit: false
 
 1. `docs/W2_MASTER_ROADMAP.md`
    - 项目总目标、阶段、Gate 和禁止事项。
-2. `docs/context/W2_GITHUB_CONTEXT.md`
-   - GitHub 维护的 Sol/Codex 短上下文入口与协作协议。
-3. `reports/W2_ROADMAP_STATUS.json`
+2. `reports/W2_ROADMAP_STATUS.json`
    - 各阶段与 Gate 的动态进度。
-4. `reports/W2_CURRENT_HANDOFF.md`
+3. `reports/W2_CURRENT_HANDOFF.md`
    - 当前 SHA、runtime、BLOCKER 和恢复点。
-5. 聊天记录
+4. 聊天记录
    - 只作补充，不作为长期事实源。
 
 执行包名称不等于 master roadmap 阶段编号。当前 Gate3 closure decision
