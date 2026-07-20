@@ -10,18 +10,17 @@ from w2.domain.enums import DecisionTier
 
 @dataclass(frozen=True, kw_only=True)
 class DecisionPolicyConfig:
-    """Upstream RECOMMEND admission context, not lock eligibility inputs.
-
-    Since #207, lock eligibility depends only on ``decision_tier == RECOMMEND``.
-    The fields below are retained for adapter/API compatibility and document the
-    prerequisites used before a card may be upgraded to RECOMMEND.
-    """
+    """Upstream RECOMMEND admission context plus explicit lock gates."""
 
     now_utc: datetime | None = None
     data_integrity_passed: bool = False
     market_complete: bool = False
     forward_ev_evidence_satisfied: bool = False
     allow_staging_recommendation_id_generation: bool = True
+    recommendation_lock_feature_enabled: bool = False
+    recommendation_lock_production_enabled: bool = False
+    immutable_recommendation_identity_complete: bool = False
+    production_recommendation_capability_enabled: bool = False
 
 
 def compute_outcome_tracked(decision_tier: DecisionTier | str) -> bool:
@@ -37,7 +36,13 @@ def compute_lock_eligible(
     env = environment.strip().lower()
     if env not in {"staging", "production"}:
         raise ValueError("environment must be staging or production")
-    return _decision_tier(_get(card_core, "decision_tier")) is DecisionTier.RECOMMEND
+    return (
+        _decision_tier(_get(card_core, "decision_tier")) is DecisionTier.RECOMMEND
+        and policy_config.recommendation_lock_feature_enabled is True
+        and policy_config.recommendation_lock_production_enabled is True
+        and policy_config.immutable_recommendation_identity_complete is True
+        and policy_config.production_recommendation_capability_enabled is True
+    )
 
 
 def _get(card_core: object, key: str) -> Any:

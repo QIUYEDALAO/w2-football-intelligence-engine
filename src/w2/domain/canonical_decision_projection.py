@@ -26,7 +26,7 @@ def project_canonical_decision(decision: Mapping[str, Any] | None) -> dict[str, 
         if outcome == "NOT_READY"
         else "SKIP",
         "outcome_tracked": bool(is_pick),
-        "lock_eligible": outcome == "FORMAL_RECOMMEND",
+        "lock_eligible": False,
         "reason_code": reason_code,
         "next_action": payload.get("next_action"),
         "decision_hash": payload.get("decision_hash"),
