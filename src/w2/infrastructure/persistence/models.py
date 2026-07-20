@@ -427,12 +427,16 @@ class HistoricalMarketSourceSnapshotModel(Base):
     __tablename__ = "historical_market_source_snapshots"
     __table_args__ = (
         UniqueConstraint("source_id", "sha256", name="uq_historical_market_source_snapshot"),
+        UniqueConstraint("sha256", name="uq_historical_market_source_sha256"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     source_id: Mapped[str] = mapped_column(String(128), nullable=False)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    registry_schema_version: Mapped[str | None] = mapped_column(String(64))
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_semantics: Mapped[str | None] = mapped_column(String(32))
+    canonical_bookmaker_policy: Mapped[str | None] = mapped_column(String(64))
     object_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     license_status: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -445,7 +449,14 @@ class HistoricalMarketSourceSnapshotModel(Base):
 class CanonicalHistoricalAhFactModel(Base):
     __tablename__ = "canonical_historical_ah_facts"
     __table_args__ = (
+        UniqueConstraint("canonical_key", name="uq_canonical_historical_ah_canonical_key"),
+        UniqueConstraint("fact_id", name="uq_canonical_historical_ah_fact_id"),
         UniqueConstraint("fact_hash", name="uq_canonical_historical_ah_fact_hash"),
+        UniqueConstraint(
+            "source_snapshot_id",
+            "canonical_key",
+            name="uq_canonical_historical_ah_source_snapshot_key",
+        ),
         Index("ix_canonical_ah_competition_kickoff", "competition_id", "kickoff_utc"),
         Index("ix_canonical_ah_home_kickoff", "home_team_provider_id", "kickoff_utc"),
         Index("ix_canonical_ah_away_kickoff", "away_team_provider_id", "kickoff_utc"),
@@ -453,9 +464,13 @@ class CanonicalHistoricalAhFactModel(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    canonical_key: Mapped[str | None] = mapped_column(String(64))
     fact_id: Mapped[str] = mapped_column(String(128), nullable=False)
     fact_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_snapshot_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_registry_version: Mapped[str | None] = mapped_column(String(64))
+    source_schema_version: Mapped[str | None] = mapped_column(String(64))
+    bookmaker_policy: Mapped[str | None] = mapped_column(String(64))
     provider_fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
     competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
     season: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -485,7 +500,73 @@ class TeamIdentityCrosswalkModel(Base):
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_sha256: Mapped[str | None] = mapped_column(String(64))
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     crosswalk_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class PlayerIdentityCrosswalkModel(Base):
+    __tablename__ = "player_identity_crosswalks"
+    __table_args__ = (
+        UniqueConstraint("crosswalk_hash", name="uq_player_identity_crosswalk_hash"),
+        UniqueConstraint(
+            "api_football_player_id",
+            "competition_id",
+            "valid_from",
+            name="uq_player_identity_crosswalk_natural",
+        ),
+        Index(
+            "ix_player_crosswalk_lookup",
+            "api_football_team_id",
+            "competition_id",
+            "valid_from",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    api_football_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transfermarkt_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    api_football_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transfermarkt_club_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    crosswalk_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class RegisteredRosterSnapshotModel(Base):
+    __tablename__ = "registered_roster_snapshots"
+    __table_args__ = (
+        UniqueConstraint("membership_hash", name="uq_registered_roster_membership_hash"),
+        UniqueConstraint(
+            "transfermarkt_club_id",
+            "transfermarkt_player_id",
+            "snapshot_date",
+            name="uq_registered_roster_membership_natural",
+        ),
+        Index(
+            "ix_registered_roster_snapshot_lookup",
+            "transfermarkt_club_id",
+            "snapshot_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    transfermarkt_club_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transfermarkt_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    membership_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
@@ -504,6 +585,9 @@ class PlayerClubMembershipObservationModel(Base):
     transfermarkt_club_id: Mapped[str] = mapped_column(String(64), nullable=False)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    membership_hash: Mapped[str | None] = mapped_column(String(64))
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
@@ -511,10 +595,12 @@ class TeamValueAsOfArtifactModel(Base):
     __tablename__ = "team_value_asof_artifacts"
     __table_args__ = (
         UniqueConstraint("artifact_hash", name="uq_team_value_asof_artifact_hash"),
+        UniqueConstraint("natural_identity", name="uq_team_value_asof_natural_identity"),
         Index("ix_team_value_asof_lookup", "team_external_id", "competition_id", "as_of"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    natural_identity: Mapped[str | None] = mapped_column(String(64))
     team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
     transfermarkt_club_id: Mapped[str] = mapped_column(String(64), nullable=False)
     competition_id: Mapped[str] = mapped_column(String(128), nullable=False)

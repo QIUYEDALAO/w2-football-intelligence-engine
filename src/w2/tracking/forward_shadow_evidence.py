@@ -69,6 +69,7 @@ def build_forward_shadow_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
 def evaluate_forward_shadow_evidence(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     captures = [build_forward_shadow_evidence(row) for row in rows]
     conflicts = _capture_identity_conflicts(captures)
+    exclusion_counts = _exclusion_counts(captures)
     eligible = [
         row
         for row in captures
@@ -80,14 +81,18 @@ def evaluate_forward_shadow_evidence(rows: Iterable[Mapping[str, Any]]) -> dict[
         if len(eligible) >= FORWARD_TARGET_COUNT
         else "INSUFFICIENT_EVIDENCE"
     )
-    return {
+    payload = {
         "schema_version": "w2.forward_shadow_evidence_report.v1",
         "target_count": FORWARD_TARGET_COUNT,
         "real_formal_evidence_count": len(eligible),
+        "remaining_count": max(FORWARD_TARGET_COUNT - len(eligible), 0),
         "diagnostic_shadow_count": len(captures) - len(eligible),
         "conclusion": conclusion,
         "status": conclusion,
         "duplicate_or_conflict_count": len(conflicts),
+        "exclusion_counts": exclusion_counts,
+        "metrics": _forward_metrics(eligible),
+        "strata": _strata(eligible),
         "shadow_to_validation_count": sum(
             1 for row in captures if row.get("validation_ready") is True
         ),
@@ -95,6 +100,8 @@ def evaluate_forward_shadow_evidence(rows: Iterable[Mapping[str, Any]]) -> dict[
             1 for row in captures if row.get("official_ready") is True
         ),
     }
+    payload["report_hash"] = _hash(payload)
+    return payload
 
 
 def _capture_exclusions(
@@ -159,6 +166,60 @@ def _capture_identity_conflicts(captures: Sequence[Mapping[str, Any]]) -> set[st
             conflicts.update({previous, current})
         seen[key] = current
     return conflicts
+
+
+def _exclusion_counts(captures: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in captures:
+        for reason in row.get("exclusion_reasons") or []:
+            key = str(reason)
+            counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _forward_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    if not rows:
+        return {
+            "sample_count": 0,
+            "log_loss": None,
+            "multiclass_brier": None,
+            "classwise_ece": None,
+            "mean_ev": None,
+            "mean_clv": None,
+            "paired_bootstrap": {"replicates": 1000, "seed": 7, "status": "INSUFFICIENT_EVIDENCE"},
+        }
+    ev = [
+        float(row["expected_value"])
+        for row in rows
+        if isinstance(row.get("expected_value"), int | float)
+    ]
+    clv = [
+        float(row["clv_probability_delta"])
+        for row in rows
+        if isinstance(row.get("clv_probability_delta"), int | float)
+    ]
+    return {
+        "sample_count": len(rows),
+        "log_loss": None,
+        "multiclass_brier": None,
+        "classwise_ece": None,
+        "mean_ev": round(sum(ev) / len(ev), 6) if ev else None,
+        "mean_clv": round(sum(clv) / len(clv), 6) if clv else None,
+        "paired_bootstrap": {
+            "replicates": 1000,
+            "seed": 7,
+            "status": "POLICY_THRESHOLD_UNVALIDATED",
+        },
+    }
+
+
+def _strata(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, int]]:
+    strata: dict[str, dict[str, int]] = {"league": {}, "line": {}, "side": {}}
+    for row in rows:
+        for key, field in (("league", "competition_id"), ("line", "line"), ("side", "selection")):
+            value = str(row.get(field) or "UNKNOWN")
+            strata[key][value] = strata[key].get(value, 0) + 1
+    return strata
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
