@@ -7,16 +7,14 @@
     "recommendation_lock": false,
     "staging_validation_authorized": true
   },
-  "changed_files": [
-    "scripts/run_predeploy_e2e_smoke.sh"
-  ],
+  "changed_files": [],
   "ci": {
-    "predeploy-e2e": "REMEDIATED_PENDING_RERUN",
+    "predeploy-e2e": "PASS",
     "staging-parity": "PASS",
     "verify": "PASS"
   },
   "contains_private_data": false,
-  "final_pr_head_sha": "TO_BE_RECORDED_AFTER_FOLLOWUP_COMMIT_AND_PUSH",
+  "final_pr_head_sha": "TO_BE_RECORDED_AFTER_CI_STATUS_REPORT_COMMIT",
   "fixed_source_blockers": [
     "checkpoint PLANNED/DUE/MISSED state machine and worker claim",
     "competition policy fail-closed with no World Cup fallback",
@@ -30,7 +28,7 @@
     "predeploy-e2e canonical observation smoke check replaces legacy observation table assertion"
   ],
   "generated_at": "2026-07-20T15:39:10Z",
-  "generation_head_sha": "0d8aeefca3bba7d93616335e127d9f39928474e7",
+  "generation_head_sha": "fc70f75f2187aaf6c84a4fdce935cb803c777851",
   "local_tests": {
     "check_w2_all": "PASS",
     "git_diff_check": "PASS",
@@ -45,12 +43,11 @@
   },
   "redaction_status": "REDACTED",
   "remaining_blockers": [
-    "predeploy-e2e rerun pending",
     "staging acceptance pending",
     "expert review pending"
   ],
   "schema_version": "PR366_REMEDIATION_REPORT_V1",
   "source_branch": "codex/w2-consolidation-acceptance-package",
   "start_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4",
-  "updated_at": "2026-07-20T15:46:12Z"
+  "updated_at": "2026-07-20T15:51:16Z"
 }

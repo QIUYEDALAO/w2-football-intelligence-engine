@@ -39,12 +39,12 @@
     {
       "file": "PR366_REMEDIATION_REPORT_V1.json",
       "schema_version": "PR366_REMEDIATION_REPORT_V1",
-      "sha256": "a144daa3fad621d1fe9a02e93bc4b698ee537066d4d7eacb9e6e77aaf3d9985c"
+      "sha256": "a602d5934ad4f4a1843e487d4ae34f8a14607a6e6aa0a98eacfdba551e7a0edb"
     },
     {
       "file": "PR366_REMEDIATION_REPORT_V1.md",
       "schema_version": "markdown",
-      "sha256": "3054dc0d36029e0ee8cf2ad75f24862ff929ab939c4af5cf951781d7c297ac09"
+      "sha256": "6c19dea48db6627e273846e33c4a08720ca30799adc4a0ecb3fe122feabb5aa3"
     },
     {
       "file": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1.json",
@@ -67,9 +67,9 @@
       "sha256": "3b1e882149ea5d8ccef7b76368883df22c7735fa6567df075b51d7893d6bc9d7"
     }
   ],
-  "generated_at": "2026-07-20T15:46:12Z",
-  "package_status": "SOURCE_PACKAGE_READY_PREDEPLOY_RERUN_PENDING",
+  "generated_at": "2026-07-20T15:51:16Z",
+  "package_status": "SOURCE_AND_GITHUB_CI_READY_STAGING_PENDING",
   "redaction_status": "REDACTED",
   "schema_version": "W2_EXPERT_REVIEW_PACKAGE_MANIFEST_V1",
-  "source_sha": "0d8aeefca3bba7d93616335e127d9f39928474e7"
+  "source_sha": "fc70f75f2187aaf6c84a4fdce935cb803c777851"
 }
