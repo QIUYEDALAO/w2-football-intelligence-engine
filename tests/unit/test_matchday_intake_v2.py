@@ -6,6 +6,11 @@ from typing import Any, cast
 
 import pytest
 
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_decision_v3 import (
+    build_recommendation_decision_v3,
+    validate_decision_v3_identity,
+)
 from w2.ingestion.checkpoint_refresh import checkpoint_plan_for_fixture
 from w2.matchday.intake_v2 import (
     MatchdayCompetitionPolicy,
@@ -278,6 +283,10 @@ def test_same_raw_payload_different_checkpoint_preserves_distinct_capture_identi
 
     assert first["raw_payload_sha256"] == second["raw_payload_sha256"]
     assert first["capture_id"] != second["capture_id"]
+    assert rows_one[0]["capture_batch_id"] == first["capture_id"]
+    assert rows_two[0]["capture_batch_id"] == second["capture_id"]
+    assert rows_one[0]["capture_batch_id"] != rows_two[0]["capture_batch_id"]
+    assert rows_one[0]["capture_batch_id"] != first["raw_payload_sha256"]
     assert rows_one[0]["observation_id"] != rows_two[0]["observation_id"]
 
 
@@ -449,6 +458,56 @@ def test_v3_not_ready_no_edge_and_system_degraded() -> None:
     assert not_ready["decision"]["outcome"] == "NOT_READY"
     assert no_edge["decision"]["outcome"] == "NO_EDGE"
     assert degraded["decision"]["outcome"] == "SYSTEM_DEGRADED"
+
+
+def test_v3_builder_rejects_model_quote_mismatch_and_hash_mutation() -> None:
+    quote = {
+        "fixture_id": "api_football:100",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "provider": "api_football",
+        "bookmaker_id": "8",
+        "capture_id": "capture-a",
+        "quote_observation_ids": ["left", "right"],
+        "captured_at": NOW.isoformat(),
+    }
+    model = {
+        "status": "COMPLETE",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "model_probability": {"status": "READY", "value": 0.57},
+        "market_probability": {"value": 0.52},
+        "probability_delta": 0.05,
+        "expected_value": 0.04,
+        "uncertainty": 0.1,
+        "model_version": "unit-model",
+        "calibration_version": "unit-calibration",
+        "decision_score": 0.72,
+        "comparison": {"analysis_direction_allowed": True},
+        "exact_quote_identity": {**quote, "capture_id": "capture-b"},
+    }
+
+    decision = build_recommendation_decision_v3(
+        fixture_identity=_fixture_identity(team_ready=True),
+        exact_quote_candidate=quote,
+        model_evidence=model,
+        data_readiness={
+            "status": "READY",
+            "quote_status": "VALID",
+            "quote_freshness_status": "COMPLETE",
+        },
+        integrity={"status": "PASS"},
+        capability_manifest=load_recommendation_capability_manifest(),
+        as_of=NOW,
+    ).as_dict()
+    broken = {**decision, "outcome": "ANALYSIS_PICK"}
+
+    assert decision["outcome"] == "NOT_READY"
+    assert decision["reason"]["code"] == "MODEL_QUOTE_IDENTITY_MISMATCH"
+    with pytest.raises(ValueError, match="DECISION_V3_IDENTITY_CONFLICT"):
+        validate_decision_v3_identity(broken)
 
 
 def test_safety_authority_files_unchanged_and_no_web_diff() -> None:

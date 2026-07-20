@@ -4,8 +4,9 @@ import hashlib
 import logging
 import os
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from w2.providers.control import (
@@ -23,6 +24,27 @@ DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS = 60 * 60
+
+
+@dataclass(frozen=True)
+class ClaimedCheckpointPlan:
+    fixture_id: str
+    checkpoint: str
+    kickoff_utc: datetime | None
+    due_at_utc: datetime | None
+    endpoints: tuple[str, ...]
+    source: str
+    id: str
+    claim_token: str | None
+    claim_expires_at: str | None
+
+    @property
+    def needs_lineups(self) -> bool:
+        return "lineups" in self.endpoints
+
+    @property
+    def needs_odds(self) -> bool:
+        return "odds" in self.endpoints
 
 
 def heartbeat() -> str:
@@ -119,6 +141,7 @@ def due_checkpoint_refresh_batch(
     now: datetime,
     *,
     provider_league_id: str | None = None,
+    worker_id: str | None = None,
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
         projected_calls_for_checkpoint_batch,
@@ -170,35 +193,35 @@ def due_checkpoint_refresh_batch(
         repository.upsert_checkpoint_plan(plan)
     due_rows = []
     if generated_plan_ids:
+        claim_worker_id = worker_id or f"checkpoint-scheduler:{now.isoformat()}"
         due_rows = [
             row
-            for row in repository.due_checkpoint_plans(
+            for row in repository.claim_due_checkpoint_plans(
                 now=now,
+                worker_id=claim_worker_id,
                 limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
             )
             if row.get("id") in generated_plan_ids
         ]
     due_plans = [
-        type(
-            "DuePlan",
-            (),
-            {
-                "fixture_id": row["fixture_id"],
-                "checkpoint": row["checkpoint"],
-                "kickoff_utc": parse_fixture_kickoff(row["kickoff_utc"]),
-                "due_at_utc": parse_fixture_kickoff(row["due_at"]),
-                "endpoints": tuple(row["endpoints"]),
-                "source": row["source"],
-                "needs_odds": "odds" in row["endpoints"],
-                "needs_lineups": "lineups" in row["endpoints"],
-            },
-        )()
+        ClaimedCheckpointPlan(
+            fixture_id=str(row["fixture_id"]),
+            checkpoint=str(row["checkpoint"]),
+            kickoff_utc=parse_fixture_kickoff(row["kickoff_utc"]),
+            due_at_utc=parse_fixture_kickoff(row["due_at"]),
+            endpoints=tuple(str(item) for item in row["endpoints"]),
+            source=str(row["source"]),
+            id=str(row["id"]),
+            claim_token=str(row.get("claim_token") or "") or None,
+            claim_expires_at=str(row.get("claim_expires_at") or "") or None,
+        )
         for row in due_rows
     ]
-    selected, projected_calls = select_checkpoint_batch(
-        due_plans,
+    selected_raw, projected_calls = select_checkpoint_batch(
+        cast(Any, due_plans),
         hard_cap=provider_refresh_tick_hard_cap(),
     )
+    selected = cast(list[ClaimedCheckpointPlan], selected_raw)
     selected_rows = [
         {
             "fixture_id": plan.fixture_id,
@@ -211,9 +234,20 @@ def due_checkpoint_refresh_batch(
             else None,
             "endpoints": list(plan.endpoints),
             "source": plan.source,
+            "id": plan.id,
+            "claim_token": plan.claim_token,
+            "claim_expires_at": plan.claim_expires_at,
         }
         for plan in selected
     ]
+    selected_ids = {str(row["id"]) for row in selected_rows}
+    for row in due_rows:
+        if str(row.get("id")) not in selected_ids and row.get("claim_token"):
+            repository.release_checkpoint_claim(
+                plan_id=str(row["id"]),
+                claim_token=str(row["claim_token"]),
+                reason="CHECKPOINT_NOT_SELECTED_FOR_BATCH",
+            )
     return {
         "status": "READY" if selected_rows else "NO_CHECKPOINT_DUE",
         "fixture_payload_count": fixture_payload_count,
@@ -221,12 +255,32 @@ def due_checkpoint_refresh_batch(
         "due_checkpoint_count": len(due_rows),
         "selected_checkpoint_count": len(selected_rows),
         "projected_calls": projected_calls,
-        "all_due_projected_calls": projected_calls_for_checkpoint_batch(due_plans),
+        "all_due_projected_calls": projected_calls_for_checkpoint_batch(cast(Any, due_plans)),
         "tick_hard_cap": provider_refresh_tick_hard_cap(),
         "checkpoints": selected_rows,
         "scheduler_checkpoint_writer": "matchday_checkpoint_plans",
         "legacy_checkpoint_writer_count": 0,
     }
+
+
+def release_checkpoint_batch_claims(
+    checkpoints: list[dict[str, Any]],
+    *,
+    reason: str,
+) -> None:
+    from w2.matchday.repository import MatchdayRuntimeRepository
+
+    repository = MatchdayRuntimeRepository()
+    for item in checkpoints:
+        plan_id = str(item.get("id") or "")
+        claim_token = str(item.get("claim_token") or "")
+        if not plan_id or not claim_token:
+            continue
+        repository.release_checkpoint_claim(
+            plan_id=plan_id,
+            claim_token=claim_token,
+            reason=reason,
+        )
 
 
 def _matchday_competition_for_league(
@@ -285,7 +339,12 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "candidate": False,
             "formal_recommendation": False,
         }
-    batch = due_checkpoint_refresh_batch(now, provider_league_id=config.league_id)
+    checkpoint_task_id = f"checkpoint-refresh:{uuid4()}"
+    batch = due_checkpoint_refresh_batch(
+        now,
+        provider_league_id=config.league_id,
+        worker_id=checkpoint_task_id,
+    )
     if batch["status"] == "NO_CHECKPOINT_DUE":
         if int(batch.get("fixture_payload_count") or 0) == 0:
             task_key = deterministic_task_key(
@@ -352,6 +411,10 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
     )
     gate = provider_task_key_gate(task_key=task_key)
     if not gate.allowed:
+        release_checkpoint_batch_claims(
+            list(batch["checkpoints"]),
+            reason=f"CHECKPOINT_ENQUEUE_BLOCKED:{gate.status}",
+        )
         return {
             "status": gate.status,
             "task_key": task_key,
@@ -366,18 +429,27 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
             "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
             "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
         }
-    task_id = f"{task_key}:{uuid4()}"
-    celery_app.send_task(
-        "w2.future_fixture_refresh",
-        kwargs={
-            "competition_id": config.competition_id,
-            "task_key": task_key,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "checkpoint_fixture_ids": [str(item["fixture_id"]) for item in batch["checkpoints"]],
-            "refresh_checkpoints": batch["checkpoints"],
-        },
-        task_id=task_id,
-    )
+    task_id = checkpoint_task_id
+    try:
+        celery_app.send_task(
+            "w2.future_fixture_refresh",
+            kwargs={
+                "competition_id": config.competition_id,
+                "task_key": task_key,
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "checkpoint_fixture_ids": [
+                    str(item["fixture_id"]) for item in batch["checkpoints"]
+                ],
+                "refresh_checkpoints": batch["checkpoints"],
+            },
+            task_id=task_id,
+        )
+    except Exception:
+        release_checkpoint_batch_claims(
+            list(batch["checkpoints"]),
+            reason="CHECKPOINT_ENQUEUE_FAILED",
+        )
+        raise
     return {
         **batch,
         "status": "QUEUED",

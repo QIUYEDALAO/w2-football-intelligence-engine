@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Engine, select
@@ -13,6 +13,7 @@ from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
+    MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
     MatchdayMarketObservationModel,
 )
@@ -140,6 +141,7 @@ class MatchdayRuntimeRepository:
         status: str,
         capture_id: str | None = None,
         now: datetime | None = None,
+        claim_token: str | None = None,
     ) -> None:
         plan_id = stable_hash(
             ":".join([fixture_id, competition_id, season, checkpoint, policy_version])
@@ -148,12 +150,27 @@ class MatchdayRuntimeRepository:
             row = session.get(MatchdayCheckpointPlanModel, plan_id)
             if row is None:
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
+            current = normalize_repo_time(now or datetime.now(UTC))
+            if claim_token is not None:
+                if row.claim_token != claim_token:
+                    raise MatchdayRepositoryError("CHECKPOINT_CLAIM_TOKEN_MISMATCH")
+                claim_expired = (
+                    row.claim_expires_at is None
+                    or normalize_repo_time(row.claim_expires_at) < current
+                )
+                if claim_expired:
+                    raise MatchdayRepositoryError("CHECKPOINT_CLAIM_EXPIRED")
             if row.status == "MISSED" and status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
             row.status = _transition_status(row.status, status)
             row.capture_id = capture_id or row.capture_id
             if status == "MISSED":
-                row.missed_at = now or datetime.now(UTC)
+                row.missed_at = current
+            if status in _TERMINAL_CHECKPOINT_STATUSES or status == "FAILED":
+                row.claimed_at = None
+                row.claimed_by = None
+                row.claim_token = None
+                row.claim_expires_at = None
             session.commit()
 
     def due_checkpoint_plans(self, *, now: datetime, limit: int = 100) -> list[dict[str, Any]]:
@@ -188,8 +205,10 @@ class MatchdayRuntimeRepository:
         now: datetime,
         worker_id: str,
         limit: int = 100,
+        lease_seconds: int = 900,
     ) -> list[dict[str, Any]]:
         current = normalize_repo_time(now)
+        expires_at = current + timedelta(seconds=lease_seconds)
         with Session(self.engine) as session:
             self._advance_checkpoint_windows(session, now=current)
             query = (
@@ -199,6 +218,7 @@ class MatchdayRuntimeRepository:
                     MatchdayCheckpointPlanModel.window_start <= current,
                     MatchdayCheckpointPlanModel.window_end >= current,
                     MatchdayCheckpointPlanModel.claimed_at.is_(None),
+                    MatchdayCheckpointPlanModel.claim_token.is_(None),
                 )
                 .order_by(
                     MatchdayCheckpointPlanModel.scheduled_at,
@@ -214,10 +234,140 @@ class MatchdayRuntimeRepository:
             for row in rows:
                 row.claimed_at = current
                 row.claimed_by = worker_id
+                row.claim_token = stable_hash(
+                    {
+                        "plan_id": row.plan_id,
+                        "worker_id": worker_id,
+                        "claimed_at": _iso(current),
+                        "attempt_count": int(row.attempt_count or 0) + 1,
+                    }
+                )
+                row.claim_expires_at = expires_at
                 row.attempt_count = int(row.attempt_count or 0) + 1
             result = [self._plan_dict(row) for row in rows]
             session.commit()
         return result
+
+    def release_checkpoint_claim(
+        self,
+        *,
+        plan_id: str,
+        claim_token: str,
+        reason: str,
+    ) -> bool:
+        with Session(self.engine) as session:
+            row = session.get(MatchdayCheckpointPlanModel, plan_id)
+            if row is None:
+                raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
+            if row.claim_token != claim_token:
+                return False
+            if row.status in _TERMINAL_CHECKPOINT_STATUSES:
+                return False
+            row.claimed_at = None
+            row.claimed_by = None
+            row.claim_token = None
+            row.claim_expires_at = None
+            row.blockers = sorted({*list(row.blockers or []), reason})
+            session.commit()
+        return True
+
+    def validate_checkpoint_claim(
+        self,
+        *,
+        plan_id: str,
+        claim_token: str,
+        now: datetime,
+        fixture_id: str | None = None,
+        competition_id: str | None = None,
+        season: str | None = None,
+    ) -> dict[str, Any]:
+        current = normalize_repo_time(now)
+        with Session(self.engine) as session:
+            self._advance_checkpoint_windows(session, now=current)
+            row = session.get(MatchdayCheckpointPlanModel, plan_id)
+            if row is None:
+                raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
+            if row.status != "DUE":
+                raise MatchdayRepositoryError(f"CHECKPOINT_PLAN_NOT_DUE:{row.status}")
+            if row.claim_token != claim_token:
+                raise MatchdayRepositoryError("CHECKPOINT_CLAIM_TOKEN_MISMATCH")
+            if row.claim_expires_at is None or normalize_repo_time(row.claim_expires_at) < current:
+                raise MatchdayRepositoryError("CHECKPOINT_CLAIM_EXPIRED")
+            if fixture_id is not None and row.fixture_id != fixture_id:
+                raise MatchdayRepositoryError("CHECKPOINT_FIXTURE_MISMATCH")
+            if competition_id is not None and row.competition_id != competition_id:
+                raise MatchdayRepositoryError("CHECKPOINT_COMPETITION_MISMATCH")
+            if season is not None and row.season != season:
+                raise MatchdayRepositoryError("CHECKPOINT_SEASON_MISMATCH")
+            result = self._plan_dict(row)
+            session.commit()
+        return result
+
+    def link_endpoint_capture_plans(
+        self,
+        *,
+        capture_id: str,
+        plan_ids: Sequence[str],
+        endpoint: str,
+        linked_at: datetime,
+    ) -> list[dict[str, Any]]:
+        current = normalize_repo_time(linked_at)
+        links: list[dict[str, Any]] = []
+        with Session(self.engine) as session:
+            capture = session.get(MatchdayEndpointCaptureModel, capture_id)
+            if capture is None:
+                raise MatchdayRepositoryError("ENDPOINT_CAPTURE_NOT_FOUND")
+            for plan_id in plan_ids:
+                plan = session.get(MatchdayCheckpointPlanModel, plan_id)
+                if plan is None:
+                    raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
+                if capture.fixture_id and plan.fixture_id != capture.fixture_id:
+                    raise MatchdayRepositoryError("CAPTURE_PLAN_FIXTURE_MISMATCH")
+                if capture.competition_id and plan.competition_id != capture.competition_id:
+                    raise MatchdayRepositoryError("CAPTURE_PLAN_COMPETITION_MISMATCH")
+                if endpoint not in set(plan.endpoints or []):
+                    raise MatchdayRepositoryError("CAPTURE_PLAN_ENDPOINT_MISMATCH")
+                if not (
+                    normalize_repo_time(plan.window_start)
+                    <= current
+                    <= normalize_repo_time(plan.window_end)
+                ):
+                    raise MatchdayRepositoryError("CAPTURE_PLAN_WINDOW_MISMATCH")
+                link_hash = stable_hash(
+                    {
+                        "capture_id": capture_id,
+                        "plan_id": plan_id,
+                        "endpoint": endpoint,
+                    }
+                )
+                payload = {
+                    "link_hash": link_hash,
+                    "capture_id": capture_id,
+                    "plan_id": plan_id,
+                    "endpoint": endpoint,
+                    "link_status": "LINKED",
+                    "linked_at": _iso(current),
+                }
+                try:
+                    with session.begin_nested():
+                        session.add(
+                            MatchdayEndpointCapturePlanModel(
+                                link_hash=link_hash,
+                                capture_id=capture_id,
+                                plan_id=plan_id,
+                                endpoint=endpoint,
+                                link_status="LINKED",
+                                linked_at=current,
+                            )
+                        )
+                        session.flush()
+                except IntegrityError:
+                    existing = session.get(MatchdayEndpointCapturePlanModel, link_hash)
+                    if existing is None:
+                        raise MatchdayRepositoryError("CAPTURE_PLAN_LINK_CONFLICT") from None
+                links.append(payload)
+            session.commit()
+        return links
 
     def insert_endpoint_capture(self, capture: Mapping[str, Any]) -> str:
         with Session(self.engine) as session:
@@ -248,7 +398,8 @@ class MatchdayRuntimeRepository:
             except IntegrityError:
                 session.rollback()
                 existing = session.get(MatchdayEndpointCaptureModel, str(capture["capture_id"]))
-                if existing is not None and _capture_payload(existing) == dict(capture):
+                normalized_capture = _normalized_capture_payload(capture)
+                if existing is not None and _capture_payload(existing) == normalized_capture:
                     return str(capture["capture_id"])
                 raise MatchdayRepositoryError("CAPTURE_IDENTITY_CONFLICT") from None
         return str(capture["capture_id"])
@@ -376,6 +527,7 @@ class MatchdayRuntimeRepository:
             "fixture_id": row.fixture_id,
             "competition_id": row.competition_id,
             "season": row.season,
+            "policy_version": row.policy_version,
             "checkpoint": row.checkpoint,
             "kickoff_utc": _iso(row.kickoff_utc),
             "due_at": _iso(row.scheduled_at),
@@ -387,6 +539,8 @@ class MatchdayRuntimeRepository:
             "window_end": _iso(row.window_end),
             "claimed_at": _iso(row.claimed_at) if row.claimed_at else None,
             "claimed_by": row.claimed_by,
+            "claim_token": row.claim_token,
+            "claim_expires_at": _iso(row.claim_expires_at) if row.claim_expires_at else None,
             "attempt_count": int(row.attempt_count or 0),
             "test_only": bool(row.test_only),
             "namespace": row.namespace,
@@ -403,12 +557,22 @@ class MatchdayRuntimeRepository:
         for row in rows:
             window_end = normalize_repo_time(row.window_end)
             window_start = normalize_repo_time(row.window_start)
+            claim_expires = (
+                normalize_repo_time(row.claim_expires_at) if row.claim_expires_at else None
+            )
             if now > window_end:
                 row.status = "MISSED"
                 row.missed_at = row.missed_at or now
                 row.blockers = sorted({*list(row.blockers or []), "CHECKPOINT_MISSING"})
                 row.claimed_at = None
                 row.claimed_by = None
+                row.claim_token = None
+                row.claim_expires_at = None
+            elif row.status == "DUE" and claim_expires is not None and claim_expires < now:
+                row.claimed_at = None
+                row.claimed_by = None
+                row.claim_token = None
+                row.claim_expires_at = None
             elif row.status == "PLANNED" and window_start <= now <= window_end:
                 row.status = "DUE"
 
@@ -442,6 +606,18 @@ def _transition_status(current: str, incoming: str) -> str:
     raise MatchdayRepositoryError(f"CHECKPOINT_STATUS_TRANSITION_INVALID:{current}->{incoming}")
 
 
+_TERMINAL_CHECKPOINT_STATUSES = frozenset(
+    {
+        "CAPTURED",
+        "PROVIDER_EMPTY",
+        "MISSED",
+        "SKIPPED_POLICY",
+        "SKIPPED_BUDGET",
+        "CONFLICT",
+    }
+)
+
+
 def normalize_repo_time(value: datetime) -> datetime:
     return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
@@ -467,6 +643,31 @@ def _capture_payload(row: MatchdayEndpointCaptureModel) -> dict[str, Any]:
         "provider_event_time": row.provider_event_time,
         "capture_status": row.capture_status,
         "error_code": row.error_code,
+        "schema_version": "MatchdayEndpointCaptureV1",
+    }
+
+
+def _normalized_capture_payload(capture: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "capture_id": str(capture["capture_id"]),
+        "fixture_id": str(capture.get("fixture_id") or "") or None,
+        "competition_id": str(capture.get("competition_id") or "") or None,
+        "checkpoint": str(capture.get("checkpoint") or "") or None,
+        "endpoint": str(capture["endpoint"]),
+        "sanitized_params": dict(capture["sanitized_params"]),
+        "params_hash": str(capture["params_hash"]),
+        "request_task_key": str(capture["request_task_key"]),
+        "attempt": int(capture.get("attempt") or 1),
+        "requested_at": _iso(_dt(capture["requested_at"])),
+        "provider_captured_at": _iso(_dt(capture["provider_captured_at"])),
+        "status_code": int(capture["status_code"]),
+        "elapsed_ms": int(capture["elapsed_ms"]),
+        "response_count": int(capture["response_count"]),
+        "quota_values": dict(capture["quota_values"]),
+        "raw_payload_sha256": str(capture["raw_payload_sha256"]),
+        "provider_event_time": capture.get("provider_event_time"),
+        "capture_status": str(capture["capture_status"]),
+        "error_code": capture.get("error_code"),
         "schema_version": "MatchdayEndpointCaptureV1",
     }
 

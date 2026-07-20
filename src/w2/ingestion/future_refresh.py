@@ -655,7 +655,7 @@ class FutureFixtureRefreshService:
         self._raw_payload_written: set[str] = set()
         self._raw_payload_written_count = 0
         self._feature_enrichment_batch_count = 0
-        self._matchday_capture_by_payload: dict[str, dict[str, Any]] = {}
+        self._matchday_capture_by_payload: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -686,6 +686,7 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
             return result
+        self._validate_checkpoint_claims()
         tick_cap = self._provider_tick_hard_cap_preflight()
         if not tick_cap["allowed"]:
             blocker = str(tick_cap["blocker"])
@@ -815,6 +816,27 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
         return result
+
+    def _validate_checkpoint_claims(self) -> None:
+        if self.config.persistence != "db" or not self.config.refresh_checkpoints:
+            return
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        repository = MatchdayRuntimeRepository()
+        for checkpoint in self.config.refresh_checkpoints:
+            plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
+            claim_token = str(checkpoint.get("claim_token") or "")
+            fixture_id = str(checkpoint.get("fixture_id") or "")
+            if not plan_id or not claim_token:
+                raise FutureRefreshError("CHECKPOINT_CLAIM_REQUIRED")
+            repository.validate_checkpoint_claim(
+                plan_id=plan_id,
+                claim_token=claim_token,
+                now=self.now,
+                fixture_id=fixture_id or None,
+                competition_id=self.config.competition_id,
+                season=self.config.season,
+            )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         if not self._endpoint_authorized(endpoint):
@@ -953,6 +975,23 @@ class FutureFixtureRefreshService:
             from w2.matchday.repository import MatchdayRuntimeRepository
 
             fixture_id = str(params.get("fixture") or "") or None
+            matching_plans = self._matching_checkpoint_plans(
+                endpoint=endpoint,
+                fixture_id=fixture_id,
+                captured_at=response.captured_at,
+            )
+            checkpoint_names = sorted(
+                {
+                    str(item.get("checkpoint") or "")
+                    for item in matching_plans
+                    if item.get("checkpoint")
+                }
+            )
+            checkpoint_plan_ids = [
+                str(item.get("id") or item.get("plan_id") or "")
+                for item in matching_plans
+                if str(item.get("id") or item.get("plan_id") or "")
+            ]
             quota = parse_api_football_quota(
                 headers=response.headers,
                 payload=response.payload,
@@ -968,7 +1007,8 @@ class FutureFixtureRefreshService:
                 payload=payload,
                 fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
                 competition_id=self.config.competition_id,
-                checkpoint=self._checkpoint_for_fixture(fixture_id),
+                checkpoint=",".join(checkpoint_names) or None,
+                checkpoint_plan_ids=checkpoint_plan_ids,
                 attempt=attempt,
                 quota_values={
                     "daily_remaining": quota.daily_remaining,
@@ -980,20 +1020,66 @@ class FutureFixtureRefreshService:
                     "burst_source": quota.burst_source,
                 },
             )
-            MatchdayRuntimeRepository().insert_endpoint_capture(capture)
-            self._matchday_capture_by_payload[str(capture["raw_payload_sha256"])] = capture
+            repository = MatchdayRuntimeRepository()
+            repository.insert_endpoint_capture(capture)
+            if checkpoint_plan_ids:
+                repository.link_endpoint_capture_plans(
+                    capture_id=str(capture["capture_id"]),
+                    plan_ids=checkpoint_plan_ids,
+                    endpoint=endpoint,
+                    linked_at=response.captured_at,
+                )
+            lookup_key = self._capture_lookup_key(
+                endpoint=endpoint,
+                params=params,
+                raw_payload_sha256=str(capture["raw_payload_sha256"]),
+                captured_at=response.captured_at,
+            )
+            self._matchday_capture_by_payload[lookup_key] = capture
             return str(capture["capture_id"]), None
         except Exception as exc:
             raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{exc}") from exc
 
-    def _checkpoint_for_fixture(self, fixture_id: str | None) -> str | None:
+    def _matching_checkpoint_plans(
+        self,
+        *,
+        endpoint: str,
+        fixture_id: str | None,
+        captured_at: datetime,
+    ) -> list[dict[str, Any]]:
         if not fixture_id:
-            return None
+            return []
+        captured = captured_at.astimezone(UTC)
+        matches: list[dict[str, Any]] = []
         for item in self.config.refresh_checkpoints:
             raw = str(item.get("fixture_id") or "")
-            if raw == fixture_id or raw == f"api_football:{fixture_id}":
-                return str(item.get("checkpoint") or "") or None
-        return None
+            if raw not in {fixture_id, f"api_football:{fixture_id}"}:
+                continue
+            if endpoint not in set(item.get("endpoints") or []):
+                continue
+            window_start = parse_utc(item.get("window_start"))
+            window_end = parse_utc(item.get("window_end"))
+            if window_start is not None and captured < window_start:
+                continue
+            if window_end is not None and captured > window_end:
+                continue
+            matches.append(dict(item))
+        return matches
+
+    def _capture_lookup_key(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        raw_payload_sha256: str,
+        captured_at: datetime,
+    ) -> tuple[str, str, str, str]:
+        return (
+            endpoint,
+            sha256_payload(sanitize_params(params)),
+            raw_payload_sha256,
+            iso(captured_at),
+        )
 
     def _save_raw_payload_first(
         self,
@@ -1404,7 +1490,14 @@ class FutureFixtureRefreshService:
                     payload=response.payload,
                 )
                 raw_sha = sha256_payload(raw_record)
-                capture = self._matchday_capture_by_payload.get(raw_sha)
+                capture = self._matchday_capture_by_payload.get(
+                    self._capture_lookup_key(
+                        endpoint="odds",
+                        params={"fixture": fixture_id},
+                        raw_payload_sha256=raw_sha,
+                        captured_at=response.captured_at,
+                    )
+                )
                 if capture is None:
                     raise FutureRefreshError("ENDPOINT_CAPTURE_REQUIRED_BEFORE_NORMALIZATION")
                 rows, rejections = normalize_matchday_odds_payload(
@@ -1603,6 +1696,32 @@ class FutureFixtureRefreshService:
                     "source": checkpoint.get("source"),
                 },
             )
+            self._transition_checkpoint_plan(checkpoint, result)
+
+    def _transition_checkpoint_plan(
+        self,
+        checkpoint: dict[str, Any],
+        result: FutureRefreshResult,
+    ) -> None:
+        plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
+        claim_token = str(checkpoint.get("claim_token") or "")
+        if not plan_id or not claim_token:
+            return
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        status = "FAILED" if result.blockers else "CAPTURED"
+        repository = MatchdayRuntimeRepository()
+        repository.transition_checkpoint(
+            fixture_id=str(checkpoint.get("fixture_id") or ""),
+            competition_id=self.config.competition_id,
+            season=self.config.season,
+            checkpoint=str(checkpoint.get("checkpoint") or ""),
+            policy_version=str(checkpoint.get("policy_version") or "w2.matchday_intake_policy.v2"),
+            status=status,
+            capture_id=None,
+            now=result.generated_at_utc,
+            claim_token=claim_token,
+        )
 
 
 def deterministic_time_bucket(now: datetime, interval_seconds: int) -> str:

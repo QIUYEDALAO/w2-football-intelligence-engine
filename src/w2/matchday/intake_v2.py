@@ -13,8 +13,8 @@ from typing import Any, Literal
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
-    RecommendationOutcomeV3,
-    project_decision_v3,
+    build_recommendation_decision_v3,
+    validate_decision_v3_identity,
 )
 from w2.strategy.market_selector import select_analysis_markets
 
@@ -530,6 +530,7 @@ def endpoint_capture_contract(
     fixture_id: str | None = None,
     competition_id: str | None = None,
     checkpoint: str | None = None,
+    checkpoint_plan_ids: Sequence[str] = (),
     attempt: int = 1,
     quota_values: Mapping[str, Any] | None = None,
     provider_event_time: str | None = None,
@@ -550,6 +551,7 @@ def endpoint_capture_contract(
         "fixture_id": fixture_id,
         "competition_id": competition_id,
         "checkpoint": checkpoint,
+        "checkpoint_plan_ids": sorted(str(item) for item in checkpoint_plan_ids),
         "endpoint": endpoint,
         "sanitized_params": sanitized,
         "params_hash": stable_hash(sanitized),
@@ -622,7 +624,7 @@ def normalize_matchday_odds_payload(
                         "provider": provider,
                         "bookmaker_id": bookmaker_id,
                         "bookmaker_name": bookmaker_name,
-                        "capture_batch_id": raw_payload_sha256,
+                        "capture_batch_id": capture_id,
                         "capture_id": capture_id,
                         "provider_bet_id": provider_bet_id,
                         "raw_market_label": raw_market,
@@ -956,58 +958,30 @@ def v3_decision_from_matchday(
     as_of: datetime,
 ) -> dict[str, Any]:
     selected_candidate = _selected_analysis_candidate(model_evidence)
-    if market_audit.get("integrity_status") == "CONFLICT":
-        outcome = RecommendationOutcomeV3.SYSTEM_DEGRADED
-        reason = "INTEGRITY_CONFLICT"
-    elif fixture_identity.get("team_identity_status") != "READY":
-        outcome = RecommendationOutcomeV3.NOT_READY
-        reason = "TEAM_IDENTITY_NOT_READY"
-    elif not market_audit.get("independent_candidates"):
-        outcome = RecommendationOutcomeV3.NOT_READY
-        reason = "CURRENT_QUOTE_MISSING"
-    elif _selected_candidate_stale(selected_candidate):
-        outcome = RecommendationOutcomeV3.NOT_READY
-        reason = "CURRENT_QUOTE_STALE"
-    elif model_evidence.get("status") != "COMPLETE":
-        outcome = RecommendationOutcomeV3.NOT_READY
-        reason = "MODEL_EVIDENCE_NOT_READY"
-    elif not _truthy(_mapping(model_evidence.get("comparison")).get("analysis_direction_allowed")):
-        outcome = RecommendationOutcomeV3.NO_EDGE
-        reason = "NO_ANALYSIS_EDGE"
-    elif selected_candidate is None:
-        outcome = RecommendationOutcomeV3.NO_EDGE
-        reason = "NO_ANALYSIS_EDGE"
-    else:
-        outcome = RecommendationOutcomeV3.ANALYSIS_PICK
-        reason = "ANALYSIS_ONLY"
-    selected = selected_candidate if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else None
-    evaluated_candidate = selected_candidate or _evaluated_candidate_from_model(model_evidence)
-    if outcome is RecommendationOutcomeV3.FORMAL_RECOMMEND:
-        raise AssertionError("FORMAL_RECOMMEND_DISABLED_FOR_MATCHDAY_INTAKE_V2")
+    exact_quote = _exact_quote_candidate(market_audit, selected_candidate)
+    bound_evidence = _bound_model_evidence(model_evidence, selected_candidate, exact_quote)
     warnings = []
     if movement.get("checkpoint_coverage") == "PARTIAL":
         warnings.append("CHECKPOINT_HISTORY_PARTIAL")
-    contract = {
-        "fixture_id": fixture_identity.get("fixture_id"),
-        "competition_id": fixture_identity.get("competition_id"),
-        "as_of": iso_z(as_of),
-        "integrity_status": "CONFLICT"
-        if outcome is RecommendationOutcomeV3.SYSTEM_DEGRADED
-        else "PASS",
-        "quote_provenance_status": "VALID",
-        "data_status": "READY" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "PARTIAL",
-        "decision_tier": outcome.value,
-        "reason_code": reason,
-        "model_version": str(model_evidence.get("model_version") or ""),
-        "calibration_version": str(model_evidence.get("calibration_version") or ""),
-        "selected_market_candidate": evaluated_candidate,
-        "pick": selected,
-        "warnings": warnings,
-    }
-    decision = project_decision_v3(
-        contract,
-        manifest=load_recommendation_capability_manifest(),
+    freshness = _mapping(exact_quote.get("freshness")) if exact_quote else {}
+    decision = build_recommendation_decision_v3(
+        fixture_identity=fixture_identity,
+        exact_quote_candidate=exact_quote,
+        model_evidence=bound_evidence,
+        data_readiness={
+            "status": "READY" if market_audit.get("independent_candidates") else "PARTIAL",
+            "quote_status": "VALID" if exact_quote else "MISSING",
+            "quote_freshness_status": str(freshness.get("freshness_status") or "COMPLETE"),
+            "warnings": warnings,
+        },
+        integrity={
+            "status": "CONFLICT" if market_audit.get("integrity_status") == "CONFLICT" else "PASS"
+        },
+        capability_manifest=load_recommendation_capability_manifest(),
+        as_of=as_of,
     ).as_dict()
+    validate_decision_v3_identity(decision)
+    reason = str(_mapping(decision.get("reason")).get("code") or "")
     decision["reason_code"] = reason
     decision["reason"] = reason
     decision["formal_readiness"] = False
@@ -1359,6 +1333,87 @@ def _evaluated_candidate_from_model(model_evidence: Mapping[str, Any]) -> dict[s
     }
 
 
+def _exact_quote_candidate(
+    market_audit: Mapping[str, Any], selected_candidate: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    if selected_candidate is None:
+        return None
+    target_market = str(selected_candidate.get("market") or "")
+    target_selection = str(selected_candidate.get("selection") or "")
+    target_line = str(selected_candidate.get("line") or "")
+    for candidate in _list(market_audit.get("independent_candidates")):
+        if not isinstance(candidate, Mapping):
+            continue
+        if str(candidate.get("market") or "") != target_market:
+            continue
+        if str(candidate.get("line") or "") != target_line:
+            continue
+        left = _mapping(candidate.get("left"))
+        right = _mapping(candidate.get("right"))
+        selected_row = (
+            left if str(left.get("canonical_selection") or "") == target_selection else right
+        )
+        if str(selected_row.get("canonical_selection") or "") != target_selection:
+            continue
+        observation_ids = [
+            str(row.get("observation_id"))
+            for row in (left, right)
+            if row.get("observation_id")
+        ]
+        return {
+            "fixture_id": selected_row.get("fixture_id"),
+            "market": target_market,
+            "selection": target_selection,
+            "line": target_line,
+            "provider": selected_row.get("provider"),
+            "bookmaker_id": selected_row.get("bookmaker_id"),
+            "capture_id": selected_row.get("capture_id"),
+            "quote_observation_ids": sorted(observation_ids),
+            "captured_at": selected_row.get("captured_at"),
+            "freshness": candidate.get("freshness"),
+        }
+    return None
+
+
+def _bound_model_evidence(
+    model_evidence: Mapping[str, Any],
+    selected_candidate: Mapping[str, Any] | None,
+    exact_quote: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if selected_candidate is None:
+        return dict(model_evidence)
+    evidence = dict(model_evidence)
+    analysis_evidence = _mapping(selected_candidate.get("analysis_evidence"))
+    for key in (
+        "model_probability",
+        "market_probability",
+        "probability_delta",
+        "expected_value",
+        "uncertainty",
+    ):
+        if evidence.get(key) is None and analysis_evidence.get(key) is not None:
+            evidence[key] = analysis_evidence.get(key)
+    for key in ("market", "selection", "line", "decision", "decision_score", "signal_strength"):
+        if selected_candidate.get(key) is not None:
+            evidence[key] = selected_candidate.get(key)
+    if exact_quote is not None:
+        evidence["exact_quote_identity"] = {
+            key: exact_quote.get(key)
+            for key in (
+                "fixture_id",
+                "market",
+                "selection",
+                "line",
+                "provider",
+                "bookmaker_id",
+                "capture_id",
+                "quote_observation_ids",
+                "captured_at",
+            )
+        }
+    return evidence
+
+
 def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str, Any] | None:
     candidates = _list(model_evidence.get("analysis_markets"))
     selectable = []
@@ -1371,21 +1426,26 @@ def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str,
         score = _decimal_or_none(item.get("decision_score") or item.get("signal_strength"))
         if score is None:
             continue
+        if not item.get("decision") or not item.get("line_status") or not item.get(
+            "market_candidate"
+        ):
+            continue
+        quote_age_seconds = item.get("quote_age_seconds")
+        if quote_age_seconds is None:
+            continue
         selectable.append(
             {
                 **dict(item),
                 "analysis_evidence": dict(evidence),
-                "decision": str(item.get("decision") or "ANALYSIS_PICK"),
                 "decision_score": float(score),
-                "line_status": str(item.get("line_status") or "READY"),
-                "market_candidate": item.get("market_candidate") or {"ev_eligible": True},
-                "quote_age_seconds": int(item.get("quote_age_seconds") or 0),
+                "line_status": str(item.get("line_status")),
+                "quote_age_seconds": int(str(quote_age_seconds)),
                 "calibration_comparable": item.get("calibration_comparable") is True,
             }
         )
     selection = select_analysis_markets(selectable)
     if selection.primary_market is None:
-        return None
+        return selectable[0] if selectable else None
     for item in selectable:
         if item.get("market") == selection.primary_market:
             return item
