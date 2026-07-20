@@ -39,22 +39,22 @@
     {
       "file": "PR366_REMEDIATION_REPORT_V1.json",
       "schema_version": "PR366_REMEDIATION_REPORT_V1",
-      "sha256": "a602d5934ad4f4a1843e487d4ae34f8a14607a6e6aa0a98eacfdba551e7a0edb"
+      "sha256": "88a651bb58d2ff6330c2e0a25fed7da89f5f9e5845da64c9b24fee6445dde31b"
     },
     {
       "file": "PR366_REMEDIATION_REPORT_V1.md",
       "schema_version": "markdown",
-      "sha256": "6c19dea48db6627e273846e33c4a08720ca30799adc4a0ecb3fe122feabb5aa3"
+      "sha256": "a10506803362bcd5afd9ea03fd1d535addda7231d0c7fe38c029adde4c719449"
     },
     {
       "file": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1.json",
       "schema_version": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1",
-      "sha256": "431a2c28e26e952c6f6415c6d9fa2b0f3602a0b8f8167127b6bbb26f97e039e3"
+      "sha256": "f21f686325673a151eb1c3f472bdb6db9be0beebfb5ccc695f1ec812fb37c07e"
     },
     {
       "file": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1.md",
       "schema_version": "markdown",
-      "sha256": "f80d398e7f6ec3001e80b6cd1a898192d6798545dc37557c665ff9204092c5b2"
+      "sha256": "df23196afb64f8396c5af3fcc4dc212ae4cea5e38e3aa95c1a797ca350f91bc4"
     },
     {
       "file": "W2_OWNER_APPROVAL_INTENT_V1.json",
@@ -67,9 +67,9 @@
       "sha256": "3b1e882149ea5d8ccef7b76368883df22c7735fa6567df075b51d7893d6bc9d7"
     }
   ],
-  "generated_at": "2026-07-20T15:51:16Z",
-  "package_status": "SOURCE_AND_GITHUB_CI_READY_STAGING_PENDING",
+  "generated_at": "2026-07-20T15:56:32Z",
+  "package_status": "SOURCE_AND_GITHUB_CI_READY_STAGING_PREFLIGHT_BLOCKED",
   "redaction_status": "REDACTED",
   "schema_version": "W2_EXPERT_REVIEW_PACKAGE_MANIFEST_V1",
-  "source_sha": "fc70f75f2187aaf6c84a4fdce935cb803c777851"
+  "source_sha": "d4876dd0b6028469fd0980e18d0a7bdd1af22820"
 }

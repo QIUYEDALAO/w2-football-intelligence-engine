@@ -1,5 +1,7 @@
 # Staging Readonly And Canary Evidence V1
 
-- Status: `PENDING_GITHUB_CI_AND_STAGING_VALIDATION`.
-- No production access has been performed in this source package step.
-- Controlled staging writes and provider canary remain pending.
+- Status: `STAGING_PREFLIGHT_BLOCKED_ENVIRONMENT_NOT_CONFIRMED`.
+- SSH strict host key checking: `yes`; identity file count: `1`; host redacted as `$W2_STAGING_HOST`.
+- Remote environment observed: `unset`; required: `staging`.
+- Deployment, migration, staging DB writes and provider canary were not executed.
+- Production access: `0`.

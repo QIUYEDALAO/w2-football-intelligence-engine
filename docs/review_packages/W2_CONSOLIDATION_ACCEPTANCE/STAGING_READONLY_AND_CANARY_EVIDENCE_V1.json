@@ -2,25 +2,31 @@
   "alembic": {
     "current": null,
     "head": null,
-    "status": "PENDING"
+    "status": "NOT_EXECUTED_PREFLIGHT_BLOCKED"
   },
-  "capability_manifest": "PENDING",
-  "cohort_before_after": "PENDING",
+  "blockers": [
+    "TARGET_ENVIRONMENT_NOT_STAGING",
+    "STAGING_DEPLOYMENT_NOT_EXECUTED",
+    "STAGING_CANARY_NOT_EXECUTED"
+  ],
+  "capability_manifest": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
+  "cohort_before_after": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
   "contains_private_data": false,
   "db_deltas": {},
-  "decision_hash_parity": "PENDING",
+  "decision_hash_parity": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
   "formal_lock_official_counts": {
-    "OFFICIAL_captures": null,
-    "formal_recommendation_ids": null,
-    "locks": null
+    "OFFICIAL_captures": 0,
+    "formal_recommendation_ids": 0,
+    "locks": 0
   },
-  "generated_at": "2026-07-20T15:39:10Z",
+  "generated_at": "2026-07-20T15:56:32Z",
   "old_new_table_deltas": {},
+  "production_access": 0,
   "provider_canary_calls": [],
-  "public_read_invariants": "PENDING",
+  "public_read_invariants": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
   "quota": {
     "remaining": null,
-    "used": null
+    "used": 0
   },
   "redaction_status": "NO_HOST_IP_NO_DB_URL_NO_RAW_PAYLOAD_NO_CREDENTIALS",
   "release_api_web_sha": {
@@ -29,6 +35,16 @@
     "web": null
   },
   "schema_version": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1",
-  "service_image_health": "PENDING",
-  "status": "PENDING_GITHUB_CI_AND_STAGING_VALIDATION"
+  "service_image_health": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
+  "ssh_preflight": {
+    "environment_observed": "unset",
+    "host_alias": "$W2_STAGING_HOST",
+    "identity_file_count": 1,
+    "login_result": "LOGIN_OK",
+    "required_environment": "staging",
+    "strict_host_key_checking": "yes",
+    "user_alias": "root"
+  },
+  "status": "STAGING_PREFLIGHT_BLOCKED_ENVIRONMENT_NOT_CONFIRMED",
+  "stop_reason": "W2_ENVIRONMENT was not staging on the target, so deployment, migration, DB writes and provider canary were not executed."
 }

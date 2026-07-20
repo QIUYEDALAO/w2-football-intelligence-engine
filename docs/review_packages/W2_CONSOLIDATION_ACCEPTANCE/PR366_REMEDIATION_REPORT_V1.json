@@ -28,7 +28,7 @@
     "predeploy-e2e canonical observation smoke check replaces legacy observation table assertion"
   ],
   "generated_at": "2026-07-20T15:39:10Z",
-  "generation_head_sha": "fc70f75f2187aaf6c84a4fdce935cb803c777851",
+  "generation_head_sha": "d4876dd0b6028469fd0980e18d0a7bdd1af22820",
   "local_tests": {
     "check_w2_all": "PASS",
     "git_diff_check": "PASS",
@@ -43,11 +43,11 @@
   },
   "redaction_status": "REDACTED",
   "remaining_blockers": [
-    "staging acceptance pending",
+    "staging preflight blocked: target W2_ENVIRONMENT unset, required staging",
     "expert review pending"
   ],
   "schema_version": "PR366_REMEDIATION_REPORT_V1",
   "source_branch": "codex/w2-consolidation-acceptance-package",
   "start_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4",
-  "updated_at": "2026-07-20T15:51:16Z"
+  "updated_at": "2026-07-20T15:56:32Z"
 }
