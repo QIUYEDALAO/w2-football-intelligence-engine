@@ -81,6 +81,75 @@ def build_football_data_audits(source_root: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def write_football_data_ingest_artifacts(
+    source_root: Path,
+    artifact_root: Path,
+) -> dict[str, Any]:
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    files = discover_football_data_files(source_root)
+    rows = _all_rows(files)
+    snapshots = _source_snapshots(files)
+    closing_facts = _ah_facts(rows, phase=PHASE_CLOSE)
+    pre_closing_facts = _ah_facts(rows, phase=PHASE_PRE)
+    phase_evidence = _phase_market_evidence(rows)
+    f5_dataset = [
+        _f5_dataset_row(fact)
+        for fact in [*closing_facts, *pre_closing_facts]
+        if fact["cover_bucket"] is not None
+    ]
+    coverage = _f5_coverage_report(closing_facts, pre_closing_facts)
+    baseline = {
+        "schema_version": "w2.football_data_market_baseline_candidate.v1",
+        "status": "READY_CANDIDATE" if phase_evidence else "INSUFFICIENT_EVIDENCE",
+        "source_system": SOURCE_SYSTEM,
+        "evidence_status": "PHASE_BASED_MARKET_EVIDENCE",
+        "exact_captured_at": False,
+        "sample_count": len(phase_evidence),
+        "phase_market_hash": stable_hash([item["phase_market_hash"] for item in phase_evidence]),
+        "manual_stop": "MANUAL_APPROVAL_REQUIRED",
+    }
+    artifact_paths = {
+        "source_snapshots": "FOOTBALL_DATA_SOURCE_SNAPSHOTS.jsonl",
+        "closing_ah_facts": "FOOTBALL_DATA_CLOSING_AH_FACTS.jsonl",
+        "pre_closing_ah_facts": "FOOTBALL_DATA_PRE_CLOSING_AH_FACTS.jsonl",
+        "phase_market_evidence": "FOOTBALL_DATA_PHASE_MARKET_EVIDENCE.jsonl",
+        "f5_dataset": "FOOTBALL_DATA_F5_DATASET.jsonl",
+        "f5_coverage": "FOOTBALL_DATA_F5_COVERAGE_REPORT.json",
+        "market_baseline_candidate": "FOOTBALL_DATA_MARKET_BASELINE_CANDIDATE.json",
+    }
+    manifest: dict[str, Any] = {
+        "schema_version": "w2.football_data_ingest_manifest.v1",
+        "source_system": SOURCE_SYSTEM,
+        "capture_time_precision": PRECISION,
+        "captured_at": None,
+        "exact_captured_at": False,
+        "source_snapshot_count": len(snapshots),
+        "closing_ah_fact_count": len(closing_facts),
+        "pre_closing_ah_fact_count": len(pre_closing_facts),
+        "phase_market_evidence_count": len(phase_evidence),
+        "f5_ready_count": len(f5_dataset),
+        "artifacts": artifact_paths,
+        "manual_stop": "MANUAL_APPROVAL_REQUIRED",
+    }
+    _write_jsonl(artifact_root / artifact_paths["source_snapshots"], snapshots)
+    _write_jsonl(artifact_root / artifact_paths["closing_ah_facts"], closing_facts)
+    _write_jsonl(artifact_root / artifact_paths["pre_closing_ah_facts"], pre_closing_facts)
+    _write_jsonl(artifact_root / artifact_paths["phase_market_evidence"], phase_evidence)
+    _write_jsonl(artifact_root / artifact_paths["f5_dataset"], f5_dataset)
+    _write_json(artifact_root / artifact_paths["f5_coverage"], coverage)
+    _write_json(artifact_root / artifact_paths["market_baseline_candidate"], baseline)
+    manifest["artifact_hashes"] = {
+        name: _file_hash(artifact_root / path) for name, path in artifact_paths.items()
+    }
+    manifest["manifest_hash"] = stable_hash(manifest)
+    _write_json(artifact_root / "FOOTBALL_DATA_INGEST_MANIFEST.json", manifest)
+    return {
+        "manifest": manifest,
+        "f5_coverage": coverage,
+        "market_baseline_candidate": baseline,
+    }
+
+
 def write_football_data_audits(source_root: Path, report_root: Path) -> dict[str, dict[str, Any]]:
     report_root.mkdir(parents=True, exist_ok=True)
     payloads = build_football_data_audits(source_root)
@@ -91,6 +160,231 @@ def write_football_data_audits(source_root: Path, report_root: Path) -> dict[str
         )
         (report_root / f"{name}.md").write_text(_to_md(name, payload), encoding="utf-8")
     return payloads
+
+
+def _source_snapshots(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    snapshots = []
+    for item in files:
+        season = item.get("season_inferred") or _season_from_path(str(item["path"]))
+        for phase in (PHASE_PRE, PHASE_CLOSE):
+            source_id = stable_hash(
+                {
+                    "source_file_sha256": item["sha256"],
+                    "archive_member": item["archive_member"],
+                    "source_phase": phase,
+                }
+            )
+            snapshots.append(
+                {
+                    "schema_version": "FootballDataSourceSnapshotV1",
+                    "source_id": source_id,
+                    "source_file_sha256": item["sha256"],
+                    "source_file_name": item["file_name"],
+                    "archive_member": item["archive_member"],
+                    "season": season,
+                    "competition": next(iter(item["div_coverage"]), ""),
+                    "league_code": next(iter(item["div_coverage"]), ""),
+                    "download_source": "football-data.co.uk",
+                    "source_phase": phase,
+                    "row_count": item["row_count"],
+                }
+            )
+    return snapshots
+
+
+def _ah_facts(rows: list[dict[str, Any]], *, phase: str) -> list[dict[str, Any]]:
+    facts = []
+    seen: set[str] = set()
+    spec = AH_CLOSE if phase == PHASE_CLOSE else AH_PRE
+    policy = (
+        "FOOTBALL_DATA_CLOSING_AH_V1"
+        if phase == PHASE_CLOSE
+        else "FOOTBALL_DATA_PRE_CLOSING_AH_V1"
+    )
+    line_col = spec[0]
+    for item in rows:
+        row = item["row"]
+        line = _decimal(row.get(line_col))
+        home = _int(row.get("FTHG"))
+        away = _int(row.get("FTAG"))
+        odds = _first_odds_pair(row, spec[1])
+        if line is None or home is None or away is None or odds is None or not _quarter_line(line):
+            continue
+        adapted = football_data_row(
+            row,
+            source_sha=item["sha256"],
+            file_name=item["file_name"],
+            row_number=item["row_number"],
+            phase=phase,
+        )
+        unique_key = stable_hash(
+            {
+                "fixture_key": adapted.fixture_natural_identity,
+                "source_phase": phase,
+                "policy": policy,
+            }
+        )
+        if unique_key in seen:
+            continue
+        seen.add(unique_key)
+        settlement = settle_home_ah(line, home, away)
+        fact = {
+            "schema_version": (
+                "FootballDataClosingAHFactV1"
+                if phase == PHASE_CLOSE
+                else "FootballDataPreClosingAHFactV1"
+            ),
+            "source_system": SOURCE_SYSTEM,
+            "source_phase": phase,
+            "capture_time_precision": PRECISION,
+            "captured_at": None,
+            "fixture_key": adapted.fixture_natural_identity,
+            "competition": adapted.div,
+            "season": _season_from_path(item["path"]),
+            "kickoff_date": adapted.date,
+            "home_team": adapted.home_team,
+            "away_team": adapted.away_team,
+            "line": str(line),
+            "home_odds": odds[0],
+            "away_odds": odds[1],
+            "FTHG": home,
+            "FTAG": away,
+            "settlement": settlement,
+            "cover_bucket": cover_bucket(settlement),
+            "source_sha256": item["sha256"],
+            "source_file_name": item["file_name"],
+            "source_row_number": item["row_number"],
+        }
+        fact["fact_hash"] = stable_hash(fact)
+        facts.append(fact)
+    return facts
+
+
+def _phase_market_evidence(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    evidence = []
+    seen: set[str] = set()
+    for item in rows:
+        row = item["row"]
+        if not _season_is_2019_or_later(_season_from_path(item["path"])) or not _phase_ready(row):
+            continue
+        adapted = football_data_row(
+            row,
+            source_sha=item["sha256"],
+            file_name=item["file_name"],
+            row_number=item["row_number"],
+            phase=PHASE_PRE,
+        )
+        key = stable_hash(
+            {"fixture_key": adapted.fixture_natural_identity, "source": SOURCE_SYSTEM}
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        payload = {
+            "schema_version": "FootballDataPhaseMarketEvidenceV1",
+            "source_system": SOURCE_SYSTEM,
+            "evidence_status": "PHASE_BASED_MARKET_EVIDENCE",
+            "exact_captured_at": False,
+            "capture_time_precision": PRECISION,
+            "captured_at": None,
+            "fixture_key": adapted.fixture_natural_identity,
+            "competition": adapted.div,
+            "season": _season_from_path(item["path"]),
+            "kickoff_date": adapted.date,
+            "home_team": adapted.home_team,
+            "away_team": adapted.away_team,
+            "pre_closing": _phase_market_payload(row, phase=PHASE_PRE),
+            "closing": _phase_market_payload(row, phase=PHASE_CLOSE),
+            "source_sha256": item["sha256"],
+            "source_row_number": item["row_number"],
+        }
+        payload["phase_market_hash"] = stable_hash(payload)
+        evidence.append(payload)
+    return evidence
+
+
+def _phase_market_payload(row: dict[str, str], *, phase: str) -> dict[str, Any]:
+    if phase == PHASE_CLOSE:
+        one_x_two = _first_odds_group(row, ONE_X_TWO_CLOSE)
+        ou = _first_odds_group(row, OU_CLOSE)
+        ah_spec = AH_CLOSE
+    else:
+        one_x_two = _first_odds_group(row, ONE_X_TWO_PRE)
+        ou = _first_odds_group(row, OU_PRE)
+        ah_spec = AH_PRE
+    ah_odds = _first_odds_pair(row, ah_spec[1])
+    return {
+        "phase": phase,
+        "one_x_two": one_x_two,
+        "ah": {"line": _text(row.get(ah_spec[0])), "home_odds": ah_odds[0], "away_odds": ah_odds[1]}
+        if ah_odds
+        else None,
+        "ou": ou,
+    }
+
+
+def _f5_dataset_row(fact: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "w2.football_data_f5_dataset.v1",
+        "fixture_key": fact["fixture_key"],
+        "competition": fact["competition"],
+        "season": fact["season"],
+        "team": fact["home_team"],
+        "before_kickoff": True,
+        "source_phase": fact["source_phase"],
+        "line": fact["line"],
+        "settlement": fact["settlement"],
+        "cover_bucket": fact["cover_bucket"],
+        "fact_hash": fact["fact_hash"],
+    }
+
+
+def _f5_coverage_report(
+    closing_facts: list[dict[str, Any]],
+    pre_closing_facts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    all_facts = [*closing_facts, *pre_closing_facts]
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    teams: set[str] = set()
+    push_count = 0
+    for fact in all_facts:
+        key = (str(fact["competition"]), str(fact["season"]))
+        entry = by_key.setdefault(
+            key,
+            {
+                "league": fact["competition"],
+                "season": fact["season"],
+                "matches": 0,
+                "closing_facts": 0,
+                "pre_closing_facts": 0,
+                "push_count": 0,
+                "missing": 0,
+            },
+        )
+        entry["matches"] += 1
+        if fact["source_phase"] == PHASE_CLOSE:
+            entry["closing_facts"] += 1
+        else:
+            entry["pre_closing_facts"] += 1
+        if fact["settlement"] == "PUSH":
+            entry["push_count"] += 1
+            push_count += 1
+        teams.add(str(fact["home_team"]))
+        teams.add(str(fact["away_team"]))
+    payload = {
+        "schema_version": "w2.football_data_f5_coverage_report.v1",
+        "status": "READY" if all_facts else "INSUFFICIENT_EVIDENCE",
+        "matches": len({fact["fixture_key"] for fact in all_facts}),
+        "facts": len(all_facts),
+        "teams": len(teams),
+        "push_count": push_count,
+        "missing": 0,
+        "coverage_by_league_season": list(by_key.values()),
+        "query_contract": {"team": True, "before_kickoff": True, "limit": True},
+        "manual_stop": "MANUAL_APPROVAL_REQUIRED",
+    }
+    payload["coverage_hash"] = stable_hash(payload)
+    return payload
 
 
 def discover_football_data_files(source_root: Path) -> list[dict[str, Any]]:
@@ -527,6 +821,29 @@ def _has_pair(row: dict[str, str], pair: tuple[str, str]) -> bool:
     return all(_decimal(row.get(column)) is not None for column in pair)
 
 
+def _first_odds_pair(
+    row: dict[str, str],
+    pairs: tuple[tuple[str, str], ...],
+) -> tuple[str, str] | None:
+    for left, right in pairs:
+        left_value = _decimal(row.get(left))
+        right_value = _decimal(row.get(right))
+        if left_value is not None and right_value is not None:
+            return str(left_value), str(right_value)
+    return None
+
+
+def _first_odds_group(
+    row: dict[str, str],
+    groups: tuple[tuple[str, ...], ...],
+) -> dict[str, str] | None:
+    for group in groups:
+        values = [_decimal(row.get(column)) for column in group]
+        if all(value is not None for value in values):
+            return {column: str(value) for column, value in zip(group, values, strict=True)}
+    return None
+
+
 def _quarter_line(value: Decimal) -> bool:
     return value * 4 == (value * 4).to_integral_value()
 
@@ -644,6 +961,20 @@ def _file_hash(path: Path) -> str:
 
 def stable_hash(payload: Any) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
 
 
 def _to_md(name: str, payload: dict[str, Any]) -> str:
