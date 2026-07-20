@@ -17,7 +17,11 @@ def main() -> int:
     artifact_root = args.artifact_root or args.source_root / "reports" / "ingest_01r"
     artifact_root.mkdir(parents=True, exist_ok=True)
     artifact_root.chmod(0o700)
-    result = write_football_data_ingest_artifacts(args.source_root, artifact_root)
+    result = write_football_data_ingest_artifacts(
+        args.source_root,
+        artifact_root,
+        sanitized_summary_root=Path.cwd(),
+    )
     manifest = result["manifest"]
     coverage = result["f5_coverage"]
     baseline = result["market_baseline_candidate"]

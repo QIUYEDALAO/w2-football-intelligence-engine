@@ -29,22 +29,21 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
     )
 
     assert [plan.checkpoint for plan in plans] == [
-        "OPEN",
         "T24_ODDS",
-        "T12_ODDS",
         "T6_ODDS",
-        "T1_LINEUPS",
-        "T15M_CLOSE",
+        "T60_ODDS_LINEUPS",
+        "T30_FINAL_PREMATCH",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
-    assert by_checkpoint["OPEN"].due_at_utc == NOW
+    assert by_checkpoint["T24_ODDS"].due_at_utc == kickoff - timedelta(hours=24)
+    assert by_checkpoint["T24_ODDS"].status == "DUE"
     assert by_checkpoint["T6_ODDS"].due_at_utc == kickoff - timedelta(hours=6)
-    assert by_checkpoint["T1_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
-    assert by_checkpoint["T1_LINEUPS"].endpoints == ("odds", "lineups")
-    assert [plan.plan_id for plan in plans].count("fixture-1:T1_LINEUPS") == 1
+    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
+    assert by_checkpoint["T60_ODDS_LINEUPS"].endpoints == ("odds", "lineups")
+    assert [plan.plan_id for plan in plans].count("fixture-1:T60_ODDS_LINEUPS") == 1
 
 
-def test_checkpoint_plan_makes_missed_intermediate_market_capture_due_now() -> None:
+def test_checkpoint_plan_marks_missed_intermediate_market_capture_without_backfill() -> None:
     kickoff = datetime(2026, 7, 20, 17, tzinfo=UTC)
     generated_at = datetime(2026, 7, 19, 23, tzinfo=UTC)
 
@@ -55,9 +54,11 @@ def test_checkpoint_plan_makes_missed_intermediate_market_capture_due_now() -> N
     )
 
     due = {plan.checkpoint: plan.due_at_utc for plan in plans}
-    assert due["OPEN"] == generated_at
-    assert due["T24_ODDS"] == generated_at
-    assert due["T12_ODDS"] == datetime(2026, 7, 20, 5, tzinfo=UTC)
+    statuses = {plan.checkpoint: plan.status for plan in plans}
+    assert due["T24_ODDS"] == datetime(2026, 7, 19, 17, tzinfo=UTC)
+    assert statuses["T24_ODDS"] == "MISSED"
+    assert "T12_ODDS" not in due
+    assert due["T6_ODDS"] == datetime(2026, 7, 20, 11, tzinfo=UTC)
 
 
 def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
@@ -72,9 +73,11 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
     assert by_checkpoint["T6_ODDS"].due_at_utc == datetime(2026, 7, 4, 18, 0, tzinfo=UTC)
-    assert by_checkpoint["T1_LINEUPS"].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
-    assert by_checkpoint["T15M_CLOSE"].due_at_utc == datetime(
-        2026, 7, 4, 23, 45, tzinfo=UTC
+    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == datetime(
+        2026, 7, 4, 23, 0, tzinfo=UTC
+    )
+    assert by_checkpoint["T30_FINAL_PREMATCH"].due_at_utc == datetime(
+        2026, 7, 4, 23, 30, tzinfo=UTC
     )
 
 
