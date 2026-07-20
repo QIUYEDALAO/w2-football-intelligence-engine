@@ -12,7 +12,10 @@ def test_inventory_no_runtime_does_not_request_new_data_root(
 ) -> None:
     monkeypatch.delenv("W2_RUNTIME_ROOT", raising=False)
 
-    inventory = build_existing_football_data_inventory(repo_root=tmp_path)
+    inventory = build_existing_football_data_inventory(
+        repo_root=tmp_path,
+        database_url="sqlite+pysqlite:///missing-local.db",
+    )
 
     assert inventory["status"] == "NO_EXISTING_DATA_FOUND"
     assert inventory["summary"]["top_five_existing_download_detected"] is False
