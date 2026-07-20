@@ -1,0 +1,6247 @@
+{
+  "artifact_sha": "cfe06fbe9ad5b7fac2851577f9e563e1782bcedf5e365f79cdb244e76c7332cd",
+  "audit_generator_sha": "22391c8a961bc94ee7dd748858d23e244e97827a",
+  "audit_output_commit_sha": "PENDING_COMMIT",
+  "finding_refs": [
+    "P0-PROVIDER-INTAKE-SPLIT",
+    "P0-CHECKPOINT-AUTHORITY-SPLIT"
+  ],
+  "generated_at": "2026-07-20T13:40:59.001913Z",
+  "schema_version": "W2_CONFIG_FLAG_MATRIX_V3",
+  "source_review_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "summary": {
+    "actual_env_count": 148,
+    "schema_false_positive_policy": "EXCLUDED"
+  },
+  "variables": [
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "API",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "23",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "36",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "101",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "API_IMAGE_ID",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "174",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "178",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "ARCHIVE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "44",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "45",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "49",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "lock",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "BLOCKED_ENDPOINT_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "456",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "BUILD_TIME",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "144",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "147",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "164",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "267",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "270",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "144",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "227",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "315",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "132",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "205",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "286",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "CELERY_WORKER_CONCURRENCY",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "COMPOSE_FILE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "51",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "75",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "37",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "96",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "104",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "110",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "143",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "156",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "305",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "421",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "425",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "429",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "433",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "437",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "441",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "445",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "ENV_FILE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "37",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "47",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "96",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "104",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "110",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "143",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "156",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "305",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "421",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "425",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "429",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "433",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "437",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "441",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "445",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "FAIL_FILE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "28",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "34",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "35",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "41",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "47",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "FIXTURE_ID",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "167",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "306",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "336",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "405",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "422",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "438",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "442",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "IMAGE_PREFIX",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "115",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "LEGACY_BODY",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "127",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "LEGACY_HEADERS",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "128",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "lineup_policy",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "LINEUP_BASELINE_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "468",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "lineup_policy",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "LINEUP_SNAPSHOT_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "464",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "lineup_policy",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "LINEUP_STARTER_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "464",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "MANIFEST",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "43",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "156",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "158",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "docker-compose.yml",
+          "line": "104",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "SENSITIVE_REDACTED",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "MINIO_ROOT_PASSWORD",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "docker-compose.yml",
+          "line": "103",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "MINIO_ROOT_USER",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "NETWORK",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "37",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "44",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "46",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "52",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "95",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "101",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "OBS_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "448",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "OVERRIDE_FILE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "37",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "52",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "96",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "104",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "110",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "143",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "156",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "305",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "421",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "425",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "429",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "433",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "437",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "441",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "445",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PORT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "73",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "102",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "125",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "database",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "POSTGRES",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "23",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "36",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "46",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "56",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "104",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "132",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "135",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "147",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "150",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "database",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "15",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "docker-compose.yml",
+          "line": "76",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "14",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "25",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "POSTGRES_DB",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "database",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "17",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "docker-compose.yml",
+          "line": "78",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "16",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "16",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "69",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "118",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "199",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "274",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "27",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "27",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "68",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "107",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "180",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "247",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "SENSITIVE_REDACTED",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "POSTGRES_PASSWORD",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "database",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "16",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "docker-compose.yml",
+          "line": "77",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "15",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "26",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "POSTGRES_USER",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PREDEPLOY_API_PORT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "337",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "406",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PROJECT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "9",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "10",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "11",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "12",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "13",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PROJECT_NAME",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "37",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "96",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "104",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "110",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "124",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "143",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "156",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "305",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "421",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "425",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "429",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "433",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "437",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "441",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "445",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PRUNE_BUILD_CACHE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "54",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "99",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "180",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "PRUNE_IMAGES",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "59",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "99",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "RAW_ENDPOINT_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "452",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "READY_BODY",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "78",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "80",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "86",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "90",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "127",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "REDIS",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "23",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "36",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "52",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "64",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "105",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "140",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "142",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "REMOTE_ROOT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "15",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "75",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "REMOTE_SCRIPT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "100",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "76",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "REVISION",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "24",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "31",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "55",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "56",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "56",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "57",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "58",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "58",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "75",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "109",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "112",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "129",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "130",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "131",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "142",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "143",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "145",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "146",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "154",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "163",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "165",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "281",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "282",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "ROLLBACK_REVISION",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "90",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "97",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "102",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "105",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "257",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "261",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "263",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "265",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "266",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "268",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "269",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "ROLLBACK_TARGET",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "89",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "91",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "ROOT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "43",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "111",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "112",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "158",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "5",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "32",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "33",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "33",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "36",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "38",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "39",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "40",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "41",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "89",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "RUNTIME_MODE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "35",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "164",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "RUNTIME_MODE_BEFORE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "38",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "39",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "RUNTIME_SOURCE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "20",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "21",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "35",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "113",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "162",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "164",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "RUN_AUDIT_COUNT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "460",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "SSH_HOST",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "27",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "27",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "27",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/recover_staging_runtime.sh",
+          "line": "98",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "27",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "30",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "48",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "49",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "53",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "63",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "72",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "73",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "86",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "110",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "117",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "137",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "155",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "191",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "203",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "258",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "74",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "START_AFTER_DEPLOY",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "201",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "284",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "STATE_DIR",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "7",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "9",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "THRESHOLD",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "42",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "44",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "TMP_DIR",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "15",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "16",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "17",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "18",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "19",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "39",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "114",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "133",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "29",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "30",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "43",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "317",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_API_BASE_URL",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "344",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_BUILD_TIME",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "346",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_DASHBOARD_DATA_MODE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "343",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_GIT_SHA",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "347",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "347",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "348",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "348",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "VOLUME",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "29",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "30",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "38",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "45",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "50",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "141",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "224",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "313",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "129",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "202",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "284",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_DAILY_HARD_LIMIT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/run_w2_free_tier_2024_backtest.py",
+          "line": "226",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "scripts/run_w2_pro_day1_sprint.py",
+          "line": "609",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "provider_intake",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "148",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "148",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "230",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "230",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "318",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "318",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "135",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "135",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "207",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "207",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "288",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "288",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "SENSITIVE_REDACTED",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_FOOTBALL_API_KEY",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "115",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_IMAGE_ID",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/ingestion/xg_backfill.py",
+          "line": "449",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "142",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "225",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "314",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "130",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "203",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "285",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_MINIMUM_RESERVE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "116",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_OCI_DIGEST",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "117",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_API_REGISTRY_DIGEST",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "147",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/domain/recommendation_capabilities.py",
+          "line": "99",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/operations/leagues.py",
+          "line": "13",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/operations/tournament.py",
+          "line": "14",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "109",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "193",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "268",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "104",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "177",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "244",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_APP_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/run_w2_league_whitelist_audit.py",
+          "line": "147",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_AUDIT_SEASON_OVERRIDE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "1236",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "62",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "62",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "72",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "72",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "93",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "93",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "113",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "113",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "176",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "176",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "197",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "197",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "256",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "256",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "272",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "272",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "344",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_BUILD_TIME",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "recommendation_release",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "137",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "220",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "310",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "126",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "199",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "281",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_CANDIDATE_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "38",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "120",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "201",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "276",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "109",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "182",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "249",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_CELERY_BROKER_URL",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "39",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "121",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "202",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "277",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "110",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "183",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "250",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_CELERY_RESULT_BACKEND",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "158",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "scheduler_checkpoint",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_CHECKPOINT_REFRESH_MAX_DUE",
+      "replacement": "config/policies/matchday_intake.v2.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "102",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "scheduler_checkpoint",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_CHECKPOINT_REFRESH_POLL_SECONDS",
+      "replacement": "config/policies/matchday_intake.v2.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/historical/existing_data_inventory.py",
+          "line": "118",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "database",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "36",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "69",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "118",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "199",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "274",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "68",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "107",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "180",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "247",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DATABASE_URL",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/audit_w2_runtime_authorities.py",
+          "line": "750",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DATA_BACKUP_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "1222",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DATA_PROFILE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "1223",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DATA_SOURCE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "5947",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DECISION_ENVIRONMENT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "135",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "218",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "308",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "124",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "197",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "279",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_DEEPSEEK_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/competitions/registry.py",
+          "line": "127",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "scripts/seed_staging_dashboard.py",
+          "line": "108",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "35",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "75",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "99",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "70",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "111",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "195",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "270",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "352",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "69",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "106",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "179",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "246",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "316",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_ENVIRONMENT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "140",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "223",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "312",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "128",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "201",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "283",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_EXTERNAL_ALERTING",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/build_fah_approval_package.py",
+          "line": "27",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "scripts/run_fah_master_pipeline.py",
+          "line": "283",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FAH_DATA_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/strategy/formal_recommendation.py",
+          "line": "95",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "formal",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "138",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "138",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "221",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "221",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": "formal_capability_manifest_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_FORMAL_RECOMMENDATION_ENABLED",
+      "replacement": "config/capabilities/recommendation_capabilities.v1.json + config/approvals/formal_ah_approval.v1.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/tracking/formal_results.py",
+          "line": "66",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "formal",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": "formal_capability_manifest_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_FORMAL_TRACKING_REPORT",
+      "replacement": "config/capabilities/recommendation_capabilities.v1.json + config/approvals/formal_ah_approval.v1.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "133",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "214",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "278",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "122",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "195",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "251",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_HOLDOUT_AUTORUN",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "134",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "215",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "279",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "123",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "196",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "252",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_HOLDOUT_NETWORK",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "55",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "301",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "301",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "274",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "274",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_BACKFILL_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "625",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "633",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "302",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "302",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "275",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "275",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "500",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "217",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "305",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "498",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "303",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "303",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "276",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "276",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_BACKFILL_WINDOW",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "416",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "298",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "298",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "271",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "271",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "51",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "297",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "297",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "270",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "270",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "598",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "606",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "299",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "299",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "272",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "272",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "462",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "300",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "300",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "273",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "273",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/tracking/outcome_result_refresh.py",
+          "line": "31",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "216",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "304",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FORWARD_OUTCOME_RUNTIME_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "61",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "scheduler_checkpoint",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "282",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "255",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": "singular_plural_competition_switch",
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID",
+      "replacement": "config/policies/matchday_intake.v2.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "59",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "scheduler_checkpoint",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "281",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "254",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "DEPRECATE_AFTER_CONSOLIDATION",
+      "duplicate_switch": "singular_plural_competition_switch",
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+      "replacement": "config/policies/matchday_intake.v2.json",
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "35",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "scheduler_checkpoint",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "280",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "253",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/ingestion/future_refresh.py",
+          "line": "296",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "src/w2/ingestion/future_refresh.py",
+          "line": "1611",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "src/w2/ingestion/future_refresh.py",
+          "line": "1769",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_FUTURE_REFRESH_PERSISTENCE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/run_w2_formal_tracking.py",
+          "line": "50",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "61",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "61",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "71",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "71",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "92",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "92",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "112",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "112",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "175",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "175",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "196",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "196",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "255",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "255",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "271",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "271",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "343",
+          "reader": "shell_expansion"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_GIT_SHA",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "115",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_IMAGE_ID",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/lineups/intelligence.py",
+          "line": "245",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "lineup_policy",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "147",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "229",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "317",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_LINEUP_POLICY_PATH",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/domain/decision_adapter.py",
+          "line": "381",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "130",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "130",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "211",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "211",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "306",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "306",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "119",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "119",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "192",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "192",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "277",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "277",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_ANCHOR_DISPLAY_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/domain/decision_adapter.py",
+          "line": "397",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "131",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "131",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "212",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "212",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "307",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "307",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "120",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "120",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "193",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "193",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "278",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "278",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_ANCHOR_MIN_DIVERGENCE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "414",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "294",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "267",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_TIMELINE_MAX_FIXTURES",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "47",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "292",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "265",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_TIMELINE_REFRESH_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "572",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "580",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "293",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "266",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "5078",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/ingestion/market_timeline_refresh.py",
+          "line": "164",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "143",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "226",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "296",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "131",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "204",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "269",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_TIMELINE_RUNTIME_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "424",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "295",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "268",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MARKET_TIMELINE_WINDOW",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/matchday/intake_v2.py",
+          "line": "962",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_MATCHDAY_CANARY_APPROVED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "116",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_OCI_DIGEST",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_PREDEPLOY_E2E_API_PORT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "8",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "56",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_PREDEPLOY_E2E_FIXTURE_ID",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "7",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_PREDEPLOY_E2E_PROJECT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_predeploy_e2e_smoke.sh",
+          "line": "6",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "recommendation_release",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "139",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "222",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "311",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "127",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "200",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "282",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PRODUCTION_RELEASE",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "40",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "76",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "100",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "122",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "203",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "283",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "111",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "184",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "256",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_CALLS_DISABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "128",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "209",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "289",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "117",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "190",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "262",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_DAILY_HARD_CAP",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "43",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "79",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "103",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "126",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "207",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "287",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "115",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "188",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "260",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "42",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "78",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "102",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "125",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "206",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "286",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "114",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "187",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "259",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "44",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "80",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "104",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "127",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "208",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "288",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "116",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "189",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "261",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_REFRESH_TICK_HARD_CAP",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/providers/ledger.py",
+          "line": "148",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "provider_intake",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "124",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "205",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "285",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "113",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "186",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "258",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_REQUEST_LEDGER_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "provider_intake",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "41",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "77",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "101",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "123",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "204",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "284",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "112",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "185",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "257",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": "provider_policy_and_env",
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_PROVIDER_SCHEDULER_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_READINESS_FAULT_IMAGE_PREFIX",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "6",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_READINESS_FAULT_PORT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "7",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_READINESS_FAULT_PROJECT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "5",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_READINESS_FAULT_RUNTIME_SOURCE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/run_readiness_fault_injection.sh",
+          "line": "8",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "146",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "134",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_READINESS_RELEASE_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "recommendation_release",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "136",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "219",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "309",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "125",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "198",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "280",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_RECOMMENDATION_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "242",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_RECOMPUTE_AH_MAINLINE_AT_READ",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "37",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "119",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "200",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "275",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "108",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "181",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "248",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_REDIS_URL",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "117",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_REGISTRY_DIGEST",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "1237",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "scripts/run_w2_formal_tracking.py",
+          "line": "50",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "63",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "63",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "73",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "73",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "94",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "94",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "114",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "114",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "177",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "177",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "198",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "198",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "257",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "257",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "273",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "273",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "345",
+          "reader": "shell_expansion"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "345",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_RELEASE_ID",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/api/repository.py",
+          "line": "149",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/historical/existing_data_inventory.py",
+          "line": "161",
+          "reader": "os.getenv"
+        },
+        {
+          "file": "src/w2/tracking/formal_results.py",
+          "line": "54",
+          "reader": "os.getenv"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "110",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "194",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "269",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "105",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "178",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "245",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_RUNTIME_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "520",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/ingestion/xg_backfill.py",
+          "line": "452",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "145",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "228",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "316",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "133",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "206",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "287",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_SERVICE_VERSION",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/run_stage12b_shadow_comparison.py",
+          "line": "14",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGE12B_W1_AUDIT_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "scripts/run_stage7i_observer.py",
+          "line": "26",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "lock",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "MUST_FAIL_CLOSED",
+      "name": "W2_STAGE7I_GLOBAL_LOCK",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/observability/stage7i_observer_cli.py",
+          "line": "13",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "scripts/run_stage7i_observer.py",
+          "line": "23",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGE7I_RUNTIME_ROOT",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/monitoring/stage7i_lifecycle.py",
+          "line": "318",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGE7I_TOOLING_SHA",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/competitions/registry.py",
+          "line": "124",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "129",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "210",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "290",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "118",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "191",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "263",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_ENABLED_COMPETITIONS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_PRUNE_BUILD_CACHE",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "26",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_ROOT",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/diagnose_staging_runtime.sh",
+          "line": "10",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_START_AFTER_DEPLOY",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/deploy_stage7h_staging.sh",
+          "line": "25",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_WATCHDOG_FAILURE_THRESHOLD",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "8",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_STAGING_WATCHDOG_STATE_DIR",
+      "replacement": null,
+      "shell_readers": [
+        {
+          "file": "scripts/watch_staging_runtime.sh",
+          "line": "6",
+          "reader": "shell_expansion"
+        }
+      ],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "tests/integration/test_migrations.py",
+          "line": "76",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "database",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_TEST_POSTGRES_URL",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "41",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "45",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "81",
+          "reader": "environment_key"
+        },
+        {
+          "file": ".github/workflows/ci.yml",
+          "line": "105",
+          "reader": "environment_key"
+        }
+      ],
+      "ci_value": "PRESENT_STATIC",
+      "compose_readers": [
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "132",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "213",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/compose.staging.yml",
+          "line": "291",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "121",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "194",
+          "reader": "environment_key"
+        },
+        {
+          "file": "infra/compose/staging-lite.override.yml",
+          "line": "264",
+          "reader": "environment_key"
+        }
+      ],
+      "compose_value": "PRESENT_STATIC",
+      "default": "code_default_or_compose_default_static; see actual_readers",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_XG_BACKFILL_ENABLED",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "546",
+          "reader": "os.environ.get"
+        },
+        {
+          "file": "apps/scheduler/main.py",
+          "line": "554",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_XG_BACKFILL_INTERVAL_SECONDS",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/ingestion/xg_backfill.py",
+          "line": "447",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_XG_BACKFILL_RECENT_MATCHES",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    },
+    {
+      "actual_readers": [
+        {
+          "file": "src/w2/ingestion/xg_backfill.py",
+          "line": "448",
+          "reader": "os.environ.get"
+        }
+      ],
+      "affected_capability": "runtime",
+      "ci_readers": [],
+      "ci_value": null,
+      "compose_readers": [],
+      "compose_value": null,
+      "default": "UNKNOWN_STATIC",
+      "deprecation_status": "ACTIVE",
+      "duplicate_switch": null,
+      "fail_behavior": "UNKNOWN_STATIC",
+      "name": "W2_XG_BACKFILL_REQUEST_BUDGET",
+      "replacement": null,
+      "shell_readers": [],
+      "staging_value": "NOT_READ_NO_AUTHORIZATION"
+    }
+  ]
+}

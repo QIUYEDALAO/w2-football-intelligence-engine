@@ -1,0 +1,13 @@
+# W2_SCHEDULER_CHECKPOINT_MATRIX_V3
+
+- source_review_sha: `94ba834559c0beba5b38075bd358a8e92a434a51`
+- audit_generator_sha: `22391c8a961bc94ee7dd748858d23e244e97827a`
+- audit_output_commit_sha: `PENDING_COMMIT`
+- artifact_sha: `d744f79bc67aeeabc5c012823ab5e126c44ddd112781815c11b14b1004392ebc`
+- generated_at: `2026-07-20T13:40:59.001913Z`
+- finding_refs: `P0-CHECKPOINT-AUTHORITY-SPLIT`
+
+## Summary
+
+- canonical_policy: `config/policies/matchday_intake.v2.json`
+- phase_a_status: `BLOCKED_PENDING_PHASE0_GATE`
