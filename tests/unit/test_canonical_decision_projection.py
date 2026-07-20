@@ -26,3 +26,16 @@ def test_analysis_pick_keeps_candidate_but_is_never_lock_eligible() -> None:
     )
     assert projected["pick"] == {"market": "TOTALS", "line": "2.5"}
     assert projected["lock_eligible"] is False
+
+
+def test_formal_recommend_projection_does_not_recompute_lock() -> None:
+    projected = project_canonical_decision(
+        {
+            "outcome": "FORMAL_RECOMMEND",
+            "selected_candidate": {"market": "ASIAN_HANDICAP", "line": "-0.25"},
+            "decision_hash": "h",
+        }
+    )
+
+    assert projected["decision_tier"] == "RECOMMEND"
+    assert projected["lock_eligible"] is False

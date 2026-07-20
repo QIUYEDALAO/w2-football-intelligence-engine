@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from statistics import fmean
 from typing import Any, Literal
 
+from w2.markets.settlement_probability import effective_settlement_probability
+
 AH_FORMAL_EVIDENCE_VERSION = "w2.ah_formal_evidence.v1"
 AH_OUTCOMES = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 _OUTCOME_RETURN = {"WIN": 1.0, "HALF_WIN": 0.5, "PUSH": 0.0, "HALF_LOSS": -0.5, "LOSS": -1.0}
@@ -59,6 +61,7 @@ def evaluate_ah_formal_evidence(
     split_rows = _temporal_splits(valid_rows, protocol)
     split_metrics = {name: _metrics(split) for name, split in split_rows.items()}
     holdout = split_rows["holdout"]
+    candidate_holdout = _candidate_rows(holdout, protocol)
     bootstrap = _paired_bootstrap(holdout, protocol)
     strata = _strata(holdout, protocol.minimum_stratum_samples)
     evidence_groups = _evidence_groups(holdout, protocol.minimum_stratum_samples)
@@ -93,6 +96,8 @@ def evaluate_ah_formal_evidence(
             "splits": {name: len(split) for name, split in split_rows.items()},
         },
         "metrics": split_metrics,
+        "all_holdout_metrics": split_metrics["holdout"],
+        "candidate_holdout_metrics": _metrics(candidate_holdout),
         "paired_bootstrap": bootstrap,
         "strata": strata,
         "factor_ablation": ablation,
@@ -148,7 +153,57 @@ def _exclusion_reason(row: dict[str, Any], frozen_at: datetime) -> str | None:
         return "MISSING_DEVIG_MARKET_DISTRIBUTION"
     if not isinstance(row.get("selection_odds"), (int, float)) or float(row["selection_odds"]) <= 1:
         return "MISSING_SELECTION_ODDS"
+    if row.get("entry_devig_probability") is None:
+        return "MISSING_ENTRY_DEVIG_PROBABILITY"
+    derived_reason = _derived_metric_conflict(row)
+    if derived_reason is not None:
+        return derived_reason
+    if row.get("closing_devig_probability") is not None and (
+        not str(row.get("closing_quote_identity_hash") or "")
+        or not str(row.get("closing_quote_captured_at") or "")
+    ):
+        return "INCOMPLETE_CLV_FIELDS"
+    if row.get("closing_devig_probability") is not None:
+        closing_at = _parse_utc(str(row.get("closing_quote_captured_at")))
+        if closing_at >= kickoff:
+            return "POST_KICKOFF_CLOSING_QUOTE"
+        if str(row.get("closing_market") or "ASIAN_HANDICAP") != "ASIAN_HANDICAP":
+            return "CLV_MARKET_IDENTITY_CONFLICT"
+        if str(row.get("closing_selection") or row.get("selection") or "") != str(
+            row.get("selection") or ""
+        ):
+            return "CLV_SELECTION_IDENTITY_CONFLICT"
+        if str(row.get("closing_line") or row.get("line") or "") != str(row.get("line") or ""):
+            return "CLV_LINE_IDENTITY_CONFLICT"
+    if row.get("model_expected_value") is None:
+        return "MISSING_MODEL_EXPECTED_VALUE"
+    if row.get("model_market_probability_delta") is None:
+        return "MISSING_MODEL_MARKET_PROBABILITY_DELTA"
     return None
+
+
+def _derived_metric_conflict(row: dict[str, Any]) -> str | None:
+    model = row["model_probabilities"]
+    market = row["market_devig_probabilities"]
+    odds = float(row["selection_odds"])
+    model_probability = effective_settlement_probability(model)
+    market_probability = effective_settlement_probability(market)
+    if model_probability is None or market_probability is None:
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    if not _close(float(row["entry_devig_probability"]), market_probability):
+        return "ENTRY_DEVIG_PROBABILITY_CONFLICT"
+    if not _close(float(row["model_expected_value"]), _expected_return(model, odds)):
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    if not _close(
+        float(row["model_market_probability_delta"]),
+        round(model_probability - market_probability, 6),
+    ):
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    return None
+
+
+def _close(left: float, right: float) -> bool:
+    return math.isclose(left, right, abs_tol=1e-6)
 
 
 def _temporal_splits(
@@ -168,7 +223,7 @@ def _temporal_splits(
     return result
 
 
-def _metrics(rows: list[dict[str, Any]]) -> dict[str, float | int | None]:
+def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     if not rows:
         return _empty_metrics()
     model_log = [_log_loss(row["model_probabilities"], str(row["settlement_outcome"])) for row in rows]
@@ -177,11 +232,18 @@ def _metrics(rows: list[dict[str, Any]]) -> dict[str, float | int | None]:
     market_brier = [_brier(row["market_devig_probabilities"], str(row["settlement_outcome"])) for row in rows]
     model_ev = [_expected_return(row["model_probabilities"], float(row["selection_odds"])) for row in rows]
     market_ev = [_expected_return(row["market_devig_probabilities"], float(row["selection_odds"])) for row in rows]
-    clv_rows = [row for row in rows if isinstance(row.get("closing_devig_probability"), (int, float))]
+    clv_rows = [
+        row
+        for row in rows
+        if isinstance(row.get("entry_devig_probability"), (int, float))
+        and isinstance(row.get("closing_devig_probability"), (int, float))
+    ]
     clv = [
-        float(row["closing_devig_probability"]) - _selection_probability(row["market_devig_probabilities"])
+        float(row["closing_devig_probability"]) - float(row["entry_devig_probability"])
         for row in clv_rows
     ]
+    model_ece = _multiclass_ece(rows, "model_probabilities")
+    market_ece = _multiclass_ece(rows, "market_devig_probabilities")
     return {
         "sample_count": len(rows),
         "model_log_loss": _round(fmean(model_log)),
@@ -190,16 +252,24 @@ def _metrics(rows: list[dict[str, Any]]) -> dict[str, float | int | None]:
         "model_multiclass_brier": _round(fmean(model_brier)),
         "market_devig_multiclass_brier": _round(fmean(market_brier)),
         "delta_brier_model_minus_market": _round(fmean(model_brier) - fmean(market_brier)),
-        "model_ece": _round(_ece(rows, "model_probabilities")),
-        "market_devig_ece": _round(_ece(rows, "market_devig_probabilities")),
+        "ece_method": "CLASSWISE_MULTICLASS_ECE_10_EQUAL_WIDTH_BINS",
+        "ece_bin_count": 10,
+        "model_ece": _round(float(model_ece["ece"])),
+        "market_ece": _round(float(market_ece["ece"])),
+        "market_devig_ece": _round(float(market_ece["ece"])),
+        "per_class_ece": {
+            "model": model_ece["per_class_ece"],
+            "market": market_ece["per_class_ece"],
+        },
         "model_expected_return": _round(fmean(model_ev)),
         "market_expected_return": _round(fmean(market_ev)),
         "mean_clv_probability_delta": _round(fmean(clv)) if clv else None,
         "clv_sample_count": len(clv),
+        "missing_clv_count": len(rows) - len(clv),
     }
 
 
-def _empty_metrics() -> dict[str, float | int | None]:
+def _empty_metrics() -> dict[str, Any]:
     return {
         "sample_count": 0,
         "model_log_loss": None,
@@ -209,11 +279,16 @@ def _empty_metrics() -> dict[str, float | int | None]:
         "market_devig_multiclass_brier": None,
         "delta_brier_model_minus_market": None,
         "model_ece": None,
+        "market_ece": None,
         "market_devig_ece": None,
+        "ece_method": "CLASSWISE_MULTICLASS_ECE_10_EQUAL_WIDTH_BINS",
+        "ece_bin_count": 10,
+        "per_class_ece": None,
         "model_expected_return": None,
         "market_expected_return": None,
         "mean_clv_probability_delta": None,
         "clv_sample_count": 0,
+        "missing_clv_count": 0,
     }
 
 
@@ -304,7 +379,7 @@ def _drift_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "multiple_model_versions": len(versions) > 1, "multiple_calibration_versions": len(calibration) > 1}
 
 
-def _blockers(*, valid_rows: list[dict[str, Any]], split_rows: dict[str, list[dict[str, Any]]], split_metrics: dict[str, dict[str, float | int | None]], bootstrap: dict[str, Any], protocol: AhFormalEvidenceProtocol) -> list[str]:
+def _blockers(*, valid_rows: list[dict[str, Any]], split_rows: dict[str, list[dict[str, Any]]], split_metrics: dict[str, dict[str, Any]], bootstrap: dict[str, Any], protocol: AhFormalEvidenceProtocol) -> list[str]:
     blockers: list[str] = []
     minima = {"train": protocol.minimum_train_samples, "validation": protocol.minimum_validation_samples, "holdout": protocol.minimum_holdout_samples}
     for split, minimum in minima.items():
@@ -312,14 +387,17 @@ def _blockers(*, valid_rows: list[dict[str, Any]], split_rows: dict[str, list[di
             blockers.append(f"INSUFFICIENT_{split.upper()}_SAMPLE")
     if not valid_rows:
         blockers.append("NO_CANONICAL_ASOF_SAFE_AH_OBSERVATIONS")
+        blockers.append("INSUFFICIENT_EVIDENCE")
     if split_metrics["holdout"]["clv_sample_count"] != len(split_rows["holdout"]):
         blockers.append("INCOMPLETE_HOLDOUT_CLV")
     if bootstrap["sample_count"] == 0:
         blockers.append("NO_HOLDOUT_BOOTSTRAP")
+    versions = _version_blockers(valid_rows)
+    blockers.extend(versions)
     return blockers
 
 
-def _no_harm_passes(metrics: dict[str, float | int | None], bootstrap: dict[str, Any], protocol: AhFormalEvidenceProtocol) -> bool:
+def _no_harm_passes(metrics: dict[str, Any], bootstrap: dict[str, Any], protocol: AhFormalEvidenceProtocol) -> bool:
     log_delta = metrics["delta_log_loss_model_minus_market"]
     brier_delta = metrics["delta_brier_model_minus_market"]
     log_ci = bootstrap["delta_log_loss_ci_95"]
@@ -351,17 +429,62 @@ def _expected_return(probabilities: dict[str, Any], odds: float) -> float:
 
 
 def _selection_probability(probabilities: dict[str, Any]) -> float:
-    return float(probabilities["WIN"]) + 0.5 * float(probabilities["HALF_WIN"])
+    value = effective_settlement_probability(probabilities)
+    if value is None:
+        raise ValueError("invalid settlement distribution")
+    return value
 
 
-def _ece(rows: list[dict[str, Any]], key: str) -> float:
-    bins: list[list[tuple[float, float]]] = [[] for _ in range(10)]
+def _multiclass_ece(rows: list[dict[str, Any]], key: str) -> dict[str, Any]:
+    if not rows:
+        return {"ece": None, "per_class_ece": {}}
+    per_class: dict[str, float] = {}
+    for outcome in AH_OUTCOMES:
+        bins: list[list[tuple[float, float]]] = [[] for _ in range(10)]
+        for row in rows:
+            probability = float(row[key][outcome])
+            observed = 1.0 if str(row["settlement_outcome"]) == outcome else 0.0
+            index = min(9, int(probability * 10))
+            bins[index].append((probability, observed))
+        per_class[outcome] = _round(
+            sum(
+                len(bucket)
+                / len(rows)
+                * abs(fmean(value[0] for value in bucket) - fmean(value[1] for value in bucket))
+                for bucket in bins
+                if bucket
+            )
+        )
+    return {"ece": _round(fmean(per_class.values())), "per_class_ece": per_class}
+
+
+def _candidate_rows(rows: list[dict[str, Any]], protocol: AhFormalEvidenceProtocol) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
     for row in rows:
-        probability = _selection_probability(row[key])
-        observed = _OUTCOME_RETURN[str(row["settlement_outcome"])]
-        index = min(9, int(probability * 10))
-        bins[index].append((probability, observed))
-    return sum(len(bucket) / len(rows) * abs(fmean(value[0] for value in bucket) - fmean(value[1] for value in bucket)) for bucket in bins if bucket)
+        ev = row.get("model_expected_value")
+        edge = row.get("model_market_probability_delta")
+        if (
+            isinstance(ev, (int, float))
+            and isinstance(edge, (int, float))
+            and float(ev) >= protocol.candidate_ev_threshold
+            and float(edge) >= protocol.candidate_edge_threshold
+        ):
+            candidates.append(row)
+    return candidates
+
+
+def _version_blockers(rows: list[dict[str, Any]]) -> list[str]:
+    blockers: list[str] = []
+    checks = (
+        ("model_version", "MIXED_MODEL_VERSION"),
+        ("calibration_version", "MIXED_CALIBRATION_VERSION"),
+        ("factor_registry_sha", "MIXED_FACTOR_REGISTRY_VERSION"),
+    )
+    for key, blocker in checks:
+        values = {str(row.get(key) or "MISSING") for row in rows}
+        if len(values) > 1:
+            blockers.append(blocker)
+    return blockers
 
 
 def _ci(values: list[float]) -> list[float]:

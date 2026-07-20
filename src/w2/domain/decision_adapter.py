@@ -179,6 +179,17 @@ def build_decision_contract_fields(
         "legacy_formal": legacy_formal,
         "integrity_status": "PASS",
         "quote_provenance_status": quote_provenance_status,
+        "formal_ah_readiness": {
+            "schema_version": "w2.formal_ah_readiness.v1",
+            "global_gates": {},
+            "fixture_gates": [],
+            "approval_status": {"passed": False, "reason": "FORMAL_HUMAN_APPROVAL_MISSING"},
+            "approved_hashes": {},
+            "blockers": ["FORMAL_HUMAN_APPROVAL_MISSING"],
+            "admission_ready": False,
+            "formal_eligible": False,
+            "lock_eligible": False,
+        },
         # A no-pick has no selected quote by definition.  Preserve that status
         # while separately exposing whether auditable same-line quote evidence
         # exists for the available AH/OU markets.

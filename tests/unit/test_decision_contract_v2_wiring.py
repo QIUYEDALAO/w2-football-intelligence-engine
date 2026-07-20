@@ -505,7 +505,7 @@ def test_recommend_requires_prerequisites_before_lock_eligible() -> None:
     assert without_evidence["decision_tier"] == DecisionTier.WATCH.value
     assert without_evidence["recommendation_id"] is None
     assert with_evidence["decision_tier"] == DecisionTier.RECOMMEND.value
-    assert with_evidence["lock_eligible"] is True
+    assert with_evidence["lock_eligible"] is False
 
 
 def test_legacy_formal_is_analysis_pick_with_compatibility_marker() -> None:

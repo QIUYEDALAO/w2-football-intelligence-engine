@@ -6,6 +6,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.markets.settlement_probability import effective_settlement_probability
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
@@ -111,8 +112,13 @@ def build_formal_recommendation(
     away_team_name: str,
     enabled: bool | None = None,
     ah_market_candidate: dict[str, Any] | None = None,
+    formal_ah_readiness: dict[str, Any] | None = None,
 ) -> FormalRecommendationResult:
     enabled = formal_recommendations_enabled() if enabled is None else enabled
+    readiness_gate = _formal_ah_readiness_gate(
+        formal_ah_readiness=formal_ah_readiness,
+        analysis_readiness=analysis_readiness,
+    )
     executable_odds = _candidate_executable_odds(ah_market_candidate)
     canonical_odds = {"ah": executable_odds} if executable_odds is not None else current_odds
     ah = canonical_ah_market(current_odds=canonical_odds, pricing_shadow=pricing_shadow)
@@ -126,6 +132,7 @@ def build_formal_recommendation(
     )
     if ah_market_candidate is not None and executable_odds is None:
         blockers.append("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
+    blockers.extend(readiness_gate)
     if blockers:
         return FormalRecommendationResult(
             tier="WATCH",
@@ -237,10 +244,10 @@ def build_formal_recommendation(
         return FormalRecommendationResult(
             tier="WATCH",
             recommendation=None,
-            formal_eligible=True,
+            formal_eligible=False,
             formal_suppressed=True,
             formal_suppressed_reason="W2_FORMAL_RECOMMENDATION_ENABLED=false",
-            blockers=[],
+            blockers=["FORMAL_AH_CAPABILITY_DISABLED"],
             canonical_ah_market=ah.as_dict(),
         )
     return FormalRecommendationResult(
@@ -270,6 +277,23 @@ def _candidate_executable_odds(candidate: dict[str, Any] | None) -> dict[str, An
     quotes = candidate.get("quotes")
     executable = quotes.get("executable") if isinstance(quotes, dict) else None
     return dict(executable) if isinstance(executable, dict) else None
+
+
+def _formal_ah_readiness_gate(
+    *,
+    formal_ah_readiness: dict[str, Any] | None,
+    analysis_readiness: dict[str, Any] | None,
+) -> list[str]:
+    readiness = formal_ah_readiness
+    if readiness is None and isinstance(analysis_readiness, dict):
+        nested = analysis_readiness.get("formal_ah_readiness")
+        readiness = nested if isinstance(nested, dict) else None
+    if not isinstance(readiness, dict):
+        return ["FORMAL_AH_READINESS_MISSING"]
+    blockers = [str(item) for item in readiness.get("blockers", []) if str(item)]
+    if readiness.get("formal_eligible") is not True or readiness.get("admission_ready") is not True:
+        return blockers or ["FORMAL_AH_ADMISSION_NOT_READY"]
+    return []
 
 
 def _blockers(
@@ -539,15 +563,7 @@ def _simulation_rho(simulation: SimulationOutput) -> float:
 
 
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
-    win = _number(distribution.get("WIN")) or 0.0
-    half_win = _number(distribution.get("HALF_WIN")) or 0.0
-    push = _number(distribution.get("PUSH")) or 0.0
-    half_loss = _number(distribution.get("HALF_LOSS")) or 0.0
-    loss = _number(distribution.get("LOSS")) or 0.0
-    total = win + half_win + push + half_loss + loss
-    if abs(total - 1.0) > 0.02:
-        return None
-    return round(win + half_win * 0.5 + push * 0.5, 6)
+    return effective_settlement_probability(distribution)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:
