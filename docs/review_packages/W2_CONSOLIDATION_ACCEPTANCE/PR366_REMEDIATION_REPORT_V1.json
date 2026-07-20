@@ -8,39 +8,15 @@
     "staging_validation_authorized": true
   },
   "changed_files": [
-    "scripts/check_w2_acceptance.py",
-    "scripts/run_w2_matchday_refresh_plan.py",
-    "src/w2/data_assets/registry.py",
-    "src/w2/historical/fah_repository.py",
-    "src/w2/infrastructure/persistence/matchday_intake_models.py",
-    "src/w2/infrastructure/persistence/models.py",
-    "src/w2/ingestion/checkpoint_refresh.py",
-    "src/w2/ingestion/future_refresh.py",
-    "src/w2/ingestion/future_refresh_repository.py",
-    "src/w2/matchday/cli.py",
-    "src/w2/matchday/intake_v2.py",
-    "src/w2/matchday/orchestrator.py",
-    "src/w2/matchday/repository.py",
-    "src/w2/providers/api_football.py",
-    "src/w2/refresh/matchday_schedule.py",
-    "tests/contract/test_future_refresh_staging_enablement.py",
-    "tests/integration/test_future_refresh_db_persistence.py",
-    "tests/integration/test_future_refresh_e2e_smoke.py",
-    "tests/integration/test_matchday_intake_v2_persistence.py",
-    "tests/unit/test_checkpoint_refresh_scheduler.py",
-    "tests/unit/test_fah_data_foundation.py",
-    "tests/unit/test_matchday_cli.py",
-    "tests/unit/test_matchday_controlled_run_safety.py",
-    "tests/unit/test_matchday_intake_v2.py",
-    "tests/unit/test_matchday_orchestrator_dry_run.py",
-    "tests/unit/test_matchday_refresh_plan_cli.py",
-    "tests/unit/test_matchday_refresh_schedule.py"
+    "scripts/run_predeploy_e2e_smoke.sh"
   ],
   "ci": {
-    "status": "PENDING_PR_CREATION"
+    "predeploy-e2e": "REMEDIATED_PENDING_RERUN",
+    "staging-parity": "PASS",
+    "verify": "PASS"
   },
   "contains_private_data": false,
-  "final_pr_head_sha": "TO_BE_RECORDED_AFTER_COMMIT_AND_PUSH",
+  "final_pr_head_sha": "TO_BE_RECORDED_AFTER_FOLLOWUP_COMMIT_AND_PUSH",
   "fixed_source_blockers": [
     "checkpoint PLANNED/DUE/MISSED state machine and worker claim",
     "competition policy fail-closed with no World Cup fallback",
@@ -50,10 +26,11 @@
     "canonical V3 adapter path; quote-only no synthetic selector evidence",
     "F5 two-sided W2 identity bridge",
     "F8 complete artifact readiness semantics",
-    "desktop backup registry and restore drill semantics"
+    "desktop backup registry and restore drill semantics",
+    "predeploy-e2e canonical observation smoke check replaces legacy observation table assertion"
   ],
   "generated_at": "2026-07-20T15:39:10Z",
-  "generation_head_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4",
+  "generation_head_sha": "0d8aeefca3bba7d93616335e127d9f39928474e7",
   "local_tests": {
     "check_w2_all": "PASS",
     "git_diff_check": "PASS",
@@ -68,12 +45,12 @@
   },
   "redaction_status": "REDACTED",
   "remaining_blockers": [
-    "GitHub CI pending",
-    "PostgreSQL migration CI pending",
+    "predeploy-e2e rerun pending",
     "staging acceptance pending",
     "expert review pending"
   ],
   "schema_version": "PR366_REMEDIATION_REPORT_V1",
   "source_branch": "codex/w2-consolidation-acceptance-package",
-  "start_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4"
+  "start_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4",
+  "updated_at": "2026-07-20T15:46:12Z"
 }

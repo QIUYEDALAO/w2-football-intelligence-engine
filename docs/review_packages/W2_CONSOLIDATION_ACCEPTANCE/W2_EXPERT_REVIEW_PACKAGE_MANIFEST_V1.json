@@ -39,12 +39,12 @@
     {
       "file": "PR366_REMEDIATION_REPORT_V1.json",
       "schema_version": "PR366_REMEDIATION_REPORT_V1",
-      "sha256": "9cf5386764f23d96be4b9c374459bd608f7e4ace0d55336a89962b89f7b574e1"
+      "sha256": "a144daa3fad621d1fe9a02e93bc4b698ee537066d4d7eacb9e6e77aaf3d9985c"
     },
     {
       "file": "PR366_REMEDIATION_REPORT_V1.md",
       "schema_version": "markdown",
-      "sha256": "1828ce3e5e01b26a3ad8a57f55d8bc906ca81d5b28db133e1110253f675067c2"
+      "sha256": "3054dc0d36029e0ee8cf2ad75f24862ff929ab939c4af5cf951781d7c297ac09"
     },
     {
       "file": "STAGING_READONLY_AND_CANARY_EVIDENCE_V1.json",
@@ -67,9 +67,9 @@
       "sha256": "3b1e882149ea5d8ccef7b76368883df22c7735fa6567df075b51d7893d6bc9d7"
     }
   ],
-  "generated_at": "2026-07-20T15:40:02Z",
-  "package_status": "SOURCE_PACKAGE_READY_STAGING_PENDING",
+  "generated_at": "2026-07-20T15:46:12Z",
+  "package_status": "SOURCE_PACKAGE_READY_PREDEPLOY_RERUN_PENDING",
   "redaction_status": "REDACTED",
   "schema_version": "W2_EXPERT_REVIEW_PACKAGE_MANIFEST_V1",
-  "source_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4"
+  "source_sha": "0d8aeefca3bba7d93616335e127d9f39928474e7"
 }
