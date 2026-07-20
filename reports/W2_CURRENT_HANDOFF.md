@@ -9,6 +9,8 @@
 handoff_version: 41
 handoff_correction: RELEASE_TRAIN_3A_R3B_RETRY_ROLLBACK_RECORDED
 state_captured_on: 2026-06-25
+handoff_operating_protocol_updated_on: 2026-07-20
+handoff_operating_protocol: SOL_STAGE_PLAN_CODEX_EXECUTION_STAGE_REVIEW
 project: W2 Football Intelligence Engine
 workspace: /Users/liudehua/.openclaw/workspace/w2-football-intelligence-engine
 legacy_project: W1
@@ -270,6 +272,24 @@ original_workspace_dirty_files_included_in_stage7i_final_commit: false
 
 执行包名称不等于 master roadmap 阶段编号。当前 Gate3 closure decision
 reconciliation 是 active execution package，不能被解读为 Gate3 已关闭。
+
+## 0.2 当前协作与发布协议
+
+用户确认的长期工作流：
+
+1. Web Sol 负责制定阶段计划、产品边界、验收标准和阶段 Review。
+2. Codex 只按已批准阶段连续开发、修 bug、跑测试、做 staging 验收和生成证据报告。
+3. Sol 不对每次小修逐项 Review，只在阶段完成、关键争议或最终确认时 Review。
+4. Codex 按 Sol Review 结果做最小必要修改；不得扩大到未授权能力。
+5. 最终由 Sol 确认后，再进行 Git commit、push 或 PR 同步。
+
+当前固定边界：
+
+- Dashboard UI、布局、CSS、路由和信息架构默认不改，除非用户单独批准。
+- AH/OU 正式推荐、LMM 数值调整、锁单和 production 推荐默认关闭。
+- GitHub 只在用户明确要求同步，或阶段达到统一提交点时使用。
+- Web Sol 的验收意见应作为下一轮 Codex 执行输入；Codex 不自行替 Sol 裁决产品边界。
+- 平台聊天记录只作补充；本文件和 GitHub 上的阶段报告才是跨会话事实源。
 
 ## 1. 当前任务清单
 
