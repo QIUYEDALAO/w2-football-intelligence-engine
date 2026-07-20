@@ -171,6 +171,7 @@ def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> Non
             result_identity_hash="c" * 64,
             settlement_outcome="WIN",
             source="canonical_historical_ah_fact",
+            source_group="canonical_historical_ah_fact",
             collection_status="CANONICAL_AH_FACT",
         )
     ]
@@ -188,6 +189,7 @@ def test_team_factors_degrade_or_compute_without_inventing_missing_data() -> Non
             result_identity_hash="f" * 64,
             settlement_outcome="LOSS",
             source="canonical_historical_ah_fact",
+            source_group="canonical_historical_ah_fact",
             collection_status="CANONICAL_AH_FACT",
         )
     ]

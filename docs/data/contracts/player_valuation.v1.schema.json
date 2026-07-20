@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "W2 Player Valuation V1",
+  "type": "object",
+  "required": ["transfermarkt_player_id", "observed_at", "market_value_eur", "source_sha256"],
+  "properties": {
+    "transfermarkt_player_id": { "type": "string", "minLength": 1 },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "market_value_eur": { "type": ["number", "string"] },
+    "source_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+  },
+  "additionalProperties": true
+}

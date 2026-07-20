@@ -12,12 +12,18 @@ def _audit(*, identity: str = "COMPLETE", freshness: str = "COMPLETE") -> dict[s
         "provider": "provider",
         "bookmaker_id": "book",
         "captured_at": "2026-07-19T00:00:00Z",
-        "quotes": {"home": {"decimal_odds": "1.9"}, "away": {"decimal_odds": "1.9"}},
+        "quotes": {
+            "home": {"decimal_odds": "1.9"},
+            "away": {"decimal_odds": "1.9"},
+            "over": {"decimal_odds": "1.9"},
+            "under": {"decimal_odds": "1.9"},
+        },
     }
 
 
 def _market(name: str) -> dict[str, object]:
-    return {"market": name, "decision": "PICK", "tendency": "HOME", "line": "-0.5"}
+    tendency = "OVER" if name == "TOTALS" else "HOME"
+    return {"market": name, "decision": "PICK", "tendency": tendency, "line": "-0.5"}
 
 
 def test_fresh_ah_and_stale_ou_are_independent_candidates() -> None:
@@ -148,4 +154,22 @@ def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
         row["model_probability"]["status"] == "READY"
         for row in candidate["side_evidence"].values()
     )
+    assert candidate_is_executable(candidate) is False
+
+
+def test_no_pick_with_current_odds_is_comparison_only() -> None:
+    candidates = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "line": "-0.5"}],
+        quote_identity_audit={"ah": _audit()},
+        current_odds={"ah": {"home_price": 1.9, "away_price": 1.9}},
+        pricing_shadow={},
+    )
+
+    candidate = candidates["ah"]
+    assert candidate["selection"] is None
+    assert candidate["quote_usage"] == "COMPARISON_ONLY"
+    assert candidate["quotes"]["executable"] is None
+    assert candidate["ev_eligible"] is False
+    assert candidate["formal_eligible"] is False
+    assert candidate["lock_eligible"] is False
     assert candidate_is_executable(candidate) is False
