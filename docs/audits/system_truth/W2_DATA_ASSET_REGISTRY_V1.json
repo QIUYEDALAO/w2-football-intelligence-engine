@@ -59,7 +59,7 @@
       "ingest_manifest_hash": "79cb87588c5b7ae3b603001ab8fd98c7ffa15369e7c8c3b53df2527cd990aa7a",
       "last_verified_at": "2026-07-20T12:51:47.425145Z",
       "license_review_status": "HUMAN_REVIEW_REQUIRED",
-      "observed_private_location": "/Users/liudehua/.hermes/data/w2/football-data-co-uk",
+      "observed_private_location": "$W2_FOOTBALL_DATA_ROOT",
       "private_storage_location_alias": "$W2_FOOTBALL_DATA_ROOT",
       "purpose": [
         "historical_market_fact",
