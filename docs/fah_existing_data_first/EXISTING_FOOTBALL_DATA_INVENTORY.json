@@ -1,0 +1,189 @@
+{
+  "checked_locations": [
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/market_timeline_snapshots"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/future_refresh"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/stage7c/raw"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/provider_raw"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/raw"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/odds"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/fixtures"
+    },
+    {
+      "exists": false,
+      "is_dir": false,
+      "path": "/Users/liudehua/.hermes/workspace/w2-fah-existing-data-first/runtime/results"
+    }
+  ],
+  "classification": {
+    "calibration_baseline_candidate_batches": 0,
+    "clv_candidate_count": 0,
+    "f5_ready_candidate_fixtures": 0,
+    "missing_fields": [
+      "historical odds",
+      "bookmaker ID",
+      "AH line",
+      "OU line",
+      "captured_at",
+      "final 90-minute result"
+    ],
+    "reason": "EXISTING_DATA_FIRST_NO_NEW_USER_DATA_REQUEST",
+    "requires_user_extra_data": false
+  },
+  "competition_registry": [
+    {
+      "api_football_league_id": "113",
+      "competition_id": "allsvenskan",
+      "enabled": false,
+      "name": "Allsvenskan",
+      "path": "config/competitions/national_leagues/allsvenskan.v1.json",
+      "season": "2026"
+    },
+    {
+      "api_football_league_id": "78",
+      "competition_id": "bundesliga",
+      "enabled": false,
+      "name": "Bundesliga",
+      "path": "config/competitions/top_five/bundesliga.v1.json",
+      "season": "2026"
+    },
+    {
+      "api_football_league_id": "140",
+      "competition_id": "la_liga",
+      "enabled": false,
+      "name": "La Liga",
+      "path": "config/competitions/top_five/la_liga.v1.json",
+      "season": "2026"
+    },
+    {
+      "api_football_league_id": "61",
+      "competition_id": "ligue_1",
+      "enabled": false,
+      "name": "Ligue 1",
+      "path": "config/competitions/top_five/ligue_1.v1.json",
+      "season": "2026"
+    },
+    {
+      "api_football_league_id": "39",
+      "competition_id": "premier_league",
+      "enabled": false,
+      "name": "Premier League",
+      "path": "config/competitions/top_five/premier_league.v1.json",
+      "season": "2026"
+    },
+    {
+      "api_football_league_id": "135",
+      "competition_id": "serie_a",
+      "enabled": false,
+      "name": "Serie A",
+      "path": "config/competitions/top_five/serie_a.v1.json",
+      "season": "2026"
+    }
+  ],
+  "database": {
+    "counts": {
+      "ah_pair_keys": [],
+      "allsvenskan_rows": 0,
+      "bookmakers": [],
+      "captured_at_values": [],
+      "endpoints": {},
+      "final_results": [],
+      "fixtures": [],
+      "league_ids": {},
+      "lined_markets": {},
+      "live_rows": 0,
+      "markets": {},
+      "ou_pair_keys": [],
+      "prematch_rows": 0,
+      "quarter_lines": 0,
+      "seasons": {},
+      "top_five_rows": 0,
+      "unreadable_files": 0
+    },
+    "status": "READ_ONLY_OK",
+    "tables": [],
+    "target": {
+      "database_name_hash": "eb92f193f2d46a2232acb0ac82bd37ed3948c27f6397bb3747036c50bc0d809d",
+      "dialect": "sqlite",
+      "host_category": "local",
+      "path": ".local/w2.db",
+      "path_exists": true,
+      "read_allowed": true
+    }
+  },
+  "field_shape_samples": [],
+  "files": [],
+  "inventory_hash": "525f9544880fa775dbfd35969dd3acd4bd09f3473f6383e38f8450de808bec50",
+  "manual_stop": "MANUAL_APPROVAL_REQUIRED",
+  "privacy": {
+    "credentials_included": false,
+    "home_directory_full_scan": false,
+    "network_downloads": 0,
+    "private_raw_data_committed": false,
+    "provider_calls": 0,
+    "raw_payload_values_included": false
+  },
+  "schema_version": "w2.existing_football_data_inventory.v1",
+  "status": "NO_EXISTING_DATA_FOUND",
+  "summary": {
+    "ah_count": 0,
+    "ah_line_found": false,
+    "ah_pair_count": 0,
+    "bookmaker_count": 0,
+    "bookmaker_found": false,
+    "captured_at_found": false,
+    "closing_quote_count": 0,
+    "complete_same_batch_1x2_ah_ou_count": 0,
+    "earliest_captured_at": null,
+    "endpoints": {},
+    "final_result_count": 0,
+    "final_result_found": false,
+    "fixture_count": 0,
+    "fixtures_with_final_90_result_count": 0,
+    "historical_odds_found": false,
+    "latest_captured_at": null,
+    "league_ids": {},
+    "live_count": 0,
+    "odds_observation_count": 0,
+    "one_x_two_count": 0,
+    "ou_count": 0,
+    "ou_line_found": false,
+    "prematch_count": 0,
+    "quarter_line_count": 0,
+    "raw_payload_count": 0,
+    "seasons": {},
+    "t30_or_earlier_complete_ah_pair_count": 0,
+    "top_five_existing_download_detected": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "W2 Historical Market Observation V1",
+  "type": "object",
+  "required": [
+    "provider_fixture_id",
+    "competition_id",
+    "season",
+    "kickoff_utc",
+    "home_team_provider_id",
+    "away_team_provider_id",
+    "provider",
+    "bookmaker_id",
+    "captured_at",
+    "market",
+    "side",
+    "line",
+    "decimal_odds",
+    "observation_id"
+  ],
+  "properties": {
+    "provider_fixture_id": { "type": "string", "minLength": 1 },
+    "competition_id": { "type": "string", "minLength": 1 },
+    "season": { "type": "string", "minLength": 1 },
+    "kickoff_utc": { "type": "string", "format": "date-time" },
+    "home_team_provider_id": { "type": "string", "minLength": 1 },
+    "away_team_provider_id": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "minLength": 1 },
+    "bookmaker_id": { "type": "string", "minLength": 1 },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "market": { "const": "ASIAN_HANDICAP" },
+    "side": { "enum": ["HOME", "AWAY"] },
+    "line": { "type": "string", "minLength": 1 },
+    "decimal_odds": { "type": "string", "minLength": 1 },
+    "observation_id": { "type": "string", "minLength": 1 },
+    "live": { "type": ["boolean", "string"] },
+    "suspended": { "type": ["boolean", "string"] }
+  },
+  "additionalProperties": true
+}

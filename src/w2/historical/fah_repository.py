@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -31,6 +32,7 @@ class FahWriteSummary:
     committed: bool = False
     rolled_back: bool = False
     db_writes: bool = False
+    error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -279,7 +281,12 @@ class FahDataFoundationRepository:
                             continue
                         conflicts += 1
                         raise ValueError(f"FAH_CONFLICT:{model.__tablename__}:{row_identity}")
-                    session.add(factory(row))
+                    model_instance = (
+                        factory(row, session)
+                        if factory is _canonical_ah_model
+                        else factory(row)
+                    )
+                    session.add(model_instance)
                     inserted += 1
                 session.commit()
             except Exception:
@@ -293,6 +300,7 @@ class FahDataFoundationRepository:
                     committed=False,
                     rolled_back=True,
                     db_writes=False,
+                    error="FAH_WRITE_ROLLED_BACK",
                 )
         return FahWriteSummary(
             attempted=attempted,
@@ -393,11 +401,16 @@ def _player_crosswalk_model(row: Mapping[str, Any]) -> PlayerIdentityCrosswalkMo
 def _registered_roster_model(row: Mapping[str, Any]) -> RegisteredRosterSnapshotModel:
     snapshot_date = _required_time(row.get("snapshot_date") or row.get("observed_at"))
     payload = dict(row)
+    roster_snapshot_id = str(row.get("roster_snapshot_id") or "")
+    if not roster_snapshot_id:
+        raise ValueError("ROSTER_SNAPSHOT_ID_REQUIRED")
     membership_hash = str(
         row.get("membership_hash") or stable_hash(_registered_roster_identity_payload(row))
     )
     payload.setdefault("membership_hash", membership_hash)
+    payload.setdefault("roster_snapshot_id", roster_snapshot_id)
     return RegisteredRosterSnapshotModel(
+        roster_snapshot_id=roster_snapshot_id,
         transfermarkt_club_id=str(row.get("transfermarkt_club_id") or row.get("club_id") or ""),
         transfermarkt_player_id=str(
             row.get("transfermarkt_player_id") or row.get("player_id") or ""
@@ -426,12 +439,36 @@ def _team_value_model(row: Mapping[str, Any]) -> TeamValueAsOfArtifactModel:
     )
 
 
-def _canonical_ah_model(row: Mapping[str, Any]) -> CanonicalHistoricalAhFactModel:
+def _canonical_ah_model(
+    row: Mapping[str, Any],
+    session: Session | None = None,
+) -> CanonicalHistoricalAhFactModel:
+    source_snapshot_db_id = str(row.get("source_snapshot_db_id") or "")
+    if not source_snapshot_db_id and session is not None:
+        snapshot_id = str(row.get("source_snapshot_id") or "")
+        source_sha = str(row.get("source_sha256") or "")
+        if snapshot_id or source_sha:
+            found = session.scalars(
+                select(HistoricalMarketSourceSnapshotModel).where(
+                    HistoricalMarketSourceSnapshotModel.source_id == snapshot_id
+                )
+            ).first()
+            if found is None and source_sha:
+                found = session.scalars(
+                    select(HistoricalMarketSourceSnapshotModel).where(
+                        HistoricalMarketSourceSnapshotModel.sha256 == source_sha
+                    )
+                ).first()
+            if found is not None:
+                source_snapshot_db_id = found.id
+    if not source_snapshot_db_id:
+        raise ValueError("SOURCE_SNAPSHOT_FK_REQUIRED")
     return CanonicalHistoricalAhFactModel(
         canonical_key=str(row.get("canonical_key") or _canonical_ah_identity(row)),
         fact_id=str(row.get("fact_id") or ""),
         fact_hash=str(row.get("fact_hash") or ""),
         source_snapshot_id=str(row.get("source_snapshot_id") or ""),
+        source_snapshot_db_id=source_snapshot_db_id,
         source_registry_version=str(row.get("source_registry_version") or ""),
         source_schema_version=str(row.get("source_schema_version") or ""),
         bookmaker_policy=str(row.get("bookmaker_policy") or ""),
@@ -452,6 +489,22 @@ def _canonical_ah_model(row: Mapping[str, Any]) -> CanonicalHistoricalAhFactMode
 
 
 def _source_snapshot_model(row: Mapping[str, Any]) -> HistoricalMarketSourceSnapshotModel:
+    payload = dict(row)
+    policy = row.get("canonical_bookmaker_policy")
+    policy_text = (
+        json.dumps(policy, sort_keys=True)
+        if isinstance(policy, Mapping)
+        else str(policy or "")
+    )
+    source_sha = str(row.get("sha256") or row.get("source_sha256") or "")
+    snapshot_hash = str(row.get("snapshot_hash") or stable_hash({
+        "source_id": row.get("source_id"),
+        "provider": row.get("provider"),
+        "schema_version": row.get("schema_version"),
+        "sha256": source_sha,
+        "canonical_bookmaker_policy": policy if isinstance(policy, Mapping) else policy_text,
+    }))
+    payload.setdefault("snapshot_hash", snapshot_hash)
     return HistoricalMarketSourceSnapshotModel(
         source_id=str(row.get("source_id") or ""),
         provider=str(row.get("provider") or ""),
@@ -460,14 +513,15 @@ def _source_snapshot_model(row: Mapping[str, Any]) -> HistoricalMarketSourceSnap
         ),
         schema_version=str(row.get("schema_version") or ""),
         snapshot_semantics=str(row.get("snapshot_semantics") or ""),
-        canonical_bookmaker_policy=str(row.get("canonical_bookmaker_policy") or ""),
+        canonical_bookmaker_policy=policy_text,
         object_uri=str(row.get("object_uri") or row.get("local_path_or_object_uri") or ""),
-        sha256=str(row.get("sha256") or row.get("source_sha256") or ""),
+        sha256=source_sha,
+        snapshot_hash=snapshot_hash,
         license_status=str(row.get("license_status") or row.get("source_license_status") or ""),
         observed_at=parse_utc(row.get("observed_at")),
         ingested_at=parse_utc(row.get("ingested_at")) or datetime.now(tz=UTC),
         row_count=int(row.get("row_count") or 0),
-        audit_payload=dict(row),
+        audit_payload=payload,
     )
 
 
