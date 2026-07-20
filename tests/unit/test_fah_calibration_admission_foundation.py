@@ -73,7 +73,7 @@ def test_multiclass_ece_clv_candidate_and_mixed_blockers() -> None:
     assert holdout["ece_method"] == "CLASSWISE_MULTICLASS_ECE_10_EQUAL_WIDTH_BINS"
     assert holdout["per_class_ece"]["model"]["LOSS"] >= 0
     assert holdout["mean_clv_probability_delta"] == 0.04
-    assert report["candidate_holdout_metrics"]["sample_count"] == 1
+    assert report["candidate_holdout_metrics"]["sample_count"] == 0
 
     mixed = deepcopy(rows)
     mixed.append({**_evidence_row(kickoff="2026-03-01T00:00:00Z"), "model_version": "m2"})
@@ -106,7 +106,7 @@ def test_market_score_baseline_batch_and_unvalidated_residual_gate() -> None:
         == "INCOMPLETE"
     )
 
-    missing_ou = [row for row in _quotes() if row["market"] != "OU"]
+    missing_ou = [row for row in _quotes() if row["market"] != "TOTALS"]
     assert (
         build_market_score_baseline(missing_ou, entry_checkpoint="2026-01-01T12:00:00Z")[
             "status"
@@ -114,7 +114,7 @@ def test_market_score_baseline_batch_and_unvalidated_residual_gate() -> None:
         == "INCOMPLETE"
     )
 
-    only_ah = [row for row in _quotes() if row["market"] == "AH"]
+    only_ah = [row for row in _quotes() if row["market"] == "ASIAN_HANDICAP"]
     assert (
         build_market_score_baseline(only_ah, entry_checkpoint="2026-01-01T12:00:00Z")[
             "status"
@@ -135,7 +135,7 @@ def test_replay_and_calibration_artifact_fail_closed_and_deterministic() -> None
             "market_baseline_status": "UNVALIDATED",
         }
     )
-    assert "POST_KICKOFF_DATA" in row["blockers"]
+    assert "ASOF_NOT_STRICTLY_PREMATCH" in row["blockers"]
     assert "F5_PROXY_OR_NOT_READY" in row["blockers"]
     artifact = build_calibration_artifact(
         [],
@@ -158,6 +158,20 @@ def test_replay_and_calibration_artifact_fail_closed_and_deterministic() -> None
         f8_manifest_sha="f8",
         evaluator_version="eval",
     )
+    blocked_artifact = build_calibration_artifact(
+        [row],
+        code_sha="code",
+        model_version="model",
+        factor_registry_sha="factor",
+        historical_manifest_sha="hist",
+        f5_manifest_sha="f5",
+        f8_manifest_sha="f8",
+        evaluator_version="eval",
+    )
+    assert blocked_artifact["accepted_row_count"] == 0
+    assert blocked_artifact["rejected_row_count"] == 1
+    assert blocked_artifact["holdout_count"] == 0
+    assert blocked_artifact["exclusion_report"]["F5_PROXY_OR_NOT_READY"] == 1
 
 
 def test_formal_readiness_blockers_and_approval_hash_mismatch() -> None:
@@ -168,8 +182,19 @@ def test_formal_readiness_blockers_and_approval_hash_mismatch() -> None:
         offline_evidence={"conclusion": "INSUFFICIENT_EVIDENCE"},
         forward_shadow={"conclusion": "INSUFFICIENT_EVIDENCE"},
         approval_manifest={
+            "schema_version": "w2.formal_ah_approval_manifest.v1",
             "approved": True,
-            "accepted_hashes": {"a": "b"},
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2026-07-20T00:00:00Z",
+            "accepted_hashes": {
+                "calibration_artifact": "bad",
+                "f5_manifest": "bad",
+                "f8_manifest": "bad",
+                "offline_evidence_report": "bad",
+                "forward_shadow_report": "bad",
+                "code_sha": "bad",
+                "factor_registry_sha": "bad",
+            },
             "accepted_hash_manifest_sha256": "bad",
         },
     )
@@ -187,7 +212,7 @@ def test_forward_shadow_scope_and_exclusion_from_formal_count() -> None:
             "test_only": True,
         }
     )
-    assert capture["shadow"] is True
+    assert capture["shadow"] is False
     assert capture["not_a_recommendation"] is True
     assert capture["formal_evidence_eligible"] is False
     report = evaluate_forward_shadow_evidence([capture])
@@ -246,12 +271,16 @@ def _evidence_row(*, kickoff: str) -> dict[str, object]:
             loss=0.5,
         ),
         "selection_odds": 2.0,
-        "entry_devig_probability": 0.46,
-        "closing_devig_probability": 0.5,
+        "selection": "HOME",
+        "line": "-0.25",
+        "entry_devig_probability": 0.3,
+        "closing_devig_probability": 0.34,
         "closing_quote_identity_hash": "h",
         "closing_quote_captured_at": "2026-01-01T01:00:00Z",
-        "model_expected_value": 0.04,
-        "model_market_probability_delta": 0.04,
+        "closing_selection": "HOME",
+        "closing_line": "-0.25",
+        "model_expected_value": -0.5,
+        "model_market_probability_delta": -0.1,
         "model_version": "m1",
         "calibration_version": "c1",
         "factor_registry_sha": "f1",
@@ -262,7 +291,9 @@ def _quotes() -> list[dict[str, object]]:
     base = {
         "provider_fixture_id": "pf1",
         "bookmaker_id": "bm1",
+        "provider": "p1",
         "captured_at": "2026-01-01T00:00:00Z",
+        "source_snapshot_id": "snapshot-1",
         "source_sha256": "s" * 64,
         "live": False,
         "suspended": False,
@@ -271,10 +302,10 @@ def _quotes() -> list[dict[str, object]]:
         _quote(base, "1X2", "HOME", "2.10", "1"),
         _quote(base, "1X2", "DRAW", "3.20", "2"),
         _quote(base, "1X2", "AWAY", "3.40", "3"),
-        _quote(base, "AH", "HOME", "1.95", "4"),
-        _quote(base, "AH", "AWAY", "1.95", "5"),
-        _quote(base, "OU", "OVER", "1.90", "6"),
-        _quote(base, "OU", "UNDER", "2.00", "7"),
+        _quote(base, "ASIAN_HANDICAP", "HOME", "1.95", "4", line="-0.25"),
+        _quote(base, "ASIAN_HANDICAP", "AWAY", "1.95", "5", line="0.25"),
+        _quote(base, "TOTALS", "OVER", "1.90", "6", line="2.25"),
+        _quote(base, "TOTALS", "UNDER", "2.00", "7", line="2.25"),
     ]
 
 
@@ -284,6 +315,7 @@ def _quote(
     selection: str,
     odds: str,
     observation_id: str,
+    line: str | None = None,
 ) -> dict[str, object]:
     return {
         **base,
@@ -291,4 +323,5 @@ def _quote(
         "selection": selection,
         "decimal_odds": odds,
         "observation_id": observation_id,
+        "line": line,
     }

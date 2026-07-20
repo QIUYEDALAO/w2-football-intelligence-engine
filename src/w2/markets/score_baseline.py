@@ -5,10 +5,13 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from w2.markets.devig import DevigMethod, devig
+from w2.markets.settlement_probability import effective_settlement_probability
+from w2.markets.value_engine import settlement_distribution_ah, settlement_distribution_totals
 
 MARKET_SCORE_BASELINE_SCHEMA = "w2.market_score_baseline.v1"
 SOLVER_VERSION = "w2.market_score_baseline.grid_poisson.v1"
@@ -24,7 +27,10 @@ class MarketScoreBaselineV1:
     captured_at: str | None
     input_quote_ids: list[str]
     input_quote_hashes: list[str]
+    actual_ah_line: str | None
+    actual_ou_line: str | None
     devig_probabilities: dict[str, dict[str, float]]
+    baseline_distributions: dict[str, dict[str, Any]]
     fitted_parameters: dict[str, float] | None
     fitted_score_matrix_hash: str | None
     residuals_by_market: dict[str, float]
@@ -64,9 +70,13 @@ def build_market_score_baseline(
             blockers=blockers,
         )
     devigged = _devig_by_market(quotes)
-    if set(devigged) != {"1X2", "AH", "OU"}:
-        missing = sorted({"1X2", "AH", "OU"} - set(devigged))
-        status = "INSUFFICIENT_MARKET_DIMENSIONS" if set(devigged) == {"AH"} else "INCOMPLETE"
+    if set(devigged) != {"1X2", "ASIAN_HANDICAP", "TOTALS"}:
+        missing = sorted({"1X2", "ASIAN_HANDICAP", "TOTALS"} - set(devigged))
+        status = (
+            "INSUFFICIENT_MARKET_DIMENSIONS"
+            if set(devigged) == {"ASIAN_HANDICAP"}
+            else "INCOMPLETE"
+        )
         return _baseline(
             status=status,
             quotes=quotes,
@@ -78,13 +88,28 @@ def build_market_score_baseline(
             optimizer_status="NOT_RUN",
             blockers=[f"MISSING_{item}" for item in missing],
         )
-    fit = _fit_score_matrix(devigged)
+    ah_line = _market_line(quotes, "ASIAN_HANDICAP")
+    ou_line = _market_line(quotes, "TOTALS")
+    if ah_line is None or ou_line is None:
+        return _baseline(
+            status="INCOMPLETE",
+            quotes=quotes,
+            quote_ids=quote_ids,
+            quote_hashes=quote_hashes,
+            devig_probabilities=devigged,
+            fitted_parameters=None,
+            residuals_by_market={},
+            optimizer_status="NOT_RUN",
+            blockers=["MISSING_ACTUAL_AH_LINE" if ah_line is None else "MISSING_ACTUAL_OU_LINE"],
+        )
+    fit = _fit_score_matrix(devigged, ah_line=ah_line, ou_line=ou_line)
     return _baseline(
         status="UNVALIDATED",
         quotes=quotes,
         quote_ids=quote_ids,
         quote_hashes=quote_hashes,
         devig_probabilities=devigged,
+        baseline_distributions=fit["baseline_distributions"],
         fitted_parameters=fit["parameters"],
         residuals_by_market=fit["residuals_by_market"],
         optimizer_status=fit["optimizer_status"],
@@ -99,6 +124,7 @@ def _baseline(
     quote_ids: list[str],
     quote_hashes: list[str],
     devig_probabilities: dict[str, dict[str, float]],
+    baseline_distributions: dict[str, dict[str, Any]] | None = None,
     fitted_parameters: dict[str, float] | None,
     residuals_by_market: dict[str, float],
     optimizer_status: str,
@@ -117,7 +143,10 @@ def _baseline(
         "captured_at": _same_text(quotes, "captured_at"),
         "input_quote_ids": quote_ids,
         "input_quote_hashes": quote_hashes,
+        "actual_ah_line": _line_text(_market_line(quotes, "ASIAN_HANDICAP")),
+        "actual_ou_line": _line_text(_market_line(quotes, "TOTALS")),
         "devig_probabilities": devig_probabilities,
+        "baseline_distributions": baseline_distributions or {},
         "fitted_parameters": fitted_parameters,
         "fitted_score_matrix_hash": matrix_hash,
         "residuals_by_market": residuals_by_market,
@@ -138,6 +167,9 @@ def _batch_blockers(quotes: list[Mapping[str, Any]], *, entry_checkpoint: str) -
         ("provider_fixture_id", "FIXTURE_IDENTITY_INCOMPLETE"),
         ("bookmaker_id", "BOOKMAKER_MISMATCH"),
         ("captured_at", "CAPTURED_AT_MISMATCH"),
+        ("provider", "PROVIDER_MISMATCH"),
+        ("source_snapshot_id", "SOURCE_SNAPSHOT_MISMATCH"),
+        ("source_sha256", "SOURCE_HASH_MISMATCH"),
     ):
         values = {str(row.get(field) or "") for row in quotes}
         if len(values) != 1 or "" in values:
@@ -146,10 +178,13 @@ def _batch_blockers(quotes: list[Mapping[str, Any]], *, entry_checkpoint: str) -
         blockers.append("LIVE_QUOTE")
     if any(row.get("suspended") is True for row in quotes):
         blockers.append("SUSPENDED_QUOTE")
-    if any(not str(row.get("source_sha256") or "") for row in quotes):
-        blockers.append("SOURCE_HASH_MISSING")
+    blockers.extend(_selection_blockers(quotes))
     captured = _same_text(quotes, "captured_at")
-    if captured and captured > entry_checkpoint:
+    captured_at = _parse_utc(captured)
+    checkpoint = _parse_utc(entry_checkpoint)
+    if captured_at is None or checkpoint is None:
+        blockers.append("INVALID_TIMESTAMP")
+    elif captured_at > checkpoint:
         blockers.append("POST_ENTRY_CHECKPOINT")
     return blockers
 
@@ -157,13 +192,13 @@ def _batch_blockers(quotes: list[Mapping[str, Any]], *, entry_checkpoint: str) -
 def _devig_by_market(quotes: list[Mapping[str, Any]]) -> dict[str, dict[str, float]]:
     grouped: dict[str, dict[str, Decimal]] = {}
     for row in quotes:
-        market = str(row.get("market") or "")
+        market = _market(row.get("market"))
         selection = str(row.get("selection") or "")
         odds = _decimal(row.get("decimal_odds"))
         if market and selection and odds is not None:
             grouped.setdefault(market, {})[selection] = odds
     result: dict[str, dict[str, float]] = {}
-    expected_sizes = {"1X2": 3, "AH": 2, "OU": 2}
+    expected_sizes = {"1X2": 3, "ASIAN_HANDICAP": 2, "TOTALS": 2}
     for market, prices in grouped.items():
         if len(prices) == expected_sizes.get(market):
             result[market] = {
@@ -173,14 +208,25 @@ def _devig_by_market(quotes: list[Mapping[str, Any]]) -> dict[str, dict[str, flo
     return result
 
 
-def _fit_score_matrix(devigged: Mapping[str, Mapping[str, float]]) -> dict[str, Any]:
+def _fit_score_matrix(
+    devigged: Mapping[str, Mapping[str, float]],
+    *,
+    ah_line: Decimal,
+    ou_line: Decimal,
+) -> dict[str, Any]:
     best: tuple[float, float, float] | None = None
     best_residuals: dict[str, float] = {}
+    best_distributions: dict[str, dict[str, Any]] = {}
     for home_step in range(8, 33):
         for away_step in range(8, 33):
             home = home_step / 10
             away = away_step / 10
-            implied = _market_probabilities(home, away)
+            implied, distributions = _market_probabilities(
+                home,
+                away,
+                ah_line=ah_line,
+                ou_line=ou_line,
+            )
             residuals = {
                 market: round(
                     max(abs(implied[market][key] - float(target[key])) for key in target),
@@ -192,6 +238,7 @@ def _fit_score_matrix(devigged: Mapping[str, Mapping[str, float]]) -> dict[str, 
             if best is None or score < best[0]:
                 best = (score, home, away)
                 best_residuals = residuals
+                best_distributions = distributions
     assert best is not None
     return {
         "parameters": {
@@ -205,28 +252,58 @@ def _fit_score_matrix(devigged: Mapping[str, Mapping[str, float]]) -> dict[str, 
             "solver_version": SOLVER_VERSION,
         },
         "residuals_by_market": best_residuals,
+        "baseline_distributions": best_distributions,
         "optimizer_status": "CONVERGED_DIAGNOSTIC",
     }
 
 
-def _market_probabilities(home_lambda: float, away_lambda: float) -> dict[str, dict[str, float]]:
-    matrix = {}
+def _market_probabilities(
+    home_lambda: float,
+    away_lambda: float,
+    *,
+    ah_line: Decimal,
+    ou_line: Decimal,
+) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, Any]]]:
+    matrix: dict[tuple[int, int], Decimal] = {}
     for home in range(8):
         for away in range(8):
-            matrix[(home, away)] = _poisson(home_lambda, home) * _poisson(away_lambda, away)
+            probability = _poisson(home_lambda, home) * _poisson(away_lambda, away)
+            matrix[(home, away)] = Decimal(str(probability))
     total = sum(matrix.values())
     normalized = {score: value / total for score, value in matrix.items()}
     home_prob = sum(value for (h, a), value in normalized.items() if h > a)
     draw = sum(value for (h, a), value in normalized.items() if h == a)
     away_prob = sum(value for (h, a), value in normalized.items() if h < a)
-    over = sum(value for (h, a), value in normalized.items() if h + a > 2.5)
-    under = 1 - over
-    ah_home = sum(value for (h, a), value in normalized.items() if h > a)
-    ah_away = 1 - ah_home
-    return {
-        "1X2": {"HOME": home_prob, "DRAW": draw, "AWAY": away_prob},
-        "AH": {"HOME": ah_home, "AWAY": ah_away},
-        "OU": {"OVER": over, "UNDER": under},
+    ah_home_dist = _five_state(
+        settlement_distribution_ah(normalized, selection="HOME", line=ah_line)
+    )
+    ah_away_dist = _five_state(
+        settlement_distribution_ah(normalized, selection="AWAY", line=-ah_line)
+    )
+    ou_over_dist = _five_state(
+        settlement_distribution_totals(normalized, selection="OVER", line=ou_line)
+    )
+    ou_under_dist = _five_state(
+        settlement_distribution_totals(normalized, selection="UNDER", line=ou_line)
+    )
+    implied = {
+        "1X2": {
+            "HOME": float(home_prob),
+            "DRAW": float(draw),
+            "AWAY": float(away_prob),
+        },
+        "ASIAN_HANDICAP": {
+            "HOME": effective_settlement_probability(ah_home_dist) or 0.0,
+            "AWAY": effective_settlement_probability(ah_away_dist) or 0.0,
+        },
+        "TOTALS": {
+            "OVER": effective_settlement_probability(ou_over_dist) or 0.0,
+            "UNDER": effective_settlement_probability(ou_under_dist) or 0.0,
+        },
+    }
+    return implied, {
+        "ASIAN_HANDICAP": {"HOME": ah_home_dist, "AWAY": ah_away_dist},
+        "TOTALS": {"OVER": ou_over_dist, "UNDER": ou_under_dist},
     }
 
 
@@ -245,6 +322,93 @@ def _status_for_blockers(blockers: list[str]) -> str:
 def _same_text(quotes: list[Mapping[str, Any]], key: str) -> str | None:
     values = {str(row.get(key) or "") for row in quotes}
     return next(iter(values)) if len(values) == 1 and "" not in values else None
+
+
+def _selection_blockers(quotes: list[Mapping[str, Any]]) -> list[str]:
+    blockers: list[str] = []
+    expected = {
+        "1X2": {"HOME", "DRAW", "AWAY"},
+        "ASIAN_HANDICAP": {"HOME", "AWAY"},
+        "TOTALS": {"OVER", "UNDER"},
+    }
+    grouped: dict[str, list[str]] = {}
+    for row in quotes:
+        market = _market(row.get("market"))
+        if market:
+            grouped.setdefault(market, []).append(str(row.get("selection") or ""))
+    for market, selections in grouped.items():
+        if len(selections) != len(set(selections)):
+            blockers.append(f"DUPLICATE_SELECTION_{market}")
+        if set(selections) != expected.get(market, set()):
+            blockers.append(f"SELECTION_SET_INCOMPLETE_{market}")
+    return blockers
+
+
+def _market_line(quotes: list[Mapping[str, Any]], market_name: str) -> Decimal | None:
+    if market_name == "ASIAN_HANDICAP":
+        home_lines = {
+            _decimal(row.get("line"))
+            for row in quotes
+            if _market(row.get("market")) == market_name
+            and str(row.get("selection") or "").upper() == "HOME"
+            and row.get("line") not in {None, ""}
+        }
+        away_lines = {
+            _decimal(row.get("line"))
+            for row in quotes
+            if _market(row.get("market")) == market_name
+            and str(row.get("selection") or "").upper() == "AWAY"
+            and row.get("line") not in {None, ""}
+        }
+        if len(home_lines) == 1 and len(away_lines) == 1:
+            home_line = next(iter(home_lines))
+            away_line = next(iter(away_lines))
+            if home_line is not None and away_line is not None and home_line == -away_line:
+                return home_line
+        return None
+    values = {
+        _decimal(row.get("line"))
+        for row in quotes
+        if _market(row.get("market")) == market_name and row.get("line") not in {None, ""}
+    }
+    return next(iter(values)) if len(values) == 1 else None
+
+
+def _line_text(value: Decimal | None) -> str | None:
+    return str(value) if value is not None else None
+
+
+def _market(value: object) -> str:
+    text = str(value or "").upper()
+    return {
+        "AH": "ASIAN_HANDICAP",
+        "ASIAN HANDICAP": "ASIAN_HANDICAP",
+        "OU": "TOTALS",
+        "OVER_UNDER": "TOTALS",
+    }.get(text, text)
+
+
+def _parse_utc(value: object) -> datetime | None:
+    if value in {None, ""}:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _five_state(value: Any) -> dict[str, float]:
+    raw = value.as_dict()
+    return {
+        "WIN": float(raw["full_win_probability"]),
+        "HALF_WIN": float(raw["half_win_probability"]),
+        "PUSH": float(raw["push_probability"]),
+        "HALF_LOSS": float(raw["half_loss_probability"]),
+        "LOSS": float(raw["full_loss_probability"]),
+    }
 
 
 def _decimal(value: object) -> Decimal | None:

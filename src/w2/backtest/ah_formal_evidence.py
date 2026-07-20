@@ -155,16 +155,55 @@ def _exclusion_reason(row: dict[str, Any], frozen_at: datetime) -> str | None:
         return "MISSING_SELECTION_ODDS"
     if row.get("entry_devig_probability") is None:
         return "MISSING_ENTRY_DEVIG_PROBABILITY"
+    derived_reason = _derived_metric_conflict(row)
+    if derived_reason is not None:
+        return derived_reason
     if row.get("closing_devig_probability") is not None and (
         not str(row.get("closing_quote_identity_hash") or "")
         or not str(row.get("closing_quote_captured_at") or "")
     ):
         return "INCOMPLETE_CLV_FIELDS"
+    if row.get("closing_devig_probability") is not None:
+        closing_at = _parse_utc(str(row.get("closing_quote_captured_at")))
+        if closing_at >= kickoff:
+            return "POST_KICKOFF_CLOSING_QUOTE"
+        if str(row.get("closing_market") or "ASIAN_HANDICAP") != "ASIAN_HANDICAP":
+            return "CLV_MARKET_IDENTITY_CONFLICT"
+        if str(row.get("closing_selection") or row.get("selection") or "") != str(
+            row.get("selection") or ""
+        ):
+            return "CLV_SELECTION_IDENTITY_CONFLICT"
+        if str(row.get("closing_line") or row.get("line") or "") != str(row.get("line") or ""):
+            return "CLV_LINE_IDENTITY_CONFLICT"
     if row.get("model_expected_value") is None:
         return "MISSING_MODEL_EXPECTED_VALUE"
     if row.get("model_market_probability_delta") is None:
         return "MISSING_MODEL_MARKET_PROBABILITY_DELTA"
     return None
+
+
+def _derived_metric_conflict(row: dict[str, Any]) -> str | None:
+    model = row["model_probabilities"]
+    market = row["market_devig_probabilities"]
+    odds = float(row["selection_odds"])
+    model_probability = effective_settlement_probability(model)
+    market_probability = effective_settlement_probability(market)
+    if model_probability is None or market_probability is None:
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    if not _close(float(row["entry_devig_probability"]), market_probability):
+        return "ENTRY_DEVIG_PROBABILITY_CONFLICT"
+    if not _close(float(row["model_expected_value"]), _expected_return(model, odds)):
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    if not _close(
+        float(row["model_market_probability_delta"]),
+        round(model_probability - market_probability, 6),
+    ):
+        return "DERIVED_METRIC_IDENTITY_CONFLICT"
+    return None
+
+
+def _close(left: float, right: float) -> bool:
+    return math.isclose(left, right, abs_tol=1e-6)
 
 
 def _temporal_splits(

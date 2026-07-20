@@ -31,7 +31,15 @@ def ready_shadow(*, fair_ah: float = -1.25, leader: str = "HOME") -> dict[str, o
 
 
 def ready_analysis() -> dict[str, object]:
-    return {"status": "READY", "blockers": []}
+    return {
+        "status": "READY",
+        "blockers": [],
+        "formal_ah_readiness": {
+            "admission_ready": True,
+            "formal_eligible": True,
+            "blockers": [],
+        },
+    }
 
 
 def simulation(**overrides: object):
@@ -752,7 +760,7 @@ def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -
     assert "MISSING_AH_MARKET" not in result.blockers
 
 
-def test_config_off_suppresses_formal_without_changing_eligibility() -> None:
+def test_config_off_suppresses_formal_and_keeps_formal_ineligible() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
@@ -765,7 +773,7 @@ def test_config_off_suppresses_formal_without_changing_eligibility() -> None:
     )
 
     assert result.tier == "WATCH"
-    assert result.formal_eligible is True
+    assert result.formal_eligible is False
     assert result.formal_suppressed is True
     assert result.formal_suppressed_reason == "W2_FORMAL_RECOMMENDATION_ENABLED=false"
 

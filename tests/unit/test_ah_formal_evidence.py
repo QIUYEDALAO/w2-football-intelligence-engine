@@ -23,6 +23,9 @@ def _row(index: int, kickoff: datetime, *, legacy: bool = False) -> dict[str, ob
     model = {"WIN": 0.7 if outcome == "WIN" else 0.1, "HALF_WIN": 0.05, "PUSH": 0.1,
              "HALF_LOSS": 0.05, "LOSS": 0.1 if outcome == "WIN" else 0.7}
     market = {"WIN": 0.45, "HALF_WIN": 0.1, "PUSH": 0.1, "HALF_LOSS": 0.1, "LOSS": 0.25}
+    model_effective = 0.775 if outcome == "WIN" else 0.175
+    model_ev = 0.6 if outcome == "WIN" else -0.6
+    market_effective = 0.55
     return {
         "fixture_id": f"fixture-{index}",
         "identity_trace_id": f"trace-{index}",
@@ -35,18 +38,21 @@ def _row(index: int, kickoff: datetime, *, legacy: bool = False) -> dict[str, ob
         "model_probabilities": model,
         "market_devig_probabilities": market,
         "selection_odds": 2.0,
-        "entry_devig_probability": 0.42,
-        "closing_devig_probability": 0.46,
+        "entry_devig_probability": market_effective,
+        "closing_devig_probability": market_effective + 0.04,
         "closing_quote_identity_hash": f"closing-{index}",
         "closing_quote_captured_at": (kickoff - timedelta(minutes=10)).isoformat().replace(
             "+00:00",
             "Z",
         ),
-        "model_expected_value": 0.05,
-        "model_market_probability_delta": 0.05,
+        "model_expected_value": model_ev,
+        "model_market_probability_delta": round(model_effective - market_effective, 6),
+        "selection": "HOME",
         "league": "test-league",
         "line": -0.5,
         "selection_side": "HOME",
+        "closing_selection": "HOME",
+        "closing_line": -0.5,
         "distinct_evidence_groups": ["ratings", "xg", "lineup"],
         "model_version": "frozen-model",
         "calibration_version": "frozen-calibration",

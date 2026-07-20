@@ -51,6 +51,9 @@ class CalibrationArtifactV1:
     train_count: int
     validation_count: int
     holdout_count: int
+    accepted_row_count: int
+    rejected_row_count: int
+    exclusion_report: dict[str, int]
     publicly_active: bool
     production_active: bool
     code_sha: str
@@ -121,8 +124,10 @@ def build_calibration_artifact(
     test_only: bool = False,
 ) -> dict[str, Any]:
     replay_rows: list[Mapping[str, Any]] = [dict(row) for row in rows]
-    splits = _split_counts(replay_rows)
-    status = "TEST_ONLY" if test_only and replay_rows else "INSUFFICIENT_EVIDENCE"
+    accepted_rows = [row for row in replay_rows if not row.get("blockers")]
+    rejected_rows = [row for row in replay_rows if row.get("blockers")]
+    splits = _split_counts(accepted_rows)
+    status = "TEST_ONLY" if test_only and accepted_rows else "INSUFFICIENT_EVIDENCE"
     payload: dict[str, Any] = {
         "schema_version": CALIBRATION_ARTIFACT_SCHEMA,
         "status": status,
@@ -130,6 +135,9 @@ def build_calibration_artifact(
         "train_count": splits["train"],
         "validation_count": splits["validation"],
         "holdout_count": splits["holdout"],
+        "accepted_row_count": len(accepted_rows),
+        "rejected_row_count": len(rejected_rows),
+        "exclusion_report": _exclusion_report(rejected_rows),
         "publicly_active": False,
         "production_active": False,
         "code_sha": code_sha,
@@ -138,9 +146,11 @@ def build_calibration_artifact(
         "historical_manifest_sha": historical_manifest_sha,
         "f5_manifest_sha": f5_manifest_sha,
         "f8_manifest_sha": f8_manifest_sha,
-        "train_input_sha": _hash([row for row in replay_rows if _split(row) == "train"]),
-        "validation_input_sha": _hash([row for row in replay_rows if _split(row) == "validation"]),
-        "holdout_input_sha": _hash([row for row in replay_rows if _split(row) == "holdout"]),
+        "train_input_sha": _hash([row for row in accepted_rows if _split(row) == "train"]),
+        "validation_input_sha": _hash(
+            [row for row in accepted_rows if _split(row) == "validation"]
+        ),
+        "holdout_input_sha": _hash([row for row in accepted_rows if _split(row) == "holdout"]),
         "parameters": {},
         "metrics": {"test_only": test_only},
         "evaluator_version": evaluator_version,
@@ -152,20 +162,35 @@ def build_calibration_artifact(
 
 def _replay_blockers(row: Mapping[str, Any]) -> list[str]:
     blockers: list[str] = []
+    kickoff = _parse(row.get("kickoff_utc"))
+    as_of = _parse(row.get("as_of_utc"))
+    if kickoff is None or as_of is None:
+        blockers.append("INVALID_REPLAY_TIMESTAMP")
+    elif as_of >= kickoff:
+        blockers.append("ASOF_NOT_STRICTLY_PREMATCH")
     if row.get("f5_status") != "READY" or row.get("f5_proxy") is True:
         blockers.append("F5_PROXY_OR_NOT_READY")
+    if not _strings(row.get("f5_fact_hashes")):
+        blockers.append("F5_MANIFEST_MISSING")
     if row.get("f8_status") != "READY":
         blockers.append("F8_INCOMPLETE")
+    if not _strings(row.get("team_value_artifact_hashes")):
+        blockers.append("F8_ARTIFACT_MISSING")
     if row.get("future_valuation") is True:
         blockers.append("FUTURE_VALUATION")
     if row.get("market_baseline_status") != "READY":
         blockers.append("MISSING_MARKET_BASELINE")
     if row.get("mixed_quote_batch") is True:
         blockers.append("MIXED_QUOTE_BATCH")
-    if _post_kickoff(row):
-        blockers.append("POST_KICKOFF_DATA")
     if not _text(row.get("source_manifest_sha")):
         blockers.append("MISSING_SOURCE_HASH")
+    for key in ("model_version", "factor_registry_sha", "market_baseline_hash"):
+        if not _text(row.get(key)):
+            blockers.append(f"MISSING_{key.upper()}")
+    if not _text(row.get("quote_identity_hash")):
+        blockers.append("MISSING_QUOTE_IDENTITY")
+    if not _text(row.get("result_identity_hash")):
+        blockers.append("MISSING_RESULT_IDENTITY")
     if row.get("identity_conflict") is True:
         blockers.append("IDENTITY_CONFLICT")
     return blockers
@@ -181,7 +206,7 @@ def _split_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
 def _split(row: Mapping[str, Any]) -> str:
     kickoff = _parse(row.get("kickoff_utc"))
     if kickoff is None:
-        return "holdout"
+        return "invalid"
     if kickoff <= datetime(2024, 12, 31, 23, 59, 59, tzinfo=UTC):
         return "train"
     if kickoff <= datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC):
@@ -189,10 +214,16 @@ def _split(row: Mapping[str, Any]) -> str:
     return "holdout"
 
 
-def _post_kickoff(row: Mapping[str, Any]) -> bool:
-    as_of = _parse(row.get("as_of_utc"))
-    kickoff = _parse(row.get("kickoff_utc"))
-    return as_of is not None and kickoff is not None and as_of > kickoff
+def _exclusion_report(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        blockers = row.get("blockers")
+        if not isinstance(blockers, list):
+            continue
+        for blocker in blockers:
+            key = str(blocker)
+            counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _parse(value: object) -> datetime | None:
