@@ -1,20 +1,31 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
 from w2.competitions.registry import CoverageProfile
 from w2.features.framework import FeatureContext
 from w2.features.team_factors import TeamMatchHistory, recent_ah_cover_factor
+from w2.historical.fah_repository import FahDataFoundationRepository
 from w2.historical.formal_ah import (
     audit_formal_ah_sources,
     build_canonical_ah_facts,
     decimal_line,
 )
+from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.models import (
+    TeamIdentityCrosswalkModel,
+    TeamValueAsOfArtifactModel,
+)
 from w2.lineups.value_identity import (
     approved_crosswalk_for_team,
+    build_player_crosswalk,
     build_team_crosswalk,
     materialize_team_value_asof,
 )
@@ -95,6 +106,48 @@ def test_missing_registry_metadata_does_not_approve_file(tmp_path: Path) -> None
     assert report["approved_source_count"] == 0
 
 
+def test_registry_rejects_duplicate_source_id(tmp_path: Path) -> None:
+    registry = {
+        "sources": [
+            {"source_id": "dup", "provider": "p"},
+            {"source_id": "dup", "provider": "p"},
+        ]
+    }
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(registry), encoding="utf-8")
+
+    try:
+        audit_formal_ah_sources(source_root=tmp_path, registry_path=path)
+    except ValueError as exc:
+        assert "DUPLICATE_SOURCE_ID:dup" in str(exc)
+    else:
+        raise AssertionError("duplicate source_id must fail closed")
+
+
+def test_source_path_must_stay_under_source_root(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "outside.csv"
+    _write_csv(outside, _ah_rows())
+    registry = _registry(tmp_path / "registry.json", local_path="../outside.csv")
+
+    report = audit_formal_ah_sources(source_root=tmp_path, registry_path=registry)
+
+    assert report["approved_source_count"] == 0
+    assert "BLOCKED_SOURCE_OUTSIDE_ROOT" in report["blocked_reasons"]
+
+
+def test_csv_gz_source_is_supported(tmp_path: Path) -> None:
+    path = tmp_path / "approved.csv.gz"
+    with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(_ah_rows()[0]))
+        writer.writeheader()
+        writer.writerows(_ah_rows())
+    registry = _registry(tmp_path / "registry.json", local_path="approved.csv.gz")
+
+    report = audit_formal_ah_sources(source_root=tmp_path, registry_path=registry)
+
+    assert report["approved_source_count"] == 1
+
+
 def test_closing_only_and_aggregate_sources_are_excluded(tmp_path: Path) -> None:
     _write_csv(tmp_path / "closing.csv", [{**row, "captured_at": ""} for row in _ah_rows()])
     registry = _registry(
@@ -120,6 +173,36 @@ def test_canonical_fact_uses_latest_t30_pair_and_is_deterministic(tmp_path: Path
     assert first["facts"][0]["fact_hash"] == second["facts"][0]["fact_hash"]
     assert first["facts"][0]["home_settlement"] == "WIN"
     assert first["facts"][0]["away_settlement"] == "LOSS"
+
+
+def test_fact_hash_changes_when_odds_change(tmp_path: Path) -> None:
+    rows = _ah_rows()
+    _write_csv(tmp_path / "first.csv", rows)
+    _write_csv(
+        tmp_path / "second.csv",
+        [{**row, "decimal_odds": "1.92"} if row["side"] == "HOME" else row for row in rows],
+    )
+    first = build_canonical_ah_facts(
+        source_root=tmp_path,
+        registry_path=_registry(tmp_path / "first-registry.json", local_path="first.csv"),
+    )
+    second = build_canonical_ah_facts(
+        source_root=tmp_path,
+        registry_path=_registry(tmp_path / "second-registry.json", local_path="second.csv"),
+    )
+
+    assert first["facts"][0]["fact_hash"] != second["facts"][0]["fact_hash"]
+
+
+def test_result_identity_conflict_is_isolated(tmp_path: Path) -> None:
+    rows = _ah_rows() + [{**_ah_rows()[0], "market": "RESULT", "final_home_goals_90": "3"}]
+    _write_csv(tmp_path / "approved.csv", rows)
+    registry = _registry(tmp_path / "registry.json", local_path="approved.csv")
+
+    result = build_canonical_ah_facts(source_root=tmp_path, registry_path=registry)
+
+    assert result["audit"]["canonical_fact_count"] == 0
+    assert result["audit"]["result_conflicts"] == 1
 
 
 def test_post_kickoff_quote_rejected(tmp_path: Path) -> None:
@@ -176,6 +259,41 @@ def test_f5_uses_canonical_facts_and_excludes_push_denominator() -> None:
     assert factor.inputs["away_decisive_count"] == 1
 
 
+def test_f5_rejects_conflicting_fact_id_hash_identity() -> None:
+    context = FeatureContext(
+        fixture_id="future",
+        competition_id="allsvenskan",
+        home_team_id="home",
+        away_team_id="away",
+        kickoff_at=datetime(2026, 7, 21, tzinfo=UTC),
+        as_of=AS_OF,
+    )
+    profile = CoverageProfile(
+        xg="API_FOOTBALL_STATISTICS",
+        lineups_injuries="API_FOOTBALL_LINEUPS",
+        squad_value="TRANSFERMARKT_REVIEWED_STATIC_MAPPING",
+        bookmaker_depth="API_FOOTBALL_ODDS",
+        h2h="API_FOOTBALL_FIXTURES",
+        settled_ah="INTERNAL_SETTLEMENT",
+    )
+    first = _history("same-fact", "WIN")
+    conflicting = TeamMatchHistory(
+        **{
+            **first.__dict__,
+            "ah_fact_hash": "different-hash",
+        }
+    )
+
+    factor = recent_ah_cover_factor(
+        context=context,
+        profile=profile,
+        home_history=[first, conflicting],
+        away_history=[_history("a1", "LOSS")],
+    )
+
+    assert factor.status.value == "INSUFFICIENT_DATA"
+
+
 def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
     approved = build_team_crosswalk(
         {
@@ -184,6 +302,7 @@ def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
             "competition_id": "allsvenskan",
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
+            "evidence": {"source": "manual-review"},
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
@@ -207,6 +326,56 @@ def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
     assert status == "CONFLICT"
 
 
+def test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk() -> None:
+    pending = build_player_crosswalk(
+        {
+            "api_football_player_id": "p-api",
+            "api_football_team_id": "1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "b" * 64,
+            "evidence": {"name_match": "exact", "position_match": "forward"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        },
+        team_crosswalks=[],
+    )
+
+    team = build_team_crosswalk(
+        {
+            "api_football_team_id": "1",
+            "transfermarkt_club_id": "club-1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "a" * 64,
+            "evidence": {"source": "manual-review"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        }
+    )
+    approved = build_player_crosswalk(
+        {
+            "api_football_player_id": "p-api",
+            "transfermarkt_player_id": "tm-p",
+            "api_football_team_id": "1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "b" * 64,
+            "evidence": {"source": "manual-review"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        },
+        team_crosswalks=[team],
+    )
+
+    assert pending.review_status == "REVIEW_REQUIRED"
+    assert approved.review_status == "APPROVED"
+    assert approved.transfermarkt_club_id == "club-1"
+
+
 def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path: Path) -> None:
     crosswalk = build_team_crosswalk(
         {
@@ -215,18 +384,19 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             "competition_id": "allsvenskan",
             "valid_from": "2024-01-01T00:00:00Z",
             "source_sha256": "a" * 64,
+            "evidence": {"source": "manual-review"},
             "review_status": "APPROVED",
             "reviewed_by": "reviewer",
             "reviewed_at": "2024-01-02T00:00:00Z",
         }
     )
     _write_csv(
-        tmp_path / "game_lineups.csv",
+        tmp_path / "registered_roster_snapshots.csv",
         [
             {
                 "transfermarkt_player_id": "p1",
                 "club_id": "club-1",
-                "date": "2024-05-01T00:00:00Z",
+                "observed_at": "2024-05-01T00:00:00Z",
                 "identity_hash": "p1hash",
             }
         ],
@@ -268,8 +438,124 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
 
     assert artifact["status"] == "READY"
     assert artifact["squad_value_eur"] == "100"
+    assert artifact["roster_source_hash"]
+    assert artifact["membership_source_hashes"] == [artifact["roster_source_hash"]]
     assert artifact["future_valuation_exclusions"] == 1
     assert artifact["artifact_hash"] == rebuilt["artifact_hash"]
+
+
+def test_team_value_asof_rejects_same_day_valuation_conflict(tmp_path: Path) -> None:
+    crosswalk = build_team_crosswalk(
+        {
+            "api_football_team_id": "1",
+            "transfermarkt_club_id": "club-1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "a" * 64,
+            "evidence": {"source": "manual-review"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        }
+    )
+    _write_csv(
+        tmp_path / "registered_roster_snapshots.csv",
+        [
+            {
+                "transfermarkt_player_id": "p1",
+                "club_id": "club-1",
+                "observed_at": "2024-05-01T00:00:00Z",
+            }
+        ],
+    )
+    _write_csv(
+        tmp_path / "player_valuations.csv",
+        [
+            {
+                "transfermarkt_player_id": "p1",
+                "observed_at": "2024-04-01T00:00:00Z",
+                "market_value_eur": "100",
+            },
+            {
+                "transfermarkt_player_id": "p1",
+                "observed_at": "2024-04-01T12:00:00Z",
+                "market_value_eur": "101",
+            },
+        ],
+    )
+
+    artifact = materialize_team_value_asof(
+        fixture={
+            "team_external_id": "1",
+            "competition_id": "allsvenskan",
+            "as_of": "2024-05-02T00:00:00Z",
+        },
+        crosswalks=[crosswalk],
+        source_root=tmp_path,
+    )
+
+    assert artifact["status"] == "INCOMPLETE"
+    assert artifact["squad_value_eur"] is None
+    assert "VALUATION_CONFLICT" in artifact["blockers"]
+
+
+def test_fah_repository_writes_idempotently_and_rolls_back_conflicts() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    row = build_team_crosswalk(
+        {
+            "api_football_team_id": "1",
+            "transfermarkt_club_id": "club-1",
+            "competition_id": "allsvenskan",
+            "valid_from": "2024-01-01T00:00:00Z",
+            "source_sha256": "a" * 64,
+            "evidence": {"source": "manual-review"},
+            "review_status": "APPROVED",
+            "reviewed_by": "reviewer",
+            "reviewed_at": "2024-01-02T00:00:00Z",
+        }
+    ).as_dict()
+
+    first = repository.write_team_crosswalks([row])
+    second = repository.write_team_crosswalks([row])
+    conflict = repository.write_team_crosswalks(
+        [{**row, "transfermarkt_club_id": "club-2"}]
+    )
+
+    with Session(engine) as session:
+        count = len(session.scalars(select(TeamIdentityCrosswalkModel)).all())
+
+    assert first.inserted == 1
+    assert second.skipped_identical == 1
+    assert conflict.rolled_back is True
+    assert count == 1
+
+
+def test_fah_repository_can_query_team_value_by_team_and_asof() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    artifact = {
+        "team_external_id": "1",
+        "transfermarkt_club_id": "club-1",
+        "competition_id": "allsvenskan",
+        "as_of": "2024-05-02T00:00:00Z",
+        "status": "READY",
+        "artifact_hash": "c" * 64,
+    }
+
+    summary = repository.write_team_value_artifacts([artifact])
+
+    with Session(engine) as session:
+        found = session.scalars(
+            select(TeamValueAsOfArtifactModel).where(
+                TeamValueAsOfArtifactModel.team_external_id == "1"
+            )
+        ).one()
+
+    assert summary.inserted == 1
+    assert found.artifact_hash == "c" * 64
 
 
 def _history(
@@ -289,7 +575,7 @@ def _history(
         source="canonical_historical_ah_fact",
         source_group="team_fixture_history",
         proxy_of=proxy_of,
-        collection_status="READY",
+        collection_status="CANONICAL_AH_FACT",
         ah_fact_id=fact_id,
         ah_fact_hash=f"{fact_id}-hash",
         quote_identity_hash=f"{fact_id}-quote",

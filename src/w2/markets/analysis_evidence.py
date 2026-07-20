@@ -43,6 +43,13 @@ def build_analysis_market_evidence(
         "selection": normalized_selection,
         "line": _text(line),
         "quote_identity": {},
+        "quote_evidence_status": "NOT_READY",
+        "model_evidence_status": "NOT_READY",
+        "direction_status": "NOT_READY",
+        "quote_usage": "NONE",
+        "ev_eligible": False,
+        "formal_eligible": False,
+        "lock_eligible": False,
         "market_probability": {},
         "model_probability": {"status": "NOT_READY"},
         "comparison": {"analysis_direction_allowed": False, "status": "NOT_READY"},
@@ -75,6 +82,7 @@ def build_analysis_market_evidence(
         or any(price is None or price <= 1 for price in prices.values())
     ):
         return _finish(base, "AUTHORITATIVE_QUOTE_INCOMPLETE")
+    base["quote_evidence_status"] = "READY"
     complete_prices = {side: price for side, price in prices.items() if price is not None}
     raw = {side: round(float(Decimal("1") / complete_prices[side]), 6) for side in sides}
     devigged = devig(complete_prices, DevigMethod.PROPORTIONAL)
@@ -95,27 +103,39 @@ def build_analysis_market_evidence(
         for side in sides
     }
     base["side_evidence"] = side_evidence
+    all_model_ready = all(
+        row["model_probability"].get("status") == "READY" for row in side_evidence.values()
+    )
     if normalized_selection is None:
+        base["quote_usage"] = "COMPARISON_ONLY"
         base["model_probability"] = {
-            "status": "SIDE_EVIDENCE_AVAILABLE"
-            if all(
-                row["model_probability"].get("status") == "READY"
-                for row in side_evidence.values()
-            )
-            else "NOT_READY"
+            "status": "SIDE_EVIDENCE_AVAILABLE" if all_model_ready else "NOT_READY"
         }
+        base["model_evidence_status"] = "READY" if all_model_ready else "NOT_READY"
+        base["direction_status"] = "NO_DIRECTION_SELECTED" if all_model_ready else "NOT_READY"
         base["comparison"] = {
             "analysis_direction_allowed": False,
-            "status": "NO_SELECTION",
+            "status": "NO_EDGE" if all_model_ready else "NOT_READY",
             "reason_code": "NO_DIRECTION_SELECTED",
         }
-        return _finish(base, "COMPLETE")
+        return _finish(base, "NO_EDGE" if all_model_ready else "NOT_READY")
     selected_evidence = side_evidence[normalized_selection]
     model = selected_evidence["model_probability"]
     base["model_probability"] = model
     if model.get("status") != "READY":
-        return _finish(base, "MODEL_EVIDENCE_INCOMPLETE")
+        base["model_evidence_status"] = "NOT_READY"
+        base["direction_status"] = "NOT_READY"
+        base["comparison"] = {
+            "analysis_direction_allowed": False,
+            "status": "NOT_READY",
+            "reason_code": "MODEL_EVIDENCE_NOT_READY",
+        }
+        return _finish(base, "NOT_READY")
+    base["quote_usage"] = "EXECUTABLE"
+    base["model_evidence_status"] = "READY"
     base["comparison"] = selected_evidence["comparison"]
+    base["direction_status"] = str(base["comparison"].get("status") or "UNKNOWN")
+    base["ev_eligible"] = bool(base["comparison"].get("analysis_direction_allowed"))
     return _finish(base, "COMPLETE")
 
 

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import hashlib
 import json
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from w2.domain.odds import settle_asian_handicap
 
@@ -143,11 +144,17 @@ def load_source_registry(path: Path | None) -> dict[str, dict[str, Any]]:
     rows = payload.get("sources") if isinstance(payload, dict) else payload
     if not isinstance(rows, list):
         return {}
-    return {
-        str(row.get("source_id") or ""): row
-        for row in rows
-        if isinstance(row, dict) and str(row.get("source_id") or "")
-    }
+    registry: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source_id = str(row.get("source_id") or "")
+        if not source_id:
+            continue
+        if source_id in registry:
+            raise ValueError(f"DUPLICATE_SOURCE_ID:{source_id}")
+        registry[source_id] = row
+    return registry
 
 
 def audit_formal_ah_sources(
@@ -177,7 +184,10 @@ def audit_registered_source(
     rel = str(metadata.get("local_path") or metadata.get("object_uri") or "")
     source_id = str(metadata.get("source_id") or "")
     provider = str(metadata.get("provider") or "")
-    path = (source_root / rel).resolve() if rel else source_root / "__missing__"
+    root = source_root.resolve()
+    path = (root / rel).resolve() if rel else root / "__missing__"
+    if root not in (path, *path.parents):
+        return _blocked_source(metadata, "BLOCKED_SOURCE_OUTSIDE_ROOT")
     if not path.is_file():
         return _blocked_source(metadata, "BLOCKED_SOURCE_NOT_AVAILABLE")
     rows = read_rows(path)
@@ -202,6 +212,8 @@ def audit_registered_source(
     retention = bool(metadata.get("retention_permitted") is True)
     backtest = bool(metadata.get("internal_backtest_permitted") is True)
     reasons: list[str] = []
+    if not source_id or not provider or not _optional_text(metadata.get("schema_version")):
+        reasons.append("BLOCKED_REGISTRY_SCHEMA_INVALID")
     if license_status != "APPROVED" or not retention or not backtest:
         reasons.append(
             "BLOCKED_LICENSE_UNKNOWN"
@@ -267,7 +279,8 @@ def build_canonical_ah_facts(
         source_meta = registry[audit.source_id]
         path = Path(audit.local_path_or_object_uri)
         rows = read_rows(path)
-        result_rows = {_fixture_id(row): row for row in rows if _result_ready(row)}
+        result_rows, result_conflicts = _result_rows_by_fixture(rows)
+        exclusions.update(result_conflicts)
         for fixture_id, fixture_rows in _group_rows(rows).items():
             result = result_rows.get(fixture_id)
             if result is None:
@@ -357,17 +370,14 @@ def write_audit_outputs(payload: Mapping[str, Any], *, json_path: Path, md_path:
 
 
 def read_rows(path: Path) -> list[dict[str, Any]]:
-    if path.suffix == ".jsonl":
-        return [
-            json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-    if path.suffix == ".json":
-        payload = json.loads(path.read_text(encoding="utf-8"))
+    suffix = "".join(path.suffixes[-2:]) if path.suffix == ".gz" else path.suffix
+    if suffix in {".jsonl", ".jsonl.gz"}:
+        return [json.loads(line) for line in _read_text(path).splitlines() if line.strip()]
+    if suffix in {".json", ".json.gz"}:
+        payload = json.loads(_read_text(path))
         return payload if isinstance(payload, list) else list(payload.get("rows", []))
-    if path.suffix == ".csv":
-        with path.open(encoding="utf-8", newline="") as handle:
+    if suffix in {".csv", ".csv.gz"}:
+        with _open_text(path) as handle:
             return list(csv.DictReader(handle))
     return []
 
@@ -383,6 +393,9 @@ def _fact_for_fixture(
     kickoff = parse_utc(_first(row.get("kickoff_utc") for row in fixture_rows))
     if kickoff is None:
         return None, "fixture_mapping_conflict"
+    fixture_reason = _fixture_identity_conflict(fixture_rows)
+    if fixture_reason is not None:
+        return None, fixture_reason
     eligible = [
         row
         for row in ah
@@ -391,9 +404,11 @@ def _fact_for_fixture(
     ]
     if not eligible:
         return None, "post_kickoff_quote"
-    by_pair: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    by_pair: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in eligible:
         pair_key = (
+            _text(row.get("provider") or audit.provider),
+            _fixture_id(row),
             _text(row.get("bookmaker_id") or row.get("bookmaker")),
             _text(row.get("captured_at") or row.get("quote_captured_at")),
         )
@@ -420,6 +435,11 @@ def _fact_for_fixture(
     if len(pairs) > 1 and pairs[0][0] == pairs[1][0]:
         return None, "quote_conflict"
     captured, home, away = pairs[0]
+    if _text(home.get("observation_id")) == _text(away.get("observation_id")):
+        return None, "quote_conflict"
+    pair_reason = _quote_pair_identity_conflict(home, away, audit)
+    if pair_reason is not None:
+        return None, pair_reason
     result_status = _text(result.get("result_status") or result.get("status"))
     if result_status not in {"FINAL", "FT"}:
         return None, "result_conflict"
@@ -457,6 +477,11 @@ def _fact_for_fixture(
         "away_observation_id": _text(away.get("observation_id")),
         "home_line": home_line_text,
         "away_line": away_line_text,
+        "home_decimal_odds": str(decimal_odds(home.get("decimal_odds"))),
+        "away_decimal_odds": str(decimal_odds(away.get("decimal_odds"))),
+        "source_id": audit.source_id,
+        "source_snapshot_id": str(source_meta.get("source_snapshot_id") or audit.source_id),
+        "source_sha256": source_sha,
     }
     quote_hash = stable_hash(quote_identity)
     result_hash = stable_hash(
@@ -481,7 +506,12 @@ def _fact_for_fixture(
         "checkpoint_policy": CHECKPOINT_POLICY,
         "as_of_utc": iso(captured),
         "result_identity_hash": result_hash,
+        "home_settlement": home_settlement.value,
+        "away_settlement": away_settlement.value,
         "settlement_version": SETTLEMENT_VERSION,
+        "source_id": audit.source_id,
+        "source_sha256": source_sha,
+        "source_license_status": audit.source_license_status,
     }
     fact_hash = stable_hash(core)
     return (
@@ -569,6 +599,8 @@ def _blocked_source(metadata: Mapping[str, Any], reason: str) -> HistoricalSourc
 
 def _primary_source_status(reasons: list[str]) -> str:
     for candidate in (
+        "BLOCKED_SOURCE_OUTSIDE_ROOT",
+        "BLOCKED_REGISTRY_SCHEMA_INVALID",
         "DIAGNOSTIC_CLOSING_ONLY",
         "BLOCKED_LICENSE_UNKNOWN",
         "BLOCKED_LICENSE_PROHIBITS_RETENTION",
@@ -621,6 +653,95 @@ def _result_ready(row: Mapping[str, Any]) -> bool:
     return _text(row.get("result_status") or row.get("status")).upper() in {"FINAL", "FT"} and (
         row.get("final_home_goals_90") is not None and row.get("final_away_goals_90") is not None
     )
+
+
+def _result_rows_by_fixture(
+    rows: Iterable[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], Counter[str]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if _result_ready(row):
+            grouped[_fixture_id(row)].append(row)
+    output: dict[str, dict[str, Any]] = {}
+    exclusions: Counter[str] = Counter()
+    for fixture_id, fixture_rows in grouped.items():
+        identities = {
+            stable_hash(
+                {
+                    "status": _text(row.get("result_status") or row.get("status")),
+                    "home": _text(row.get("final_home_goals_90")),
+                    "away": _text(row.get("final_away_goals_90")),
+                    "source": _text(row.get("result_source_sha256") or row.get("_source_sha256")),
+                }
+            )
+            for row in fixture_rows
+        }
+        if len(identities) > 1:
+            exclusions["result_conflict"] += 1
+            continue
+        output[fixture_id] = fixture_rows[0]
+    return output, exclusions
+
+
+def _fixture_identity_conflict(rows: Sequence[Mapping[str, Any]]) -> str | None:
+    fields = (
+        "provider_fixture_id",
+        "competition_id",
+        "season",
+        "kickoff_utc",
+        "home_team_provider_id",
+        "away_team_provider_id",
+    )
+    for field in fields:
+        values = {_text(row.get(field)) for row in rows if _text(row.get(field))}
+        if len(values) > 1:
+            return "fixture_mapping_conflict"
+    return None
+
+
+def _quote_pair_identity_conflict(
+    home: Mapping[str, Any],
+    away: Mapping[str, Any],
+    audit: HistoricalSourceAudit,
+) -> str | None:
+    fields = (
+        "provider_fixture_id",
+        "competition_id",
+        "season",
+        "kickoff_utc",
+        "home_team_provider_id",
+        "away_team_provider_id",
+        "bookmaker_id",
+    )
+    for field in fields:
+        if _text(home.get(field)) != _text(away.get(field)):
+            return "quote_conflict"
+    if _text(home.get("captured_at") or home.get("quote_captured_at")) != _text(
+        away.get("captured_at") or away.get("quote_captured_at")
+    ):
+        return "quote_conflict"
+    if _text(home.get("provider") or audit.provider) != _text(
+        away.get("provider") or audit.provider
+    ):
+        return "quote_conflict"
+    if _text(home.get("_source_sha256") or audit.source_sha256) != _text(
+        away.get("_source_sha256") or audit.source_sha256
+    ):
+        return "quote_conflict"
+    return None
+
+
+def _open_text(path: Path) -> TextIO:
+    if path.suffix == ".gz":
+        return gzip.open(path, "rt", encoding="utf-8", newline="")
+    return path.open("r", encoding="utf-8", newline="")
+
+
+def _read_text(path: Path) -> str:
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            return handle.read()
+    return path.read_text(encoding="utf-8")
 
 
 def _first(values: Iterable[object]) -> object | None:

@@ -111,6 +111,7 @@ def _candidate(
     model = _mapping(evidence.get("model_probability"))
     comparison = _mapping(evidence.get("comparison"))
     model_status = _text(model.get("status"), "NOT_READY")
+    quote_usage = str(evidence.get("quote_usage") or "")
     reference = _reference_quote(audit)
     return {
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
@@ -122,7 +123,11 @@ def _candidate(
         "selection": market_row.get("tendency"),
         "line": line,
         "quote_status": quote_status,
-        "quote_usage": "EXECUTABLE" if executable else "REFERENCE_ONLY",
+        "quote_usage": "EXECUTABLE"
+        if executable
+        else "COMPARISON_ONLY"
+        if quote_complete and quote_usage == "COMPARISON_ONLY"
+        else "REFERENCE_ONLY",
         "quotes": {
             "executable": executable_odds if executable else None,
             "opening_reference": None,

@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
+from w2.historical.fah_repository import FahDataFoundationRepository
 from w2.lineups.value_identity import (
     identity_value_audit,
     import_team_crosswalk_file,
@@ -23,6 +24,8 @@ def main() -> int:
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.write and not args.database_url:
+        parser.error("--write requires --database-url")
 
     fixtures = json.loads(args.fixture_as_of_file.read_text(encoding="utf-8"))
     if isinstance(fixtures, dict):
@@ -42,11 +45,18 @@ def main() -> int:
         json.dumps(artifacts, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    write_summary = None
+    if args.write and not args.dry_run:
+        repository = FahDataFoundationRepository.from_url(str(args.database_url))
+        write_summary = repository.write_team_value_artifacts(artifacts)
     audit = identity_value_audit(
         crosswalks=crosswalks,
         artifacts=artifacts,
         source_root=args.source_root,
     )
+    audit["dry_run"] = not args.write or args.dry_run
+    audit["database_write"] = bool(write_summary and write_summary.db_writes)
+    audit["write_summary"] = write_summary.as_dict() if write_summary else None
     write_json_and_md(audit, args.output_root / "FAH04_IDENTITY_VALUE_AUDIT.json")
     return 0
 

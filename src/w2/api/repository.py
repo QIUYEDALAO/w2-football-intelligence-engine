@@ -3912,10 +3912,10 @@ class ReadModelService:
             quote_identity_hash=self._string_or_none(item.get("quote_identity_hash")),
             result_identity_hash=self._string_or_none(item.get("result_identity_hash")),
             settlement_outcome=self._string_or_none(item.get("settlement_outcome")),
-            source=source,
+            source=str(item.get("source") or source),
             source_group=source_group,
             is_independent_signal=True,
-            collection_status="READY",
+            collection_status=str(item.get("collection_status") or "READY"),
         )
 
     def _fixture_has_teams(self, item: dict[str, Any], team_a_id: str, team_b_id: str) -> bool:
