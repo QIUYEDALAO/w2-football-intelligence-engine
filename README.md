@@ -1,5 +1,15 @@
 # W2 Football Intelligence Engine
 
+## Sol / Codex Context
+
+Start here for every Web Sol review or Codex handoff:
+
+`docs/context/W2_GITHUB_CONTEXT.md`
+
+That file is the single human-facing GitHub context entrypoint. Older roadmap,
+handoff, and status files remain as internal evidence sources referenced from
+that entrypoint; do not use them as the first review prompt.
+
 Current stage: Stage 3 Unified Football Data Model, built on the protected Stage 1 Product Contract and Stage 2 Engineering Foundation.
 
 This repository now contains the W2 engineering base plus the Stage 3 unified

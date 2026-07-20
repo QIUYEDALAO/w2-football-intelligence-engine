@@ -1,26 +1,29 @@
 # W2 GitHub Context
 
 > This is the short GitHub-maintained context entrypoint for Web Sol and Codex.
-> Read this first, then follow the linked authority files for details.
+> Use this as the single human-facing entrypoint. Follow linked evidence files
+> only when a review question needs the detail.
 
 ## Purpose
 
-This file exists so project context is maintained in GitHub, not only in chat memory.
-It records the current collaboration protocol, active review sources, and hard
-boundaries that new Sol/Codex sessions must preserve.
+This file exists so project context is maintained in GitHub, not only in chat
+memory. It records the current collaboration protocol, active review sources,
+and hard boundaries that new Sol/Codex sessions must preserve.
 
-## Authority Order
+## Human Review Entry
 
-1. `docs/W2_MASTER_ROADMAP.md`
-   - Long-term W2 product plan, stages, gates, and forbidden scope changes.
-2. `reports/W2_CURRENT_HANDOFF.md`
-   - Current cross-session handoff, runtime state, blockers, and recovery points.
-3. `reports/W2_ROADMAP_STATUS.json`
-   - Machine-readable phase and gate progress.
-4. Stage reports and PR descriptions
-   - Evidence for a specific implementation package.
-5. Chat history
-   - Supplemental context only; do not treat it as the durable source of truth.
+For Web Sol, this file is the first and only required context file.
+
+Do not start by reading the older long context files. They remain in the
+repository as internal evidence and CI-tested project records.
+
+When more detail is required, use this order:
+
+1. Relevant PR description or stage report.
+2. `reports/W2_CURRENT_HANDOFF.md` for runtime state and blockers.
+3. `reports/W2_ROADMAP_STATUS.json` for machine-readable gate progress.
+4. `docs/W2_MASTER_ROADMAP.md` for original long-term product scope.
+5. Chat history only as supplemental context.
 
 ## Current Collaboration Protocol
 
@@ -61,8 +64,9 @@ The user-approved workflow is:
 When Web Sol reviews the project, ask it to:
 
 1. Read this file first.
-2. Read `reports/W2_CURRENT_HANDOFF.md`.
-3. Inspect the relevant PR or stage report.
+2. Inspect the relevant PR or stage report.
+3. Open older context files only if this file or the PR explicitly points to
+   them for evidence.
 4. Return a bounded stage instruction for Codex with:
    - allowed files or modules,
    - explicit non-goals,
