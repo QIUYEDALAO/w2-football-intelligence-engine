@@ -18,6 +18,7 @@ from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
+ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
@@ -206,6 +207,10 @@ class AnalysisCardCanaryMaterializer:
             "quote_identity_sha256": canonical_sha256(card.get("quote_identity_audit") or {}),
             "simulation_sha256": canonical_sha256(card.get("simulation") or {}),
             "analysis_evidence_sha256": canonical_sha256(_analysis_evidence(card)),
+            # This is part of source identity, not merely metadata: a code
+            # change to how same-line evidence is projected must force a new
+            # immutable public artifact rather than serving an old projection.
+            "analysis_evidence_contract_version": ANALYSIS_EVIDENCE_CONTRACT_VERSION,
             "capability_manifest_sha256": load_recommendation_capability_manifest().sha256,
             "lineup_policy_version": str(
                 (card.get("lineup_provenance") or {}).get("policy_version")
