@@ -112,3 +112,35 @@ def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
     assert evidence["market_probability"]["overround"] == 0.052632
     assert evidence["model_probability"]["settlement_distribution"]
     assert evidence["evidence_hash"]
+
+
+def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
+    candidates = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "line": "-0.5"}],
+        quote_identity_audit={"ah": _audit()},
+        current_odds={},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation={
+            "status": "READY",
+            "model_version": "model",
+            "calibration_version": "calibration",
+            "lambda_home": 1.4,
+            "lambda_away": 0.9,
+            "calibration": {"params": {"dixon_coles_rho": 0.0}},
+        },
+    )
+
+    candidate = candidates["ah"]
+    assert candidate["selection"] is None
+    assert candidate["quote_status"] == "COMPLETE"
+    assert candidate["quote_usage"] == "REFERENCE_ONLY"
+    assert candidate["analysis_evidence_status"] == "COMPLETE"
+    assert candidate["analysis_evidence"]["comparison"]["status"] == "NO_SELECTION"
+    assert set(candidate["side_evidence"]) == {"HOME", "AWAY"}
+    assert all(
+        row["model_probability"]["status"] == "READY"
+        for row in candidate["side_evidence"].values()
+    )
+    assert candidate_is_executable(candidate) is False

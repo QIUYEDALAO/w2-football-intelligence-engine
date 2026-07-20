@@ -47,7 +47,7 @@ def build_analysis_market_evidence(
         "comparison": {"analysis_direction_allowed": False, "status": "NOT_READY"},
     }
     decimal_line = _decimal(line)
-    if key_and_sides is None or normalized_selection is None or decimal_line is None:
+    if key_and_sides is None or decimal_line is None:
         return _finish(base, "UNSUPPORTED_OR_INCOMPLETE_MARKET")
     key, sides = key_and_sides
     audit = _mapping(_mapping(quote_identity_audit).get(key))
@@ -81,28 +81,74 @@ def build_analysis_market_evidence(
         "overround": round(sum(raw.values()) - 1.0, 6),
         "devig": {side: round(devigged.probabilities[side], 6) for side in sides},
     }
-    model = _model_evidence(
-        market,
-        normalized_selection,
-        decimal_line,
-        complete_prices[normalized_selection],
-        simulation,
-    )
+    side_evidence = {
+        side: _side_evidence(
+            market=market,
+            selection=side,
+            line=decimal_line,
+            price=complete_prices[side],
+            market_probability=devigged.probabilities[side],
+            simulation=simulation,
+        )
+        for side in sides
+    }
+    base["side_evidence"] = side_evidence
+    if normalized_selection is None:
+        base["model_probability"] = {
+            "status": "SIDE_EVIDENCE_AVAILABLE"
+            if all(
+                row["model_probability"].get("status") == "READY"
+                for row in side_evidence.values()
+            )
+            else "NOT_READY"
+        }
+        base["comparison"] = {
+            "analysis_direction_allowed": False,
+            "status": "NO_SELECTION",
+            "reason_code": "NO_DIRECTION_SELECTED",
+        }
+        return _finish(base, "COMPLETE")
+    selected_evidence = side_evidence[normalized_selection]
+    model = selected_evidence["model_probability"]
     base["model_probability"] = model
     if model.get("status") != "READY":
         return _finish(base, "MODEL_EVIDENCE_INCOMPLETE")
-    delta = round(
-        float(model["effective_probability"]) - float(devigged.probabilities[normalized_selection]),
-        6,
-    )
-    allowed = bool(model.get("expected_value", 0.0) > 0 and delta >= MIN_MARKET_ANCHOR_DIVERGENCE)
-    base["comparison"] = {
-        "probability_delta": delta,
-        "analysis_direction_allowed": allowed,
-        "status": "READY" if allowed else "NO_EDGE",
-        "reason_code": "MODEL_MARKET_EDGE_READY" if allowed else "MODEL_MARKET_EDGE_INSUFFICIENT",
-    }
+    base["comparison"] = selected_evidence["comparison"]
     return _finish(base, "COMPLETE")
+
+
+def _side_evidence(
+    *,
+    market: str,
+    selection: str,
+    line: Decimal,
+    price: Decimal,
+    market_probability: float,
+    simulation: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    model = _model_evidence(market, selection, line, price, simulation)
+    if model.get("status") != "READY":
+        return {
+            "model_probability": model,
+            "comparison": {
+                "analysis_direction_allowed": False,
+                "status": "NOT_READY",
+                "reason_code": "MODEL_EVIDENCE_INCOMPLETE",
+            },
+        }
+    delta = round(float(model["effective_probability"]) - float(market_probability), 6)
+    allowed = bool(model.get("expected_value", 0.0) > 0 and delta >= MIN_MARKET_ANCHOR_DIVERGENCE)
+    return {
+        "model_probability": model,
+        "comparison": {
+            "probability_delta": delta,
+            "analysis_direction_allowed": allowed,
+            "status": "READY" if allowed else "NO_EDGE",
+            "reason_code": "MODEL_MARKET_EDGE_READY"
+            if allowed
+            else "MODEL_MARKET_EDGE_INSUFFICIENT",
+        },
+    }
 
 
 def _model_evidence(

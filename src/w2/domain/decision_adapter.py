@@ -83,6 +83,7 @@ def build_decision_contract_fields(
         market=market,
         recommendation=recommendation,
     )
+    available_quote_provenance = _available_quote_provenance(card)
     lifecycle_status = _lifecycle_status(card)
     recommendation_id = _first_text(
         _get(recommendation, "recommendation_id"),
@@ -178,6 +179,10 @@ def build_decision_contract_fields(
         "legacy_formal": legacy_formal,
         "integrity_status": "PASS",
         "quote_provenance_status": quote_provenance_status,
+        # A no-pick has no selected quote by definition.  Preserve that status
+        # while separately exposing whether auditable same-line quote evidence
+        # exists for the available AH/OU markets.
+        "available_quote_provenance": available_quote_provenance,
         "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
         "selected_market_candidate": evaluated_candidate,
         "analysis_evidence": _as_mapping(evaluated_candidate.get("analysis_evidence"))
@@ -318,6 +323,24 @@ def _quote_provenance_status(
     if freshness != "COMPLETE":
         return "INCOMPLETE"
     return "COMPLETE"
+
+
+def _available_quote_provenance(card: Mapping[str, Any]) -> dict[str, str]:
+    audit = _as_mapping(_get(card, "quote_identity_audit"))
+    statuses: dict[str, str] = {}
+    for market, key in (("AH", "ah"), ("OU", "ou")):
+        identity = _as_mapping(_get(audit, key))
+        if not identity:
+            statuses[market] = "MISSING"
+            continue
+        if _first_upper(_get(identity, "identity_status")) != "COMPLETE":
+            statuses[market] = "INCOMPLETE"
+            continue
+        freshness = _first_upper(_get(identity, "freshness_status"))
+        statuses[market] = "COMPLETE" if freshness == "COMPLETE" else (
+            "STALE" if freshness == "STALE" else "INCOMPLETE"
+        )
+    return statuses
 
 
 def _market_anchor_display_tier(

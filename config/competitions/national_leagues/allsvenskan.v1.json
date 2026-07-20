@@ -33,7 +33,7 @@
   "enabled": false,
   "activation_plan": "AUDIT_THEN_STAGING_ENABLE_NOW_IN_SEASON",
   "coverage_profile": {
-    "xg": "NOT_AUDITED_STAGE14_REQUIRED",
+    "xg": "API_FOOTBALL_ROLLING_XG_SNAPSHOT_AUDITED_STAGING",
     "lineups_injuries": "NOT_AUDITED_STAGE14_REQUIRED",
     "squad_value": "TRANSFERMARKT_DATASET_MAPPING_REQUIRED",
     "bookmaker_depth": "NOT_AUDITED_STAGE14_REQUIRED",

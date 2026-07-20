@@ -79,12 +79,11 @@ def _candidate(
     executable_odds = dict(odds) or _authoritative_executable_quote(
         audit, market_row.get("tendency")
     )
-    executable = (
-        identity_status == "COMPLETE" and freshness_status == "COMPLETE" and bool(executable_odds)
-    )
+    quote_complete = identity_status == "COMPLETE" and freshness_status == "COMPLETE"
+    executable = quote_complete and bool(executable_odds)
     quote_status = (
         "COMPLETE"
-        if executable
+        if quote_complete
         else "CONFLICT"
         if identity_status == "CONFLICT"
         else ("STALE" if freshness_status == "STALE" else "INCOMPLETE")
@@ -93,7 +92,9 @@ def _candidate(
     blockers.extend(str(item) for item in audit.get("freshness_blockers", []) if item)
     if not odds and executable:
         blockers.append("EXECUTABLE_ODDS_MISSING")
-    if not executable and not blockers:
+    if quote_complete and not executable:
+        blockers.append("NO_DIRECTION_SELECTED")
+    elif not executable and not blockers:
         blockers.append("QUOTE_NOT_EXECUTABLE")
     line = market_row.get("line")
     if line is None:
@@ -151,6 +152,7 @@ def _candidate(
         "analysis_evidence": evidence,
         "analysis_evidence_status": evidence.get("status"),
         "analysis_direction_allowed": comparison.get("analysis_direction_allowed") is True,
+        "side_evidence": evidence.get("side_evidence", {}),
         "evidence_hash": evidence.get("evidence_hash"),
         "ev_eligible": executable and model_status == "READY",
         "formal_eligible": False,

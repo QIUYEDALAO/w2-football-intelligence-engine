@@ -272,6 +272,15 @@ def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
     assert fields["pick"] is None
     assert fields["non_pick"] is not None
     assert fields["outcome_tracked"] is False
+    assert fields["quote_provenance_status"] == "COMPLETE"
+    assert fields["available_quote_provenance"] == {"AH": "COMPLETE", "OU": "COMPLETE"}
+
+
+def test_no_selected_market_keeps_available_quote_evidence_distinct() -> None:
+    fields = _fields(market=None, readiness={"status": "READY", "blockers": []})
+
+    assert fields["quote_provenance_status"] == "MISSING"
+    assert fields["available_quote_provenance"] == {"AH": "COMPLETE", "OU": "COMPLETE"}
 
 
 def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
