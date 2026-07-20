@@ -33,11 +33,47 @@ If an authorized API-Football credential is provided, the remediation is staging
 
 No formal recommendation, lock, production release, OFFICIAL capture, or calibration should be enabled by this remediation.
 
+## Remediation Update
+
+The local Codex process had `W2_API_FOOTBALL_API_KEY` available. The staging server env file had the same variable present but empty.
+
+Remediation performed:
+
+1. The local credential was transferred to the staging env file through stdin without logging the value.
+2. A backup of the previous staging env file was created.
+3. Only worker and scheduler containers were recreated.
+4. API, web, postgres, and redis were not restarted.
+
+Post-remediation verification:
+
+```text
+worker credential_visible=true
+scheduler credential_visible=true
+worker W2_PROVIDER_CALLS_DISABLED=false
+scheduler W2_PROVIDER_CALLS_DISABLED=false
+endpoint_allowlist=status,fixtures,odds,lineups
+```
+
+Controlled provider canary:
+
+```text
+status endpoint: HTTP 200
+fixtures endpoint: HTTP 200
+league=113
+season=2026
+from=2026-07-20
+to=2026-08-03
+response_count=16
+payload_sha256=05793353bc8a7a7ec976e0c53c88dde0e35863dae988ccdc91cafd49c950b3bf
+```
+
+No raw provider payload or credential was logged.
+
 ## Current Status
 
 ```text
-MATCHDAY_LIVE_INTAKE_REMEDIATION_REQUIRED
-BLOCKER=LIVE_GATE_API_KEY_NOT_VISIBLE
-NEEDS_AUTHORIZED_PROVIDER_CREDENTIAL
+PROVIDER_CREDENTIAL_VISIBLE_TO_WORKER
+PROVIDER_STATUS_CANARY_OK
+ALLSVENSKAN_FIXTURES_CANARY_OK
+NEXT_STEP=CANONICAL_FIXTURE_AND_ODDS_PERSISTENCE
 ```
-
