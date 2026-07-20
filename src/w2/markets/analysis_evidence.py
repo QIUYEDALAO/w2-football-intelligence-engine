@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from w2.markets.devig import DevigMethod, devig
+from w2.markets.settlement_probability import effective_settlement_probability
 from w2.markets.value_engine import (
     expected_value,
     settlement_distribution_ah,
@@ -181,21 +182,24 @@ def _model_evidence(
         else settlement_distribution_totals(matrix, selection=selection, line=line)
     )
     result = distribution.as_dict()
-    effective = float(
-        distribution.full_win_probability
-        + distribution.half_win_probability * Decimal("0.5")
-        + distribution.push_probability * Decimal("0.5")
-    )
+    settlement_distribution = {
+        "WIN": float(result["full_win_probability"]),
+        "HALF_WIN": float(result["half_win_probability"]),
+        "PUSH": float(result["push_probability"]),
+        "HALF_LOSS": float(result["half_loss_probability"]),
+        "LOSS": float(result["full_loss_probability"]),
+    }
+    effective = effective_settlement_probability(settlement_distribution)
+    if effective is None:
+        return {"status": "NOT_READY", "reason_code": "INVALID_SETTLEMENT_DISTRIBUTION"}
     return {
         "status": "READY",
         "calibration_status": sim.get("calibration_status") or "UNKNOWN",
         "model_version": sim.get("model_version"),
         "calibration_version": sim.get("calibration_version"),
         "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
-        "settlement_distribution": {
-            key.replace("_probability", "").upper(): float(value) for key, value in result.items()
-        },
-        "effective_probability": round(effective, 6),
+        "settlement_distribution": settlement_distribution,
+        "effective_probability": effective,
         "expected_value": float(expected_value(price, distribution)),
         "ev_se": None,
     }
