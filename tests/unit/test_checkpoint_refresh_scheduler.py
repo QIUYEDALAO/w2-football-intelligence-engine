@@ -32,6 +32,8 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         "T24_ODDS",
         "T6_ODDS",
         "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
         "T30_FINAL_PREMATCH",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
@@ -73,9 +75,7 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
     assert by_checkpoint["T6_ODDS"].due_at_utc == datetime(2026, 7, 4, 18, 0, tzinfo=UTC)
-    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == datetime(
-        2026, 7, 4, 23, 0, tzinfo=UTC
-    )
+    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
     assert by_checkpoint["T30_FINAL_PREMATCH"].due_at_utc == datetime(
         2026, 7, 4, 23, 30, tzinfo=UTC
     )
@@ -195,22 +195,18 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
     policy = next(
-        item
-        for item in payload["competitions"]
-        if item["competition_id"] == "world_cup_2026"
+        item for item in payload["competitions"] if item["competition_id"] == "world_cup_2026"
     )
 
     assert policy["daily_hard_cap"] == 120
     assert policy["daily_reserve"] == 0
     assert policy["request_budget"] == 30
-    assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
+    assert policy["checkpoint_mode"] == "matchday_intake_v2_compatibility"
     assert policy["trickle_backfill_daily_budget"] == 0
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:
-    text = (ROOT / "docs/W2_HIBERNATE_WAKEUP_A160_WORKORDER.md").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "docs/W2_HIBERNATE_WAKEUP_A160_WORKORDER.md").read_text(encoding="utf-8")
 
     assert "trickle_backfill_daily_budget=60" in text
     assert "daily_reserve=40" in text

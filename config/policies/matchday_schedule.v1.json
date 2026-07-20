@@ -1,18 +1,9 @@
 {
   "version": "matchday_schedule.v1",
-  "quota_reserve": 1500,
-  "default_request_budget": 100,
-  "phases": [
-    {"phase": "T-24h", "offset_minutes": -1440, "prematch": true},
-    {"phase": "T-6h", "offset_minutes": -360, "prematch": true},
-    {"phase": "T-3h", "offset_minutes": -180, "prematch": true},
-    {"phase": "T-1h", "offset_minutes": -60, "prematch": true},
-    {"phase": "T-30m", "offset_minutes": -30, "prematch": true},
-    {"phase": "T-10m", "offset_minutes": -10, "prematch": true},
-    {"phase": "CLOSING", "offset_minutes": -1, "prematch": true},
-    {"phase": "SETTLEMENT", "offset_minutes": 120, "prematch": false}
-  ],
-  "phase_tolerance_minutes": 5,
+  "status": "DEPRECATED_COMPATIBILITY",
+  "canonical_policy": "config/policies/matchday_intake.v2.json",
+  "independent_checkpoint_authority": false,
+  "phases": [],
   "scheduler": {
     "persistent_scheduler_required": true,
     "temporary_nohup_one_shot_allowed": false

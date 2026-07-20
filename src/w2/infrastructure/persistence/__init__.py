@@ -72,6 +72,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayEvidenceManifestModel,
+    MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.migration_models import (
     MigrationDryRunModel,
@@ -217,6 +218,7 @@ __all__ = [
     "MatchdayCheckpointPlanModel",
     "MatchdayEndpointCaptureModel",
     "MatchdayEvidenceManifestModel",
+    "MatchdayMarketObservationModel",
     "MigrationDryRunModel",
     "MigrationQuarantineRecordModel",
     "MigrationSourceAssetModel",
