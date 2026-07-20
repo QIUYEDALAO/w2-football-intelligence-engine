@@ -1,0 +1,82 @@
+{
+  "assets": [
+    {
+      "artifact_hashes": {
+        "canonical_inputs": "d156f7b85eae8007a0edefc895ffb1c799bbf37aa91f362163c7905767e6a6dd",
+        "closing_ah_facts": "bc054d7a758a7c30067d4b512afb7bf1f0b2a84ae630416e2b755f5585a121b4",
+        "f5_coverage": "9964edb553d7aff2d583b8fb990016f8f3e2374dd3e75079fb154c800ae579e7",
+        "f5_dataset": "5dc2bbb6935c66b3eaee4b8b747430b18c1bfea9d21899aab5009cecd647bfc6",
+        "market_baseline_candidate": "d954e1af519e58171067891e51ac05e4eb273b7fa31a6a51ce6580c93dfebd9d",
+        "phase_market_evidence": "659ddddc0ea71d7f871cc37832bc04a4fb65fd7672e5153e603504d69bb9495f",
+        "pre_closing_ah_facts": "268ecf45e1b420b271b3ca79d2a08929dada0baba4343dff4aa467c8747590ad",
+        "source_snapshots": "6148f1e54cde5d26ef3ec848098084645e01c199d81d50e589ea5e5e12045a74"
+      },
+      "asset_id": "football_data_co_uk_historical_ah_2019_2026_v1",
+      "backup_location": "MISSING_SECOND_COPY",
+      "blockers": [
+        "SECOND_COPY_MISSING",
+        "RESTORE_DRILL_NOT_EXECUTED",
+        "W2_RUNTIME_F5_NOT_READY",
+        "W2_CANONICAL_IMPORT_NOT_EXECUTED",
+        "LICENSE_HUMAN_REVIEW_REQUIRED"
+      ],
+      "code_compatibility_version": {
+        "adapter": "football_data_co_uk_adapter.v2",
+        "audit_head_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+        "implementation_head_sha": "a7f206aee0f603a7a0ee29185e498a535de36b6c"
+      },
+      "consumers": [
+        "src/w2/historical/football_data_co_uk.py",
+        "src/w2/historical/fah_repository.py",
+        "src/w2/backtest/historical_replay.py"
+      ],
+      "coverage": {
+        "closing_ah_facts": 12459,
+        "f5_dataset_rows": 49822,
+        "leagues": {
+          "D1": "Germany Bundesliga",
+          "E0": "England Premier",
+          "F1": "France Ligue 1",
+          "I1": "Italy Serie A",
+          "SP1": "Spain La Liga"
+        },
+        "market_baseline_candidate_samples": 36395,
+        "phase_market_evidence": 36395,
+        "pre_closing_ah_facts": 12452,
+        "seasons": [
+          "1920",
+          "2021",
+          "2122",
+          "2223",
+          "2324",
+          "2425",
+          "2526"
+        ],
+        "source_snapshots": 35
+      },
+      "created_at": "UNKNOWN_FROM_EXISTING_MANIFEST",
+      "dataset_manifest_hash": "dacfce6fe50f5a02a31bd824c4661a6e891ae1eb52093a6ef79dcbddb35727a2",
+      "ingest_manifest_hash": "79cb87588c5b7ae3b603001ab8fd98c7ffa15369e7c8c3b53df2527cd990aa7a",
+      "last_verified_at": "2026-07-20T12:51:47.425145Z",
+      "license_review_status": "HUMAN_REVIEW_REQUIRED",
+      "observed_private_location": "/Users/liudehua/.hermes/data/w2/football-data-co-uk",
+      "private_storage_location_alias": "$W2_FOOTBALL_DATA_ROOT",
+      "purpose": [
+        "historical_market_fact",
+        "F5_dataset",
+        "phase_market_evidence",
+        "market_baseline_candidate"
+      ],
+      "raw_files_retained_outside_git": true,
+      "restore_command": "scripts/inventory_existing_football_data.py + scripts/ingest_football_data_co_uk.py with W2_FOOTBALL_DATA_ROOT; exact restore command must be formalized",
+      "restore_test_status": "NOT_EXECUTED",
+      "schema_version": "football_data_co_uk_adapter.v2",
+      "source": "FOOTBALL_DATA_CO_UK",
+      "source_file_hash_manifest_sha256": "60ae474c39963b34bd15a4b25f5513962cf112e8bc0552cd2112435f0f7a6355"
+    }
+  ],
+  "audit_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "generated_at": "2026-07-20T12:51:47.425145Z",
+  "schema_version": "W2DataAssetRegistryV1",
+  "status": "DATA_ASSET_GOVERNANCE_INCOMPLETE"
+}
