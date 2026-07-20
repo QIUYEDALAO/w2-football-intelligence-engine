@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from w2.formal.readiness import evaluate_formal_ah_readiness
+from w2.historical.existing_data_inventory import (
+    build_existing_football_data_inventory,
+    write_inventory_outputs,
+)
 from w2.historical.formal_ah import (
     audit_formal_ah_sources,
     build_canonical_ah_facts,
@@ -45,6 +49,15 @@ def main() -> int:
     source_tree_manifest_sha = _tree_hash()
     capability_sha = _file_hash(Path("config/capabilities/recommendation_capabilities.v1.json"))
     factor_sha = _file_hash(Path("config/factors/factor_registry.v1.json"))
+    inventory = build_existing_football_data_inventory(
+        repo_root=Path("."),
+        database_url=args.database_url,
+    )
+    write_inventory_outputs(
+        inventory,
+        json_path=args.artifact_root / "EXISTING_FOOTBALL_DATA_INVENTORY.json",
+        md_path=args.artifact_root / "EXISTING_FOOTBALL_DATA_INVENTORY.md",
+    )
 
     if data_root is None or not data_root.is_dir():
         return _write_no_data_package(
@@ -55,6 +68,7 @@ def main() -> int:
             source_tree_manifest_sha=source_tree_manifest_sha,
             capability_sha=capability_sha,
             factor_sha=factor_sha,
+            inventory=inventory,
             dry_run=dry_run,
         )
 
@@ -108,15 +122,18 @@ def _write_no_data_package(
     capability_sha: str,
     factor_sha: str,
     dry_run: bool,
+    inventory: dict[str, Any],
 ) -> int:
+    inventory_status = str(inventory.get("status") or "NO_EXISTING_DATA_FOUND")
     data_request = {
         "schema_version": "w2.fah_private_data_request.v1",
-        "status": STATUS_DATA_REQUIRED,
-        "source_status": STATUS_SOURCE_NOT_AVAILABLE,
+        "status": inventory_status,
+        "source_status": inventory_status,
         "manual_stop": STATUS_MANUAL_APPROVAL_REQUIRED,
         "started_at": started_at,
-        "required_env": "W2_FAH_DATA_ROOT",
-        "expected_private_root": "/Users/liudehua/.hermes/data/w2/fah",
+        "existing_data_first": True,
+        "private_existing_data_root": "/Users/liudehua/.hermes/data/w2/fah_existing",
+        "explicit_data_root_env": "W2_FAH_DATA_ROOT",
         "required_contracts": [
             "formal_ah_source_registry.v1.schema.json",
             "historical_market_observation.v1.schema.json",
@@ -154,6 +171,7 @@ def _write_no_data_package(
     outputs = {
         "DATA_REQUEST": data_request,
         "SOURCE_AUDIT": source_audit,
+        "EXISTING_FOOTBALL_DATA_INVENTORY": inventory,
         "FAH_CALIBRATION_ARTIFACT": calibration,
         "FAH_F5_AUDIT": f5,
         "FAH_F8_AUDIT": f8,
@@ -173,8 +191,8 @@ def _write_no_data_package(
         factor_sha=factor_sha,
         status=STATUS_DATA_REQUIRED,
         conclusions=[
+            inventory_status,
             STATUS_DATA_REQUIRED,
-            STATUS_SOURCE_NOT_AVAILABLE,
             "CODE_PIPELINE_READY_FOR_PRIVATE_DATA",
             STATUS_MANUAL_APPROVAL_REQUIRED,
         ],
