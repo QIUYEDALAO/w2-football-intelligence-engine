@@ -164,6 +164,66 @@ class FahDataFoundationRepository:
             if row.home_team_provider_id in teams or row.away_team_provider_id in teams
         ]
 
+    def canonical_f5_team_history(
+        self,
+        *,
+        team_ids: Iterable[str],
+        competition_id: str,
+        before: datetime,
+        phase_policy: str = "CLOSING",
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        requested_team_ids = {str(item) for item in team_ids}
+        approved = {
+            str(team_id)
+            for team_id in requested_team_ids
+            if self.team_crosswalk_at(
+                api_football_team_id=str(team_id),
+                competition_id=competition_id,
+                as_of=before,
+            )
+            is not None
+        }
+        if not approved:
+            return {
+                "status": "W2_RUNTIME_F5_NOT_READY",
+                "team_mapping_status": "TEAM_MAPPING_PARTIAL",
+                "rows": [],
+                "missing_team_ids": sorted(requested_team_ids),
+            }
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(CanonicalHistoricalAhFactModel)
+                    .where(
+                        CanonicalHistoricalAhFactModel.competition_id == competition_id,
+                        CanonicalHistoricalAhFactModel.kickoff_utc < before,
+                    )
+                    .order_by(CanonicalHistoricalAhFactModel.kickoff_utc.desc())
+                )
+            )
+        filtered = [
+            dict(row.payload)
+            for row in rows
+            if (row.home_team_provider_id in approved or row.away_team_provider_id in approved)
+            and str(dict(row.payload).get("phase") or phase_policy).upper() == phase_policy.upper()
+        ][: max(limit, 0)]
+        status = (
+            "W2_RUNTIME_F5_READY"
+            if filtered and len(approved) == len(requested_team_ids)
+            else "W2_RUNTIME_F5_PARTIAL"
+        )
+        return {
+            "status": status,
+            "team_mapping_status": "APPROVED"
+            if len(approved) == len(requested_team_ids)
+            else "TEAM_MAPPING_PARTIAL",
+            "phase_policy": phase_policy,
+            "limit": limit,
+            "rows": filtered,
+            "missing_team_ids": sorted(requested_team_ids - approved),
+        }
+
     def team_crosswalk_at(
         self,
         *,
@@ -239,6 +299,41 @@ class FahDataFoundationRepository:
             return None
         return dict(max(rows, key=lambda row: row.as_of).payload)
 
+    def f8_authority_at(
+        self,
+        *,
+        team_external_id: str,
+        competition_id: str,
+        as_of: datetime,
+    ) -> dict[str, Any]:
+        artifact = self.team_value_artifact_at(
+            team_external_id=team_external_id,
+            competition_id=competition_id,
+            as_of=as_of,
+        )
+        if artifact is None:
+            return {
+                "status": "INCOMPLETE",
+                "formal_eligible": False,
+                "authority": "TeamValueAsOfArtifactModel",
+                "blockers": ["F8_DATA_INCOMPLETE"],
+            }
+        if artifact.get("review_status") != "APPROVED":
+            return {
+                "status": "INCOMPLETE",
+                "formal_eligible": False,
+                "authority": "TeamValueAsOfArtifactModel",
+                "blockers": ["TEAM_CROSSWALK_REVIEW_REQUIRED"],
+                "artifact": artifact,
+            }
+        return {
+            "status": "READY",
+            "formal_eligible": False,
+            "authority": "TeamValueAsOfArtifactModel",
+            "blockers": ["FORMAL_CAPABILITY_DISABLED"],
+            "artifact": artifact,
+        }
+
     def _write(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -282,9 +377,7 @@ class FahDataFoundationRepository:
                         conflicts += 1
                         raise ValueError(f"FAH_CONFLICT:{model.__tablename__}:{row_identity}")
                     model_instance = (
-                        factory(row, session)
-                        if factory is _canonical_ah_model
-                        else factory(row)
+                        factory(row, session) if factory is _canonical_ah_model else factory(row)
                     )
                     session.add(model_instance)
                     inserted += 1
@@ -335,8 +428,7 @@ def _existing(
         if found is not None:
             return found
     clauses = [
-        getattr(model, field) == _identity_value(field, row.get(field))
-        for field in identity_fields
+        getattr(model, field) == _identity_value(field, row.get(field)) for field in identity_fields
     ]
     if clauses:
         return session.scalars(select(model).where(*clauses)).first()
@@ -492,18 +584,23 @@ def _source_snapshot_model(row: Mapping[str, Any]) -> HistoricalMarketSourceSnap
     payload = dict(row)
     policy = row.get("canonical_bookmaker_policy")
     policy_text = (
-        json.dumps(policy, sort_keys=True)
-        if isinstance(policy, Mapping)
-        else str(policy or "")
+        json.dumps(policy, sort_keys=True) if isinstance(policy, Mapping) else str(policy or "")
     )
     source_sha = str(row.get("sha256") or row.get("source_sha256") or "")
-    snapshot_hash = str(row.get("snapshot_hash") or stable_hash({
-        "source_id": row.get("source_id"),
-        "provider": row.get("provider"),
-        "schema_version": row.get("schema_version"),
-        "sha256": source_sha,
-        "canonical_bookmaker_policy": policy if isinstance(policy, Mapping) else policy_text,
-    }))
+    snapshot_hash = str(
+        row.get("snapshot_hash")
+        or stable_hash(
+            {
+                "source_id": row.get("source_id"),
+                "provider": row.get("provider"),
+                "schema_version": row.get("schema_version"),
+                "sha256": source_sha,
+                "canonical_bookmaker_policy": policy
+                if isinstance(policy, Mapping)
+                else policy_text,
+            }
+        )
+    )
     payload.setdefault("snapshot_hash", snapshot_hash)
     return HistoricalMarketSourceSnapshotModel(
         source_id=str(row.get("source_id") or ""),
@@ -531,9 +628,7 @@ def _player_membership_model(row: Mapping[str, Any]) -> PlayerClubMembershipObse
     )
     return PlayerClubMembershipObservationModel(
         transfermarkt_player_id=str(row.get("transfermarkt_player_id") or ""),
-        transfermarkt_club_id=str(
-            row.get("transfermarkt_club_id") or row.get("club_id") or ""
-        ),
+        transfermarkt_club_id=str(row.get("transfermarkt_club_id") or row.get("club_id") or ""),
         observed_at=_required_time(row.get("observed_at") or row.get("snapshot_date")),
         source_sha256=str(row.get("source_sha256") or row.get("_source_sha256") or ""),
         membership_hash=membership_hash,
