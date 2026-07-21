@@ -1,0 +1,1737 @@
+{
+  "ci_runs": {
+    "deployed_sha": {
+      "head_sha": "876072e585125644181044ac9789af3f5358458b",
+      "run_id": 29820386907,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/29820386907"
+    }
+  },
+  "current_pr_head_at_runtime": "876072e585125644181044ac9789af3f5358458b",
+  "fixture_count": 8,
+  "fixture_ids": [
+    "1494224",
+    "1494218",
+    "1494221",
+    "1494223",
+    "1494217",
+    "1494222",
+    "1494219",
+    "1494220"
+  ],
+  "fixture_summaries": [
+    {
+      "card_hash": "3ea424a46d2ea87bfbc99af74fd9ff84ae7e0e83a75a3b3b07ab8990e495feca",
+      "decision": "WATCH",
+      "decision_tier": "WATCH",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.09889428172962013,
+          "line": "-1",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.510582,
+          "model_probability": 0.47763,
+          "probability_delta": -0.032952,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.1074
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.025671147268447846,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.584656,
+          "model_probability": 0.620592,
+          "probability_delta": 0.035936,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.093295
+        }
+      ],
+      "fixture_id": "1494224",
+      "lambda_sigma_away": 0.204776,
+      "lambda_sigma_home": 0.31929,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.09889428172962013,
+          "line": "-1",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.510582,
+          "model_probability": 0.47763,
+          "probability_delta": -0.032952,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.1074
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.025671147268447846,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.584656,
+          "model_probability": 0.620592,
+          "probability_delta": 0.035936,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.093295
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 61.289107,
+          "blockers": [],
+          "bookmaker_id": "32",
+          "captured_at": "2026-07-21T10:00:13Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "742a0e528b16ab87c4a677f455405ac73cf6c530d76193305b71bc7012d4466e",
+            "home": "d6c51839ba240a0add02efd88cd3073bec9cc8091633685c8aedc596ccc87e59"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:13Z",
+              "decimal_odds": "1.93",
+              "fixture_id": "1494224",
+              "line": "1",
+              "observation_id": "742a0e528b16ab87c4a677f455405ac73cf6c530d76193305b71bc7012d4466e",
+              "provider": "api_football",
+              "raw_payload_sha256": "9f94d216bda9d00465c051908d9191df2c192194dd7b045c9d95a5f8d1aa5dda",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:13Z",
+              "decimal_odds": "1.85",
+              "fixture_id": "1494224",
+              "line": "-1",
+              "observation_id": "d6c51839ba240a0add02efd88cd3073bec9cc8091633685c8aedc596ccc87e59",
+              "provider": "api_football",
+              "raw_payload_sha256": "9f94d216bda9d00465c051908d9191df2c192194dd7b045c9d95a5f8d1aa5dda",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-1"
+        },
+        "ou": {
+          "age_seconds": 61.289107,
+          "blockers": [],
+          "bookmaker_id": "36",
+          "captured_at": "2026-07-21T10:00:13Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "cf8964f2767354a66eba2a0376e2a81d3f1f98f88369331851ed3df069d4b1d7",
+            "under": "1a7a93e15e3de332f56a20d743866ad31851cd678d4f828fd4b224bc47a5ec96"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:13Z",
+              "decimal_odds": "2.21",
+              "fixture_id": "1494224",
+              "line": "3.5",
+              "observation_id": "cf8964f2767354a66eba2a0376e2a81d3f1f98f88369331851ed3df069d4b1d7",
+              "provider": "api_football",
+              "raw_payload_sha256": "9f94d216bda9d00465c051908d9191df2c192194dd7b045c9d95a5f8d1aa5dda",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:13Z",
+              "decimal_odds": "1.57",
+              "fixture_id": "1494224",
+              "line": "3.5",
+              "observation_id": "1a7a93e15e3de332f56a20d743866ad31851cd678d4f828fd4b224bc47a5ec96",
+              "provider": "api_football",
+              "raw_payload_sha256": "9f94d216bda9d00465c051908d9191df2c192194dd7b045c9d95a5f8d1aa5dda",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "3.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": null,
+      "status": "READY",
+      "v3_decision_hash": "31e8cecc3167f6505fdaf88ba3caf259a350bb2f10137827042b4b40b264edd5",
+      "v3_envelope_hash": "5640aef6b650d9e081ac815eb7a3dfbc68b13c66340c3f97cd844b41e0b8a441"
+    },
+    {
+      "card_hash": "24172754f5675d0a97baaadf9c0b766a15e5fb465441e76e47bca7ac74de2667",
+      "decision": "ANALYSIS_PICK",
+      "decision_tier": "ANALYSIS_PICK",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.6380067918870488,
+          "line": "0.75",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.497354,
+          "model_probability": 0.833762,
+          "probability_delta": 0.336408,
+          "quote_identity": null,
+          "selection": "AWAY",
+          "uncertainty": 0.043753
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.07849910593913736,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.538043,
+          "model_probability": 0.634411,
+          "probability_delta": 0.096368,
+          "quote_identity": null,
+          "selection": "OVER",
+          "uncertainty": 0.080446
+        }
+      ],
+      "fixture_id": "1494218",
+      "lambda_sigma_away": 0.317583,
+      "lambda_sigma_home": 0.086494,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.6380067918870488,
+          "line": "0.75",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.497354,
+          "model_probability": 0.833762,
+          "probability_delta": 0.336408,
+          "quote_identity": null,
+          "selection": "AWAY",
+          "uncertainty": 0.043753
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.07849910593913736,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.538043,
+          "model_probability": 0.634411,
+          "probability_delta": 0.096368,
+          "quote_identity": null,
+          "selection": "OVER",
+          "uncertainty": 0.080446
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 57.289107,
+          "blockers": [],
+          "bookmaker_id": "32",
+          "captured_at": "2026-07-21T10:00:17Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "6c9512803b82f813b27832f2e73907f1b36e8f4d13c4327981cf6cc43ad49c17",
+            "home": "55f50e974e8d74d92145017bcc61523d46db36cd8c082d7fec9f7f4eb635a850"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:17Z",
+              "decimal_odds": "1.9",
+              "fixture_id": "1494218",
+              "line": "-0.75",
+              "observation_id": "6c9512803b82f813b27832f2e73907f1b36e8f4d13c4327981cf6cc43ad49c17",
+              "provider": "api_football",
+              "raw_payload_sha256": "a89657b74ae1b44edd3945ca991bebf1c8761901ecad3846ed594bf2da378ec7",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:17Z",
+              "decimal_odds": "1.88",
+              "fixture_id": "1494218",
+              "line": "0.75",
+              "observation_id": "55f50e974e8d74d92145017bcc61523d46db36cd8c082d7fec9f7f4eb635a850",
+              "provider": "api_football",
+              "raw_payload_sha256": "a89657b74ae1b44edd3945ca991bebf1c8761901ecad3846ed594bf2da378ec7",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "0.75"
+        },
+        "ou": {
+          "age_seconds": 57.289107,
+          "blockers": [],
+          "bookmaker_id": "16",
+          "captured_at": "2026-07-21T10:00:17Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "de82a68a10d177fd359b621c0706048c0afad1f797acf08ec243b8cde5861872",
+            "under": "38e01f26fe148eef10423f99c51b9bc5241be9097839009c444025dd2a93aa73"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:17Z",
+              "decimal_odds": "1.7",
+              "fixture_id": "1494218",
+              "line": "2.5",
+              "observation_id": "de82a68a10d177fd359b621c0706048c0afad1f797acf08ec243b8cde5861872",
+              "provider": "api_football",
+              "raw_payload_sha256": "a89657b74ae1b44edd3945ca991bebf1c8761901ecad3846ed594bf2da378ec7",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:17Z",
+              "decimal_odds": "1.98",
+              "fixture_id": "1494218",
+              "line": "2.5",
+              "observation_id": "38e01f26fe148eef10423f99c51b9bc5241be9097839009c444025dd2a93aa73",
+              "provider": "api_football",
+              "raw_payload_sha256": "a89657b74ae1b44edd3945ca991bebf1c8761901ecad3846ed594bf2da378ec7",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "2.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": {
+        "analysis_evidence_hash": null,
+        "decision": "ANALYSIS_PICK",
+        "expected_value": 0.6380067918870488,
+        "line": "0.75",
+        "market": "ASIAN_HANDICAP",
+        "market_probability": 0.497354,
+        "model_probability": 0.833762,
+        "probability_delta": 0.336408,
+        "quote_identity": null,
+        "selection": "AWAY",
+        "uncertainty": 0.043753
+      },
+      "status": "READY",
+      "v3_decision_hash": "313359b87a710e3bfdac9345df779869ed6ffb2ee40a208ade2b4e7d1c2e9999",
+      "v3_envelope_hash": "60536e14e45ce19b539583394ef894c775c12a865eb417484735ca1d11b94423"
+    },
+    {
+      "card_hash": "7538b52daf6248f01713206a09304d91e95550f0fb03c19fbff2ef63f9218b10",
+      "decision": "WATCH",
+      "decision_tier": "WATCH",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.1334089702529328,
+          "line": "-0.25",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.475196,
+          "model_probability": 0.505269,
+          "probability_delta": 0.030073,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.095361
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.03944421491929806,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.513158,
+          "model_probability": 0.561862,
+          "probability_delta": 0.048704,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.090537
+        }
+      ],
+      "fixture_id": "1494221",
+      "lambda_sigma_away": 0.198984,
+      "lambda_sigma_home": 0.228317,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.1334089702529328,
+          "line": "-0.25",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.475196,
+          "model_probability": 0.505269,
+          "probability_delta": 0.030073,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.095361
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.03944421491929806,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.513158,
+          "model_probability": 0.561862,
+          "probability_delta": 0.048704,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.090537
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 55.289107,
+          "blockers": [],
+          "bookmaker_id": "4",
+          "captured_at": "2026-07-21T10:00:19Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "3461ac1118fbe56c9fa34017be74d2feb8e7c86b0a8decad19aff6b29a7041a1",
+            "home": "843f72301d343ea45ec0342b568bf2f1f70426dea23c8dd290d8269b9d285df1"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "4",
+              "bookmaker_name": "Pinnacle",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:19Z",
+              "decimal_odds": "1.82",
+              "fixture_id": "1494221",
+              "line": "0.25",
+              "observation_id": "3461ac1118fbe56c9fa34017be74d2feb8e7c86b0a8decad19aff6b29a7041a1",
+              "provider": "api_football",
+              "raw_payload_sha256": "3e09c10f2c2f5f7b72e8961ee77c94a77ab73e3de07ed126ae481f0e0d20c1b5",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "4",
+              "bookmaker_name": "Pinnacle",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:19Z",
+              "decimal_odds": "2.01",
+              "fixture_id": "1494221",
+              "line": "-0.25",
+              "observation_id": "843f72301d343ea45ec0342b568bf2f1f70426dea23c8dd290d8269b9d285df1",
+              "provider": "api_football",
+              "raw_payload_sha256": "3e09c10f2c2f5f7b72e8961ee77c94a77ab73e3de07ed126ae481f0e0d20c1b5",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-0.25"
+        },
+        "ou": {
+          "age_seconds": 55.289107,
+          "blockers": [],
+          "bookmaker_id": "1",
+          "captured_at": "2026-07-21T10:00:19Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "79d04da08a27d7ae04d84ec2cd473cf8eb288b25479093952e97830e6cc30d33",
+            "under": "af03ca61dede194d92ac09aeec1bc9ceb5903f69ba5fded538850a7f67b96878"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:19Z",
+              "decimal_odds": "1.85",
+              "fixture_id": "1494221",
+              "line": "2.5",
+              "observation_id": "79d04da08a27d7ae04d84ec2cd473cf8eb288b25479093952e97830e6cc30d33",
+              "provider": "api_football",
+              "raw_payload_sha256": "3e09c10f2c2f5f7b72e8961ee77c94a77ab73e3de07ed126ae481f0e0d20c1b5",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:19Z",
+              "decimal_odds": "1.95",
+              "fixture_id": "1494221",
+              "line": "2.5",
+              "observation_id": "af03ca61dede194d92ac09aeec1bc9ceb5903f69ba5fded538850a7f67b96878",
+              "provider": "api_football",
+              "raw_payload_sha256": "3e09c10f2c2f5f7b72e8961ee77c94a77ab73e3de07ed126ae481f0e0d20c1b5",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "2.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": null,
+      "status": "READY",
+      "v3_decision_hash": "3942bb3c7d3e07bd46a817c570667c7a3d1b40ff5bcb405d0f3224d7acda1797",
+      "v3_envelope_hash": "87d412165d4174569862ab5b5c5cd93374ca244e696b12fdca48d78f32ba8f32"
+    },
+    {
+      "card_hash": "cd343fccb0af143d6e43e81a8321b7e61307c4252e098a0bec6231e0140d7ddd",
+      "decision": "ANALYSIS_PICK",
+      "decision_tier": "ANALYSIS_PICK",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.024265849569187314,
+          "line": "-1",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.510582,
+          "model_probability": 0.518012,
+          "probability_delta": 0.00743,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.092719
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.015600536009580926,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.545946,
+          "model_probability": 0.604524,
+          "probability_delta": 0.058578,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.087596
+        }
+      ],
+      "fixture_id": "1494223",
+      "lambda_sigma_away": 0.147097,
+      "lambda_sigma_home": 0.298878,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.024265849569187314,
+          "line": "-1",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.510582,
+          "model_probability": 0.518012,
+          "probability_delta": 0.00743,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.092719
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.015600536009580926,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.545946,
+          "model_probability": 0.604524,
+          "probability_delta": 0.058578,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.087596
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 53.289107,
+          "blockers": [],
+          "bookmaker_id": "32",
+          "captured_at": "2026-07-21T10:00:21Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "d2b22ebcb3f2308a2707d82af72c6212414d159076161a74878e69be7bb9bd69",
+            "home": "f7c5834eb6069adbf1c094d3d4a0ef45f250b1959a85637d0b621eb8f39238ea"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:21Z",
+              "decimal_odds": "1.93",
+              "fixture_id": "1494223",
+              "line": "1",
+              "observation_id": "d2b22ebcb3f2308a2707d82af72c6212414d159076161a74878e69be7bb9bd69",
+              "provider": "api_football",
+              "raw_payload_sha256": "8da7803aa14f8b49d82b700bf80a5df2d9040c6da6c76af744723969282d8ad9",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "32",
+              "bookmaker_name": "Betano",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:21Z",
+              "decimal_odds": "1.85",
+              "fixture_id": "1494223",
+              "line": "-1",
+              "observation_id": "f7c5834eb6069adbf1c094d3d4a0ef45f250b1959a85637d0b621eb8f39238ea",
+              "provider": "api_football",
+              "raw_payload_sha256": "8da7803aa14f8b49d82b700bf80a5df2d9040c6da6c76af744723969282d8ad9",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-1"
+        },
+        "ou": {
+          "age_seconds": 53.289107,
+          "blockers": [],
+          "bookmaker_id": "16",
+          "captured_at": "2026-07-21T10:00:21Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "1e5d8d044175993f15cd4db4eb34a98243c01d42eaa6b4c37ac797c068821275",
+            "under": "c66e853547bcc24d696b147e17e2e6f3d81d4bc87bb48a3533283e886b8976bc"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:21Z",
+              "decimal_odds": "2.02",
+              "fixture_id": "1494223",
+              "line": "3.5",
+              "observation_id": "1e5d8d044175993f15cd4db4eb34a98243c01d42eaa6b4c37ac797c068821275",
+              "provider": "api_football",
+              "raw_payload_sha256": "8da7803aa14f8b49d82b700bf80a5df2d9040c6da6c76af744723969282d8ad9",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:21Z",
+              "decimal_odds": "1.68",
+              "fixture_id": "1494223",
+              "line": "3.5",
+              "observation_id": "c66e853547bcc24d696b147e17e2e6f3d81d4bc87bb48a3533283e886b8976bc",
+              "provider": "api_football",
+              "raw_payload_sha256": "8da7803aa14f8b49d82b700bf80a5df2d9040c6da6c76af744723969282d8ad9",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "3.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": {
+        "analysis_evidence_hash": null,
+        "decision": "ANALYSIS_PICK",
+        "expected_value": 0.015600536009580926,
+        "line": "3.5",
+        "market": "TOTALS",
+        "market_probability": 0.545946,
+        "model_probability": 0.604524,
+        "probability_delta": 0.058578,
+        "quote_identity": null,
+        "selection": "UNDER",
+        "uncertainty": 0.087596
+      },
+      "status": "READY",
+      "v3_decision_hash": "1157fc7a318efd5ae008b18d6238b4c01c2be2f4e15e16e612f36f0ebd4d876d",
+      "v3_envelope_hash": "e17546732f7602e4a26d0443e7fa61c5c5e0181e6600a08fed9ea801023fc9eb"
+    },
+    {
+      "card_hash": "4146736201c8ee9a6b7d7a3f91b6aff392151238fdf68dfda3b79323f2239ac6",
+      "decision": "ANALYSIS_PICK",
+      "decision_tier": "ANALYSIS_PICK",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.6445806220845349,
+          "line": "1.25",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.498638,
+          "model_probability": 0.859298,
+          "probability_delta": 0.36066,
+          "quote_identity": null,
+          "selection": "AWAY",
+          "uncertainty": 0.033538
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.02655492896252265,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.538043,
+          "model_probability": 0.603856,
+          "probability_delta": 0.065813,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.078988
+        }
+      ],
+      "fixture_id": "1494217",
+      "lambda_sigma_away": 0.27328,
+      "lambda_sigma_home": 0.114962,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.6445806220845349,
+          "line": "1.25",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.498638,
+          "model_probability": 0.859298,
+          "probability_delta": 0.36066,
+          "quote_identity": null,
+          "selection": "AWAY",
+          "uncertainty": 0.033538
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.02655492896252265,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.538043,
+          "model_probability": 0.603856,
+          "probability_delta": 0.065813,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.078988
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 50.289107,
+          "blockers": [],
+          "bookmaker_id": "36",
+          "captured_at": "2026-07-21T10:00:24Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "9cea753433d6981588cfadc5c7519c45ff6879d3ce242eaf50321c318c728d7a",
+            "home": "03c39b8158c74df2a82185d0ca771c23def6c8011128ec4222b5a75998446d14"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:24Z",
+              "decimal_odds": "1.84",
+              "fixture_id": "1494217",
+              "line": "-1.25",
+              "observation_id": "9cea753433d6981588cfadc5c7519c45ff6879d3ce242eaf50321c318c728d7a",
+              "provider": "api_football",
+              "raw_payload_sha256": "f747497b608f7611fa8b68a519b3345f2f93321e08998e74c4a71f12f7dd0cfe",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:24Z",
+              "decimal_odds": "1.83",
+              "fixture_id": "1494217",
+              "line": "1.25",
+              "observation_id": "03c39b8158c74df2a82185d0ca771c23def6c8011128ec4222b5a75998446d14",
+              "provider": "api_football",
+              "raw_payload_sha256": "f747497b608f7611fa8b68a519b3345f2f93321e08998e74c4a71f12f7dd0cfe",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "1.25"
+        },
+        "ou": {
+          "age_seconds": 50.289107,
+          "blockers": [],
+          "bookmaker_id": "16",
+          "captured_at": "2026-07-21T10:00:24Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "b866b75cf1f862ae0433141890211aebaf672f56a210b606b81e02efb76586f1",
+            "under": "f1b1f18abec27c512c1443126cd8e843a1f1de73e4a84a7753d6839c3bf7dfcb"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:24Z",
+              "decimal_odds": "1.98",
+              "fixture_id": "1494217",
+              "line": "3.5",
+              "observation_id": "b866b75cf1f862ae0433141890211aebaf672f56a210b606b81e02efb76586f1",
+              "provider": "api_football",
+              "raw_payload_sha256": "f747497b608f7611fa8b68a519b3345f2f93321e08998e74c4a71f12f7dd0cfe",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:24Z",
+              "decimal_odds": "1.7",
+              "fixture_id": "1494217",
+              "line": "3.5",
+              "observation_id": "f1b1f18abec27c512c1443126cd8e843a1f1de73e4a84a7753d6839c3bf7dfcb",
+              "provider": "api_football",
+              "raw_payload_sha256": "f747497b608f7611fa8b68a519b3345f2f93321e08998e74c4a71f12f7dd0cfe",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "3.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": {
+        "analysis_evidence_hash": null,
+        "decision": "ANALYSIS_PICK",
+        "expected_value": 0.6445806220845349,
+        "line": "1.25",
+        "market": "ASIAN_HANDICAP",
+        "market_probability": 0.498638,
+        "model_probability": 0.859298,
+        "probability_delta": 0.36066,
+        "quote_identity": null,
+        "selection": "AWAY",
+        "uncertainty": 0.033538
+      },
+      "status": "READY",
+      "v3_decision_hash": "3d348cf88caad0f2e129ead8ac955149bf960d7128a24c6a2852b4af66833b67",
+      "v3_envelope_hash": "9eb459370e4bda9aa6fff91d0bb91308b26edee1de99e9a20a4da71571928d27"
+    },
+    {
+      "card_hash": "4279940fdb3535a7be4524cee354da5534978fe5585aab6ece374dd5a06a139e",
+      "decision": "ANALYSIS_PICK",
+      "decision_tier": "ANALYSIS_PICK",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.1240341644745326,
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.509537,
+          "model_probability": 0.486648,
+          "probability_delta": -0.022889,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.102523
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.17907439568102396,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.545946,
+          "model_probability": 0.70183,
+          "probability_delta": 0.155884,
+          "quote_identity": null,
+          "selection": "OVER",
+          "uncertainty": 0.080547
+        }
+      ],
+      "fixture_id": "1494222",
+      "lambda_sigma_away": 0.243096,
+      "lambda_sigma_home": 0.299628,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.1240341644745326,
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.509537,
+          "model_probability": 0.486648,
+          "probability_delta": -0.022889,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.102523
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.17907439568102396,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.545946,
+          "model_probability": 0.70183,
+          "probability_delta": 0.155884,
+          "quote_identity": null,
+          "selection": "OVER",
+          "uncertainty": 0.080547
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 48.289107,
+          "blockers": [],
+          "bookmaker_id": "36",
+          "captured_at": "2026-07-21T10:00:26Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "295e072b5bca3f091b232308a0b200e235f31b34769fab4a869af0fa2210238c",
+            "home": "57c78a6fcbfa790a520833544e4420e5e1ea0aa1f9de4dcb78c7cdf007650cf4"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:26Z",
+              "decimal_odds": "1.87",
+              "fixture_id": "1494222",
+              "line": "0.5",
+              "observation_id": "295e072b5bca3f091b232308a0b200e235f31b34769fab4a869af0fa2210238c",
+              "provider": "api_football",
+              "raw_payload_sha256": "07fc350282d3dd016f1ec73d96dc0766dfea8be4469c882a27f3156d1b7390fe",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:26Z",
+              "decimal_odds": "1.8",
+              "fixture_id": "1494222",
+              "line": "-0.5",
+              "observation_id": "57c78a6fcbfa790a520833544e4420e5e1ea0aa1f9de4dcb78c7cdf007650cf4",
+              "provider": "api_football",
+              "raw_payload_sha256": "07fc350282d3dd016f1ec73d96dc0766dfea8be4469c882a27f3156d1b7390fe",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-0.5"
+        },
+        "ou": {
+          "age_seconds": 48.289107,
+          "blockers": [],
+          "bookmaker_id": "16",
+          "captured_at": "2026-07-21T10:00:26Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "4e4de2c57a31ab83fb09904856247cdd41c747be698ce882f7da5d1ccc74aae8",
+            "under": "926c91a0b7c2f67825c20e596be9bdb2e02e52a94d8deec2dbd7f1a327018958"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:26Z",
+              "decimal_odds": "1.68",
+              "fixture_id": "1494222",
+              "line": "2.5",
+              "observation_id": "4e4de2c57a31ab83fb09904856247cdd41c747be698ce882f7da5d1ccc74aae8",
+              "provider": "api_football",
+              "raw_payload_sha256": "07fc350282d3dd016f1ec73d96dc0766dfea8be4469c882a27f3156d1b7390fe",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "16",
+              "bookmaker_name": "Unibet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:26Z",
+              "decimal_odds": "2.02",
+              "fixture_id": "1494222",
+              "line": "2.5",
+              "observation_id": "926c91a0b7c2f67825c20e596be9bdb2e02e52a94d8deec2dbd7f1a327018958",
+              "provider": "api_football",
+              "raw_payload_sha256": "07fc350282d3dd016f1ec73d96dc0766dfea8be4469c882a27f3156d1b7390fe",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "2.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": {
+        "analysis_evidence_hash": null,
+        "decision": "ANALYSIS_PICK",
+        "expected_value": 0.17907439568102396,
+        "line": "2.5",
+        "market": "TOTALS",
+        "market_probability": 0.545946,
+        "model_probability": 0.70183,
+        "probability_delta": 0.155884,
+        "quote_identity": null,
+        "selection": "OVER",
+        "uncertainty": 0.080547
+      },
+      "status": "READY",
+      "v3_decision_hash": "845cf2149f205db35bef0674f2c894132880d95d2c729137734d25ba9f31d0b0",
+      "v3_envelope_hash": "af05373ff30c76a4f49f2e39f601eee53e85e3dddad0610f206b46f4f6f2592e"
+    },
+    {
+      "card_hash": "2b8e587c46f2e70f297f1c83d31a984ae586daffdec53358fd476da4db9f2f65",
+      "decision": "WATCH",
+      "decision_tier": "WATCH",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.16727087349786618,
+          "line": "-1.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.493333,
+          "model_probability": 0.438278,
+          "probability_delta": -0.055055,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.107517
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.007807352086423714,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.580902,
+          "model_probability": 0.62797,
+          "probability_delta": 0.047068,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.082687
+        }
+      ],
+      "fixture_id": "1494219",
+      "lambda_sigma_away": 0.16906,
+      "lambda_sigma_home": 0.317432,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.16727087349786618,
+          "line": "-1.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.493333,
+          "model_probability": 0.438278,
+          "probability_delta": -0.055055,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.107517
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": -0.007807352086423714,
+          "line": "2.5",
+          "market": "TOTALS",
+          "market_probability": 0.580902,
+          "model_probability": 0.62797,
+          "probability_delta": 0.047068,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.082687
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 46.289107,
+          "blockers": [],
+          "bookmaker_id": "1",
+          "captured_at": "2026-07-21T10:00:28Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "2c1f74681a0dddf13cd0b4de286a0bb6ea4fb76742d66c2a103db1f3d46f3fbb",
+            "home": "3c0f3ee0894c0f491922418ac63b83d5aa6e2bb74a5ba0b0ae28233d6e472906"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:28Z",
+              "decimal_odds": "1.85",
+              "fixture_id": "1494219",
+              "line": "1.5",
+              "observation_id": "2c1f74681a0dddf13cd0b4de286a0bb6ea4fb76742d66c2a103db1f3d46f3fbb",
+              "provider": "api_football",
+              "raw_payload_sha256": "00a6972d8bfd7a162f64ee45bef8b50153cfc20f789dc2ca6ea880f6ee0b59d5",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:28Z",
+              "decimal_odds": "1.9",
+              "fixture_id": "1494219",
+              "line": "-1.5",
+              "observation_id": "3c0f3ee0894c0f491922418ac63b83d5aa6e2bb74a5ba0b0ae28233d6e472906",
+              "provider": "api_football",
+              "raw_payload_sha256": "00a6972d8bfd7a162f64ee45bef8b50153cfc20f789dc2ca6ea880f6ee0b59d5",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-1.5"
+        },
+        "ou": {
+          "age_seconds": 46.289107,
+          "blockers": [],
+          "bookmaker_id": "36",
+          "captured_at": "2026-07-21T10:00:28Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "173814a60b3f4821a73719e8d855edc4fdb59d5577456736e7c0b12722909f5a",
+            "under": "6ccbe0363700e2ad8b5fe4711e466be669ad36287c8ec8fece10e6b94cd65569"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:28Z",
+              "decimal_odds": "1.58",
+              "fixture_id": "1494219",
+              "line": "2.5",
+              "observation_id": "173814a60b3f4821a73719e8d855edc4fdb59d5577456736e7c0b12722909f5a",
+              "provider": "api_football",
+              "raw_payload_sha256": "00a6972d8bfd7a162f64ee45bef8b50153cfc20f789dc2ca6ea880f6ee0b59d5",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "36",
+              "bookmaker_name": "BetVictor",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:28Z",
+              "decimal_odds": "2.19",
+              "fixture_id": "1494219",
+              "line": "2.5",
+              "observation_id": "6ccbe0363700e2ad8b5fe4711e466be669ad36287c8ec8fece10e6b94cd65569",
+              "provider": "api_football",
+              "raw_payload_sha256": "00a6972d8bfd7a162f64ee45bef8b50153cfc20f789dc2ca6ea880f6ee0b59d5",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "2.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": null,
+      "status": "READY",
+      "v3_decision_hash": "86768e74684c1dfdeeb2b68134a43a1407b48732c50124eb662e282adc6b851d",
+      "v3_envelope_hash": "1300805d86c2464e7b6b18a7e1dd0102a62c0a295eca580a269b0c4a0bc2a88d"
+    },
+    {
+      "card_hash": "77be8fd751e2a011ed29e5968e1171f2607da946c3ff8f995ebf08d7f8abda4e",
+      "decision": "ANALYSIS_PICK",
+      "decision_tier": "ANALYSIS_PICK",
+      "evaluated_candidates": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.006622532745641691,
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.513089,
+          "model_probability": 0.541195,
+          "probability_delta": 0.028106,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.080377
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.071523937709351,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.568475,
+          "model_probability": 0.641631,
+          "probability_delta": 0.073156,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.071002
+        }
+      ],
+      "fixture_id": "1494220",
+      "lambda_sigma_away": 0.13551,
+      "lambda_sigma_home": 0.233151,
+      "lambda_uncertainty_input_hash": null,
+      "lambda_uncertainty_method": "empirical_xg_standard_error.v1",
+      "lambda_uncertainty_status": "ANALYSIS_READY",
+      "markets": [
+        {
+          "analysis_evidence_hash": null,
+          "decision": "SKIP",
+          "expected_value": 0.006622532745641691,
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_probability": 0.513089,
+          "model_probability": 0.541195,
+          "probability_delta": 0.028106,
+          "quote_identity": null,
+          "selection": null,
+          "uncertainty": 0.080377
+        },
+        {
+          "analysis_evidence_hash": null,
+          "decision": "ANALYSIS_PICK",
+          "expected_value": 0.071523937709351,
+          "line": "3.5",
+          "market": "TOTALS",
+          "market_probability": 0.568475,
+          "model_probability": 0.641631,
+          "probability_delta": 0.073156,
+          "quote_identity": null,
+          "selection": "UNDER",
+          "uncertainty": 0.071002
+        }
+      ],
+      "quote_identity_audit": {
+        "ah": {
+          "age_seconds": 43.289107,
+          "blockers": [],
+          "bookmaker_id": "4",
+          "captured_at": "2026-07-21T10:00:31Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "ASIAN_HANDICAP",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "away": "b9e9891313f7f6c6b12392b3b4f39e47b5cdbad00b76150974eb698d2bfbe0e1",
+            "home": "22e0e156e75037fea9c8223486c693e1177974cc0b96e46b4a0d509d86d0cdd7"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "away": {
+              "bookmaker_id": "4",
+              "bookmaker_name": "Pinnacle",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:31Z",
+              "decimal_odds": "1.96",
+              "fixture_id": "1494220",
+              "line": "0.5",
+              "observation_id": "b9e9891313f7f6c6b12392b3b4f39e47b5cdbad00b76150974eb698d2bfbe0e1",
+              "provider": "api_football",
+              "raw_payload_sha256": "c7d78e28d756ac63b3ff79d0186ac5ad8973c5eeb8a036edfd1d41c7902a8abd",
+              "selection": "AWAY",
+              "side": "AWAY",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "home": {
+              "bookmaker_id": "4",
+              "bookmaker_name": "Pinnacle",
+              "canonical_market": "ASIAN_HANDICAP",
+              "captured_at": "2026-07-21T10:00:31Z",
+              "decimal_odds": "1.86",
+              "fixture_id": "1494220",
+              "line": "-0.5",
+              "observation_id": "22e0e156e75037fea9c8223486c693e1177974cc0b96e46b4a0d509d86d0cdd7",
+              "provider": "api_football",
+              "raw_payload_sha256": "c7d78e28d756ac63b3ff79d0186ac5ad8973c5eeb8a036edfd1d41c7902a8abd",
+              "selection": "HOME",
+              "side": "HOME",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "-0.5"
+        },
+        "ou": {
+          "age_seconds": 43.289107,
+          "blockers": [],
+          "bookmaker_id": "1",
+          "captured_at": "2026-07-21T10:00:31Z",
+          "evaluated_at": "2026-07-21T10:01:14.289107Z",
+          "freshness_blockers": [],
+          "freshness_schema_version": "w2.quote_freshness.v1",
+          "freshness_status": "COMPLETE",
+          "identity_status": "COMPLETE",
+          "market": "TOTALS",
+          "max_age_seconds": 1800,
+          "observation_ids": {
+            "over": "c530f710225d29d72573931cadad64cddef3b5b917994b6f59ecb91fe13afe79",
+            "under": "8d40c168e586cc0511bbbda5672be329162b62c89db7df3ffcf253658873f0a8"
+          },
+          "provider": "api_football",
+          "quotes": {
+            "over": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:31Z",
+              "decimal_odds": "2.2",
+              "fixture_id": "1494220",
+              "line": "3.5",
+              "observation_id": "c530f710225d29d72573931cadad64cddef3b5b917994b6f59ecb91fe13afe79",
+              "provider": "api_football",
+              "raw_payload_sha256": "c7d78e28d756ac63b3ff79d0186ac5ad8973c5eeb8a036edfd1d41c7902a8abd",
+              "selection": "OVER",
+              "side": "OVER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            },
+            "under": {
+              "bookmaker_id": "1",
+              "bookmaker_name": "10Bet",
+              "canonical_market": "TOTALS",
+              "captured_at": "2026-07-21T10:00:31Z",
+              "decimal_odds": "1.67",
+              "fixture_id": "1494220",
+              "line": "3.5",
+              "observation_id": "8d40c168e586cc0511bbbda5672be329162b62c89db7df3ffcf253658873f0a8",
+              "provider": "api_football",
+              "raw_payload_sha256": "c7d78e28d756ac63b3ff79d0186ac5ad8973c5eeb8a036edfd1d41c7902a8abd",
+              "selection": "UNDER",
+              "side": "UNDER",
+              "source_revision": "LOCAL_UNDEPLOYED"
+            }
+          },
+          "schema_version": "w2.quote_identity.v1",
+          "selected_line": "3.5"
+        }
+      },
+      "reason_code": null,
+      "selected_candidate": {
+        "analysis_evidence_hash": null,
+        "decision": "ANALYSIS_PICK",
+        "expected_value": 0.071523937709351,
+        "line": "3.5",
+        "market": "TOTALS",
+        "market_probability": 0.568475,
+        "model_probability": 0.641631,
+        "probability_delta": 0.073156,
+        "quote_identity": null,
+        "selection": "UNDER",
+        "uncertainty": 0.071002
+      },
+      "status": "READY",
+      "v3_decision_hash": "dc1122843cade9c82a3cefbe6c814d52533f51a560837e152e84998522ec62e4",
+      "v3_envelope_hash": "708e4591b7958f43795b202a46ed295b942b0c6157feab1173a6ce96f1ee4a5b"
+    }
+  ],
+  "generated_at": "2026-07-21T10:01:14.289107Z",
+  "implementation_sha": "876072e585125644181044ac9789af3f5358458b",
+  "public_read_iterations": 20,
+  "read_results": [
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494224",
+      "iteration": 1,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494218",
+      "iteration": 2,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494221",
+      "iteration": 3,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494223",
+      "iteration": 4,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494217",
+      "iteration": 5,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494222",
+      "iteration": 6,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494219",
+      "iteration": 7,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494220",
+      "iteration": 8,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494224",
+      "iteration": 9,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494218",
+      "iteration": 10,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494221",
+      "iteration": 11,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494223",
+      "iteration": 12,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494217",
+      "iteration": 13,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494222",
+      "iteration": 14,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494219",
+      "iteration": 15,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494220",
+      "iteration": 16,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494224",
+      "iteration": 17,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494218",
+      "iteration": 18,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "WATCH",
+      "fixture_id": "1494221",
+      "iteration": 19,
+      "status": "READY"
+    },
+    {
+      "decision_tier": "ANALYSIS_PICK",
+      "fixture_id": "1494223",
+      "iteration": 20,
+      "status": "READY"
+    }
+  ],
+  "recommendation_lock_official_delta_zero": true,
+  "schema_version": "w2.final_exact_sha_v3_safety_parity_package.v1",
+  "zero_write": {
+    "forward_prediction_lock": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "future_market_observation": {
+      "after_count": 3840,
+      "before_count": 3840,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "gate5_recommendation_lock_event": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "matchday_endpoint_captures": {
+      "after_count": 181,
+      "before_count": 181,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "matchday_market_observations": {
+      "after_count": 29942,
+      "before_count": 29942,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "provider_request_logs": {
+      "after_count": 112,
+      "before_count": 112,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "raw_payload": {
+      "after_count": 212,
+      "before_count": 212,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "raw_payload_references": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "recommendation_locks": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "recommendations": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "settlements": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "shadow_strategy_event": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "shadow_strategy_lock": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    },
+    "shadow_strategy_settlement": {
+      "after_count": 0,
+      "before_count": 0,
+      "count_delta": 0,
+      "hash_unchanged": true,
+      "status": "PRESENT"
+    }
+  },
+  "zero_write_pass": true
+}

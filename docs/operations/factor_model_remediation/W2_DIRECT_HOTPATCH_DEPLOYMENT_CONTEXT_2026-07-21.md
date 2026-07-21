@@ -800,3 +800,125 @@ FORMAL_RECOMMENDATION_STILL_DISABLED
 AUTOMATED_REFRESH_REMEDIATION_REQUIRED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## External acceptance follow-up: automated refresh and final package
+
+Source:
+
+```text
+/Users/liudehua/.codex/attachments/264c5498-c6f1-4fe3-9fdd-81ed47da704b/pasted-text.txt
+```
+
+External review accepted:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_CANARY_PASSED
+ANALYSIS_RECOMMENDATION_FACTORS_READY
+AS_OF_REPLAY_GUARD_PASS
+```
+
+It restricted remaining PR #370 work to:
+
+```text
+1. Fix AUTOMATED_FUTURE_REFRESH_DEGRADED.
+2. Submit final exact-SHA machine-readable V3/safety/parity package.
+```
+
+Implemented source remediation:
+
+```text
+commit=876072e585125644181044ac9789af3f5358458b
+change=MatchdayRuntimeRepository.insert_fixture_identities is now stable-field aware.
+stable identity changes still fail closed as FIXTURE_IDENTITY_CONFLICT.
+mutable capture/provenance fields can update on repeated provider refresh.
+reviewed W2 team mapping and PROVIDER_PRIMARY_READY status cannot be downgraded
+or cleared by incoming REVIEW_REQUIRED fixture payloads.
+```
+
+Local verification:
+
+```text
+uv run --python 3.12 pytest tests/integration/test_matchday_intake_v2_persistence.py -q
+8 passed
+
+uv run --python 3.12 pytest tests/integration/test_future_refresh_db_persistence.py tests/integration/test_matchday_intake_v2_persistence.py -q
+25 passed
+
+uv run --python 3.12 ruff check src/w2/matchday/repository.py tests/integration/test_matchday_intake_v2_persistence.py
+PASS
+
+uv run --python 3.12 mypy src/w2/matchday/repository.py
+PASS
+```
+
+Deployed exact SHA:
+
+```text
+/opt/w2/current=876072e585125644181044ac9789af3f5358458b
+api_git_sha=876072e585125644181044ac9789af3f5358458b
+web_git_sha=876072e585125644181044ac9789af3f5358458b
+github_actions_run=29820386907
+github_actions_conclusion=success
+/ready=READY
+api=healthy
+worker=healthy
+web=healthy
+scheduler=exited
+```
+
+Automatic provider refresh canary after remediation:
+
+```text
+report=/app/runtime/reports/provider_future_refresh_exact_image_876072e_20260721T100035Z.json
+status=COMPLETED
+request_count=10
+remaining_quota=7212
+fixture_count=14
+market_snapshot_count=8
+ledger_appended_count=2938
+blockers=[]
+```
+
+Runtime flags after provider window:
+
+```text
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+Final exact-SHA V3/safety/parity package submitted to PR:
+
+```text
+docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.json
+docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.md
+```
+
+Package summary:
+
+```text
+implementation_sha=876072e585125644181044ac9789af3f5358458b
+fixtures=8
+public_read_iterations=20
+ANALYSIS_PICK=5
+WATCH=3
+zero_write_pass=true
+recommendation_lock_official_delta_zero=true
+```
+
+Final status after this follow-up:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_CANARY_PASSED
+ANALYSIS_RECOMMENDATION_FACTORS_READY
+AS_OF_REPLAY_GUARD_PASS
+AUTOMATED_FUTURE_REFRESH_COMPLETED_FOR_CANARY
+FINAL_MACHINE_READABLE_V3_SAFETY_PARITY_PACKAGE_SUBMITTED
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
