@@ -1168,7 +1168,7 @@ class FutureRefreshDbRepository:
             current = latest.get(key)
             if current is None or row["captured_at"] > current["captured_at"]:
                 latest[key] = row
-        return sorted(
+        latest_rows = sorted(
             latest.values(),
             key=lambda row: (
                 row["fixture_id"],
@@ -1177,6 +1177,16 @@ class FutureRefreshDbRepository:
                 row["selection"],
             ),
         )
+        if fixture_ids is None:
+            return latest_rows
+        bounded: list[dict[str, Any]] = []
+        grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for row in latest_rows:
+            group_key = (str(row["fixture_id"]), str(row["canonical_market"]))
+            grouped.setdefault(group_key, []).append(row)
+        for group_key in sorted(grouped):
+            bounded.extend(grouped[group_key][:SCOPED_OBSERVATION_ROWS_PER_MARKET])
+        return bounded
 
     def _matchday_observation_dict(self, model: MatchdayMarketObservationModel) -> dict[str, Any]:
         return {
@@ -1188,6 +1198,7 @@ class FutureRefreshDbRepository:
             "provider": model.provider,
             "bookmaker_id": model.bookmaker_id,
             "bookmaker_name": model.bookmaker_name,
+            "capture_id": model.capture_id,
             "provider_bet_id": model.provider_bet_id,
             "raw_market_label": model.raw_market_label,
             "canonical_market": model.canonical_market,

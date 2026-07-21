@@ -379,6 +379,90 @@ scripts/run_predeploy_e2e_smoke.sh now asserts SKIP markets have non-empty reaso
 instead of matching a narrow reason allowlist.
 ```
 
+## Staging exact-image deployment follow-up
+
+Fourth pushed correction SHA:
+
+```text
+2628c440155ea37e3916b8132b32574173c9c0f2
+```
+
+GitHub Actions result:
+
+```text
+verify: PASS
+staging-parity: PASS
+predeploy-e2e: PASS
+```
+
+Exact-image staging deployment was then executed for SHA
+`2628c440155ea37e3916b8132b32574173c9c0f2`.
+
+Runtime verification:
+
+```text
+/opt/w2/current -> /opt/w2/releases/2628c440155ea37e3916b8132b32574173c9c0f2
+api W2_GIT_SHA=2628c440155ea37e3916b8132b32574173c9c0f2
+worker W2_GIT_SHA=2628c440155ea37e3916b8132b32574173c9c0f2
+/ready: READY
+api: healthy
+worker: healthy
+web: healthy
+scheduler: stopped
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+Controlled provider window on the exact image:
+
+```text
+report=/app/runtime/reports/provider_future_refresh_exact_image_2628c44_20260721T104242Z.json
+status=COMPLETED
+request_count=10
+remaining_quota=7208
+fixture_count=14
+market_snapshot_count=8
+ledger_appended_count=2938
+raw_payload_written_count=10
+blockers=[]
+```
+
+The new exact-image refresh wrote 2938 rows with:
+
+```text
+source_revision=2628c440155ea37e3916b8132b32574173c9c0f2
+```
+
+Attempting frozen public artifact materialization after the controlled refresh exposed a
+bounded-reader issue: repeated historical canaries left thousands of canonical market
+observations per fixture in staging, and the frozen materializer rejected the scoped
+input with:
+
+```text
+FrozenAnalysisError: scoped observation input exceeds bound
+```
+
+Follow-up code correction:
+
+```text
+FutureRefreshDbRepository._canonical_market_observations_for_fixtures now applies the
+same bounded scoped behavior for canonical matchday observations:
+max 128 rows per fixture/market, therefore max 256 rows per AH+OU fixture.
+
+_matchday_observation_dict now includes capture_id, preserving exact quote provenance
+inside frozen/scoped analysis inputs.
+```
+
+Local verification:
+
+```text
+ruff src/w2/ingestion/future_refresh_repository.py: PASS
+mypy src/w2/ingestion/future_refresh_repository.py: PASS
+pytest future_refresh_db_persistence + xg_materialized + quote/candidate: 41 passed
+```
+
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
 
 Second rebuild observation:
