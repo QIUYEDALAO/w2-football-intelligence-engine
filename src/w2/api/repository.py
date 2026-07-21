@@ -2701,6 +2701,7 @@ class ReadModelService:
                 mainline_selection=mainline_selection,
                 home_xg=latest_home_xg,
                 away_xg=latest_away_xg,
+                h2h_meetings=h2h_meetings,
                 score_matrix=score_matrix,
                 evaluated_at=context.as_of,
             )
@@ -4329,6 +4330,7 @@ class ReadModelService:
         mainline_selection: dict[str, dict[str, Any]],
         home_xg: TeamXgSnapshot | None,
         away_xg: TeamXgSnapshot | None,
+        h2h_meetings: list[TeamMatchHistory],
         score_matrix: dict[tuple[int, int], float] | None,
         evaluated_at: datetime,
     ) -> dict[str, Any]:
@@ -4358,7 +4360,7 @@ class ReadModelService:
                 "xg_home_match_count": xg_status["home_match_count"],
                 "xg_away_match_count": xg_status["away_match_count"],
                 "xg_snapshot_count": xg_status["snapshot_count"],
-                "h2h": False,
+                "h2h": bool(h2h_meetings),
                 "lineups": lineups_status["ready"],
                 "lineups_status": lineups_status["status"],
                 "lineups_captured_at": lineups_status["captured_at"],
@@ -4366,6 +4368,8 @@ class ReadModelService:
                 "statistics_captured_at": statistics_status["captured_at"],
             }
         }
+        if h2h_meetings:
+            summary["data_readiness"]["h2h_match_count"] = len(h2h_meetings)
         if xg_status.get("blocker"):
             summary["data_readiness"]["xg_blocker"] = xg_status["blocker"]
         quote_identity_audit = {
