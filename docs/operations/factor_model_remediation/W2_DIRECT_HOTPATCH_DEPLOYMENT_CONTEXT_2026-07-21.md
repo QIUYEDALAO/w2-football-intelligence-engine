@@ -315,6 +315,42 @@ pytest quote/candidate/analysis/future-refresh/matchday/xg-materialized/runtime 
 mypy targeted source files: PASS
 ```
 
+## Second exact-head CI follow-up
+
+Second pushed correction SHA:
+
+```text
+04851f0d72ffbc1dd0a1c8924c8803a604fa2be2
+```
+
+GitHub Actions result:
+
+```text
+verify: PASS
+staging-parity: PASS
+predeploy-e2e: FAIL
+```
+
+The predeploy smoke passed fake future refresh and frozen artifact materialization, then
+failed in the HTTP analysis-card assertion block. The failing assertion was the legacy
+SKIP reason allowlist: it accepted only unavailable/input/matrix/insufficient reason
+families, while the now-complete analysis chain can correctly emit model-market edge
+reasons such as `MODEL_MARKET_EDGE_INSUFFICIENT`.
+
+Follow-up fix:
+
+```text
+scripts/run_predeploy_e2e_smoke.sh now accepts EDGE-family SKIP reasons.
+```
+
+Local verification after this fix:
+
+```text
+bash -n scripts/run_predeploy_e2e_smoke.sh: PASS
+pytest tests/unit/test_analysis_card_xg_materialized.py tests/unit/test_runtime.py: 38 passed
+Docker unavailable locally, so full predeploy e2e must be verified by GitHub Actions.
+```
+
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
 
 Second rebuild observation:

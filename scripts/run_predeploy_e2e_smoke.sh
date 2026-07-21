@@ -392,6 +392,7 @@ for market in markets:
             or "INPUT" in reason
             or "MATRIX" in reason
             or "INSUFFICIENT" in reason
+            or "EDGE" in reason
             for reason in market["reasons"]
         )
 print("predeploy_e2e analysis card PASS")
