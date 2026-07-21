@@ -372,3 +372,97 @@ ruff src/w2/api/repository.py: PASS
 mypy src/w2/api/repository.py: PASS
 pytest tests/unit/test_analysis_card_xg_materialized.py tests/unit/test_market_candidate.py tests/unit/test_recommendation_decision_v3.py: 24 passed
 ```
+
+## Final exact-image staging deployment result
+
+Final deployed code/image SHA:
+
+```text
+f631bc11f7641791618f4a0d245fce8fe1732740
+```
+
+Deployment checks:
+
+```text
+api container env W2_GIT_SHA=f631bc11f7641791618f4a0d245fce8fe1732740
+api image label revision=f631bc11f7641791618f4a0d245fce8fe1732740
+api image id=sha256:ec91d1de85fa68687026f571ad5486453f758410f417db9c78208ba42687a70b
+web meta web_git_sha=f631bc11f7641791618f4a0d245fce8fe1732740
+alembic current=head=0033_create_canonical_team_identity
+api health=healthy
+worker health=healthy
+web health=healthy
+scheduler=stopped
+```
+
+Provider and production posture after final controlled window:
+
+```text
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+Final controlled provider window:
+
+```text
+report=/opt/w2/current/runtime/reports/provider_future_refresh_exact_image_f631bc1_20260721T084229Z.json
+request_count=10
+remaining_quota=7230
+status=BLOCKED
+blocker=MatchdayRepositoryError
+```
+
+Manual odds materialization from latest raw captures:
+
+```text
+report=/opt/w2/current/runtime/reports/materialize_latest_odds_exact_image_f631bc1_20260721T084229Z.json
+fixtures=8
+inserted_market_observations=2938
+provider_calls=0
+```
+
+Final fresh read-model canary:
+
+```text
+report=/opt/w2/current/runtime/reports/read_model_canary_exact_image_f631bc1_FRESH_COMPACT_20260721T084330Z.json
+fixtures=8
+ANALYSIS_PICK=5
+NO_EDGE=3
+NOT_READY=0
+lambda_uncertainty_status=ANALYSIS_READY
+model_probability=present
+market_probability=present
+probability_delta=present
+expected_value=present
+uncertainty=present
+```
+
+Safety table check:
+
+```text
+forward_prediction_lock=0
+gate5_recommendation_lock_event=0
+recommendation_locks=0
+shadow_strategy_event=0
+shadow_strategy_lock=0
+shadow_strategy_settlement=0
+```
+
+Remaining known blocker:
+
+```text
+automatic future refresh still returns MatchdayRepositoryError
+manual odds materialization from endpoint captures works
+```
+
+Final status:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
