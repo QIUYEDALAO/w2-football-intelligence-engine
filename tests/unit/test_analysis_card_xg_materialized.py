@@ -611,6 +611,15 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
+    ah_market = next(
+        market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP"
+    )
+    assert ah_market["model_probability"] is not None
+    assert ah_market["market_probability"] is not None
+    assert ah_market["probability_delta"] is not None
+    assert ah_market["expected_value"] is not None
+    assert ah_market["uncertainty"] is not None
+    assert ah_market["analysis_evidence_sides"]
     assert any(
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for market in card["markets"]

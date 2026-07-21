@@ -5491,6 +5491,7 @@ class ReadModelService:
                 )
                 if isinstance(candidate, dict):
                     market["market_candidate"] = candidate
+                    self._attach_market_candidate_evidence_projection(market, candidate)
                     if candidate.get("analysis_evidence_status") == "COMPLETE":
                         market["decision"] = (
                             "ANALYSIS_PICK"
@@ -5499,6 +5500,68 @@ class ReadModelService:
                         )
         apply_market_selection(decorated)
         return decorated
+
+    def _attach_market_candidate_evidence_projection(
+        self,
+        market: dict[str, Any],
+        candidate: dict[str, Any],
+    ) -> None:
+        evidence = candidate.get("analysis_evidence")
+        if not isinstance(evidence, dict):
+            return
+        side_evidence = evidence.get("side_evidence")
+        market_probability = evidence.get("market_probability")
+        if not isinstance(side_evidence, dict) or not isinstance(market_probability, dict):
+            return
+        devig = market_probability.get("devig")
+        if not isinstance(devig, dict):
+            return
+        sides: dict[str, dict[str, Any]] = {}
+        for side, raw in side_evidence.items():
+            if not isinstance(raw, dict):
+                continue
+            model = raw.get("model_probability")
+            comparison = raw.get("comparison")
+            if not isinstance(model, dict) or not isinstance(comparison, dict):
+                continue
+            sides[str(side)] = {
+                "model_probability": model.get("effective_probability"),
+                "market_probability": devig.get(str(side)),
+                "probability_delta": comparison.get("probability_delta"),
+                "expected_value": model.get("expected_value"),
+                "uncertainty": model.get("ev_se"),
+                "model_status": model.get("status"),
+                "reason_code": comparison.get("reason_code"),
+                "analysis_direction_allowed": comparison.get("analysis_direction_allowed"),
+            }
+        if not sides:
+            return
+        market["analysis_evidence_sides"] = sides
+        selected_side = str(candidate.get("selection") or "")
+        selected = sides.get(selected_side)
+        comparison_role = "SELECTED_SIDE" if selected is not None else "BEST_AVAILABLE_NO_EDGE"
+        if selected is None:
+            ready_sides = [
+                (side, row)
+                for side, row in sides.items()
+                if row.get("model_status") == "READY"
+                and isinstance(row.get("expected_value"), int | float)
+            ]
+            if not ready_sides:
+                return
+            selected_side, selected = max(
+                ready_sides,
+                key=lambda item: float(item[1].get("expected_value") or 0.0),
+            )
+        market["comparison_role"] = comparison_role
+        market["comparison_selection"] = selected_side
+        market["model_probability"] = selected.get("model_probability")
+        market["market_probability"] = selected.get("market_probability")
+        market["probability_delta"] = selected.get("probability_delta")
+        market["expected_value"] = selected.get("expected_value")
+        market["uncertainty"] = selected.get("uncertainty")
+        market["analysis_direction_allowed"] = selected.get("analysis_direction_allowed")
+        market["analysis_evidence_reason_code"] = selected.get("reason_code")
 
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
         fixture_id = str(card.get("fixture_id") or "")
