@@ -303,10 +303,20 @@ class FakeDbRepository:
         rows: list[dict[str, Any]] = []
         for team_id in ("10", "20"):
             for index in range(5):
+                base_for = 1.1 if team_id == "10" else 0.8
+                base_against = 0.7 if team_id == "10" else 1.2
                 rows.append(
                     {
+                        "fixture_id": f"xg-{team_id}-{index}",
                         "team_id": team_id,
+                        "opponent_team_id": "20" if team_id == "10" else "10",
                         "kickoff_at": (NOW - timedelta(days=10 - index)).isoformat(),
+                        "xg_for": round(base_for + (index * 0.17), 3),
+                        "xg_against": round(base_against + (index * 0.11), 3),
+                        "goals_for": 1 + (index % 2),
+                        "goals_against": index % 2,
+                        "raw_payload_sha256": f"raw-xg-{team_id}-{index}",
+                        "source_system": "api_football_statistics",
                     }
                 )
         return rows
@@ -442,11 +452,23 @@ class FakeCanonicalDbRepository(FakeDbRepository):
         rows: list[dict[str, Any]] = []
         for team_id in ("w2:team:home", "w2:team:away"):
             for index in range(5):
+                base_for = 1.1 if team_id.endswith("home") else 0.8
+                base_against = 0.7 if team_id.endswith("home") else 1.2
                 rows.append(
                     {
+                        "fixture_id": f"xg-{team_id}-{index}",
                         "team_id": team_id,
+                        "opponent_team_id": "w2:team:away"
+                        if team_id.endswith("home")
+                        else "w2:team:home",
                         "provider_team_id": "10" if team_id.endswith("home") else "20",
                         "kickoff_at": (KICKOFF - timedelta(days=10 - index)).isoformat(),
+                        "xg_for": round(base_for + (index * 0.17), 3),
+                        "xg_against": round(base_against + (index * 0.11), 3),
+                        "goals_for": 1 + (index % 2),
+                        "goals_against": index % 2,
+                        "raw_payload_sha256": f"raw-xg-{team_id}-{index}",
+                        "source_system": "api_football_statistics",
                     }
                 )
         return [row for row in rows if row["team_id"] in team_ids]
@@ -458,6 +480,51 @@ def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() 
 
     assert service._line_value(row) == "2.25"  # noqa: SLF001
     assert service._decimal_line(row) == Decimal("2.25")  # noqa: SLF001
+
+
+def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) -> None:
+    class SparseXgRepository(FakeDbRepository):
+        def team_xg_matches_for_teams(
+            self,
+            team_ids: list[str],
+            *,
+            before: datetime,
+            limit_per_team: int = 20,
+        ) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            for team_id in ("10", "20"):
+                for index in range(2):
+                    rows.append(
+                        {
+                            "fixture_id": f"sparse-{team_id}-{index}",
+                            "team_id": team_id,
+                            "opponent_team_id": "20" if team_id == "10" else "10",
+                            "kickoff_at": (
+                                KICKOFF - timedelta(days=8 - index)
+                            ).isoformat(),
+                            "xg_for": 1.0 + index,
+                            "xg_against": 0.8 + index,
+                            "raw_payload_sha256": f"sparse-raw-{team_id}-{index}",
+                            "source_system": "api_football_statistics",
+                        }
+                    )
+            return [row for row in rows if row["team_id"] in team_ids]
+
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", SparseXgRepository)
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+
+    uncertainty = service._empirical_xg_lambda_uncertainty(  # noqa: SLF001
+        fixture_id="1489410",
+        as_of=KICKOFF,
+        home_team_id="10",
+        away_team_id="20",
+    )
+
+    assert uncertainty["lambda_sigma_home"] is None
+    assert uncertainty["lambda_sigma_away"] is None
+    assert uncertainty["lambda_uncertainty_method"] == "none"
+    assert uncertainty["lambda_uncertainty_status"] == "XG_UNCERTAINTY_SAMPLE_INSUFFICIENT"
+    assert uncertainty["lambda_uncertainty_input_hash"]
 
 
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
@@ -494,6 +561,17 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "statistics_captured_at": None,
     }
     assert card["model_probabilities"]
+    simulation = card["simulation"]
+    assert simulation["lambda_sigma_home"] > 0
+    assert simulation["lambda_sigma_away"] > 0
+    assert simulation["calibration"]["lambda_uncertainty_method"] == (
+        "empirical_xg_standard_error.v1"
+    )
+    assert simulation["calibration"]["lambda_uncertainty_status"] == "ANALYSIS_READY"
+    uncertainty_audit = simulation["calibration"]["lambda_uncertainty_audit"]
+    assert uncertainty_audit["input_hash"]
+    assert uncertainty_audit["groups"]["home_attack_xg_for"]["n"] == 5
+    assert len(uncertainty_audit["groups"]["away_defence_xg_against"]["fixture_ids"]) == 5
     assert {
         key: card["current_odds"]["ah"].get(key)
         for key in ("line", "home_price", "away_price", "home_line", "away_line", "price")

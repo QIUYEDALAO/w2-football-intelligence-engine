@@ -2703,6 +2703,12 @@ class ReadModelService:
             away_team_id=away_id,
             snapshots=snapshots,
         )
+        lambda_uncertainty = self._empirical_xg_lambda_uncertainty(
+            fixture_id=fixture_id,
+            as_of=kickoff,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
         half_goals: HalfGoalModelInput | None = None
         score_matrix: dict[tuple[int, int], float] | None = None
         score_direction: Direction | None = None
@@ -2741,6 +2747,20 @@ class ReadModelService:
                 away_squad_value_eur=latest_away_value.squad_value_eur
                 if latest_away_value is not None
                 else None,
+                lambda_sigma_home=float(lambda_uncertainty["lambda_sigma_home"] or 0.0),
+                lambda_sigma_away=float(lambda_uncertainty["lambda_sigma_away"] or 0.0),
+                lambda_uncertainty_method=cast(
+                    str | None,
+                    lambda_uncertainty.get("lambda_uncertainty_method"),
+                ),
+                lambda_uncertainty_status=cast(
+                    str | None,
+                    lambda_uncertainty.get("lambda_uncertainty_status"),
+                ),
+                lambda_uncertainty_audit=cast(
+                    dict[str, Any],
+                    lambda_uncertainty.get("lambda_uncertainty_audit") or {},
+                ),
                 neutral_site=neutral_site,
                 input_readiness={
                     "xg_status": xg_readiness["status"],
@@ -2752,6 +2772,12 @@ class ReadModelService:
                     and latest_away_rating is not None,
                     "squad_value_ready": latest_home_value is not None
                     and latest_away_value is not None,
+                    "lambda_uncertainty_status": lambda_uncertainty[
+                        "lambda_uncertainty_status"
+                    ],
+                    "lambda_uncertainty_input_hash": lambda_uncertainty[
+                        "lambda_uncertainty_input_hash"
+                    ],
                 },
             )
         )
@@ -4604,6 +4630,158 @@ class ReadModelService:
             "home_match_count": home_match_count,
             "away_match_count": away_match_count,
             "snapshot_count": len(snapshots),
+        }
+
+    def _empirical_xg_lambda_uncertainty(
+        self,
+        *,
+        fixture_id: str,
+        as_of: datetime,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> dict[str, Any]:
+        method_version = "empirical_xg_standard_error.v1"
+        matches = self._team_xg_matches_for_teams(
+            [home_team_id, away_team_id],
+            before=as_of,
+        )
+        home_rows = self._xg_uncertainty_rows(matches, team_id=home_team_id, before=as_of)
+        away_rows = self._xg_uncertainty_rows(matches, team_id=away_team_id, before=as_of)
+        home_attack = self._xg_standard_error(home_rows, field="xg_for")
+        home_defence = self._xg_standard_error(home_rows, field="xg_against")
+        away_attack = self._xg_standard_error(away_rows, field="xg_for")
+        away_defence = self._xg_standard_error(away_rows, field="xg_against")
+        audit: dict[str, Any] = {
+            "fixture_id": fixture_id,
+            "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "method_version": method_version,
+            "home_team_id": home_team_id,
+            "away_team_id": away_team_id,
+            "groups": {
+                "home_attack_xg_for": home_attack,
+                "home_defence_xg_against": home_defence,
+                "away_attack_xg_for": away_attack,
+                "away_defence_xg_against": away_defence,
+            },
+        }
+        input_hash = hashlib.sha256(
+            json.dumps(audit, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        audit["input_hash"] = input_hash
+        blockers = [
+            str(group["blocker"])
+            for group in (home_attack, home_defence, away_attack, away_defence)
+            if group["status"] != "READY"
+        ]
+        if blockers:
+            return {
+                "lambda_sigma_home": None,
+                "lambda_sigma_away": None,
+                "lambda_uncertainty_method": "none",
+                "lambda_uncertainty_status": blockers[0],
+                "lambda_uncertainty_input_hash": input_hash,
+                "lambda_uncertainty_audit": audit,
+            }
+        sigma_home = 0.5 * math.sqrt(
+            float(home_attack["standard_error"]) ** 2
+            + float(away_defence["standard_error"]) ** 2
+        )
+        sigma_away = 0.5 * math.sqrt(
+            float(away_attack["standard_error"]) ** 2
+            + float(home_defence["standard_error"]) ** 2
+        )
+        if sigma_home <= 0 or sigma_away <= 0:
+            return {
+                "lambda_sigma_home": None,
+                "lambda_sigma_away": None,
+                "lambda_uncertainty_method": "none",
+                "lambda_uncertainty_status": "XG_UNCERTAINTY_ZERO_VARIANCE",
+                "lambda_uncertainty_input_hash": input_hash,
+                "lambda_uncertainty_audit": audit,
+            }
+        audit["sigma_home"] = round(sigma_home, 6)
+        audit["sigma_away"] = round(sigma_away, 6)
+        return {
+            "lambda_sigma_home": round(sigma_home, 6),
+            "lambda_sigma_away": round(sigma_away, 6),
+            "lambda_uncertainty_method": method_version,
+            "lambda_uncertainty_status": "ANALYSIS_READY",
+            "lambda_uncertainty_input_hash": input_hash,
+            "lambda_uncertainty_audit": audit,
+        }
+
+    def _xg_uncertainty_rows(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        team_id: str,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        selected: list[dict[str, Any]] = []
+        for row in rows:
+            if str(row.get("team_id") or "") != team_id:
+                continue
+            kickoff = parse_provider_time(row.get("kickoff_at"))
+            if kickoff is None or kickoff >= before:
+                continue
+            xg_for = _float_or_none(row.get("xg_for"))
+            xg_against = _float_or_none(row.get("xg_against"))
+            if xg_for is None or xg_against is None:
+                continue
+            selected.append(
+                {
+                    "fixture_id": str(row.get("fixture_id") or ""),
+                    "kickoff_at": kickoff.astimezone(UTC).isoformat().replace(
+                        "+00:00",
+                        "Z",
+                    ),
+                    "xg_for": xg_for,
+                    "xg_against": xg_against,
+                    "raw_payload_sha256": self._string_or_none(
+                        row.get("raw_payload_sha256")
+                    ),
+                    "source_system": self._string_or_none(row.get("source_system")),
+                }
+            )
+        selected.sort(key=lambda row: str(row["kickoff_at"]))
+        return selected
+
+    def _xg_standard_error(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        field: str,
+    ) -> dict[str, Any]:
+        values = [float(row[field]) for row in rows]
+        fixture_ids = [str(row.get("fixture_id") or "") for row in rows]
+        if len(values) < 3:
+            return {
+                "status": "NOT_READY",
+                "blocker": "XG_UNCERTAINTY_SAMPLE_INSUFFICIENT",
+                "n": len(values),
+                "fixture_ids": fixture_ids,
+                "sample_variance": None,
+                "standard_error": None,
+            }
+        mean = sum(values) / len(values)
+        sample_variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+        if sample_variance <= 0:
+            return {
+                "status": "NOT_READY",
+                "blocker": "XG_UNCERTAINTY_ZERO_VARIANCE",
+                "n": len(values),
+                "fixture_ids": fixture_ids,
+                "sample_variance": round(sample_variance, 12),
+                "standard_error": None,
+            }
+        standard_error = math.sqrt(sample_variance) / math.sqrt(len(values))
+        return {
+            "status": "READY",
+            "blocker": None,
+            "n": len(values),
+            "fixture_ids": fixture_ids,
+            "sample_variance": round(sample_variance, 12),
+            "standard_error": round(standard_error, 12),
         }
 
     def _team_xg_match_count(self, *, team_id: str, before: datetime) -> int:

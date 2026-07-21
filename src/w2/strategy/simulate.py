@@ -42,6 +42,9 @@ class SimulationInputs:
     lineup_totals_evidence_enabled: bool = False
     lambda_sigma_home: float = 0.0
     lambda_sigma_away: float = 0.0
+    lambda_uncertainty_method: str | None = None
+    lambda_uncertainty_status: str | None = None
+    lambda_uncertainty_audit: dict[str, Any] = field(default_factory=dict)
     neutral_site: bool = False
     input_readiness: dict[str, bool | str | int | float | None] = field(default_factory=dict)
 
@@ -132,6 +135,16 @@ def run_simulation(
     )
     sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
     sigma_away = max(float(inputs.lambda_sigma_away), 0.0)
+    uncertainty_method = (
+        "none"
+        if sigma_home == 0 and sigma_away == 0
+        else inputs.lambda_uncertainty_method or "deterministic_three_point"
+    )
+    uncertainty_status = (
+        inputs.lambda_uncertainty_status
+        if sigma_home > 0 or sigma_away > 0
+        else "NOT_READY"
+    )
     score_counts = _exact_score_matrix_with_uncertainty(
         calibration.lambda_home,
         calibration.lambda_away,
@@ -196,9 +209,9 @@ def run_simulation(
             "input_weights": calibration.input_weights,
             "seed_policy": "unused_exact_solution",
             "max_goals": max_goals,
-            "lambda_uncertainty_method": (
-                "none" if sigma_home == 0 and sigma_away == 0 else "deterministic_three_point"
-            ),
+            "lambda_uncertainty_method": uncertainty_method,
+            "lambda_uncertainty_status": uncertainty_status,
+            "lambda_uncertainty_audit": inputs.lambda_uncertainty_audit,
         },
     )
 

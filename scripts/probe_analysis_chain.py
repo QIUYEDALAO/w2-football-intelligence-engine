@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,6 +30,22 @@ AUDIT_TABLES = (
     "shadow_strategy_lock",
     "shadow_strategy_event",
     "shadow_strategy_settlement",
+    "settlements",
+    "matchday_evidence_manifests",
+)
+COHORT_TABLES = (
+    "recommendations",
+    "recommendation_locks",
+    "settlements",
+    "shadow_strategy_lock",
+    "shadow_strategy_event",
+    "shadow_strategy_settlement",
+)
+OFFICIAL_TABLES = (
+    "recommendations",
+    "recommendation_locks",
+    "forward_prediction_lock",
+    "gate5_recommendation_lock_event",
     "settlements",
     "matchday_evidence_manifests",
 )
@@ -189,12 +207,14 @@ def main() -> int:
     after = _audit_snapshot()
     payload = {
         "probe": "public_analysis_card_bounded",
+        "metadata": _metadata(),
         "read_count": max(args.read_count, 1),
         "audit": {
             "before": before,
             "after": after,
             "delta": _audit_delta(before, after),
             "zero_write_pass": _zero_write_pass(before, after),
+            "safety_invariants": _safety_invariants(before, after),
         },
         "fixtures": fixtures,
     }
@@ -224,7 +244,11 @@ def _audit_snapshot() -> dict[str, Any]:
                 )
             ).scalar()
             tables[table] = {"status": "PRESENT", "count": int(count or 0), "hash": digest}
-    return {"tables": tables}
+    return {
+        "tables": tables,
+        "cohort_hash": _table_group_hash(tables, COHORT_TABLES),
+        "official_storage_hash": _table_group_hash(tables, OFFICIAL_TABLES),
+    }
 
 
 def _audit_delta(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
@@ -253,12 +277,71 @@ def _audit_delta(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any
 
 
 def _zero_write_pass(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    before_tables = before.get("tables") if isinstance(before.get("tables"), dict) else {}
+    after_tables = after.get("tables") if isinstance(after.get("tables"), dict) else {}
+    if not isinstance(before_tables, dict) or not isinstance(after_tables, dict):
+        return False
+    for table in AUDIT_TABLES:
+        left = before_tables.get(table)
+        right = after_tables.get(table)
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            return False
+        if left.get("status") != "PRESENT" or right.get("status") != "PRESENT":
+            return False
     return all(
-        row.get("count_delta") in {0, None}
-        and (row.get("status") == "TABLE_MISSING" or row.get("hash_unchanged") is True)
+        row.get("count_delta") == 0 and row.get("hash_unchanged") is True
         for row in _audit_delta(before, after).values()
         if isinstance(row, dict)
     )
+
+
+def _safety_invariants(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "canonical_cohort_hash_before": before.get("cohort_hash"),
+        "canonical_cohort_hash_after": after.get("cohort_hash"),
+        "canonical_cohort_hash_unchanged": before.get("cohort_hash")
+        == after.get("cohort_hash"),
+        "official_storage_hash_before": before.get("official_storage_hash"),
+        "official_storage_hash_after": after.get("official_storage_hash"),
+        "official_storage_hash_unchanged": before.get("official_storage_hash")
+        == after.get("official_storage_hash"),
+        "required_tables_present": _required_tables_present(before)
+        and _required_tables_present(after),
+    }
+
+
+def _required_tables_present(snapshot: dict[str, Any]) -> bool:
+    tables = snapshot.get("tables") if isinstance(snapshot.get("tables"), dict) else {}
+    if not isinstance(tables, dict):
+        return False
+    return all(
+        isinstance(tables.get(table), dict) and tables[table].get("status") == "PRESENT"
+        for table in AUDIT_TABLES
+    )
+
+
+def _table_group_hash(tables: dict[str, Any], table_names: tuple[str, ...]) -> str:
+    payload = {
+        table: tables.get(table, {"status": "TABLE_MISSING", "count": None, "hash": None})
+        for table in table_names
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _metadata() -> dict[str, Any]:
+    return {
+        "git_head": _command(["git", "rev-parse", "HEAD"]),
+        "git_branch": _command(["git", "branch", "--show-current"]),
+    }
+
+
+def _command(args: list[str]) -> str | None:
+    try:
+        return subprocess.check_output(args, cwd=ROOT, text=True).strip()  # noqa: S603
+    except Exception:
+        return None
 
 
 if __name__ == "__main__":
