@@ -87,16 +87,27 @@ def _candidate(
     identity_status = _text(audit.get("identity_status"), "INCOMPLETE")
     freshness_status = _text(audit.get("freshness_status"), "INCOMPLETE")
     selection = market_row.get("tendency")
+    line = market_row.get("line")
+    if line is None:
+        line = audit.get("selected_line")
+    quote_complete = identity_status == "COMPLETE" and freshness_status == "COMPLETE"
+    if selection is None and quote_complete and line is not None:
+        comparison_evidence = build_analysis_market_evidence(
+            fixture_id=fixture_id,
+            competition_id=competition_id,
+            market=market,
+            selection=None,
+            line=line,
+            quote_identity_audit={_KEYS[market]: audit},
+            simulation=simulation,
+        )
+        selection = _best_analysis_side(comparison_evidence)
     executable_odds = (
         _normalize_selected_odds(odds, selection)
         or _authoritative_executable_quote(audit, selection)
         if selection is not None
         else {}
     )
-    quote_complete = identity_status == "COMPLETE" and freshness_status == "COMPLETE"
-    line = market_row.get("line")
-    if line is None:
-        line = audit.get("selected_line")
     selected_side_quote = bool(_authoritative_executable_quote(audit, selection))
     executable_price = _selected_price(executable_odds, selection)
     executable = bool(
@@ -189,6 +200,24 @@ def _candidate(
         "blockers": sorted(set(blockers)),
         "warnings": ["REFERENCE_QUOTE_NOT_FOR_EV"] if not executable and reference else [],
     }
+
+
+def _best_analysis_side(evidence: Mapping[str, Any]) -> str | None:
+    side_evidence = _mapping(evidence.get("side_evidence"))
+    candidates: list[tuple[float, str]] = []
+    for side, raw in side_evidence.items():
+        row = _mapping(raw)
+        comparison = _mapping(row.get("comparison"))
+        model = _mapping(row.get("model_probability"))
+        if comparison.get("analysis_direction_allowed") is not True:
+            continue
+        ev = _number(model.get("expected_value"))
+        if ev is None:
+            continue
+        candidates.append((ev, str(side)))
+    if not candidates:
+        return None
+    return max(candidates)[1]
 
 
 def _reference_quote(audit: Mapping[str, Any]) -> dict[str, Any] | None:
