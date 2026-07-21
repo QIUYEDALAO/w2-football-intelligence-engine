@@ -573,6 +573,7 @@ export interface RecommendationDecisionV3 {
   reason?: { code?: string; message?: string } | null;
   next_action?: string | null;
   selected_candidate?: Record<string, unknown> | null;
+  evaluated_candidate?: Record<string, unknown> | null;
   statuses?: Record<string, string>;
   warnings?: string[];
   decision_hash?: string;

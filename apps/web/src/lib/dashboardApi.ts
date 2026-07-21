@@ -918,6 +918,7 @@ function normalizeRecommendationDecisionV3(payload: unknown): RecommendationDeci
     reason: Object.keys(reason).length ? { code: textValue(reason.code), message: textValue(reason.message) } : null,
     next_action: textValue(record.next_action) || null,
     selected_candidate: Object.keys(asRecord(record.selected_candidate)).length ? asRecord(record.selected_candidate) : null,
+    evaluated_candidate: Object.keys(asRecord(record.evaluated_candidate)).length ? asRecord(record.evaluated_candidate) : null,
     statuses: asRecord(record.statuses) as Record<string, string>,
     warnings: asArray(record.warnings).map((item) => textValue(item)).filter(Boolean),
     decision_hash: textValue(record.decision_hash),

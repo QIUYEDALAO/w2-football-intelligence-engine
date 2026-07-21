@@ -47,6 +47,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        run: npm --prefix apps/web ci
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Dashboard V2 protected baseline
+        run: python3 scripts/check_dashboard_v2_baseline.py
+      - name: Web typecheck
+        run: npm --prefix apps/web run typecheck
+      - name: Web build
+        run: npm --prefix apps/web run build
+      - name: Web E2E
+        run: npm --prefix apps/web run test:e2e
       - name: Install Python 3.12 dependencies
         run: uv sync --python 3.12 --all-groups --frozen
       - name: Stage 1 contract checker

@@ -1,51 +1,61 @@
-# W2 Dashboard Redesign QA
+**Findings**
 
-- source visual truth path: `/Users/liudehua/.codex/generated_images/019f2e5b-006c-7980-958d-b7d9c79d590b/ig_04ad2e845046f68b016a4cfbc82cd0819192d1093247c50fd3.png`
-- implementation desktop screenshot: `/tmp/w2_dashboard_redesign_desktop.png`
-- implementation mobile screenshot: `/tmp/w2_dashboard_redesign_mobile.png`
-- viewport: desktop `1536x1024`, mobile `390x844`
-- state: local frontend build with synthetic read-model data for visual density; no provider calls and no writes
+- [P0] The protected React implementation and approved golden screenshots are different authorities.
+  Location: Dashboard V2 visual fixture route.
+  Evidence: the protected component sorts fixtures by `kickoffUtc`, so the two 20:00 matches render before the selected 21:00 match. The 1440 golden places the selected 21:00 match first. The React output also creates separate `07-26` and `07-27` groups, while the golden's hand-authored preview groups both under `07-26`.
+  Impact: the required `maxDiffPixelRatio <= 0.0015` cannot pass without changing a protected file, replacing the golden, or testing a different DOM than production.
+  Fix: provide a corrected pack whose golden screenshots were captured from the protected React component and fixed fixture, or explicitly approve a protected-source revision that matches the current goldens.
 
-## Full-View Comparison Evidence
+- [P1] The supplied visual test expected locator crops, while the approved goldens are full-page captures.
+  Location: `apps/web/e2e/dashboard-v2-visual.spec.ts`.
+  Evidence: locator screenshots measured 1920x1201, 1416x949, and 374x4685; approved goldens measure 2048x1202, 1440x950, and 390x4709.
+  Impact: the original test could not compare against the supplied goldens.
+  Fix: the integration test now uses full-page screenshots and maps directly to the protected golden paths. This exposes the authority conflict above without weakening the 0.15% threshold.
 
-The implementation now matches the selected visual direction at the product-structure level:
+**Open Questions**
 
-- Compact top command bar replaces the previous large hero/header.
-- Three primary tabs sit directly under the command bar.
-- The trust strip is compact and adjacent to the tab layer.
-- The main content is a dense operational table, not large repeated cards.
-- The right rail is a selected-fixture inspector with post-match and league-performance previews.
-- The previous main-screen coverage matrix is absent.
+- The authority order names the protected React source before the golden screenshots, but the acceptance contract requires the current goldens. Human design authority must choose which one is corrected.
+- The pack contains no approved scroll-bottom or scoreline-panel crop goldens. Those states are covered by geometry, visibility, exact-copy, and interaction assertions, but cannot receive an independent pixel verdict without human-supplied baselines.
 
-## Focused Region Comparison Evidence
+**Implementation Checklist**
 
-Focused regions checked:
+- Protected baseline SHA256 guard: passed.
+- Adapter, production entry, and visual route: integrated.
+- Fixed visual data is dev/test-only and absent from the production bundle: passed.
+- Real V3 `evaluated_candidate.analysis_evidence` survives API normalization and maps exact bookmaker, quote time, model/market probabilities, delta, EV, and uncertainty: passed.
+- TypeScript typecheck and production build: passed.
+- Full W2 all-stage verification: passed (1411 tests passed, 4 environment-dependent tests skipped).
+- 15-fixture internal-scroll reachability: passed.
+- Scoreline Top 3 and market-consistency behavior: passed.
+- Unified forward-ledger behavior: passed.
+- Full-page golden comparison at 2048, 1440, and 390: blocked by source-pack authority conflict.
 
-- Command bar: brand, Boss View control, date/environment/refresh metrics, and match/recommendation counters are in one compact row.
-- Match list: rows use fixed table columns for kickoff, league, fixture, market, confidence, data readiness, decision, and next evaluation.
-- Pinned recommendations: the top section is table-based and sorted by kickoff time.
-- Right inspector: selected match evidence and trust modules are separated from the dense list.
-- Mobile: table headers collapse, rows reflow, and there is no horizontal overflow.
+**Follow-up Polish**
 
-## Findings
+- None. Visual polish is intentionally frozen until the source/golden conflict is resolved.
 
-No actionable P0/P1/P2 findings remain.
+Source visual truth paths:
 
-P3 follow-up polish:
+- `docs/ui/dashboard-v2/golden/dashboard-v2-wide-2048.png`
+- `docs/ui/dashboard-v2/golden/dashboard-v2-desktop-1440.png`
+- `docs/ui/dashboard-v2/golden/dashboard-v2-mobile-390.png`
 
-- If exact logo artwork becomes available, replace the text-only `FOOTBALL INTELLIGENCE` wordmark.
-- Once backend exposes real Brier/log-loss/ROI by league, replace current sample placeholders in `联赛表现`.
+Implementation evidence:
 
-## Patches Made Since Previous QA Pass
+- Playwright run: 15 behavior/contract tests passed; the three official viewport comparisons failed only on the source/golden authority conflict recorded above.
+- In-app browser capture: `/tmp/w2-dashboard-v2-inapp-1440.png`
+- Side-by-side comparison: `/tmp/w2-dashboard-v2-qa-comparison.png`
+- Viewport: 1440x900, zh-CN, Asia/Shanghai, deviceScaleFactor=1.
+- State: fixed visual fixture, selected fixture `1494218`, all-schedule filter.
+- Primary interactions tested: analysis-only filter (5 visible), all-schedule filter (15 visible), fixture selection and right-rail update.
+- Browser console errors: none.
+- Full-view comparison: completed with source and implementation in one side-by-side image.
+- Focused comparison: scoreline panel is included in the full-page golden and separately verified by exact content and rail-bounds assertions; no additional human-approved crop golden exists.
 
-- Removed old release/date controls from the Boss View shell.
-- Replaced the large boss hero with a compact command bar.
-- Removed the four large metric cards from L1.
-- Rebuilt match rows as an eight-column dense table.
-- Added data-strength bars and status dots.
-- Kept recommendations pinned only when data-complete.
-- Fixed mobile overflow with a dedicated compact row layout.
+Comparison history:
 
-## Final Result
+1. Repeated comparison found 3% / 4% / 7% full-page differences at 2048 / 1440 / 390, including fixture ordering, date grouping, row copy, and page height.
+2. Protected hashes were rechecked and remained unchanged, proving the mismatch is in the supplied reference pack rather than an integration edit.
+3. No protected source, golden image, or threshold was changed.
 
-final result: passed
+final result: blocked

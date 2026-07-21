@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 
 COMMANDS = [
+    ["uv", "run", "python", "scripts/check_dashboard_v2_baseline.py"],
     ["uv", "run", "python", "scripts/check_tracked_outputs.py"],
     ["uv", "run", "python", "scripts/check_w2_stage1_contracts.py"],
     ["uv", "run", "python", "scripts/check_w2_stage3_data_model.py"],

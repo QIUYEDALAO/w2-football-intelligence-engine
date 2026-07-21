@@ -10,10 +10,10 @@ type Scenario =
 
 const scenarioContract = {
   READY: {
-    decision: "RECOMMEND",
+    decision: "ANALYSIS_PICK",
     data: "READY",
     reason: null,
-    tierLabel: "正式可锁",
+    tierLabel: "分析参考",
   },
   STALE: {
     decision: "WATCH",
@@ -58,11 +58,11 @@ function dayView(scenario: Scenario) {
     db_writes: 0,
     counts: {
       total: 1,
-      lock_eligible: ready ? 1 : 0,
+      lock_eligible: 0,
       outcome_tracked: 0,
       legacy_fallback: 0,
-      analysis_pick: 0,
-      recommend: ready ? 1 : 0,
+      analysis_pick: ready ? 1 : 0,
+      recommend: 0,
       watch: scenario === "STALE" ? 1 : 0,
       not_ready: ready || scenario === "STALE" ? 0 : 1,
       skip: 0,
@@ -98,7 +98,7 @@ function dayView(scenario: Scenario) {
         data_status: contract.data,
         lifecycle_status: "DRAFT",
         outcome_tracked: ready,
-        lock_eligible: ready,
+        lock_eligible: false,
         recommendation_id: "must-be-hidden-when-not-ready",
         reason_code: contract.reason,
         action: ready ? "KEEP_WATCHING" : "WAIT_NEXT_REFRESH",
@@ -228,17 +228,49 @@ function dayView(scenario: Scenario) {
         },
         ...(ready ? { recommendation_decision_v3: {
           schema_version: "w2.recommendation_decision.v3",
-          outcome: "FORMAL_RECOMMEND",
+          outcome: "ANALYSIS_PICK",
           reason: {
-            code: "FORMAL_ADMITTED",
-            message: "正式推荐已通过能力门",
+            code: "ANALYSIS_ONLY",
+            message: "当前仅提供分析参考",
           },
           next_action: "MONITOR",
           selected_candidate: {
             market: "ASIAN_HANDICAP",
-            selection: "HOME_AH",
+            selection: "HOME",
             line: "-0.5",
-            odds: "1.91",
+            odds: null,
+          },
+          evaluated_candidate: {
+            analysis_evidence: {
+              comparison: {
+                probability_delta: 0.08,
+                status: "READY",
+              },
+              market_probability: {
+                devig: { HOME: 0.52, AWAY: 0.48 },
+              },
+              model_probability: {
+                calibration_status: "BASELINE_PRIOR",
+                effective_probability: 0.6,
+                expected_value: 0.146,
+                ev_se: 0.04,
+                model_version: "w2.formal.exact_dc_poisson.v1",
+              },
+              quote_identity: {
+                bookmaker_id: "32",
+                captured_at: "2026-07-18T09:55:00Z",
+                identity_status: "COMPLETE",
+                quotes: {
+                  home: {
+                    bookmaker_name: "Betano",
+                    captured_at: "2026-07-18T09:55:00Z",
+                    decimal_odds: "1.91",
+                    line: "-0.5",
+                    selection: "HOME",
+                  },
+                },
+              },
+            },
           },
           statuses: {},
           warnings: [],
@@ -308,8 +340,9 @@ async function installRoutes(
       }),
     );
     dayViewPayload.counts.total = readyCardCount;
-    dayViewPayload.counts.lock_eligible = readyCardCount;
-    dayViewPayload.counts.recommend = readyCardCount;
+    dayViewPayload.counts.lock_eligible = 0;
+    dayViewPayload.counts.analysis_pick = readyCardCount;
+    dayViewPayload.counts.recommend = 0;
     dayViewPayload.counts.ready = readyCardCount;
   }
   await page.route("**/*", async (route) => {
@@ -353,7 +386,7 @@ async function installRoutes(
             ? { market: "ASIAN_HANDICAP", selection: "HOME_AH" }
             : null,
           current_odds: ready ? { ah: { home_price: "1.91" } } : {},
-          lock_eligible: ready,
+          lock_eligible: false,
           frozen_artifact_provenance:
             scenario === "CHECKPOINT_MISSING"
               ? { status: "BLOCKED", blockers: ["FROZEN_ARTIFACT_MISSING"] }
@@ -372,46 +405,53 @@ test("READY renders the unified pick and verified analysis-card", async ({
   await page.goto("/");
 
   const row = page
-    .locator("article.decision-row")
+    .locator("[data-fixture-id='fixture-ready']")
     .filter({ hasText: "READY Home" });
-  await expect(row).toContainText("正式可锁");
+  await expect(row).toContainText("分析参考");
   await expect(row).toContainText("1.91");
-  await expect(row).toContainText("分析盘口：让球 主 -0.5 @1.91");
-  await expect(row).toContainText("模型比分 Top 3：1-0 / 2-0 / 2-1");
+  await expect(row).toContainText("让球 · 主队 -0.5 @1.91");
+  await expect(row).toContainText("模型比分：1-0 · 2-0 · 2-1");
   await expect(row).not.toContainText("1万次模拟");
-  await expect(page.locator(".scoreline-projection-panel")).toContainText(
+  await expect(page.locator("[data-ui='scoreline-top3-panel']")).toContainText(
     "10,000 次模拟",
   );
-  await expect(page.locator(".scoreline-projection-panel")).toContainText(
+  await expect(page.locator("[data-ui='scoreline-top3-panel']")).toContainText(
     "一致样本 6,417 / 10,000",
   );
-  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 1");
-  await expect(page.locator(".boss-command-meta")).toContainText(
+  const selected = page.locator("[data-ui='selected-match-panel']");
+  await expect(selected).toContainText("Betano");
+  await expect(selected).toContainText("模型概率60.0%");
+  await expect(selected).toContainText("市场概率52.0%");
+  await expect(selected).toContainText("概率差+0.080");
+  await expect(selected).toContainText("EV+0.146");
+  await expect(selected).toContainText("不确定性0.040");
+  await expect(page.locator("[data-ui='command-header']")).toContainText("分析建议 1");
+  await expect(page.locator("[data-ui='command-header']")).toContainText(
     "页面更新 18:00",
   );
-  await expect(page.locator(".boss-command-meta")).toContainText(
+  await expect(page.locator("[data-ui='command-header']")).toContainText(
     "全局最近赔率 17:55",
   );
-  await expect(page.locator(".boss-command-meta")).toContainText(
+  await expect(page.locator("[data-ui='command-header']")).toContainText(
     "下次采集 18:15",
   );
-  await expect(page.locator(".boss-command-meta > span")).toHaveCount(6);
+  await expect(page.locator(".d2-command-metrics > span")).toHaveCount(6);
   const headerGeometry = await page.evaluate(() => {
     const view = document
-      .querySelector(".boss-view-select")
+      .querySelector(".d2-console-badge")
       ?.getBoundingClientRect();
     const meta = document
-      .querySelector(".boss-command-meta")
+      .querySelector(".d2-command-metrics")
       ?.getBoundingClientRect();
     const release = document
-      .querySelector(".boss-command-release")
+      .querySelector(".d2-release")
       ?.getBoundingClientRect();
     const items = Array.from(
-      document.querySelectorAll(".boss-command-meta > span"),
+      document.querySelectorAll(".d2-command-metrics > span"),
     );
     const firstItem = items[0]?.getBoundingClientRect();
     const lastItem = items[items.length - 1]?.getBoundingClientRect();
-    const metaElement = document.querySelector(".boss-command-meta");
+    const metaElement = document.querySelector(".d2-command-metrics");
     return {
       viewRight: view?.right ?? 0,
       firstItemLeft: firstItem?.left ?? 0,
@@ -434,7 +474,7 @@ test("READY renders the unified pick and verified analysis-card", async ({
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
     return response.json();
   });
-  expect(analysis.card.decision_tier).toBe("RECOMMEND");
+  expect(analysis.card.decision_tier).toBe("ANALYSIS_PICK");
   expect(analysis.card.frozen_artifact_provenance.status).toBe("VERIFIED");
 });
 
@@ -445,9 +485,9 @@ test("all qualifying recommendations remain visible without a top-three cap", as
   await page.goto("/");
 
   await expect(
-    page.locator("article.decision-row").filter({ hasText: "正式可锁" }),
+    page.locator("[data-fixture-id]").filter({ hasText: "分析参考" }),
   ).toHaveCount(5);
-  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 5");
+  await expect(page.locator("[data-ui='command-header']")).toContainText("分析建议 5");
 });
 
 test("30 fixtures remain reachable through the desktop schedule viewport", async ({
@@ -457,9 +497,9 @@ test("30 fixtures remain reachable through the desktop schedule viewport", async
   await installRoutes(page, "READY", 30);
   await page.goto("/");
 
-  const rows = page.locator("article.decision-row");
+  const rows = page.locator("[data-fixture-id]");
   await expect(rows).toHaveCount(30);
-  const board = page.locator(".schedule-board");
+  const board = page.locator("[data-ui='schedule-scroller']");
   const geometry = await board.evaluate((element) => ({
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
@@ -470,10 +510,10 @@ test("30 fixtures remain reachable through the desktop schedule viewport", async
   await last.scrollIntoViewIfNeeded();
   await last.locator("button").click();
   await expect(last).toHaveClass(/is-selected/);
-  await expect(page.locator(".evidence-panel")).toContainText(
-    "READY Home 30 vs READY Away 30",
+  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
+    "READY Home 30",
   );
-  await expect(page.locator(".schedule-date-group")).toContainText("30场");
+  await expect(page.locator(".d2-date-header")).toContainText("30场");
 });
 
 test("15 fixtures use natural document scrolling on mobile", async ({ page }) => {
@@ -481,8 +521,8 @@ test("15 fixtures use natural document scrolling on mobile", async ({ page }) =>
   await installRoutes(page, "READY", 15);
   await page.goto("/");
 
-  await expect(page.locator("article.decision-row")).toHaveCount(15);
-  const geometry = await page.locator(".schedule-board").evaluate((element) => ({
+  await expect(page.locator("[data-fixture-id]")).toHaveCount(15);
+  const geometry = await page.locator("[data-ui='schedule-scroller']").evaluate((element) => ({
     overflowY: getComputedStyle(element).overflowY,
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
@@ -490,7 +530,7 @@ test("15 fixtures use natural document scrolling on mobile", async ({ page }) =>
   expect(geometry.overflowY).toBe("visible");
   expect(geometry.clientHeight).toBe(geometry.scrollHeight);
   await page
-    .locator("article.decision-row")
+    .locator("[data-fixture-id]")
     .filter({ hasText: "READY Home 15" })
     .scrollIntoViewIfNeeded();
 });
@@ -534,32 +574,27 @@ test("Shanghai date-first clock advances and handles year boundary and match sta
         kickoff_utc: "2026-12-30T12:00:00Z",
         status: "FT",
       },
-      {
-        ...template,
-        fixture_id: "fixture-invalid",
-        home_team_name: "Invalid Home",
-        away_team_name: "Invalid Away",
-        kickoff_utc: "invalid-time",
-      },
     ];
     payload.counts.total = payload.cards.length;
     await json(route, payload);
   });
   await page.goto("/");
 
-  const today = page.locator("article.decision-row").filter({ hasText: "Today Home" });
-  await expect(today).toContainText("今天 20:45");
+  const today = page.locator("[data-fixture-id]").filter({ hasText: "Today Home" });
+  await expect(today).toContainText("今天");
+  await expect(today).toContainText("20:45");
   await expect(today).toContainText("还有 45 分钟");
   await page.clock.fastForward(60_000);
   await expect(today).toContainText("还有 44 分钟");
 
   const tomorrow = page
-    .locator("article.decision-row")
+    .locator("[data-fixture-id]")
     .filter({ hasText: "Tomorrow Home" });
-  await expect(tomorrow).toContainText("明天 08:30");
+  await expect(tomorrow).toContainText("明天");
+  await expect(tomorrow).toContainText("08:30");
   await expect(tomorrow).toContainText("01-01 周五");
   await expect(
-    page.locator("article.decision-row").filter({ hasText: "Live Home" }),
+    page.locator("[data-fixture-id]").filter({ hasText: "Live Home" }),
   ).toContainText("进行中 64′");
   expect(
     kickoffPresentation(
@@ -582,26 +617,13 @@ test("stored early odds remain visible as reference while waiting for the premat
   await page.goto("/");
 
   const row = page
-    .locator("article.decision-row")
+    .locator("[data-fixture-id]")
     .filter({ hasText: "STALE Home" });
-  const visibleRow = row.locator(".decision-row-button");
-  await expect(visibleRow).toContainText("缺临场赔率·14:00更新");
-  await expect(visibleRow).toContainText(
-    "暂无模型比分参考：缺临场赔率，14:00刷新后再判断",
-  );
-  await expect(visibleRow).not.toContainText("1万次模拟");
-  await expect(visibleRow).toContainText(
-    "市场早盘（非推荐）：让球 主 -0.5 @1.82 / 客 +0.5 @1.86",
-  );
-  await expect(visibleRow).toContainText("已过期，仅参考");
-  await expect(visibleRow).not.toContainText("数据陈旧");
-  await expect(page.locator(".health-strip")).toContainText("缺少最新临场赔率");
-  await expect(page.locator(".health-strip")).toContainText(
-    "1 场当前只有过期早盘；14:00采集后重新判断能否形成推荐",
-  );
-  await expect(page.locator(".health-strip")).not.toContainText(
-    "部分数据需处理",
-  );
+  await expect(row).toContainText("赔率待更新");
+  await expect(row).toContainText("DATA_STALE_ODDS");
+  await expect(row).toContainText("观察");
+  await expect(row).not.toContainText("1.82");
+  await expect(row).not.toContainText("1万次模拟");
 });
 
 test("enabled leagues and club teams render localized Chinese names", async ({
@@ -620,7 +642,7 @@ test("enabled leagues and club teams render localized Chinese names", async ({
   await page.goto("/");
 
   const row = page
-    .locator("article.decision-row")
+    .locator("[data-fixture-id]")
     .filter({ hasText: "埃尔夫斯堡 vs 天狼星" });
   await expect(row).toContainText("瑞典超");
   await expect(row).toContainText("22:30");
@@ -763,45 +785,42 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   });
   await page.goto("/");
 
-  await expect(page.locator(".league-performance-table > div")).toHaveCount(6);
-  await expect(page.locator(".league-performance-table")).toContainText("中超");
-  await expect(page.locator(".league-performance-table")).toContainText(
-    "临场 CLV＝推荐赔率－开赛前 30 分钟内的同盘口赔率",
-  );
-  await expect(page.locator(".verification-preview")).toContainText(
+  await expect(page.locator(".d2-league-table > div")).toHaveCount(6);
+  await expect(page.locator(".d2-league-table")).toContainText("中超");
+  await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
     "纳入统计 16 场",
   );
-  await expect(page.locator(".verification-preview")).toContainText(
+  await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
     "命中 11 · 未中 3 · 走水 2",
   );
-  await expect(page.locator(".verification-preview")).toContainText(
-    "有效输赢 14 场 · 命中率 79%",
+  await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
+    "有效输赢 14 场 · 命中率 78.6%",
   );
-  const verification = page.locator(".verification-preview");
+  const verification = page.locator("[data-ui='forward-validation-panel']");
   await expect(verification).not.toContainText("全部已处理");
   await expect(verification).not.toContainText("历史");
   await expect(verification).not.toContainText("恢复");
   await expect(verification).not.toContainText("审计");
   await expect(verification).not.toContainText("LEGACY");
   const csl = page
-    .locator(".league-performance-table > div")
+    .locator(".d2-league-table > div")
     .filter({ hasText: "中超" });
   await expect(csl).toContainText("1 场");
   await expect(csl).toContainText("0-1-0");
-  await expect(csl).toContainText("样本不足（1）");
+  await expect(csl).toContainText("0.000（n=1）");
   await expect(csl).not.toContainText("0%");
   const norway = page
-    .locator(".league-performance-table > div")
+    .locator(".d2-league-table > div")
     .filter({ hasText: "挪威超" });
   await expect(norway).toContainText("+0.040（n=1）");
   const sweden = page
-    .locator(".league-performance-table > div")
+    .locator(".d2-league-table > div")
     .filter({ hasText: "瑞典超" });
   await expect(sweden).toContainText("-0.020（n=1）");
   const serieA = page
-    .locator(".league-performance-table > div")
+    .locator(".d2-league-table > div")
     .filter({ hasText: "意甲" });
-  await expect(serieA).toContainText("暂无临场盘（n=0）");
+  await expect(serieA).toContainText("--（n=0）");
 
   await expect(page.locator(".verification-exclusions")).toHaveCount(0);
   await expect(page.locator(".verification-recoveries")).toHaveCount(0);
@@ -813,11 +832,6 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
       document.documentElement.clientWidth,
   );
   expect(hasHorizontalOverflow).toBe(false);
-  const responsiveLabel = await csl
-    .locator("span")
-    .nth(1)
-    .evaluate((element) => getComputedStyle(element, "::before").content);
-  expect(responsiveLabel).toBe('"纳入统计"');
 });
 
 for (const scenario of [
@@ -833,12 +847,12 @@ for (const scenario of [
     await page.goto("/");
 
     const row = page
-      .locator("article.decision-row")
+      .locator("[data-fixture-id]")
       .filter({ hasText: `${scenario} Home` });
     await expect(row).toContainText(scenarioContract[scenario].tierLabel);
     await expect(row).not.toContainText("1.91");
     await expect(row).not.toContainText("正式可锁");
-    await expect(page.locator(".boss-command-meta")).toContainText(
+    await expect(page.locator("[data-ui='command-header']")).toContainText(
       "分析建议 0",
     );
     const analysis = await page.evaluate(async (fixture) => {

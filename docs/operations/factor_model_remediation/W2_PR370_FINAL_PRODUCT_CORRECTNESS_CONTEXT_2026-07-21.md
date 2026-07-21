@@ -104,3 +104,87 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Dashboard V2 pixel-locked integration intake
+
+On 2026-07-22 Asia/Shanghai, the Dashboard V2 reference pack was received as a frozen
+UI-only integration task. The remote PR branch was re-fetched before editing; the actual
+starting head was `641a719108264fe4307ca879b57f0566ef0901a6`. Runtime remains
+`d377d6e07b300dda3fcaa0bc329d9186c488edb7`.
+
+The three separately supplied design images match the pack's golden images byte-for-byte.
+The protected baseline hash guard passes for the React component, stylesheet, fixed fixture,
+view-model types, copy/behavior/pixel contracts, and all three golden screenshots.
+
+Integration work completed without provider or backend changes:
+
+- copied the protected reference files and contracts without modifying their bytes;
+- replaced the production `BossDecisionView` render with `DashboardV2`;
+- added the fixed `__visual/dashboard-v2` route;
+- restricted that fixture route to Vite development/test mode and verified fixture IDs are
+  absent from the production bundle;
+- mapped the real V3 selected market together with its evaluated quote, model probability,
+  market devig probability, delta, EV, uncertainty, scoreline projection, and readiness
+  fields in the mutable adapter;
+- preserved `evaluated_candidate` through the frontend API normalizer and consumed its
+  canonical `analysis_evidence`; the selected-match regression now proves the exact
+  bookmaker, model probability, market probability, probability delta, EV, and uncertainty
+  reach the frozen presentation;
+- added the protected hash guard to the all-stage check and GitHub verify workflow;
+- TypeScript typecheck and production web build pass;
+- 15-fixture scroll reachability, scoreline-panel constraints, and unified-ledger behavior
+  tests pass;
+- in-app browser interaction checks pass with no console errors.
+
+Latest local gate results after the real V3 mapping correction:
+
+- protected baseline guard: PASS;
+- TypeScript typecheck: PASS;
+- production web build: PASS;
+- Dashboard decision/read-model E2E: 12/12 PASS;
+- Dashboard V2 geometry/behavior E2E: 3/3 PASS;
+- W2 all-stage verification, Ruff, Mypy, and Pytest: PASS (1411 passed, 4 skipped
+  because local Docker/PostgreSQL parity prerequisites were not configured);
+- related Dashboard Python source contracts: 6/6 PASS;
+- secret scan, tracked-output check, and `git diff --check`: PASS;
+- full browser suite: 15 PASS, 3 pixel comparisons FAIL for the frozen authority conflict
+  below; the 0.15% threshold remains unchanged.
+
+### Reference-pack authority conflict
+
+The pixel gate is blocked by an internal conflict in the supplied pack, not by a protected
+file edit. The golden images were produced from the hand-authored `preview/index.html` DOM,
+while the protected React component renders the protected fixture differently:
+
+- React sorts analysis fixtures by `kickoffUtc`; the golden manually places the selected
+  21:00 fixture ahead of two 20:00 fixtures;
+- React creates separate Shanghai date groups for `07-26` and `07-27`; the golden manually
+  places the `07-27 01:00` fixture under the `07-26` header;
+- several secondary row labels differ between the protected React logic and preview DOM.
+
+With protected hashes still passing, full-page Playwright comparison reports approximately
+3%, 4%, and 7% differing pixels at 2048, 1440, and 390 respectively, above the frozen 0.15%
+limit. No golden was regenerated, no protected file was changed, and no threshold was
+relaxed. The pack also does not contain approved scroll-bottom or scoreline-panel crop
+goldens, so those states are currently verified by geometry, visibility, interaction, and
+exact-copy assertions only.
+
+Required human resolution is one of:
+
+1. publish corrected goldens captured from the existing protected React component and
+   fixture; or
+2. explicitly authorize a protected React/fixture revision that matches the current
+   hand-authored golden images.
+
+Until that authority conflict is resolved:
+
+```text
+DASHBOARD_V2_PROTECTED_BASELINE_PASS
+DASHBOARD_V2_ADAPTER_INTEGRATED
+DASHBOARD_V2_BEHAVIOR_CONTRACT_PASS
+DASHBOARD_V2_PIXEL_CONTRACT_BLOCKED_BY_REFERENCE_PACK_CONFLICT
+NO_PROVIDER_CALLS
+NO_MODEL_OR_BACKEND_CHANGE
+NO_STAGING_DEPLOYMENT
+PR_370_KEEP_DRAFT
+```
