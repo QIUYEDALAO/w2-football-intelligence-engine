@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import text
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -13,6 +15,22 @@ if str(SRC) not in sys.path:
 
 from w2.api.repository import ReadModelService  # noqa: E402
 from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity  # noqa: E402
+from w2.infrastructure.database import create_engine  # noqa: E402
+
+AUDIT_TABLES = (
+    "provider_request_logs",
+    "raw_payload_references",
+    "matchday_endpoint_captures",
+    "recommendations",
+    "recommendation_locks",
+    "forward_prediction_lock",
+    "gate5_recommendation_lock_event",
+    "shadow_strategy_lock",
+    "shadow_strategy_event",
+    "shadow_strategy_settlement",
+    "settlements",
+    "matchday_evidence_manifests",
+)
 
 
 def _pick(payload: dict[str, Any], keys: list[str]) -> dict[str, Any]:
@@ -81,6 +99,7 @@ def _v3_summary(card: dict[str, Any]) -> dict[str, Any]:
         "selected_candidate": _candidate_summary(v3.get("selected_candidate")),
         "evaluated_candidate": _candidate_summary(v3.get("evaluated_candidate")),
         "audit_refs": v3.get("audit_refs"),
+        "decision_envelope_hash": v3.get("decision_envelope_hash"),
         "hash_parity": {
             "card_hash": card.get("card_hash"),
             "decision_contract_card_hash": (card.get("decision_contract") or {}).get(
@@ -150,15 +169,14 @@ def summarize_card(card: dict[str, Any] | None, fixture_id: str) -> dict[str, An
 def main() -> int:
     parser = argparse.ArgumentParser(description="Probe W2 analysis chain read model.")
     parser.add_argument("fixture_ids", nargs="+")
+    parser.add_argument("--read-count", type=int, default=1)
     args = parser.parse_args()
 
     service = ReadModelService()
-    payload = {
-        "provider_calls": 0,
-        "candidate": False,
-        "formal_recommendation": False,
-        "probe": "public_analysis_card_bounded",
-        "fixtures": [
+    before = _audit_snapshot()
+    fixtures: list[dict[str, Any]] = []
+    for _ in range(max(args.read_count, 1)):
+        fixtures = [
             summarize_card(
                 service.public_analysis_card_bounded(
                     fixture_id,
@@ -167,10 +185,80 @@ def main() -> int:
                 fixture_id,
             )
             for fixture_id in args.fixture_ids
-        ],
+        ]
+    after = _audit_snapshot()
+    payload = {
+        "probe": "public_analysis_card_bounded",
+        "read_count": max(args.read_count, 1),
+        "audit": {
+            "before": before,
+            "after": after,
+            "delta": _audit_delta(before, after),
+            "zero_write_pass": _zero_write_pass(before, after),
+        },
+        "fixtures": fixtures,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str))
     return 0
+
+
+def _audit_snapshot() -> dict[str, Any]:
+    engine = create_engine()
+    tables: dict[str, Any] = {}
+    with engine.connect() as connection:
+        for table in AUDIT_TABLES:
+            exists = connection.execute(
+                text("select to_regclass(:table_name) is not null"),
+                {"table_name": f"public.{table}"},
+            ).scalar()
+            if not exists:
+                tables[table] = {"status": "TABLE_MISSING", "count": None, "hash": None}
+                continue
+            count = connection.execute(text(f"select count(*) from {table}")).scalar()  # noqa: S608
+            digest = connection.execute(
+                text(
+                    "select md5(coalesce("  # noqa: S608
+                    "(select jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text)::text "
+                    f"from {table} t),"
+                    "'[]'))"
+                )
+            ).scalar()
+            tables[table] = {"status": "PRESENT", "count": int(count or 0), "hash": digest}
+    return {"tables": tables}
+
+
+def _audit_delta(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    deltas: dict[str, Any] = {}
+    raw_before_tables = before.get("tables")
+    raw_after_tables = after.get("tables")
+    before_tables: dict[str, Any] = raw_before_tables if isinstance(raw_before_tables, dict) else {}
+    after_tables: dict[str, Any] = raw_after_tables if isinstance(raw_after_tables, dict) else {}
+    for table in sorted(set(before_tables) | set(after_tables)):
+        raw_left = before_tables.get(table)
+        raw_right = after_tables.get(table)
+        left: dict[str, Any] = raw_left if isinstance(raw_left, dict) else {}
+        right: dict[str, Any] = raw_right if isinstance(raw_right, dict) else {}
+        left_count = left.get("count")
+        right_count = right.get("count")
+        deltas[table] = {
+            "count_delta": (
+                int(right_count) - int(left_count)
+                if isinstance(left_count, int) and isinstance(right_count, int)
+                else None
+            ),
+            "hash_unchanged": left.get("hash") == right.get("hash"),
+            "status": right.get("status") or left.get("status"),
+        }
+    return deltas
+
+
+def _zero_write_pass(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    return all(
+        row.get("count_delta") in {0, None}
+        and (row.get("status") == "TABLE_MISSING" or row.get("hash_unchanged") is True)
+        for row in _audit_delta(before, after).values()
+        if isinstance(row, dict)
+    )
 
 
 if __name__ == "__main__":

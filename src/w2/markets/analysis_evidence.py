@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -129,7 +130,7 @@ def build_analysis_market_evidence(
         base["comparison"] = {
             "analysis_direction_allowed": False,
             "status": "NOT_READY",
-            "reason_code": "MODEL_EVIDENCE_NOT_READY",
+            "reason_code": model.get("reason_code") or "MODEL_EVIDENCE_NOT_READY",
         }
         return _finish(base, "NOT_READY")
     base["quote_usage"] = "EXECUTABLE"
@@ -156,7 +157,7 @@ def _side_evidence(
             "comparison": {
                 "analysis_direction_allowed": False,
                 "status": "NOT_READY",
-                "reason_code": "MODEL_EVIDENCE_INCOMPLETE",
+                "reason_code": model.get("reason_code") or "MODEL_EVIDENCE_INCOMPLETE",
             },
         }
     delta = round(float(model["effective_probability"]) - float(market_probability), 6)
@@ -187,12 +188,33 @@ def _model_evidence(
             "calibration_version": sim.get("calibration_version"),
             "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
         }
+    sigma_home = _decimal(sim.get("lambda_sigma_home"))
+    sigma_away = _decimal(sim.get("lambda_sigma_away"))
+    calibration = _mapping(sim.get("calibration"))
+    method = str(calibration.get("lambda_uncertainty_method") or "").lower()
+    if (
+        method in {"", "none"}
+        or sigma_home is None
+        or sigma_away is None
+        or (sigma_home <= 0 and sigma_away <= 0)
+    ):
+        return {
+            "status": "NOT_READY",
+            "reason_code": "MODEL_UNCERTAINTY_NOT_READY",
+            "calibration_status": sim.get("calibration_status") or "UNKNOWN",
+            "model_version": sim.get("model_version"),
+            "calibration_version": sim.get("calibration_version"),
+            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "lambda_uncertainty_method": method or "none",
+            "lambda_sigma_home": float(sigma_home) if sigma_home is not None else None,
+            "lambda_sigma_away": float(sigma_away) if sigma_away is not None else None,
+        }
     matrix = {
         score: Decimal(str(probability))
         for score, probability in _exact_score_matrix(
             float(home),
             float(away),
-            rho=float(sim.get("calibration", {}).get("params", {}).get("dixon_coles_rho") or 0.0),
+            rho=float(_mapping(calibration.get("params")).get("dixon_coles_rho") or 0.0),
             max_goals=12,
         ).items()
     }
@@ -212,6 +234,30 @@ def _model_evidence(
     effective = effective_settlement_probability(settlement_distribution)
     if effective is None:
         return {"status": "NOT_READY", "reason_code": "INVALID_SETTLEMENT_DISTRIBUTION"}
+    ev = float(expected_value(price, distribution))
+    ev_se = _ev_uncertainty(
+        market=market,
+        selection=selection,
+        line=line,
+        price=price,
+        lambda_home=home,
+        lambda_away=away,
+        sigma_home=sigma_home,
+        sigma_away=sigma_away,
+        rho=float(_mapping(calibration.get("params")).get("dixon_coles_rho") or 0.0),
+    )
+    if ev_se is None:
+        return {
+            "status": "NOT_READY",
+            "reason_code": "MODEL_UNCERTAINTY_NOT_READY",
+            "calibration_status": sim.get("calibration_status") or "UNKNOWN",
+            "model_version": sim.get("model_version"),
+            "calibration_version": sim.get("calibration_version"),
+            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "lambda_uncertainty_method": method or "none",
+            "lambda_sigma_home": float(sigma_home),
+            "lambda_sigma_away": float(sigma_away),
+        }
     return {
         "status": "READY",
         "calibration_status": sim.get("calibration_status") or "UNKNOWN",
@@ -220,9 +266,68 @@ def _model_evidence(
         "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
         "settlement_distribution": settlement_distribution,
         "effective_probability": effective,
-        "expected_value": float(expected_value(price, distribution)),
-        "ev_se": None,
+        "expected_value": ev,
+        "ev_se": ev_se,
+        "lambda_uncertainty_method": method,
+        "lambda_sigma_home": float(sigma_home),
+        "lambda_sigma_away": float(sigma_away),
     }
+
+
+def _ev_uncertainty(
+    *,
+    market: str,
+    selection: str,
+    line: Decimal,
+    price: Decimal,
+    lambda_home: Decimal,
+    lambda_away: Decimal,
+    sigma_home: Decimal,
+    sigma_away: Decimal,
+    rho: float,
+) -> float | None:
+    scenario_rows: list[tuple[Decimal, float]] = []
+    for scenario_home, home_weight in _lambda_scenarios(lambda_home, sigma_home):
+        for scenario_away, away_weight in _lambda_scenarios(lambda_away, sigma_away):
+            matrix = {
+                score: Decimal(str(probability))
+                for score, probability in _exact_score_matrix(
+                    float(scenario_home),
+                    float(scenario_away),
+                    rho=rho,
+                    max_goals=12,
+                ).items()
+            }
+            distribution = (
+                settlement_distribution_ah(matrix, selection=selection, line=line)
+                if market == "ASIAN_HANDICAP"
+                else settlement_distribution_totals(matrix, selection=selection, line=line)
+            )
+            scenario_rows.append(
+                (home_weight * away_weight, float(expected_value(price, distribution)))
+            )
+    total_weight = sum(weight for weight, _ in scenario_rows)
+    if total_weight <= 0:
+        return None
+    mean = sum(weight * Decimal(str(ev)) for weight, ev in scenario_rows) / total_weight
+    variance = sum(
+        float(weight / total_weight) * ((float(ev) - float(mean)) ** 2)
+        for weight, ev in scenario_rows
+    )
+    return round(math.sqrt(max(variance, 0.0)), 6)
+
+
+def _lambda_scenarios(value: Decimal, sigma: Decimal) -> tuple[tuple[Decimal, Decimal], ...]:
+    sigma = max(sigma, Decimal("0"))
+    if sigma == 0:
+        return ((value, Decimal("1")),)
+    low = max(value - sigma, Decimal("0.01"))
+    high = value + sigma
+    return (
+        (low, Decimal("0.25")),
+        (value, Decimal("0.5")),
+        (high, Decimal("0.25")),
+    )
 
 
 def _finish(payload: dict[str, Any], status: str) -> dict[str, Any]:

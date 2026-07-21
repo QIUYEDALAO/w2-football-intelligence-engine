@@ -39,6 +39,7 @@ class RecommendationDecisionV3:
     warnings: tuple[str, ...]
     audit_refs: dict[str, str]
     decision_hash: str
+    decision_envelope_hash: str = ""
 
     def __post_init__(self) -> None:
         if (self.outcome in PICK_OUTCOMES) != (self.selected_candidate is not None):
@@ -66,6 +67,7 @@ class RecommendationDecisionV3:
             "warnings": list(self.warnings),
             "audit_refs": self.audit_refs,
             "decision_hash": self.decision_hash,
+            "decision_envelope_hash": self.decision_envelope_hash,
         }
 
 
@@ -96,6 +98,26 @@ def project_decision_v3(
         "calibration_version": _text(_mapping(evaluated).get("calibration_version")),
         "quote_identity": _candidate_quote_identity_for_hash(candidate),
     }
+    decision_hash = _hash(core)
+    envelope_hash = _decision_envelope_hash(
+        {
+            "schema_version": "w2.recommendation_decision.v3",
+            "fixture_id": _text(core["fixture_id"]),
+            "competition_id": _text(core["competition_id"]),
+            "as_of": _text(contract_v2.get("as_of")),
+            "outcome": outcome.value,
+            "reason": {"code": reason_code, "message": reason_message},
+            "next_action": (
+                "MONITOR" if outcome is RecommendationOutcomeV3.ANALYSIS_PICK else "WAIT"
+            ),
+            "selected_candidate": candidate,
+            "evaluated_candidate": evaluated,
+            "statuses": statuses,
+            "warnings": list(_strings(contract_v2.get("warnings"))),
+            "audit_refs": {"v2_card_hash": _text(contract_v2.get("card_hash"))},
+            "decision_hash": decision_hash,
+        }
+    )
     return RecommendationDecisionV3(
         fixture_id=_text(core["fixture_id"]),
         competition_id=_text(core["competition_id"]),
@@ -109,7 +131,8 @@ def project_decision_v3(
         statuses=statuses,
         warnings=tuple(_strings(contract_v2.get("warnings"))),
         audit_refs={"v2_card_hash": _text(contract_v2.get("card_hash"))},
-        decision_hash=_hash(core),
+        decision_hash=decision_hash,
+        decision_envelope_hash=envelope_hash,
     )
 
 
@@ -212,6 +235,26 @@ def build_recommendation_decision_v3(
         "model_version": _text(model_evidence.get("model_version")),
         "calibration_version": _text(model_evidence.get("calibration_version")),
     }
+    decision_hash = _hash(core)
+    envelope_hash = _decision_envelope_hash(
+        {
+            "schema_version": "w2.recommendation_decision.v3",
+            "fixture_id": fixture_id,
+            "competition_id": competition_id,
+            "as_of": as_of_text,
+            "outcome": outcome.value,
+            "reason": {"code": reason_code, "message": reason_message},
+            "next_action": next_action,
+            "selected_candidate": selected_candidate,
+            "evaluated_candidate": evaluated_candidate,
+            "statuses": statuses,
+            "warnings": list(warnings),
+            "audit_refs": {
+                "quote_identity_hash": _hash(_quote_identity_payload(exact_quote_candidate or {}))
+            },
+            "decision_hash": decision_hash,
+        }
+    )
     decision = RecommendationDecisionV3(
         fixture_id=fixture_id,
         competition_id=competition_id,
@@ -227,7 +270,8 @@ def build_recommendation_decision_v3(
         audit_refs={
             "quote_identity_hash": _hash(_quote_identity_payload(exact_quote_candidate or {}))
         },
-        decision_hash=_hash(core),
+        decision_hash=decision_hash,
+        decision_envelope_hash=envelope_hash,
     )
     validate_decision_v3_identity(decision)
     return decision
@@ -257,7 +301,25 @@ def validate_decision_v3_identity(decision: RecommendationDecisionV3 | Mapping[s
     expected = _hash(core)
     if payload.get("decision_hash") != expected:
         raise ValueError("DECISION_V3_IDENTITY_CONFLICT")
+    expected_envelope = _decision_envelope_hash(payload)
+    if payload.get("decision_envelope_hash") != expected_envelope:
+        raise ValueError("DECISION_V3_ENVELOPE_CONFLICT")
     return expected
+
+
+def validate_decision_v3_card_parity(
+    decision: RecommendationDecisionV3 | Mapping[str, Any],
+    *,
+    card_hash: object,
+    decision_contract_card_hash: object,
+) -> None:
+    payload = (
+        decision.as_dict() if isinstance(decision, RecommendationDecisionV3) else dict(decision)
+    )
+    audit_refs = _mapping(payload.get("audit_refs"))
+    v3_card_hash = _text(audit_refs.get("v2_card_hash"))
+    if _text(card_hash) != _text(decision_contract_card_hash) or _text(card_hash) != v3_card_hash:
+        raise ValueError("DECISION_V3_CARD_HASH_PARITY_CONFLICT")
 
 
 def _outcome(
@@ -273,9 +335,20 @@ def _outcome(
     evidence = _mapping(evaluated.get("analysis_evidence")) if evaluated else {}
     evidence_status = _text(evidence.get("status"))
     if evidence_status not in {"", "COMPLETE"}:
+        reason_code = _text(
+            _mapping(evidence.get("comparison")).get("reason_code")
+            or _mapping(evidence.get("model_probability")).get("reason_code"),
+            "ANALYSIS_EVIDENCE_NOT_READY",
+        )
+        if reason_code == "MODEL_UNCERTAINTY_NOT_READY":
+            return (
+                RecommendationOutcomeV3.NOT_READY,
+                "MODEL_UNCERTAINTY_NOT_READY",
+                "模型不确定性证据尚未完成",
+            )
         return (
             RecommendationOutcomeV3.NOT_READY,
-            "ANALYSIS_EVIDENCE_NOT_READY",
+            reason_code,
             "选定盘口的报价或模型证据尚未就绪",
         )
     if evidence_status == "COMPLETE" and not _truthy(
@@ -284,7 +357,8 @@ def _outcome(
         return RecommendationOutcomeV3.NO_EDGE, "NO_ANALYSIS_EDGE", "同盘口模型与市场比较未形成优势"
     data = _text(contract.get("data_status"), "PARTIAL")
     if data != "READY":
-        return RecommendationOutcomeV3.NOT_READY, "DATA_NOT_READY", "数据或可执行盘口尚未就绪"
+        reason_code = _text(contract.get("reason_code"), "DATA_NOT_READY")
+        return RecommendationOutcomeV3.NOT_READY, reason_code, "数据或可执行盘口尚未就绪"
     tier = _text(contract.get("decision_tier"))
     if tier in {"SKIP", "WATCH", "NOT_READY", ""} or candidate is None:
         return RecommendationOutcomeV3.NO_EDGE, "NO_ANALYSIS_EDGE", "数据完整但没有分析优势"
@@ -351,6 +425,31 @@ def _candidate_quote_identity_for_hash(candidate: Mapping[str, Any] | None) -> d
     if nested:
         return dict(nested)
     return _quote_identity(candidate)
+
+
+def _decision_envelope_hash(payload: Mapping[str, Any]) -> str:
+    reason = _mapping(payload.get("reason"))
+    selected = payload.get("selected_candidate")
+    evaluated = payload.get("evaluated_candidate")
+    envelope = {
+        "schema_version": _text(payload.get("schema_version"), "w2.recommendation_decision.v3"),
+        "fixture_id": _text(payload.get("fixture_id")),
+        "competition_id": _text(payload.get("competition_id")),
+        "as_of": _text(payload.get("as_of")),
+        "outcome": _text(payload.get("outcome")),
+        "reason": {
+            "code": _text(reason.get("code") or payload.get("reason_code")),
+            "message": _text(reason.get("message")),
+        },
+        "next_action": _text(payload.get("next_action")),
+        "selected_candidate": dict(selected) if isinstance(selected, Mapping) else None,
+        "evaluated_candidate": dict(evaluated) if isinstance(evaluated, Mapping) else None,
+        "statuses": dict(_mapping(payload.get("statuses"))),
+        "warnings": _strings(payload.get("warnings")),
+        "audit_refs": dict(_mapping(payload.get("audit_refs"))),
+        "decision_hash": _text(payload.get("decision_hash")),
+    }
+    return _hash(envelope)
 
 
 def _hash(payload: Mapping[str, Any]) -> str:

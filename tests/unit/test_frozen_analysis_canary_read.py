@@ -20,6 +20,7 @@ from w2.api.frozen_analysis import (
 )
 from w2.api.repository import ReadModelService
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
 
 
 def _artifact(
@@ -231,6 +232,12 @@ def test_missing_canary_fails_closed_without_legacy_builder(
         "status": "BLOCKED",
         "blockers": ["FROZEN_ARTIFACT_MISSING"],
     }
+    v3 = card["recommendation_decision_v3"]
+    assert v3["outcome"] == "NOT_READY"
+    assert v3["reason"]["code"] == "FROZEN_ARTIFACT_MISSING"
+    assert v3["selected_candidate"] is None
+    assert validate_decision_v3_identity(v3) == v3["decision_hash"]
+    assert v3["audit_refs"]["v2_card_hash"] == card["card_hash"]
     assert repository.forbidden_calls == 0
 
 

@@ -29,7 +29,12 @@ def _ready_simulation() -> dict[str, object]:
         "model_version": "unit-model",
         "calibration_version": "unit-calibration",
         "input_manifest": {"fixture": "fixture-1"},
-        "calibration": {"params": {"dixon_coles_rho": 0.0}},
+        "lambda_sigma_home": 0.08,
+        "lambda_sigma_away": 0.07,
+        "calibration": {
+            "lambda_uncertainty_method": "deterministic_three_point",
+            "params": {"dixon_coles_rho": 0.0},
+        },
     }
 
 
@@ -100,3 +105,27 @@ def test_selected_side_requires_ready_model_before_executable_quote_usage() -> N
     assert ready["quote_usage"] == "EXECUTABLE"
     assert ready["quote_evidence_status"] == "READY"
     assert ready["model_evidence_status"] == "READY"
+    assert ready["model_probability"]["ev_se"] is not None
+    assert ready["model_probability"]["ev_se"] > 0
+
+
+def test_selected_side_blocks_when_uncertainty_is_not_validated() -> None:
+    simulation = _ready_simulation()
+    simulation.pop("lambda_sigma_home")
+    simulation.pop("lambda_sigma_away")
+    simulation["calibration"] = {"lambda_uncertainty_method": "none"}
+
+    evidence = build_analysis_market_evidence(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        market="ASIAN_HANDICAP",
+        selection="HOME",
+        line="-0.25",
+        quote_identity_audit=_quote_audit(),
+        simulation=simulation,
+    )
+
+    assert evidence["status"] == "NOT_READY"
+    assert evidence["model_evidence_status"] == "NOT_READY"
+    assert evidence["comparison"]["reason_code"] == "MODEL_UNCERTAINTY_NOT_READY"
+    assert evidence["model_probability"]["reason_code"] == "MODEL_UNCERTAINTY_NOT_READY"

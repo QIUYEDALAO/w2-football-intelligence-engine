@@ -26,6 +26,22 @@ def _market(name: str) -> dict[str, object]:
     return {"market": name, "decision": "PICK", "tendency": tendency, "line": "-0.5"}
 
 
+def _ready_simulation() -> dict[str, object]:
+    return {
+        "status": "READY",
+        "model_version": "model",
+        "calibration_version": "calibration",
+        "lambda_home": 1.4,
+        "lambda_away": 0.9,
+        "lambda_sigma_home": 0.08,
+        "lambda_sigma_away": 0.07,
+        "calibration": {
+            "lambda_uncertainty_method": "deterministic_three_point",
+            "params": {"dixon_coles_rho": 0.0},
+        },
+    }
+
+
 def test_fresh_ah_and_stale_ou_are_independent_candidates() -> None:
     candidates = build_market_candidates(
         markets=[_market("ASIAN_HANDICAP"), _market("TOTALS")],
@@ -102,14 +118,7 @@ def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
         pricing_shadow={},
         fixture_id="fixture-1",
         competition_id="allsvenskan",
-        simulation={
-            "status": "READY",
-            "model_version": "model",
-            "calibration_version": "calibration",
-            "lambda_home": 1.4,
-            "lambda_away": 0.9,
-            "calibration": {"params": {"dixon_coles_rho": 0.0}},
-        },
+        simulation=_ready_simulation(),
     )
 
     evidence = candidates["ah"]["analysis_evidence"]
@@ -133,14 +142,7 @@ def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
         pricing_shadow={},
         fixture_id="fixture-1",
         competition_id="allsvenskan",
-        simulation={
-            "status": "READY",
-            "model_version": "model",
-            "calibration_version": "calibration",
-            "lambda_home": 1.4,
-            "lambda_away": 0.9,
-            "calibration": {"params": {"dixon_coles_rho": 0.0}},
-        },
+        simulation=_ready_simulation(),
     )
 
     candidate = candidates["ah"]

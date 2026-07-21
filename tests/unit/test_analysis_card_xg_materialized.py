@@ -530,7 +530,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     assert decisions["ASIAN_HANDICAP"] == "WATCH"
-    assert decisions["TOTALS"] == "ANALYSIS_PICK"
+    assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
     assert any(

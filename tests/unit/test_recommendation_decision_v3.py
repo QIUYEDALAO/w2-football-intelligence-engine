@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
     RecommendationOutcomeV3,
     project_decision_v3,
+    validate_decision_v3_card_parity,
     validate_decision_v3_identity,
 )
 
@@ -91,3 +94,27 @@ def test_v3_no_edge_keeps_evaluated_candidate_and_ready_model_status() -> None:
     assert decision.evaluated_candidate == evaluated
     assert decision.statuses["model"] == "READY"
     assert validate_decision_v3_identity(decision) == decision.decision_hash
+
+
+def test_v3_envelope_hash_covers_audit_refs_and_card_parity() -> None:
+    manifest = load_recommendation_capability_manifest()
+    decision = project_decision_v3(_contract(card_hash="card-hash"), manifest=manifest)
+    payload = decision.as_dict()
+
+    assert payload["decision_envelope_hash"]
+    assert validate_decision_v3_identity(payload) == payload["decision_hash"]
+    validate_decision_v3_card_parity(
+        payload,
+        card_hash="card-hash",
+        decision_contract_card_hash="card-hash",
+    )
+
+    tampered = {**payload, "audit_refs": {"v2_card_hash": "other-card"}}
+    with pytest.raises(ValueError, match="DECISION_V3_ENVELOPE_CONFLICT"):
+        validate_decision_v3_identity(tampered)
+    with pytest.raises(ValueError, match="DECISION_V3_CARD_HASH_PARITY_CONFLICT"):
+        validate_decision_v3_card_parity(
+            payload,
+            card_hash="card-hash",
+            decision_contract_card_hash="other-card",
+        )

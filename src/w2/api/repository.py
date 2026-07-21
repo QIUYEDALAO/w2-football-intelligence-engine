@@ -51,7 +51,11 @@ from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import project_decision_v3
+from w2.domain.recommendation_decision_v3 import (
+    project_decision_v3,
+    validate_decision_v3_card_parity,
+    validate_decision_v3_identity,
+)
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -226,6 +230,27 @@ def _next_future_evaluation(values: list[Any], *, now: datetime) -> str | None:
         if parsed is not None and parsed > now:
             candidates.append((parsed, parsed.isoformat().replace("+00:00", "Z")))
     return min(candidates, key=lambda item: item[0])[1] if candidates else None
+
+
+def _public_market_is_primary_pick(market: dict[str, Any]) -> bool:
+    decision = str(market.get("decision") or market.get("analysis_decision") or "").upper()
+    if decision not in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}:
+        return False
+    candidate = market.get("market_candidate")
+    if isinstance(candidate, dict):
+        if candidate.get("quote_usage") not in {None, "EXECUTABLE"}:
+            return False
+        if candidate.get("ev_eligible") is False:
+            return False
+    if market.get("quote_usage") not in {None, "EXECUTABLE"}:
+        return False
+    role = str(market.get("selection_role") or "").upper()
+    return role in {"", "PRIMARY"}
+
+
+def _public_market_is_legacy_pick(market: dict[str, Any]) -> bool:
+    decision = str(market.get("decision") or market.get("analysis_decision") or "").upper()
+    return decision in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}
 
 
 def _truthy_flag(value: Any) -> bool:
@@ -2119,7 +2144,7 @@ class ReadModelService:
         *,
         blocker: str,
     ) -> dict[str, Any]:
-        return {
+        card = {
             "fixture_id": fixture_id,
             "source": "frozen_analysis_checkpoint",
             "decision": "SKIP",
@@ -2162,6 +2187,8 @@ class ReadModelService:
                 "blockers": [blocker],
             },
         }
+        self._attach_fail_closed_public_v3(card, blocker=blocker)
+        return card
 
     def _project_public_analysis_decision_contract(
         self,
@@ -2171,13 +2198,19 @@ class ReadModelService:
     ) -> dict[str, Any]:
         item = self._fixture_payload_by_id(fixture_id)
         if item is None:
-            return self._fail_closed_public_analysis_card(card)
+            return self._fail_closed_public_analysis_card(
+                card,
+                blocker="FIXTURE_PAYLOAD_MISSING",
+            )
         row = self._fixture_summary(item, "UTC")
         row["_dashboard_source"] = "future_fixture_payload"
         canonical = self._dashboard_card_from_matchday(row, analysis_override=card)
         contract = canonical.get("decision_contract")
         if not isinstance(contract, dict):
-            return self._fail_closed_public_analysis_card(card)
+            return self._fail_closed_public_analysis_card(
+                card,
+                blocker="DECISION_CONTRACT_MISSING",
+            )
         projected = {
             **card,
             **{
@@ -2214,24 +2247,109 @@ class ReadModelService:
             projected["formal_recommendation"] = False
             self._clear_public_market_picks(projected, watch=tier == "WATCH")
         self._enforce_non_pick_scoreline_invariant(projected)
+        self._validate_public_v3_card_parity(projected)
         return projected
 
-    def _fail_closed_public_analysis_card(self, card: dict[str, Any]) -> dict[str, Any]:
+    def _fail_closed_public_analysis_card(
+        self,
+        card: dict[str, Any],
+        *,
+        blocker: str,
+    ) -> dict[str, Any]:
         projected = {
             **card,
             "decision": "SKIP",
             "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
             "pick": None,
+            "non_pick": {
+                "reason_code": blocker,
+                "reason_human": "公开分析读取已失败关闭",
+                "action": "等待有效公开分析证据",
+                "next_eval_at": None,
+            },
+            "reason_code": blocker,
             "current_odds": {},
             "candidate": False,
             "formal_recommendation": False,
         }
+        self._attach_fail_closed_public_v3(projected, blocker=blocker)
         self._clear_public_market_picks(projected, watch=False)
         self._enforce_non_pick_scoreline_invariant(projected)
         return projected
+
+    def _attach_fail_closed_public_v3(self, card: dict[str, Any], *, blocker: str) -> None:
+        contract = self._fail_closed_decision_contract(card, blocker=blocker)
+        decision = project_decision_v3(
+            contract,
+            manifest=load_recommendation_capability_manifest(),
+        ).as_dict()
+        validate_decision_v3_identity(decision)
+        card["card_hash"] = contract["card_hash"]
+        card["decision_contract"] = contract
+        card["recommendation_decision_v3"] = decision
+        self._validate_public_v3_card_parity(card)
+
+    def _fail_closed_decision_contract(
+        self,
+        card: dict[str, Any],
+        *,
+        blocker: str,
+    ) -> dict[str, Any]:
+        as_of = (
+            self._analysis_evaluation_time_override
+            or _parse_utc_text(card.get("generated_at"))
+            or datetime.now(UTC)
+        )
+        contract: dict[str, Any] = {
+            "fixture_id": str(card.get("fixture_id") or ""),
+            "competition_id": str(card.get("competition_id") or ""),
+            "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "decision_tier": "NOT_READY",
+            "data_status": "BLOCKED",
+            "lifecycle_status": "DRAFT",
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": None,
+            "non_pick": {
+                "reason_code": blocker,
+                "reason_human": "公开分析读取已失败关闭",
+                "action": "等待有效公开分析证据",
+                "next_eval_at": None,
+            },
+            "reason_code": blocker,
+            "action": "等待有效公开分析证据",
+            "next_eval_at": None,
+            "integrity_status": "PASS",
+            "quote_provenance_status": "UNKNOWN",
+            "model_version": str(card.get("model_version") or "w2.public.fail_closed.v1"),
+            "calibration_version": str(card.get("calibration_version") or ""),
+            "selected_market_candidate": None,
+            "analysis_evidence": {},
+            "analysis_evidence_hash": None,
+            "warnings": [blocker],
+        }
+        contract["card_hash"] = hashlib.sha256(
+            json.dumps(contract, ensure_ascii=False, sort_keys=True, default=str).encode()
+        ).hexdigest()
+        contract["decision_contract"] = dict(contract)
+        return contract
+
+    def _validate_public_v3_card_parity(self, card: dict[str, Any]) -> None:
+        decision = card.get("recommendation_decision_v3")
+        contract = card.get("decision_contract")
+        if not isinstance(decision, dict) or not isinstance(contract, dict):
+            raise ValueError("PUBLIC_ANALYSIS_V3_MISSING")
+        validate_decision_v3_identity(decision)
+        validate_decision_v3_card_parity(
+            decision,
+            card_hash=card.get("card_hash"),
+            decision_contract_card_hash=contract.get("card_hash"),
+        )
 
     def _enforce_non_pick_scoreline_invariant(self, card: dict[str, Any]) -> None:
         """Do not expose directional scorelines without a canonical public pick."""
@@ -2279,7 +2397,12 @@ class ReadModelService:
         self._observations_by_fixture_cache = {fixture_id: []}
         existing = self.analysis_card(fixture_id)
         if existing is None:
-            return None
+            existing = self._fallback_analysis_card(
+                fixture_id=fixture_id,
+                market_coverage={},
+                source="fixture_scoped_observation_read_blocked",
+                fixture_context={},
+            )
         context = {
             key: existing[key]
             for key in (
@@ -2312,6 +2435,11 @@ class ReadModelService:
         blocked["candidate"] = False
         blocked["formal_recommendation"] = False
         blocked["lock_eligible"] = False
+        blocked["outcome_tracked"] = False
+        blocked["decision_tier"] = "NOT_READY"
+        blocked["data_status"] = "BLOCKED"
+        blocked["reason_code"] = blocker
+        self._attach_fail_closed_public_v3(blocked, blocker=blocker)
         return blocked
 
     def _analysis_card_from_cached_fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
@@ -6167,17 +6295,14 @@ class ReadModelService:
             (
                 item
                 for item in markets
-                if str(item.get("decision")) == "PICK"
+                if _public_market_is_primary_pick(item)
                 and str(item.get("market") or "") == primary_market
             ),
             None,
         )
         if picked is None and not primary_market:
             # Backward compatibility for immutable pre-LMM frozen artifacts.
-            picked = next(
-                (item for item in markets if str(item.get("decision")) == "PICK"),
-                None,
-            )
+            picked = next((item for item in markets if _public_market_is_legacy_pick(item)), None)
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
         analysis_readiness = build_analysis_readiness(

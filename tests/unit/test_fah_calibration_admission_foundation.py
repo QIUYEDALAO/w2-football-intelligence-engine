@@ -33,7 +33,12 @@ def test_runtime_and_offline_scalar_probability_are_equal() -> None:
         "status": "READY",
         "lambda_home": 1.4,
         "lambda_away": 1.0,
-        "calibration": {"params": {}},
+        "lambda_sigma_home": 0.08,
+        "lambda_sigma_away": 0.07,
+        "calibration": {
+            "lambda_uncertainty_method": "deterministic_three_point",
+            "params": {},
+        },
     }
     evidence = build_analysis_market_evidence(
         fixture_id="f1",

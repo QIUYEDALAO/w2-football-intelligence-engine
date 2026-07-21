@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from w2.api import repository as api_repository
 from w2.api.repository import ReadModelRepository, ReadModelService
+from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
 
 
 class BoundedObservationRepository:
@@ -129,6 +130,20 @@ def _patch_card_builder(monkeypatch: Any) -> None:
     )
 
 
+def _assert_fail_closed_v3(card: dict[str, Any], reason_code: str) -> None:
+    v3 = card.get("recommendation_decision_v3")
+    assert isinstance(v3, dict)
+    assert v3["outcome"] == "NOT_READY"
+    assert v3["reason"]["code"] == reason_code
+    assert v3["selected_candidate"] is None
+    assert v3["decision_envelope_hash"]
+    assert validate_decision_v3_identity(v3) == v3["decision_hash"]
+    assert card["card_hash"] == card["decision_contract"]["card_hash"]
+    assert v3["audit_refs"]["v2_card_hash"] == card["card_hash"]
+    assert card["lock_eligible"] is False
+    assert card["outcome_tracked"] is False
+
+
 def test_public_analysis_card_uses_fixture_scoped_observation_reader(
     monkeypatch: Any,
 ) -> None:
@@ -191,6 +206,7 @@ def test_fixture_scoped_reader_rejects_cross_fixture_rows(monkeypatch: Any) -> N
     assert all(market["decision"] == "SKIP" for market in card["markets"])
     assert card["quote_identity_audit"]["ah"]["identity_status"] == "INCOMPLETE"
     assert repository.global_calls == 0
+    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_CROSS_FIXTURE_ROWS")
 
 
 def test_fixture_scoped_reader_failure_does_not_fallback_global(monkeypatch: Any) -> None:
@@ -208,6 +224,7 @@ def test_fixture_scoped_reader_failure_does_not_fallback_global(monkeypatch: Any
     assert card["decision"] == "SKIP"
     assert repository.global_calls == 0
     assert repository.latest_calls == 0
+    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_READ_FAILED")
 
 
 def test_missing_fixture_scoped_reader_returns_blocked_card(monkeypatch: Any) -> None:
@@ -239,6 +256,7 @@ def test_missing_fixture_scoped_reader_returns_blocked_card(monkeypatch: Any) ->
     ]
     assert card["decision"] == "SKIP"
     assert card["lock_eligible"] is False
+    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_READER_UNAVAILABLE")
 
 
 def test_concurrent_analysis_card_requests_do_not_share_fixture_cache(
