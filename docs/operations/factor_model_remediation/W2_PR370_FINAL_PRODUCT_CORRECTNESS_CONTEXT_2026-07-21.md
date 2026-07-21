@@ -48,6 +48,14 @@ state. It does not authorize merge, formal recommendation, lock, or production r
 - One bounded provider quote window and truthful full upcoming-fixture recomputation.
 - HTTP/live DB/frozen parity, zero-write read audit, and final sanitized evidence package.
 
+## Exact-SHA runtime correction
+
+The first exact-SHA runtime probe confirmed loopback-only binding, but found that Nginx
+location-level cache headers suppressed inherited security headers on `/`, `index.html`,
+`meta.json`, and assets. The follow-up source change explicitly applies the security
+headers in every cache-specialized location. The original implementation SHA must not
+be treated as the final access-control SHA.
+
 ## Safety state
 
 ```text

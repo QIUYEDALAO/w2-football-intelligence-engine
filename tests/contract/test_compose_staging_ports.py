@@ -37,14 +37,14 @@ def test_staging_web_is_bound_to_loopback_only() -> None:
 def test_staging_web_security_headers_are_required() -> None:
     config = NGINX_CONFIG.read_text(encoding="utf-8")
 
-    assert 'add_header X-Content-Type-Options "nosniff" always;' in config
-    assert 'add_header X-Frame-Options "DENY" always;' in config
-    assert 'add_header Referrer-Policy "no-referrer" always;' in config
+    assert config.count('add_header X-Content-Type-Options "nosniff" always;') == 5
+    assert config.count('add_header X-Frame-Options "DENY" always;') == 5
+    assert config.count('add_header Referrer-Policy "no-referrer" always;') == 5
     permissions_policy = (
         'add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;'
     )
-    assert permissions_policy in config
-    assert "frame-ancestors 'none'" in config
+    assert config.count(permissions_policy) == 5
+    assert config.count("frame-ancestors 'none'") == 5
 
 
 def test_staging_api_public_binding_is_rejected() -> None:
