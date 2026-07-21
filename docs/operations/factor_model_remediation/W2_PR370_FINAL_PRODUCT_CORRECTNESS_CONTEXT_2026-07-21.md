@@ -66,6 +66,27 @@ polish is explicitly deferred by the operator and is not claimed in this evidenc
 See `W2_PR370_FINAL_PRODUCT_CORRECTNESS_EVIDENCE_2026-07-21.json` for the sanitized
 machine-readable result.
 
+## Public HTTP entrypoint recovery
+
+On 2026-07-22 Asia/Shanghai, the operator reported that `http://118.196.30.136` did not
+open. Investigation found the staging containers healthy and reachable on loopback:
+
+- web: `127.0.0.1:18080`, release `d377d6e07b300dda3fcaa0bc329d9186c488edb7`
+- API: `127.0.0.1:18000`, `/ready` status `READY`
+- provider calls disabled, scheduler disabled
+
+The direct IP was unavailable because host Nginx was inactive. The host firewall allowed
+port 80, but no public listener was running. Nginx was reconfigured to proxy the current
+loopback staging services and started/enabled:
+
+- `/` -> `127.0.0.1:18080`
+- `/v1/`, `/ops/`, `/api/`, `/health`, `/ready` -> `127.0.0.1:18000`
+
+Post-fix public checks returned HTTP 200 for `http://118.196.30.136`, `meta.json`, and
+`/ready`. This restores operator access to the staging dashboard over raw HTTP. It must
+not be counted as `STAGING_ACCESS_CONTROL_PASS`; HTTPS/authentication remains a separate
+unmet staging hardening item.
+
 ## Exact-SHA runtime correction
 
 The first exact-SHA runtime probe confirmed loopback-only binding, but found that Nginx
