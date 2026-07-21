@@ -227,9 +227,13 @@ class XgHistoryBackfillService:
             blockers.append(str(exc))
             xg_rows = []
         match_rows = [self._xg_match_dict(row) for row in xg_rows]
+        persisted_xg_rows = self._persisted_xg_matches()
+        rolling_inputs = {
+            row.id: row for row in [*persisted_xg_rows, *xg_rows]
+        }
         snapshot_rows = self._rolling_snapshot_rows(
             future_fixtures=future_fixtures,
-            materialized_matches=xg_rows,
+            materialized_matches=list(rolling_inputs.values()),
         )
         try:
             upserted_matches = self.repository.upsert_team_xg_matches(match_rows)
@@ -412,6 +416,32 @@ class XgHistoryBackfillService:
                             "formal_recommendation": False,
                         }
                     )
+        return rows
+
+    def _persisted_xg_matches(self) -> list[TeamXgMatch]:
+        rows: list[TeamXgMatch] = []
+        for item in self.repository.team_xg_matches():
+            try:
+                kickoff = parse_utc(item.get("kickoff_at"))
+                captured = parse_utc(item.get("captured_at"))
+                if kickoff is None or captured is None:
+                    continue
+                rows.append(
+                    TeamXgMatch(
+                        fixture_id=str(item["fixture_id"]),
+                        team_id=str(item["team_id"]),
+                        opponent_team_id=str(item["opponent_team_id"]),
+                        kickoff_at=kickoff,
+                        captured_at=captured,
+                        xg_for=float(item["xg_for"]),
+                        xg_against=float(item["xg_against"]),
+                        goals_for=int(item["goals_for"]),
+                        goals_against=int(item["goals_against"]),
+                        raw_payload_sha256=str(item["raw_payload_sha256"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
         return rows
 
     def _xg_match_dict(self, row: TeamXgMatch) -> dict[str, Any]:

@@ -149,6 +149,35 @@ class LowQuotaFakeClient(FakeClient):
         )
 
 
+class ShortHistoryFakeClient(FakeClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls.append((endpoint, params))
+        if endpoint == "fixtures":
+            team = params["team"]
+            opponent = "20" if team == "10" else "10"
+            payload = {
+                "response": [
+                    finished_fixture(
+                        f"{team}-new",
+                        NOW - timedelta(days=1),
+                        home=team,
+                        away=opponent,
+                    )
+                ]
+            }
+        else:
+            payload = statistics()
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=1,
+            payload=payload,
+            headers={"x-apisports-requests-remaining": "6000"},
+            captured_at=NOW,
+        )
+
+
 class FakeRepository:
     def __init__(self, *, request_count_today: int = 0) -> None:
         self.raw: list[tuple[str, str]] = []
@@ -211,6 +240,31 @@ class FakeRepository:
 
     def request_count_since(self, since: datetime) -> int:
         return self.request_count_today
+
+
+class ExistingXgRepository(FakeRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.existing_matches = [
+            {
+                "id": f"old-{team}-{index}:{team}",
+                "fixture_id": f"old-{team}-{index}",
+                "team_id": team,
+                "opponent_team_id": "20" if team == "10" else "10",
+                "kickoff_at": (NOW - timedelta(days=5 - index)).isoformat(),
+                "captured_at": NOW.isoformat(),
+                "xg_for": 1.0,
+                "xg_against": 0.8,
+                "goals_for": 1,
+                "goals_against": 0,
+                "raw_payload_sha256": f"{index}" * 64,
+            }
+            for team in ("10", "20")
+            for index in range(2)
+        ]
+
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        return [*self.existing_matches, *self.matches]
 
 
 class MultiCompetitionRepository(FakeRepository):
@@ -279,6 +333,19 @@ def test_xg_backfill_competition_id_is_configurable(monkeypatch: Any) -> None:
         ("fixtures", {"team": "10", "last": "5"}),
         ("fixtures", {"team": "20", "last": "5"}),
     ]
+
+
+def test_xg_backfill_rolls_forward_existing_persisted_xg_matches() -> None:
+    repository = ExistingXgRepository()
+    result = XgHistoryBackfillService(
+        client=ShortHistoryFakeClient(),
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    ).run()
+
+    assert result.team_xg_match_rows == 4
+    assert result.rolling_snapshot_rows == 2
 
 
 def test_xg_backfill_stops_before_consuming_live_reserve() -> None:
