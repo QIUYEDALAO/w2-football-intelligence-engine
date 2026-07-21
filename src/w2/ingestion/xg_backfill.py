@@ -444,6 +444,10 @@ def run_xg_history_backfill(
         repository=repository,
         now=now,
         config=XgBackfillConfig(
+            competition_id=os.environ.get(
+                "W2_XG_BACKFILL_COMPETITION_ID",
+                "world_cup_2026",
+            ),
             recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
             request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
             quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
