@@ -1,13 +1,13 @@
 FROM node:20-slim AS build
 WORKDIR /app
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
 ARG VITE_GIT_SHA=UNKNOWN
 ARG VITE_BUILD_TIME=UNKNOWN
 ARG W2_RELEASE_ID=${VITE_GIT_SHA}
 ARG VITE_DASHBOARD_DATA_MODE=api
 ARG VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=false
 ARG VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
-COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
 ENV VITE_GIT_SHA=${VITE_GIT_SHA} \
     VITE_BUILD_TIME=${VITE_BUILD_TIME} \
     W2_RELEASE_ID=${W2_RELEASE_ID} \

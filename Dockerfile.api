@@ -1,7 +1,4 @@
 FROM python:3.12-slim
-ARG W2_GIT_SHA=UNKNOWN
-ARG W2_BUILD_TIME=UNKNOWN
-ARG W2_RELEASE_ID=${W2_GIT_SHA}
 ARG PIP_INDEX_URL=
 ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
@@ -58,6 +55,9 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/materialize_analysis_card_canary.py \
  && W2_LINEUP_POLICY_PATH=/app/image_config/policies/lineup_market_policy.v1.json \
     /app/.venv/bin/python -c "from w2.lineups.intelligence import lineup_market_policy; assert lineup_market_policy()['schema_version'] == 'w2.lineup_market_policy.v1'"
+ARG W2_GIT_SHA=UNKNOWN
+ARG W2_BUILD_TIME=UNKNOWN
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
 ENV W2_GIT_SHA=${W2_GIT_SHA} \
     W2_BUILD_TIME=${W2_BUILD_TIME} \
     W2_RELEASE_ID=${W2_RELEASE_ID}

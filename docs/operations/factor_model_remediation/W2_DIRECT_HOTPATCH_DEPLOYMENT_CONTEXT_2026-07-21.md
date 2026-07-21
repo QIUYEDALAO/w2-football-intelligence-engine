@@ -302,6 +302,22 @@ new release SHA changes the final runtime metadata layer
 new release SHA no longer forces dependency redownload/reinstall
 ```
 
+Additional cache root cause found during the next exact-image rebuild:
+
+```text
+Docker ARG W2_GIT_SHA / W2_BUILD_TIME / W2_RELEASE_ID were still declared before dependency RUN layers
+Docker includes in-scope build args in cache evaluation for RUN
+therefore each new SHA still invalidated uv sync
+```
+
+Final cache correction:
+
+```text
+Release metadata ARG declarations are now placed after dependency install layers
+Python dependency layers only see PIP_INDEX_URL/UV_INDEX_URL
+Web npm ci layer no longer sees VITE/W2 release args
+```
+
 ## Final V3 contract consumption fix
 
 After exact-image deployment of:
