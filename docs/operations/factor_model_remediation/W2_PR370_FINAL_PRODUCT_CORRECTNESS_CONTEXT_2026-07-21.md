@@ -192,3 +192,14 @@ PR_370_KEEP_DRAFT
 The exact Dashboard V2 integration implementation commit is
 `e50012cfd4bb02d7803ed57b9a77d6ffd0602b56`. It is source-review ready but is not a
 staging deployment candidate until the protected React/golden authority conflict is resolved.
+
+GitHub Actions run `29855429059` executed against source-review head
+`6b1902a0390d90e5cbd4cc4deb5167a2169456f3`:
+
+- `staging-parity`: PASS;
+- `predeploy-e2e`: PASS;
+- `verify`: protected baseline, TypeScript typecheck, and production build PASS; Web E2E
+  stopped the job on the same three documented 2048/1440/390 pixel mismatches.
+
+This is the intended fail-closed result. The reference conflict was not hidden by changing
+goldens, protected source, or the 0.15% threshold.
