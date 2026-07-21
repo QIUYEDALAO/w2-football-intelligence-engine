@@ -234,3 +234,43 @@ Dockerfile.migrations now copies alembic.ini after the shared dependency layer
 Dockerfile.scheduler now has PIP_INDEX_URL/UV_INDEX_URL build args
 Dockerfile.scheduler now uses the same dependency-before-source layer split
 ```
+
+## Exact-image fresh canary exposed V3 candidate consumption bug
+
+After rebuilding and deploying exact image SHA:
+
+```text
+2d86c3456f16c84020fc743f8d00803c1e5e9c63
+```
+
+The staging runtime had fresh odds, empirical xG uncertainty, model probability, market probability, probability delta, EV, and uncertainty fields populated. However V3 still returned `NO_EDGE` for all 8 fixtures.
+
+Root cause:
+
+```text
+market_candidate selected the best analysis side from side_evidence
+but then rebuilt analysis_evidence with market_row.tendency instead of the promoted selection
+```
+
+Consequence:
+
+```text
+market rows showed MODEL_MARKET_EDGE_READY
+candidate analysis_evidence stayed NO_EDGE
+V3 selected_candidate stayed null
+```
+
+Fix:
+
+```text
+market_candidate now passes the promoted selection into build_analysis_market_evidence
+unit test added for best-side evidence promotion into executable analysis candidate
+```
+
+Validation before redeploy:
+
+```text
+ruff: PASS
+mypy: PASS
+pytest tests/unit/test_market_candidate.py tests/unit/test_recommendation_decision_v3.py tests/unit/test_analysis_card_xg_materialized.py: 24 passed
+```

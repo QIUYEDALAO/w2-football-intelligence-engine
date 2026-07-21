@@ -137,7 +137,7 @@ def _candidate(
         fixture_id=fixture_id,
         competition_id=competition_id,
         market=market,
-        selection=market_row.get("tendency"),
+        selection=selection,
         line=line,
         quote_identity_audit={_KEYS[market]: audit},
         simulation=simulation,

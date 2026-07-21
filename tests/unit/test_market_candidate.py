@@ -175,3 +175,37 @@ def test_no_pick_with_current_odds_is_comparison_only() -> None:
     assert candidate["formal_eligible"] is False
     assert candidate["lock_eligible"] is False
     assert candidate_is_executable(candidate) is False
+
+
+def test_best_side_evidence_promotes_executable_analysis_candidate() -> None:
+    simulation = {
+        "status": "READY",
+        "model_version": "model",
+        "calibration_version": "calibration",
+        "lambda_home": 1.0,
+        "lambda_away": 1.9,
+        "lambda_sigma_home": 0.08,
+        "lambda_sigma_away": 0.07,
+        "calibration": {
+            "lambda_uncertainty_method": "deterministic_three_point",
+            "params": {"dixon_coles_rho": 0.0},
+        },
+    }
+    candidates = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "line": "0.75"}],
+        quote_identity_audit={"ah": _audit()},
+        current_odds={"ah": {"home_price": 1.9, "away_price": 1.9}},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=simulation,
+    )
+
+    candidate = candidates["ah"]
+    assert candidate["selection"] == "AWAY"
+    assert candidate["analysis_evidence_status"] == "COMPLETE"
+    assert candidate["analysis_direction_allowed"] is True
+    assert candidate["analysis_evidence"]["comparison"]["reason_code"] == "MODEL_MARKET_EDGE_READY"
+    assert candidate["quotes"]["executable"] == {"home_price": 1.9, "away_price": 1.9}
+    assert candidate["ev_eligible"] is True
+    assert candidate_is_executable(candidate)
