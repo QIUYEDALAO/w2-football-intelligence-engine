@@ -11,6 +11,12 @@ from w2.infrastructure.persistence.challenger_models import (
     ForwardHoldoutRunModel,
     ForwardPredictionLockModel,
 )
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamMatchHistoryModel,
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+    TeamRatingSnapshotModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import (
     ForwardCycleCheckpointModel,
     ForwardCycleRunModel,
@@ -72,6 +78,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayEvidenceManifestModel,
+    MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.migration_models import (
@@ -171,6 +178,8 @@ __all__ = [
     "BackupRunModel",
     "BookmakerModel",
     "CanonicalHistoricalAhFactModel",
+    "CanonicalTeamMatchHistoryModel",
+    "CanonicalTeamModel",
     "CalibrationArtifactModel",
     "ChallengerModelModel",
     "CompetitionModel",
@@ -218,6 +227,7 @@ __all__ = [
     "MatchdayCheckpointPlanModel",
     "MatchdayEndpointCaptureModel",
     "MatchdayEvidenceManifestModel",
+    "MatchdayFixtureIdentityModel",
     "MatchdayMarketObservationModel",
     "MigrationDryRunModel",
     "MigrationQuarantineRecordModel",
@@ -239,6 +249,7 @@ __all__ = [
     "PredictionModel",
     "PredictionSnapshotModel",
     "ProviderEntityMappingModel",
+    "ProviderTeamIdentityCrosswalkModel",
     "ProviderRequestLogModel",
     "PromotionRelegationMappingModel",
     "QuotaUsageModel",
@@ -280,6 +291,7 @@ __all__ = [
     "TeamModel",
     "TeamIdentityCrosswalkModel",
     "TeamRatingModel",
+    "TeamRatingSnapshotModel",
     "TeamValueAsOfArtifactModel",
     "TeamXgMatchModel",
     "TeamXgRollingSnapshotModel",
