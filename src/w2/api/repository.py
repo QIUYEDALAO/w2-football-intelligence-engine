@@ -2430,6 +2430,11 @@ class ReadModelService:
                         if callable(legacy_snapshot_reader)
                         else []
                     )
+                if canonical_ready and not snapshots and callable(legacy_snapshot_reader):
+                    snapshots = self._project_provider_xg_snapshots_for_fixture(
+                        legacy_snapshot_reader(fixture_id=fixture_id),
+                        canonical_identity=canonical_identity,
+                    )
             except SQLAlchemyError:
                 snapshots = []
             self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots
@@ -3399,6 +3404,39 @@ class ReadModelService:
             goals_for=round(float(row["rolling_goals_for"])),
             goals_against=round(float(row["rolling_goals_against"])),
         )
+
+    def _project_provider_xg_snapshots_for_fixture(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        canonical_identity: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        if not canonical_identity:
+            return []
+        provider_to_w2 = {
+            str(canonical_identity.get("home_provider_team_id") or ""): str(
+                canonical_identity.get("home_w2_team_id") or ""
+            ),
+            str(canonical_identity.get("away_provider_team_id") or ""): str(
+                canonical_identity.get("away_w2_team_id") or ""
+            ),
+        }
+        projected: list[dict[str, Any]] = []
+        for row in rows:
+            provider_team_id = str(row.get("team_id") or "")
+            w2_team_id = provider_to_w2.get(provider_team_id)
+            if not provider_team_id or not w2_team_id:
+                continue
+            projected.append(
+                {
+                    **row,
+                    "team_id": w2_team_id,
+                    "provider_team_id": provider_team_id,
+                    "identity_projection": "FIXTURE_PROVIDER_TEAM_ID_TO_W2_TEAM_ID",
+                    "identity_projection_status": "READY",
+                }
+            )
+        return projected
 
     def _market_snapshots_from_observations(
         self,
