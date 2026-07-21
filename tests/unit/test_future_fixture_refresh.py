@@ -1030,6 +1030,27 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
         raise AssertionError("unregistered policy unexpectedly loaded")
 
 
+def test_future_refresh_binds_source_revision_to_staging_git_sha(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
+
+    config = config_from_policy(competition_id="world_cup_2026")
+
+    assert config.source_revision == "a" * 40
+
+
+def test_future_refresh_staging_requires_exact_source_revision(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "UNKNOWN")
+
+    try:
+        config_from_policy(competition_id="world_cup_2026")
+    except FutureRefreshError as exc:
+        assert str(exc) == "SOURCE_REVISION_NOT_BOUND_TO_EXACT_GIT_SHA"
+    else:  # pragma: no cover
+        raise AssertionError("staging refresh must fail closed without exact source revision")
+
+
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 

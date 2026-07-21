@@ -64,12 +64,21 @@ def build_analysis_market_evidence(
     quote_identity = {
         field: audit.get(field)
         for field in (
+            "schema_version",
+            "market",
+            "selected_line",
+            "fixture_id",
             "identity_status",
             "freshness_status",
             "provider",
             "bookmaker_id",
+            "capture_id",
             "captured_at",
+            "source_revision",
+            "raw_payload_sha256",
             "observation_ids",
+            "quote_identity_hash",
+            "quotes",
         )
     }
     base["quote_identity"] = quote_identity

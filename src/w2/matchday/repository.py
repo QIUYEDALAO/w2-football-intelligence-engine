@@ -869,11 +869,18 @@ def _upsert_fixture_identity(
         if current[field] != incoming[field]:
             raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT")
     changed = False
-    for field in _FIXTURE_IDENTITY_MUTABLE_FIELDS:
-        if current[field] == incoming[field]:
-            continue
-        setattr(existing, field, _fixture_identity_model_value(field, incoming[field]))
-        changed = True
+    current_captured_at = _dt(current["captured_at"])
+    incoming_captured_at = _dt(incoming["captured_at"])
+    if incoming_captured_at > current_captured_at:
+        for field in _FIXTURE_IDENTITY_MUTABLE_FIELDS:
+            if current[field] == incoming[field]:
+                continue
+            setattr(existing, field, _fixture_identity_model_value(field, incoming[field]))
+            changed = True
+    elif incoming_captured_at == current_captured_at:
+        for field in _FIXTURE_IDENTITY_MUTABLE_FIELDS:
+            if current[field] != incoming[field]:
+                raise MatchdayRepositoryError("CAPTURE_PROVENANCE_CONFLICT")
     for field in ("home_w2_team_id", "away_w2_team_id"):
         incoming_value = incoming.get(field)
         current_value = getattr(existing, field)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -15,6 +17,7 @@ _REQUIRED_FIELDS = (
     "provider",
     "bookmaker_id",
     "bookmaker_name",
+    "capture_id",
     "canonical_market",
     "selection",
     "line",
@@ -173,18 +176,29 @@ def _payload(
         if value.get("observation_id") not in {None, ""}
     }
     complete_quotes = list(quote_payload.values())
-    return {
+    payload: dict[str, Any] = {
         "schema_version": QUOTE_IDENTITY_SCHEMA_VERSION,
         "market": market,
         "selected_line": None if selected_line is None else str(selected_line),
         "identity_status": status,
         "blockers": ordered_blockers,
         "observation_ids": observation_ids,
+        "fixture_id": _common_value(complete_quotes, "fixture_id"),
         "provider": _common_value(complete_quotes, "provider"),
         "bookmaker_id": _common_value(complete_quotes, "bookmaker_id"),
+        "capture_id": _common_value(complete_quotes, "capture_id"),
         "captured_at": _common_value(complete_quotes, "captured_at"),
+        "source_revision": _common_value(complete_quotes, "source_revision"),
+        "raw_payload_sha256": _common_value(complete_quotes, "raw_payload_sha256"),
         "quotes": quote_payload,
     }
+    payload["quote_identity_hash"] = _stable_hash(payload)
+    return payload
+
+
+def _stable_hash(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _common_value(rows: Sequence[Mapping[str, Any]], field: str) -> Any:

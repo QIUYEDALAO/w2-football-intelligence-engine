@@ -6,17 +6,25 @@ from w2.strategy.formal_recommendation import _candidate_executable_odds
 
 def _audit(*, identity: str = "COMPLETE", freshness: str = "COMPLETE") -> dict[str, object]:
     return {
+        "schema_version": "w2.quote_identity.v1",
+        "market": "ASIAN_HANDICAP",
+        "selected_line": "-0.5",
+        "fixture_id": "fixture-1",
         "identity_status": identity,
         "freshness_status": freshness,
         "observation_ids": {"home": "h", "away": "a"},
         "provider": "provider",
         "bookmaker_id": "book",
+        "capture_id": "capture-1",
         "captured_at": "2026-07-19T00:00:00Z",
+        "source_revision": "a" * 40,
+        "raw_payload_sha256": "b" * 64,
+        "quote_identity_hash": "c" * 64,
         "quotes": {
-            "home": {"decimal_odds": "1.9"},
-            "away": {"decimal_odds": "1.9"},
-            "over": {"decimal_odds": "1.9"},
-            "under": {"decimal_odds": "1.9"},
+            "home": {"capture_id": "capture-1", "decimal_odds": "1.9"},
+            "away": {"capture_id": "capture-1", "decimal_odds": "1.9"},
+            "over": {"capture_id": "capture-1", "decimal_odds": "1.9"},
+            "under": {"capture_id": "capture-1", "decimal_odds": "1.9"},
         },
     }
 
@@ -127,6 +135,10 @@ def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
     assert evidence["status"] == "COMPLETE"
     assert evidence["evidence_contract_version"] == "w2.analysis-market-evidence.v2"
     assert evidence["quote_identity"]["bookmaker_id"] == "book"
+    assert evidence["quote_identity"]["capture_id"] == "capture-1"
+    assert evidence["quote_identity"]["source_revision"] == "a" * 40
+    assert evidence["quote_identity"]["raw_payload_sha256"] == "b" * 64
+    assert evidence["quote_identity"]["quote_identity_hash"] == "c" * 64
     assert evidence["quote_observation_ids"] == {"home": "h", "away": "a"}
     assert evidence["market_probability"]["overround"] == 0.052632
     assert evidence["model_probability"]["settlement_distribution"]
@@ -207,5 +219,9 @@ def test_best_side_evidence_promotes_executable_analysis_candidate() -> None:
     assert candidate["analysis_direction_allowed"] is True
     assert candidate["analysis_evidence"]["comparison"]["reason_code"] == "MODEL_MARKET_EDGE_READY"
     assert candidate["quotes"]["executable"] == {"home_price": 1.9, "away_price": 1.9}
+    assert candidate["quote_identity"]["capture_id"] == "capture-1"
+    assert candidate["quote_identity"]["source_revision"] == "a" * 40
+    assert candidate["quote_identity"]["raw_payload_sha256"] == "b" * 64
+    assert candidate["quote_identity"]["quote_identity_hash"] == "c" * 64
     assert candidate["ev_eligible"] is True
     assert candidate_is_executable(candidate)

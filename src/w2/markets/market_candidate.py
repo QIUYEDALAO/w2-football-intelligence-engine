@@ -167,12 +167,25 @@ def _candidate(
             "last_known_reference": reference,
         },
         "quote_identity": {
+            "schema_version": audit.get("schema_version"),
+            "market": audit.get("market") or market,
+            "selected_line": audit.get("selected_line"),
+            "fixture_id": audit.get("fixture_id"),
             "identity_status": identity_status,
             "freshness_status": freshness_status,
             "observation_ids": dict(_mapping(audit.get("observation_ids"))),
             "provider": audit.get("provider"),
             "bookmaker_id": audit.get("bookmaker_id"),
+            "capture_id": audit.get("capture_id"),
             "captured_at": audit.get("captured_at"),
+            "source_revision": audit.get("source_revision"),
+            "raw_payload_sha256": audit.get("raw_payload_sha256"),
+            "quote_identity_hash": audit.get("quote_identity_hash"),
+            "quotes": {
+                key: dict(value)
+                for key, value in _mapping(audit.get("quotes")).items()
+                if isinstance(value, Mapping)
+            },
         },
         "model_status": model_status,
         "model_probability": model,

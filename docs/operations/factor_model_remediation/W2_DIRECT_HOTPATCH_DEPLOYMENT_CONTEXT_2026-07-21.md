@@ -218,6 +218,57 @@ COPY source/config/apps/migrations ...
 RUN uv sync --no-dev --frozen --no-editable
 ```
 
+## PR #370 final evidence/provenance correction instruction
+
+Latest external review accepts the analysis recommendation chain and automated future
+refresh bounded canary, but keeps PR #370 Draft because the evidence/provenance package
+is incomplete.
+
+Current required correction scope:
+
+```text
+Do not reopen F7/F9/uncertainty/model-market factor remediation.
+Do not change thresholds or weights.
+Keep formal, lock, production and scheduler disabled.
+Bind automatic observation source_revision to exact W2_GIT_SHA.
+Make fixture identity replay monotonic by captured_at.
+Carry full exact quote identity into canonical selected/evaluated candidates.
+Regenerate self-contained V3 evidence and safety/parity package.
+Deploy a new exact SHA image, run one controlled refresh, then close provider calls again.
+```
+
+Local source corrections prepared after this instruction:
+
+```text
+FutureRefreshConfig.source_revision now binds to W2_GIT_SHA.
+Staging/non-local refresh fails closed without a 40-character Git SHA.
+Future refresh odds observations now include deterministic capture_id.
+QuoteIdentity now requires capture_id and emits quote_identity_hash.
+Analysis market evidence and market candidates now retain full quote identity fields.
+Fixture identity upsert only updates capture/provenance fields for newer captured_at.
+Equal captured_at with changed mutable provenance fails CAPTURE_PROVENANCE_CONFLICT.
+Older replay cannot overwrite latest fixture_status/capture/raw/payload fields.
+```
+
+Local verification before exact-image deployment:
+
+```text
+ruff targeted: PASS
+pytest quote/candidate/analysis/future-refresh/matchday targeted: 62 passed
+pytest future_refresh_db_persistence + matchday_intake_v2_persistence: 27 passed
+mypy targeted source files: PASS
+```
+
+Pending next actions:
+
+```text
+Commit and push this correction to PR #370.
+Wait for exact-head GitHub Actions.
+Rebuild and deploy staging images from the new exact SHA.
+Run one controlled provider refresh window and immediately close provider calls.
+Regenerate final V3 safety/parity evidence package from live staging.
+```
+
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
 
 Second rebuild observation:

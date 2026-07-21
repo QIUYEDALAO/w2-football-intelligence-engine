@@ -20,6 +20,7 @@ def quote(
         "provider": "api-football",
         "bookmaker_id": bookmaker_id,
         "bookmaker_name": "Book One" if bookmaker_id == "book-1" else "Book Two",
+        "capture_id": "capture-1",
         "canonical_market": market,
         "selection": selection,
         "line": line,
@@ -54,7 +55,12 @@ def test_complete_ah_quote_identity_uses_two_authoritative_observations() -> Non
     assert payload["blockers"] == []
     assert payload["observation_ids"] == {"away": "away-id", "home": "home-id"}
     assert payload["bookmaker_id"] == "book-1"
+    assert payload["capture_id"] == "capture-1"
     assert payload["captured_at"] == "2026-07-18T01:00:00Z"
+    assert payload["source_revision"] == "future-refresh.v1"
+    assert payload["raw_payload_sha256"] == "a" * 64
+    assert payload["fixture_id"] == "fixture-1"
+    assert payload["quote_identity_hash"]
 
 
 def test_old_but_complete_quote_is_observed_without_freshness_policy() -> None:

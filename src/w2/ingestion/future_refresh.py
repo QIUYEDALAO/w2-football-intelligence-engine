@@ -45,6 +45,10 @@ class RefreshLockError(RuntimeError):
     pass
 
 
+_FULL_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+_UNBOUND_SOURCE_REVISIONS = frozenset({"", "UNKNOWN", "LOCAL_UNDEPLOYED"})
+
+
 class LiveApiFootballPort(Protocol):
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         pass
@@ -292,6 +296,7 @@ def config_from_policy(
         feature_enrichment_endpoints=policy.feature_enrichment_endpoints,
         feature_enrichment_request_budget=policy.feature_enrichment_request_budget,
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
+        source_revision=_bound_source_revision(),
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
         daily_hard_cap=policy.daily_hard_cap,
@@ -300,6 +305,19 @@ def config_from_policy(
         checkpoint_mode=policy.checkpoint_mode,
         trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
     )
+
+
+def _bound_source_revision() -> str:
+    revision = (os.environ.get("W2_GIT_SHA") or "").strip()
+    environment = (os.environ.get("W2_ENVIRONMENT") or "").strip().lower()
+    local_or_test = environment in {"", "local", "test", "development"}
+    if _FULL_GIT_SHA.fullmatch(revision):
+        return revision
+    if local_or_test and revision not in _UNBOUND_SOURCE_REVISIONS:
+        return revision
+    if local_or_test:
+        return "LOCAL_UNDEPLOYED"
+    raise FutureRefreshError("SOURCE_REVISION_NOT_BOUND_TO_EXACT_GIT_SHA")
 
 
 class RefreshSingletonLock:
@@ -514,6 +532,16 @@ def observations_from_odds_payload(
 ) -> list[dict[str, Any]]:
     raw_hash = raw_payload_sha256 or sha256_payload(payload)
     captured_at = iso(response.captured_at)
+    capture_id = sha256_payload(
+        {
+            "schema_version": "w2.future_refresh.odds_capture.v1",
+            "endpoint": response.endpoint,
+            "params": sanitize_params(dict(response.params)),
+            "captured_at": captured_at,
+            "raw_payload_sha256": raw_hash,
+            "source_revision": source_revision,
+        }
+    )
     rows: list[dict[str, Any]] = []
     provider_updated = captured_at
     for entry in payload.get("response", []):
@@ -541,6 +569,7 @@ def observations_from_odds_payload(
                     identity = {
                         "provider": "api_football",
                         "fixture_id": fixture_id,
+                        "capture_id": capture_id,
                         "bookmaker_id": bookmaker_id,
                         "bet_id": bet_id,
                         "selection": selection,
@@ -562,6 +591,7 @@ def observations_from_odds_payload(
                             "provider": "api_football",
                             "bookmaker_id": bookmaker_id,
                             "bookmaker_name": bookmaker_name,
+                            "capture_id": capture_id,
                             "provider_bet_id": bet_id,
                             "raw_market_label": raw_market,
                             "canonical_market": market,
