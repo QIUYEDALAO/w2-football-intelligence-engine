@@ -2,19 +2,24 @@ FROM python:3.12-slim
 ARG W2_GIT_SHA=UNKNOWN
 ARG W2_BUILD_TIME=UNKNOWN
 ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ARG PIP_INDEX_URL=
+ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH=/app/.venv/bin:$PATH \
     W2_GIT_SHA=${W2_GIT_SHA} \
     W2_BUILD_TIME=${W2_BUILD_TIME} \
-    W2_RELEASE_ID=${W2_RELEASE_ID}
+    W2_RELEASE_ID=${W2_RELEASE_ID} \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    UV_INDEX_URL=${UV_INDEX_URL}
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md ./
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable --no-install-project
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
 COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-shadow-cycle \
  && test -x /app/.venv/bin/w2-stage7i-observer
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \

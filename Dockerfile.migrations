@@ -13,8 +13,9 @@ ENV PATH=/app/.venv/bin:$PATH \
     UV_INDEX_URL=${UV_INDEX_URL}
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
-COPY pyproject.toml uv.lock README.md alembic.ini ./
+COPY pyproject.toml uv.lock README.md ./
 RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable --no-install-project
+COPY alembic.ini ./
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations

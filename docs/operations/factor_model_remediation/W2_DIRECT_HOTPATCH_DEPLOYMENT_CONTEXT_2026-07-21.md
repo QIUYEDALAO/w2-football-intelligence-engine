@@ -219,3 +219,18 @@ RUN uv sync --no-dev --frozen --no-editable
 ```
 
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
+
+Second rebuild observation:
+
+```text
+migration dependency layer did not share cache with api because alembic.ini was copied before uv sync
+scheduler still used the old one-step dependency/source install pattern
+```
+
+Follow-up deployment-only correction:
+
+```text
+Dockerfile.migrations now copies alembic.ini after the shared dependency layer
+Dockerfile.scheduler now has PIP_INDEX_URL/UV_INDEX_URL build args
+Dockerfile.scheduler now uses the same dependency-before-source layer split
+```
