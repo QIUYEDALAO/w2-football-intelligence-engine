@@ -323,6 +323,111 @@ MATERIALIZE_FROZEN_ANALYSIS_ARTIFACTS
 GENERATE_FINAL_V3_SAFETY_PARITY_PACKAGE
 ```
 
+## Final exact-SHA staging validation after scoped AH/OU fix
+
+The scoped AH/OU filter was committed and pushed:
+
+```text
+2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+```
+
+GitHub Actions:
+
+```text
+run=29823989417
+verify=PASS
+staging-parity=PASS
+predeploy-e2e=PASS
+```
+
+The exact SHA was rebuilt as Docker images and deployed to staging:
+
+```text
+/opt/w2/current -> /opt/w2/releases/2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+api W2_GIT_SHA=2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+/ready=READY
+schema=PASS
+api/worker/web healthy
+scheduler stopped
+```
+
+Controlled provider window on the exact image:
+
+```text
+report=/app/runtime/reports/provider_future_refresh_exact_image_2a2dd3b_20260721T105937Z.json
+status=COMPLETED
+request_count=10
+remaining_quota=7183
+fixture_count=14
+market_snapshot_count=8
+ledger_appended_count=2938
+raw_payload_written_count=10
+blockers=[]
+```
+
+Frozen materialization after the fresh quote capture:
+
+```text
+report=/opt/w2/shared/runtime/reports/materialize_analysis_card_canary_exact_image_2a2dd3b_after_capture_20260721T110250Z.json
+status=MATERIALIZED
+requested_fixture_count=8
+materialized_fixture_count=8
+unavailable_fixture_count=0
+```
+
+Service 20-read safety probe:
+
+```text
+report=/opt/w2/shared/runtime/reports/service_frozen_v3_safety_exact_image_2a2dd3b_20read_after_capture_20260721T110326Z.json
+zero_write_pass=true
+canonical_cohort_hash_unchanged=true
+official_storage_hash_unchanged=true
+required_tables_present=true
+```
+
+Public HTTP 20-read canary:
+
+```text
+report=/opt/w2/shared/runtime/reports/http_v3_frozen_canary_exact_image_2a2dd3b_20read_20260721T110357Z.json
+all_http_200=true
+all_frozen_verified=true
+all_hash_stable=true
+```
+
+Final fixture outcomes:
+
+```text
+1494224: NO_EDGE
+1494218: ANALYSIS_PICK
+1494221: NO_EDGE
+1494223: ANALYSIS_PICK
+1494217: ANALYSIS_PICK
+1494222: ANALYSIS_PICK
+1494219: NO_EDGE
+1494220: ANALYSIS_PICK
+```
+
+Final analysis-chain summary:
+
+```text
+ANALYSIS_PICK=5
+NO_EDGE=3
+recommendations/locks/OFFICIAL writes=0
+provider disabled after window=true
+scheduler stopped=true
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
+
+The final machine-readable and human-readable package is tracked at:
+
+```text
+docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.json
+docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.md
+```
+
 ## PR #370 final evidence/provenance correction instruction
 
 Latest external review accepts the analysis recommendation chain and automated future

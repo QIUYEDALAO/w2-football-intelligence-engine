@@ -1,96 +1,62 @@
-# W2 PR370 Final Exact-SHA V3 Safety Parity Package
+# W2 PR370 Final Exact-SHA V3 Safety Parity Package - 2026-07-21
 
-Generated: 2026-07-21
-
-## Scope
-
-This package records the final machine-readable evidence for PR #370 after the
-fixture identity stable-field upsert remediation.
-
-It is evidence-only. It does not enable formal recommendations, locks,
-production, scheduler, or continuous provider calls.
-
-## Source
+## Final status
 
 ```text
-machine_json=docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.json
-deployed_implementation_sha=876072e585125644181044ac9789af3f5358458b
-deployed_sha_ci_run=29820386907
-deployed_sha_ci_conclusion=success
-runtime_report=/app/runtime/reports/final_exact_sha_public_read_canary_876072e_AUTO_REFRESH_20260721T100113Z.json
-provider_refresh_report=/app/runtime/reports/provider_future_refresh_exact_image_876072e_20260721T100035Z.json
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_EXACT_SHA_DEPLOYED
+PUBLIC_HTTP_FROZEN_CANARY_VALIDATED
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
 ```
 
-## Deployment Evidence
+## Exact GitHub and staging identity
 
 ```text
-/opt/w2/current=876072e585125644181044ac9789af3f5358458b
-api_git_sha=876072e585125644181044ac9789af3f5358458b
-web_git_sha=876072e585125644181044ac9789af3f5358458b
-/ready=READY
-api=healthy
-worker=healthy
-web=healthy
-scheduler=exited
+PR: #370
+Branch: codex/w2-factor-model-remediation-master
+Exact SHA: 2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+GitHub Actions run: 29823989417
+verify: PASS
+staging-parity: PASS
+predeploy-e2e: PASS
 ```
 
-## Automatic Refresh
+Staging deployment:
 
 ```text
-status=COMPLETED
-request_count=10
-remaining_quota=7212
-fixture_count=14
-market_snapshot_count=8
-ledger_appended_count=2938
-blockers=[]
+Host: 118.196.30.136
+Current release: /opt/w2/releases/2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+api W2_GIT_SHA: 2a2dd3b704e1207a88dcbec5ed626e2ce002de91
+/ready: READY
+schema: PASS
+scheduler: STOPPED
 ```
 
-This closes the prior `AUTOMATED_FUTURE_REFRESH_DEGRADED` blocker for the
-bounded Allsvenskan canary path.
+## Controlled provider window
 
-## Public Read Canary
+Report:
 
 ```text
-fixtures=8
-public_read_iterations=20
-ANALYSIS_PICK=5
-WATCH=3
-zero_write_pass=true
-recommendation_lock_official_delta_zero=true
+/app/runtime/reports/provider_future_refresh_exact_image_2a2dd3b_20260721T105937Z.json
 ```
 
-Per-fixture result:
+Result:
 
 ```text
-1494224 WATCH
-1494218 ANALYSIS_PICK
-1494221 WATCH
-1494223 ANALYSIS_PICK
-1494217 ANALYSIS_PICK
-1494222 ANALYSIS_PICK
-1494219 WATCH
-1494220 ANALYSIS_PICK
+status: COMPLETED
+request_count: 10
+remaining_quota: 7183
+fixture_count: 14
+market_snapshot_count: 8
+ledger_appended_count: 2938
+raw_payload_written_count: 10
+blockers: []
 ```
 
-All 8 fixtures include AH and OU model probability, market probability,
-probability delta, EV and uncertainty fields in the JSON package.
-
-## Safety
-
-```text
-recommendations count_delta=0
-recommendation_locks count_delta=0
-forward_prediction_lock count_delta=0
-gate5_recommendation_lock_event count_delta=0
-shadow_strategy_event count_delta=0
-shadow_strategy_lock count_delta=0
-shadow_strategy_settlement count_delta=0
-settlements count_delta=0
-```
-
-Provider calls were explicitly reopened only for the bounded refresh execution
-and the deployed runtime flags remain:
+Post-window:
 
 ```text
 W2_PROVIDER_CALLS_DISABLED=true
@@ -99,17 +65,93 @@ W2_RECOMMENDATION_ENABLED=false
 W2_PRODUCTION_RELEASE=false
 ```
 
-## Status
+## Frozen materialization
+
+Report:
 
 ```text
-ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
-LIVE_STAGING_CANARY_PASSED
-ANALYSIS_RECOMMENDATION_FACTORS_READY
-AS_OF_REPLAY_GUARD_PASS
-AUTOMATED_FUTURE_REFRESH_COMPLETED_FOR_CANARY
-FINAL_MACHINE_READABLE_V3_SAFETY_PARITY_PACKAGE_SUBMITTED
-FORMAL_DISABLED
-LOCK_DISABLED
-PRODUCTION_DISABLED
-MANUAL_APPROVAL_REQUIRED
+/opt/w2/shared/runtime/reports/materialize_analysis_card_canary_exact_image_2a2dd3b_after_capture_20260721T110250Z.json
 ```
+
+Result:
+
+```text
+status: MATERIALIZED
+requested_fixture_count: 8
+materialized_fixture_count: 8
+unavailable_fixture_count: 0
+schema_versions: w2.analysis-card.frozen.v1
+```
+
+The first materialization attempt used an evaluation timestamp two seconds before the provider capture and correctly failed freshness with `CAPTURED_AT_AFTER_EVALUATION`. The accepted materialization uses `2026-07-21T11:00:00Z`, after the fresh quote capture timestamp.
+
+## Service 20-read safety probe
+
+Report:
+
+```text
+/opt/w2/shared/runtime/reports/service_frozen_v3_safety_exact_image_2a2dd3b_20read_after_capture_20260721T110326Z.json
+```
+
+Result:
+
+```text
+zero_write_pass: true
+canonical_cohort_hash_unchanged: true
+official_storage_hash_unchanged: true
+required_tables_present: true
+```
+
+## Public HTTP 20-read canary
+
+Report:
+
+```text
+/opt/w2/shared/runtime/reports/http_v3_frozen_canary_exact_image_2a2dd3b_20read_20260721T110357Z.json
+```
+
+Result:
+
+```text
+all_http_200: true
+all_frozen_verified: true
+all_hash_stable: true
+```
+
+Fixture outcomes:
+
+| fixture_id | decision | decision_tier | v3_outcome | reason_code | quote identities | frozen |
+| --- | --- | --- | --- | --- | ---: | --- |
+| 1494224 | WATCH | WATCH | NO_EDGE | EDGE_INSUFFICIENT | 2 | VERIFIED |
+| 1494218 | ANALYSIS_PICK | ANALYSIS_PICK | ANALYSIS_PICK | null | 3 | VERIFIED |
+| 1494221 | WATCH | WATCH | NO_EDGE | EDGE_INSUFFICIENT | 2 | VERIFIED |
+| 1494223 | ANALYSIS_PICK | ANALYSIS_PICK | ANALYSIS_PICK | null | 3 | VERIFIED |
+| 1494217 | ANALYSIS_PICK | ANALYSIS_PICK | ANALYSIS_PICK | null | 3 | VERIFIED |
+| 1494222 | ANALYSIS_PICK | ANALYSIS_PICK | ANALYSIS_PICK | null | 3 | VERIFIED |
+| 1494219 | WATCH | WATCH | NO_EDGE | EDGE_INSUFFICIENT | 2 | VERIFIED |
+| 1494220 | ANALYSIS_PICK | ANALYSIS_PICK | ANALYSIS_PICK | null | 3 | VERIFIED |
+
+Summary:
+
+```text
+ANALYSIS_PICK: 5
+NO_EDGE: 3
+HTTP read count: 20
+recommendations/locks/OFFICIAL writes: 0
+```
+
+## What remains blocked
+
+No analysis-chain factor remains blocked for this exact-SHA staging canary.
+
+Still not approved or enabled:
+
+```text
+Formal AH/OU recommendation
+Lock
+Production release
+Public official recommendation
+```
+
+Those require separate human approval and formal gates. This package validates the analysis recommendation chain only.
+
