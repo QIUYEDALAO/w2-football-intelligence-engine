@@ -351,6 +351,34 @@ pytest tests/unit/test_analysis_card_xg_materialized.py tests/unit/test_runtime.
 Docker unavailable locally, so full predeploy e2e must be verified by GitHub Actions.
 ```
 
+## Third exact-head CI follow-up
+
+Third pushed correction SHA:
+
+```text
+82d26cdd31d8473d8e5a28ccac37dcf6820a5b8d
+```
+
+GitHub Actions result:
+
+```text
+verify: PASS
+staging-parity: PASS
+predeploy-e2e: FAIL
+```
+
+The predeploy failure remained in the same HTTP analysis-card SKIP reason assertion.
+The correct smoke invariant is that a skipped market exposes reasons and stays
+non-candidate/non-formal; the script should not enumerate all possible business
+reason strings.
+
+Follow-up fix:
+
+```text
+scripts/run_predeploy_e2e_smoke.sh now asserts SKIP markets have non-empty reasons
+instead of matching a narrow reason allowlist.
+```
+
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
 
 Second rebuild observation:

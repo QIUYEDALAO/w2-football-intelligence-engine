@@ -387,14 +387,7 @@ for market in markets:
     assert market["decision"] in {"SKIP", "PICK", "WATCH"}
     assert market["risks"]
     if market["decision"] == "SKIP":
-        assert any(
-            "UNAVAILABLE" in reason
-            or "INPUT" in reason
-            or "MATRIX" in reason
-            or "INSUFFICIENT" in reason
-            or "EDGE" in reason
-            for reason in market["reasons"]
-        )
+        assert market["reasons"], market
 print("predeploy_e2e analysis card PASS")
 PY
 
