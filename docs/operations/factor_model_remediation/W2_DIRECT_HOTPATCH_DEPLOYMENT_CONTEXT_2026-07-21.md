@@ -571,3 +571,20 @@ Remediation:
 infra/compose/compose.staging.yml now passes PIP_INDEX_URL and UV_INDEX_URL
 to migration/api/worker/scheduler builds.
 ```
+
+Second retry finding:
+
+```text
+The deploy script did not export PIP_INDEX_URL / UV_INDEX_URL inside the remote
+build shell, so local package-index variables still did not reach docker compose.
+The retry was interrupted before replacing running containers and runtime was
+again restored to f631bc11f7641791618f4a0d245fce8fe1732740.
+```
+
+Additional remediation:
+
+```text
+scripts/deploy_stage7h_staging.sh now forwards PIP_INDEX_URL and UV_INDEX_URL
+only as remote build-process environment variables via sudo --preserve-env.
+They are not written to /opt/w2/shared/release.env.
+```

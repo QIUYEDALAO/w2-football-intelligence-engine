@@ -24,6 +24,8 @@ BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
 PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
+BUILD_PIP_INDEX_URL="${PIP_INDEX_URL:-}"
+BUILD_UV_INDEX_URL="${UV_INDEX_URL:-}"
 ROLLBACK_REVISION="$(ssh "${SSH_HOST}" "basename \"\$(readlink -f /opt/w2/current)\"")"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
@@ -163,12 +165,14 @@ sudo docker system df || true
 export W2_GIT_SHA='${REVISION}'
 export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
+export PIP_INDEX_URL='${BUILD_PIP_INDEX_URL}'
+export UV_INDEX_URL='${BUILD_UV_INDEX_URL}'
 # This VPS Docker/BuildKit version can panic inside a multi-target Bake build.
 # Building one target at a time prevents that daemon crash from interrupting
 # the currently running staging containers.
 for service in migration api worker scheduler web; do
   echo "building staging service: \${service}"
-  sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build "\${service}"
+  sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID,PIP_INDEX_URL,UV_INDEX_URL docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build "\${service}"
 done
 API_IMAGE_ID=\"\$(sudo docker image inspect --format='{{.Id}}' w2-staging-api:latest)\"
 if ! printf '%s\n' \"\${API_IMAGE_ID}\" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
