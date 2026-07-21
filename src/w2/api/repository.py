@@ -2709,7 +2709,7 @@ class ReadModelService:
         )
         lambda_uncertainty = self._empirical_xg_lambda_uncertainty(
             fixture_id=fixture_id,
-            as_of=kickoff,
+            as_of=context.as_of,
             home_team_id=home_id,
             away_team_id=away_id,
         )
@@ -4728,6 +4728,15 @@ class ReadModelService:
             kickoff = parse_provider_time(row.get("kickoff_at"))
             if kickoff is None or kickoff >= before:
                 continue
+            captured_at = parse_provider_time(row.get("captured_at"))
+            if captured_at is None or captured_at > before:
+                continue
+            source_system = self._string_or_none(row.get("source_system"))
+            if source_system != "api_football_statistics":
+                continue
+            raw_payload_sha256 = self._string_or_none(row.get("raw_payload_sha256"))
+            if not raw_payload_sha256:
+                continue
             xg_for = _float_or_none(row.get("xg_for"))
             xg_against = _float_or_none(row.get("xg_against"))
             if xg_for is None or xg_against is None:
@@ -4739,12 +4748,14 @@ class ReadModelService:
                         "+00:00",
                         "Z",
                     ),
+                    "captured_at": captured_at.astimezone(UTC).isoformat().replace(
+                        "+00:00",
+                        "Z",
+                    ),
                     "xg_for": xg_for,
                     "xg_against": xg_against,
-                    "raw_payload_sha256": self._string_or_none(
-                        row.get("raw_payload_sha256")
-                    ),
-                    "source_system": self._string_or_none(row.get("source_system")),
+                    "raw_payload_sha256": raw_payload_sha256,
+                    "source_system": source_system,
                 }
             )
         selected.sort(key=lambda row: str(row["kickoff_at"]))

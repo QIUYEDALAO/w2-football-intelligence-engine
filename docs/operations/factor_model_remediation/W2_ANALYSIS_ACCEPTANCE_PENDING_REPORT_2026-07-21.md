@@ -1,3 +1,7 @@
+> SUPERSEDED_BY: `docs/operations/factor_model_remediation/W2_DIRECT_HOTPATCH_DEPLOYMENT_CONTEXT_2026-07-21.md`
+> SUPERSEDED_BY_DEPLOYED_SHA: `f631bc11f7641791618f4a0d245fce8fe1732740`
+> SUPERSEDED_REASON: Final exact-image staging canary replaced the earlier pending/503/uncertainty-null evidence. This report is retained as historical audit context only.
+
 # W2 Analysis Acceptance Pending Report
 
 Generated: 2026-07-21

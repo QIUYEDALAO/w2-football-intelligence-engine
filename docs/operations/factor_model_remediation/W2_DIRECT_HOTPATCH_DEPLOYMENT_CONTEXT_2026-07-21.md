@@ -466,3 +466,69 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Expert acceptance cleanup context
+
+Source:
+
+```text
+/Users/liudehua/.codex/attachments/b3a51ad1-fc1b-495a-b97d-a36c053769e9/pasted-text.txt
+```
+
+Accepted by external review:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_CANARY_PASSED
+```
+
+Required cleanup before PR #370 leaves Draft:
+
+```text
+AS_OF_REPLAY_GUARD: FIX_REQUIRED
+AUTOMATED_FUTURE_REFRESH: DEGRADED
+FINAL_EXACT_SHA_SAFETY_PARITY_PACKAGE: PENDING
+```
+
+As-of replay guard remediation applied locally:
+
+```text
+ReadModelService empirical xG uncertainty now evaluates with context.as_of,
+not fixture kickoff.
+
+Each empirical uncertainty input row must now satisfy:
+kickoff_at < context.as_of
+captured_at <= context.as_of
+source_system == api_football_statistics
+raw_payload_sha256 is non-null
+```
+
+Regression evidence:
+
+```text
+uv run --python 3.12 pytest tests/unit/test_analysis_card_xg_materialized.py -q
+11 passed
+```
+
+Historical reports marked superseded:
+
+```text
+docs/operations/factor_model_remediation/W2_ANALYSIS_RECOMMENDATION_CLOSURE_REPORT_2026-07-21.md
+docs/operations/factor_model_remediation/W2_ANALYSIS_ACCEPTANCE_PENDING_REPORT_2026-07-21.md
+docs/operations/factor_model_remediation/W2_PR370_CHANGES_REQUIRED_REMEDIATION_REPORT_2026-07-21.md
+```
+
+Current status after this cleanup:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_CANARY_PASSED
+AS_OF_REPLAY_GUARD_CODE_FIXED
+AUTOMATED_FUTURE_REFRESH_DEGRADED
+FINAL_EXACT_SHA_SAFETY_PARITY_PACKAGE_PENDING
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```

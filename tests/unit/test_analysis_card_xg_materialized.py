@@ -311,6 +311,7 @@ class FakeDbRepository:
                         "team_id": team_id,
                         "opponent_team_id": "20" if team_id == "10" else "10",
                         "kickoff_at": (NOW - timedelta(days=10 - index)).isoformat(),
+                        "captured_at": (NOW - timedelta(days=9 - index)).isoformat(),
                         "xg_for": round(base_for + (index * 0.17), 3),
                         "xg_against": round(base_against + (index * 0.11), 3),
                         "goals_for": 1 + (index % 2),
@@ -463,6 +464,7 @@ class FakeCanonicalDbRepository(FakeDbRepository):
                         else "w2:team:home",
                         "provider_team_id": "10" if team_id.endswith("home") else "20",
                         "kickoff_at": (KICKOFF - timedelta(days=10 - index)).isoformat(),
+                        "captured_at": (NOW - timedelta(days=9 - index)).isoformat(),
                         "xg_for": round(base_for + (index * 0.17), 3),
                         "xg_against": round(base_against + (index * 0.11), 3),
                         "goals_for": 1 + (index % 2),
@@ -502,6 +504,7 @@ def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) ->
                             "kickoff_at": (
                                 KICKOFF - timedelta(days=8 - index)
                             ).isoformat(),
+                            "captured_at": (NOW - timedelta(days=7 - index)).isoformat(),
                             "xg_for": 1.0 + index,
                             "xg_against": 0.8 + index,
                             "raw_payload_sha256": f"sparse-raw-{team_id}-{index}",
@@ -525,6 +528,64 @@ def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) ->
     assert uncertainty["lambda_uncertainty_method"] == "none"
     assert uncertainty["lambda_uncertainty_status"] == "XG_UNCERTAINTY_SAMPLE_INSUFFICIENT"
     assert uncertainty["lambda_uncertainty_input_hash"]
+
+
+def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
+    monkeypatch,
+) -> None:
+    class ReplayXgRepository(FakeDbRepository):
+        def team_xg_matches_for_teams(
+            self,
+            team_ids: list[str],
+            *,
+            before: datetime,
+            limit_per_team: int = 20,
+        ) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            for team_id in ("10", "20"):
+                for index in range(5):
+                    rows.append(
+                        {
+                            "fixture_id": f"replay-{team_id}-{index}",
+                            "team_id": team_id,
+                            "opponent_team_id": "20" if team_id == "10" else "10",
+                            "kickoff_at": (NOW - timedelta(days=10 - index)).isoformat(),
+                            "captured_at": (
+                                NOW - timedelta(hours=1)
+                                if index < 2
+                                else NOW + timedelta(hours=1)
+                            ).isoformat(),
+                            "xg_for": 1.0 + (index * 0.2),
+                            "xg_against": 0.7 + (index * 0.15),
+                            "goals_for": 1,
+                            "goals_against": 1,
+                            "raw_payload_sha256": f"replay-raw-{team_id}-{index}",
+                            "source_system": "api_football_statistics",
+                        }
+                    )
+            return [row for row in rows if row["team_id"] in team_ids]
+
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", ReplayXgRepository)
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+
+    card = service.public_analysis_card_bounded(
+        "1489410",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    calibration = card["simulation"]["calibration"]
+    assert calibration["lambda_uncertainty_method"] == "none"
+    assert calibration["lambda_uncertainty_status"] == "NOT_READY"
+    audit = calibration["lambda_uncertainty_audit"]
+    assert audit["as_of"] == NOW.isoformat().replace("+00:00", "Z")
+    assert audit["groups"]["home_attack_xg_for"]["n"] == 2
+    assert audit["groups"]["away_defence_xg_against"]["n"] == 2
+    assert all(
+        "replay-10-2" not in fixture_id
+        for fixture_id in audit["groups"]["home_attack_xg_for"]["fixture_ids"]
+    )
 
 
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
