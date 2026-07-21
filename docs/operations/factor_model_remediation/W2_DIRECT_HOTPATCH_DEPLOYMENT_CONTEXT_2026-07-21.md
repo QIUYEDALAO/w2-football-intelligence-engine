@@ -269,6 +269,52 @@ Run one controlled provider refresh window and immediately close provider calls.
 Regenerate final V3 safety/parity evidence package from live staging.
 ```
 
+## Exact-head CI follow-up after provenance correction
+
+First pushed correction SHA:
+
+```text
+0c7013a27fe21f740fecdd4e0847d494e14174f7
+```
+
+GitHub Actions started for PR #370. `staging-parity` passed, while `verify` and
+`predeploy-e2e` failed before staging deployment.
+
+Root causes:
+
+```text
+Some unit-test fake market observations used the old quote identity fixture shape
+and omitted capture_id.
+
+Some scheduler staging unit tests intentionally set W2_ENVIRONMENT=staging without
+setting W2_GIT_SHA, which now correctly fails closed.
+
+The predeploy e2e compose env did not pass W2_GIT_SHA / W2_RELEASE_ID into the
+temporary staging stack, so the new source_revision guard blocked the fake refresh.
+```
+
+Follow-up local fixes:
+
+```text
+tests/unit/test_analysis_card_xg_materialized.py now completes fake observations
+with observation_id, provider, raw_payload_sha256, source_revision and shared
+market-line capture_id.
+
+tests/unit/test_runtime.py staging scheduler tests now set a 40-character W2_GIT_SHA.
+
+scripts/run_predeploy_e2e_smoke.sh now writes the current git revision into its
+temporary env file as W2_GIT_SHA / W2_RELEASE_ID / VITE_* revision.
+```
+
+Follow-up local verification:
+
+```text
+ruff targeted: PASS
+bash -n scripts/run_predeploy_e2e_smoke.sh: PASS
+pytest quote/candidate/analysis/future-refresh/matchday/xg-materialized/runtime targeted: 100 passed
+mypy targeted source files: PASS
+```
+
 This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.
 
 Second rebuild observation:

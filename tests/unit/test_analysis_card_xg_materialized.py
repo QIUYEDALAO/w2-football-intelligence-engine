@@ -24,6 +24,31 @@ def _freeze_repository_clock(monkeypatch):
     monkeypatch.setattr(api_repository, "datetime", FrozenDateTime)
 
 
+def _complete_future_observations(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for index, row in enumerate(rows):
+        row.setdefault("observation_id", f"future-observation-{index}")
+        row.setdefault("provider", "api-football")
+        row.setdefault("raw_payload_sha256", f"{index + 1:064x}")
+        row.setdefault("source_revision", "future-refresh.v1")
+        market = str(row.get("canonical_market") or "")
+        line = str(row.get("line") or "")
+        if market == "ASIAN_HANDICAP":
+            line_key = str(abs(Decimal(line)))
+        else:
+            line_key = line
+        row["capture_id"] = ":".join(
+            [
+                "capture",
+                str(row.get("fixture_id") or ""),
+                market,
+                str(row.get("bookmaker_id") or ""),
+                str(row.get("captured_at") or ""),
+                line_key,
+            ]
+        )
+    return rows
+
+
 class FakeReadRepository:
     def matchday_cards(self) -> list[dict[str, Any]]:
         return []
@@ -149,7 +174,7 @@ class FakeReadRepository:
                         "live": False,
                     }
                 )
-        return rows
+        return _complete_future_observations(rows)
 
     def future_market_observations_for_fixtures(
         self,
@@ -236,7 +261,7 @@ class FakeReadRepositoryWithStaleQuotes(FakeReadRepository):
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows = super().future_market_observations()
         stale = (NOW - timedelta(minutes=31)).isoformat().replace("+00:00", "Z")
-        return [{**row, "captured_at": stale} for row in rows]
+        return _complete_future_observations([{**row, "captured_at": stale} for row in rows])
 
 
 class FakeDbRepository:
@@ -320,7 +345,7 @@ class FakeDbRepository:
                         "source_system": "api_football_statistics",
                     }
                 )
-        return rows
+        return _complete_future_observations(rows)
 
 
 class FakeCanonicalDbRepository(FakeDbRepository):
@@ -794,7 +819,7 @@ class FakeReadRepositoryWithMarketBalancedLines(FakeReadRepository):
                         "live": False,
                     }
                 )
-        return rows
+        return _complete_future_observations(rows)
 
 
 def test_analysis_card_prefers_market_balanced_lines_over_fixed_lines(monkeypatch) -> None:

@@ -254,6 +254,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv(
         "W2_STAGING_ENABLED_COMPETITIONS",
         "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
@@ -322,6 +323,7 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
@@ -380,6 +382,7 @@ def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")

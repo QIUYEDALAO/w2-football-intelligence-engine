@@ -28,6 +28,7 @@ run_python() {
 TMP_DIR="$(mktemp -d)"
 ENV_FILE="${TMP_DIR}/predeploy-e2e.env"
 OVERRIDE_FILE="${TMP_DIR}/predeploy-e2e.override.yml"
+CURRENT_REVISION="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
 RUNTIME_MODE_BEFORE=""
 if [ -e "${ROOT}/runtime" ]; then
   RUNTIME_MODE_BEFORE="$(stat -c '%a' "${ROOT}/runtime" 2>/dev/null || stat -f '%Lp' "${ROOT}/runtime" 2>/dev/null || true)"
@@ -48,6 +49,12 @@ cat >"${ENV_FILE}" <<'EOF'
 POSTGRES_PASSWORD=predeploy_e2e_password
 W2_API_FOOTBALL_API_KEY=predeploy-e2e-fake-key
 EOF
+{
+  printf 'W2_GIT_SHA=%s\n' "${CURRENT_REVISION}"
+  printf 'W2_RELEASE_ID=%s\n' "${CURRENT_REVISION}"
+  printf 'VITE_GIT_SHA=%s\n' "${CURRENT_REVISION}"
+  printf 'VITE_RELEASE_ID=%s\n' "${CURRENT_REVISION}"
+} >>"${ENV_FILE}"
 
 cat >"${OVERRIDE_FILE}" <<'EOF'
 services:
