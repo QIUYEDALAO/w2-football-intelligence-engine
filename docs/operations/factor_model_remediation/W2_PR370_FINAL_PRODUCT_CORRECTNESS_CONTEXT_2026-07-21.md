@@ -40,13 +40,31 @@ state. It does not authorize merge, formal recommendation, lock, or production r
 - Unified public forward-ledger wording and accounting.
 - Web and API loopback-only staging bindings plus response security headers.
 
-## Runtime work still pending at this context point
+## Final runtime evidence
 
-- Commit and push the implementation head.
-- Exact-head GitHub PostgreSQL verify, staging-parity, and predeploy-e2e.
-- Exact-SHA image deployment and Alembic parity verification.
-- One bounded provider quote window and truthful full upcoming-fixture recomputation.
-- HTTP/live DB/frozen parity, zero-write read audit, and final sanitized evidence package.
+- Runtime implementation SHA: `d377d6e07b300dda3fcaa0bc329d9186c488edb7`.
+- GitHub Actions run `29844788328`: verify, staging-parity, and predeploy-e2e passed.
+- Staging API, web, and worker report the implementation SHA; Alembic current equals head
+  `0033_create_canonical_team_identity`.
+- API and web listen on loopback only; scheduler is stopped.
+- One bounded provider window used 10 requests and left 7,176 requests available. Provider
+  calls were disabled immediately afterward.
+- Eight current fixtures were recomputed: 5 `ANALYSIS_PICK`, 2 `NO_EDGE`, and 1
+  `NOT_READY/MARKET_UNAVAILABLE`.
+- Every analysis pick has a fresh exact quote, model and market probability, delta, EV,
+  empirical uncertainty, and a deterministic 10,000-sample scoreline projection.
+- Twenty bounded reads across HTTP, frozen artifacts, and dashboard projection preserved
+  card/V3 identities and produced zero database, ledger, cohort, or OFFICIAL writes.
+- Unified forward ledger: 28 total, 23 settled, 5 pending, 16 eligible, 7 evidence repair
+  pending; 11 hit, 3 miss, 2 push; decisive hit rate 78.6% (11/14).
+- Safety deltas remain recommendations=0, locks=0, OFFICIAL=0, formal settlements=0.
+
+The Python runtime source was unchanged after the previously verified runtime image, so
+its layers were reused with exact-SHA metadata. The changed web source was rebuilt. UI
+polish is explicitly deferred by the operator and is not claimed in this evidence round.
+
+See `W2_PR370_FINAL_PRODUCT_CORRECTNESS_EVIDENCE_2026-07-21.json` for the sanitized
+machine-readable result.
 
 ## Exact-SHA runtime correction
 

@@ -1,0 +1,79 @@
+{
+  "schema_version": "w2.pr370.final_product_correctness_evidence.v1",
+  "runtime_implementation_sha": "d377d6e07b300dda3fcaa0bc329d9186c488edb7",
+  "github_actions_run": 29844788328,
+  "ci": {
+    "verify": "PASS",
+    "staging_parity": "PASS",
+    "predeploy_e2e": "PASS"
+  },
+  "staging": {
+    "alembic_current": "0033_create_canonical_team_identity",
+    "alembic_head": "0033_create_canonical_team_identity",
+    "api_web_worker_sha_parity": true,
+    "loopback_only": true,
+    "scheduler_enabled": false
+  },
+  "provider_window": {
+    "request_count": 10,
+    "remaining_quota": 7176,
+    "calls_disabled_after": true,
+    "scheduler_enabled_after": false
+  },
+  "analysis_summary": {
+    "fixture_count": 8,
+    "ANALYSIS_PICK": 5,
+    "NO_EDGE": 2,
+    "NOT_READY": 1
+  },
+  "fixtures": [
+    {"fixture_id":1494217,"outcome":"ANALYSIS_PICK","market":"TOTALS","selection":"UNDER","line":"3.5","odds":1.70,"bookmaker":"Unibet","model_probability":0.603856,"market_probability":0.538043,"delta":0.065813,"ev":0.026555,"uncertainty":0.078988,"consistent_samples":6082,"top3":["1-1","1-2","0-1"]},
+    {"fixture_id":1494218,"outcome":"ANALYSIS_PICK","market":"TOTALS","selection":"OVER","line":"2.5","odds":1.70,"bookmaker":"Unibet","model_probability":0.634411,"market_probability":0.538043,"delta":0.096368,"ev":0.078499,"uncertainty":0.080446,"consistent_samples":6287,"top3":["1-2","1-3","0-3"]},
+    {"fixture_id":1494219,"outcome":"NOT_READY","reason":"MARKET_UNAVAILABLE"},
+    {"fixture_id":1494220,"outcome":"ANALYSIS_PICK","market":"TOTALS","selection":"UNDER","line":"3.5","odds":1.67,"bookmaker":"10Bet","model_probability":0.641631,"market_probability":0.568475,"delta":0.073156,"ev":0.071524,"uncertainty":0.071002,"consistent_samples":6415,"top3":["1-1","2-1","1-0"]},
+    {"fixture_id":1494221,"outcome":"NO_EDGE","reason":"NO_ANALYSIS_EDGE"},
+    {"fixture_id":1494222,"outcome":"ANALYSIS_PICK","market":"TOTALS","selection":"OVER","line":"2.5","odds":1.68,"bookmaker":"Unibet","model_probability":0.701830,"market_probability":0.545946,"delta":0.155884,"ev":0.179074,"uncertainty":0.080547,"consistent_samples":7020,"top3":["2-1","1-2","2-2"]},
+    {"fixture_id":1494223,"outcome":"ANALYSIS_PICK","market":"TOTALS","selection":"UNDER","line":"3.5","odds":1.68,"bookmaker":"Unibet","model_probability":0.604524,"market_probability":0.545946,"delta":0.058578,"ev":0.015601,"uncertainty":0.087596,"consistent_samples":6014,"top3":["2-1","2-0","1-0"]},
+    {"fixture_id":1494224,"outcome":"NO_EDGE","reason":"NO_ANALYSIS_EDGE"}
+  ],
+  "read_only_canary": {
+    "iterations": 20,
+    "http_requests": 161,
+    "all_http_200": true,
+    "frozen_artifacts_verified": true,
+    "identity_stable": true,
+    "zero_write_pass": true,
+    "forward_ledger_unchanged": true,
+    "cohort_hash_unchanged": true,
+    "official_hash_unchanged": true
+  },
+  "forward_ledger": {
+    "total": 28,
+    "settled": 23,
+    "pending": 5,
+    "eligible": 16,
+    "evidence_repair_pending": 7,
+    "hit": 11,
+    "miss": 3,
+    "push": 2,
+    "decisive": 14,
+    "hit_rate": 0.785714,
+    "superseded": 12,
+    "integrity": "PASS"
+  },
+  "safety_deltas": {
+    "recommendations": 0,
+    "locks": 0,
+    "official": 0,
+    "formal_settlements": 0
+  },
+  "states": [
+    "ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED",
+    "FORMAL_DISABLED",
+    "LOCK_DISABLED",
+    "PRODUCTION_DISABLED",
+    "MANUAL_APPROVAL_REQUIRED",
+    "PR_370_KEEP_DRAFT"
+  ],
+  "deferred": ["UI_POLISH"]
+}
