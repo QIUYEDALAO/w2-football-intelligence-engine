@@ -532,3 +532,42 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Exact-image rebuild retry note
+
+Attempted exact-image rebuild for:
+
+```text
+b3d46f85217db52b2b95dc118cdde3abde55d549
+```
+
+The first retry was intentionally interrupted before replacing running
+containers because the build stalled in:
+
+```text
+pip install --no-cache-dir uv
+```
+
+Runtime state after interruption was restored to the last deployed exact image:
+
+```text
+/opt/w2/current -> f631bc11f7641791618f4a0d245fce8fe1732740
+running api_git_sha=f631bc11f7641791618f4a0d245fce8fe1732740
+scheduler=stopped
+```
+
+Root cause:
+
+```text
+Dockerfile exposes PIP_INDEX_URL and UV_INDEX_URL build args,
+but infra/compose/compose.staging.yml did not pass them into the Python builds.
+The staging rebuild therefore used the default Python package index and stalled
+while installing uv on the China-hosted VPS.
+```
+
+Remediation:
+
+```text
+infra/compose/compose.staging.yml now passes PIP_INDEX_URL and UV_INDEX_URL
+to migration/api/worker/scheduler builds.
+```

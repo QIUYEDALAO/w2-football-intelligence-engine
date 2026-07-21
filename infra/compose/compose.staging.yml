@@ -58,6 +58,8 @@ services:
       context: ../..
       dockerfile: Dockerfile.migrations
       args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
@@ -89,6 +91,8 @@ services:
       context: ../..
       dockerfile: Dockerfile.api
       args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
@@ -172,6 +176,8 @@ services:
       context: ../..
       dockerfile: Dockerfile.worker
       args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
@@ -252,6 +258,8 @@ services:
       context: ../..
       dockerfile: Dockerfile.scheduler
       args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
