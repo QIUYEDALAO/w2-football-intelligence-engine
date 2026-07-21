@@ -301,3 +301,58 @@ Expected property:
 new release SHA changes the final runtime metadata layer
 new release SHA no longer forces dependency redownload/reinstall
 ```
+
+## Final V3 contract consumption fix
+
+After exact-image deployment of:
+
+```text
+7eff948677a2ffe172d1d43cec30f160864fd658
+```
+
+Direct candidate inspection showed the candidate itself was now correct:
+
+```text
+candidate_analysis_evidence_status=COMPLETE
+candidate_analysis_direction_allowed=true
+candidate_ev_eligible=true
+candidate_quote_status=COMPLETE
+candidate_quote_usage=EXECUTABLE
+candidate_selection=AWAY / OVER
+```
+
+But the public market row and V3 decision contract still remained non-pick:
+
+```text
+market_decision=SKIP
+decision_contract.decision_tier=SKIP
+V3 outcome=NO_EDGE
+```
+
+Root cause:
+
+```text
+candidate evidence was ready
+but read-model projection did not raise the market decision_score to the selector threshold
+apply_market_selection therefore left primary_market empty
+decision contract received no selected market
+```
+
+Fix:
+
+```text
+When market_candidate is COMPLETE and analysis_direction_allowed:
+  market.decision=ANALYSIS_PICK
+  market.analysis_decision=ANALYSIS_PICK
+  market.tendency=candidate.selection
+  market.decision_score>=PRIMARY_THRESHOLD
+  market.signal_strength=market.decision_score
+```
+
+Validation before redeploy:
+
+```text
+ruff src/w2/api/repository.py: PASS
+mypy src/w2/api/repository.py: PASS
+pytest tests/unit/test_analysis_card_xg_materialized.py tests/unit/test_market_candidate.py tests/unit/test_recommendation_decision_v3.py: 24 passed
+```

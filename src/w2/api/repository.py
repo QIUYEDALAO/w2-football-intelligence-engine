@@ -134,7 +134,11 @@ from w2.strategy.formal_recommendation import (
     formal_recommendation_id,
     formal_recommendations_enabled,
 )
-from w2.strategy.market_selector import apply_market_selection, enrich_secondary_evidence
+from w2.strategy.market_selector import (
+    PRIMARY_THRESHOLD,
+    apply_market_selection,
+    enrich_secondary_evidence,
+)
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
 from w2.tracking.formal_results import (
@@ -5493,6 +5497,16 @@ class ReadModelService:
                     market["market_candidate"] = candidate
                     self._attach_market_candidate_evidence_projection(market, candidate)
                     if candidate.get("analysis_evidence_status") == "COMPLETE":
+                        if candidate.get("analysis_direction_allowed"):
+                            market["tendency"] = candidate.get("selection")
+                            market["analysis_decision"] = "ANALYSIS_PICK"
+                            market["decision_score"] = max(
+                                self._optional_float(market.get("decision_score"))
+                                or self._optional_float(market.get("signal_strength"))
+                                or 0.0,
+                                PRIMARY_THRESHOLD,
+                            )
+                            market["signal_strength"] = market["decision_score"]
                         market["decision"] = (
                             "ANALYSIS_PICK"
                             if candidate.get("analysis_direction_allowed")
@@ -5562,6 +5576,12 @@ class ReadModelService:
         market["uncertainty"] = selected.get("uncertainty")
         market["analysis_direction_allowed"] = selected.get("analysis_direction_allowed")
         market["analysis_evidence_reason_code"] = selected.get("reason_code")
+
+    def _optional_float(self, value: Any) -> float | None:
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
 
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
         fixture_id = str(card.get("fixture_id") or "")
