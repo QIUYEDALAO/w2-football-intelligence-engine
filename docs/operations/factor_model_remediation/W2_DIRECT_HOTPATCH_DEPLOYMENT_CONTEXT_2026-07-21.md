@@ -218,6 +218,111 @@ COPY source/config/apps/migrations ...
 RUN uv sync --no-dev --frozen --no-editable
 ```
 
+## Exact-image rebuild follow-up through 4b340ce
+
+After the Docker cache fix, the staging exact-image path was resumed and moved beyond the earlier direct hotpatch state.
+
+Pushed exact-image heads in this follow-up:
+
+```text
+04851f0d72ffbc1dd0a1c8924c8803a604fa2be2
+82d26cdd31d8473d8e5a28ccac37dcf6820a5b8d
+2628c440155ea37e3916b8132b32574173c9c0f2
+4b340ce592e7fd33f2a3cd231053846f181b0088
+```
+
+The exact-image deployment for:
+
+```text
+4b340ce592e7fd33f2a3cd231053846f181b0088
+```
+
+was successfully installed on staging:
+
+```text
+/opt/w2/current -> /opt/w2/releases/4b340ce592e7fd33f2a3cd231053846f181b0088
+api W2_GIT_SHA=4b340ce592e7fd33f2a3cd231053846f181b0088
+/ready=READY
+api/worker/web healthy
+scheduler stopped
+```
+
+The controlled provider window on this exact image completed and was closed again:
+
+```text
+report=/app/runtime/reports/provider_future_refresh_exact_image_4b340ce_20260721T105122Z.json
+status=COMPLETED
+request_count=10
+remaining_quota=7192
+fixture_count=14
+market_snapshot_count=8
+ledger_appended_count=2938
+raw_payload_written_count=10
+blockers=[]
+```
+
+Post-window posture remained:
+
+```text
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+scheduler container stopped
+```
+
+## Scoped frozen artifact materialization blocker
+
+The first frozen artifact materialization attempt on exact image `4b340ce592e7fd33f2a3cd231053846f181b0088` failed with:
+
+```text
+FrozenAnalysisError: scoped observation input exceeds bound
+```
+
+Root cause:
+
+```text
+_canonical_market_observations_for_fixtures
+```
+
+correctly bounded rows per canonical market, but scoped fixture reads still included non-analysis markets such as 1X2. The frozen analysis materializer only needs AH and OU for the current V3 analysis package, so AH/OU stayed bounded individually while the combined cross-market payload exceeded the artifact input cap.
+
+Remediation applied in source:
+
+```text
+When fixture_ids are explicitly scoped, canonical market observation reads are now restricted to:
+ASIAN_HANDICAP
+TOTALS
+```
+
+Local verification for this remediation:
+
+```text
+uv run --python 3.12 ruff check src/w2/ingestion/future_refresh_repository.py
+PASS
+
+uv run --python 3.12 mypy src/w2/ingestion/future_refresh_repository.py
+PASS
+
+uv run --python 3.12 pytest \
+  tests/integration/test_future_refresh_db_persistence.py \
+  tests/unit/test_analysis_card_xg_materialized.py \
+  tests/unit/test_quote_identity.py \
+  tests/unit/test_market_candidate.py -q
+PASS: 41 passed
+```
+
+Next exact-image step:
+
+```text
+COMMIT_AND_PUSH_SCOPED_AH_OU_FILTER
+WAIT_GITHUB_ACTIONS_GREEN
+DEPLOY_NEW_EXACT_SHA_TO_STAGING
+RUN_CONTROLLED_PROVIDER_WINDOW_ON_NEW_SHA
+MATERIALIZE_FROZEN_ANALYSIS_ARTIFACTS
+GENERATE_FINAL_V3_SAFETY_PARITY_PACKAGE
+```
+
 ## PR #370 final evidence/provenance correction instruction
 
 Latest external review accepts the analysis recommendation chain and automated future

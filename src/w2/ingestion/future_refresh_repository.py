@@ -1143,7 +1143,12 @@ class FutureRefreshDbRepository:
                     else f"api_football:{fixture_id}"
                     for fixture_id in fixture_ids
                 }
-                query = query.where(MatchdayMarketObservationModel.fixture_id.in_(canonical_ids))
+                query = query.where(
+                    MatchdayMarketObservationModel.fixture_id.in_(canonical_ids),
+                    MatchdayMarketObservationModel.canonical_market.in_(
+                        ("ASIAN_HANDICAP", "TOTALS")
+                    ),
+                )
             rows = list(
                 session.scalars(
                     query.order_by(
