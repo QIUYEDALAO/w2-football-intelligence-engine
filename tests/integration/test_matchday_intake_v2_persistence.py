@@ -486,6 +486,88 @@ def test_fixture_identity_persists_provider_fixture_before_team_crosswalk() -> N
         raise AssertionError("fixture identity conflict must fail closed")
 
 
+def test_fixture_identity_upsert_preserves_reviewed_mapping_and_updates_capture() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    payload = _fixtures_payload()
+    first_capture = endpoint_capture_contract(
+        endpoint="fixtures",
+        params={"league": "113", "season": "2026", "from": "2026-07-20", "to": "2026-08-03"},
+        requested_at=NOW,
+        provider_captured_at=NOW + timedelta(seconds=1),
+        status_code=200,
+        elapsed_ms=20,
+        payload=payload,
+        competition_id="allsvenskan",
+        attempt=1,
+    )
+    second_capture = endpoint_capture_contract(
+        endpoint="fixtures",
+        params={"league": "113", "season": "2026", "from": "2026-07-20", "to": "2026-08-03"},
+        requested_at=NOW + timedelta(seconds=30),
+        provider_captured_at=NOW + timedelta(seconds=31),
+        status_code=200,
+        elapsed_ms=20,
+        payload=payload,
+        competition_id="allsvenskan",
+        attempt=2,
+    )
+    repository.insert_endpoint_capture(first_capture)
+    repository.insert_endpoint_capture(second_capture)
+    identity_body = {
+        "fixture_id": "api_football:1494224",
+        "provider": "api_football",
+        "provider_fixture_id": "1494224",
+        "competition_id": "allsvenskan",
+        "provider_league_id": "113",
+        "season": "2026",
+        "kickoff_utc": KICKOFF.isoformat(),
+        "fixture_status": "NS",
+        "home_provider_team_id": "364",
+        "away_provider_team_id": "367",
+        "home_w2_team_id": None,
+        "away_w2_team_id": None,
+        "team_identity_status": "REVIEW_REQUIRED",
+        "raw_payload_sha256": str(first_capture["raw_payload_sha256"]),
+        "endpoint_capture_id": str(first_capture["capture_id"]),
+        "captured_at": (NOW + timedelta(seconds=1)).isoformat(),
+        "payload": payload["response"][0],
+        "schema_version": "MatchdayFixtureIdentityV1",
+    }
+    row = {**identity_body, "identity_hash": stable_hash(identity_body)}
+
+    assert repository.insert_fixture_identities([row]) == 1
+    with Session(engine) as session:
+        stored = session.get(MatchdayFixtureIdentityModel, "api_football:1494224")
+        assert stored is not None
+        stored.home_w2_team_id = "w2:team:home"
+        stored.away_w2_team_id = "w2:team:away"
+        stored.team_identity_status = "PROVIDER_PRIMARY_READY"
+        reviewed_hash = stored.identity_hash
+        session.commit()
+
+    incoming_body = {
+        **identity_body,
+        "raw_payload_sha256": str(second_capture["raw_payload_sha256"]),
+        "endpoint_capture_id": str(second_capture["capture_id"]),
+        "captured_at": (NOW + timedelta(seconds=31)).isoformat(),
+    }
+    incoming = {**incoming_body, "identity_hash": stable_hash(incoming_body)}
+
+    assert repository.insert_fixture_identities([incoming]) == 1
+    with Session(engine) as session:
+        stored = session.get(MatchdayFixtureIdentityModel, "api_football:1494224")
+        assert stored is not None
+        assert stored.home_w2_team_id == "w2:team:home"
+        assert stored.away_w2_team_id == "w2:team:away"
+        assert stored.team_identity_status == "PROVIDER_PRIMARY_READY"
+        assert stored.endpoint_capture_id == str(second_capture["capture_id"])
+        assert stored.captured_at.replace(tzinfo=UTC) == NOW + timedelta(seconds=31)
+        assert stored.identity_hash != incoming["identity_hash"]
+        assert stored.identity_hash != reviewed_hash
+
+
 def _odds_payload() -> dict[str, object]:
     return {
         "parameters": {"fixture": "100"},

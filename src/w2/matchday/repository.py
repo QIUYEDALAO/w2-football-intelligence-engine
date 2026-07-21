@@ -443,10 +443,9 @@ class MatchdayRuntimeRepository:
                         MatchdayFixtureIdentityModel,
                         str(row["fixture_id"]),
                     )
-                    if (
-                        existing is not None
-                        and _fixture_identity_payload(existing) == normalized
-                    ):
+                    if existing is not None:
+                        if _upsert_fixture_identity(existing, normalized):
+                            count += 1
                         continue
                     provider_existing = session.scalar(
                         select(MatchdayFixtureIdentityModel).where(
@@ -455,10 +454,9 @@ class MatchdayRuntimeRepository:
                             == str(row["provider_fixture_id"]),
                         )
                     )
-                    if (
-                        provider_existing is not None
-                        and _fixture_identity_payload(provider_existing) == normalized
-                    ):
+                    if provider_existing is not None:
+                        if _upsert_fixture_identity(provider_existing, normalized):
+                            count += 1
                         continue
                     raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT") from None
             session.commit()
@@ -560,6 +558,7 @@ class MatchdayRuntimeRepository:
         )
 
     def _fixture_identity_model(self, row: Mapping[str, Any]) -> MatchdayFixtureIdentityModel:
+        normalized = _normalized_fixture_identity_payload(row)
         return MatchdayFixtureIdentityModel(
             fixture_id=str(row["fixture_id"]),
             provider=str(row["provider"]),
@@ -577,7 +576,7 @@ class MatchdayRuntimeRepository:
             raw_payload_sha256=str(row["raw_payload_sha256"]),
             endpoint_capture_id=str(row.get("endpoint_capture_id") or "") or None,
             captured_at=_dt(row["captured_at"]),
-            identity_hash=str(row["identity_hash"]),
+            identity_hash=_fixture_identity_semantic_hash_from_payload(normalized),
             payload=dict(row["payload"]),
         )
 
@@ -832,6 +831,105 @@ def _normalized_fixture_identity_payload(row: Mapping[str, Any]) -> dict[str, An
         "payload": dict(row["payload"]),
         "schema_version": "MatchdayFixtureIdentityV1",
     }
+
+
+_FIXTURE_IDENTITY_STABLE_FIELDS = (
+    "provider",
+    "provider_fixture_id",
+    "competition_id",
+    "provider_league_id",
+    "season",
+    "kickoff_utc",
+    "home_provider_team_id",
+    "away_provider_team_id",
+)
+
+_FIXTURE_IDENTITY_MUTABLE_FIELDS = (
+    "fixture_status",
+    "raw_payload_sha256",
+    "endpoint_capture_id",
+    "captured_at",
+    "payload",
+)
+
+_TEAM_IDENTITY_STATUS_RANK = {
+    "REVIEW_REQUIRED": 0,
+    "PARTIAL": 1,
+    "READY": 2,
+    "PROVIDER_PRIMARY_READY": 3,
+}
+
+
+def _upsert_fixture_identity(
+    existing: MatchdayFixtureIdentityModel,
+    incoming: Mapping[str, Any],
+) -> bool:
+    current = _fixture_identity_payload(existing)
+    for field in _FIXTURE_IDENTITY_STABLE_FIELDS:
+        if current[field] != incoming[field]:
+            raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT")
+    changed = False
+    for field in _FIXTURE_IDENTITY_MUTABLE_FIELDS:
+        if current[field] == incoming[field]:
+            continue
+        setattr(existing, field, _fixture_identity_model_value(field, incoming[field]))
+        changed = True
+    for field in ("home_w2_team_id", "away_w2_team_id"):
+        incoming_value = incoming.get(field)
+        current_value = getattr(existing, field)
+        if current_value and incoming_value and current_value != incoming_value:
+            raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT")
+        if not current_value and incoming_value:
+            setattr(existing, field, str(incoming_value))
+            changed = True
+    incoming_status = str(incoming["team_identity_status"])
+    current_status = str(existing.team_identity_status)
+    if _team_identity_status_rank(incoming_status) > _team_identity_status_rank(current_status):
+        existing.team_identity_status = incoming_status
+        changed = True
+    semantic_hash = _fixture_identity_semantic_hash(existing)
+    if existing.identity_hash != semantic_hash:
+        existing.identity_hash = semantic_hash
+        changed = True
+    return changed
+
+
+def _fixture_identity_model_value(field: str, value: Any) -> Any:
+    if field == "captured_at":
+        return _dt(value)
+    if field == "payload":
+        return dict(value)
+    if field == "endpoint_capture_id":
+        return str(value or "") or None
+    return str(value)
+
+
+def _team_identity_status_rank(status: str) -> int:
+    return _TEAM_IDENTITY_STATUS_RANK.get(status, -1)
+
+
+def _fixture_identity_semantic_hash(row: MatchdayFixtureIdentityModel) -> str:
+    return _fixture_identity_semantic_hash_from_payload(_fixture_identity_payload(row))
+
+
+def _fixture_identity_semantic_hash_from_payload(row: Mapping[str, Any]) -> str:
+    return stable_hash(
+        {
+            "schema_version": "MatchdayFixtureIdentitySemanticHashV1",
+            "fixture_id": str(row["fixture_id"]),
+            "provider": str(row["provider"]),
+            "provider_fixture_id": str(row["provider_fixture_id"]),
+            "competition_id": str(row["competition_id"]),
+            "provider_league_id": str(row["provider_league_id"]),
+            "season": str(row["season"]),
+            "kickoff_utc": _iso(_dt(row["kickoff_utc"])),
+            "home_provider_team_id": str(row["home_provider_team_id"]),
+            "away_provider_team_id": str(row["away_provider_team_id"]),
+            "home_w2_team_id": str(row.get("home_w2_team_id") or "") or None,
+            "away_w2_team_id": str(row.get("away_w2_team_id") or "") or None,
+            "team_identity_status": str(row["team_identity_status"]),
+        }
+    )
 
 
 def _manifest_integrity_status(manifest: Mapping[str, Any]) -> str:
