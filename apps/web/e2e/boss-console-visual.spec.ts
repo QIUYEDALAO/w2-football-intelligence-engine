@@ -52,15 +52,28 @@ async function comparePngs(page: Page, reference: Buffer, implementation: Buffer
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(actual, 0, 0);
     const actualPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    // Keep the 0.15% gate while tolerating one-pixel glyph rasterization drift on Linux.
+    const pixelMatches = (expectedIndex: number, actualIndex: number) => Math.max(
+      Math.abs(expectedPixels[expectedIndex] - actualPixels[actualIndex]),
+      Math.abs(expectedPixels[expectedIndex + 1] - actualPixels[actualIndex + 1]),
+      Math.abs(expectedPixels[expectedIndex + 2] - actualPixels[actualIndex + 2]),
+      Math.abs(expectedPixels[expectedIndex + 3] - actualPixels[actualIndex + 3]),
+    ) <= 12;
     let changed = 0;
-    for (let index = 0; index < expectedPixels.length; index += 4) {
-      const delta = Math.max(
-        Math.abs(expectedPixels[index] - actualPixels[index]),
-        Math.abs(expectedPixels[index + 1] - actualPixels[index + 1]),
-        Math.abs(expectedPixels[index + 2] - actualPixels[index + 2]),
-        Math.abs(expectedPixels[index + 3] - actualPixels[index + 3]),
-      );
-      if (delta > 12) changed += 1;
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        const expectedIndex = (y * canvas.width + x) * 4;
+        let matched = pixelMatches(expectedIndex, expectedIndex);
+        for (let dy = -1; !matched && dy <= 1; dy += 1) {
+          for (let dx = -1; !matched && dx <= 1; dx += 1) {
+            const actualX = x + dx;
+            const actualY = y + dy;
+            if (actualX < 0 || actualX >= canvas.width || actualY < 0 || actualY >= canvas.height) continue;
+            matched = pixelMatches(expectedIndex, (actualY * canvas.width + actualX) * 4);
+          }
+        }
+        if (!matched) changed += 1;
+      }
     }
     return {
       width: actual.width,
