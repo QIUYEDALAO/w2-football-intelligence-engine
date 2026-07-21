@@ -13,8 +13,8 @@ Status: **PASSED**
 
 Playwright renders the approved source HTML and the React visual fixture in the same
 Chromium runtime, locale, timezone, viewport, and device scale. The two full-page PNGs
-are compared pixel by pixel with Playwright's standard `0.2` color threshold (51 per
-8-bit channel) and a one-pixel spatial tolerance for Linux glyph rasterization.
+are compared pixel by pixel with Playwright/pixelmatch's standard `0.2` YIQ color
+threshold and a one-pixel spatial tolerance for Linux glyph rasterization.
 
 - Chromium viewport: `1440 x 900`
 - Locale: `zh-CN`
