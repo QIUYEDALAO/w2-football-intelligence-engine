@@ -57,8 +57,8 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
-      - name: Dashboard V2 protected baseline
-        run: python3 scripts/check_dashboard_v2_baseline.py
+      - name: Boss Decision Console protected baseline
+        run: python3 scripts/check_boss_console_baseline.py
       - name: Web typecheck
         run: npm --prefix apps/web run typecheck
       - name: Web build

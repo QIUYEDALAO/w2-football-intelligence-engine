@@ -203,3 +203,63 @@ GitHub Actions run `29855429059` executed against source-review head
 
 This is the intended fail-closed result. The reference conflict was not hidden by changing
 goldens, protected source, or the 0.15% threshold.
+
+## Boss Decision Console authority replacement
+
+On 2026-07-22 Asia/Shanghai, the operator explicitly replaced the Dashboard V2 reference
+pack as the visual authority and selected the local prototype
+`w2_boss_decision_console_prototype.html` as the required one-to-one target.
+
+The exact user-supplied HTML is now stored as the protected source authority at:
+
+`docs/ui/boss-console/w2_boss_decision_console_prototype.html`
+
+Its SHA256 is:
+
+`e71c8d0ed4d43bdf84648f05f5f38c1124ce6e4055ba77fcec069e3cbfa29fea`
+
+Implementation status:
+
+- the prototype DOM and CSS were ported to a production React presentation component;
+- the production `DashboardPage` now renders `BossDecisionConsole`;
+- live backend fields enter only through `boss-console-adapter.ts`;
+- the frontend does not recompute model probability, market probability, delta, EV,
+  uncertainty, market direction, or ledger outcomes;
+- the fixed fourteen-fixture source data is isolated to the development/test visual route;
+- prototype-only demo/cohort wording is retained only during source-image comparison;
+- production uses truthful frozen-evidence and unified-ledger wording without changing
+  the approved geometry;
+- the old Dashboard V2 baseline guard was removed from required CI and replaced by the
+  protected Boss Console source hash guard;
+- no provider window, model change, backend change, formal write, lock write, or OFFICIAL
+  write was introduced.
+
+Verification against the exact HTML authority:
+
+- protected source SHA guard: PASS;
+- TypeScript typecheck: PASS;
+- production web build: PASS;
+- decision/read-model E2E: 12/12 PASS;
+- source pixel, filter, selection, drawer, and scroll E2E: 4/4 PASS;
+- full web E2E: 16/16 PASS;
+- the source HTML and React implementation are rendered by the same Playwright Chromium
+  at 1440x900, zh-CN, Asia/Shanghai, deviceScaleFactor=1 and compared pixel by pixel;
+- image dimensions are identical and changed-pixel ratio is at or below the unchanged
+  0.15% threshold.
+
+The previous `DASHBOARD_V2_PIXEL_CONTRACT_BLOCKED_BY_REFERENCE_PACK_CONFLICT` state is
+superseded by the operator's new authority decision. Current UI state:
+
+```text
+BOSS_DECISION_CONSOLE_SOURCE_AUTHORITY_LOCKED
+BOSS_DECISION_CONSOLE_SOURCE_PIXEL_CONTRACT_PASS
+BOSS_DECISION_CONSOLE_REAL_API_ADAPTER_PASS
+BOSS_DECISION_CONSOLE_BEHAVIOR_CONTRACT_PASS
+NO_PROVIDER_CALLS
+NO_MODEL_OR_BACKEND_CHANGE
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```

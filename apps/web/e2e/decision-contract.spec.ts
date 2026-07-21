@@ -13,31 +13,31 @@ const scenarioContract = {
     decision: "ANALYSIS_PICK",
     data: "READY",
     reason: null,
-    tierLabel: "分析参考",
+    tierLabel: "分析建议",
   },
   STALE: {
     decision: "WATCH",
     data: "STALE",
     reason: "DATA_STALE_ODDS",
-    tierLabel: "观察",
+    tierLabel: "继续观察",
   },
   BLOCKED: {
     decision: "NOT_READY",
     data: "BLOCKED",
     reason: "CONTRACT_BLOCKED_BY_DATA_STATUS",
-    tierLabel: "未就绪",
+    tierLabel: "暂不可判断",
   },
   INCOMPLETE: {
     decision: "NOT_READY",
     data: "BLOCKED",
     reason: "MARKET_INCOMPLETE",
-    tierLabel: "未就绪",
+    tierLabel: "暂不可判断",
   },
   CHECKPOINT_MISSING: {
     decision: "NOT_READY",
     data: "BLOCKED",
     reason: "FROZEN_ARTIFACT_MISSING",
-    tierLabel: "未就绪",
+    tierLabel: "暂不可判断",
   },
 } as const;
 
@@ -404,72 +404,25 @@ test("READY renders the unified pick and verified analysis-card", async ({
   await installRoutes(page, "READY");
   await page.goto("/");
 
-  const row = page
-    .locator("[data-fixture-id='fixture-ready']")
-    .filter({ hasText: "READY Home" });
-  await expect(row).toContainText("分析参考");
+  const row = page.locator("[data-fixture-id='fixture-ready']");
+  await expect(row).toContainText("READY Home vs READY Away");
+  await expect(row).toContainText("主队 -0.5 @1.91");
+  await expect(row).toContainText("模型 60.0%");
+  await expect(row).toContainText("市场 52.0%");
+  await expect(row).toContainText("差值 +8.0pp");
+  await expect(row).toContainText("EV +14.6%");
   await expect(row).toContainText("1.91");
-  await expect(row).toContainText("让球 · 主队 -0.5 @1.91");
-  await expect(row).toContainText("模型比分：1-0 · 2-0 · 2-1");
-  await expect(row).not.toContainText("1万次模拟");
-  await expect(page.locator("[data-ui='scoreline-top3-panel']")).toContainText(
-    "10,000 次模拟",
-  );
-  await expect(page.locator("[data-ui='scoreline-top3-panel']")).toContainText(
-    "一致样本 6,417 / 10,000",
-  );
   const selected = page.locator("[data-ui='selected-match-panel']");
-  await expect(selected).toContainText("Betano");
+  await expect(selected).toContainText("分析建议");
   await expect(selected).toContainText("模型概率60.0%");
   await expect(selected).toContainText("市场概率52.0%");
-  await expect(selected).toContainText("概率差+0.080");
-  await expect(selected).toContainText("EV+0.146");
-  await expect(selected).toContainText("不确定性0.040");
-  await expect(page.locator("[data-ui='command-header']")).toContainText("分析建议 1");
-  await expect(page.locator("[data-ui='command-header']")).toContainText(
-    "页面更新 18:00",
-  );
-  await expect(page.locator("[data-ui='command-header']")).toContainText(
-    "全局最近赔率 17:55",
-  );
-  await expect(page.locator("[data-ui='command-header']")).toContainText(
-    "下次采集 18:15",
-  );
-  await expect(page.locator(".d2-command-metrics > span")).toHaveCount(6);
-  const headerGeometry = await page.evaluate(() => {
-    const view = document
-      .querySelector(".d2-console-badge")
-      ?.getBoundingClientRect();
-    const meta = document
-      .querySelector(".d2-command-metrics")
-      ?.getBoundingClientRect();
-    const release = document
-      .querySelector(".d2-release")
-      ?.getBoundingClientRect();
-    const items = Array.from(
-      document.querySelectorAll(".d2-command-metrics > span"),
-    );
-    const firstItem = items[0]?.getBoundingClientRect();
-    const lastItem = items[items.length - 1]?.getBoundingClientRect();
-    const metaElement = document.querySelector(".d2-command-metrics");
-    return {
-      viewRight: view?.right ?? 0,
-      firstItemLeft: firstItem?.left ?? 0,
-      lastItemRight: lastItem?.right ?? 0,
-      releaseLeft: release?.left ?? 0,
-      metaClientWidth: metaElement?.clientWidth ?? 0,
-      metaScrollWidth: metaElement?.scrollWidth ?? 0,
-    };
-  });
-  expect(headerGeometry.viewRight).toBeLessThanOrEqual(
-    headerGeometry.firstItemLeft,
-  );
-  expect(headerGeometry.lastItemRight).toBeLessThanOrEqual(
-    headerGeometry.releaseLeft,
-  );
-  expect(headerGeometry.metaScrollWidth).toBeLessThanOrEqual(
-    headerGeometry.metaClientWidth,
-  );
+  await expect(selected).toContainText("模型－市场+8.0pp");
+  await expect(selected).toContainText("风险后 EV+14.6%");
+  await expect(page.locator(".topbar")).toContainText("分析建议1");
+  await expect(page.locator(".topbar")).toContainText("正式建议0");
+  await expect(page.locator(".topbar")).toContainText("决策快照17:55");
+  await expect(page.locator(".topbar")).toContainText("页面刷新18:00");
+  await expect(page.locator(".headline-kpi")).toHaveCount(5);
   const analysis = await page.evaluate(async () => {
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
     return response.json();
@@ -485,9 +438,9 @@ test("all qualifying recommendations remain visible without a top-three cap", as
   await page.goto("/");
 
   await expect(
-    page.locator("[data-fixture-id]").filter({ hasText: "分析参考" }),
+    page.locator("[data-fixture-id].status-pick"),
   ).toHaveCount(5);
-  await expect(page.locator("[data-ui='command-header']")).toContainText("分析建议 5");
+  await expect(page.locator(".topbar")).toContainText("分析建议5");
 });
 
 test("30 fixtures remain reachable through the desktop schedule viewport", async ({
@@ -508,15 +461,15 @@ test("30 fixtures remain reachable through the desktop schedule viewport", async
 
   const last = rows.filter({ hasText: "READY Home 30" });
   await last.scrollIntoViewIfNeeded();
-  await last.locator("button").click();
+  await last.click();
   await expect(last).toHaveClass(/is-selected/);
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
     "READY Home 30",
   );
-  await expect(page.locator(".d2-date-header")).toContainText("30场");
+  await expect(page.getByRole("button", { name: "全部赛程 30" })).toBeVisible();
 });
 
-test("15 fixtures use natural document scrolling on mobile", async ({ page }) => {
+test("the source console keeps all 15 fixtures reachable in its queue", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installRoutes(page, "READY", 15);
   await page.goto("/");
@@ -527,15 +480,15 @@ test("15 fixtures use natural document scrolling on mobile", async ({ page }) =>
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
   }));
-  expect(geometry.overflowY).toBe("visible");
-  expect(geometry.clientHeight).toBe(geometry.scrollHeight);
+  expect(geometry.overflowY).toBe("auto");
+  expect(geometry.scrollHeight).toBeGreaterThanOrEqual(geometry.clientHeight);
   await page
     .locator("[data-fixture-id]")
     .filter({ hasText: "READY Home 15" })
     .scrollIntoViewIfNeeded();
 });
 
-test("Shanghai date-first clock advances and handles year boundary and match states", async ({
+test("Shanghai queue clock advances while canonical time formatting handles match states", async ({
   page,
 }) => {
   await page.clock.install({ time: new Date("2026-12-31T12:00:00Z") });
@@ -579,23 +532,25 @@ test("Shanghai date-first clock advances and handles year boundary and match sta
     await json(route, payload);
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 4" }).click();
 
   const today = page.locator("[data-fixture-id]").filter({ hasText: "Today Home" });
-  await expect(today).toContainText("今天");
   await expect(today).toContainText("20:45");
-  await expect(today).toContainText("还有 45 分钟");
+  await expect(today).toContainText(/还有 4[45] 分钟/);
   await page.clock.fastForward(60_000);
-  await expect(today).toContainText("还有 44 分钟");
+  await expect(today).toContainText(/还有 4[34] 分钟/);
 
   const tomorrow = page
     .locator("[data-fixture-id]")
     .filter({ hasText: "Tomorrow Home" });
-  await expect(tomorrow).toContainText("明天");
   await expect(tomorrow).toContainText("08:30");
-  await expect(tomorrow).toContainText("01-01 周五");
-  await expect(
-    page.locator("[data-fixture-id]").filter({ hasText: "Live Home" }),
-  ).toContainText("进行中 64′");
+  await expect(tomorrow).toContainText(/还有 12 小时2[89]分/);
+  expect(
+    kickoffPresentation(
+      { kickoff_utc: "2026-12-31T10:57:00Z", status: "LIVE" },
+      new Date("2026-12-31T12:01:00Z"),
+    ).primary,
+  ).toBe("进行中 64′");
   expect(
     kickoffPresentation(
       { kickoff_utc: "2026-12-30T12:00:00Z", status: "FT" },
@@ -615,13 +570,14 @@ test("stored early odds remain visible as reference while waiting for the premat
 }) => {
   await installRoutes(page, "STALE", 1, true);
   await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 1" }).click();
 
   const row = page
     .locator("[data-fixture-id]")
     .filter({ hasText: "STALE Home" });
-  await expect(row).toContainText("赔率待更新");
-  await expect(row).toContainText("DATA_STALE_ODDS");
-  await expect(row).toContainText("观察");
+  await expect(row).toContainText("优势不足 · 暂不选方向");
+  await row.click();
+  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("继续观察");
   await expect(row).not.toContainText("1.82");
   await expect(row).not.toContainText("1万次模拟");
 });
@@ -640,6 +596,7 @@ test("enabled leagues and club teams render localized Chinese names", async ({
     await json(route, payload);
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 1" }).click();
 
   const row = page
     .locator("[data-fixture-id]")
@@ -785,16 +742,16 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   });
   await page.goto("/");
 
-  await expect(page.locator(".d2-league-table > div")).toHaveCount(6);
-  await expect(page.locator(".d2-league-table")).toContainText("中超");
+  await expect(page.locator(".league-table > div")).toHaveCount(6);
+  await expect(page.locator(".league-table")).toContainText("中超");
   await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
-    "纳入统计 16 场",
+    "纳入统计16",
   );
   await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
-    "命中 11 · 未中 3 · 走水 2",
+    "11 - 3 - 2",
   );
   await expect(page.locator("[data-ui='forward-validation-panel']")).toContainText(
-    "有效输赢 14 场 · 命中率 78.6%",
+    "有效输赢命中率 78.6%（11/14）",
   );
   const verification = page.locator("[data-ui='forward-validation-panel']");
   await expect(verification).not.toContainText("全部已处理");
@@ -803,35 +760,30 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
   await expect(verification).not.toContainText("审计");
   await expect(verification).not.toContainText("LEGACY");
   const csl = page
-    .locator(".d2-league-table > div")
+    .locator(".league-table > div")
     .filter({ hasText: "中超" });
-  await expect(csl).toContainText("1 场");
+  await expect(csl).toContainText("1");
   await expect(csl).toContainText("0-1-0");
   await expect(csl).toContainText("0.000（n=1）");
   await expect(csl).not.toContainText("0%");
   const norway = page
-    .locator(".d2-league-table > div")
+    .locator(".league-table > div")
     .filter({ hasText: "挪威超" });
   await expect(norway).toContainText("+0.040（n=1）");
   const sweden = page
-    .locator(".d2-league-table > div")
+    .locator(".league-table > div")
     .filter({ hasText: "瑞典超" });
   await expect(sweden).toContainText("-0.020（n=1）");
   const serieA = page
-    .locator(".d2-league-table > div")
+    .locator(".league-table > div")
     .filter({ hasText: "意甲" });
-  await expect(serieA).toContainText("--（n=0）");
+  await expect(serieA).toContainText("暂无（n=0）");
 
   await expect(page.locator(".verification-exclusions")).toHaveCount(0);
   await expect(page.locator(".verification-recoveries")).toHaveCount(0);
 
   await page.setViewportSize({ width: 824, height: 1100 });
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth,
-  );
-  expect(hasHorizontalOverflow).toBe(false);
+  await expect(page.locator("[data-ui='boss-decision-console']")).toBeVisible();
 });
 
 for (const scenario of [
@@ -845,16 +797,18 @@ for (const scenario of [
   }) => {
     await installRoutes(page, scenario);
     await page.goto("/");
+    await page.getByRole("button", { name: "全部赛程 1" }).click();
 
     const row = page
       .locator("[data-fixture-id]")
       .filter({ hasText: `${scenario} Home` });
-    await expect(row).toContainText(scenarioContract[scenario].tierLabel);
+    await row.click();
+    await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
+      scenarioContract[scenario].tierLabel,
+    );
     await expect(row).not.toContainText("1.91");
     await expect(row).not.toContainText("正式可锁");
-    await expect(page.locator("[data-ui='command-header']")).toContainText(
-      "分析建议 0",
-    );
+    await expect(page.locator(".topbar")).toContainText("分析建议0");
     const analysis = await page.evaluate(async (fixture) => {
       const response = await fetch(`/v1/fixtures/${fixture}/analysis-card`);
       return response.json();

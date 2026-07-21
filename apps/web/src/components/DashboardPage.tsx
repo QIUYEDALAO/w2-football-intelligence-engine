@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { footballDayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
-import { DashboardV2 } from "../reference/dashboard-v2/DashboardV2";
+import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
@@ -122,7 +122,7 @@ export function DashboardPage() {
 
       {state === "empty" && view ? (
         view.day_view ? (
-          <DashboardV2 dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+          <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
         ) : showDiagnostics ? (
           <DataDiagnosticsPanel debug={view.debug} release={view.release} />
         ) : (
@@ -133,7 +133,7 @@ export function DashboardPage() {
       {state === "ok" && view ? (
         <>
           {view.day_view ? (
-            <DashboardV2 dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+            <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}

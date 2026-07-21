@@ -1,0 +1,263 @@
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import type {
+  BossConsoleModel,
+  BossDecisionItem,
+} from "./boss-console-model";
+
+type FilterId = "priority" | "all" | "risk";
+
+export interface BossDecisionConsoleReferenceProps {
+  model: BossConsoleModel;
+  fixedNow?: Date;
+  prototypeCopy?: boolean;
+}
+
+const SHANGHAI_TIME = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const SHANGHAI_DATE_TIME = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function useMinuteClock(fixedNow?: Date): Date {
+  const [now, setNow] = useState(() => fixedNow ?? new Date());
+  useEffect(() => {
+    if (fixedNow) {
+      setNow(fixedNow);
+      return undefined;
+    }
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [fixedNow]);
+  return now;
+}
+
+function safeDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function timeLabel(value?: string | null): string {
+  const date = safeDate(value);
+  return date ? SHANGHAI_TIME.format(date) : "—";
+}
+
+function countdown(value: string, now: Date): string {
+  const date = safeDate(value);
+  if (!date) return "时间待定";
+  const minutes = Math.max(0, Math.floor((date.getTime() - now.getTime()) / 60_000));
+  if (minutes < 60) return `还有 ${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `还有 ${hours} 小时${minutes % 60 ? `${minutes % 60}分` : ""}`;
+  const days = Math.floor(hours / 24);
+  return `还有 ${days} 天${hours % 24 ? `${hours % 24}小时` : ""}`;
+}
+
+function kickoffDetail(value: string, now: Date): string {
+  const date = safeDate(value);
+  return date ? `${SHANGHAI_DATE_TIME.format(date).replace("/", "月").replace(" ", "日 ")} · ${countdown(value, now)}` : "时间待定";
+}
+
+function ageLabel(value: string | null, now: Date): string {
+  const date = safeDate(value);
+  if (!date) return "待定";
+  const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}分钟`;
+  return `${Math.floor(minutes / 60)}小时${minutes % 60 ? `${minutes % 60}分` : ""}`;
+}
+
+function formatPercent(value: number | null): string {
+  return value == null ? "--" : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatDelta(value: number | null): string {
+  return value == null ? "--" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}pp`;
+}
+
+function formatEv(value: number | null): string {
+  return value == null ? "--" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+}
+
+function shortHash(value: string): string {
+  return value === "—" ? value : value.slice(0, 7);
+}
+
+function DecisionRow({
+  item,
+  selected,
+  now,
+  onSelect,
+}: {
+  item: BossDecisionItem;
+  selected: boolean;
+  now: Date;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <button
+      className={`decision-row status-${item.status}${selected ? " is-selected" : ""}`}
+      data-fixture-id={item.id}
+      onClick={() => onSelect(item.id)}
+      aria-pressed={selected}
+    >
+      <div><span className="priority">{item.priority}</span></div>
+      <div className="kickoff"><strong>{timeLabel(item.kickoffUtc)}</strong><span>{countdown(item.kickoffUtc, now)}</span></div>
+      <div className="matchup"><strong>{item.match}</strong><span>{item.league}</span></div>
+      <div className="decision-main">
+        <strong>{item.recommendation}</strong>
+        <div className="metric-line">
+          {item.modelProbability == null ? (
+            <span><b>状态</b> {item.recommendation}</span>
+          ) : (
+            <>
+              <span><b>模型</b> {formatPercent(item.modelProbability)}</span>
+              <span><b>市场</b> {formatPercent(item.marketProbability)}</span>
+              <span><b>差值</b> {formatDelta(item.probabilityDelta)}</span>
+              <span><b>EV</b> {formatEv(item.expectedValue)}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className={`risk-level ${item.riskLevel}`}><span>{item.risk}风险</span><small>{item.riskNote}</small></div>
+      <div className="next-action"><strong>{item.nextAction}</strong><span>{item.nextDetail}</span></div>
+    </button>
+  );
+}
+
+function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
+  const badgeClass = item.status === "watch" ? " watch" : item.status === "not-ready" ? " not-ready" : "";
+  return (
+    <aside className="panel detail-panel" aria-label="选中决策详情" data-ui="selected-match-panel">
+      <div className="detail-top">
+        <div className="detail-eyebrow">
+          <div className={`decision-badge${badgeClass}`}>{item.decision}</div>
+          <div className="snapshot-age">{item.snapshotAt ? `决策快照 · ${timeLabel(item.snapshotAt)}` : "尚无决策快照"}</div>
+        </div>
+        <h1 className="detail-match">{item.match}</h1>
+        <div className="detail-meta">{item.league} · {kickoffDetail(item.kickoffUtc, now)}</div>
+        <div className="hero-recommendation">
+          <span>{item.status === "pick" ? "分析盘口" : item.status === "watch" ? "当前结论" : "数据状态"}</span>
+          <strong>{item.recommendation}</strong>
+          <small>{item.status === "pick" ? "分析参考 · 非正式推荐 · 不执行自动锁单" : item.status === "watch" ? "NO_EDGE · 不强行产生推荐" : "数据不完整 · 暂不输出模型结论"}</small>
+        </div>
+      </div>
+
+      <div className="metric-grid">
+        <div className="metric-card"><span>模型概率</span><strong>{formatPercent(item.modelProbability)}</strong></div>
+        <div className="metric-card"><span>市场概率</span><strong>{formatPercent(item.marketProbability)}</strong></div>
+        <div className="metric-card delta"><span>模型－市场</span><strong>{formatDelta(item.probabilityDelta)}</strong></div>
+        <div className="metric-card ev"><span>风险后 EV</span><strong>{formatEv(item.expectedValue)}</strong></div>
+      </div>
+
+      <div className="detail-sections">
+        <section className="detail-section"><h3>核心依据</h3><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section>
+        <section className="detail-section risks"><h3>风险与失效条件</h3><ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
+        <section className="detail-section">
+          <h3>下一动作</h3>
+          <div className="next-action-box"><strong>{item.status === "pick" ? `${item.nextAction}重新评估` : item.nextAction}</strong><span>触发条件：{item.nextDetail}。</span></div>
+          <div className="ledger-card"><div><strong>{item.ledgerStatus}</strong><span>{item.ledgerDetail}</span></div><code>{shortHash(item.ledgerCode)}</code></div>
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+function SystemDrawer({ model, open, onClose }: { model: BossConsoleModel; open: boolean; onClose: () => void }) {
+  return (
+    <div className={`drawer-backdrop${open ? " is-open" : ""}`} aria-hidden={!open} onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <aside className="system-drawer" role="dialog" aria-modal="true" aria-label="系统状态">
+        <div className="drawer-head"><div><div className="drawer-kicker">System Status</div><h2>运行与安全边界</h2></div><button className="drawer-close" onClick={onClose} aria-label="关闭系统状态">×</button></div>
+        <div className="system-list">
+          <div className="system-item"><span>API 版本</span><strong>{model.release.apiSha.slice(0, 7)}</strong></div>
+          <div className="system-item"><span>Web 版本</span><strong>{model.release.webSha.slice(0, 7)}</strong></div>
+          <div className="system-item"><span>Schema</span><strong className="pass">{model.runtime.schemaStatus}</strong></div>
+          <div className="system-item"><span>API / Worker / Web</span><strong className="pass">{model.runtime.serviceStatus}</strong></div>
+          <div className="system-item"><span>Provider Calls</span><strong className="off">{model.runtime.providerStatus}</strong></div>
+          <div className="system-item"><span>Scheduler</span><strong className="off">{model.runtime.schedulerStatus}</strong></div>
+          <div className="system-item"><span>Formal Recommendation</span><strong className="off">{model.runtime.formalStatus}</strong></div>
+          <div className="system-item"><span>Lock / Production</span><strong className="off">{model.runtime.lockProductionStatus}</strong></div>
+        </div>
+        <div className="drawer-warning">这是老板层的系统摘要，不展示密钥、原始 payload、内部主机信息或完整 SHA。技术审计应进入独立 L2 页面。</div>
+      </aside>
+    </div>
+  );
+}
+
+export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = false }: BossDecisionConsoleReferenceProps) {
+  const now = useMinuteClock(fixedNow);
+  const [filter, setFilter] = useState<FilterId>("priority");
+  const [selectedId, setSelectedId] = useState(model.selectedDecisionId ?? model.decisions[0]?.id ?? "");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const filtered = useMemo(() => {
+    if (filter === "priority") return model.decisions.filter((item) => item.status === "pick");
+    if (filter === "risk") return model.decisions.filter((item) => item.riskLevel === "high" || item.status === "not-ready");
+    return model.decisions;
+  }, [filter, model.decisions]);
+  const selected = model.decisions.find((item) => item.id === selectedId) ?? filtered[0] ?? model.decisions[0];
+  const pickCount = model.decisions.filter((item) => item.status === "pick").length;
+  const watchCount = model.decisions.filter((item) => item.status === "watch").length;
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDrawerOpen(false); };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  function selectFilter(nextFilter: FilterId) {
+    setFilter(nextFilter);
+    const candidates = nextFilter === "priority"
+      ? model.decisions.filter((item) => item.status === "pick")
+      : nextFilter === "risk"
+        ? model.decisions.filter((item) => item.riskLevel === "high" || item.status === "not-ready")
+        : model.decisions;
+    if (!candidates.some((item) => item.id === selectedId)) setSelectedId(candidates[0]?.id ?? model.decisions[0]?.id ?? "");
+  }
+
+  if (!selected) return null;
+
+  return (
+    <div className="app" data-ui="boss-decision-console">
+      <header className="topbar">
+        <div className="brand"><div className="brand-mark">W2</div><div className="brand-copy"><strong>足球智能决策台</strong><span>老板视角 · 先看结论，再看证据</span></div><div className="mode-pill">{model.release.environment.toUpperCase()} · 只读</div></div>
+        <div className="headline-kpis" aria-label="今日关键决策指标">
+          <div className="headline-kpi pick"><span>分析建议</span><strong>{pickCount}</strong></div>
+          <div className="headline-kpi watch"><span>继续观察</span><strong>{watchCount}</strong></div>
+          <div className="headline-kpi formal"><span>正式建议</span><strong>0</strong></div>
+          <div className="headline-kpi pending"><span>待结算</span><strong>{model.ledger.pendingCount}</strong></div>
+          <div className="headline-kpi alert"><span>风险例外</span><strong>{model.riskExceptionCount}</strong></div>
+        </div>
+        <div className="snapshot-block"><div className="snapshot-times"><div className="snapshot-time"><span>决策快照</span><strong>{timeLabel(model.release.oddsConfirmedAt)}</strong></div><div className="snapshot-time"><span>页面刷新</span><strong>{timeLabel(model.release.pageUpdatedAt)}</strong></div><div className="snapshot-time"><span>快照年龄</span><strong>{ageLabel(model.release.oddsConfirmedAt, now)}</strong></div><div className="snapshot-time"><span>自动采集</span><strong className={model.automaticCollectionPaused ? "is-paused" : "is-running"}>{model.automaticCollectionPaused ? "已暂停" : "运行中"}</strong></div></div><button className="status-button" onClick={() => setDrawerOpen(true)} aria-label="打开系统状态">⚙</button></div>
+      </header>
+
+      <section className="risk-strip" aria-label="风险与例外"><strong>风险与例外</strong><p>自动采集当前{model.automaticCollectionPaused ? "暂停" : "运行"}；{model.lineupPendingCount} 场首发尚未到采集时点；{model.ledger.evidenceRepairPendingCount} 条历史验证因旧证据链不完整未计入命中率，但原始记录仍保留。</p><div className="risk-meta">最后检查 {timeLabel(model.lastCheckedAt)}</div></section>
+
+      <main className="workspace">
+        <section className="panel decision-panel" data-ui="decision-panel">
+          <div className="panel-header"><div className="panel-title"><span>Executive Queue</span><h2>今日重点决策</h2><p>分析建议置顶；其余严格按开球时间。{prototypeCopy ? "所有数值均为演示数据。" : "所有数值均来自当前冻结证据。"}</p></div><div className="filter-tabs" role="tablist" aria-label="决策筛选"><button className={`filter-tab${filter === "priority" ? " is-active" : ""}`} onClick={() => selectFilter("priority")}>决策优先</button><button className={`filter-tab${filter === "all" ? " is-active" : ""}`} onClick={() => selectFilter("all")}>全部赛程 {model.decisions.length}</button><button className={`filter-tab${filter === "risk" ? " is-active" : ""}`} onClick={() => selectFilter("risk")}>仅看异常</button></div></div>
+          <div className="decision-table-head" aria-hidden="true"><span>优先级</span><span>开球</span><span>比赛</span><span>结论与核心差异</span><span>风险状态</span><span>下一动作</span></div>
+          <div className="decision-list" data-ui="schedule-scroller">{filtered.length ? filtered.map((item) => <DecisionRow key={item.id} item={item} selected={item.id === selected.id} now={now} onSelect={setSelectedId} />) : <div className="empty-list">当前筛选条件下没有比赛</div>}</div>
+        </section>
+        <DetailPanel item={selected} now={now} />
+      </main>
+
+      <section className="lower-grid">
+        <article className="panel" data-ui="forward-validation-panel"><div className="panel-header"><div className="panel-title"><span>Forward Validation</span><h2>前向验证账目闭环</h2><p>总记录 = 纳入统计 + 证据排除 + 待结算，避免“数字去哪了”。</p></div><div className="decision-badge watch">当前模型 {model.ledger.pendingCount} 场待结算</div></div><div className="validation-body"><div className="validation-flow"><div className="flow-card"><span>验证总记录</span><strong>{model.ledger.validationCount}</strong><small>{prototypeCopy ? "历史恢复 + 当前 V3" : "统一前向验证账本"}</small></div><div className="flow-card"><span>已完成结算</span><strong>{model.ledger.settledCount}</strong><small>已有真实赛果</small></div><div className="flow-card included"><span>纳入统计</span><strong>{model.ledger.eligibleCount}</strong><small>证据链完整</small></div><div className="flow-card excluded"><span>证据排除</span><strong>{model.ledger.evidenceRepairPendingCount}</strong><small>旧 capture 链不完整</small></div><div className="flow-card pending"><span>待结算</span><strong>{model.ledger.pendingCount}</strong><small>当前分析建议</small></div></div><div className="cohort-grid"><div className="cohort-card"><header><strong>{prototypeCopy ? "历史恢复 cohort" : "已结算有效样本"}</strong><span>{prototypeCopy ? "独立口径" : "统一口径"}</span></header><div className="cohort-score">{model.ledger.hitCount} - {model.ledger.missCount} - {model.ledger.pushCount}<small>命中 · 未中 · 走水</small></div><div className="progress" style={{ "--value": `${(model.ledger.hitRate ?? 0) * 100}%` } as CSSProperties}><span /></div><div className="cohort-caption">有效输赢命中率 {formatPercent(model.ledger.hitRate)}（{model.ledger.hitCount}/{model.ledger.decisiveCount}）</div></div><div className="cohort-card"><header><strong>{prototypeCopy ? "当前 V3 模型 cohort" : "当前待结算样本"}</strong><span>{prototypeCopy ? "不与历史混算" : "不制造战绩"}</span></header><div className="cohort-score">0 已结算 / {model.ledger.pendingCount} 待结算<small>尚不可计算命中率</small></div><div className="progress" style={{ "--value": "0%" } as CSSProperties}><span /></div><div className="cohort-caption">当前只展示验证进度，不制造战绩。</div></div></div></div></article>
+        <article className="panel" data-ui="league-performance-panel"><div className="panel-header"><div className="panel-title"><span>League Performance</span><h2>联赛表现</h2><p>命中率、CLV 与样本量必须同时展示。</p></div></div><div className="league-table"><div className="league-row head"><span>联赛</span><span>样本</span><span>结果</span><span>临场 CLV</span><span>状态</span></div>{model.leaguePerformance.map((row) => <div className="league-row" key={row.league}><strong>{row.league}</strong><span>{row.eligibleCount}</span><span>{row.hitCount}-{row.missCount}-{row.pushCount}</span><span className={row.clvMedian == null ? undefined : row.clvMedian >= 0 ? "clv-positive" : "clv-negative"}>{row.clvMedian == null ? "暂无" : `${row.clvMedian > 0 ? "+" : ""}${row.clvMedian.toFixed(3)}`}（n={row.clvSampleCount}）</span><span className="sample-state">{row.statusLabel}</span></div>)}</div><p className="league-note">临场 CLV = 推荐赔率 − 开赛前 30 分钟内的同盘口赔率。n &lt; 5 时只作观察，不做绩效结论。</p></article>
+      </section>
+
+      <footer className="footer-note"><span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；正式建议、锁单与生产发布仍保持关闭。</span><span>{prototypeCopy ? "演示稿 · " : ""}W2 Boss Decision Console v1</span></footer>
+      <SystemDrawer model={model} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+    </div>
+  );
+}

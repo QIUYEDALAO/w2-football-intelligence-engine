@@ -66,21 +66,21 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
     assert "locked_pre_match_recommendation" in types
 
 
-def test_dashboard_defaults_to_dashboard_v2_with_boss_view_retained_for_rollback() -> None:
+def test_dashboard_defaults_to_boss_console_with_previous_views_retained_for_rollback() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
     boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
-    dashboard_v2 = (
-        ROOT / "apps/web/src/reference/dashboard-v2/DashboardV2.tsx"
+    boss_console = (
+        ROOT / "apps/web/src/reference/boss-console/BossDecisionConsole.tsx"
     ).read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
     assert 'const mode: DashboardMode = "future"' in page
     assert "未来 36 小时暂无比赛" in page
     assert "未来 14 天暂无可展示比赛" in page
-    assert "DashboardV2" in page
+    assert "BossDecisionConsole" in page
     assert "BossDecisionView" not in page
-    assert "DashboardV2Reference" in dashboard_v2
-    assert "adaptDashboardV2" in dashboard_v2
+    assert "BossDecisionConsoleReference" in boss_console
+    assert "adaptBossDecisionConsole" in boss_console
     assert "footballDayShanghai()" in page
     assert "footballDayShanghai" in formatters
     assert "next_available_date" in page
