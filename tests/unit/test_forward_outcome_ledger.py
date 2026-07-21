@@ -198,6 +198,35 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
     assert rows[0]["pick"]["odds"] == 1.93
 
 
+def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.pop("home_team_name")  # type: ignore[union-attr]
+    card.pop("away_team_name")  # type: ignore[union-attr]
+    card["home_name"] = "Public Home"  # type: ignore[index]
+    card["away_name"] = "Public Away"  # type: ignore[index]
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert payload["written"] == 1
+    assert rows[0]["fixture_identity"]["home_team_name"] == "Public Home"
+    assert rows[0]["fixture_identity"]["away_team_name"] == "Public Away"
+
+
 def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
     tmp_path: Path,
 ) -> None:

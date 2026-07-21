@@ -920,11 +920,15 @@ def _fixture_identity(card: Mapping[str, Any]) -> dict[str, Any]:
         "home_team_id": _optional_text(
             frozen_identity.get("home_team_id") or card.get("home_team_id")
         ),
-        "home_team_name": _optional_text(card.get("home_team_name")),
+        "home_team_name": _optional_text(
+            card.get("home_team_name") or card.get("home_name") or card.get("home_cn")
+        ),
         "away_team_id": _optional_text(
             frozen_identity.get("away_team_id") or card.get("away_team_id")
         ),
-        "away_team_name": _optional_text(card.get("away_team_name")),
+        "away_team_name": _optional_text(
+            card.get("away_team_name") or card.get("away_name") or card.get("away_cn")
+        ),
     }
 
 
