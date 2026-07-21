@@ -217,6 +217,44 @@ npm --prefix apps/web run build
 PASS
 ```
 
+Final staging evidence after exact-image redeploy:
+
+```text
+implementation_sha=3a51102598e5b069343796f404053fb40aa66e2d
+github_actions_run=29828306469
+github_actions_conclusion=success
+deployed_release=/opt/w2/releases/3a51102598e5b069343796f404053fb40aa66e2d
+/ready=READY
+schema=PASS
+api=healthy
+worker=healthy
+web=healthy
+scheduler=stopped
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+Forward validation performance after repair:
+
+```text
+validation_fixture_count=5
+performance_cohort.validation_count=5
+performance_cohort.pending_count=5
+performance_cohort.eligible_count=0
+validation_settled_fixture_count=0
+validation_excluded_count=0
+integrity_status=PASS
+```
+
+Final evidence package:
+
+```text
+docs/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION_EVIDENCE_2026-07-21.json
+docs/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION_EVIDENCE_2026-07-21.md
+```
+
 ## Follow-up exact-image deployment instruction
 
 Required next action after this context update:
