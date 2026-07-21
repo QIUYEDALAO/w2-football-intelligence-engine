@@ -1,0 +1,101 @@
+{
+  "schema_version": "w2.historical_settled_validation_visibility_audit.v1",
+  "generated_at_utc": "2026-07-21T12:31:00Z",
+  "question": "User reports more than ten historical recommendations had already completed post-match validation and asks whether records disappeared again.",
+  "new_staging": {
+    "host": "118.196.30.136",
+    "current_release": "/opt/w2/releases/d2a7980ab5c2a6665b5dee6411a66733aacf0a7f",
+    "api_sha": "d2a7980ab5c2a6665b5dee6411a66733aacf0a7f",
+    "ready": "READY",
+    "schema": "PASS"
+  },
+  "current_shared_forward_ledger": {
+    "files": [
+      {
+        "path": "/opt/w2/shared/runtime/forward_outcome_ledger/2026-07-21_staging.jsonl",
+        "lines": 40,
+        "sha256": "5f11c038a4e83f404797525e0f4a5545dee4f6ba76a1dd761980731ca2087ef2"
+      },
+      {
+        "path": "/opt/w2/shared/runtime/forward_outcome_ledger/2026-07-21-validation-correction_staging.jsonl",
+        "lines": 8,
+        "sha256": "0edf97d609445fb81eacd7b198a0b815531f88660baa06d4321aec578b6e576b"
+      },
+      {
+        "path": "/opt/w2/shared/runtime/forward_outcome_ledger/2026-07-21-validation-correction-v2_staging.jsonl",
+        "lines": 8,
+        "sha256": "b397156f0cd2b33fbce0911495ab2f683812556bb3aaeddbc76b44c0d61d5afd"
+      }
+    ],
+    "validation_fixture_count": 5,
+    "pending_count": 5,
+    "eligible_count": 0,
+    "settled_count": 0
+  },
+  "current_dashboard": {
+    "analysis_pick_count": 5,
+    "dashboard_card_validation_rows": 0,
+    "forward_ledger_validation_fixture_count": 5,
+    "forward_ledger_pending_count": 5,
+    "forward_ledger_eligible_count": 0,
+    "forward_ledger_settled_count": 0
+  },
+  "current_database_counts": {
+    "recommendations": 0,
+    "recommendation_locks": 0,
+    "settlements": 0,
+    "forward_prediction_lock": 0,
+    "gate5_recommendation_lock_event": 0,
+    "shadow_strategy_lock": 0,
+    "shadow_strategy_settlement": 0
+  },
+  "old_runtime_file_found_on_new_server_release": {
+    "path": "/opt/w2/releases/037b88cd529e4c19ecf7ddc51f50106a6a996572/runtime/forward_outcome_ledger/2026-07-20_staging.jsonl",
+    "bytes": 181592,
+    "lines": 80,
+    "sha256": "aa07c79aafe67a088765e43b5b64685b2f83fd238b197a08fea308428dd1bd46",
+    "record_type_counts": {
+      "CAPTURE": 80
+    },
+    "recommendation_scope_counts": {
+      "NONE": 80
+    },
+    "settlement_counts": {}
+  },
+  "old_host_probe": {
+    "host": "43.155.208.138",
+    "attempts": [
+      {
+        "user": "ubuntu",
+        "key": "/Users/liudehua/Downloads/huoshanyun.pem",
+        "result": "Permission denied (publickey)"
+      },
+      {
+        "user": "root",
+        "key": "/Users/liudehua/Downloads/huoshanyun.pem",
+        "result": "Permission denied (publickey)"
+      },
+      {
+        "user": "ubuntu",
+        "key": "/Users/liudehua/.ssh/id_ed25519_btc_eth_quant_vps",
+        "result": "Permission denied (publickey)"
+      }
+    ]
+  },
+  "interim_finding": [
+    "HISTORICAL_SETTLED_VALIDATION_NOT_PRESENT_ON_NEW_STAGING",
+    "OLD_SETTLED_VALIDATION_SOURCE_NOT_YET_LOCATED",
+    "LIKELY_NOT_MIGRATED_OR_STORED_ON_OLD_HOST_OR_BACKUP"
+  ],
+  "required_recovery_sources": [
+    "SSH access to old host 43.155.208.138 with the correct key/user",
+    "Filesystem backup of /opt/w2/shared/runtime from the old host",
+    "PostgreSQL dump from the old host",
+    "Prior dashboard/export artifact containing card.validation rows with HIT/MISS/PUSH/VOID"
+  ],
+  "safety": {
+    "do_not_fabricate_settled_outcomes": true,
+    "do_not_merge_incompatible_cohorts": true,
+    "current_five_validation_samples_remain_pending": true
+  }
+}

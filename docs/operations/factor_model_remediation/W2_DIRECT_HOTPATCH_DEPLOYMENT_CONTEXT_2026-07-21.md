@@ -255,6 +255,48 @@ docs/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION
 docs/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION_EVIDENCE_2026-07-21.md
 ```
 
+## Follow-up question: historical settled validation visibility
+
+Received at `2026-07-21T12:24:00Z`.
+
+User reports that more than ten historical recommendations had already completed post-match validation and asks whether those records disappeared again.
+
+Required investigation:
+
+```text
+Do not assume loss from the new forward ledger count alone.
+Check shared runtime forward_outcome_ledger files.
+Check legacy dashboard/card validation rows.
+Check frozen artifacts and report outputs.
+Check database settlement/recommendation/lock tables where available.
+Determine whether records are missing, hidden by the new forward-ledger view, stored in another runtime path, or not copied to the new server.
+Do not fabricate settled HIT/MISS/PUSH/VOID records.
+Do not rewrite or delete historical files.
+```
+
+Interim audit result:
+
+```text
+new_staging_shared_forward_ledger_settled=0
+new_staging_dashboard_card_validation_rows=0
+new_staging_postgres_settlements=0
+new_staging_recommendations=0
+old_release_2026-07-20_forward_ledger_lines=80
+old_release_2026-07-20_forward_ledger_scope=NONE
+old_release_2026-07-20_forward_ledger_settlements=0
+old_host_candidate=43.155.208.138
+old_host_access=Permission denied with available keys
+finding=HISTORICAL_SETTLED_VALIDATION_NOT_PRESENT_ON_NEW_STAGING
+finding=OLD_SETTLED_VALIDATION_SOURCE_NOT_YET_LOCATED
+```
+
+Published audit:
+
+```text
+docs/operations/factor_model_remediation/W2_HISTORICAL_SETTLED_VALIDATION_VISIBILITY_AUDIT_2026-07-21.md
+docs/operations/factor_model_remediation/W2_HISTORICAL_SETTLED_VALIDATION_VISIBILITY_AUDIT_2026-07-21.json
+```
+
 ## Follow-up exact-image deployment instruction
 
 Required next action after this context update:
