@@ -175,6 +175,48 @@ V3_ANALYSIS_PICK_CHAIN: NOT_CLOSED
 MANUAL_APPROVAL_REQUIRED
 ```
 
+## Follow-up instruction: real forward validation restoration
+
+Received at `2026-07-21T11:59:21Z`.
+
+User/expert validation corrected the acceptance scope:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED remains accepted.
+REAL_FORWARD_VALIDATION_CAPTURE was not yet fully materialized.
+Dashboard text must distinguish outcome_tracked eligibility from real ledger capture.
+Legacy validation visibility must not be hidden by an empty forward-ledger object.
+Do not modify model factors, weights, thresholds, or quote freshness.
+Do not enable formal, lock, production, continuous provider refresh, or scheduler.
+```
+
+Code work performed in this follow-up before deployment:
+
+```text
+forward_outcome_ledger capture now binds canonical validation picks to entry quote identity.
+public-card home/away team name fallbacks are accepted for fixture identity.
+dashboard validation copy now requires real capture_identity_hash for captured wording.
+forward ledger performance exposes pending capture/card/decision hashes.
+append-only correction captures with stable card_hash/decision_hash can repair legacy fixture identity formatting conflicts.
+normal same-fixture captures still retain the original entry capture for settlement/CLV consistency.
+```
+
+Local validation before push:
+
+```text
+uv run --python 3.12 ruff check src/w2/tracking/forward_ledger_performance.py tests/unit/test_forward_ledger_performance.py
+PASS
+
+uv run --python 3.12 mypy src/w2/tracking/forward_ledger_performance.py
+PASS
+
+uv run --python 3.12 pytest tests/unit/test_forward_ledger_performance.py tests/unit/test_forward_outcome_ledger.py tests/unit/test_formal_card_copy.py -q
+48 passed
+
+npm --prefix apps/web run build
+PASS
+```
+
 ## Follow-up exact-image deployment instruction
 
 Required next action after this context update:

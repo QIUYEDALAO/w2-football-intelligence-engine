@@ -171,10 +171,25 @@ def _validation_candidates(
             continue
         fixture_signatures = {_fixture_signature(item) for item in complete}
         if None in fixture_signatures or len(fixture_signatures) != 1:
-            excluded[fixture_id] = "FIXTURE_IDENTITY_CONFLICT"
-            continue
-        candidates[fixture_id] = complete[0]
+            if not _same_decision_identity(complete):
+                excluded[fixture_id] = "FIXTURE_IDENTITY_CONFLICT"
+                continue
+            candidates[fixture_id] = complete[-1]
+        else:
+            candidates[fixture_id] = complete[0]
     return candidates, excluded
+
+
+def _same_decision_identity(records: Sequence[Mapping[str, Any]]) -> bool:
+    card_hashes = {_text(record.get("card_hash")) for record in records}
+    decision_hashes = {_text(record.get("decision_hash")) for record in records}
+    has_stable_card = bool(card_hashes) and "" not in card_hashes and len(card_hashes) == 1
+    has_stable_decision = (
+        not decision_hashes
+        or decision_hashes == {""}
+        or ("" not in decision_hashes and len(decision_hashes) == 1)
+    )
+    return has_stable_card and has_stable_decision
 
 
 def _validation_capture_issue(record: Mapping[str, Any]) -> str | None:

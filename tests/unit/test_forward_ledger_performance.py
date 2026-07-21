@@ -61,6 +61,41 @@ def test_forward_ledger_pending_details_expose_capture_identity(tmp_path: Path) 
     assert detail["recommendation_scope"] == "VALIDATION"
 
 
+def test_forward_ledger_latest_same_decision_capture_repairs_identity_format(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    older = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    older.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "old-capture",
+            "decision_hash": "decision-hash",
+            "competition_id": "113",
+        }
+    )
+    newer = dict(older)
+    newer.update(
+        {
+            "captured_at": "2026-07-07T00:10:00Z",
+            "capture_identity_hash": "new-capture",
+            "competition_id": "allsvenskan",
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [older, newer])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert payload["validation_fixture_count"] == 1
+    assert payload["validation_excluded_count"] == 0
+    detail = payload["validation_pending_status"]["details"][0]
+    assert detail["capture_identity_hash"] == "new-capture"
+
+
 def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) -> None:
     root = tmp_path / "forward_outcome_ledger"
     root.mkdir()
