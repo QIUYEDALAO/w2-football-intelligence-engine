@@ -272,25 +272,21 @@ def assert_compose(path: Path) -> None:
     assert_runtime_mount(path, compose)
     assert_worker_runtime_healthcheck(path, compose)
     scheduler_env = service_env(compose, "scheduler")
-    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED") != "true":
-        fail(f"{path}: scheduler future refresh enable flag missing")
+    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED") != "false":
+        fail(f"{path}: scheduler future refresh must default disabled")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != "world_cup_2026":
         fail(f"{path}: scheduler future refresh competition mismatch")
-    expected_competitions = (
-        "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
-        "allsvenskan,eliteserien"
-    )
-    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS") != expected_competitions:
-        fail(f"{path}: scheduler future refresh competition list mismatch")
+    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS") != "":
+        fail(f"{path}: scheduler future refresh competition list must default empty")
     expected_staging_competitions = (
         "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
     )
     if scheduler_env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
         fail(f"{path}: scheduler staging competition override mismatch")
-    if scheduler_env.get("W2_PROVIDER_CALLS_DISABLED") != "false":
-        fail(f"{path}: scheduler provider calls must be explicitly enabled for staging R2.3")
-    if scheduler_env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "true":
-        fail(f"{path}: scheduler provider scheduler must be explicitly enabled for staging R2.3")
+    if scheduler_env.get("W2_PROVIDER_CALLS_DISABLED") != "true":
+        fail(f"{path}: scheduler provider calls must default disabled")
+    if scheduler_env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
+        fail(f"{path}: scheduler provider scheduler must default disabled")
     if scheduler_env.get("W2_MARKET_TIMELINE_REFRESH_ENABLED") != "true":
         fail(f"{path}: scheduler market timeline refresh enable flag missing")
     if scheduler_env.get("W2_MARKET_TIMELINE_MAX_FIXTURES") != "10":
@@ -317,13 +313,10 @@ def assert_compose(path: Path) -> None:
             if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
                 fail(f"{path}: api staging competition override mismatch")
         if service == "worker":
-            if env.get("W2_PROVIDER_CALLS_DISABLED") != "false":
-                fail(f"{path}: worker provider calls must be explicitly enabled for staging R2.3")
-            if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "true":
-                fail(
-                    f"{path}: worker provider scheduler must be explicitly enabled "
-                    "for staging R2.3"
-                )
+            if env.get("W2_PROVIDER_CALLS_DISABLED") != "true":
+                fail(f"{path}: worker provider calls must default disabled")
+            if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
+                fail(f"{path}: worker provider scheduler must default disabled")
             if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
                 fail(f"{path}: worker staging competition override mismatch")
         if service in {"api", "worker"} and env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != (

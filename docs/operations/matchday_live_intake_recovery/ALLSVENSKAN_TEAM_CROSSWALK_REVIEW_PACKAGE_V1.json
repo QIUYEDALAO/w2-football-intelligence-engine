@@ -1,18 +1,21 @@
 {
-  "schema_version": "ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V1",
-  "generated_at_utc": "2026-07-20T22:12:54Z",
-  "competition_id": "allsvenskan",
-  "season": "2026",
-  "items": [],
-  "summary": {
-    "EXACT_EXISTING_APPROVED": 0,
-    "REVIEW_REQUIRED": 0,
-    "CONFLICT": 0,
-    "MISSING": 0
-  },
-  "status": "BLOCKED",
   "blockers": [
     "NO_PROVIDER_FIXTURES_CAPTURED",
     "LIVE_GATE_API_KEY_NOT_VISIBLE"
-  ]
+  ],
+  "competition_id": "allsvenskan",
+  "current_truth_status": "SUPERSEDED",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "items": [],
+  "schema_version": "ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V1",
+  "season": "2026",
+  "status": "BLOCKED",
+  "summary": {
+    "CONFLICT": 0,
+    "EXACT_EXISTING_APPROVED": 0,
+    "MISSING": 0,
+    "REVIEW_REQUIRED": 0
+  },
+  "superseded_by": "docs/operations/analysis_recommendation_closure/ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V2.json",
+  "superseded_by_hash": "8148a3ea7543221fb618cc9046fab50728eb322b6df7440c283575cc1ed427a2"
 }

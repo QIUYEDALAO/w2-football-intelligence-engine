@@ -1,18 +1,21 @@
 {
-  "schema_version": "ALLSVENSKAN_FIXTURE_INTAKE_REPORT_V1",
-  "generated_at_utc": "2026-07-20T22:12:54Z",
-  "competition_id": "allsvenskan",
-  "provider": "api_football",
-  "endpoint": "fixtures",
-  "provider_calls_attempted": 0,
-  "provider_http_calls_consumed": 0,
-  "fixtures_endpoint_response_count": null,
-  "canonical_fixtures_written": 0,
-  "provider_team_identities_written": 0,
-  "endpoint_capture_ids": [],
-  "raw_payload_hashes": [],
-  "status": "BLOCKED",
   "blockers": [
     "LIVE_GATE_API_KEY_NOT_VISIBLE"
-  ]
+  ],
+  "canonical_fixtures_written": 0,
+  "competition_id": "allsvenskan",
+  "current_truth_status": "SUPERSEDED",
+  "endpoint": "fixtures",
+  "endpoint_capture_ids": [],
+  "fixtures_endpoint_response_count": null,
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "provider": "api_football",
+  "provider_calls_attempted": 0,
+  "provider_http_calls_consumed": 0,
+  "provider_team_identities_written": 0,
+  "raw_payload_hashes": [],
+  "schema_version": "ALLSVENSKAN_FIXTURE_INTAKE_REPORT_V1",
+  "status": "BLOCKED",
+  "superseded_by": "docs/operations/analysis_recommendation_closure/MATCHDAY_ANALYSIS_INPUT_SNAPSHOT_V1.json",
+  "superseded_by_hash": "bcf38073af7651c78682e4c96527950632522b9bba3fe43d1cf7566c717932f4"
 }

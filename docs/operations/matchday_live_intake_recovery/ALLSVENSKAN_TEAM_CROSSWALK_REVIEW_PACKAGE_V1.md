@@ -1,3 +1,7 @@
+> SUPERSEDED_BY: `docs/operations/analysis_recommendation_closure/ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V2.json`
+> SUPERSEDED_BY_HASH: `8148a3ea7543221fb618cc9046fab50728eb322b6df7440c283575cc1ed427a2`
+> CURRENT_TRUTH_STATUS: `SUPERSEDED`
+
 # ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V1
 
 No provider team IDs were captured in this run, so no crosswalk candidates could be generated.

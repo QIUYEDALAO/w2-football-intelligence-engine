@@ -1,3 +1,7 @@
+> SUPERSEDED_BY: `docs/operations/analysis_recommendation_closure/MATCHDAY_V3_OUTCOME_REPORT_V2.json`
+> SUPERSEDED_BY_HASH: `967c11db07c4c76ea8cbbc0f45d9365205e04a62ad7afcac3e1c33524a469f0d`
+> CURRENT_TRUTH_STATUS: `SUPERSEDED`
+
 # MATCHDAY_V3_OUTCOME_REPORT_V1
 
 No V3 outcome was produced.

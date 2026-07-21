@@ -1,16 +1,19 @@
 {
-  "schema_version": "MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V1",
-  "generated_at_utc": "2026-07-20T22:12:54Z",
-  "fixtures": [],
-  "summary": {
-    "manifest_count": 0,
-    "quote_identity_count": 0,
-    "f5_ready_count": 0,
-    "f8_ready_count": 0,
-    "v3_decision_count": 0
-  },
-  "status": "BLOCKED",
   "blockers": [
     "LIVE_GATE_API_KEY_NOT_VISIBLE"
-  ]
+  ],
+  "current_truth_status": "SUPERSEDED",
+  "fixtures": [],
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "schema_version": "MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V1",
+  "status": "BLOCKED",
+  "summary": {
+    "f5_ready_count": 0,
+    "f8_ready_count": 0,
+    "manifest_count": 0,
+    "quote_identity_count": 0,
+    "v3_decision_count": 0
+  },
+  "superseded_by": "docs/operations/analysis_recommendation_closure/MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V2.json",
+  "superseded_by_hash": "fea3999a7984d9fc8908c42182ee9871c434eed34cd796da6293dc80ff35cb83"
 }

@@ -1,0 +1,8 @@
+# Matchday V3 Outcome Report V2
+
+Artifact hash: `967c11db07c4c76ea8cbbc0f45d9365205e04a62ad7afcac3e1c33524a469f0d`
+
+|fixture_id|canonical_outcome|canonical_reason|diagnostic_outcome|diagnostic_reason|decision_hash|manifest_hash|
+|---|---|---|---|---|---|---|
+|1494218|NOT_READY|TEAM_IDENTITY_REVIEW_REQUIRED|SYSTEM_DEGRADED|MODEL_INPUTS_MISSING|e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f|fa39832602b109bf304466068fe63ac18b5f621d04e80e83e9738d9ab3828dc1|
+|1494224|NOT_READY|TEAM_IDENTITY_REVIEW_REQUIRED|SYSTEM_DEGRADED|MODEL_INPUTS_MISSING|51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c|eea208930e2a2032e3d2d7abaa6779887ac934fb6eab60063ddd7f641add91d8|

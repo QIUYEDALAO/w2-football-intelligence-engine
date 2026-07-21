@@ -32,17 +32,14 @@ def volumes_for(path: Path, service: str) -> list[str]:
     return [str(volume) for volume in load_compose(path)["services"][service].get("volumes", [])]
 
 
-def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
+def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -> None:
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == (
-            "world_cup_2026,brasileirao_serie_a,chinese_super_league,"
-            "allsvenskan,eliteserien"
-        )
-        assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "false"
-        assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "true"
+        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == ""
+        assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
+        assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
@@ -72,8 +69,8 @@ def test_staging_compose_enables_scheduler_future_refresh_only() -> None:
         )
         for service in ("worker",):
             env = env_for(path, service)
-            assert env["W2_PROVIDER_CALLS_DISABLED"] == "false"
-            assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "true"
+            assert env["W2_PROVIDER_CALLS_DISABLED"] == "true"
+            assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
             assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
             assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
