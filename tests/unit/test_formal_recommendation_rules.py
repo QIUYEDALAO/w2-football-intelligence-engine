@@ -100,6 +100,8 @@ def simulation(**overrides: object):
         "away_elo": 1350.0,
         "home_squad_value_eur": 900_000_000.0,
         "away_squad_value_eur": 80_000_000.0,
+        "lambda_sigma_home": 0.001,
+        "lambda_sigma_away": 0.001,
     }
     payload.update(overrides)
     return run_simulation(SimulationInputs(**payload))  # type: ignore[arg-type]
@@ -112,8 +114,8 @@ def reverse_value_simulation() -> SimulationOutput:
         calibration_status="BASELINE_PRIOR",
         lambda_home=1.38,
         lambda_away=1.29,
-        lambda_sigma_home=0.0,
-        lambda_sigma_away=0.0,
+        lambda_sigma_home=0.001,
+        lambda_sigma_away=0.001,
         fair_ah=0.0,
         fair_ou=2.75,
         scoreline_picks=[
@@ -146,6 +148,7 @@ def reverse_value_simulation() -> SimulationOutput:
         status=READY,
         simulations=10_000,
         seed=123,
+        calibration={"lambda_uncertainty_method": "deterministic_three_point"},
     )
 
 
@@ -174,8 +177,8 @@ def off_ladder_simulation(*, rho: float = 0.12) -> SimulationOutput:
 
 def ev_gate_simulation(
     *,
-    lambda_sigma_home: float = 0.0,
-    lambda_sigma_away: float = 0.0,
+    lambda_sigma_home: float = 0.001,
+    lambda_sigma_away: float = 0.001,
     lambda_home: float | None = 1.4,
     lambda_away: float | None = 1.2,
 ) -> SimulationOutput:
@@ -217,7 +220,14 @@ def ev_gate_simulation(
         status=READY,
         simulations=10_000,
         seed=789,
-        calibration={"params": {"dixon_coles_rho": 0.12}},
+        calibration={
+            "params": {"dixon_coles_rho": 0.12},
+            "lambda_uncertainty_method": (
+                "none"
+                if lambda_sigma_home == 0 and lambda_sigma_away == 0
+                else "deterministic_three_point"
+            ),
+        },
     )
 
 
@@ -238,7 +248,7 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
-    assert result.recommendation["ev_se"] == 0.0
+    assert result.recommendation["ev_se"] > 0.0
     assert result.recommendation["expected_value"] < 0.15
 
 
@@ -283,10 +293,10 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
     assert result.recommendation["ev_se"] > 0.0
 
 
-def test_ev_se_zero_keeps_existing_threshold_behavior() -> None:
+def test_zero_sigma_blocks_formal_uncertainty_validation() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
-        simulation=ev_gate_simulation(),
+        simulation=ev_gate_simulation(lambda_sigma_home=0.0, lambda_sigma_away=0.0),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
@@ -295,10 +305,9 @@ def test_ev_se_zero_keeps_existing_threshold_behavior() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
-    assert result.recommendation is not None
-    assert result.recommendation["expected_value"] == 0.036
-    assert result.recommendation["ev_se"] == 0.0
+    assert result.tier == "WATCH"
+    assert result.recommendation is None
+    assert "FORMAL_UNCERTAINTY_NOT_VALIDATED" in result.blockers
 
 
 def test_ev_within_uncertainty_band_returns_watch() -> None:

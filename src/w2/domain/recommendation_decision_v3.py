@@ -87,12 +87,14 @@ def project_decision_v3(
     core = {
         "fixture_id": _text(contract_v2.get("fixture_id")),
         "competition_id": _text(contract_v2.get("competition_id")),
+        "as_of": _text(contract_v2.get("as_of")),
         "outcome": outcome.value,
         "selected_candidate": candidate,
         "evaluated_candidate": evaluated,
         "reason_code": reason_code,
-        "model_version": _text(contract_v2.get("model_version")),
-        "quote_identity": _quote_identity(candidate),
+        "model_version": _text(_mapping(evaluated).get("model_version")),
+        "calibration_version": _text(_mapping(evaluated).get("calibration_version")),
+        "quote_identity": _candidate_quote_identity_for_hash(candidate),
     }
     return RecommendationDecisionV3(
         fixture_id=_text(core["fixture_id"]),
@@ -239,7 +241,7 @@ def validate_decision_v3_identity(decision: RecommendationDecisionV3 | Mapping[s
     selected = payload.get("selected_candidate")
     evaluated = payload.get("evaluated_candidate")
     selected_mapping = dict(selected) if isinstance(selected, Mapping) else None
-    quote_identity = _mapping(selected_mapping.get("quote_identity")) if selected_mapping else {}
+    quote_identity = _candidate_quote_identity_for_hash(selected_mapping)
     core = {
         "fixture_id": _text(payload.get("fixture_id")),
         "competition_id": _text(payload.get("competition_id")),
@@ -248,7 +250,7 @@ def validate_decision_v3_identity(decision: RecommendationDecisionV3 | Mapping[s
         "reason_code": _text(reason.get("code") or payload.get("reason_code")),
         "selected_candidate": selected_mapping,
         "evaluated_candidate": dict(evaluated) if isinstance(evaluated, Mapping) else None,
-        "quote_identity": dict(quote_identity),
+        "quote_identity": quote_identity,
         "model_version": _text(_mapping(evaluated).get("model_version")),
         "calibration_version": _text(_mapping(evaluated).get("calibration_version")),
     }
@@ -340,6 +342,15 @@ def _quote_identity(candidate: Mapping[str, Any] | None) -> dict[str, Any]:
     if candidate is None:
         return {}
     return {key: candidate.get(key) for key in ("market", "selection", "line", "odds")}
+
+
+def _candidate_quote_identity_for_hash(candidate: Mapping[str, Any] | None) -> dict[str, Any]:
+    if candidate is None:
+        return {}
+    nested = _mapping(candidate.get("quote_identity"))
+    if nested:
+        return dict(nested)
+    return _quote_identity(candidate)
 
 
 def _hash(payload: Mapping[str, Any]) -> str:

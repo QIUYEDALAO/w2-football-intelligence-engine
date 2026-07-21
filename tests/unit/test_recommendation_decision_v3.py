@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import RecommendationOutcomeV3, project_decision_v3
+from w2.domain.recommendation_decision_v3 import (
+    RecommendationOutcomeV3,
+    project_decision_v3,
+    validate_decision_v3_identity,
+)
 
 
 def _contract(**overrides: object) -> dict[str, object]:
@@ -28,6 +32,7 @@ def test_v3_shadow_is_deterministic_and_analysis_only_when_formal_capability_clo
 
     assert left.outcome is RecommendationOutcomeV3.ANALYSIS_PICK
     assert left.decision_hash == right.decision_hash
+    assert validate_decision_v3_identity(left) == left.decision_hash
     assert left.as_dict()["selected_candidate"] is not None
 
 
@@ -85,3 +90,4 @@ def test_v3_no_edge_keeps_evaluated_candidate_and_ready_model_status() -> None:
     assert decision.selected_candidate is None
     assert decision.evaluated_candidate == evaluated
     assert decision.statuses["model"] == "READY"
+    assert validate_decision_v3_identity(decision) == decision.decision_hash

@@ -5,12 +5,21 @@ Generated: 2026-07-21
 ## Status
 
 ```text
-ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+ANALYSIS_MODEL_MARKET_CHAIN_COMPUTABLE
+ANALYSIS_RECOMMENDATION_ACCEPTANCE_PENDING
+FORMAL_AH_BLOCKED
+FORMAL_OU_NOT_IMPLEMENTED
 FORMAL_DISABLED
 LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
+PR_370_KEEP_DRAFT
 ```
+
+Note: this report originally used the stronger label
+`ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED`. Expert review downgraded that label because
+candidate-level uncertainty, canonical V3 evidence, exact-head CI, staging API canary,
+and formal-readiness governance were not yet closed.
 
 ## GitHub / Staging Sync
 

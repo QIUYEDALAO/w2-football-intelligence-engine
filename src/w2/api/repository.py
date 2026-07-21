@@ -2195,6 +2195,7 @@ class ReadModelService:
                     "action",
                     "next_eval_at",
                     "card_hash",
+                    "recommendation_decision_v3",
                 )
             },
             "decision_contract": contract,

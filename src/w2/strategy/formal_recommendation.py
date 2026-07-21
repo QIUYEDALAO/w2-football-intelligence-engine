@@ -147,6 +147,8 @@ def build_formal_recommendation(
     assert simulation is not None
     if ah is None or ah.validation_status != "READY":
         return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
+    if not _lambda_uncertainty_validated(simulation):
+        return _watch("FORMAL_UNCERTAINTY_NOT_VALIDATED", canonical_ah_market=ah)
     home_distribution, home_ev, home_ev_se = _settlement_distribution_with_ev_se(
         simulation,
         "HOME",
@@ -565,6 +567,18 @@ def _simulation_rho(simulation: SimulationOutput) -> float:
     if not isinstance(params, dict):
         return 0.0
     return _number(params.get("dixon_coles_rho")) or 0.0
+
+
+def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
+    calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
+    method = str(calibration.get("lambda_uncertainty_method") or "").lower()
+    if method in {"", "none"}:
+        return False
+    sigma_home = _number(simulation.lambda_sigma_home)
+    sigma_away = _number(simulation.lambda_sigma_away)
+    return sigma_home is not None and sigma_away is not None and (
+        sigma_home > 0 or sigma_away > 0
+    )
 
 
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
