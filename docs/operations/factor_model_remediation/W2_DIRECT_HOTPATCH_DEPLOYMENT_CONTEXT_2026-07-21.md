@@ -720,3 +720,83 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Factor readiness re-audit for recommendation question
+
+User question:
+
+```text
+你现在重新审计还差什么因子可以出推荐？
+```
+
+Evidence source:
+
+```text
+/app/runtime/reports/final_exact_sha_public_read_canary_3094166_FRESH_20260721T092942Z.json
+implementation_sha=30941664f342bd072646f9eab2c6679fa2e91d50
+```
+
+Analysis-level conclusion:
+
+```text
+No hard factor is currently missing for analysis-level recommendations.
+The deployed staging chain produced 5 ANALYSIS_PICK and 3 WATCH outcomes from
+8 fixtures with fresh quotes and real xG uncertainty.
+```
+
+Observed factor/output completeness:
+
+```text
+fixture_count=8
+ANALYSIS_PICK=5
+WATCH=3
+lambda_uncertainty_status=ANALYSIS_READY for all 8
+AH model_probability present for all 8
+AH market_probability present for all 8
+AH probability_delta present for all 8
+AH expected_value present for all 8
+AH uncertainty present for all 8
+OU model_probability present for all 8
+OU market_probability present for all 8
+OU probability_delta present for all 8
+OU expected_value present for all 8
+OU uncertainty present for all 8
+zero_write_pass=true
+recommendation_lock_official_delta_zero=true
+```
+
+Decision summary:
+
+```text
+1494224 WATCH
+1494218 ANALYSIS_PICK
+1494221 WATCH
+1494223 ANALYSIS_PICK
+1494217 ANALYSIS_PICK
+1494222 ANALYSIS_PICK
+1494219 WATCH
+1494220 ANALYSIS_PICK
+```
+
+Remaining blockers are not analysis factor blockers:
+
+```text
+AUTOMATED_FUTURE_REFRESH_DEGRADED: automatic orchestration still returns
+MatchdayRepositoryError, while manual materialization from captured payloads works.
+
+FORMAL_DISABLED / LOCK_DISABLED / PRODUCTION_DISABLED: formal recommendation,
+lock and production release remain intentionally disabled and require separate
+approval/evidence.
+
+F5/F8 remain formal blockers/warnings where source-reviewed data is incomplete;
+they do not block the current analysis-level ANALYSIS_PICK/WATCH chain.
+```
+
+Current answer:
+
+```text
+ANALYSIS_RECOMMENDATION_FACTORS_READY
+FORMAL_RECOMMENDATION_STILL_DISABLED
+AUTOMATED_REFRESH_REMEDIATION_REQUIRED
+MANUAL_APPROVAL_REQUIRED
+```
