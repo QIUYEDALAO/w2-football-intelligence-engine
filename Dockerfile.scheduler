@@ -6,9 +6,6 @@ ARG PIP_INDEX_URL=
 ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH=/app/.venv/bin:$PATH \
-    W2_GIT_SHA=${W2_GIT_SHA} \
-    W2_BUILD_TIME=${W2_BUILD_TIME} \
-    W2_RELEASE_ID=${W2_RELEASE_ID} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     UV_INDEX_URL=${UV_INDEX_URL}
 WORKDIR /app
@@ -22,6 +19,9 @@ COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lin
 RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-shadow-cycle \
  && test -x /app/.venv/bin/w2-stage7i-observer
+ENV W2_GIT_SHA=${W2_GIT_SHA} \
+    W2_BUILD_TIME=${W2_BUILD_TIME} \
+    W2_RELEASE_ID=${W2_RELEASE_ID}
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \

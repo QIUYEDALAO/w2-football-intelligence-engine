@@ -274,3 +274,30 @@ ruff: PASS
 mypy: PASS
 pytest tests/unit/test_market_candidate.py tests/unit/test_recommendation_decision_v3.py tests/unit/test_analysis_card_xg_materialized.py: 24 passed
 ```
+
+## Final Docker cache correction
+
+An additional exact-image rebuild attempt showed that dependency cache was still invalidated for every new SHA because release metadata was written into `ENV` before dependency installation.
+
+Root cause:
+
+```text
+W2_GIT_SHA / W2_BUILD_TIME / W2_RELEASE_ID were set before uv sync
+VITE_GIT_SHA / VITE_BUILD_TIME / W2_RELEASE_ID were set before npm ci
+changing the release SHA invalidated dependency layers
+```
+
+Fix:
+
+```text
+Python Dockerfiles now set only PATH/PIP_INDEX_URL/UV_INDEX_URL before dependency install
+Python Dockerfiles set W2_GIT_SHA/W2_BUILD_TIME/W2_RELEASE_ID after dependency and project install
+Dockerfile.web now runs npm ci before VITE/W2 release ENV is set
+```
+
+Expected property:
+
+```text
+new release SHA changes the final runtime metadata layer
+new release SHA no longer forces dependency redownload/reinstall
+```
