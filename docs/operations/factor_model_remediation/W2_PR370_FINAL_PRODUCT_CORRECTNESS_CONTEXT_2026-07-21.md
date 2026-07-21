@@ -188,3 +188,7 @@ NO_MODEL_OR_BACKEND_CHANGE
 NO_STAGING_DEPLOYMENT
 PR_370_KEEP_DRAFT
 ```
+
+The exact Dashboard V2 integration implementation commit is
+`e50012cfd4bb02d7803ed57b9a77d6ffd0602b56`. It is source-review ready but is not a
+staging deployment candidate until the protected React/golden authority conflict is resolved.
