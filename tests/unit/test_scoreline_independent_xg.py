@@ -258,6 +258,8 @@ def test_xg_partial_history_hides_scorelines_and_fair_ou(
     assert card is not None
     assert card["scoreline_readiness"]["status"] == "INSUFFICIENT_INDEPENDENT_XG"
     assert card["scoreline_readiness"]["reason"] == "PARTIAL_HISTORY"
+    assert card["scoreline_readiness"]["blocker"] == "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
+    assert card["data_readiness"]["xg_blocker"] == "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
     assert scoreline_picks_from_card(card) == []
     assert card["pricing_shadow"]["fair_ou"] is None
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")

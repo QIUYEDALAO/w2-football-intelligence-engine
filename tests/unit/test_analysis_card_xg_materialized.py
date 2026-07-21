@@ -47,6 +47,21 @@ class FakeReadRepository:
             }
         ]
 
+    def public_fixture_payloads(self, *, limit: int) -> list[dict[str, Any]]:
+        return self.fixture_payloads()[:limit]
+
+    def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
+        aliases = {fixture_id}
+        if fixture_id.startswith("api_football:"):
+            aliases.add(fixture_id.removeprefix("api_football:"))
+        elif fixture_id.isdigit():
+            aliases.add(f"api_football:{fixture_id}")
+        for payload in self.fixture_payloads():
+            payload_id = str(payload.get("fixture", {}).get("id") or "")
+            if payload_id in aliases:
+                return payload
+        return None
+
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         for index, captured in enumerate(
@@ -136,6 +151,23 @@ class FakeReadRepository:
                 )
         return rows
 
+    def future_market_observations_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        aliases: set[str] = set()
+        for fixture_id in fixture_ids:
+            aliases.add(fixture_id)
+            if fixture_id.startswith("api_football:"):
+                aliases.add(fixture_id.removeprefix("api_football:"))
+            elif fixture_id.isdigit():
+                aliases.add(f"api_football:{fixture_id}")
+        return [
+            row
+            for row in self.future_market_observations()
+            if str(row.get("fixture_id") or "") in aliases
+        ]
+
 
 class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
@@ -153,6 +185,51 @@ class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
             "away_team_name": "Away",
             "market_coverage": {},
         }
+
+
+class FakeReadRepositoryWithStaleEmbeddedCard(FakeReadRepository):
+    def matchday_cards(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "fixture_id": "1489410",
+                    "competition_id": "world_cup_2026",
+                    "competition_name": "World Cup",
+                    "kickoff_utc": KICKOFF.isoformat().replace("+00:00", "Z"),
+                    "status": "NS",
+                    "home_team_id": "10",
+                    "away_team_id": "20",
+                    "home_team_name": "Home",
+                    "away_team_name": "Away",
+                    "market_coverage": {},
+                },
+                "analysis_card": {
+                    "fixture_id": "1489410",
+                    "decision": "SKIP",
+                    "markets": [],
+                    "data_readiness": {
+                        "market_observations": 0,
+                        "bookmakers": 0,
+                        "odds_snapshots": 0,
+                        "xg": False,
+                        "xg_status": "UNKNOWN",
+                        "xg_home_match_count": 0,
+                        "xg_away_match_count": 0,
+                        "xg_snapshot_count": 0,
+                        "h2h": False,
+                        "lineups": False,
+                        "lineups_status": "UNKNOWN",
+                        "lineups_captured_at": None,
+                        "statistics_status": "UNKNOWN",
+                        "statistics_captured_at": None,
+                    },
+                    "scoreline_readiness": {
+                        "status": "INSUFFICIENT_INDEPENDENT_XG",
+                        "reason": "STALE_EMBEDDED_CARD",
+                    },
+                },
+            }
+        ]
 
 
 class FakeReadRepositoryWithStaleQuotes(FakeReadRepository):
@@ -456,6 +533,47 @@ def test_analysis_card_prefers_market_balanced_lines_over_fixed_lines(monkeypatc
     assert totals_market["line"] == "3.5"
     assert ah_market["line_status"] == "READY"
     assert totals_market["line_status"] == "READY"
+
+
+def test_public_bounded_analysis_rebuilds_materialized_card_over_stale_embedded(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(
+        repository=cast(Any, FakeReadRepositoryWithStaleEmbeddedCard()),
+    )
+
+    card = service.public_analysis_card_bounded(
+        "1489410",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["data_readiness"]["market_observations"] == 16
+    assert card["data_readiness"]["bookmakers"] == 2
+    assert card["quote_identity_audit"]["ah"]["identity_status"] == "COMPLETE"
+    assert card["quote_identity_audit"]["ou"]["identity_status"] == "COMPLETE"
+    assert card["scoreline_readiness"]["reason"] != "STALE_EMBEDDED_CARD"
+
+
+def test_public_bounded_analysis_accepts_api_football_fixture_alias(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+
+    card = service.public_analysis_card_bounded(
+        "api_football:1489410",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["data_readiness"]["market_observations"] == 16
+    assert card["quote_identity_audit"]["ah"]["identity_status"] == "COMPLETE"
 
 
 class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):

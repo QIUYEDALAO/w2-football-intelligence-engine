@@ -1042,6 +1042,18 @@ class ReadModelService:
             self._future_refresh_repository_cache = future_refresh_db_repository()
         return self._future_refresh_repository_cache
 
+    @staticmethod
+    def _fixture_id_aliases(fixture_id: str) -> set[str]:
+        value = str(fixture_id or "").strip()
+        if not value:
+            return set()
+        aliases = {value}
+        if value.startswith("api_football:"):
+            aliases.add(value.removeprefix("api_football:"))
+        elif value.isdigit():
+            aliases.add(f"api_football:{value}")
+        return aliases
+
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
             fixture_reader = getattr(
@@ -1071,9 +1083,10 @@ class ReadModelService:
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
         scoped_reader = getattr(self.repository, "fixture_payload", None)
         if callable(scoped_reader):
-            scoped = scoped_reader(fixture_id)
-            if scoped is not None:
-                return cast(dict[str, Any], scoped)
+            for candidate in self._fixture_id_aliases(fixture_id) or {fixture_id}:
+                scoped = scoped_reader(candidate)
+                if scoped is not None:
+                    return cast(dict[str, Any], scoped)
             if self._bounded_public_request:
                 return None
         elif self._bounded_public_request:
@@ -1084,7 +1097,13 @@ class ReadModelService:
                 key = str(item.get("fixture", {}).get("id") or "")
                 if key:
                     self._fixture_payload_index_cache[key] = item
-        return self._fixture_payload_index_cache.get(fixture_id)
+                    for alias in self._fixture_id_aliases(key):
+                        self._fixture_payload_index_cache.setdefault(alias, item)
+        for candidate in self._fixture_id_aliases(fixture_id) or {fixture_id}:
+            item = self._fixture_payload_index_cache.get(candidate)
+            if item is not None:
+                return item
+        return None
 
     def _cached_future_market_observations(self) -> list[dict[str, Any]]:
         if self._future_market_observations_cache is None:
@@ -1124,9 +1143,19 @@ class ReadModelService:
             for row in self._cached_future_market_observations():
                 key = str(row.get("fixture_id") or "")
                 if key:
-                    grouped.setdefault(key, []).append(row)
+                    for alias in self._fixture_id_aliases(key):
+                        grouped.setdefault(alias, []).append(row)
             self._observations_by_fixture_cache = grouped
-        return self._observations_by_fixture_cache.get(fixture_id, [])
+        rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for alias in self._fixture_id_aliases(fixture_id) or {fixture_id}:
+            for row in self._observations_by_fixture_cache.get(alias, []):
+                identity = str(row.get("observation_id") or id(row))
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                rows.append(row)
+        return rows
 
     def _prime_observations_for_rows(self, rows: list[dict[str, Any]]) -> None:
         reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
@@ -1145,7 +1174,9 @@ class ReadModelService:
             self._future_market_observations_cache = []
             self._observations_by_fixture_cache = {}
             return
-        allowed = set(fixture_ids)
+        allowed = {
+            alias for fixture_id in fixture_ids for alias in self._fixture_id_aliases(fixture_id)
+        }
         if any(str(row.get("fixture_id") or "") not in allowed for row in observations):
             self._future_market_observations_cache = []
             self._observations_by_fixture_cache = {}
@@ -1161,7 +1192,8 @@ class ReadModelService:
             rows = cast(list[dict[str, Any]], reader([fixture_id]))
         except Exception:
             return []
-        if any(str(row.get("fixture_id") or "") != fixture_id for row in rows):
+        aliases = self._fixture_id_aliases(fixture_id)
+        if any(str(row.get("fixture_id") or "") not in aliases for row in rows):
             return []
         return rows
 
@@ -1976,14 +2008,19 @@ class ReadModelService:
                 fixture_id,
                 blocker="FIXTURE_SCOPED_OBSERVATION_READ_FAILED",
             )
-        if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
+        aliases = request_service._fixture_id_aliases(fixture_id)
+        if any(str(row.get("fixture_id") or "") not in aliases for row in observations):
             return request_service._bounded_analysis_card_failure(
                 fixture_id,
                 blocker="FIXTURE_SCOPED_OBSERVATION_CROSS_FIXTURE_ROWS",
             )
         request_service._future_market_observations_cache = list(observations)
-        request_service._observations_by_fixture_cache = {fixture_id: list(observations)}
-        card = request_service.analysis_card(fixture_id)
+        request_service._observations_by_fixture_cache = {
+            alias: list(observations) for alias in aliases
+        }
+        card = request_service._analysis_card_from_cached_fixture_payload(fixture_id)
+        if card is None:
+            card = request_service.analysis_card(fixture_id)
         if card is None:
             return None
         return request_service._project_public_analysis_decision_contract(
@@ -3378,9 +3415,17 @@ class ReadModelService:
         output: IndependentXgPoissonOutput | None = None,
     ) -> dict[str, Any]:
         if status != "READY" or output is None:
+            blocker = (
+                "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
+                if xg_sample_status in {"PARTIAL_HISTORY", "INSUFFICIENT_HISTORY"}
+                else "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
+                if xg_sample_status == "PROVIDER_EMPTY_OR_UNAVAILABLE"
+                else None
+            )
             return {
                 "status": "INSUFFICIENT_INDEPENDENT_XG",
                 "reason": reason or xg_sample_status or "XG_DATA_UNAVAILABLE",
+                "blocker": blocker,
                 "source": None,
                 "model_version": INDEPENDENT_XG_POISSON_MODEL_VERSION,
                 "lambda_home": None,
@@ -4044,6 +4089,8 @@ class ReadModelService:
                 "statistics_captured_at": statistics_status["captured_at"],
             }
         }
+        if xg_status.get("blocker"):
+            summary["data_readiness"]["xg_blocker"] = xg_status["blocker"]
         quote_identity_audit = {
             key: evaluate_quote_freshness(
                 project_quote_identity(
@@ -4131,14 +4178,19 @@ class ReadModelService:
         away_match_count = self._team_xg_match_count(team_id=away_team_id, before=kickoff)
         if home_snapshot_ready and away_snapshot_ready:
             status = "READY"
+            blocker = None
         elif home_snapshot_ready or away_snapshot_ready:
             status = "PARTIAL_HISTORY"
+            blocker = "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
         elif home_match_count or away_match_count:
             status = "INSUFFICIENT_HISTORY"
+            blocker = "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
         else:
             status = "PROVIDER_EMPTY_OR_UNAVAILABLE"
+            blocker = "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
         return {
             "status": status,
+            "blocker": blocker,
             "home_match_count": home_match_count,
             "away_match_count": away_match_count,
             "snapshot_count": len(snapshots),
