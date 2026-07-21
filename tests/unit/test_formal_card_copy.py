@@ -124,6 +124,12 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "只读决策台" in boss_view
     assert "Boss View</button>" not in boss_view
     assert "T{minutesUntil" not in boss_view
+    assert "验证 ledger 已记录" in boss_view
+    assert "待写入验证 ledger" in boss_view
+    assert "capture_identity_hash" in boss_view
+    assert "分析推荐已形成，但尚未写入验证 ledger" in boss_view
+    assert "真实前向卡已进入 ledger" not in boss_view
+    assert "已纳入验证追踪" not in boss_view
     assert "本场尚未产生验证推荐" in boss_view
     assert "只有赛前形成分析参考或正式推荐" in boss_view
     assert "最后刷新" not in boss_view

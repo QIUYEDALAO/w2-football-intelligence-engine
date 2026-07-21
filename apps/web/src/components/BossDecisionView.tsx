@@ -947,13 +947,16 @@ export function EvidencePanel({
   cards,
   selectedCard,
   settledCount,
+  performance,
 }: {
   cards: DashboardDayViewCard[];
   selectedCard?: DashboardDayViewCard;
   settledCount: number;
+  performance?: DashboardPerformance;
 }) {
   const reasons = reasonSummary(cards);
   if (selectedCard) {
+    const ledgerState = validationLedgerState(selectedCard, performance);
     return (
       <aside className="evidence-panel" aria-label="选中比赛证据预览">
         <span>选中比赛证据</span>
@@ -969,16 +972,8 @@ export function EvidencePanel({
         </div>
         <div className="tracking-note">
           <span>赛后追踪</span>
-          <strong>
-            {selectedCard.outcome_tracked
-              ? "已纳入验证追踪"
-              : "本场尚未产生验证推荐"}
-          </strong>
-          <small>
-            {selectedCard.outcome_tracked
-              ? "结算后会进入赛后验证，并计入对应联赛样本。"
-              : "只有赛前形成分析参考或正式推荐，完场后才计入验证样本。"}
-          </small>
+          <strong>{ledgerState.label}</strong>
+          <small>{ledgerState.detail}</small>
         </div>
       </aside>
     );
@@ -1240,6 +1235,39 @@ function ScheduleSection({
   );
 }
 
+function validationLedgerState(
+  card: DashboardDayViewCard,
+  performance?: DashboardPerformance,
+): { status: string; label: string; detail: string } {
+  const details =
+    performance?.forward_ledger?.validation_pending_status?.details ?? [];
+  const pending = details.find(
+    (item) =>
+      item.fixture_id === card.fixture_id &&
+      item.recommendation_scope === "VALIDATION" &&
+      Boolean(item.capture_identity_hash),
+  );
+  if (pending) {
+    return {
+      status: "VALIDATION_CAPTURE_PENDING",
+      label: "验证 ledger 已记录",
+      detail: `待完场结算 · capture ${shortSha(pending.capture_identity_hash)}`,
+    };
+  }
+  if (!card.outcome_tracked) {
+    return {
+      status: "VALIDATION_NOT_CAPTURED",
+      label: "本场尚未产生验证推荐",
+      detail: "只有赛前形成分析参考或正式推荐，完场后才计入验证样本。",
+    };
+  }
+  return {
+    status: "VALIDATION_CAPTURE_MISSING",
+    label: "待写入验证 ledger",
+    detail: "已形成分析推荐资格，但尚未看到真实 capture identity。",
+  };
+}
+
 function TrustStrip({
   performance,
   leagueRows,
@@ -1303,12 +1331,15 @@ function VerificationPreview({
   performance?: DashboardPerformance;
 }) {
   const forwardLedger = performance?.forward_ledger;
+  const legacySettled = settledMatches(matches).slice(0, 5);
   if (forwardLedger) {
     const cohort = forwardLedger.performance_cohort;
+    const validationCount = cohort.validation_count;
     const settled = cohort.eligible_count;
     const pending = cohort.pending_count;
     const outcomes = cohort.outcomes;
     const decisive = outcomes.decisive_count;
+    const hasValidationLedger = validationCount > 0 || settled > 0 || pending > 0;
     return (
       <section className="verification-preview" aria-label="赛后验证预览">
         <header>
@@ -1331,48 +1362,56 @@ function VerificationPreview({
               </small>
             </div>
           </div>
-        ) : (
+        ) : hasValidationLedger ? (
           <p>
-            真实前向卡已进入 ledger,但 outcome
-            仍在积累中；暂不显示命中率,不制造战绩。
+            验证推荐已写入 ledger，当前待结算 {pending} 场；暂不显示命中率，不制造战绩。
           </p>
+        ) : legacySettled.length ? (
+          <LegacyVerificationRows matches={legacySettled} />
+        ) : (
+          <p>分析推荐已形成，但尚未写入验证 ledger。</p>
         )}
       </section>
     );
   }
-  const settled = settledMatches(matches).slice(0, 5);
   return (
     <section className="verification-preview" aria-label="赛后验证预览">
       <header>
         <span>赛后验证</span>
         <strong>
-          {settled.length ? `最近 ${settled.length} 条` : "暂无结算样本"}
+          {legacySettled.length ? `最近 ${legacySettled.length} 条` : "暂无结算样本"}
         </strong>
       </header>
-      {settled.length ? (
-        <div className="verification-list">
-          {settled.map((match) => (
-            <div key={match.fixture_id}>
-              <span>
-                {fmtTime(match.kickoff_utc)} ·{" "}
-                {translateCompetition(match.competition_name)}
-              </span>
-              <strong>
-                {translateTeam(match.home_team_name)} vs{" "}
-                {translateTeam(match.away_team_name)}
-              </strong>
-              <small>
-                {settlementLabel(match.validation?.settlement)} ·{" "}
-                {match.result?.final_score ?? "比分待同步"} ·{" "}
-                {match.validation?.closing_line_value ?? "CLV 待接入"}
-              </small>
-            </div>
-          ))}
-        </div>
+      {legacySettled.length ? (
+        <LegacyVerificationRows matches={legacySettled} />
       ) : (
         <p>完场并结算后，推荐会在这里显示命中、走水、作废和原因码。</p>
       )}
     </section>
+  );
+}
+
+function LegacyVerificationRows({ matches }: { matches: DashboardMatchCard[] }) {
+  return (
+    <div className="verification-list">
+      {matches.map((match) => (
+        <div key={match.fixture_id}>
+          <span>
+            {fmtTime(match.kickoff_utc)} ·{" "}
+            {translateCompetition(match.competition_name)}
+          </span>
+          <strong>
+            {translateTeam(match.home_team_name)} vs{" "}
+            {translateTeam(match.away_team_name)}
+          </strong>
+          <small>
+            {settlementLabel(match.validation?.settlement)} ·{" "}
+            {match.result?.final_score ?? "比分待同步"} ·{" "}
+            {match.validation?.closing_line_value ?? "CLV 待接入"}
+          </small>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1384,7 +1423,7 @@ function LeaguePerformancePreview({
   performance?: DashboardPerformance;
 }) {
   const forwardLedger = performance?.forward_ledger;
-  if (forwardLedger) {
+  if (forwardLedger && forwardLedger.performance_cohort.validation_count > 0) {
     const visibleForwardRows = forwardLedger.performance_cohort.by_league;
     return (
       <section className="league-performance-preview" aria-label="联赛表现预览">
@@ -1688,6 +1727,7 @@ export function BossDecisionView({
             cards={visibleCards}
             selectedCard={selectedCard}
             settledCount={settledCount}
+            performance={performance}
           />
           <VerificationPreview
             matches={legacyMatches}

@@ -35,6 +35,32 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     assert payload["mock_data"] is False
 
 
+def test_forward_ledger_pending_details_expose_capture_identity(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-v3",
+            "decision_hash": "decision-hash-v3",
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    detail = payload["validation_pending_status"]["details"][0]
+    assert detail["fixture_id"] == "fixture-1"
+    assert detail["capture_identity_hash"] == "capture-hash-v3"
+    assert detail["card_hash"] == "card-fixture-1"
+    assert detail["decision_hash"] == "decision-hash-v3"
+    assert detail["recommendation_scope"] == "VALIDATION"
+
+
 def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) -> None:
     root = tmp_path / "forward_outcome_ledger"
     root.mkdir()

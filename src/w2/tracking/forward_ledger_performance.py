@@ -798,6 +798,10 @@ def _pending_status_summary(
             {
                 "fixture_id": fixture_id,
                 "category": category,
+                "capture_identity_hash": capture.get("capture_identity_hash"),
+                "card_hash": capture.get("card_hash"),
+                "decision_hash": capture.get("decision_hash"),
+                "recommendation_scope": capture.get("recommendation_scope"),
                 "last_checked_at_utc": state.get("checked_at_utc"),
                 "next_check_at_utc": state.get("next_check_at_utc"),
             }

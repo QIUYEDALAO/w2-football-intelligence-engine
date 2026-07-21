@@ -89,7 +89,8 @@ def build_forward_outcome_records(
             # accumulate without making a recommendation visible or formal.
             shadow_picks = _shadow_picks(card)
         for shadow_pick in shadow_picks or [None]:
-            recommendation_scope = _recommendation_scope(card, shadow_pick)
+            capture_pick = _capture_pick(card, shadow_pick)
+            recommendation_scope = _recommendation_scope(card, capture_pick)
             fixture_identity = _fixture_identity(card)
             quote_provenance = _quote_provenance(card)
             artifact_provenance = _artifact_provenance(card)
@@ -97,7 +98,7 @@ def build_forward_outcome_records(
             capture_identity = {
                 "fixture_identity": fixture_identity,
                 "recommendation_scope": recommendation_scope,
-                "pick": _mapping_copy(card.get("pick")),
+                "pick": _mapping_copy(capture_pick),
                 "secondary_picks": _secondary_picks(card),
                 "shadow_pick": shadow_pick,
                 "quote_provenance": quote_provenance,
@@ -130,7 +131,7 @@ def build_forward_outcome_records(
                     "probability_source": _optional_text(card.get("probability_source")),
                     "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
                     "shadow_pick": shadow_pick,
-                    "pick": _mapping_copy(shadow_pick),
+                    "pick": _mapping_copy(capture_pick),
                     "secondary_picks": _secondary_picks(card),
                     "non_pick": _mapping_copy(card.get("non_pick")),
                     "current_odds": _market_odds_summary(card.get("current_odds")),
@@ -832,20 +833,71 @@ def _market_odds_summary(value: Any) -> dict[str, Any]:
     return summary
 
 
-def _recommendation_scope(card: Mapping[str, Any], shadow_pick: Mapping[str, Any] | None) -> str:
-    if shadow_pick and shadow_pick.get("shadow") is True:
+def _capture_pick(
+    card: Mapping[str, Any],
+    shadow_pick: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if shadow_pick is not None:
+        return _normalize_pick_for_capture(card, shadow_pick)
+    pick = card.get("pick")
+    if not isinstance(pick, Mapping):
+        return None
+    return _normalize_pick_for_capture(card, pick)
+
+
+def _normalize_pick_for_capture(
+    card: Mapping[str, Any],
+    pick: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = _mapping_copy(pick)
+    market = _text(normalized.get("market")).upper()
+    selection = _normalized_capture_selection(market, normalized.get("selection"))
+    if selection:
+        normalized["selection"] = selection
+        quote = _quote(
+            {"current_odds": _market_odds_summary(card.get("current_odds"))},
+            market,
+            selection,
+        )
+        if quote is not None:
+            line, price = quote
+            normalized.setdefault("line", line)
+            normalized.setdefault("entry_line", line)
+            if normalized.get("odds") is None:
+                normalized["odds"] = price
+            normalized.setdefault("entry_price", price)
+    return normalized
+
+
+def _normalized_capture_selection(market: str, selection: Any) -> str:
+    raw = _text(selection).upper()
+    if market == "ASIAN_HANDICAP":
+        if raw in {"HOME", "HOME_AH"}:
+            return "HOME_AH"
+        if raw in {"AWAY", "AWAY_AH"}:
+            return "AWAY_AH"
+    if market == "TOTALS" and raw in {"OVER", "UNDER"}:
+        return raw
+    return raw
+
+
+def _recommendation_scope(card: Mapping[str, Any], capture_pick: Mapping[str, Any] | None) -> str:
+    if capture_pick and capture_pick.get("shadow") is True:
         return "SHADOW"
     tier = _text(card.get("decision_tier"))
-    pick = card.get("pick")
-    if tier == "RECOMMEND" and card.get("lock_eligible") is True and isinstance(pick, Mapping):
+    if (
+        tier == "RECOMMEND"
+        and card.get("lock_eligible") is True
+        and isinstance(capture_pick, Mapping)
+    ):
         return "OFFICIAL"
     if (
         tier == "ANALYSIS_PICK"
         and card.get("outcome_tracked") is True
-        and isinstance(pick, Mapping)
+        and isinstance(capture_pick, Mapping)
     ):
         return "VALIDATION"
-    if shadow_pick:
+    if capture_pick:
         return "SHADOW"
     return "NONE"
 

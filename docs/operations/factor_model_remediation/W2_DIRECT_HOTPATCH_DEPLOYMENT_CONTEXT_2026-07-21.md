@@ -428,6 +428,45 @@ docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARI
 docs/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.md
 ```
 
+## Follow-up instruction: real forward validation restoration
+
+User supplied a new external review finding after the analysis-chain package:
+
+```text
+PREMATCH_ANALYSIS_CHAIN: PASS
+ANALYSIS_PICK: 5
+NO_EDGE: 3
+VALIDATION_ELIGIBILITY: 5
+VALIDATION_LEDGER_CAPTURE: NOT MATERIALIZED
+VALIDATION_PENDING: 0 should become 5
+POST_MATCH_SETTLEMENT: NOT DUE
+DASHBOARD_VALIDATION_DISPLAY: DEFECT
+PR #370: KEEP DRAFT
+```
+
+Scope for the follow-up:
+
+```text
+Do not modify model factors, weights, thresholds, quote freshness.
+Do not enable formal, lock, production, continuous provider refresh, or scheduler.
+Audit real shared ledger before changing anything.
+Materialize validation captures for current ANALYSIS_PICK fixtures only.
+Preserve recommendations=0, locks=0, OFFICIAL=0, formal settlements=0.
+Fix dashboard copy so outcome_tracked=true is not presented as ledger capture.
+Keep legacy settled validation visible when forward ledger exists but is empty.
+```
+
+Expected target state after capture:
+
+```text
+validation_fixture_count=5
+performance_cohort.validation_count=5
+performance_cohort.pending_count=5
+performance_cohort.eligible_count=0
+validation_settled_fixture_count=0
+NO_EDGE fixtures may remain SHADOW only
+```
+
 ## PR #370 final evidence/provenance correction instruction
 
 Latest external review accepts the analysis recommendation chain and automated future

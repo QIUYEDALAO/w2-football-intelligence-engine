@@ -726,6 +726,10 @@ export interface ForwardLedgerPerformance {
     details?: Array<{
       fixture_id: string;
       category: string;
+      capture_identity_hash?: string | null;
+      card_hash?: string | null;
+      decision_hash?: string | null;
+      recommendation_scope?: string | null;
       last_checked_at_utc?: string | null;
       next_check_at_utc?: string | null;
     }>;

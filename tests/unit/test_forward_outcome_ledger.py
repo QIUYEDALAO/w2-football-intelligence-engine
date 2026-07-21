@@ -144,6 +144,60 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
 
 
+def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.update(  # type: ignore[union-attr]
+        {
+            "decision_tier": "ANALYSIS_PICK",
+            "reason_code": "ANALYSIS_ONLY",
+            "outcome_tracked": True,
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "+1.25",
+                "odds": None,
+            },
+            "recommendation_decision_v3": {
+                "schema_version": "w2.recommendation_decision.v3",
+                "outcome": "ANALYSIS_PICK",
+                "selected_candidate": {
+                    "market": "ASIAN_HANDICAP",
+                    "selection": "AWAY",
+                    "line": "+1.25",
+                    "odds": None,
+                },
+                "decision_hash": "decision-hash",
+            },
+        }
+    )
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert payload["written"] == 1
+    assert rows[0]["recommendation_scope"] == "VALIDATION"
+    assert rows[0]["outcome_tracked"] is True
+    assert rows[0]["lock_eligible"] is False
+    assert rows[0]["pick"]["selection"] == "AWAY_AH"
+    assert rows[0]["pick"]["entry_line"] == "+1.25"
+    assert rows[0]["pick"]["entry_price"] == 1.93
+    assert rows[0]["pick"]["odds"] == 1.93
+
+
 def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
     tmp_path: Path,
 ) -> None:

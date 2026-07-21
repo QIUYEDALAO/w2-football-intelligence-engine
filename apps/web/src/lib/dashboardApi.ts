@@ -276,6 +276,12 @@ function normalizePerformance(payload: unknown): DashboardPerformance {
                     return {
                       fixture_id: textValue(detail.fixture_id),
                       category: textValue(detail.category),
+                      capture_identity_hash:
+                        textValue(detail.capture_identity_hash) || null,
+                      card_hash: textValue(detail.card_hash) || null,
+                      decision_hash: textValue(detail.decision_hash) || null,
+                      recommendation_scope:
+                        textValue(detail.recommendation_scope) || null,
                       last_checked_at_utc:
                         textValue(detail.last_checked_at_utc) || null,
                       next_check_at_utc:
