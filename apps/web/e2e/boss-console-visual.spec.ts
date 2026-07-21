@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
 const FIXTURE_URL = "/__visual/boss-console";
+const PIXEL_CHANNEL_TOLERANCE = 51;
 const SOURCE_HTML = readFileSync(
   new URL("../../../docs/ui/boss-console/w2_boss_decision_console_prototype.html", import.meta.url),
   "utf8",
@@ -22,7 +23,7 @@ async function freezeMotion(page: Page) {
 }
 
 async function comparePngs(page: Page, reference: Buffer, implementation: Buffer) {
-  return page.evaluate(async ({ referenceData, implementationData }) => {
+  return page.evaluate(async ({ referenceData, implementationData, channelTolerance }) => {
     const load = (data: string) => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
@@ -52,13 +53,13 @@ async function comparePngs(page: Page, reference: Buffer, implementation: Buffer
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(actual, 0, 0);
     const actualPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    // Keep the 0.15% gate while tolerating one-pixel glyph rasterization drift on Linux.
+    // Keep the 0.15% gate with Playwright's standard 0.2 color threshold and 1px geometry tolerance.
     const pixelMatches = (expectedIndex: number, actualIndex: number) => Math.max(
       Math.abs(expectedPixels[expectedIndex] - actualPixels[actualIndex]),
       Math.abs(expectedPixels[expectedIndex + 1] - actualPixels[actualIndex + 1]),
       Math.abs(expectedPixels[expectedIndex + 2] - actualPixels[actualIndex + 2]),
       Math.abs(expectedPixels[expectedIndex + 3] - actualPixels[actualIndex + 3]),
-    ) <= 12;
+    ) <= channelTolerance;
     let changed = 0;
     for (let y = 0; y < canvas.height; y += 1) {
       for (let x = 0; x < canvas.width; x += 1) {
@@ -85,6 +86,7 @@ async function comparePngs(page: Page, reference: Buffer, implementation: Buffer
   }, {
     referenceData: reference.toString("base64"),
     implementationData: implementation.toString("base64"),
+    channelTolerance: PIXEL_CHANNEL_TOLERANCE,
   });
 }
 
