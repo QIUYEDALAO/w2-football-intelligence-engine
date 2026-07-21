@@ -588,3 +588,135 @@ scripts/deploy_stage7h_staging.sh now forwards PIP_INDEX_URL and UV_INDEX_URL
 only as remote build-process environment variables via sudo --preserve-env.
 They are not written to /opt/w2/shared/release.env.
 ```
+
+## Final exact-image deployment after as-of replay guard
+
+Final deployed PR head / implementation SHA:
+
+```text
+30941664f342bd072646f9eab2c6679fa2e91d50
+```
+
+Deployment result:
+
+```text
+/opt/w2/current -> /opt/w2/releases/30941664f342bd072646f9eab2c6679fa2e91d50
+api env W2_GIT_SHA=30941664f342bd072646f9eab2c6679fa2e91d50
+api image label revision=30941664f342bd072646f9eab2c6679fa2e91d50
+api image id=sha256:b9b150a00c988028aa30cb3b63bf0a15f2aabcc554ed51135e6cf72607339f22
+web meta web_git_sha=30941664f342bd072646f9eab2c6679fa2e91d50
+alembic current=head=0033_create_canonical_team_identity
+/ready=READY
+api=healthy
+worker=healthy
+web=healthy
+scheduler=stopped / exited
+```
+
+Runtime guard flags after deployment:
+
+```text
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+Controlled provider window after deployment:
+
+```text
+report=/app/runtime/reports/provider_future_refresh_exact_image_3094166_20260721T092645Z.json
+request_count=10
+remaining_quota=7221
+status=BLOCKED
+blocker=MatchdayRepositoryError
+```
+
+Interpretation:
+
+```text
+AUTOMATED_FUTURE_REFRESH_DEGRADED remains open.
+This did not start the scheduler and did not enable continuous provider calls.
+```
+
+Manual odds materialization from latest captured provider payloads:
+
+```text
+report=/app/runtime/reports/materialize_latest_odds_exact_image_3094166_20260721T092849Z.json
+fixtures=8
+materialized_fixture_status=all MATERIALIZED
+inserted_market_observations=2938
+rejected_rows=2458
+provider_calls=0
+latest_capture_window=2026-07-21T09:26:33Z..2026-07-21T09:26:45Z
+```
+
+Final fresh public read canary:
+
+```text
+report=/app/runtime/reports/final_exact_sha_public_read_canary_3094166_FRESH_20260721T092942Z.json
+fixtures=8
+public_read_iterations=20
+ANALYSIS_PICK=5
+WATCH=3
+zero_write_pass=true
+recommendation_lock_official_delta_zero=true
+```
+
+Per-fixture decision summary:
+
+```text
+1494224 WATCH
+1494218 ANALYSIS_PICK
+1494221 WATCH
+1494223 ANALYSIS_PICK
+1494217 ANALYSIS_PICK
+1494222 ANALYSIS_PICK
+1494219 WATCH
+1494220 ANALYSIS_PICK
+```
+
+For all 8 fixtures:
+
+```text
+lambda_uncertainty_status=ANALYSIS_READY
+lambda_uncertainty_method=empirical_xg_standard_error.v1
+lambda_sigma_home>0
+lambda_sigma_away>0
+AH model_probability / market_probability / delta / EV / uncertainty present
+OU model_probability / market_probability / delta / EV / uncertainty present
+```
+
+20-read zero-write table evidence:
+
+```text
+provider_request_logs count_delta=0 hash_unchanged=true
+raw_payload count_delta=0 hash_unchanged=true
+raw_payload_references count_delta=0 hash_unchanged=true
+future_market_observation count_delta=0 hash_unchanged=true
+matchday_endpoint_captures count_delta=0 hash_unchanged=true
+matchday_market_observations count_delta=0 hash_unchanged=true
+recommendations count_delta=0 hash_unchanged=true
+recommendation_locks count_delta=0 hash_unchanged=true
+forward_prediction_lock count_delta=0 hash_unchanged=true
+gate5_recommendation_lock_event count_delta=0 hash_unchanged=true
+shadow_strategy_event count_delta=0 hash_unchanged=true
+shadow_strategy_lock count_delta=0 hash_unchanged=true
+shadow_strategy_settlement count_delta=0 hash_unchanged=true
+settlements count_delta=0 hash_unchanged=true
+```
+
+Final status after this deployment:
+
+```text
+ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED
+LIVE_STAGING_CANARY_PASSED
+AS_OF_REPLAY_GUARD_CODE_DEPLOYED
+FINAL_EXACT_SHA_SAFETY_PARITY_PACKAGE_GENERATED
+AUTOMATED_FUTURE_REFRESH_DEGRADED
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
