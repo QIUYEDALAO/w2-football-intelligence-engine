@@ -2139,8 +2139,40 @@ class ReadModelService:
             "fixture_identity": deepcopy(artifact.payload["fixture_identity"]),
             "input_manifest": deepcopy(artifact.payload["input_manifest"]),
         }
+        if self._frozen_ah_side_line_conflict(card):
+            return self._fail_closed_public_analysis_card(
+                card,
+                blocker="AH_SIDE_LINE_IDENTITY_CONFLICT",
+            )
         self._enforce_non_pick_scoreline_invariant(card)
         return card
+
+    def _frozen_ah_side_line_conflict(self, card: dict[str, Any]) -> bool:
+        contract = card.get("decision_contract")
+        contract_mapping = contract if isinstance(contract, dict) else {}
+        pick = contract_mapping.get("pick") or card.get("pick")
+        if not isinstance(pick, dict) or str(pick.get("market") or "") != "ASIAN_HANDICAP":
+            return False
+        selection = str(pick.get("selection") or "").upper()
+        side = (
+            "away"
+            if selection.startswith("AWAY")
+            else "home"
+            if selection.startswith("HOME")
+            else None
+        )
+        current_odds = card.get("current_odds")
+        ah = current_odds.get("ah") if isinstance(current_odds, dict) else None
+        if side is None or not isinstance(ah, dict):
+            return False
+        selected_line = pick.get("line")
+        side_line = ah.get(f"{side}_line")
+        if selected_line is None or side_line is None:
+            return False
+        try:
+            return Decimal(str(selected_line)) != Decimal(str(side_line))
+        except Exception:
+            return True
 
     def _frozen_analysis_card_failure(
         self,

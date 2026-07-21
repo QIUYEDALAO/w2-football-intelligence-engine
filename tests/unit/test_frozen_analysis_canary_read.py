@@ -194,6 +194,55 @@ def test_legacy_frozen_heuristic_is_projected_as_signal_strength() -> None:
     assert card["frozen_artifact_provenance"]["artifact_hash"] == artifact.artifact_hash
 
 
+def test_frozen_ah_pick_with_opposite_side_line_fails_closed() -> None:
+    artifact = _artifact()
+    card = artifact.payload["analysis_card"]
+    card.update(
+        {
+            "decision": "ANALYSIS_PICK",
+            "decision_tier": "ANALYSIS_PICK",
+            "data_status": "READY",
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "0.75",
+                "odds": 1.9,
+            },
+            "current_odds": {
+                "ah": {
+                    "home_line": "0.75",
+                    "home_price": 1.88,
+                    "away_line": "-0.75",
+                    "away_price": 1.9,
+                }
+            },
+        }
+    )
+    card["decision_contract"].update(
+        {
+            "decision_tier": "ANALYSIS_PICK",
+            "data_status": "READY",
+            "pick": dict(card["pick"]),
+        }
+    )
+
+    result = ReadModelService(
+        repository=cast(Any, FrozenRepository(artifact))
+    ).public_analysis_card_bounded("1576804")
+
+    assert result is not None
+    assert result["decision_tier"] == "NOT_READY"
+    assert result["reason_code"] == "AH_SIDE_LINE_IDENTITY_CONFLICT"
+    assert result["pick"] is None
+    assert result["current_odds"] == {}
+    assert result["outcome_tracked"] is False
+    assert result["lock_eligible"] is False
+    assert result["recommendation_decision_v3"]["outcome"] == "NOT_READY"
+    assert result["recommendation_decision_v3"]["reason"]["code"] == (
+        "AH_SIDE_LINE_IDENTITY_CONFLICT"
+    )
+
+
 def test_canary_response_is_stable_for_sequential_and_concurrent_reads() -> None:
     repository = FrozenRepository(_artifact())
     service = ReadModelService(repository=cast(Any, repository))
