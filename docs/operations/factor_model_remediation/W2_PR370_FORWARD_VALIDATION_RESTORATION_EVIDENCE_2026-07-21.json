@@ -1,13 +1,13 @@
 {
   "schema_version": "w2.pr370.forward_validation_restoration_evidence.v1",
-  "generated_at_utc": "2026-07-21T12:08:00Z",
+  "generated_at_utc": "2026-07-21T12:18:00Z",
   "pr": {
     "number": 370,
     "state": "DRAFT",
-    "head_sha": "3a51102598e5b069343796f404053fb40aa66e2d",
+    "head_sha": "d2a7980ab5c2a6665b5dee6411a66733aacf0a7f",
     "ci": {
-      "run_id": 29828306469,
-      "url": "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/29828306469",
+      "run_id": 29828967011,
+      "url": "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/29828967011",
       "conclusion": "success",
       "checks": {
         "verify": "SUCCESS",
@@ -18,8 +18,8 @@
   },
   "staging": {
     "host": "118.196.30.136",
-    "current_release": "/opt/w2/releases/3a51102598e5b069343796f404053fb40aa66e2d",
-    "api_git_sha": "3a51102598e5b069343796f404053fb40aa66e2d",
+    "current_release": "/opt/w2/releases/d2a7980ab5c2a6665b5dee6411a66733aacf0a7f",
+    "api_git_sha": "d2a7980ab5c2a6665b5dee6411a66733aacf0a7f",
     "ready_status": "READY",
     "schema_status": "PASS",
     "services": {
@@ -53,7 +53,7 @@
     }
   ],
   "performance_report": {
-    "path": "/opt/w2/shared/runtime/reports/forward_ledger_performance_final_3a51102.json",
+    "path": "/opt/w2/shared/runtime/reports/forward_ledger_performance_final_d2a7980.json",
     "sha256": "8c924f6d12ad2a8fd1c9417631cbb6b9d86fa71c20ff96a4e6eb784eed9c8004"
   },
   "performance": {
@@ -110,8 +110,8 @@
   ],
   "dashboard_evidence": {
     "url": "http://118.196.30.136/",
-    "screenshot_path": "/tmp/w2_forward_validation_3a51102.png",
-    "screenshot_sha256": "3b90136662555dc42ac5748eced2ede1b9edad1037ebcd4294d52ed00e4fdb73",
+    "screenshot_path": "/tmp/w2_forward_validation_d2a7980.png",
+    "screenshot_sha256": "888e7a6df192ed3fd8ea8cb042a41cc01b10243d2481e9b55c05abe2a53acd3a",
     "observed_text": [
       "已出推荐 5",
       "验证推荐 5 场",

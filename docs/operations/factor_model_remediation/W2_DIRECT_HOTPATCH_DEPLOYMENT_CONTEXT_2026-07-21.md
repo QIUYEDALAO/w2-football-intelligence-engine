@@ -220,10 +220,10 @@ PASS
 Final staging evidence after exact-image redeploy:
 
 ```text
-implementation_sha=3a51102598e5b069343796f404053fb40aa66e2d
-github_actions_run=29828306469
+implementation_sha=d2a7980ab5c2a6665b5dee6411a66733aacf0a7f
+github_actions_run=29828967011
 github_actions_conclusion=success
-deployed_release=/opt/w2/releases/3a51102598e5b069343796f404053fb40aa66e2d
+deployed_release=/opt/w2/releases/d2a7980ab5c2a6665b5dee6411a66733aacf0a7f
 /ready=READY
 schema=PASS
 api=healthy

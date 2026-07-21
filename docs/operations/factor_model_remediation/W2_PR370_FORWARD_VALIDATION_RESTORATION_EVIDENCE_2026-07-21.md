@@ -1,6 +1,6 @@
 # W2 PR370 Forward Validation Restoration Evidence
 
-Generated at `2026-07-21T12:08:00Z`.
+Generated at `2026-07-21T12:18:00Z`.
 
 ## Scope
 
@@ -13,11 +13,11 @@ This did not change model factors, model weights, thresholds, or quote freshness
 ```text
 PR: #370
 PR state: Draft
-PR head: 3a51102598e5b069343796f404053fb40aa66e2d
-GitHub Actions run: 29828306469
+PR head: d2a7980ab5c2a6665b5dee6411a66733aacf0a7f
+GitHub Actions run: 29828967011
 GitHub Actions: verify=SUCCESS, staging-parity=SUCCESS, predeploy-e2e=SUCCESS
-Deployed staging release: /opt/w2/releases/3a51102598e5b069343796f404053fb40aa66e2d
-API SHA: 3a51102598e5b069343796f404053fb40aa66e2d
+Deployed staging release: /opt/w2/releases/d2a7980ab5c2a6665b5dee6411a66733aacf0a7f
+API SHA: d2a7980ab5c2a6665b5dee6411a66733aacf0a7f
 /ready: READY
 schema: PASS
 api/worker/web: healthy
@@ -52,7 +52,7 @@ sha256=b397156f0cd2b33fbce0911495ab2f683812556bb3aaeddbc76b44c0d61d5afd
 Performance report:
 
 ```text
-/opt/w2/shared/runtime/reports/forward_ledger_performance_final_3a51102.json
+/opt/w2/shared/runtime/reports/forward_ledger_performance_final_d2a7980.json
 sha256=8c924f6d12ad2a8fd1c9417631cbb6b9d86fa71c20ff96a4e6eb784eed9c8004
 ```
 
@@ -111,8 +111,8 @@ http://118.196.30.136/
 Screenshot:
 
 ```text
-/tmp/w2_forward_validation_3a51102.png
-sha256=3b90136662555dc42ac5748eced2ede1b9edad1037ebcd4294d52ed00e4fdb73
+/tmp/w2_forward_validation_d2a7980.png
+sha256=888e7a6df192ed3fd8ea8cb042a41cc01b10243d2481e9b55c05abe2a53acd3a
 ```
 
 Observed UI text:
