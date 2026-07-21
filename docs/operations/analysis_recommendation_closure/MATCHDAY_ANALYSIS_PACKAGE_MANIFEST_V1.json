@@ -1,5 +1,5 @@
 {
-  "artifact_hash": "adeae32102ead1cef61f96564a80e456ddeaa53c84e2e168da264aaad6054610",
+  "artifact_hash": "99d5e34de5e2a9869bf5ec8bbfdec0454c9c68ff213a9e501e2497768ddd7b87",
   "artifacts": [
     {
       "artifact_hash": "bcf38073af7651c78682e4c96527950632522b9bba3fe43d1cf7566c717932f4",
@@ -28,6 +28,10 @@
     {
       "artifact_hash": "99bd71c77fb7c397fe784930fb2b94ab6bcdf8503c9df8c5108afc866180bd9e",
       "path": "docs/operations/analysis_recommendation_closure/MATCHDAY_ANALYSIS_RECOMMENDATION_ACCEPTANCE_V1.json"
+    },
+    {
+      "artifact_hash": "b03ab0dbd268e731459e27e8d90cfa3b163c00c00c575233f3101f0a340f9f95",
+      "path": "docs/operations/analysis_recommendation_closure/MATCHDAY_ANALYSIS_STAGING_VALIDATION_V1.json"
     }
   ],
   "final_state": "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED",

@@ -1,6 +1,6 @@
 # Matchday Analysis Package Manifest V1
 
-Artifact hash: `adeae32102ead1cef61f96564a80e456ddeaa53c84e2e168da264aaad6054610`
+Artifact hash: `99d5e34de5e2a9869bf5ec8bbfdec0454c9c68ff213a9e501e2497768ddd7b87`
 
 |path|artifact_hash|
 |---|---|
@@ -11,3 +11,4 @@ Artifact hash: `adeae32102ead1cef61f96564a80e456ddeaa53c84e2e168da264aaad6054610
 |docs/operations/analysis_recommendation_closure/MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V2.json|fea3999a7984d9fc8908c42182ee9871c434eed34cd796da6293dc80ff35cb83|
 |docs/operations/analysis_recommendation_closure/MATCHDAY_V3_OUTCOME_REPORT_V2.json|967c11db07c4c76ea8cbbc0f45d9365205e04a62ad7afcac3e1c33524a469f0d|
 |docs/operations/analysis_recommendation_closure/MATCHDAY_ANALYSIS_RECOMMENDATION_ACCEPTANCE_V1.json|99bd71c77fb7c397fe784930fb2b94ab6bcdf8503c9df8c5108afc866180bd9e|
+|docs/operations/analysis_recommendation_closure/MATCHDAY_ANALYSIS_STAGING_VALIDATION_V1.json|b03ab0dbd268e731459e27e8d90cfa3b163c00c00c575233f3101f0a340f9f95|

@@ -1,0 +1,40 @@
+{
+  "always_retained": [
+    "FORMAL_DISABLED",
+    "LOCK_DISABLED",
+    "PRODUCTION_DISABLED",
+    "MANUAL_APPROVAL_REQUIRED"
+  ],
+  "artifact_hash": "b03ab0dbd268e731459e27e8d90cfa3b163c00c00c575233f3101f0a340f9f95",
+  "branch": "codex/w2-analysis-recommendation-closure",
+  "capability_manifest_sha": "59b78f997a8d55c9953c6667a3e35b9ec780aa98e9a2df36f684b3f0e0511422",
+  "final_state": "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED",
+  "implementation_sha": "166c573d432a5acc3e0f798f0df674a55ff0dbb4",
+  "materialization": {
+    "matchday_evidence_manifests_for_smoke_fixtures": 2,
+    "recommendation_locks": 0,
+    "recommendations": 0
+  },
+  "migration_current": "0032_create_matchday_fixture_identities",
+  "provider_safety": {
+    "provider_calls_during_validation": 0,
+    "worker_W2_PROVIDER_CALLS_DISABLED": "true",
+    "worker_W2_PROVIDER_SCHEDULER_ENABLED": "false"
+  },
+  "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+  "runtime": {
+    "api": "healthy",
+    "postgres": "healthy",
+    "redis": "healthy",
+    "scheduler": "stopped",
+    "web": "healthy",
+    "worker": "healthy"
+  },
+  "schema_version": "MATCHDAY_ANALYSIS_STAGING_VALIDATION_V1",
+  "staging_release_sha": "166c573d432a5acc3e0f798f0df674a55ff0dbb4",
+  "validated_at": "2026-07-21T00:09:40Z",
+  "validated_fixture_ids": [
+    "1494224",
+    "1494218"
+  ]
+}
