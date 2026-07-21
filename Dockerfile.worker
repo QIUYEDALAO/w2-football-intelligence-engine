@@ -14,11 +14,12 @@ ENV PATH=/app/.venv/bin:$PATH \
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md ./
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable --no-install-project
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
 COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-shadow-comparison-import
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \

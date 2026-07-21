@@ -188,3 +188,34 @@ KEEP_PROVIDER_CALLS_DISABLED
 KEEP_SCHEDULER_STOPPED
 KEEP_RECOMMENDATION_LOCK_PRODUCTION_DISABLED
 ```
+
+## First rebuild attempt and Dockerfile cache fix
+
+The first exact-image rebuild attempt was cancelled before replacing containers because the Python dependency installation layer was too slow on the staging VPS.
+
+Observed cause:
+
+```text
+Dockerfile copied src/apps/config before uv sync
+therefore every source-only change invalidated the dependency install layer
+uv sync had to redownload/reinstall runtime dependencies
+```
+
+Remediation applied before retrying the image deployment:
+
+```text
+Dockerfile.api
+Dockerfile.worker
+Dockerfile.migrations
+```
+
+The Python images now perform dependency installation before copying application source:
+
+```text
+COPY pyproject.toml uv.lock README.md ...
+RUN pip install uv && uv sync --no-dev --frozen --no-editable --no-install-project
+COPY source/config/apps/migrations ...
+RUN uv sync --no-dev --frozen --no-editable
+```
+
+This is a deployment build-layer fix only. It does not alter recommendation, market, factor, provider, lock, or production business logic.

@@ -14,10 +14,11 @@ ENV PATH=/app/.venv/bin:$PATH \
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md alembic.ini ./
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable --no-install-project
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/python && test -x /app/.venv/bin/alembic
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \

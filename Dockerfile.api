@@ -14,6 +14,7 @@ ENV PATH=/app/.venv/bin:$PATH \
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
 COPY pyproject.toml uv.lock README.md ./
+RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable --no-install-project
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
@@ -38,7 +39,7 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/lmm_materialize_stored_lineups.py \
      scripts/materialize_analysis_card_canary.py \
      ./scripts/
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-gate5-preflight
 RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_market_timeline.py \
