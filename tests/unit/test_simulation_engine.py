@@ -78,7 +78,8 @@ def test_balanced_inputs_stay_near_pickem_and_deterministic() -> None:
     assert first.fair_ah is not None and abs(first.fair_ah) <= 0.25
     assert first.as_dict() == second.as_dict()
     assert first.model_version == "w2.formal.exact_dc_poisson.v1"
-    assert first.calibration["seed_policy"] == "unused_exact_solution"
+    assert first.calibration["seed_policy"] == "deterministic_score_matrix_sampling.v1"
+    assert first.calibration["simulations_completed"] == 10_000
 
 
 def test_exact_solution_does_not_depend_on_fixture_seed() -> None:
@@ -90,7 +91,11 @@ def test_exact_solution_does_not_depend_on_fixture_seed() -> None:
     assert first.lambda_away == second.lambda_away
     assert first.fair_ah == second.fair_ah
     assert first.fair_ou == second.fair_ou
-    assert first.scoreline_picks == second.scoreline_picks
+    assert first.score_matrix_summary["distribution"] == second.score_matrix_summary["distribution"]
+    assert first.score_matrix_summary["score_matrix_hash"] == second.score_matrix_summary[
+        "score_matrix_hash"
+    ]
+    assert sum(item["sample_count"] for item in first.scoreline_picks) < 10_000
 
 
 def test_lambda_uncertainty_defaults_to_exact_solution_and_thickens_tails() -> None:
@@ -102,7 +107,9 @@ def test_lambda_uncertainty_defaults_to_exact_solution_and_thickens_tails() -> N
         inputs(fixture_id="sigma-positive", lambda_sigma_home=0.45, lambda_sigma_away=0.45)
     )
 
-    assert exact.scoreline_picks == explicit_zero.scoreline_picks
+    assert exact.score_matrix_summary["distribution"] == explicit_zero.score_matrix_summary[
+        "distribution"
+    ]
     assert exact.calibration["lambda_uncertainty_method"] == "none"
     assert uncertain.calibration["lambda_uncertainty_method"] == "deterministic_three_point"
     exact_tail = sum(

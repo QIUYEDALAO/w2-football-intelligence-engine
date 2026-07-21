@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { kickoffPresentation } from "../src/lib/matchTime";
 
 type Scenario =
   | "READY"
@@ -174,6 +175,50 @@ function dayView(scenario: Scenario) {
               probability_label: "8%",
             },
           ],
+          scoreline_projection: {
+            schema_version: "w2.scoreline_projection.v1",
+            status: "READY",
+            simulation_method: "seeded_joint_score_sampling",
+            simulations_requested: 10000,
+            simulations_completed: 10000,
+            seed: 370,
+            consistent_sample_count: 6417,
+            consistent_sample_rate: 0.6417,
+            consistency_status: "PASS",
+            decision_hash: `hash-${scenario}`,
+            top3: [
+              {
+                scoreline: "1-0",
+                home_goals: 1,
+                away_goals: 0,
+                sample_count: 1130,
+                unconditional_probability: 0.113,
+                conditional_probability: 0.1761,
+                probability: 0.113,
+                probability_label: "11.3%",
+              },
+              {
+                scoreline: "2-0",
+                home_goals: 2,
+                away_goals: 0,
+                sample_count: 980,
+                unconditional_probability: 0.098,
+                conditional_probability: 0.1527,
+                probability: 0.098,
+                probability_label: "9.8%",
+              },
+              {
+                scoreline: "2-1",
+                home_goals: 2,
+                away_goals: 1,
+                sample_count: 870,
+                unconditional_probability: 0.087,
+                conditional_probability: 0.1356,
+                probability: 0.087,
+                probability_label: "8.7%",
+              },
+            ],
+          },
         },
         scoreline_readiness: { status: "READY", source: "formal_simulation" },
         scoreline_simulations: 10000,
@@ -334,6 +379,12 @@ test("READY renders the unified pick and verified analysis-card", async ({
   await expect(row).toContainText("分析盘口：让球 主 -0.5 @1.91");
   await expect(row).toContainText("模型比分 Top 3：1-0 / 2-0 / 2-1");
   await expect(row).not.toContainText("1万次模拟");
+  await expect(page.locator(".scoreline-projection-panel")).toContainText(
+    "10,000 次模拟",
+  );
+  await expect(page.locator(".scoreline-projection-panel")).toContainText(
+    "一致样本 6,417 / 10,000",
+  );
   await expect(page.locator(".boss-command-meta")).toContainText("分析建议 1");
   await expect(page.locator(".boss-command-meta")).toContainText(
     "页面更新 18:00",
@@ -390,13 +441,138 @@ test("READY renders the unified pick and verified analysis-card", async ({
 test("all qualifying recommendations remain visible without a top-three cap", async ({
   page,
 }) => {
-  await installRoutes(page, "READY", 4);
+  await installRoutes(page, "READY", 5);
   await page.goto("/");
 
   await expect(
     page.locator("article.decision-row").filter({ hasText: "正式可锁" }),
-  ).toHaveCount(4);
-  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 4");
+  ).toHaveCount(5);
+  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 5");
+});
+
+test("30 fixtures remain reachable through the desktop schedule viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await installRoutes(page, "READY", 30);
+  await page.goto("/");
+
+  const rows = page.locator("article.decision-row");
+  await expect(rows).toHaveCount(30);
+  const board = page.locator(".schedule-board");
+  const geometry = await board.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+
+  const last = rows.filter({ hasText: "READY Home 30" });
+  await last.scrollIntoViewIfNeeded();
+  await last.locator("button").click();
+  await expect(last).toHaveClass(/is-selected/);
+  await expect(page.locator(".evidence-panel")).toContainText(
+    "READY Home 30 vs READY Away 30",
+  );
+  await expect(page.locator(".schedule-date-group")).toContainText("30场");
+});
+
+test("15 fixtures use natural document scrolling on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installRoutes(page, "READY", 15);
+  await page.goto("/");
+
+  await expect(page.locator("article.decision-row")).toHaveCount(15);
+  const geometry = await page.locator(".schedule-board").evaluate((element) => ({
+    overflowY: getComputedStyle(element).overflowY,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(geometry.overflowY).toBe("visible");
+  expect(geometry.clientHeight).toBe(geometry.scrollHeight);
+  await page
+    .locator("article.decision-row")
+    .filter({ hasText: "READY Home 15" })
+    .scrollIntoViewIfNeeded();
+});
+
+test("Shanghai date-first clock advances and handles year boundary and match states", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-12-31T12:00:00Z") });
+  await installRoutes(page, "STALE");
+  await page.route("**/v1/dashboard/day-view?**", async (route) => {
+    const payload = dayView("STALE");
+    const template = payload.cards[0];
+    payload.cards = [
+      {
+        ...template,
+        fixture_id: "fixture-today",
+        home_team_name: "Today Home",
+        away_team_name: "Today Away",
+        kickoff_utc: "2026-12-31T12:45:00Z",
+      },
+      {
+        ...template,
+        fixture_id: "fixture-tomorrow",
+        home_team_name: "Tomorrow Home",
+        away_team_name: "Tomorrow Away",
+        kickoff_utc: "2027-01-01T00:30:00Z",
+      },
+      {
+        ...template,
+        fixture_id: "fixture-live",
+        home_team_name: "Live Home",
+        away_team_name: "Live Away",
+        kickoff_utc: "2026-12-31T10:57:00Z",
+        status: "LIVE",
+      },
+      {
+        ...template,
+        fixture_id: "fixture-finished",
+        home_team_name: "Finished Home",
+        away_team_name: "Finished Away",
+        kickoff_utc: "2026-12-30T12:00:00Z",
+        status: "FT",
+      },
+      {
+        ...template,
+        fixture_id: "fixture-invalid",
+        home_team_name: "Invalid Home",
+        away_team_name: "Invalid Away",
+        kickoff_utc: "invalid-time",
+      },
+    ];
+    payload.counts.total = payload.cards.length;
+    await json(route, payload);
+  });
+  await page.goto("/");
+
+  const today = page.locator("article.decision-row").filter({ hasText: "Today Home" });
+  await expect(today).toContainText("今天 20:45");
+  await expect(today).toContainText("还有 45 分钟");
+  await page.clock.fastForward(60_000);
+  await expect(today).toContainText("还有 44 分钟");
+
+  const tomorrow = page
+    .locator("article.decision-row")
+    .filter({ hasText: "Tomorrow Home" });
+  await expect(tomorrow).toContainText("明天 08:30");
+  await expect(tomorrow).toContainText("01-01 周五");
+  await expect(
+    page.locator("article.decision-row").filter({ hasText: "Live Home" }),
+  ).toContainText("进行中 64′");
+  expect(
+    kickoffPresentation(
+      { kickoff_utc: "2026-12-30T12:00:00Z", status: "FT" },
+      new Date("2026-12-31T12:01:00Z"),
+    ),
+  ).toEqual({ primary: "完场", secondary: "12-30 20:00" });
+  expect(
+    kickoffPresentation(
+      { kickoff_utc: "invalid-time", status: "NS" },
+      new Date("2026-12-31T12:01:00Z"),
+    ),
+  ).toEqual({ primary: "时间待定", secondary: "无有效时间" });
 });
 
 test("stored early odds remain visible as reference while waiting for the prematch refresh", async ({
@@ -462,7 +638,7 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
       performance: {
         forward_ledger: {
           schema_version: "w2.forward_ledger_performance.v3",
-          validation_fixture_count: 23,
+          validation_fixture_count: 26,
           validation_settled_fixture_count: 23,
           canonical_settled_fixture_count: 16,
           canonical_excluded_count: 7,
@@ -475,12 +651,12 @@ test("post-match validation uses one canonical cohort at desktop and 824px", asy
             hit_rate: 11 / 14,
           },
           performance_cohort: {
-            validation_count: 23,
+            validation_count: 26,
             processed_count: 23,
             eligible_count: 16,
             excluded_count: 7,
             recovered_count: 4,
-            pending_count: 0,
+            pending_count: 3,
             integrity_status: "PASS",
             outcomes: {
               settled_sample_count: 16,

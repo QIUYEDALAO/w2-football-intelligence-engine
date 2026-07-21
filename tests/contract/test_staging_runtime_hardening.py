@@ -83,7 +83,7 @@ def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
     assert "python3 scripts/check_w2_stage7h.py" in text
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
-    assert "http://127.0.0.1/meta.json" in text
+    assert "http://127.0.0.1:18080/meta.json" in text
     assert "docker builder prune -f" in text
     assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
 

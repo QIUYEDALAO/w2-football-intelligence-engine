@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   fmtTime,
   formatLine,
@@ -7,6 +7,13 @@ import {
   translateTeam,
 } from "../lib/formatters";
 import { asRecord, textValue } from "../lib/normalize";
+import {
+  dateGroupLabel,
+  isSameShanghaiDate,
+  kickoffPresentation,
+  minutesUntil,
+  shanghaiDateKey,
+} from "../lib/matchTime";
 import type {
   DashboardDayView,
   DashboardDayViewCard,
@@ -234,11 +241,12 @@ function scorelineSimulationSummary(card: DashboardDayViewCard): string {
     }
     return "尚未形成分析盘口，暂无模型比分参考";
   }
-  const scores = card.scoreline_reference?.direction_top3?.slice(0, 3) ?? [];
-  if (card.scoreline_readiness?.status === "READY" && scores.length > 0) {
+  const projection = card.scoreline_reference?.scoreline_projection;
+  const scores = projection?.top3?.slice(0, 3) ?? [];
+  if (projection?.status === "READY" && scores.length > 0) {
     return `模型比分 Top 3：${scores.map((pick) => pick.scoreline).join(" / ")}`;
   }
-  return "已有分析盘口，模型比分参考暂不可用";
+  return `模型比分 NOT_READY：${projection?.reason ?? "SCORELINE_PROJECTION_MISSING"}`;
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
@@ -545,31 +553,13 @@ function byFixtureId(
   return new Map(matches.map((match) => [String(match.fixture_id), match]));
 }
 
-function referenceTime(dayView: DashboardDayView): Date {
-  const raw = dayView.generated_at || dayView.freshness.last_refresh;
-  const parsed = raw ? new Date(raw) : new Date();
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function isSameShanghaiDate(
-  left?: string | null,
-  right?: string | null,
-): boolean {
-  if (!left || !right) return false;
-  const format = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return format.format(new Date(left)) === format.format(new Date(right));
-}
-
-function minutesUntil(card: DashboardDayViewCard, now: Date): number | null {
-  if (!card.kickoff_utc) return null;
-  const kickoff = new Date(card.kickoff_utc);
-  if (Number.isNaN(kickoff.getTime())) return null;
-  return Math.round((kickoff.getTime() - now.getTime()) / 60000);
+function useMinuteClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }
 
 function isPreMatch(card: DashboardDayViewCard): boolean {
@@ -752,17 +742,6 @@ function nextEvalLabel(card: DashboardDayViewCard): string {
   return fmtTime(card.next_eval_at);
 }
 
-function countdownLabel(card: DashboardDayViewCard, now: Date): string {
-  const minutes = minutesUntil(card, now);
-  if (minutes == null) return "时间待定";
-  if (minutes < 0) return `已开赛 ${Math.abs(minutes)} 分钟`;
-  if (minutes < 60) return `还有 ${minutes} 分钟`;
-  if (minutes < 1440) return `还有 ${Math.floor(minutes / 60)} 小时`;
-  const days = Math.floor(minutes / 1440);
-  const hours = Math.floor((minutes % 1440) / 60);
-  return `还有 ${days} 天${hours ? ` ${hours} 小时` : ""}`;
-}
-
 function rowMarketSummary(card: DashboardDayViewCard): string {
   if (card.pick) return `分析盘口：${marketPickLabel(card)}`;
   const odds = oddsSummary(card);
@@ -876,7 +855,7 @@ export function MatchdayHeader({
       <span className="boss-view-select">只读决策台</span>
       <div className="boss-command-meta">
         <span>
-          日期 <strong>{dayView.football_day}</strong>
+          观察日 <strong>{dayView.football_day}</strong>
         </span>
         <span>
           环境 <strong>{dayView.environment}</strong>
@@ -989,6 +968,26 @@ export function EvidencePanel({
             <strong key={statement}>{statement}</strong>
           ))}
         </div>
+        {selectedCard.scoreline_reference?.scoreline_projection?.status === "READY" ? (
+          <div className="scoreline-projection-panel">
+            <span>模型比分 Top 3</span>
+            <strong>10,000 次模拟</strong>
+            {(selectedCard.scoreline_reference.scoreline_projection.top3 ?? []).map(
+              (item) => (
+                <div key={item.scoreline}>
+                  <b>{item.scoreline}</b>
+                  <em>{((item.unconditional_probability ?? 0) * 100).toFixed(1)}%</em>
+                </div>
+              ),
+            )}
+            <small>
+              一致样本 {selectedCard.scoreline_reference.scoreline_projection.consistent_sample_count?.toLocaleString()} / 10,000
+              {selectedCard.recommendation_decision_v3?.decision_hash
+                ? ` · ${shortSha(selectedCard.recommendation_decision_v3.decision_hash)}`
+                : ""}
+            </small>
+          </div>
+        ) : null}
         <div className="tracking-note">
           <span>赛后追踪</span>
           <strong>{ledgerState.label}</strong>
@@ -1040,6 +1039,7 @@ export function DecisionRow({
     card.decision_tier === "NOT_READY" ||
     card.decision_tier === "SKIP" ||
     card.data_status === "BLOCKED";
+  const kickoff = kickoffPresentation(card, now);
   return (
     <article
       className={`decision-row ${tierClass}${selected ? " is-selected" : ""}${muted ? " is-muted" : ""}`}
@@ -1051,8 +1051,9 @@ export function DecisionRow({
         aria-pressed={selected}
       >
         <div className="decision-cell decision-time">
-          <strong>{fmtTime(card.kickoff_utc)}</strong>
-          <span>{countdownLabel(card, now)}</span>
+          <strong>{kickoff.primary}</strong>
+          <span>{kickoff.secondary}</span>
+          {kickoff.relative ? <small>{kickoff.relative}</small> : null}
         </div>
         <div className="decision-cell decision-league">
           <span>{competitionLabel(card)}</span>
@@ -1207,7 +1208,6 @@ function ScheduleSection({
   legacyById,
   now,
   onSelect,
-  collapsed,
 }: {
   title: string;
   hint: string;
@@ -1217,11 +1217,15 @@ function ScheduleSection({
   legacyById: Map<string, DashboardMatchCard>;
   now: Date;
   onSelect: (fixtureId: string) => void;
-  collapsed?: boolean;
 }) {
+  const groupCounts = new Map<string, number>();
+  cards.forEach((card) => {
+    const key = shanghaiDateKey(card.kickoff_utc) ?? "unknown";
+    groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+  });
   return (
     <section
-      className={`schedule-section${collapsed ? " is-collapsed" : ""}${cards.length ? "" : " is-empty"}`}
+      className={`schedule-section${cards.length ? "" : " is-empty"}`}
       aria-label={title}
     >
       <header className="schedule-section-heading">
@@ -1242,16 +1246,27 @@ function ScheduleSection({
             <span>决策</span>
             <span>下一次评估</span>
           </div>
-          {cards.map((card) => (
-            <DecisionRow
-              key={card.fixture_id}
-              card={card}
-              selected={card.fixture_id === selectedFixtureId}
-              legacyMatch={legacyById.get(card.fixture_id)}
-              now={now}
-              onSelect={() => onSelect(card.fixture_id)}
-            />
-          ))}
+          {cards.map((card, index) => {
+            const key = shanghaiDateKey(card.kickoff_utc) ?? "unknown";
+            const previous =
+              index > 0 ? shanghaiDateKey(cards[index - 1]?.kickoff_utc) : null;
+            return (
+              <Fragment key={card.fixture_id}>
+                {key !== previous ? (
+                  <div className="schedule-date-group">
+                    {dateGroupLabel(card.kickoff_utc)} · {groupCounts.get(key)}场
+                  </div>
+                ) : null}
+                <DecisionRow
+                  card={card}
+                  selected={card.fixture_id === selectedFixtureId}
+                  legacyMatch={legacyById.get(card.fixture_id)}
+                  now={now}
+                  onSelect={() => onSelect(card.fixture_id)}
+                />
+              </Fragment>
+            );
+          })}
         </div>
       ) : (
         <div className="inline-empty">{empty}</div>
@@ -1334,10 +1349,10 @@ function TrustStrip({
       : "积累中";
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
-      <strong>真实前向 {evidenceRange}</strong>
+      <strong>前向验证账本 · {evidenceRange}</strong>
       <span>前向验证记录 {validationCount} 场</span>
       <span>
-        已结算 {processed} · 纳入 {eligible} · 证据排除 {excluded} · 待结算 {pending}
+        已结算 {processed} · 纳入统计 {eligible} · 证据待补 {excluded} · 待结算 {pending}
       </span>
       <span>
         有效输赢命中率 {decisive ? percent(cohort?.outcomes.hit_rate) : "积累中"}
@@ -1349,7 +1364,6 @@ function TrustStrip({
           ? `${clvUnits(cohort?.clv.median_decimal)}（n=${clvSamples}，${performanceStatus(clvSamples)}）`
           : "积累中"}
       </span>
-      <span>历史恢复 cohort · 当前分析待结算 {pending} 场</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
   );
@@ -1587,7 +1601,7 @@ export function BossDecisionView({
   release?: ReleaseSyncState;
 }) {
   const legacyById = byFixtureId(legacyMatches);
-  const now = useMemo(() => referenceTime(dayView), [dayView]);
+  const now = useMinuteClock();
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
   const scheduleDay =
     dayView.selected_football_day ||
@@ -1732,14 +1746,13 @@ export function BossDecisionView({
               />
               <ScheduleSection
                 title="未来赛程"
-                hint="明天及以后先折叠看摘要，临近窗口再进入今日赛程"
+                hint={`全部 ${filteredFutureSchedule.length} / ${filteredFutureSchedule.length} 场，可在赛程板内滚动`}
                 cards={filteredFutureSchedule}
                 empty="未来窗口暂无待赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
                 legacyById={legacyById}
                 now={now}
                 onSelect={setSelectedFixtureId}
-                collapsed
               />
               <CoverageFoldout dayView={dayView} />
             </>

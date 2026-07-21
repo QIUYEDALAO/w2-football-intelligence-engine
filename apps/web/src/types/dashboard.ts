@@ -315,6 +315,31 @@ export interface ScorelineReference {
     settlement_probability_label?: string | null;
     source?: string | null;
   }>;
+  scoreline_projection?: {
+    schema_version?: string;
+    status?: string;
+    reason?: string | null;
+    simulation_method?: string;
+    simulations_requested?: number;
+    simulations_completed?: number;
+    seed?: number;
+    source_score_matrix_hash?: string;
+    simulation_input_hash?: string;
+    decision_hash?: string | null;
+    consistent_sample_count?: number;
+    consistent_sample_rate?: number;
+    consistency_status?: string;
+    evidence_hash?: string;
+    top3?: Array<
+      ScorelinePick & {
+        sample_count?: number;
+        unconditional_probability?: number;
+        conditional_probability?: number;
+        primary_settlement?: string;
+        secondary_settlements?: string[];
+      }
+    >;
+  } | null;
 }
 
 export interface ScorelineReadiness {

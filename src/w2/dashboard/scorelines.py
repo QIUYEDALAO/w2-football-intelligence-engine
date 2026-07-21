@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from collections import Counter
+from decimal import Decimal
 from typing import Any
+
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.strategy.simulate import sample_score_matrix, score_matrix_from_simulation
 
 
 def scoreline_picks_from_card(card: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
@@ -38,6 +45,7 @@ def scoreline_reference_from_card(
     card: dict[str, Any],
     *,
     recommendation: dict[str, Any] | None = None,
+    decision_hash: str | None = None,
 ) -> dict[str, Any] | None:
     simulation = _simulation_from_card(card)
     if not isinstance(simulation, dict) or simulation.get("status") != "READY":
@@ -45,17 +53,21 @@ def scoreline_reference_from_card(
     top_scorelines = scoreline_picks_from_card(card)
     high_total_probability = _over_probability(simulation, 3.5)
     very_high_total_probability = _over_probability(simulation, 4.5)
+    projection = _scoreline_projection(
+        card,
+        simulation=simulation,
+        recommendation=recommendation,
+        secondary_recommendations=[
+            item for item in card.get("secondary_picks", []) if isinstance(item, dict)
+        ],
+        decision_hash=decision_hash,
+    )
     return {
         "source": "formal_simulation",
         "label": "模拟比分参考",
         "top_scorelines": top_scorelines,
-        "direction_top3": _direction_top3_scorelines(
-            simulation,
-            recommendation=recommendation,
-            secondary_recommendations=[
-                item for item in card.get("secondary_picks", []) if isinstance(item, dict)
-            ][:1],
-        ),
+        "direction_top3": projection["top3"] if projection["status"] == "READY" else [],
+        "scoreline_projection": projection,
         "high_total": {
             "threshold": 4,
             "probability": high_total_probability,
@@ -72,6 +84,198 @@ def scoreline_reference_from_card(
         },
         "ah_key_scorelines": _ah_key_scorelines(simulation, recommendation=recommendation),
     }
+
+
+def _scoreline_projection(
+    card: dict[str, Any],
+    *,
+    simulation: dict[str, Any],
+    recommendation: dict[str, Any] | None,
+    secondary_recommendations: list[dict[str, Any]],
+    decision_hash: str | None,
+) -> dict[str, Any]:
+    base = {
+        "schema_version": "w2.scoreline_projection.v1",
+        "simulation_method": "seeded_joint_score_sampling",
+        "simulations_requested": 10_000,
+        "simulations_completed": 0,
+        "decision_hash": decision_hash,
+        "top3": [],
+    }
+    if not isinstance(recommendation, dict):
+        return {**base, "status": "NOT_READY", "reason": "SELECTED_CANDIDATE_MISSING"}
+    tier = str(recommendation.get("tier") or "").upper()
+    is_pick_tier = tier in {"ANALYSIS_PICK", "RECOMMEND", "FORMAL"}
+    if not decision_hash and not is_pick_tier and not recommendation.get("formal_recommendation"):
+        return {**base, "status": "NOT_READY", "reason": "SELECTED_CANDIDATE_MISSING"}
+    constraint, blocker = _canonical_constraint(
+        recommendation, require_quote=bool(decision_hash)
+    )
+    if blocker:
+        return {**base, "status": "NOT_READY", "reason": blocker}
+    if constraint is None:
+        return {**base, "status": "NOT_READY", "reason": "SCORELINE_CONSTRAINT_INCOMPLETE"}
+    secondary = []
+    for item in secondary_recommendations:
+        normalized, secondary_blocker = _canonical_constraint(item, require_quote=False)
+        if normalized is not None and secondary_blocker is None:
+            secondary.append(normalized)
+    summary = simulation.get("score_matrix_summary")
+    matrix = score_matrix_from_simulation(simulation)
+    if not matrix:
+        return {**base, "status": "NOT_READY", "reason": "SCORE_MATRIX_INVALID"}
+    matrix_rows = [
+        {"home_goals": score[0], "away_goals": score[1], "probability": probability}
+        for score, probability in sorted(matrix.items())
+    ]
+    matrix_hash = str(
+        summary.get("score_matrix_hash")
+        if isinstance(summary, dict)
+        else ""
+    ) or _canonical_hash(matrix_rows)
+    input_hash = str(
+        (simulation.get("calibration") or {}).get("simulation_input_hash") or ""
+    )
+    identity = [
+        str(card.get("fixture_id") or ""),
+        str(decision_hash or ""),
+        str(simulation.get("model_version") or ""),
+        str(simulation.get("calibration_version") or ""),
+        input_hash,
+        matrix_hash,
+    ]
+    seed = int(hashlib.sha256(":".join(identity).encode()).hexdigest()[:16], 16)
+    sampled = sample_score_matrix(matrix, simulations=10_000, seed=seed)
+    consistent: Counter[tuple[int, int]] = Counter()
+    settlements: dict[tuple[int, int], tuple[str, list[str]]] = {}
+    for score, count in sampled.items():
+        primary = _constraint_settlement(constraint, *score)
+        secondary_outcomes = [_constraint_settlement(item, *score) for item in secondary]
+        if primary in {"WIN", "HALF_WIN"} and all(
+            outcome in {"WIN", "HALF_WIN"} for outcome in secondary_outcomes
+        ):
+            consistent[score] = count
+            settlements[score] = (primary, secondary_outcomes)
+    consistent_count = sum(consistent.values())
+    if consistent_count == 0:
+        return {
+            **base,
+            "status": "NOT_READY",
+            "reason": "SCORELINE_CONSTRAINT_EMPTY",
+            "seed": seed,
+            "source_score_matrix_hash": matrix_hash,
+            "simulation_input_hash": input_hash,
+            "simulations_completed": 10_000,
+            "primary_constraint": constraint,
+            "secondary_constraints": secondary,
+            "consistent_sample_count": 0,
+            "consistent_sample_rate": 0.0,
+            "consistency_status": "EMPTY",
+        }
+    top3 = []
+    for (home, away), count in consistent.most_common(3):
+        primary, secondary_outcomes = settlements[(home, away)]
+        top3.append(
+            {
+                "scoreline": f"{home}-{away}",
+                "home_goals": home,
+                "away_goals": away,
+                "sample_count": count,
+                "unconditional_probability": round(count / 10_000, 6),
+                "conditional_probability": round(count / consistent_count, 6),
+                "probability": round(count / 10_000, 6),
+                "probability_label": f"{count / 100:.1f}%",
+                "primary_settlement": primary,
+                "secondary_settlements": secondary_outcomes,
+                "source": "decision_simulation_direction_top3",
+                "market": constraint["market"],
+                "selection": _display_selection(constraint),
+                "line": constraint["line"],
+            }
+        )
+    payload = {
+        **base,
+        "status": "READY",
+        "reason": None,
+        "seed": seed,
+        "source_score_matrix_hash": matrix_hash,
+        "simulation_input_hash": input_hash,
+        "simulations_completed": 10_000,
+        "primary_constraint": constraint,
+        "secondary_constraints": secondary,
+        "consistent_sample_count": consistent_count,
+        "consistent_sample_rate": round(consistent_count / 10_000, 6),
+        "top3": top3,
+        "consistency_status": "PASS",
+    }
+    return {**payload, "evidence_hash": _canonical_hash(payload)}
+
+
+def _canonical_constraint(
+    recommendation: dict[str, Any], *, require_quote: bool = True
+) -> tuple[dict[str, Any] | None, str | None]:
+    market = str(recommendation.get("market") or "").upper()
+    selection = str(
+        recommendation.get("selection")
+        or recommendation.get("tendency")
+        or recommendation.get("lean")
+        or ""
+    ).upper()
+    aliases = {
+        ("ASIAN_HANDICAP", "HOME_AH"): "HOME",
+        ("ASIAN_HANDICAP", "HOME"): "HOME",
+        ("ASIAN_HANDICAP", "AWAY_AH"): "AWAY",
+        ("ASIAN_HANDICAP", "AWAY"): "AWAY",
+        ("TOTALS", "OVER"): "OVER",
+        ("TOTALS", "UNDER"): "UNDER",
+    }
+    normalized = aliases.get((market, selection))
+    try:
+        line = Decimal(str(recommendation.get("line")))
+    except Exception:
+        return None, "SCORELINE_CONSTRAINT_INCOMPLETE"
+    if normalized is None:
+        return None, "SCORELINE_SELECTION_UNSUPPORTED"
+    if market == "ASIAN_HANDICAP" and require_quote:
+        quote_identity = recommendation.get("quote_identity")
+        quotes = quote_identity.get("quotes") if isinstance(quote_identity, dict) else None
+        side_quote = quotes.get(normalized.lower()) if isinstance(quotes, dict) else None
+        quote_line = side_quote.get("line") if isinstance(side_quote, dict) else (
+            quote_identity.get("line") if isinstance(quote_identity, dict) else None
+        )
+        if quote_line is None:
+            return None, "AH_SELECTED_QUOTE_LINE_MISSING"
+        try:
+            if Decimal(str(quote_line)) != line:
+                return None, "AH_SELECTED_SIDE_LINE_MISMATCH"
+        except Exception:
+            return None, "AH_SELECTED_SIDE_LINE_MISMATCH"
+    return {"market": market, "selection": normalized, "line": str(line)}, None
+
+
+def _display_selection(constraint: dict[str, Any]) -> str:
+    if constraint["market"] == "ASIAN_HANDICAP":
+        return f"{constraint['selection']}_AH"
+    return str(constraint["selection"])
+
+
+def _constraint_settlement(
+    constraint: dict[str, Any], home_goals: int, away_goals: int
+) -> str:
+    line = Decimal(str(constraint["line"]))
+    if constraint["market"] == "ASIAN_HANDICAP":
+        return settle_asian_handicap(
+            home_goals, away_goals, str(constraint["selection"]), line
+        ).value
+    return settle_total_goals(
+        home_goals + away_goals, str(constraint["selection"]), line
+    ).value
+
+
+def _canonical_hash(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
 
 def _direction_top3_scorelines(

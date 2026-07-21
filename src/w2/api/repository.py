@@ -6745,12 +6745,6 @@ class ReadModelService:
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        public_scoreline_picks = scoreline_picks if scoreline_decision is not None else []
-        scoreline_reference = (
-            scoreline_reference_from_card(card, recommendation=scoreline_decision)
-            if scoreline_decision is not None
-            else None
-        )
         decision_v3 = (
             project_decision_v3(
                 decision_contract,
@@ -6758,6 +6752,34 @@ class ReadModelService:
             ).as_dict()
             if decision_contract
             else None
+        )
+        scoreline_reference = (
+            scoreline_reference_from_card(
+                card,
+                recommendation=(
+                    cast(dict[str, Any], decision_v3.get("selected_candidate"))
+                    if isinstance(decision_v3, dict)
+                    and isinstance(decision_v3.get("selected_candidate"), dict)
+                    else scoreline_decision
+                ),
+                decision_hash=(
+                    str(decision_v3.get("decision_hash") or "")
+                    if isinstance(decision_v3, dict)
+                    else None
+                ),
+            )
+            if scoreline_decision is not None
+            else None
+        )
+        projection = (
+            scoreline_reference.get("scoreline_projection")
+            if isinstance(scoreline_reference, dict)
+            else None
+        )
+        public_scoreline_picks = (
+            list(projection.get("top3") or [])
+            if isinstance(projection, dict) and projection.get("status") == "READY"
+            else []
         )
         return {
             "fixture_id": fixture_id,
@@ -6782,7 +6804,20 @@ class ReadModelService:
             "locked_pre_match_recommendation": locked_recommendation,
             "scoreline_picks": public_scoreline_picks,
             "scoreline_reference": scoreline_reference,
-            "scoreline_readiness": self._dashboard_scoreline_readiness(card),
+            "scoreline_readiness": (
+                {
+                    "status": projection.get("status"),
+                    "reason": projection.get("reason"),
+                    "source": "seeded_joint_score_sampling",
+                    "model_version": (
+                        (card.get("simulation") or {}).get("model_version")
+                        if isinstance(card.get("simulation"), dict)
+                        else None
+                    ),
+                }
+                if isinstance(projection, dict)
+                else self._dashboard_scoreline_readiness(card)
+            ),
             "result": result,
             "validation": validation,
             "current_odds": card.get("current_odds", {}),

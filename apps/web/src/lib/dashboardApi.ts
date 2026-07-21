@@ -654,6 +654,7 @@ function normalizeScorelinePick(payload: unknown) {
 
 function normalizeScorelineReference(payload: unknown) {
   const record = asRecord(payload);
+  const projection = asRecord(record.scoreline_projection);
   const source = textValue(record.source);
   if (
     !source &&
@@ -684,6 +685,22 @@ function normalizeScorelineReference(payload: unknown) {
     ah_key_scorelines: asArray(record.ah_key_scorelines).map((item) =>
       asRecord(item),
     ),
+    scoreline_projection: Object.keys(projection).length
+      ? {
+          ...projection,
+          top3: asArray(projection.top3).map((item) => ({
+            ...asRecord(item),
+            ...normalizeScorelinePick(item),
+            sample_count: numberValue(asRecord(item).sample_count) ?? undefined,
+            unconditional_probability: nullableNumber(
+              asRecord(item).unconditional_probability,
+            ) ?? undefined,
+            conditional_probability: nullableNumber(
+              asRecord(item).conditional_probability,
+            ) ?? undefined,
+          })),
+        }
+      : null,
   };
 }
 

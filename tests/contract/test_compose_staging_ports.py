@@ -10,6 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "scripts/check_compose_staging_ports.py"
 STAGING_COMPOSE = ROOT / "infra/compose/compose.staging.yml"
+NGINX_CONFIG = ROOT / "apps/web/nginx.conf"
 
 
 def load_checker() -> Any:
@@ -25,12 +26,25 @@ def load_compose() -> dict[str, Any]:
     return yaml.safe_load(STAGING_COMPOSE.read_text(encoding="utf-8"))
 
 
-def test_staging_web_public_binding_is_allowlisted() -> None:
+def test_staging_web_is_bound_to_loopback_only() -> None:
     checker = load_checker()
     compose = load_compose()
 
-    assert checker.service_ports(compose, "web") == ["0.0.0.0:80:8080"]
+    assert checker.service_ports(compose, "web") == ["127.0.0.1:18080:8080"]
     checker.assert_no_public_ports(checker.service_ports(compose, "web"), "web")
+
+
+def test_staging_web_security_headers_are_required() -> None:
+    config = NGINX_CONFIG.read_text(encoding="utf-8")
+
+    assert 'add_header X-Content-Type-Options "nosniff" always;' in config
+    assert 'add_header X-Frame-Options "DENY" always;' in config
+    assert 'add_header Referrer-Policy "no-referrer" always;' in config
+    permissions_policy = (
+        'add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;'
+    )
+    assert permissions_policy in config
+    assert "frame-ancestors 'none'" in config
 
 
 def test_staging_api_public_binding_is_rejected() -> None:

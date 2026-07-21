@@ -46,7 +46,7 @@ FORBIDDEN_TRUE_FLAGS = {
     "W2_EXTERNAL_ALERTING",
 }
 ALLOWED_PUBLIC_PORTS = {
-    (ROOT / "infra/compose/compose.staging.yml", "web", "0.0.0.0:80:8080"),
+    (ROOT / "infra/compose/compose.staging.yml", "web", "127.0.0.1:18080:8080"),
 }
 
 

@@ -555,7 +555,7 @@ button {
   align-items: center;
   gap: 8px;
   min-height: 30px;
-  padding: 0 18px;
+  padding: 0 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.13);
 }
 
@@ -785,12 +785,19 @@ button {
   grid-template-columns: minmax(0, 1fr) minmax(390px, 0.36fr);
   gap: 12px;
   align-items: start;
+  height: calc(100vh - 190px);
+  min-height: 520px;
 }
 
 .schedule-board {
   display: grid;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .schedule-controls {
@@ -802,6 +809,9 @@ button {
   border-radius: 6px;
   padding: 8px;
   background: rgba(4, 14, 13, 0.82);
+  position: sticky;
+  top: 0;
+  z-index: 8;
 }
 
 .schedule-controls button {
@@ -885,10 +895,22 @@ button {
   color: #83908a;
   font-size: 11px;
   font-weight: 850;
+  position: sticky;
+  top: 58px;
+  z-index: 6;
+  background: #071513;
 }
 
-.schedule-section.is-collapsed .schedule-row-list .decision-row:nth-child(n + 5) {
-  display: none;
+.schedule-date-group {
+  position: sticky;
+  top: 92px;
+  z-index: 5;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #10201d;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .schedule-section.is-empty {
@@ -926,6 +948,37 @@ button {
   top: 14px;
   display: grid;
   gap: 10px;
+}
+
+.scoreline-projection-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.scoreline-projection-panel > span,
+.scoreline-projection-panel > strong,
+.scoreline-projection-panel > small {
+  grid-column: 1 / -1;
+}
+
+.scoreline-projection-panel > div {
+  display: contents;
+}
+
+.scoreline-projection-panel b,
+.scoreline-projection-panel em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreline-projection-panel em {
+  text-align: right;
+  color: var(--accent);
 }
 
 .timeline-layout {
@@ -1517,6 +1570,21 @@ button {
   .coverage-entry,
   .boss-workspace {
     display: grid;
+  }
+
+  .boss-workspace {
+    height: auto;
+    min-height: 0;
+  }
+
+  .schedule-board {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .schedule-controls,
+  .schedule-date-group {
+    position: static;
   }
 
   .boss-tabs {

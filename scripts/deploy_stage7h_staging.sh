@@ -217,7 +217,7 @@ for attempt in 1 2 3 4 5 6; do
   meta=false
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json && ready=true || true
   curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version >/tmp/w2-version.json && version=true || true
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json && meta=true || true
+  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18080/meta.json >/tmp/w2-meta.json && meta=true || true
   echo \"ready=\${ready} version=\${version} meta=\${meta}\"
   if [ \"\${ready}\" = true ] && [ \"\${version}\" = true ] && [ \"\${meta}\" = true ]; then
     echo 'stability_probe=PASS'
@@ -251,7 +251,7 @@ from urllib.request import urlopen
 expected = Path('/opt/w2/current/DEPLOYMENT_REVISION').read_text().strip()
 with urlopen('http://127.0.0.1:18000/v1/version', timeout=8) as response:
     api_sha = json.load(response).get('api_git_sha')
-with urlopen('http://127.0.0.1/meta.json', timeout=8) as response:
+with urlopen('http://127.0.0.1:18080/meta.json', timeout=8) as response:
     web_sha = json.load(response).get('web_git_sha')
 if api_sha != expected or web_sha != expected:
     raise SystemExit(f'release SHA mismatch: expected={expected} api={api_sha} web={web_sha}')
