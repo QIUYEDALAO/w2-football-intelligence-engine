@@ -19,6 +19,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
@@ -65,6 +66,7 @@ class ProviderAuditEntry:
     payload_sha256: str
     capture_id: str
     response_count: int
+    error_code: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -77,6 +79,7 @@ class ProviderAuditEntry:
             "payload_sha256": self.payload_sha256,
             "capture_id": self.capture_id,
             "response_count": self.response_count,
+            "error_code": self.error_code,
         }
 
 
@@ -145,6 +148,7 @@ class FactorModelRemediationService:
             ),
         )
         self._provider_audit: list[ProviderAuditEntry] = []
+        self._provider_attempt_count = 0
 
     def seed_provider_primary_identity(self) -> dict[str, int]:
         with Session(self.engine) as session:
@@ -259,6 +263,7 @@ class FactorModelRemediationService:
                     },
                 )
                 if response.status_code >= 400:
+                    self._persist_capture(response, fixture_id=None)
                     blockers.append(f"HISTORICAL_FIXTURES_HTTP_{response.status_code}:{team_id}")
                     continue
                 capture_id = self._persist_capture(response, fixture_id=None)
@@ -371,7 +376,7 @@ class FactorModelRemediationService:
 
     @property
     def provider_call_count(self) -> int:
-        return len(self._provider_audit)
+        return self._provider_attempt_count
 
     def team_identity_authority_payload(self) -> dict[str, Any]:
         with Session(self.engine) as session:
@@ -458,8 +463,26 @@ class FactorModelRemediationService:
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         if self.provider_call_count >= self.config.request_budget:
             raise FactorModelRemediationError("PROVIDER_CALL_BUDGET_EXHAUSTED")
-        response = self.client.request_live(endpoint, params)
-        return response
+        self._provider_attempt_count += 1
+        requested_at = datetime.now(UTC)
+        try:
+            return self.client.request_live(endpoint, params)
+        except Exception as exc:
+            self._provider_audit.append(
+                ProviderAuditEntry(
+                    endpoint=endpoint,
+                    params=sanitize_params(params),
+                    status_code=0,
+                    elapsed_ms=0,
+                    captured_at_utc=iso_z(datetime.now(UTC)),
+                    requested_at_utc=iso_z(requested_at),
+                    payload_sha256="",
+                    capture_id="",
+                    response_count=0,
+                    error_code=type(exc).__name__,
+                )
+            )
+            raise
 
     def _persist_capture(
         self,
@@ -588,6 +611,7 @@ class FactorModelRemediationService:
                 break
             response = self._request("statistics", {"fixture": provider_fixture_id})
             if response.status_code >= 400:
+                self._persist_capture(response, fixture_id=provider_fixture_id)
                 blockers.append(f"STATISTICS_HTTP_{response.status_code}:{provider_fixture_id}")
                 continue
             self._persist_capture(response, fixture_id=provider_fixture_id)
@@ -655,6 +679,7 @@ class FactorModelRemediationService:
                 },
             )
             if response.status_code >= 400:
+                self._persist_capture(response, fixture_id=fixture.provider_fixture_id)
                 blockers.append(f"H2H_HTTP_{response.status_code}:{fixture.provider_fixture_id}")
                 continue
             capture_id = self._persist_capture(response, fixture_id=fixture.provider_fixture_id)
@@ -693,10 +718,12 @@ class FactorModelRemediationService:
                 or 0
             )
             readiness = self._smoke_readiness(session)
-        if xg_rows > 0:
+        if readiness and all(row.get("f9_status") == "READY" for row in readiness):
             xg_status = "READY"
         elif self.provider_call_count == 0:
             xg_status = "NOT_PROBED_PROVIDER_CALLS_DISABLED"
+        elif xg_rows > 0:
+            xg_status = "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
         else:
             xg_status = "PROVIDER_XG_FIELD_UNAVAILABLE_FOR_ALLSVENSKAN"
         return RemediationResult(
@@ -797,6 +824,31 @@ class FactorModelRemediationService:
                 )
                 or 0
             )
+            home_xg_snapshot = session.scalar(
+                select(func.count())
+                .select_from(TeamXgRollingSnapshotModel)
+                .where(
+                    TeamXgRollingSnapshotModel.team_id == fixture.home_provider_team_id,
+                    TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
+                    TeamXgRollingSnapshotModel.match_count >= 3,
+                    TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+                )
+            ) or 0
+            away_xg_snapshot = session.scalar(
+                select(func.count())
+                .select_from(TeamXgRollingSnapshotModel)
+                .where(
+                    TeamXgRollingSnapshotModel.team_id == fixture.away_provider_team_id,
+                    TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
+                    TeamXgRollingSnapshotModel.match_count >= 3,
+                    TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+                )
+            ) or 0
+            f9_status = (
+                "READY"
+                if home_xg_snapshot and away_xg_snapshot
+                else "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
+            )
             output.append(
                 {
                     "provider_fixture_id": fixture.provider_fixture_id,
@@ -806,6 +858,9 @@ class FactorModelRemediationService:
                     "away_history_rows": int(away_history),
                     "home_rating_ready": bool(home_rating),
                     "away_rating_ready": bool(away_rating),
+                    "home_xg_snapshot_ready": bool(home_xg_snapshot),
+                    "away_xg_snapshot_ready": bool(away_xg_snapshot),
+                    "f9_status": f9_status,
                 }
             )
         return output

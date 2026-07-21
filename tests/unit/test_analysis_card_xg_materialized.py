@@ -312,6 +312,146 @@ class FakeDbRepository:
         return rows
 
 
+class FakeCanonicalDbRepository(FakeDbRepository):
+    def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id not in {"1489410", "api_football:1489410"}:
+            return None
+        return {
+            "status": "PROVIDER_PRIMARY_READY",
+            "fixture_id": "api_football:1489410",
+            "provider_fixture_id": "1489410",
+            "competition_id": "world_cup_2026",
+            "season": "2026",
+            "home_provider_team_id": "10",
+            "away_provider_team_id": "20",
+            "home_w2_team_id": "w2:team:home",
+            "away_w2_team_id": "w2:team:away",
+            "identity_hash": "fixture-identity",
+        }
+
+    def canonical_match_history_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        limit_per_team: int = 20,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for team_id, opponent_id, goals_for, goals_against in (
+            ("w2:team:home", "w2:team:away", 2, 1),
+            ("w2:team:away", "w2:team:home", 1, 2),
+        ):
+            for index in range(5):
+                rows.append(
+                    {
+                        "history_id": f"{team_id}:{index}",
+                        "fixture_id": f"canonical-{index}",
+                        "provider_fixture_id": f"provider-{index}",
+                        "team_w2_id": team_id,
+                        "opponent_w2_id": opponent_id,
+                        "kickoff_utc": (KICKOFF - timedelta(days=30 - index)).isoformat(),
+                        "goals_for": goals_for,
+                        "goals_against": goals_against,
+                        "result_identity_hash": f"result-{team_id}-{index}",
+                        "history_hash": f"history-{team_id}-{index}",
+                    }
+                )
+        return [row for row in rows if row["team_w2_id"] in team_ids]
+
+    def team_rating_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        rows = [
+            {
+                "rating_id": "rating-home",
+                "w2_team_id": "w2:team:home",
+                "observed_at": (KICKOFF - timedelta(days=1)).isoformat(),
+                "model_version": "rating_from_history.v1",
+                "elo": 1600.0,
+                "attack_strength": 1.7,
+                "defence_strength": 0.8,
+                "form_index": 0.6,
+                "source": "team_rating_snapshots",
+                "rating_hash": "rating-hash-home",
+            },
+            {
+                "rating_id": "rating-away",
+                "w2_team_id": "w2:team:away",
+                "observed_at": (KICKOFF - timedelta(days=1)).isoformat(),
+                "model_version": "rating_from_history.v1",
+                "elo": 1450.0,
+                "attack_strength": 0.8,
+                "defence_strength": 1.5,
+                "form_index": -0.3,
+                "source": "team_rating_snapshots",
+                "rating_hash": "rating-hash-away",
+            },
+        ]
+        return [row for row in rows if row["w2_team_id"] in team_ids]
+
+    def team_xg_rolling_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        competition_id: str,
+        season: str,
+    ) -> list[dict[str, Any]]:
+        rows = [
+            {
+                "snapshot_id": "xg-home",
+                "team_id": "w2:team:home",
+                "provider_team_id": "10",
+                "as_of_fixture_id": "1489410",
+                "as_of_time": (KICKOFF - timedelta(hours=1)).isoformat(),
+                "match_count": 5,
+                "rolling_xg_for": 1.8,
+                "rolling_xg_against": 0.7,
+                "rolling_goals_for": 2.0,
+                "rolling_goals_against": 0.8,
+                "regression_index": 0.3,
+                "identity_projection_status": "READY",
+            },
+            {
+                "snapshot_id": "xg-away",
+                "team_id": "w2:team:away",
+                "provider_team_id": "20",
+                "as_of_fixture_id": "1489410",
+                "as_of_time": (KICKOFF - timedelta(hours=1)).isoformat(),
+                "match_count": 5,
+                "rolling_xg_for": 0.9,
+                "rolling_xg_against": 1.5,
+                "rolling_goals_for": 0.8,
+                "rolling_goals_against": 1.8,
+                "regression_index": -0.2,
+                "identity_projection_status": "READY",
+            },
+        ]
+        return [row for row in rows if row["team_id"] in team_ids]
+
+    def team_xg_matches_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        limit_per_team: int = 20,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for team_id in ("w2:team:home", "w2:team:away"):
+            for index in range(5):
+                rows.append(
+                    {
+                        "team_id": team_id,
+                        "provider_team_id": "10" if team_id.endswith("home") else "20",
+                        "kickoff_at": (KICKOFF - timedelta(days=10 - index)).isoformat(),
+                    }
+                )
+        return [row for row in rows if row["team_id"] in team_ids]
+
+
 def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() -> None:
     service = ReadModelService(repository=cast(Any, FakeReadRepository()))
     row = {"selection": "Over 2/2.5", "line": "2.5"}
@@ -574,6 +714,41 @@ def test_public_bounded_analysis_accepts_api_football_fixture_alias(
     assert card["source"] == "db_feature_materialized_analysis"
     assert card["data_readiness"]["market_observations"] == 16
     assert card["quote_identity_audit"]["ah"]["identity_status"] == "COMPLETE"
+
+
+def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: FakeCanonicalDbRepository(),
+    )
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+
+    card = service.public_analysis_card_bounded(
+        "api_football:1489410",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    assert card["source"] == "db_feature_materialized_analysis"
+    assert card["data_readiness"]["xg"] is True
+    assert card["data_readiness"]["xg_home_match_count"] == 5
+    assert card["data_readiness"]["xg_away_match_count"] == 5
+    assert card["simulation"]["input_readiness"]["home_elo_source"] == "team_rating_snapshots"
+    assert card["simulation"]["input_readiness"]["away_elo_source"] == "team_rating_snapshots"
+    assert card["simulation"]["input_readiness"]["home_elo_collection_status"] == "READY"
+    assert card["simulation"]["input_readiness"]["away_elo_collection_status"] == "READY"
+    contributions = card["feature_contributions"]
+    assert any(
+        item["id"] == "F3_REST_FITNESS"
+        and item["source_group"] == "team_fixture_history"
+        and item["is_independent_signal"] is True
+        for item in contributions
+    )
+    assert all(item.get("proxy_of") != "ratings" for item in contributions)
 
 
 class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):

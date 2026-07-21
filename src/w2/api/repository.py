@@ -1043,16 +1043,22 @@ class ReadModelService:
         return self._future_refresh_repository_cache
 
     @staticmethod
-    def _fixture_id_aliases(fixture_id: str) -> set[str]:
+    def _fixture_id_aliases(fixture_id: str) -> tuple[str, ...]:
         value = str(fixture_id or "").strip()
         if not value:
-            return set()
-        aliases = {value}
+            return ()
         if value.startswith("api_football:"):
-            aliases.add(value.removeprefix("api_football:"))
-        elif value.isdigit():
-            aliases.add(f"api_football:{value}")
-        return aliases
+            return (value, value.removeprefix("api_football:"))
+        if value.isdigit():
+            return (value, f"api_football:{value}")
+        return (value,)
+
+    @staticmethod
+    def _fixture_payload_identity(payload: dict[str, Any]) -> str:
+        fixture = payload.get("fixture")
+        if isinstance(fixture, dict):
+            return str(fixture.get("id") or fixture.get("fixture_id") or "")
+        return ""
 
     def _cached_fixture_payloads(self) -> list[dict[str, Any]]:
         if self._fixture_payloads_cache is None:
@@ -1083,10 +1089,19 @@ class ReadModelService:
     def _fixture_payload_by_id(self, fixture_id: str) -> dict[str, Any] | None:
         scoped_reader = getattr(self.repository, "fixture_payload", None)
         if callable(scoped_reader):
-            for candidate in self._fixture_id_aliases(fixture_id) or {fixture_id}:
+            scoped_matches: list[dict[str, Any]] = []
+            for candidate in self._fixture_id_aliases(fixture_id):
                 scoped = scoped_reader(candidate)
                 if scoped is not None:
-                    return cast(dict[str, Any], scoped)
+                    scoped_matches.append(cast(dict[str, Any], scoped))
+            identities = {
+                self._fixture_payload_identity(payload) or str(id(payload))
+                for payload in scoped_matches
+            }
+            if len(identities) > 1:
+                return None
+            if scoped_matches:
+                return scoped_matches[0]
             if self._bounded_public_request:
                 return None
         elif self._bounded_public_request:
@@ -1099,10 +1114,19 @@ class ReadModelService:
                     self._fixture_payload_index_cache[key] = item
                     for alias in self._fixture_id_aliases(key):
                         self._fixture_payload_index_cache.setdefault(alias, item)
-        for candidate in self._fixture_id_aliases(fixture_id) or {fixture_id}:
-            item = self._fixture_payload_index_cache.get(candidate)
-            if item is not None:
-                return item
+        indexed_matches: list[dict[str, Any]] = []
+        for candidate in self._fixture_id_aliases(fixture_id):
+            cached_item = self._fixture_payload_index_cache.get(candidate)
+            if cached_item is not None:
+                indexed_matches.append(cached_item)
+        identities = {
+            self._fixture_payload_identity(payload) or str(id(payload))
+            for payload in indexed_matches
+        }
+        if len(identities) > 1:
+            return None
+        if indexed_matches:
+            return indexed_matches[0]
         return None
 
     def _cached_future_market_observations(self) -> list[dict[str, Any]]:
@@ -2355,6 +2379,17 @@ class ReadModelService:
         competition_id = self._competition_id_from_provider_fixture(item)
         if competition_id is None:
             return None
+        canonical_identity = self._canonical_fixture_identity(fixture_id)
+        canonical_ready = self._canonical_fixture_identity_ready(canonical_identity)
+        season = str(
+            (canonical_identity or {}).get("season")
+            or (item.get("league") or {}).get("season")
+            or ""
+        )
+        if canonical_ready:
+            identity = cast(dict[str, Any], canonical_identity)
+            home_id = str(identity.get("home_w2_team_id") or home_id)
+            away_id = str(identity.get("away_w2_team_id") or away_id)
         repository = self._future_refresh_repository()
         context = FeatureContext(
             fixture_id=fixture_id,
@@ -2367,7 +2402,9 @@ class ReadModelService:
         )
         scoped_snapshot_reader = getattr(
             repository,
-            "team_xg_rolling_snapshots_for_teams",
+            "team_xg_rolling_snapshots_for_w2_teams"
+            if canonical_ready
+            else "team_xg_rolling_snapshots_for_teams",
             None,
         )
         legacy_snapshot_reader = getattr(repository, "team_xg_rolling_snapshots", None)
@@ -2375,7 +2412,14 @@ class ReadModelService:
             snapshots = self._team_xg_snapshots_by_fixture_cache[fixture_id]
         else:
             try:
-                if callable(scoped_snapshot_reader):
+                if canonical_ready and callable(scoped_snapshot_reader):
+                    snapshots = scoped_snapshot_reader(
+                        [home_id, away_id],
+                        before=context.as_of,
+                        competition_id=competition_id,
+                        season=season,
+                    )
+                elif callable(scoped_snapshot_reader):
                     snapshots = scoped_snapshot_reader(
                         [home_id, away_id],
                         before=context.as_of,
@@ -2404,35 +2448,56 @@ class ReadModelService:
             home_team_id=home_id,
             away_team_id=away_id,
         )
-        home_history, away_history = self._team_fixture_histories_from_raw_payloads(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
-        )
-        if not home_history and not away_history:
+        if canonical_ready:
+            home_history, away_history = self._canonical_team_histories(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+            )
+        else:
+            home_history, away_history = self._team_fixture_histories_from_raw_payloads(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+            )
+        if not canonical_ready and not home_history and not away_history:
             home_history, away_history = proxy_home_history, proxy_away_history
-        h2h_meetings = self._h2h_meetings_from_raw_payloads(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
-        )
-        history_home_ratings, history_away_ratings = self._team_ratings_from_history(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
-            home_history=home_history,
-            away_history=away_history,
-        )
-        home_ratings, away_ratings = self._team_ratings_from_static_mapping(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
-            history_home_ratings=history_home_ratings,
-            history_away_ratings=history_away_ratings,
-        )
-        if not (home_ratings and away_ratings):
-            home_ratings, away_ratings = history_home_ratings, history_away_ratings
-        if not (home_ratings and away_ratings):
+        if canonical_ready:
+            h2h_meetings = self._canonical_h2h_meetings(
+                home_history=home_history,
+                home_team_id=home_id,
+                away_team_id=away_id,
+            )
+            history_home_ratings: list[TeamRatingSnapshot] = []
+            history_away_ratings: list[TeamRatingSnapshot] = []
+            home_ratings, away_ratings = self._persisted_team_rating_snapshots(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+            )
+        else:
+            h2h_meetings = self._h2h_meetings_from_raw_payloads(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+            )
+            history_home_ratings, history_away_ratings = self._team_ratings_from_history(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                home_history=home_history,
+                away_history=away_history,
+            )
+            home_ratings, away_ratings = self._team_ratings_from_static_mapping(
+                context=context,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                history_home_ratings=history_home_ratings,
+                history_away_ratings=history_away_ratings,
+            )
+            if not (home_ratings and away_ratings):
+                home_ratings, away_ratings = history_home_ratings, history_away_ratings
+        if not canonical_ready and not (home_ratings and away_ratings):
             home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
             away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
         home_values, away_values = self._team_values_from_static_mapping(
@@ -3559,6 +3624,180 @@ class ReadModelService:
         )
         return home, away
 
+    def _canonical_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        repository = self._future_refresh_repository()
+        reader = (
+            getattr(repository, "matchday_fixture_identity", None)
+            if repository is not None
+            else None
+        )
+        if not callable(reader):
+            return None
+        try:
+            row = reader(fixture_id)
+        except SQLAlchemyError:
+            return None
+        return cast(dict[str, Any] | None, row)
+
+    def _canonical_fixture_identity_ready(self, identity: dict[str, Any] | None) -> bool:
+        if not isinstance(identity, dict):
+            return False
+        if identity.get("status") == "FIXTURE_ID_ALIAS_CONFLICT":
+            return False
+        return bool(identity.get("home_w2_team_id") and identity.get("away_w2_team_id"))
+
+    def _canonical_team_histories(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
+        repository = self._future_refresh_repository()
+        reader = (
+            getattr(repository, "canonical_match_history_for_teams", None)
+            if repository is not None
+            else None
+        )
+        if not callable(reader):
+            return [], []
+        try:
+            rows = cast(
+                list[dict[str, Any]],
+                reader([home_team_id, away_team_id], before=context.as_of, limit_per_team=20),
+            )
+        except SQLAlchemyError:
+            return [], []
+        home = self._canonical_history_rows_to_features(rows, team_id=home_team_id)
+        away = self._canonical_history_rows_to_features(rows, team_id=away_team_id)
+        return home, away
+
+    def _canonical_history_rows_to_features(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        team_id: str,
+    ) -> list[TeamMatchHistory]:
+        history: list[TeamMatchHistory] = []
+        for row in rows:
+            if str(row.get("team_w2_id") or "") != team_id:
+                continue
+            kickoff = parse_provider_time(row.get("kickoff_utc"))
+            if kickoff is None:
+                continue
+            goals_for = self._int_or_none(row.get("goals_for"))
+            goals_against = self._int_or_none(row.get("goals_against"))
+            if goals_for is None or goals_against is None:
+                continue
+            history.append(
+                TeamMatchHistory(
+                    team_id=team_id,
+                    opponent_id=str(row.get("opponent_w2_id") or ""),
+                    kickoff_at=kickoff,
+                    goals_for=goals_for,
+                    goals_against=goals_against,
+                    source="canonical_team_match_history",
+                    source_group="team_fixture_history",
+                    is_independent_signal=True,
+                    collection_status="READY",
+                    result_identity_hash=self._string_or_none(row.get("result_identity_hash")),
+                )
+            )
+        history.sort(key=lambda item: item.kickoff_at)
+        return history
+
+    def _canonical_h2h_meetings(
+        self,
+        *,
+        home_history: list[TeamMatchHistory],
+        home_team_id: str,
+        away_team_id: str,
+    ) -> list[TeamMatchHistory]:
+        meetings = [
+            row
+            for row in home_history
+            if row.team_id == home_team_id and row.opponent_id == away_team_id
+        ]
+        return [
+            TeamMatchHistory(
+                team_id=row.team_id,
+                opponent_id=row.opponent_id,
+                kickoff_at=row.kickoff_at,
+                goals_for=row.goals_for,
+                goals_against=row.goals_against,
+                source="canonical_team_match_history",
+                source_group="h2h",
+                is_independent_signal=True,
+                collection_status="READY",
+                result_identity_hash=row.result_identity_hash,
+            )
+            for row in meetings
+        ]
+
+    def _persisted_team_rating_snapshots(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamRatingSnapshot], list[TeamRatingSnapshot]]:
+        repository = self._future_refresh_repository()
+        reader = (
+            getattr(repository, "team_rating_snapshots_for_w2_teams", None)
+            if repository is not None
+            else None
+        )
+        if not callable(reader):
+            return [], []
+        try:
+            rows = cast(
+                list[dict[str, Any]],
+                reader([home_team_id, away_team_id], before=context.as_of),
+            )
+        except SQLAlchemyError:
+            return [], []
+        home = self._persisted_rating_rows_to_features(rows, team_id=home_team_id)
+        away = self._persisted_rating_rows_to_features(rows, team_id=away_team_id)
+        return home, away
+
+    def _persisted_rating_rows_to_features(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        team_id: str,
+    ) -> list[TeamRatingSnapshot]:
+        output: list[TeamRatingSnapshot] = []
+        for row in rows:
+            if str(row.get("w2_team_id") or "") != team_id:
+                continue
+            observed = parse_provider_time(row.get("observed_at"))
+            if observed is None:
+                continue
+            try:
+                output.append(
+                    TeamRatingSnapshot(
+                        team_id=team_id,
+                        observed_at=observed,
+                        elo=float(row["elo"]),
+                        attack_strength=float(row["attack_strength"]),
+                        defence_strength=float(row["defence_strength"]),
+                        form_index=float(row["form_index"]),
+                        source="team_rating_snapshots",
+                        source_group="ratings",
+                        is_independent_signal=True,
+                        collection_status="READY",
+                        artifact_provenance={
+                            "rating_id": str(row.get("rating_id") or ""),
+                            "rating_hash": str(row.get("rating_hash") or ""),
+                            "model_version": str(row.get("model_version") or ""),
+                            "source_model": str(row.get("source") or ""),
+                        },
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        return output
+
     def _h2h_meetings_from_raw_payloads(
         self,
         *,
@@ -4214,6 +4453,20 @@ class ReadModelService:
         before: datetime,
     ) -> list[dict[str, Any]]:
         repository = self._future_refresh_repository()
+        if any(str(team_id).startswith("w2:") for team_id in team_ids):
+            w2_reader = (
+                getattr(repository, "team_xg_matches_for_w2_teams", None)
+                if repository is not None
+                else None
+            )
+            if callable(w2_reader):
+                try:
+                    return cast(
+                        list[dict[str, Any]],
+                        w2_reader(team_ids, before=before, limit_per_team=20),
+                    )
+                except Exception:
+                    return []
         reader = (
             getattr(repository, "team_xg_matches_for_teams", None)
             if repository is not None

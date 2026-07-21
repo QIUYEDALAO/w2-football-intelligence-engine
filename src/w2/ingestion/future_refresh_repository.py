@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 
 from w2.config import Settings
 from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamMatchHistoryModel,
+    ProviderTeamIdentityCrosswalkModel,
+    TeamRatingSnapshotModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
@@ -24,7 +29,10 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayFixtureIdentityModel,
+    MatchdayMarketObservationModel,
+)
 from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
     PlayerIdentityMappingModel,
@@ -56,6 +64,17 @@ def parse_db_datetime(value: Any) -> datetime:
     if not isinstance(value, str) or not value:
         raise FutureRefreshPersistenceError("INVALID_DATETIME")
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
+    value = str(fixture_id or "").strip()
+    if not value:
+        return ()
+    if value.startswith("api_football:"):
+        return (value, value.removeprefix("api_football:"))
+    if value.isdigit():
+        return (value, f"api_football:{value}")
+    return (value,)
 
 
 def iso_z(value: datetime) -> str:
@@ -885,8 +904,228 @@ class FutureRefreshDbRepository:
                     )
                     .limit(len(ids) * SCOPED_OBSERVATION_ROWS_PER_MARKET * 2)
                 )
-            )
+        )
         return self._latest_observation_dicts(rows)
+
+    def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        aliases = _fixture_aliases(fixture_id)
+        if not aliases:
+            return None
+        bare_aliases = [alias.removeprefix("api_football:") for alias in aliases]
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel)
+                    .where(
+                        (MatchdayFixtureIdentityModel.fixture_id.in_(aliases))
+                        | (MatchdayFixtureIdentityModel.provider_fixture_id.in_(bare_aliases))
+                    )
+                    .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
+                    .limit(2)
+                )
+            )
+        if not rows:
+            return None
+        identities = {row.identity_hash for row in rows if row.identity_hash}
+        if len(identities) > 1:
+            return {
+                "status": "FIXTURE_ID_ALIAS_CONFLICT",
+                "fixture_id": fixture_id,
+                "matched_fixture_ids": [row.fixture_id for row in rows],
+                "matched_identity_hashes": sorted(identities),
+            }
+        row = rows[0]
+        return {
+            "status": row.team_identity_status,
+            "fixture_id": row.fixture_id,
+            "provider": row.provider,
+            "provider_fixture_id": row.provider_fixture_id,
+            "competition_id": row.competition_id,
+            "season": row.season,
+            "kickoff_utc": iso_z(row.kickoff_utc),
+            "home_provider_team_id": row.home_provider_team_id,
+            "away_provider_team_id": row.away_provider_team_id,
+            "home_w2_team_id": row.home_w2_team_id,
+            "away_w2_team_id": row.away_w2_team_id,
+            "identity_hash": row.identity_hash,
+            "raw_payload_sha256": row.raw_payload_sha256,
+            "endpoint_capture_id": row.endpoint_capture_id,
+        }
+
+    def canonical_match_history_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        limit_per_team: int = 20,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids or len(ids) > 8:
+            return []
+        ranked = (
+            select(
+                CanonicalTeamMatchHistoryModel.history_id.label("history_id"),
+                func.row_number()
+                .over(
+                    partition_by=CanonicalTeamMatchHistoryModel.team_w2_id,
+                    order_by=CanonicalTeamMatchHistoryModel.kickoff_utc.desc(),
+                )
+                .label("rank"),
+            )
+            .where(
+                CanonicalTeamMatchHistoryModel.team_w2_id.in_(ids),
+                CanonicalTeamMatchHistoryModel.kickoff_utc < before,
+            )
+            .subquery()
+        )
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(CanonicalTeamMatchHistoryModel)
+                    .join(
+                        ranked,
+                        CanonicalTeamMatchHistoryModel.history_id == ranked.c.history_id,
+                    )
+                    .where(ranked.c.rank <= limit_per_team)
+                    .order_by(
+                        CanonicalTeamMatchHistoryModel.team_w2_id,
+                        CanonicalTeamMatchHistoryModel.kickoff_utc,
+                    )
+                )
+            )
+        return [self._canonical_match_history_dict(row) for row in rows]
+
+    def team_rating_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids or len(ids) > 8:
+            return []
+        ranked = (
+            select(
+                TeamRatingSnapshotModel.rating_id.label("rating_id"),
+                func.row_number()
+                .over(
+                    partition_by=TeamRatingSnapshotModel.w2_team_id,
+                    order_by=TeamRatingSnapshotModel.observed_at.desc(),
+                )
+                .label("rank"),
+            )
+            .where(
+                TeamRatingSnapshotModel.w2_team_id.in_(ids),
+                TeamRatingSnapshotModel.observed_at < before,
+            )
+            .subquery()
+        )
+        with Session(self.engine) as session:
+            rows = list(
+                session.scalars(
+                    select(TeamRatingSnapshotModel)
+                    .join(ranked, TeamRatingSnapshotModel.rating_id == ranked.c.rating_id)
+                    .where(ranked.c.rank == 1)
+                    .order_by(TeamRatingSnapshotModel.w2_team_id)
+                )
+            )
+        return [self._team_rating_snapshot_dict(row) for row in rows]
+
+    def team_xg_rolling_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        competition_id: str,
+        season: str,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids or len(ids) > 2:
+            return []
+        with Session(self.engine) as session:
+            crosswalk_rows = list(
+                session.scalars(
+                    select(ProviderTeamIdentityCrosswalkModel).where(
+                        ProviderTeamIdentityCrosswalkModel.w2_team_id.in_(ids),
+                        ProviderTeamIdentityCrosswalkModel.competition_id == competition_id,
+                        ProviderTeamIdentityCrosswalkModel.season == season,
+                        ProviderTeamIdentityCrosswalkModel.provider == "api_football",
+                        ProviderTeamIdentityCrosswalkModel.identity_status.in_(
+                            ("PROVIDER_PRIMARY_READY", "READY")
+                        ),
+                    )
+                )
+            )
+        provider_to_w2 = {row.provider_team_id: row.w2_team_id for row in crosswalk_rows}
+        if not provider_to_w2:
+            return []
+        provider_rows = self.team_xg_rolling_snapshots_for_teams(
+            list(provider_to_w2),
+            before=before,
+        )
+        projected: list[dict[str, Any]] = []
+        for row in provider_rows:
+            provider_team_id = str(row.get("team_id") or "")
+            w2_team_id = provider_to_w2.get(provider_team_id)
+            if not w2_team_id:
+                continue
+            projected.append(
+                {
+                    **row,
+                    "team_id": w2_team_id,
+                    "provider_team_id": provider_team_id,
+                    "identity_projection": "PROVIDER_TEAM_ID_TO_W2_TEAM_ID",
+                    "identity_projection_status": "READY",
+                }
+            )
+        return projected
+
+    def team_xg_matches_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        limit_per_team: int = 20,
+    ) -> list[dict[str, Any]]:
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids or len(ids) > 8:
+            return []
+        with Session(self.engine) as session:
+            crosswalk_rows = list(
+                session.scalars(
+                    select(ProviderTeamIdentityCrosswalkModel).where(
+                        ProviderTeamIdentityCrosswalkModel.w2_team_id.in_(ids),
+                        ProviderTeamIdentityCrosswalkModel.provider == "api_football",
+                        ProviderTeamIdentityCrosswalkModel.identity_status.in_(
+                            ("PROVIDER_PRIMARY_READY", "READY")
+                        ),
+                    )
+                )
+            )
+        provider_to_w2 = {row.provider_team_id: row.w2_team_id for row in crosswalk_rows}
+        if not provider_to_w2:
+            return []
+        rows = self.team_xg_matches_for_teams(
+            list(provider_to_w2),
+            before=before,
+            limit_per_team=limit_per_team,
+        )
+        projected: list[dict[str, Any]] = []
+        for row in rows:
+            provider_team_id = str(row.get("team_id") or "")
+            w2_team_id = provider_to_w2.get(provider_team_id)
+            if not w2_team_id:
+                continue
+            projected.append(
+                {
+                    **row,
+                    "team_id": w2_team_id,
+                    "provider_team_id": provider_team_id,
+                    "identity_projection": "PROVIDER_TEAM_ID_TO_W2_TEAM_ID",
+                    "identity_projection_status": "READY",
+                }
+            )
+        return projected
 
     def _canonical_market_observations_for_fixtures(
         self,
@@ -1361,6 +1600,47 @@ class FutureRefreshDbRepository:
             "source_system": row.source_system,
             "candidate": False,
             "formal_recommendation": False,
+        }
+
+    @staticmethod
+    def _canonical_match_history_dict(row: CanonicalTeamMatchHistoryModel) -> dict[str, Any]:
+        return {
+            "history_id": row.history_id,
+            "fixture_id": row.fixture_id,
+            "provider": row.provider,
+            "provider_fixture_id": row.provider_fixture_id,
+            "competition_id": row.competition_id,
+            "season": row.season,
+            "kickoff_utc": iso_z(row.kickoff_utc),
+            "fixture_status": row.fixture_status,
+            "team_side": row.team_side,
+            "team_provider_id": row.team_provider_id,
+            "opponent_provider_id": row.opponent_provider_id,
+            "team_w2_id": row.team_w2_id,
+            "opponent_w2_id": row.opponent_w2_id,
+            "goals_for": row.goals_for,
+            "goals_against": row.goals_against,
+            "result_identity_hash": row.result_identity_hash,
+            "source_raw_hash": row.source_raw_hash,
+            "endpoint_capture_id": row.endpoint_capture_id,
+            "captured_at": iso_z(row.captured_at),
+            "history_hash": row.history_hash,
+        }
+
+    @staticmethod
+    def _team_rating_snapshot_dict(row: TeamRatingSnapshotModel) -> dict[str, Any]:
+        return {
+            "rating_id": row.rating_id,
+            "w2_team_id": row.w2_team_id,
+            "observed_at": iso_z(row.observed_at),
+            "model_version": row.model_version,
+            "elo": row.elo,
+            "attack_strength": row.attack_strength,
+            "defence_strength": row.defence_strength,
+            "form_index": row.form_index,
+            "source": row.source,
+            "source_history_hashes": row.source_history_hashes,
+            "rating_hash": row.rating_hash,
         }
 
     def market_snapshots(self) -> list[dict[str, Any]]:
