@@ -118,3 +118,34 @@ def test_v3_envelope_hash_covers_audit_refs_and_card_parity() -> None:
             card_hash="card-hash",
             decision_contract_card_hash="other-card",
         )
+
+
+def test_v3_fails_closed_when_ah_candidate_line_differs_from_selected_quote() -> None:
+    manifest = load_recommendation_capability_manifest()
+    evaluated = {
+        "market": "ASIAN_HANDICAP",
+        "selection": "AWAY",
+        "line": "-0.75",
+        "quotes": {"executable": {"line": "-0.75", "decimal_odds": "1.90"}},
+        "analysis_evidence": {
+            "status": "COMPLETE",
+            "model_probability": {"status": "READY"},
+            "comparison": {"analysis_direction_allowed": True},
+        },
+    }
+    decision = project_decision_v3(
+        _contract(
+            pick={
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "0.75",
+                "odds": "1.90",
+            },
+            selected_market_candidate=evaluated,
+        ),
+        manifest=manifest,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV3.NOT_READY
+    assert decision.reason_code == "AH_SIDE_LINE_IDENTITY_CONFLICT"
+    assert decision.selected_candidate is None

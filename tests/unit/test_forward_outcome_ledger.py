@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from w2.tracking.forward_outcome_ledger import (
+    append_capture_supersessions,
     backfill_outcomes,
     build_forward_outcome_records,
     pending_outcome_entries,
@@ -71,6 +72,55 @@ def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
     assert payload["record_count"] == 1
     assert payload["written"] == 0
     assert list(tmp_path.glob("*.jsonl")) == []
+
+
+def test_capture_supersession_is_append_only_and_removes_pending_entry(tmp_path: Path) -> None:
+    ledger_root = tmp_path / "forward_outcome_ledger"
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.update(  # type: ignore[union-attr]
+        {
+            "decision_tier": "ANALYSIS_PICK",
+            "outcome_tracked": True,
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "+1.25",
+            },
+        }
+    )
+    capture = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=ledger_root,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    capture_hash = capture["records"][0]["capture_identity_hash"] if capture["records"] else None
+    if capture_hash is None:
+        row = json.loads(
+            (ledger_root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()[0]
+        )
+        capture_hash = row["capture_identity_hash"]
+    assert len(pending_outcome_entries(tmp_path)) == 1
+
+    result = append_capture_supersessions(
+        tmp_path,
+        [{"fixture_id": "fixture-1", "capture_identity_hash": capture_hash}],
+        reason_code="AH_SELECTED_SIDE_LINE_MISMATCH",
+        superseded_at=datetime(2026, 7, 7, 13, 0, tzinfo=UTC),
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert result["written"] == 1
+    assert len(pending_outcome_entries(tmp_path)) == 0
+    original = ledger_root / "2026-07-07_staging.jsonl"
+    assert original.exists()
+    supersession = tmp_path / "forward_outcome_ledger" / "2026-07-07-supersessions_staging.jsonl"
+    row = json.loads(supersession.read_text(encoding="utf-8"))
+    assert row["supersession_status"] == "SUPERSEDED"
+    assert row["target_capture_identity_hash"] == capture_hash
 
 
 def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> None:

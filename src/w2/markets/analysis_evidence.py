@@ -7,7 +7,7 @@ import json
 import math
 from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
@@ -84,6 +84,9 @@ def build_analysis_market_evidence(
     base["quote_identity"] = quote_identity
     base["quote_observation_ids"] = dict(_mapping(quote_identity.get("observation_ids")))
     quotes = _mapping(audit.get("quotes"))
+    line_by_side = {
+        side: _decimal(_mapping(quotes.get(side.lower())).get("line")) for side in sides
+    }
     prices = {
         side: _decimal(_mapping(quotes.get(side.lower())).get("decimal_odds")) for side in sides
     }
@@ -93,6 +96,26 @@ def build_analysis_market_evidence(
         or any(price is None or price <= 1 for price in prices.values())
     ):
         return _finish(base, "AUTHORITATIVE_QUOTE_INCOMPLETE")
+    if not _side_lines_match(market, decimal_line, line_by_side):
+        reason = (
+            "AH_SIDE_LINE_IDENTITY_CONFLICT"
+            if market == "ASIAN_HANDICAP"
+            else "TOTALS_SIDE_LINE_IDENTITY_CONFLICT"
+        )
+        base["comparison"] = {
+            "analysis_direction_allowed": False,
+            "status": "NOT_READY",
+            "reason_code": reason,
+        }
+        return _finish(base, reason)
+    if market == "ASIAN_HANDICAP":
+        base.update(
+            {
+                "canonical_home_line": _text(decimal_line),
+                "home_quote_line": _text(line_by_side["HOME"]),
+                "away_quote_line": _text(line_by_side["AWAY"]),
+            }
+        )
     base["quote_evidence_status"] = "READY"
     complete_prices = {side: price for side, price in prices.items() if price is not None}
     raw = {side: round(float(Decimal("1") / complete_prices[side]), 6) for side in sides}
@@ -106,7 +129,7 @@ def build_analysis_market_evidence(
         side: _side_evidence(
             market=market,
             selection=side,
-            line=decimal_line,
+            line=cast(Decimal, line_by_side[side]),
             price=complete_prices[side],
             market_probability=devigged.probabilities[side],
             simulation=simulation,
@@ -131,6 +154,9 @@ def build_analysis_market_evidence(
         }
         return _finish(base, "NO_EDGE" if all_model_ready else "NOT_READY")
     selected_evidence = side_evidence[normalized_selection]
+    selected_line = cast(Decimal, line_by_side[normalized_selection])
+    base["line"] = _text(selected_line)
+    base["selected_side_line"] = _text(selected_line)
     model = selected_evidence["model_probability"]
     base["model_probability"] = model
     if model.get("status") != "READY":
@@ -162,6 +188,7 @@ def _side_evidence(
     model = _model_evidence(market, selection, line, price, simulation)
     if model.get("status") != "READY":
         return {
+            "line": _text(line),
             "model_probability": model,
             "comparison": {
                 "analysis_direction_allowed": False,
@@ -172,6 +199,7 @@ def _side_evidence(
     delta = round(float(model["effective_probability"]) - float(market_probability), 6)
     allowed = bool(model.get("expected_value", 0.0) > 0 and delta >= MIN_MARKET_ANCHOR_DIVERGENCE)
     return {
+        "line": _text(line),
         "model_probability": model,
         "comparison": {
             "probability_delta": delta,
@@ -182,6 +210,22 @@ def _side_evidence(
             else "MODEL_MARKET_EDGE_INSUFFICIENT",
         },
     }
+
+
+def _side_lines_match(
+    market: str,
+    canonical_line: Decimal,
+    line_by_side: Mapping[str, Decimal | None],
+) -> bool:
+    if market == "ASIAN_HANDICAP":
+        return (
+            line_by_side.get("HOME") == canonical_line
+            and line_by_side.get("AWAY") == -canonical_line
+        )
+    return (
+        line_by_side.get("OVER") == canonical_line
+        and line_by_side.get("UNDER") == canonical_line
+    )
 
 
 def _model_evidence(

@@ -35,7 +35,9 @@ def forward_ledger_performance(
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     root = runtime_root / "forward_outcome_ledger"
-    records = list(load_forward_ledger_records(root))
+    raw_records = list(load_forward_ledger_records(root))
+    superseded = _superseded_capture_hashes(raw_records)
+    records = [record for record in raw_records if not _record_is_superseded(record, superseded)]
     captures = [record for record in records if _record_type(record) == "capture"]
     candidates, excluded = _validation_candidates(captures)
     validation_rows, settlement_excluded = _validation_settlements(records, candidates)
@@ -81,7 +83,9 @@ def forward_ledger_performance(
         "schema_version": "w2.forward_ledger_performance.v3",
         "source": "runtime/forward_outcome_ledger",
         "sample_target": sample_target,
-        "record_count": len(records),
+        "record_count": len(raw_records),
+        "active_record_count": len(records),
+        "superseded_capture_count": len(superseded),
         "fixture_count": len(fixture_ids),
         "validation_fixture_count": len(candidates),
         "validation_market_pick_count": _validation_market_pick_count(candidates),
@@ -1556,6 +1560,32 @@ def _outcome_side(record: Mapping[str, Any]) -> str:
 
 def _record_type(record: Mapping[str, Any]) -> str:
     return _text(record.get("record_type") or "capture")
+
+
+def _superseded_capture_hashes(records: Sequence[Mapping[str, Any]]) -> set[str]:
+    return {
+        _text(record.get("target_capture_identity_hash"))
+        for record in records
+        if _record_type(record) == "supersession"
+        and _text(record.get("supersession_status")) == "SUPERSEDED"
+        and _text(record.get("target_capture_identity_hash"))
+    }
+
+
+def _record_is_superseded(record: Mapping[str, Any], superseded: set[str]) -> bool:
+    if not superseded:
+        return False
+    if _record_type(record) == "capture":
+        return _text(record.get("capture_identity_hash")) in superseded
+    if _record_type(record) == "outcome":
+        return bool(
+            {
+                _text(record.get("capture_identity_hash")),
+                _text(record.get("source_capture_hash")),
+            }
+            & superseded
+        )
+    return False
 
 
 def _hit_rate(counts: Mapping[str, int]) -> float | None:

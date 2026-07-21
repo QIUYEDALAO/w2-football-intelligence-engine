@@ -88,7 +88,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "futureSchedule" in boss_view
     assert "ScheduleSection" in boss_view
     assert "CoverageFoldout" in boss_view
-    assert "已形成建议" in boss_view
+    assert "已形成分析判断" in boss_view
     assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
@@ -112,11 +112,11 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     )
     assert "performance_cohort" in boss_view
     assert "outcomes_canonical" not in boss_view
-    assert "验证推荐与赛果" in boss_view
+    assert "前向验证记录与赛果" in boss_view
     assert "全部已处理" not in boss_view
     assert "可核验 {settled}/{processed}" not in boss_view
     assert "页面更新" in boss_view
-    assert "全局赔率确认" in boss_view
+    assert "全局最近赔率" in boss_view
     assert "下次采集" in boss_view
     assert "最近盘口" in boss_view
     assert "已过期，仅参考" in boss_view
@@ -130,7 +130,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "分析推荐已形成，但尚未写入验证 ledger" in boss_view
     assert "真实前向卡已进入 ledger" not in boss_view
     assert "已纳入验证追踪" not in boss_view
-    assert "本场尚未产生验证推荐" in boss_view
+    assert "本场尚未产生前向验证记录" in boss_view
     assert "只有赛前形成分析参考或正式推荐" in boss_view
     assert "最后刷新" not in boss_view
 

@@ -129,3 +129,27 @@ def test_missing_authoritative_fields_is_incomplete_not_synthesized() -> None:
     assert "HOME_MISSING_OBSERVATION_ID" in payload["blockers"]
     assert "AWAY_MISSING_CAPTURED_AT" in payload["blockers"]
     assert payload["observation_ids"] == {}
+
+
+def test_ah_selected_line_must_equal_home_quote_line_not_only_magnitude() -> None:
+    payload = project_quote_identity(
+        market="ASIAN_HANDICAP",
+        selected_line="0.75",
+        authoritative_rows={
+            "home": quote(
+                observation_id="home-id",
+                market="ASIAN_HANDICAP",
+                selection="Home -0.75",
+                line="-0.75",
+            ),
+            "away": quote(
+                observation_id="away-id",
+                market="ASIAN_HANDICAP",
+                selection="Away +0.75",
+                line="0.75",
+            ),
+        },
+    )
+
+    assert payload["identity_status"] == "CONFLICT"
+    assert payload["blockers"] == ["LINE_MISMATCH"]

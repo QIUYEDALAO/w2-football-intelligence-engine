@@ -13,8 +13,8 @@ def _quote_audit() -> dict[str, object]:
             "captured_at": "2026-07-20T10:00:00Z",
             "observation_ids": {"home": "h1", "away": "a1"},
             "quotes": {
-                "home": {"decimal_odds": "1.95"},
-                "away": {"decimal_odds": "1.91"},
+                "home": {"line": "-0.25", "decimal_odds": "1.95"},
+                "away": {"line": "0.25", "decimal_odds": "1.91"},
             },
         }
     }

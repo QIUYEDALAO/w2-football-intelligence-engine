@@ -102,18 +102,17 @@ def _candidate(
             simulation=simulation,
         )
         selection = _best_analysis_side(comparison_evidence)
-    executable_odds = (
-        _normalize_selected_odds(odds, selection)
-        or _authoritative_executable_quote(audit, selection)
-        if selection is not None
-        else {}
-    )
-    selected_side_quote = bool(_authoritative_executable_quote(audit, selection))
+    selected_quote = _authoritative_executable_quote(audit, selection)
+    selected_side_line = selected_quote.get("line") if selected_quote else None
+    executable_odds = selected_quote if selection is not None else {}
+    selected_side_quote = bool(selected_quote)
+    if selection is not None and selected_side_line is not None:
+        line = selected_side_line
     executable_price = _selected_price(executable_odds, selection)
-    executable = bool(
+    quote_executable = bool(
         quote_complete
         and selection is not None
-        and line is not None
+        and selected_side_line is not None
         and selected_side_quote
         and executable_price is not None
         and executable_price > 1
@@ -127,24 +126,31 @@ def _candidate(
     )
     blockers = [str(item) for item in audit.get("blockers", []) if item]
     blockers.extend(str(item) for item in audit.get("freshness_blockers", []) if item)
-    if not odds and executable:
-        blockers.append("EXECUTABLE_ODDS_MISSING")
-    if quote_complete and not executable:
-        blockers.append("NO_DIRECTION_SELECTED")
-    elif not executable and not blockers:
-        blockers.append("QUOTE_NOT_EXECUTABLE")
     evidence = build_analysis_market_evidence(
         fixture_id=fixture_id,
         competition_id=competition_id,
         market=market,
         selection=selection,
-        line=line,
+        line=audit.get("selected_line"),
         quote_identity_audit={_KEYS[market]: audit},
         simulation=simulation,
     )
     model = _mapping(evidence.get("model_probability"))
     comparison = _mapping(evidence.get("comparison"))
     model_status = _text(model.get("status"), "NOT_READY")
+    side_identity_conflict = evidence.get("status") in {
+        "AH_SIDE_LINE_IDENTITY_CONFLICT",
+        "TOTALS_SIDE_LINE_IDENTITY_CONFLICT",
+    }
+    executable = quote_executable and not side_identity_conflict
+    if side_identity_conflict:
+        blockers.append(str(evidence["status"]))
+    if quote_complete and not executable:
+        blockers.append(
+            "NO_DIRECTION_SELECTED" if selection is None else "QUOTE_NOT_EXECUTABLE"
+        )
+    elif not executable and not blockers:
+        blockers.append("QUOTE_NOT_EXECUTABLE")
     reference = _reference_quote(audit)
     return {
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
@@ -154,7 +160,7 @@ def _candidate(
             "CODE_PRESENT_BUT_DISABLED" if market == "ASIAN_HANDICAP" else "NOT_IMPLEMENTED"
         ),
         "selection": selection,
-        "line": line,
+        "line": evidence.get("selected_side_line") if selection is not None else line,
         "quote_status": quote_status,
         "quote_usage": "EXECUTABLE"
         if executable
@@ -207,7 +213,12 @@ def _candidate(
         "analysis_direction_allowed": comparison.get("analysis_direction_allowed") is True,
         "side_evidence": evidence.get("side_evidence", {}),
         "evidence_hash": evidence.get("evidence_hash"),
-        "ev_eligible": executable and model_status == "READY",
+        "ev_eligible": (
+            executable
+            and model_status == "READY"
+            and evidence.get("status") == "COMPLETE"
+            and comparison.get("analysis_direction_allowed") is True
+        ),
         "formal_eligible": False,
         "lock_eligible": False,
         "blockers": sorted(set(blockers)),
@@ -261,7 +272,20 @@ def _authoritative_executable_quote(audit: Mapping[str, Any], selection: object)
     )
     quote = _mapping(_mapping(audit.get("quotes")).get(side))
     price = quote.get("decimal_odds")
-    return {"line": quote.get("line"), "decimal_odds": price} if price else {}
+    return (
+        {
+            "line": quote.get("line"),
+            "decimal_odds": price,
+            "provider": quote.get("provider"),
+            "bookmaker_id": quote.get("bookmaker_id"),
+            "bookmaker_name": quote.get("bookmaker_name"),
+            "capture_id": quote.get("capture_id"),
+            "captured_at": quote.get("captured_at"),
+            "observation_id": quote.get("observation_id"),
+        }
+        if price and quote.get("line") is not None
+        else {}
+    )
 
 
 def _normalize_selected_odds(odds: Mapping[str, Any], selection: object) -> dict[str, Any]:

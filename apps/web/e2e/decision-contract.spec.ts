@@ -331,15 +331,15 @@ test("READY renders the unified pick and verified analysis-card", async ({
     .filter({ hasText: "READY Home" });
   await expect(row).toContainText("正式可锁");
   await expect(row).toContainText("1.91");
-  await expect(row).toContainText("推荐盘口：让球 主 -0.5 @1.91");
-  await expect(row).toContainText("推荐比分：1-0 · 2-0 · 2-1");
+  await expect(row).toContainText("分析盘口：让球 主 -0.5 @1.91");
+  await expect(row).toContainText("模型比分 Top 3：1-0 / 2-0 / 2-1");
   await expect(row).not.toContainText("1万次模拟");
-  await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 1");
+  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 1");
   await expect(page.locator(".boss-command-meta")).toContainText(
     "页面更新 18:00",
   );
   await expect(page.locator(".boss-command-meta")).toContainText(
-    "赔率确认 17:55",
+    "全局最近赔率 17:55",
   );
   await expect(page.locator(".boss-command-meta")).toContainText(
     "下次采集 18:15",
@@ -396,7 +396,7 @@ test("all qualifying recommendations remain visible without a top-three cap", as
   await expect(
     page.locator("article.decision-row").filter({ hasText: "正式可锁" }),
   ).toHaveCount(4);
-  await expect(page.locator(".boss-command-meta")).toContainText("已出推荐 4");
+  await expect(page.locator(".boss-command-meta")).toContainText("分析建议 4");
 });
 
 test("stored early odds remain visible as reference while waiting for the prematch refresh", async ({
@@ -411,7 +411,7 @@ test("stored early odds remain visible as reference while waiting for the premat
   const visibleRow = row.locator(".decision-row-button");
   await expect(visibleRow).toContainText("缺临场赔率·14:00更新");
   await expect(visibleRow).toContainText(
-    "暂无推荐比分：缺临场赔率，14:00刷新后再判断",
+    "暂无模型比分参考：缺临场赔率，14:00刷新后再判断",
   );
   await expect(visibleRow).not.toContainText("1万次模拟");
   await expect(visibleRow).toContainText(
@@ -663,7 +663,7 @@ for (const scenario of [
     await expect(row).not.toContainText("1.91");
     await expect(row).not.toContainText("正式可锁");
     await expect(page.locator(".boss-command-meta")).toContainText(
-      "已出推荐 0",
+      "分析建议 0",
     );
     const analysis = await page.evaluate(async (fixture) => {
       const response = await fetch(`/v1/fixtures/${fixture}/analysis-card`);

@@ -61,6 +61,30 @@ def test_forward_ledger_pending_details_expose_capture_identity(tmp_path: Path) 
     assert detail["recommendation_scope"] == "VALIDATION"
 
 
+def test_forward_ledger_excludes_superseded_capture_from_validation(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture["capture_identity_hash"] = "bad-ah-capture"
+    supersession = {
+        "schema_version": "w2.forward_outcome_ledger.v3",
+        "record_type": "supersession",
+        "supersession_status": "SUPERSEDED",
+        "reason_code": "AH_SELECTED_SIDE_LINE_MISMATCH",
+        "fixture_id": "fixture-1",
+        "target_capture_identity_hash": "bad-ah-capture",
+    }
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, supersession])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 2
+    assert payload["active_record_count"] == 1
+    assert payload["superseded_capture_count"] == 1
+    assert payload["validation_fixture_count"] == 0
+    assert payload["validation_pending_fixture_count"] == 0
+
+
 def test_forward_ledger_latest_same_decision_capture_repairs_identity_format(
     tmp_path: Path,
 ) -> None:

@@ -55,8 +55,8 @@ def test_runtime_and_offline_scalar_probability_are_equal() -> None:
                 "captured_at": "2026-01-01T00:00:00Z",
                 "observation_ids": {"home": "h", "away": "a"},
                 "quotes": {
-                    "home": {"decimal_odds": "1.95"},
-                    "away": {"decimal_odds": "1.95"},
+                    "home": {"line": "0", "decimal_odds": "1.95"},
+                    "away": {"line": "0", "decimal_odds": "1.95"},
                 },
             }
         },

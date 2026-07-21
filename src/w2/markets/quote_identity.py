@@ -247,7 +247,9 @@ def _lines_match(market: str, selected: Any, first: Any, second: Any) -> bool:
     if selected_line is None or first_line is None or second_line is None:
         return False
     if market == "ASIAN_HANDICAP":
-        return abs(first_line) == abs(selected_line) and first_line == -second_line
+        # selected_line is the canonical HOME line.  Matching by magnitude hid
+        # a sign inversion where an AWAY price was evaluated as AWAY +line.
+        return first_line == selected_line and second_line == -selected_line
     return first_line == selected_line and second_line == selected_line
 
 

@@ -5,6 +5,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any
 
@@ -355,6 +356,9 @@ def _outcome(
         _mapping(evidence.get("comparison")).get("analysis_direction_allowed")
     ):
         return RecommendationOutcomeV3.NO_EDGE, "NO_ANALYSIS_EDGE", "同盘口模型与市场比较未形成优势"
+    identity_status = _selected_candidate_identity_status(candidate, evaluated)
+    if identity_status != "PASS":
+        return RecommendationOutcomeV3.NOT_READY, identity_status, "候选盘口与精确报价身份不一致"
     data = _text(contract.get("data_status"), "PARTIAL")
     if data != "READY":
         reason_code = _text(contract.get("reason_code"), "DATA_NOT_READY")
@@ -380,6 +384,36 @@ def _outcome(
 def _candidate(contract: Mapping[str, Any]) -> dict[str, Any] | None:
     raw = contract.get("pick")
     return dict(raw) if isinstance(raw, Mapping) else None
+
+
+def _selected_candidate_identity_status(
+    candidate: Mapping[str, Any] | None,
+    evaluated: Mapping[str, Any] | None,
+) -> str:
+    if candidate is None:
+        return "PASS"
+    if candidate.get("line") is None or candidate.get("odds") is None:
+        return "SELECTED_CANDIDATE_QUOTE_INCOMPLETE"
+    if not isinstance(evaluated, Mapping):
+        return "PASS"
+    if not _mapping(evaluated.get("analysis_evidence")):
+        return "PASS"
+    executable = _mapping(_mapping(evaluated.get("quotes")).get("executable"))
+    if not executable:
+        return "SELECTED_CANDIDATE_QUOTE_INCOMPLETE"
+    if _text(candidate.get("market")) != _text(evaluated.get("market")):
+        return "MODEL_QUOTE_IDENTITY_MISMATCH"
+    if _text(candidate.get("selection")) != _text(evaluated.get("selection")):
+        return "MODEL_QUOTE_IDENTITY_MISMATCH"
+    if not _decimal_equal(candidate.get("line"), executable.get("line")):
+        return (
+            "AH_SIDE_LINE_IDENTITY_CONFLICT"
+            if _text(candidate.get("market")) == "ASIAN_HANDICAP"
+            else "MODEL_QUOTE_IDENTITY_MISMATCH"
+        )
+    if not _decimal_equal(candidate.get("odds"), executable.get("decimal_odds")):
+        return "MODEL_QUOTE_IDENTITY_MISMATCH"
+    return "PASS"
 
 
 def _evaluated_candidate(contract: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -471,6 +505,13 @@ def _mapping(value: object) -> Mapping[str, Any]:
 
 def _truthy(value: object) -> bool:
     return value is True or str(value).strip().lower() in {"1", "true", "yes"}
+
+
+def _decimal_equal(left: object, right: object) -> bool:
+    try:
+        return Decimal(str(left)) == Decimal(str(right))
+    except (InvalidOperation, TypeError, ValueError):
+        return False
 
 
 def _iso(value: datetime | str) -> str:

@@ -113,8 +113,14 @@ def build_decision_contract_fields(
         recommendation_id = None
     legacy = legacy_decision_view(card, market)
     legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
+    evaluated_candidate = _selected_market_candidate(card, market)
     pick_payload = (
-        _pick_payload(card=card, market=market, recommendation=recommendation)
+        _pick_payload(
+            card=card,
+            market=market,
+            recommendation=recommendation,
+            evaluated_candidate=evaluated_candidate,
+        )
         if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
         else None
     )
@@ -156,7 +162,6 @@ def build_decision_contract_fields(
         "non_pick": non_pick_payload,
         "one_liner": _one_liner(tier, non_pick_payload),
     }
-    evaluated_candidate = _selected_market_candidate(card, market)
     lock_eligible = compute_lock_eligible(
         core,
         environment,
@@ -462,10 +467,44 @@ def _pick_payload(
     card: Mapping[str, Any],
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
+    evaluated_candidate: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     pricing = _as_mapping(_get(card, "pricing_shadow"))
+    evaluated = _as_mapping(evaluated_candidate)
+    executable_quote = _as_mapping(_as_mapping(evaluated.get("quotes")).get("executable"))
+    analysis_evidence = _as_mapping(evaluated.get("analysis_evidence"))
+    model_probability = _as_mapping(analysis_evidence.get("model_probability"))
+    comparison = _as_mapping(analysis_evidence.get("comparison"))
     pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
+    if evaluated:
+        pick_market = _first_text(evaluated.get("market"), pick_market)
     fair_key, market_key, edge_key = _pricing_keys_for_market(pick_market)
+    canonical_ready = (
+        analysis_evidence.get("status") == "COMPLETE"
+        and comparison.get("analysis_direction_allowed") is True
+        and executable_quote.get("line") is not None
+        and executable_quote.get("decimal_odds") is not None
+    )
+    if canonical_ready:
+        return {
+            "market": pick_market,
+            "selection": _first_text(evaluated.get("selection")),
+            "line": _first_text(executable_quote.get("line"), evaluated.get("line")),
+            "odds": _first_text(executable_quote.get("decimal_odds")),
+            "fair_line": evaluated.get("fair_line"),
+            "market_line": evaluated.get("market_line"),
+            "value_edge": _number(model_probability.get("expected_value")),
+            "key_factors": [str(comparison.get("reason_code") or "MODEL_MARKET_EDGE_READY")],
+            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"],
+            "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
+            "quote_identity": dict(_as_mapping(evaluated.get("quote_identity"))),
+            "model_probability": dict(model_probability),
+            "market_probability": analysis_evidence.get("market_probability"),
+            "probability_delta": comparison.get("probability_delta"),
+            "expected_value": model_probability.get("expected_value"),
+            "uncertainty": model_probability.get("ev_se"),
+            "disclaimer": ANALYSIS_PICK_DISCLAIMER,
+        }
     return {
         "market": pick_market,
         "selection": _first_text(

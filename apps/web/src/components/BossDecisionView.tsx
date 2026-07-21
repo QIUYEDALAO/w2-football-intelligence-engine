@@ -25,7 +25,7 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const DATA_STATUS_LABELS: Record<string, string> = {
-  READY: "数据齐",
+  READY: "分析级就绪",
   PARTIAL: "部分就绪",
   STALE: "缺少最新数据",
   BLOCKED: "数据阻塞",
@@ -230,15 +230,15 @@ function scorelineSimulationSummary(card: DashboardDayViewCard): string {
     !["ANALYSIS_PICK", "RECOMMEND"].includes(card.decision_tier)
   ) {
     if (effectiveReasonCode(card) === "DATA_STALE_ODDS") {
-      return `暂无推荐比分：缺临场赔率，${nextRefreshLabel(card)}刷新后再判断`;
+      return `暂无模型比分参考：缺临场赔率，${nextRefreshLabel(card)}刷新后再判断`;
     }
-    return "尚未形成推荐盘口，暂无推荐比分";
+    return "尚未形成分析盘口，暂无模型比分参考";
   }
   const scores = card.scoreline_reference?.direction_top3?.slice(0, 3) ?? [];
   if (card.scoreline_readiness?.status === "READY" && scores.length > 0) {
-    return `推荐比分：${scores.map((pick) => pick.scoreline).join(" · ")}`;
+    return `模型比分 Top 3：${scores.map((pick) => pick.scoreline).join(" / ")}`;
   }
-  return "已有推荐盘口，推荐比分暂不可用";
+  return "已有分析盘口，模型比分参考暂不可用";
 }
 
 function oddsSummary(card: DashboardDayViewCard): string | null {
@@ -417,9 +417,28 @@ function marketSourceLabel(card: DashboardDayViewCard): string {
   const odds = asRecord(card.current_odds);
   const preferred =
     card.pick?.market === "TOTALS" ? asRecord(odds.ou) : asRecord(odds.ah);
-  const source = textValue(preferred.source) || textValue(preferred.bookmaker);
-  if (source) return `${source} · 去水市场概率`;
-  return "Pinnacle 优先 · 共识主线去水";
+  const selected = asRecord(
+    card.recommendation_decision_v3?.selected_candidate,
+  );
+  const identity = asRecord(selected.quote_identity);
+  const quotes = asRecord(identity.quotes);
+  const selection = textValue(selected.selection).toLowerCase();
+  const selectedQuote = asRecord(quotes[selection]);
+  const source =
+    textValue(selectedQuote.bookmaker_name) ||
+    textValue(preferred.bookmaker) ||
+    textValue(preferred.source) ||
+    textValue(identity.bookmaker_id);
+  const capturedAt =
+    textValue(selectedQuote.captured_at) ||
+    textValue(identity.captured_at) ||
+    textValue(preferred.captured_at);
+  const parts = [
+    "主线选择：多庄共识",
+    source ? `执行报价：${source}` : "执行报价：已审计报价",
+    capturedAt ? `决策快照：${fmtTime(capturedAt)}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function divergenceLabel(card: DashboardDayViewCard): string {
@@ -745,7 +764,7 @@ function countdownLabel(card: DashboardDayViewCard, now: Date): string {
 }
 
 function rowMarketSummary(card: DashboardDayViewCard): string {
-  if (card.pick) return `推荐盘口：${marketPickLabel(card)}`;
+  if (card.pick) return `分析盘口：${marketPickLabel(card)}`;
   const odds = oddsSummary(card);
   if (odds) return `当前市场盘口（非推荐）：${odds.split(" · ")[0] ?? odds}`;
   const historical = lastKnownOddsSummary(card);
@@ -872,7 +891,7 @@ export function MatchdayHeader({
             </strong>
           </span>
           <span className="boss-time-line">
-            全局赔率确认{" "}
+            全局最近赔率{" "}
             <strong>
               {dayView.freshness.odds_last_confirmed_at
                 ? fmtTime(dayView.freshness.odds_last_confirmed_at)
@@ -892,7 +911,7 @@ export function MatchdayHeader({
           未来待赛 <strong>{upcoming}</strong>
         </span>
         <span>
-          已出推荐 <strong>{readyRecommendations}</strong>
+          分析建议 <strong>{readyRecommendations}</strong>
         </span>
       </div>
       <div className="boss-command-release">
@@ -918,7 +937,7 @@ export function DecisionCounts({
   const cohort = performance?.forward_ledger?.performance_cohort;
   const metrics = [
     [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
-    ["已出推荐", readyRecommendations, "数据齐全后才置顶"],
+    ["分析建议", readyRecommendations, "分析级证据完整后才置顶"],
     [
       "纳入统计",
       cohort?.eligible_count ?? 0,
@@ -1105,13 +1124,17 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
     .map((card) => card.next_eval_at)
     .filter((value): value is string => Boolean(value))
     .sort()[0];
+  const automaticRefreshPaused =
+    !dayView.freshness.refreshing && !dayView.freshness.next_refresh_tick;
   return (
     <section
       className={`health-strip${blocked ? " has-warning" : ""}`}
       aria-label="白名单健康状态"
     >
       <strong>
-        {staleOdds.length
+        {automaticRefreshPaused
+          ? "自动采集已暂停"
+          : staleOdds.length
           ? "缺少最新临场赔率"
           : blocked
             ? "部分数据需处理"
@@ -1123,7 +1146,9 @@ function HealthStrip({ dayView }: { dayView: DashboardDayView }) {
         {competitionCount} 个联赛 · 待赛{" "}
         {dayView.cards.filter(isPreMatch).length} 场
       </span>
-      {staleOdds.length ? (
+      {automaticRefreshPaused ? (
+        <small>当前显示最近冻结快照；下一次受控采集尚未安排。</small>
+      ) : staleOdds.length ? (
         <small>
           {staleOdds.length} 场当前只有过期早盘；
           {staleOddsNext ? fmtTime(staleOddsNext) : "下一计划时点"}
@@ -1152,7 +1177,7 @@ function FilterControls({
 }) {
   const filters: Array<[ScheduleFilter, string]> = [
     ["all", "全部赛程"],
-    ["recommended", "只看已形成建议"],
+    ["recommended", "只看分析建议"],
     ["hide-not-ready", "隐藏未就绪"],
   ];
   return (
@@ -1257,7 +1282,7 @@ function validationLedgerState(
   if (!card.outcome_tracked) {
     return {
       status: "VALIDATION_NOT_CAPTURED",
-      label: "本场尚未产生验证推荐",
+      label: "本场尚未产生前向验证记录",
       detail: "只有赛前形成分析参考或正式推荐，完场后才计入验证样本。",
     };
   }
@@ -1288,8 +1313,13 @@ function TrustStrip({
     .map((row) => translateCompetition(row.league))
     .join(" / ");
   const validationCount = cohort?.validation_count ?? 0;
-  const settled = cohort?.eligible_count ?? 0;
+  const eligible = cohort?.eligible_count ?? 0;
+  const processed = cohort?.processed_count ?? 0;
+  const excluded = cohort?.excluded_count ?? 0;
   const pending = cohort?.pending_count ?? 0;
+  const decisive = cohort?.outcomes.decisive_count ?? 0;
+  const hitCount = cohort?.outcomes.hit_count ?? 0;
+  const clvSamples = cohort?.clv.sample_count ?? 0;
   const firstCapture = forwardLedger?.evidence_window.first_capture_at?.slice(
     5,
     10,
@@ -1305,19 +1335,21 @@ function TrustStrip({
   return (
     <section className="trust-strip" aria-label="赛后信任摘要">
       <strong>真实前向 {evidenceRange}</strong>
-      <span>验证推荐 {validationCount} 场</span>
+      <span>前向验证记录 {validationCount} 场</span>
       <span>
-        纳入统计 {settled} · 待处理 {pending}
+        已结算 {processed} · 纳入 {eligible} · 证据排除 {excluded} · 待结算 {pending}
       </span>
       <span>
-        命中率 {settled ? percent(cohort?.outcomes.hit_rate) : "积累中"}
+        有效输赢命中率 {decisive ? percent(cohort?.outcomes.hit_rate) : "积累中"}
+        {decisive ? `（${hitCount}/${decisive}）` : ""}
       </span>
       <span>
         CLV{" "}
-        {cohort?.clv.sample_count
-          ? clvUnits(cohort.clv.median_decimal)
+        {clvSamples
+          ? `${clvUnits(cohort?.clv.median_decimal)}（n=${clvSamples}，${performanceStatus(clvSamples)}）`
           : "积累中"}
       </span>
+      <span>历史恢复 cohort · 当前分析待结算 {pending} 场</span>
       <span>联赛表现 {bestForwardLeagues || bestLeagues || "积累中"}</span>
     </section>
   );
@@ -1349,7 +1381,7 @@ function VerificationPreview({
         {settled ? (
           <div className="verification-list">
             <div>
-              <span>验证推荐与赛果</span>
+              <span>前向验证记录与赛果</span>
               <strong>
                 命中 {outcomes.hit_count} · 未中 {outcomes.miss_count} · 走水{" "}
                 {outcomes.push_count}
@@ -1364,7 +1396,7 @@ function VerificationPreview({
           </div>
         ) : hasValidationLedger ? (
           <p>
-            验证推荐已写入 ledger，当前待结算 {pending} 场；暂不显示命中率，不制造战绩。
+            前向验证记录已写入 ledger，当前待结算 {pending} 场；暂不显示命中率，不制造战绩。
           </p>
         ) : legacySettled.length ? (
           <LegacyVerificationRows matches={legacySettled} />
@@ -1472,7 +1504,7 @@ function LeaguePerformancePreview({
             </p>
           </div>
         ) : (
-          <p>还没有形成验证推荐；未产生验证身份的比赛不计入联赛表现。</p>
+          <p>还没有形成前向验证记录；未产生验证身份的比赛不计入联赛表现。</p>
         )}
       </section>
     );
@@ -1669,10 +1701,10 @@ export function BossDecisionView({
           {visibleCards.length ? (
             <>
               <ScheduleSection
-                title="已形成建议"
+                title="已形成分析判断"
                 hint="所有符合完整数据与决策条件的比赛均展示"
                 cards={worthWatching}
-                empty="现在没有已形成建议的比赛 · 当前分歧门槛未通过"
+                empty="现在没有已形成分析判断的比赛 · 当前分歧门槛未通过"
                 selectedFixtureId={selectedCard?.fixture_id}
                 legacyById={legacyById}
                 now={now}
@@ -1701,7 +1733,7 @@ export function BossDecisionView({
               <ScheduleSection
                 title="未来赛程"
                 hint="明天及以后先折叠看摘要，临近窗口再进入今日赛程"
-                cards={filteredFutureSchedule.slice(0, 8)}
+                cards={filteredFutureSchedule}
                 empty="未来窗口暂无待赛比赛"
                 selectedFixtureId={selectedCard?.fixture_id}
                 legacyById={legacyById}

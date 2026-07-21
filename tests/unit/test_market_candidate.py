@@ -21,10 +21,10 @@ def _audit(*, identity: str = "COMPLETE", freshness: str = "COMPLETE") -> dict[s
         "raw_payload_sha256": "b" * 64,
         "quote_identity_hash": "c" * 64,
         "quotes": {
-            "home": {"capture_id": "capture-1", "decimal_odds": "1.9"},
-            "away": {"capture_id": "capture-1", "decimal_odds": "1.9"},
-            "over": {"capture_id": "capture-1", "decimal_odds": "1.9"},
-            "under": {"capture_id": "capture-1", "decimal_odds": "1.9"},
+            "home": {"capture_id": "capture-1", "line": "-0.5", "decimal_odds": "1.9"},
+            "away": {"capture_id": "capture-1", "line": "0.5", "decimal_odds": "1.9"},
+            "over": {"capture_id": "capture-1", "line": "-0.5", "decimal_odds": "1.9"},
+            "under": {"capture_id": "capture-1", "line": "-0.5", "decimal_odds": "1.9"},
         },
     }
 
@@ -112,7 +112,16 @@ def test_formal_ah_can_only_consume_executable_candidate_quote() -> None:
         current_odds={"ah": {"home_price": 1.9}},
         pricing_shadow={},
     )
-    assert _candidate_executable_odds(candidates["ah"]) == {"home_price": 1.9}
+    assert _candidate_executable_odds(candidates["ah"]) == {
+        "line": "-0.5",
+        "decimal_odds": "1.9",
+        "provider": None,
+        "bookmaker_id": None,
+        "bookmaker_name": None,
+        "capture_id": "capture-1",
+        "captured_at": None,
+        "observation_id": None,
+    }
 
     candidates["ah"]["quote_status"] = "STALE"
     assert _candidate_executable_odds(candidates["ah"]) is None
@@ -189,7 +198,7 @@ def test_no_pick_with_current_odds_is_comparison_only() -> None:
     assert candidate_is_executable(candidate) is False
 
 
-def test_best_side_evidence_promotes_executable_analysis_candidate() -> None:
+def test_best_side_evidence_uses_away_quote_line_for_away_candidate() -> None:
     simulation = {
         "status": "READY",
         "model_version": "model",
@@ -204,7 +213,7 @@ def test_best_side_evidence_promotes_executable_analysis_candidate() -> None:
         },
     }
     candidates = build_market_candidates(
-        markets=[{"market": "ASIAN_HANDICAP", "line": "0.75"}],
+        markets=[{"market": "ASIAN_HANDICAP", "line": "-0.5"}],
         quote_identity_audit={"ah": _audit()},
         current_odds={"ah": {"home_price": 1.9, "away_price": 1.9}},
         pricing_shadow={},
@@ -215,13 +224,88 @@ def test_best_side_evidence_promotes_executable_analysis_candidate() -> None:
 
     candidate = candidates["ah"]
     assert candidate["selection"] == "AWAY"
+    assert candidate["line"] == "0.5"
+    assert candidate["analysis_evidence"]["canonical_home_line"] == "-0.5"
+    assert candidate["analysis_evidence"]["selected_side_line"] == "0.5"
+    assert candidate["side_evidence"]["HOME"]["line"] == "-0.5"
+    assert candidate["side_evidence"]["AWAY"]["line"] == "0.5"
     assert candidate["analysis_evidence_status"] == "COMPLETE"
     assert candidate["analysis_direction_allowed"] is True
     assert candidate["analysis_evidence"]["comparison"]["reason_code"] == "MODEL_MARKET_EDGE_READY"
-    assert candidate["quotes"]["executable"] == {"home_price": 1.9, "away_price": 1.9}
+    assert candidate["quotes"]["executable"]["line"] == "0.5"
+    assert candidate["quotes"]["executable"]["decimal_odds"] == "1.9"
     assert candidate["quote_identity"]["capture_id"] == "capture-1"
     assert candidate["quote_identity"]["source_revision"] == "a" * 40
     assert candidate["quote_identity"]["raw_payload_sha256"] == "b" * 64
     assert candidate["quote_identity"]["quote_identity_hash"] == "c" * 64
     assert candidate["ev_eligible"] is True
     assert candidate_is_executable(candidate)
+
+
+def test_ah_side_line_sign_conflict_fails_closed() -> None:
+    audit = _audit()
+    audit["selected_line"] = "0.5"
+    candidates = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "0.5"}],
+        quote_identity_audit={"ah": audit},
+        current_odds={"ah": {"home_price": 1.9, "away_price": 1.9}},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
+    )
+
+    candidate = candidates["ah"]
+    assert candidate["analysis_evidence_status"] == "AH_SIDE_LINE_IDENTITY_CONFLICT"
+    assert candidate["quote_usage"] == "COMPARISON_ONLY"
+    assert candidate["ev_eligible"] is False
+    assert candidate_is_executable(candidate) is False
+    assert "AH_SIDE_LINE_IDENTITY_CONFLICT" in candidate["blockers"]
+
+
+def test_away_minus_point_seven_five_keeps_negative_selected_line() -> None:
+    audit = _audit()
+    audit["selected_line"] = "0.75"
+    quotes = audit["quotes"]
+    assert isinstance(quotes, dict)
+    assert isinstance(quotes["home"], dict)
+    assert isinstance(quotes["away"], dict)
+    quotes["home"]["line"] = "0.75"
+    quotes["away"]["line"] = "-0.75"
+    candidate = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "0.75"}],
+        quote_identity_audit={"ah": audit},
+        current_odds={"ah": {"home_price": 1.88, "away_price": 1.90}},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
+    )["ah"]
+
+    assert candidate["line"] == "-0.75"
+    assert candidate["quotes"]["executable"]["line"] == "-0.75"
+    assert candidate["analysis_evidence"]["selected_side_line"] == "-0.75"
+
+
+def test_home_minus_one_point_two_five_keeps_negative_selected_line() -> None:
+    audit = _audit()
+    audit["selected_line"] = "-1.25"
+    quotes = audit["quotes"]
+    assert isinstance(quotes, dict)
+    assert isinstance(quotes["home"], dict)
+    assert isinstance(quotes["away"], dict)
+    quotes["home"]["line"] = "-1.25"
+    quotes["away"]["line"] = "1.25"
+    candidate = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "HOME", "line": "-1.25"}],
+        quote_identity_audit={"ah": audit},
+        current_odds={"ah": {"home_price": 1.90, "away_price": 1.90}},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
+    )["ah"]
+
+    assert candidate["line"] == "-1.25"
+    assert candidate["quotes"]["executable"]["line"] == "-1.25"
+    assert candidate["side_evidence"]["AWAY"]["line"] == "1.25"
