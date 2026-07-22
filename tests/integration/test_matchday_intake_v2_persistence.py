@@ -424,6 +424,52 @@ def test_observation_conflict_and_manifest_identity_fail_closed() -> None:
         raise AssertionError("repository must validate manifest identity before insert")
 
 
+def test_observation_replay_is_idempotent_across_release_revision() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW + timedelta(seconds=2),
+        status_code=200,
+        elapsed_ms=10,
+        payload=_odds_payload(),
+        fixture_id="api_football:100",
+        competition_id="allsvenskan",
+        checkpoint="T6_ODDS",
+        attempt=1,
+    )
+    rows, rejected = normalize_matchday_odds_payload(
+        _odds_payload(),
+        captured_at=NOW + timedelta(seconds=2),
+        ingested_at=NOW + timedelta(seconds=3),
+        raw_payload_sha256=str(capture["raw_payload_sha256"]),
+        source_revision="release-one",
+        capture_id=str(capture["capture_id"]),
+        competition_id="allsvenskan",
+    )
+    assert rejected == []
+    assert repository.insert_market_observations(rows[:1]) == 1
+
+    replay = {**rows[0], "source_revision": "release-two", "ingested_at": NOW.isoformat()}
+    assert repository.insert_market_observations([replay]) == 0
+
+    for field, changed in (
+        ("decimal_odds", "9.99"),
+        ("line", "9.75"),
+        ("capture_id", "new-capture"),
+    ):
+        conflict = {**replay, field: changed}
+        try:
+            repository.insert_market_observations([conflict])
+        except MatchdayRepositoryError as exc:
+            assert str(exc) == "OBSERVATION_IDENTITY_CONFLICT"
+        else:
+            raise AssertionError(f"changed {field} must fail closed")
+
+
 def test_fixture_identity_persists_provider_fixture_before_team_crosswalk() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)

@@ -24,6 +24,8 @@ COMPOSE_FILE = "/opt/w2/current/infra/compose/compose.staging.yml"
 ENV_FILE = "/opt/w2/shared/.env"
 RELEASE_ENV_FILE = "/opt/w2/shared/release.env"
 COMPOSE_PROJECT = "w2-staging"
+CORE_RUNNING_SERVICES = {"postgres", "redis", "api", "worker", "web"}
+SCHEDULER_SERVICE = "scheduler"
 
 
 def ok(msg: str) -> None:
@@ -121,7 +123,10 @@ def main() -> None:
 
     services = compose_services(r.stdout.strip())
 
-    expected = {"postgres", "redis", "api", "worker", "scheduler", "web"}
+    scheduler_intentionally_stopped = (
+        os.environ.get("W2_PROVIDER_SCHEDULER_ENABLED", "false").lower() != "true"
+    )
+    expected = set(CORE_RUNNING_SERVICES)
     running_services = set()
     for svc in services:
         name = svc.get("Service", "?")
@@ -140,6 +145,11 @@ def main() -> None:
     missing = expected - running_services
     if missing:
         fail(f"Missing services: {missing}")
+    if SCHEDULER_SERVICE not in running_services:
+        if scheduler_intentionally_stopped:
+            ok("scheduler: intentionally stopped for controlled staging")
+        else:
+            fail("scheduler is stopped while W2_PROVIDER_SCHEDULER_ENABLED=true")
 
     # ── 3. Port check (public) ───────────────────────────────
     r = run("ss", "-lntup")

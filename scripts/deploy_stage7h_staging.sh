@@ -92,9 +92,14 @@ ROLLBACK_REVISION=\"\$(basename \"\${ROLLBACK_TARGET}\")\"
 printf '%s\n' \"\${ROLLBACK_REVISION}\" | grep -Eq '^[0-9a-f]{40}$'
 cd \"\${ROLLBACK_TARGET}\"
 for service in api worker scheduler web; do
-  container_id=\"\$(sudo docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml ps -aq \"\${service}\")\"
-  test -n \"\${container_id}\"
-  image_id=\"\$(sudo docker inspect --format='{{.Image}}' \"\${container_id}\")\"
+  container_id=\"\$(sudo docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml ps -aq \"\${service}\" || true)\"
+  if [ -n \"\${container_id}\" ]; then
+    image_id=\"\$(sudo docker inspect --format='{{.Image}}' \"\${container_id}\")\"
+  else
+    # A controlled staging release intentionally runs with scheduler scaled to
+    # zero. Preserve its image directly so rollback remains deterministic.
+    image_id=\"\$(sudo docker image inspect --format='{{.Id}}' \"w2-staging-\${service}:latest\")\"
+  fi
   sudo docker image inspect \"\${image_id}\" >/dev/null
   rollback_tag=\"w2-staging-\${service}:rollback-\${ROLLBACK_REVISION}\"
   sudo docker image tag \"\${image_id}\" \"\${rollback_tag}\"

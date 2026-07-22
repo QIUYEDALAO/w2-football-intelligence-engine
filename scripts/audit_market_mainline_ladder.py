@@ -153,6 +153,10 @@ def _decision(card: dict[str, Any]) -> dict[str, Any]:
         "expected_value": selected.get("expected_value"),
         "uncertainty": selected.get("uncertainty"),
         "decision_hash": v3.get("decision_hash"),
+        "analysis_evidence_hash": selected.get("evidence_hash"),
+        "quote_identity_hash": quote.get("quote_identity_hash"),
+        "quote_identity": quote,
+        "selected_candidate": selected,
     }
 
 
@@ -177,7 +181,7 @@ def main() -> int:
                     "source_status": "SOURCE_LINE_ABSENT",
                     "ah_ladder": [],
                     "ou_ladder": [],
-                    "pre_fix_frozen_decision": _decision(card),
+                    "fresh_decision": _decision(card),
                 }
             )
             continue
@@ -210,19 +214,20 @@ def main() -> int:
                     "ASIAN_HANDICAP": float(ah.line) if ah.line is not None else None,
                     "TOTALS": float(totals.line) if totals.line is not None else None,
                 },
+                "current_odds": card.get("current_odds"),
                 "ah_ladder": _ah_ladder(rows, ah),
                 "ou_ladder": totals.candidate_lines or [],
-                "pre_fix_frozen_decision": _decision(card),
+                "fresh_decision": _decision(card),
             }
         )
 
     picks = [
-        row for row in fixtures if row["pre_fix_frozen_decision"]["outcome"] == "ANALYSIS_PICK"
+        row for row in fixtures if row["fresh_decision"]["outcome"] == "ANALYSIS_PICK"
     ]
     selected_odds = [
-        float(row["pre_fix_frozen_decision"]["execution_odds"])
+        float(row["fresh_decision"]["execution_odds"])
         for row in picks
-        if row["pre_fix_frozen_decision"]["execution_odds"] is not None
+        if row["fresh_decision"]["execution_odds"] is not None
     ]
     payload = {
         "schema_version": "w2.market_mainline_ladder_audit.v1",
@@ -236,13 +241,13 @@ def main() -> int:
         ),
         "policy": "canonical_bookmaker_mainline_consensus_v1",
         "fixtures": fixtures,
-        "pre_fix_pick_summary": {
+        "fresh_pick_summary": {
             "pick_count": len(picks),
             "totals_pick_count": sum(
-                row["pre_fix_frozen_decision"]["market"] == "TOTALS" for row in picks
+                row["fresh_decision"]["market"] == "TOTALS" for row in picks
             ),
             "ah_pick_count": sum(
-                row["pre_fix_frozen_decision"]["market"] == "ASIAN_HANDICAP" for row in picks
+                row["fresh_decision"]["market"] == "ASIAN_HANDICAP" for row in picks
             ),
             "mean_selected_odds": round(sum(selected_odds) / len(selected_odds), 6)
             if selected_odds
@@ -277,11 +282,11 @@ def main() -> int:
         f"- Observations: `{len(observations)}`",
         "- Mode: `READ_ONLY_NO_PROVIDER_NO_DB_WRITE`",
         "",
-        "| Fixture | Pre-fix V3 | Pre-fix selected | New AH mainline | New OU mainline |",
+        "| Fixture | Fresh V3 | Fresh selected | AH mainline | OU mainline |",
         "|---|---|---|---:|---:|",
     ]
     for row in fixtures:
-        decision = row["pre_fix_frozen_decision"]
+        decision = row["fresh_decision"]
         mainline = row.get("market_mainline") or {}
         selected = (
             "-"
@@ -298,25 +303,10 @@ def main() -> int:
     lines.extend(
         [
             "",
-            "## Frozen Findings",
+            "## Fresh Findings",
             "",
-            (
-                "- `1494218` contains a complete `2.75` line from 6 bookmakers: "
-                "median O/U `1.875/1.865`, devig `0.498663/0.501337`, "
-                "balance distance `0.001337`."
-            ),
-            (
-                "- Its old `2.5` line had 8 complete pairs but median O/U "
-                "`1.70/2.11`, balance distance `0.053806`."
-            ),
-            (
-                "- The old line was selected by strict max complete-pair count. "
-                "The new one-book-one-vote authority selects `2.75`."
-            ),
-            (
-                "- The five old TOTALS picks require fresh recomputation; this audit "
-                "does not preserve a target pick count."
-            ),
+            "- Each source-ready fixture includes its full ladders, quote identity, "
+            "selected-side execution price, opposite-side price, and V3 evidence hash.",
             "",
             f"Audit hash: `{payload['audit_hash']}`",
         ]

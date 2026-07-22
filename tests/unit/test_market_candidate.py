@@ -242,6 +242,54 @@ def test_best_side_evidence_uses_away_quote_line_for_away_candidate() -> None:
     assert candidate_is_executable(candidate)
 
 
+def test_ah_candidate_role_uses_signed_line_for_each_side() -> None:
+    cases = (
+        ("HOME", "+0.75", "+0.75", "-0.75"),
+        ("AWAY", "-0.75", "+0.75", "-0.75"),
+        ("HOME", "-1.25", "-1.25", "+1.25"),
+        ("AWAY", "+1.25", "-1.25", "+1.25"),
+    )
+    for selection, selected_line, home_line, away_line in cases:
+        audit = _audit()
+        audit["selected_line"] = home_line
+        quotes = audit["quotes"]
+        assert isinstance(quotes, dict)
+        assert isinstance(quotes["home"], dict)
+        assert isinstance(quotes["away"], dict)
+        quotes["home"]["line"] = home_line
+        quotes["away"]["line"] = away_line
+        candidate = build_market_candidates(
+            markets=[{"market": "ASIAN_HANDICAP", "tendency": selection, "line": selected_line}],
+            quote_identity_audit={"ah": audit},
+            current_odds={
+                "ah": {
+                    "line": home_line.lstrip("+-"),
+                    "home_line": home_line,
+                    "away_line": away_line,
+                }
+            },
+            pricing_shadow={},
+            fixture_id="fixture-1",
+            competition_id="allsvenskan",
+            simulation=_ready_simulation(),
+        )["ah"]
+        assert candidate["candidate_role"] == "MARKET_MAINLINE"
+
+
+def test_ah_candidate_role_marks_different_signed_line_as_alternate() -> None:
+    audit = _audit()
+    candidate = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "+0.5"}],
+        quote_identity_audit={"ah": audit},
+        current_odds={"ah": {"line": "0.5", "home_line": "-0.5", "away_line": "+0.75"}},
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
+    )["ah"]
+    assert candidate["candidate_role"] == "ALTERNATE_LINE"
+
+
 def test_ah_side_line_sign_conflict_fails_closed() -> None:
     audit = _audit()
     audit["selected_line"] = "0.5"

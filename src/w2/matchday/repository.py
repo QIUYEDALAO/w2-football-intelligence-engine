@@ -424,6 +424,15 @@ class MatchdayRuntimeRepository:
                         existing,
                     ) == _normalized_observation_payload(row):
                         continue
+                    # Observation identity deliberately excludes the release
+                    # revision. Replaying the identical provider capture after
+                    # a deployment must be idempotent, while the first stored
+                    # row retains the provenance of the release that ingested
+                    # it. Any business-field change still fails closed.
+                    if existing is not None and _observation_identity_payload(
+                        _observation_payload(existing)
+                    ) == _observation_identity_payload(_normalized_observation_payload(row)):
+                        continue
                     raise MatchdayRepositoryError("OBSERVATION_IDENTITY_CONFLICT") from None
             session.commit()
         return count
@@ -782,6 +791,15 @@ def _normalized_observation_payload(row: Mapping[str, Any]) -> dict[str, Any]:
         "ingested_at": _iso(_dt(row["ingested_at"])),
         "raw_payload_sha256": str(row["raw_payload_sha256"]),
         "source_revision": str(row["source_revision"]),
+    }
+
+
+def _observation_identity_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable provider-observation identity, independent of code release."""
+    return {
+        key: value
+        for key, value in row.items()
+        if key not in {"source_revision", "ingested_at"}
     }
 
 

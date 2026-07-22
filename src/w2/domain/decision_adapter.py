@@ -495,7 +495,14 @@ def _pick_payload(
             "market_line": evaluated.get("market_line"),
             "value_edge": _number(model_probability.get("expected_value")),
             "key_factors": [str(comparison.get("reason_code") or "MODEL_MARKET_EDGE_READY")],
-            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"],
+            "risks": [
+                "ANALYSIS_ONLY_FORMAL_DISABLED",
+                *[
+                    str(warning)
+                    for warning in _string_list(evaluated.get("warnings"))
+                    if warning == "EV_PLAUSIBILITY_REVIEW"
+                ],
+            ],
             "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
             "quote_identity": dict(_as_mapping(evaluated.get("quote_identity"))),
             "model_probability": dict(model_probability),

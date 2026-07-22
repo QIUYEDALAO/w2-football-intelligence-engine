@@ -14,6 +14,7 @@ from typing import Any
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 
 MARKET_CANDIDATE_SCHEMA_VERSION = "w2.market_candidate.v1"
+ANALYSIS_EV_PLAUSIBILITY_REVIEW_THRESHOLD = 0.15
 
 _KEYS = {"ASIAN_HANDICAP": "ah", "TOTALS": "ou"}
 
@@ -159,7 +160,16 @@ def _candidate(
         selected_line=line,
         selected_selection=selection,
     )
-    candidate_role = "MARKET_MAINLINE" if _same_line(line, odds.get("line")) else "ALTERNATE_LINE"
+    candidate_role = _candidate_role(
+        market=market,
+        selection=selection,
+        line=line,
+        odds=odds,
+    )
+    warnings = ["REFERENCE_QUOTE_NOT_FOR_EV"] if not executable and reference else []
+    expected_value = _number(model.get("expected_value"))
+    if expected_value is not None and expected_value > ANALYSIS_EV_PLAUSIBILITY_REVIEW_THRESHOLD:
+        warnings.append("EV_PLAUSIBILITY_REVIEW")
     return {
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
         "market": market,
@@ -246,7 +256,7 @@ def _candidate(
         "formal_eligible": False,
         "lock_eligible": False,
         "blockers": sorted(set(blockers)),
-        "warnings": ["REFERENCE_QUOTE_NOT_FOR_EV"] if not executable and reference else [],
+        "warnings": warnings,
     }
 
 
@@ -317,9 +327,15 @@ def _ladder_evaluation(
         )
         side_evidence = _mapping(evidence.get("side_evidence"))
         market_probability = _mapping(_mapping(evidence.get("market_probability")).get("devig"))
-        role = "MARKET_MAINLINE" if _same_line(line, odds.get("line")) else "ALTERNATE_LINE"
         for side, side_raw in side_evidence.items():
             side_row = _mapping(side_raw)
+            side_line = side_row.get("line") or line
+            role = _candidate_role(
+                market=market,
+                selection=side,
+                line=side_line,
+                odds=odds,
+            )
             model = _mapping(side_row.get("model_probability"))
             comparison = _mapping(side_row.get("comparison"))
             allowed = comparison.get("analysis_direction_allowed") is True
@@ -328,7 +344,7 @@ def _ladder_evaluation(
                 {
                     "market": market,
                     "selection": side,
-                    "line": side_row.get("line") or line,
+                    "line": side_line,
                     "candidate_role": role,
                     "admission": "ANALYSIS_ELIGIBLE"
                     if role == "MARKET_MAINLINE"
@@ -377,6 +393,27 @@ def _same_line(first: object, second: object) -> bool:
         return abs(float(first) - float(second)) <= 0.0001  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return str(first) == str(second)
+
+
+def _candidate_role(
+    *,
+    market: str,
+    selection: object,
+    line: object,
+    odds: Mapping[str, Any],
+) -> str:
+    """Classify a side against its canonical signed mainline.
+
+    ``current_odds.ah.line`` is an absolute display value and must never be
+    used to classify an away-side quote.  AH candidates instead compare to
+    their side's signed canonical line; totals share the one unsigned line.
+    """
+    side = _text(selection).replace("_AH", "")
+    if market == "ASIAN_HANDICAP":
+        mainline = odds.get("home_line") if side == "HOME" else odds.get("away_line")
+    else:
+        mainline = odds.get("line")
+    return "MARKET_MAINLINE" if _same_line(line, mainline) else "ALTERNATE_LINE"
 
 
 def _best_analysis_side(evidence: Mapping[str, Any]) -> str | None:
