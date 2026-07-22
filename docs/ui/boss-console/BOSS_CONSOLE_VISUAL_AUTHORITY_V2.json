@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.boss_console.visual_authority.v2",
-  "authority": "USER_APPROVED_V2_1_MARKET_MAINLINE_SEMANTICS",
+  "authority": "USER_APPROVED_V2_1_DYNAMIC_EV_AND_LINEUP_SEMANTICS",
   "supersedes": "w2.boss_console_visual_authority.v1",
   "pixel_contract": {
     "browser": "playwright_chromium",
@@ -19,19 +19,19 @@
       "sha256": "fc77c717e8b93e16f00c2bdaeea5633513916df71a9cab208c0a05aefda9b5d6"
     },
     "apps/web/src/reference/boss-console/BossDecisionConsoleReference.tsx": {
-      "sha256": "0b5e80524693c986f6408097327e3b7358c2b18aa6c56000ec16ad2e06e71a18"
+      "sha256": "60f9fd84be425a37ad6359a2b35525bb097cda0fccab8712fa5ff0832ac4fe20"
     },
     "apps/web/src/reference/boss-console/boss-decision-console.css": {
       "sha256": "a8c94bee7d032ebb8caca46f0a2fbc108fa3b7cdeccf37b23f2dbece401450bf"
     },
     "apps/web/src/reference/boss-console/boss-console-model.ts": {
-      "sha256": "d06d088a0984b414172d723a7028e233a2653c5566c795f70a1536cda4aa177b"
+      "sha256": "613472d2eaca7ef3a8f2a5909d45e4fa233b55d59cbf8d1d502cb2ba5fef5c2c"
     },
     "apps/web/src/reference/boss-console/boss-console-adapter.ts": {
-      "sha256": "feae42ea311e7ae8ab81270ebbfebe59ba1f90522a48096261d9b3fa2024c123"
+      "sha256": "7215661cd727caa41958d2aeed454e1077e6b2c9ddc76b387f82897e46fb45fa"
     },
     "apps/web/src/reference/boss-console/boss-console.fixture.ts": {
-      "sha256": "72aa097ae393ab0f30ff2de8ef902ae8031f8689549aa5d173dc5ae7474ed666"
+      "sha256": "e8def82c4191ee6051f7e706e5c0986a3970820bbf826bdc3e45a166a96ef77e"
     },
     "apps/web/e2e/boss-console-visual.spec.ts": {
       "sha256": "e507aedf3bbca6b58e0351638332e57ee8d3c4b6e860f779365967c8ca55c87d"

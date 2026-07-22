@@ -287,11 +287,11 @@ function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
         </div>
         <h1 className="detail-match">{item.match}</h1>
         <div className="detail-meta"><span>{item.league}</span><strong>{kickoff.primary === "今天" || kickoff.primary === "明天" ? `${kickoff.primary} · ${kickoff.secondary}` : `${kickoff.primary} ${kickoff.secondary ?? ""}`.trim()}</strong>{kickoff.tertiary ? <small>{kickoff.tertiary}</small> : null}</div>
-        <div className="market-contract">
+        {item.lifecycleState || item.quoteAgeSeconds != null || item.latestCheckpoint || item.nextCheckpoint ? <div className="market-contract">
           <strong>当前状态：{item.lifecycleState ?? "等待不可变评估版本"}</strong>
           <span>报价年龄：{item.quoteAgeSeconds == null ? "待确认" : `${Math.floor(item.quoteAgeSeconds / 60)} 分钟`} · 最近 checkpoint：{item.latestCheckpoint ?? "待确认"}</span>
           <code>下一 checkpoint：{item.nextCheckpoint ?? "无"} · {item.automaticRefreshStatus}</code>
-        </div>
+        </div> : null}
         <div className="hero-recommendation">
           <span>{item.status === "pick" ? "分析盘口" : item.status === "watch" ? "当前结论" : "数据状态"}</span>
           <strong>{item.recommendation}</strong>
@@ -311,7 +311,7 @@ function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
       <ScorelineProjection item={item} />
       <MarketLadder item={item} />
       <div className="detail-sections">
-        <section className="detail-section"><h3>首发变化证据</h3><ul>{item.lineupFacts.map((fact) => <li key={fact}>{fact}</li>)}</ul></section>
+        {item.lineupFacts.length > 0 ? <section className="detail-section"><h3>首发变化证据</h3><ul>{item.lineupFacts.map((fact) => <li key={fact}>{fact}</li>)}</ul></section> : null}
         <section className="detail-section"><h3>核心依据</h3><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section>
         <section className="detail-section risks"><h3>风险与失效条件</h3>{item.marketPolicyLabel ? <div className="risk-breakdown"><span>数据风险 <b>{item.dataRisk}</b></span><span>盘口身份 <b>{item.marketIdentityRisk}</b></span><span>首发风险 <b>{item.lineupRisk}</b></span><span>EV 标准误 <b>±{formatPercent(item.uncertainty)}</b></span></div> : null}<ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
         <section className="detail-section">
