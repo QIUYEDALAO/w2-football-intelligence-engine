@@ -69,7 +69,7 @@
   },
   "readiness": {
     "source_asset": "SOURCE_READY",
-    "current_w2_16_club_reviewed_crosswalk": "PLAYER_IDENTITY_REVIEW_PENDING",
+    "current_w2_16_club_reviewed_crosswalk": "TEAM_CROSSWALK_STAGING_MATERIALIZED_16_OF_16",
     "player_identity_mappings": "PLAYER_IDENTITY_REVIEW_PENDING",
     "staging_data": "STAGING_DATA_NOT_MATERIALIZED",
     "real_lineup_canary": "REAL_LINEUP_CANARY_NOT_EVALUATED",
