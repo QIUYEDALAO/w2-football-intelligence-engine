@@ -112,14 +112,6 @@ test \"\$(sudo docker image inspect --format='{{.Id}}' \"\${migration_tag}\")\" 
 echo \"rollback images preserved for \${ROLLBACK_REVISION}\"
 "
 
-# ── Step 5b: Atomically switch current ──────────────────────
-echo "--- Switching /opt/w2/current -> ${REVISION} ---"
-ssh "${SSH_HOST}" "
-set -euo pipefail
-ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
-ls -la /opt/w2/current
-"
-
 # ── Step 6: Symlink shared runtime & .env ──────────────────
 ssh "${SSH_HOST}" "
 set -euo pipefail
@@ -127,6 +119,8 @@ set -euo pipefail
 sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime
 sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime/market_timeline_snapshots
 sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime/independent_signal_backfill/raw_payloads
+# This host-side watchdog runs as ubuntu rather than the container UID 10001.
+sudo install -d -o ubuntu -g ubuntu -m 0775 /opt/w2/shared/runtime/watchdog
 sudo chown 10001:10001 /opt/w2/shared/runtime
 sudo chown -R 10001:10001 /opt/w2/shared/runtime/market_timeline_snapshots
 sudo chown -R 10001:10001 /opt/w2/shared/runtime/independent_signal_backfill
@@ -139,29 +133,12 @@ ln -sfn /opt/w2/shared/.env /opt/w2/releases/${REVISION}/.env
 echo 'Shared runtime/config/env linked into release'
 "
 
-# ── Step 6b: Persist public release metadata for compose/systemd ───────
-echo "--- Writing public release metadata ---"
-ssh "${SSH_HOST}" "
-set -euo pipefail
-install -d -m 0755 /opt/w2/shared
-umask 022
-sudo install -o root -g root -m 0644 /dev/stdin /opt/w2/shared/release.env <<'EOF'
-W2_GIT_SHA=${REVISION}
-W2_RELEASE_ID=${REVISION}
-W2_BUILD_TIME=${BUILD_TIME}
-VITE_GIT_SHA=${REVISION}
-VITE_RELEASE_ID=${REVISION}
-VITE_BUILD_TIME=${BUILD_TIME}
-EOF
-test \"\$(stat -c '%a' /opt/w2/shared/release.env)\" = '644'
-echo 'release env written with mode 644'
-"
-
-# ── Step 7: Build release images so containers run this revision ─────
+# ── Step 7: Build release images before moving current ─────────────────
+# Current release and its metadata remain untouched until every build passes.
 echo "--- Building staging images for ${REVISION} ---"
 ssh "${SSH_HOST}" "
 set -euo pipefail
-cd /opt/w2/current
+cd /opt/w2/releases/${REVISION}
 echo '--- Pre-build resource snapshot ---'
 uptime
 free -h | sed -n '1,2p'
@@ -194,8 +171,8 @@ if ! printf '%s\n' \"\${API_IMAGE_ID}\" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
   echo \"API image ID unavailable after build\" >&2
   exit 1
 fi
-printf 'W2_API_IMAGE_ID=%s\n' \"\${API_IMAGE_ID}\" | sudo tee -a /opt/w2/shared/release.env >/dev/null
-echo 'staging images built for current release'
+printf '%s\n' \"\${API_IMAGE_ID}\" | sudo tee /opt/w2/releases/${REVISION}/.api_image_id >/dev/null
+echo 'staging images built for candidate release'
 if [ '${PRUNE_BUILD_CACHE}' = 'true' ]; then
   echo '--- Pruning unused Docker build cache (no volumes) ---'
   sudo docker builder prune -f
@@ -203,6 +180,27 @@ fi
 echo '--- Post-build resource snapshot ---'
 uptime
 sudo docker system df || true
+"
+
+# ── Step 7b: Atomically activate the fully-built release ───────────────
+echo "--- Switching /opt/w2/current -> ${REVISION} ---"
+ssh "${SSH_HOST}" "
+set -euo pipefail
+ln -sfn /opt/w2/releases/${REVISION} /opt/w2/current
+install -d -m 0755 /opt/w2/shared
+umask 022
+sudo install -o root -g root -m 0644 /dev/stdin /opt/w2/shared/release.env <<'EOF'
+W2_GIT_SHA=${REVISION}
+W2_RELEASE_ID=${REVISION}
+W2_BUILD_TIME=${BUILD_TIME}
+VITE_GIT_SHA=${REVISION}
+VITE_RELEASE_ID=${REVISION}
+VITE_BUILD_TIME=${BUILD_TIME}
+W2_API_IMAGE_ID=\$(sudo cat /opt/w2/releases/${REVISION}/.api_image_id)
+EOF
+test \"\$(stat -c '%a' /opt/w2/shared/release.env)\" = '644'
+ls -la /opt/w2/current
+echo 'release symlink and public metadata activated'
 "
 
 # ── Step 8: Reload systemd and install staging watchdog ─────────────
