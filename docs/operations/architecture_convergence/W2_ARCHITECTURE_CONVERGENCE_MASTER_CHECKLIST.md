@@ -97,7 +97,7 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 ```text
 Status: BLOCKED
 Branch: codex/w2-arch01-exact-head-ci-status
-PR: PENDING_CREATION
+PR: #373 (Draft)
 Base SHA: fc8a6360a132ffe5922c78be5fa1541ec02ab185
 Started at: 2026-07-22T22:59:13+0800
 Owner: Codex
