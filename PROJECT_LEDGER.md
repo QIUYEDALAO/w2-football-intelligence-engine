@@ -458,8 +458,13 @@ Detailed evidence:
 - Draft PR #370 verified head
   `d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec` passed normal GitHub Actions run
   `29897588312`: `verify`, `staging-parity` and `predeploy-e2e` all passed.
-- The subsequent staging read-only preflight made no provider call and no
-  deployment. Both documented staging accounts rejected the available public
-  keys, so exact-SHA deployment and real-lineup-window inspection were not
-  attempted. Current operational blocker is `STAGING_SSH_AUTH_UNAVAILABLE`, not
-  a fabricated `WAITING_FOR_REAL_LINEUP_WINDOW` live result.
+- The originally documented host was stale. The correct staging target is
+  `root@118.196.30.136`; the supplied key authenticated and showed active
+  service/watchdog on release `284a646f…`.
+- Exact head `0d6ff59…` was archived, uploaded and structurally validated; its
+  rollback images were preserved before the symlink switch. Docker then stalled
+  in `pip install uv` during the migration image build. The incomplete release
+  was stopped and `/opt/w2/current` was restored to `284a646f…`; API and
+  watchdog remained active, and provider calls remained zero.
+- Current operational blocker is `STAGING_IMAGE_BUILD_STALLED`, not a fabricated
+  live-lineup-window result.

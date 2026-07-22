@@ -18,19 +18,20 @@ Draft PR #370 normal CI passed on verified head
 `d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec` (run `29897588312`):
 `verify`, `staging-parity` and `predeploy-e2e` are green.
 
-This is not staging or live-lineup acceptance. The staging read-only preflight
-was blocked because the server rejected the available SSH public keys, so no
-deployment, provider call or real-lineup-window inspection occurred. Operational
-status is `STAGING_SSH_AUTH_UNAVAILABLE`; lineup numeric adjustment remains zero
-and advisory-only.
+This is not staging or live-lineup acceptance. The correct staging server and
+key were reached, but the exact-SHA image build stalled in Docker at
+`pip install uv`. The incomplete release was safely rolled back to
+`284a646f3a6fe9641b965d0d3d4d807f66b46c85`; no provider call or real-lineup
+window inspection occurred. Operational status is `STAGING_IMAGE_BUILD_STALLED`;
+lineup numeric adjustment remains zero and advisory-only.
 
 ## Next execution
 
 W2_DYNAMIC_PREMATCH_STAGING is authorized only after the existing Draft PR #370
 passes its normal CI checks; this does not authorize Formal, Lock or Production.
 
-1. Restore authorized SSH access to the existing staging host; do not mark PR
-   #370 ready for review.
+1. Fix or bound Docker's `pip install uv` build step on the staging host; do not
+   mark PR #370 ready for review.
 2. Deploy the exact accepted implementation SHA to
    staging while keeping the scheduler and provider refresh switches disabled.
 3. Rebuild upcoming-fixture state read-only. If a real lineup window exists,

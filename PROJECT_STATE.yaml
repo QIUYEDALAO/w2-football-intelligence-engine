@@ -42,8 +42,8 @@ current_phase:
   id: W2_DYNAMIC_PREMATCH_V1
   name: dynamic_quote_ev_and_lineup_value_pipeline
   status: locally_verified
-  acceptance_state: awaiting_exact_sha_staging_access
-  blocker: STAGING_SSH_AUTH_UNAVAILABLE
+  acceptance_state: awaiting_exact_sha_image_build
+  blocker: STAGING_IMAGE_BUILD_STALLED
   next_phase: W2_DYNAMIC_PREMATCH_STAGING
   checkpoints:
     dynamic_quote_lifecycle: locally_verified
@@ -82,11 +82,14 @@ local_verification:
 
 staging:
   deployed_sha: null
-  deployment_status: NOT_DEPLOYED_BY_THIS_TASK
+  deployment_status: ATTEMPTED_AND_ROLLED_BACK
   production_deployed: false
   provider_calls: 0
-  ssh_preflight: PUBLICKEY_AUTH_REJECTED
-  real_lineup_canary: NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE
+  staging_host: 118.196.30.136
+  ssh_preflight: PASS_AS_ROOT
+  attempted_release_sha: 0d6ff597e110873dba6eb7a2a064e4c267b5f212
+  restored_release_sha: 284a646f3a6fe9641b965d0d3d4d807f66b46c85
+  real_lineup_canary: NOT_EVALUATED_IMAGE_BUILD_STALLED
   public_read_20x: NOT_RUN_BEFORE_STAGING_DEPLOY
 
 lineup_policy:
