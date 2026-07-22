@@ -3,12 +3,11 @@
 Status: `ACTIVE`  
 Baseline: `main@7c7f16fd2c44468ba4932ef83473bd35f285cbd4`
 
-Progress: R0.0 merged in PR #348. R0.1a merged in PR #349, but its staging canary
-hit the existing public analysis-card OOM/exit-137 boundary and was rolled back.
-Its observation schema is `w2.quote_identity.v1`; it is audit-only and does not
-make freshness or decision eligibility claims. R0.1b remains blocked.
+Progress: R0.0 through R1 are `staging_accepted` by local-direct evidence.
+R2 is authorized for deterministic offline implementation only; it cannot change
+the champion or enable RECOMMEND/lock, OFFICIAL or production.
 
-This plan supersedes recovery-era implementation sequencing. PRs #333–#346 are
+This plan supersedes recovery-era implementation sequencing. PRs #333–#347 are
 specification and failure-case inputs only; they are not a backlog to restore.
 
 ## Ordered gates

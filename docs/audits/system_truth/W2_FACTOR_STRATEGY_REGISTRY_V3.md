@@ -1,0 +1,14 @@
+# W2_FACTOR_STRATEGY_REGISTRY_V3
+
+- source_review_sha: `94ba834559c0beba5b38075bd358a8e92a434a51`
+- audit_generator_sha: `22391c8a961bc94ee7dd748858d23e244e97827a`
+- audit_output_commit_sha: `PENDING_COMMIT`
+- artifact_sha: `f45ccadb6ddcc0579eed1c809134475745855baef496340bdbece88a59da8e81`
+- generated_at: `2026-07-20T13:40:59.001913Z`
+- finding_refs: `P0-F5-RUNTIME-DATA-MISSING, P0-F8-RUNTIME-DATA-MISSING`
+
+## Summary
+
+- factor_scope: `F1-F10 plus LMM and market baseline`
+- numeric_weights_changed: `False`
+- status: `AUDIT_ONLY`

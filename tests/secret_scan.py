@@ -41,15 +41,19 @@ ALLOWLIST = (
     "if token",
     "token =",
     "{token}",
+    "claim_token",
+    "CHECKPOINT_CLAIM_TOKEN",
     "real_world_tokens",
     "adapter token",
     "js-tokens",
     "W2_API_FOOTBALL_API_KEY",
     "BASELIGHT_API_KEY",
+    "W2_FOOTBALL_DATA_ROOT",
     "x-api-key",
     "x-apisports-key",
     "x-rapidapi-key",
     "api_key",
+    "LIVE_GATE_API_KEY_NOT_VISIBLE",
     "API_KEY_NOT_PRESENT",
     "secrets and environments",
     "Secrets and Environments",
@@ -75,6 +79,8 @@ SKIP_PARTS = {
     ".ruff_cache",
     "runtime",
     "dist",
+    "test-results",
+    "playwright-report",
 }
 SKIP_SUFFIXES = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".db"}
 
@@ -92,7 +98,10 @@ def iter_files() -> list[Path]:
 def scan() -> list[str]:
     findings: list[str] = []
     for path in iter_files():
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except FileNotFoundError:
+            continue
         for line_number, line in enumerate(text.splitlines(), start=1):
             if not SENSITIVE.search(line):
                 continue

@@ -1,0 +1,1766 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>W2 老板决策台 · HTML 设计稿</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07100d;
+      --bg-soft: #0b1713;
+      --panel: #0e1c17;
+      --panel-2: #11221c;
+      --panel-3: #152821;
+      --line: rgba(192, 234, 214, 0.12);
+      --line-strong: rgba(192, 234, 214, 0.22);
+      --text: #edf7f2;
+      --muted: #94a99f;
+      --muted-2: #6f847b;
+      --blue: #58a6ff;
+      --blue-soft: rgba(88, 166, 255, 0.14);
+      --green: #72d598;
+      --green-soft: rgba(114, 213, 152, 0.14);
+      --amber: #f3c969;
+      --amber-soft: rgba(243, 201, 105, 0.14);
+      --red: #ff7b72;
+      --red-soft: rgba(255, 123, 114, 0.14);
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      --radius-xl: 20px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 9px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--bg); }
+
+    body {
+      margin: 0;
+      min-width: 1180px;
+      font-synthesis: auto;
+      background:
+        radial-gradient(circle at 15% -10%, rgba(58, 139, 100, 0.14), transparent 33%),
+        radial-gradient(circle at 100% 0%, rgba(52, 116, 174, 0.10), transparent 28%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button { font: inherit; }
+
+    .app {
+      width: min(1540px, calc(100vw - 44px));
+      margin: 22px auto 36px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 250px minmax(600px, 1fr) 310px;
+      align-items: center;
+      gap: 18px;
+      min-height: 80px;
+      padding: 14px 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: rgba(9, 20, 16, 0.92);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 47px;
+      height: 47px;
+      border-radius: 14px;
+      background: linear-gradient(145deg, #1c6b4a, #102b21);
+      border: 1px solid rgba(128, 239, 180, 0.28);
+      color: white;
+      font-weight: 900;
+      font-size: 17px;
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 16px;
+      letter-spacing: 0.04em;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-left: 3px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: #a9d1ff;
+      border: 1px solid rgba(88, 166, 255, 0.25);
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .mode-pill::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 4px rgba(88, 166, 255, 0.12);
+    }
+
+    .headline-kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(92px, 1fr));
+      gap: 8px;
+    }
+
+    .headline-kpi {
+      min-height: 48px;
+      padding: 9px 11px;
+      border-left: 1px solid var(--line);
+    }
+
+    .headline-kpi:first-child { border-left: 0; }
+
+    .headline-kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .headline-kpi strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 23px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .headline-kpi.pick strong { color: var(--blue); }
+    .headline-kpi.watch strong { color: var(--amber); }
+    .headline-kpi.formal strong { color: var(--green); }
+    .headline-kpi.pending strong { color: #d8e3de; }
+    .headline-kpi.alert strong { color: var(--red); }
+
+    .snapshot-block {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding-left: 16px;
+      border-left: 1px solid var(--line);
+    }
+
+    .snapshot-times {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .snapshot-time span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .snapshot-time strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .snapshot-time strong.is-paused { color: var(--amber); }
+    .snapshot-time strong.is-running { color: var(--green); }
+    .snapshot-time strong.is-anomaly { color: var(--red); }
+
+    .status-button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: 160ms ease;
+    }
+
+    .status-button:hover {
+      border-color: rgba(88, 166, 255, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .risk-strip {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 14px;
+      margin-top: 12px;
+      padding: 12px 15px;
+      border: 1px solid rgba(243, 201, 105, 0.22);
+      border-radius: var(--radius-md);
+      background: linear-gradient(90deg, rgba(243, 201, 105, 0.10), rgba(20, 38, 31, 0.85));
+    }
+
+    .risk-strip > strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #ffe2a2;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .risk-strip > strong::before {
+      content: "!";
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--amber-soft);
+      border: 1px solid rgba(243, 201, 105, 0.34);
+      font-size: 12px;
+    }
+
+    .risk-strip p {
+      margin: 0;
+      color: #c7d5ce;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .risk-strip .risk-meta {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.78fr) minmax(390px, 0.82fr);
+      gap: 14px;
+      height: clamp(560px, calc(100dvh - 220px), 720px);
+      min-height: 0;
+      align-items: stretch;
+      margin-top: 14px;
+    }
+
+    .decision-panel {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(14, 29, 23, 0.97), rgba(9, 20, 16, 0.97));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 17px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      min-width: 0;
+    }
+
+    .panel-title span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .panel-title h2 {
+      margin: 5px 0 0;
+      font-size: 18px;
+    }
+
+    .panel-title p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 7px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(3, 10, 8, 0.45);
+    }
+
+    .filter-tab {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 160ms ease;
+    }
+
+    .filter-tab:hover { color: var(--text); }
+
+    .filter-tab.is-active {
+      color: #cfe6ff;
+      background: var(--blue-soft);
+      box-shadow: inset 0 0 0 1px rgba(88, 166, 255, 0.22);
+    }
+
+    .decision-table-head,
+    .decision-row {
+      display: grid;
+      grid-template-columns: 60px 88px minmax(190px, 1.16fr) minmax(280px, 1.7fr) 132px 120px;
+      align-items: center;
+      column-gap: 12px;
+    }
+
+    .decision-table-head {
+      position: relative;
+      z-index: 2;
+      padding: 10px 18px;
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .decision-list {
+      height: auto;
+      max-height: none;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(150, 190, 170, 0.22) transparent;
+    }
+
+    .decision-row {
+      position: relative;
+      width: 100%;
+      min-height: 102px;
+      padding: 13px 18px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: 150ms ease;
+    }
+
+    .decision-row::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      background: transparent;
+      transition: 150ms ease;
+    }
+
+    .decision-row:hover { background: rgba(118, 170, 145, 0.045); }
+
+    .decision-row.is-selected {
+      background: linear-gradient(90deg, rgba(88, 166, 255, 0.12), rgba(88, 166, 255, 0.025));
+    }
+
+    .decision-row.is-selected::before { background: var(--blue); }
+    .decision-row.status-watch.is-selected::before { background: var(--amber); }
+    .decision-row.status-not-ready.is-selected::before { background: var(--red); }
+
+    .priority {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 36px;
+      height: 28px;
+      border-radius: 9px;
+      background: var(--blue-soft);
+      color: #b4d7ff;
+      font-size: 11px;
+      font-weight: 850;
+      border: 1px solid rgba(88, 166, 255, 0.20);
+    }
+
+    .status-watch .priority {
+      background: var(--amber-soft);
+      color: #ffe0a1;
+      border-color: rgba(243, 201, 105, 0.20);
+    }
+
+    .status-not-ready .priority {
+      background: var(--red-soft);
+      color: #ffc2bd;
+      border-color: rgba(255, 123, 114, 0.20);
+    }
+
+    .kickoff strong {
+      display: block;
+      color: #dce9e3;
+      font-size: 12px;
+      line-height: 1.25;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kickoff b {
+      display: block;
+      margin-top: 5px;
+      font-size: 17px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kickoff span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .matchup strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .matchup span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .decision-main strong {
+      display: block;
+      font-size: 14px;
+      color: #eff8f4;
+    }
+
+    .decision-main .metric-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 11px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .decision-main .metric-line b {
+      color: #a9c9bb;
+      font-weight: 700;
+    }
+
+    .scoreline-inline {
+      margin-top: 7px;
+      color: #c5d7ce;
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .scoreline-inline b {
+      margin-right: 5px;
+      color: var(--blue);
+    }
+
+    .risk-level span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #d9e7e0;
+      font-size: 12px;
+    }
+
+    .risk-level span::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 0 4px rgba(243, 201, 105, 0.10);
+    }
+
+    .risk-level.low span::before { background: var(--green); box-shadow: 0 0 0 4px rgba(114, 213, 152, 0.10); }
+    .risk-level.high span::before { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 123, 114, 0.10); }
+
+    .risk-level small {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted-2);
+      font-size: 10px;
+    }
+
+    .next-action strong {
+      display: block;
+      color: #dce8e2;
+      font-size: 12px;
+    }
+
+    .next-action span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .empty-list {
+      padding: 72px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .detail-panel {
+      position: relative;
+      align-self: stretch;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+
+    .detail-top {
+      padding: 20px 20px 17px;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(circle at 90% 0%, rgba(88, 166, 255, 0.13), transparent 35%),
+        transparent;
+    }
+
+    .detail-eyebrow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .decision-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: #b8daff;
+      background: var(--blue-soft);
+      border: 1px solid rgba(88, 166, 255, 0.25);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .decision-badge.watch {
+      color: #ffe1a3;
+      background: var(--amber-soft);
+      border-color: rgba(243, 201, 105, 0.25);
+    }
+
+    .decision-badge.not-ready {
+      color: #ffc4bf;
+      background: var(--red-soft);
+      border-color: rgba(255, 123, 114, 0.25);
+    }
+
+    .snapshot-age {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .detail-match {
+      margin: 16px 0 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .detail-meta {
+      display: grid;
+      gap: 4px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .detail-meta strong {
+      color: #cbdad3;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .detail-meta small {
+      color: var(--blue);
+      font-size: 10px;
+    }
+
+    .hero-recommendation {
+      margin-top: 19px;
+      padding: 15px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(88, 166, 255, 0.25);
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.14), rgba(88, 166, 255, 0.045));
+    }
+
+    .hero-recommendation span {
+      display: block;
+      color: #9ecaff;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero-recommendation strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .hero-recommendation small {
+      display: block;
+      margin-top: 8px;
+      color: #b8cbc2;
+      font-size: 11px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric-card {
+      padding: 12px 12px 11px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(21, 40, 33, 0.62);
+    }
+
+    .metric-card span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .metric-card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-card.delta strong { color: #9dc8ff; }
+    .metric-card.ev strong { color: var(--green); }
+
+    .metric-standard-error {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 10px;
+      text-align: right;
+    }
+
+    .metric-standard-error strong {
+      color: #c7d7d0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .scoreline-panel {
+      margin: 0 20px;
+      padding: 14px;
+      border: 1px solid rgba(88, 166, 255, 0.23);
+      border-radius: 12px;
+      background: rgba(88, 166, 255, 0.06);
+    }
+
+    .scoreline-panel.not-ready {
+      border-color: rgba(255, 123, 114, 0.22);
+      background: rgba(255, 123, 114, 0.06);
+    }
+
+    .scoreline-head,
+    .scoreline-panel.not-ready > div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .scoreline-panel h3 {
+      margin: 0;
+      font-size: 12px;
+    }
+
+    .scoreline-head > span,
+    .scoreline-panel.not-ready > div > span {
+      color: #acd2ff;
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .scoreline-panel.not-ready > div > span { color: #ffc4bf; }
+
+    .scoreline-panel.not-ready p {
+      margin: 10px 0 0;
+      color: #e2aaa5;
+      font-size: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .scoreline-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 11px;
+    }
+
+    .scoreline-row {
+      display: grid;
+      grid-template-columns: 1fr auto 62px;
+      align-items: center;
+      gap: 10px;
+      min-height: 30px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: rgba(5, 14, 10, 0.38);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .scoreline-row strong { font-size: 14px; }
+    .scoreline-row span { color: var(--green); font-size: 11px; font-weight: 800; }
+    .scoreline-row small { color: var(--muted); font-size: 9px; text-align: right; }
+
+    .scoreline-foot {
+      display: grid;
+      gap: 4px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .scoreline-foot strong { color: #d7e5de; font-size: 10px; }
+    .scoreline-foot span { color: var(--green); font-size: 10px; }
+    .scoreline-foot code { color: var(--muted-2); font-size: 9px; }
+
+    .detail-sections {
+      padding: 0 20px 17px;
+    }
+
+    .detail-section {
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .detail-section:last-child { border-bottom: 0; }
+
+    .detail-section h3 {
+      margin: 0;
+      color: #dbe9e2;
+      font-size: 12px;
+    }
+
+    .detail-section ul {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .detail-section li {
+      position: relative;
+      padding-left: 15px;
+      color: #aabdb4;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .detail-section li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 7px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .detail-section.risks li::before { background: var(--amber); }
+
+    .next-action-box {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(4, 12, 9, 0.35);
+    }
+
+    .next-action-box strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .next-action-box span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .ledger-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      background: var(--amber-soft);
+      border: 1px solid rgba(243, 201, 105, 0.20);
+    }
+
+    .ledger-card strong {
+      display: block;
+      color: #ffe0a1;
+      font-size: 11px;
+    }
+
+    .ledger-card span {
+      display: block;
+      margin-top: 4px;
+      color: #c7b689;
+      font-size: 10px;
+    }
+
+    .ledger-card code {
+      color: #d8cda9;
+      font-size: 10px;
+    }
+
+    .lower-grid {
+      display: grid;
+      grid-template-columns: 1.38fr 0.92fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .validation-body { padding: 18px; }
+
+    .validation-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(110px, 1fr));
+      gap: 8px;
+    }
+
+    .flow-card {
+      position: relative;
+      min-height: 94px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(18, 36, 29, 0.66);
+    }
+
+    .flow-card:not(:last-child)::after {
+      content: "›";
+      position: absolute;
+      right: -8px;
+      top: 36px;
+      z-index: 2;
+      color: var(--muted-2);
+      font-size: 16px;
+    }
+
+    .flow-card span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .flow-card strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 25px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .flow-card small {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted-2);
+      font-size: 9px;
+      line-height: 1.4;
+    }
+
+    .flow-card.included strong { color: var(--green); }
+    .flow-card.excluded strong { color: var(--amber); }
+    .flow-card.pending strong { color: var(--blue); }
+
+    .ledger-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, .9fr);
+      gap: 10px;
+      margin-top: 13px;
+    }
+
+    .ledger-result,
+    .ledger-reconciliation {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(5, 14, 10, 0.32);
+    }
+
+    .ledger-result header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .ledger-result header strong { font-size: 12px; }
+    .ledger-result header span {
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: var(--panel-3);
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .cohort-score {
+      margin-top: 13px;
+      font-size: 21px;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cohort-score small {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .cohort-caption {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .ledger-reconciliation {
+      display: grid;
+      align-content: center;
+      gap: 8px;
+    }
+
+    .ledger-reconciliation strong { font-size: 12px; }
+    .ledger-reconciliation span {
+      color: #aabdb4;
+      font-size: 10px;
+      line-height: 1.45;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress {
+      height: 6px;
+      margin-top: 13px;
+      border-radius: 999px;
+      background: #0b1713;
+      overflow: hidden;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: var(--value, 50%);
+      background: linear-gradient(90deg, var(--blue), #8cc8ff);
+      border-radius: inherit;
+    }
+
+    .league-table {
+      padding: 0 18px 15px;
+    }
+
+    .league-row {
+      display: grid;
+      grid-template-columns: 1.2fr .72fr .84fr 1fr .95fr;
+      gap: 8px;
+      align-items: center;
+      min-height: 48px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+    }
+
+    .league-row.head {
+      min-height: 37px;
+      color: var(--muted-2);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .league-row strong { font-size: 11px; }
+    .league-row span { color: #aabdb4; }
+    .league-row .clv-positive { color: var(--green); }
+    .league-row .clv-negative { color: var(--amber); }
+    .league-row .sample-state {
+      display: inline-flex;
+      justify-content: center;
+      padding: 5px 7px;
+      border-radius: 999px;
+      background: var(--amber-soft);
+      color: #f9d994;
+      font-size: 9px;
+    }
+
+    .league-note {
+      margin: 12px 18px 17px;
+      color: var(--muted-2);
+      font-size: 9px;
+      line-height: 1.5;
+    }
+
+    .footer-note {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-top: 14px;
+      padding: 12px 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 18, 14, 0.68);
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .footer-note strong { color: #c8d7d0; }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.54);
+      opacity: 0;
+      pointer-events: none;
+      transition: 180ms ease;
+    }
+
+    .drawer-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .system-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 410px;
+      height: 100%;
+      padding: 22px;
+      background: #0a1511;
+      border-left: 1px solid var(--line-strong);
+      transform: translateX(100%);
+      transition: 220ms ease;
+      box-shadow: -22px 0 60px rgba(0, 0, 0, 0.42);
+    }
+
+    .drawer-backdrop.is-open .system-drawer { transform: translateX(0); }
+
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+    }
+
+    .drawer-head h2 { margin: 0; font-size: 19px; }
+
+    .drawer-kicker {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .drawer-close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .system-list {
+      display: grid;
+      gap: 9px;
+      margin-top: 22px;
+    }
+
+    .system-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .system-item span { color: var(--muted); font-size: 11px; }
+    .system-item strong { font-size: 11px; }
+    .system-item .pass { color: var(--green); }
+    .system-item .off { color: var(--amber); }
+    .system-item.anomaly { border-color: rgba(255, 123, 114, .24); }
+    .system-item.anomaly > span { color: var(--red); }
+    .system-item.anomaly code {
+      color: #e6b5b1;
+      font-size: 9px;
+      line-height: 1.45;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .drawer-warning {
+      margin-top: 18px;
+      padding: 13px;
+      border: 1px solid rgba(243, 201, 105, .22);
+      border-radius: 12px;
+      background: var(--amber-soft);
+      color: #d9c28e;
+      font-size: 10px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1260px) {
+      body { min-width: 1050px; }
+      .app { width: calc(100vw - 28px); }
+      .topbar { grid-template-columns: 220px 1fr 260px; }
+      .decision-table-head,
+      .decision-row {
+        grid-template-columns: 52px 88px minmax(160px, 1fr) minmax(220px, 1.45fr) 105px 100px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      body { min-width: 0; }
+      .app {
+        width: calc(100vw - 16px);
+        margin: 8px auto 18px;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 13px;
+      }
+
+      .brand { flex-wrap: wrap; }
+      .brand-mark { width: 40px; height: 40px; border-radius: 10px; }
+      .brand-copy { flex: 1; }
+      .brand-copy strong { font-size: 14px; }
+      .brand-copy span { font-size: 10px; }
+      .mode-pill { margin-left: auto; font-size: 10px; }
+
+      .headline-kpis {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0;
+      }
+
+      .headline-kpi {
+        min-height: 42px;
+        padding: 7px 6px;
+      }
+
+      .headline-kpi span {
+        white-space: normal;
+        font-size: 8px;
+        line-height: 1.25;
+      }
+
+      .headline-kpi strong { font-size: 18px; }
+
+      .snapshot-block {
+        grid-template-columns: 1fr auto;
+        padding: 12px 0 0;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .snapshot-time span { font-size: 8px; }
+      .snapshot-time strong { font-size: 11px; }
+      .status-button { width: 36px; height: 36px; }
+
+      .risk-strip {
+        grid-template-columns: 1fr;
+        gap: 7px;
+        padding: 11px 12px;
+      }
+
+      .risk-strip p { font-size: 10px; }
+      .risk-strip .risk-meta { white-space: normal; }
+
+      .workspace {
+        display: block;
+        height: auto;
+        min-height: 0;
+      }
+
+      .panel-header {
+        display: grid;
+        gap: 12px;
+        padding: 14px 13px 12px;
+      }
+
+      .panel-title h2 { font-size: 16px; }
+      .filter-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .filter-tab {
+        min-width: 0;
+        padding: 8px 5px;
+        font-size: 9px;
+      }
+
+      .decision-panel { display: block; }
+      .decision-table-head { display: none; }
+      .decision-list {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        scrollbar-gutter: auto;
+      }
+
+      .decision-row {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        grid-template-areas:
+          "priority kickoff risk"
+          "priority matchup risk"
+          "priority decision decision"
+          "priority next next";
+        gap: 8px 10px;
+        min-height: 0;
+        padding: 12px;
+      }
+
+      .decision-row > div:first-child { grid-area: priority; align-self: start; }
+      .decision-row .kickoff { grid-area: kickoff; }
+      .decision-row .matchup { grid-area: matchup; }
+      .decision-row .decision-main { grid-area: decision; }
+      .decision-row .risk-level { grid-area: risk; text-align: right; }
+      .decision-row .next-action { grid-area: next; }
+      .priority { width: 34px; }
+      .kickoff b { font-size: 15px; }
+      .matchup strong, .decision-main strong { font-size: 12px; }
+      .risk-level small { max-width: 78px; }
+
+      .detail-panel {
+        margin-top: 12px;
+        overflow: visible;
+        scrollbar-gutter: auto;
+      }
+
+      .detail-top { padding: 16px 14px 14px; }
+      .detail-match { font-size: 20px; }
+      .hero-recommendation { padding: 13px; }
+      .hero-recommendation strong { font-size: 23px; }
+      .metric-grid { padding: 12px 14px; }
+      .metric-card strong { font-size: 18px; }
+      .scoreline-panel { margin: 0 14px; }
+      .detail-sections { padding: 0 14px 14px; }
+
+      .lower-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .validation-body { padding: 13px; }
+      .validation-flow { grid-template-columns: 1fr 1fr; }
+      .flow-card:last-child { grid-column: 1 / -1; }
+      .flow-card:not(:last-child)::after { display: none; }
+      .ledger-summary { grid-template-columns: 1fr; }
+      .league-table { padding: 0 12px 12px; overflow-x: auto; }
+      .league-row { min-width: 570px; }
+      .footer-note { align-items: flex-start; gap: 8px; }
+
+      .system-drawer { width: 100%; padding: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">W2</div>
+        <div class="brand-copy">
+          <strong>足球智能决策台</strong>
+          <span>老板视角 · 先看结论，再看证据</span>
+        </div>
+        <div class="mode-pill">STAGING · 只读</div>
+      </div>
+
+      <div class="headline-kpis" aria-label="今日关键决策指标">
+        <div class="headline-kpi pick"><span>分析建议</span><strong>5</strong></div>
+        <div class="headline-kpi watch"><span>继续观察</span><strong>3</strong></div>
+        <div class="headline-kpi formal"><span>正式建议</span><strong>0</strong></div>
+        <div class="headline-kpi pending"><span>待结算</span><strong>5</strong></div>
+        <div class="headline-kpi alert"><span>高风险赛事</span><strong>2</strong></div>
+      </div>
+
+      <div class="snapshot-block">
+        <div class="snapshot-times">
+          <div class="snapshot-time"><span>全局最近赔率</span><strong>07-21 18:59</strong></div>
+          <div class="snapshot-time"><span>页面刷新</span><strong>07-21 20:33</strong></div>
+          <div class="snapshot-time"><span>快照年龄</span><strong>1小时34分</strong></div>
+          <div class="snapshot-time"><span>自动采集</span><strong style="color:var(--amber)">已暂停</strong></div>
+        </div>
+        <button class="status-button" id="openDrawer" aria-label="打开系统状态">⚙</button>
+      </div>
+    </header>
+
+    <section class="risk-strip" aria-label="风险与例外">
+      <strong>风险与例外</strong>
+      <p>自动采集当前暂停；高风险赛事 2；首发待确认 5；验证证据待补 7。</p>
+      <div class="risk-meta">最后检查 07-21 20:31</div>
+    </section>
+
+    <main class="workspace">
+      <section class="panel decision-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Executive Queue</span>
+            <h2>今日重点决策</h2>
+            <p>分析建议置顶；其余严格按开球时间。固定数据用于视觉验收。</p>
+          </div>
+          <div class="filter-tabs" role="tablist" aria-label="决策筛选">
+            <button class="filter-tab is-active" data-filter="priority">决策优先</button>
+            <button class="filter-tab" data-filter="all">全部赛程 14/14 场</button>
+            <button class="filter-tab" data-filter="risk">仅看异常</button>
+          </div>
+        </div>
+
+        <div class="decision-table-head" aria-hidden="true">
+          <span>优先级</span>
+          <span>开球</span>
+          <span>比赛</span>
+          <span>结论与核心差异</span>
+          <span>风险状态</span>
+          <span>下一动作</span>
+        </div>
+        <div class="decision-list" id="decisionList"></div>
+      </section>
+
+      <aside class="panel detail-panel" aria-label="选中决策详情">
+        <div class="detail-top">
+          <div class="detail-eyebrow">
+            <div class="decision-badge" id="detailBadge">分析建议</div>
+            <div class="snapshot-age" id="detailSnapshot">本场决策快照 · 07-21 18:59</div>
+          </div>
+          <h1 class="detail-match" id="detailMatch">代格福什 vs 尤尔加登</h1>
+          <div class="detail-meta" id="detailMeta"><span>瑞典超 · 常规赛第14轮</span><strong>07-25 周六 21:00</strong><small>4天后</small></div>
+
+          <div class="hero-recommendation">
+            <span id="heroLabel">分析盘口</span>
+            <strong id="heroRecommendation">客队 -0.75 @1.90</strong>
+            <small id="heroFootnote">分析参考 · 非正式推荐 · 不执行自动锁单</small>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric-card"><span>模型概率</span><strong id="metricModel">56.8%</strong></div>
+          <div class="metric-card"><span>市场概率</span><strong id="metricMarket">49.7%</strong></div>
+          <div class="metric-card delta"><span>模型－市场</span><strong id="metricDelta">+7.1pp</strong></div>
+          <div class="metric-card ev"><span>模型 EV</span><strong id="metricEv">+7.4%</strong></div>
+          <div class="metric-standard-error">EV 标准误 <strong id="metricUncertainty">±4.4%</strong></div>
+        </div>
+
+        <section class="scoreline-panel" id="scorelinePanel">
+          <div class="scoreline-head"><h3>模型比分 Top 3</h3><span id="scorelineSimulations">10,000 次模拟</span></div>
+          <div class="scoreline-list" id="scorelineList"></div>
+          <div class="scoreline-foot"><strong id="scorelineConsistent">一致样本 6,417 / 10,000</strong><span id="scorelineConstraint">全部符合：客队 -0.75</span><code id="scorelineHashes">decision 10ad2a2 · evidence e04aa5d</code></div>
+        </section>
+
+        <div class="detail-sections">
+          <section class="detail-section">
+            <h3>核心依据</h3>
+            <ul id="reasonList"></ul>
+          </section>
+
+          <section class="detail-section risks">
+            <h3>风险与失效条件</h3>
+            <ul id="riskList"></ul>
+          </section>
+
+          <section class="detail-section">
+            <h3>下一动作</h3>
+            <div class="next-action-box">
+              <strong id="nextActionTitle">赛前 30 分钟重新评估</strong>
+              <span id="nextActionDetail">触发条件：新盘口、首发公布、阵容异常或盘口变化超过 0.25 球。</span>
+            </div>
+            <div class="ledger-card">
+              <div>
+                <strong id="ledgerStatus">验证 ledger 已记录</strong>
+                <span id="ledgerDetail">待完场结算 · 不产生假赛果</span>
+              </div>
+              <code id="ledgerCode">8aab83c</code>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <section class="lower-grid">
+      <article class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Forward Validation</span>
+            <h2>前向验证统一账本</h2>
+            <p>全部记录使用同一连续账目；来源信息仅保留在技术层。</p>
+          </div>
+          <div class="decision-badge watch">5 场待结算</div>
+        </div>
+
+        <div class="validation-body">
+          <div class="validation-flow">
+            <div class="flow-card"><span>验证总记录</span><strong>28</strong><small>统一前向验证账本</small></div>
+            <div class="flow-card"><span>已完成结算</span><strong>23</strong><small>已有真实赛果</small></div>
+            <div class="flow-card included"><span>纳入统计</span><strong>16</strong><small>证据链完整</small></div>
+            <div class="flow-card excluded"><span>证据待补</span><strong>7</strong><small>不进入命中率分母</small></div>
+            <div class="flow-card pending"><span>待结算</span><strong>5</strong><small>同一账本中的待处理状态</small></div>
+          </div>
+
+          <div class="ledger-summary">
+            <div class="ledger-result">
+              <header><strong>有效样本</strong><span>统一口径</span></header>
+              <div class="cohort-score">11 - 3 - 2<small>命中 · 未中 · 走水</small></div>
+              <div class="progress" style="--value:78.6%"><span></span></div>
+              <div class="cohort-caption">有效输赢命中率 78.6%（11/14）</div>
+            </div>
+            <div class="ledger-reconciliation">
+              <strong>账目核对</strong>
+              <span>28 = 23 已结算 + 5 待结算</span>
+              <span>23 = 16 纳入统计 + 7 证据待补</span>
+              <span>16 = 11 命中 + 3 未中 + 2 走水</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>League Performance</span>
+            <h2>联赛表现</h2>
+            <p>命中率、CLV 与样本量必须同时展示。</p>
+          </div>
+        </div>
+        <div class="league-table">
+          <div class="league-row head">
+            <span>联赛</span><span>样本</span><span>结果</span><span>临场 CLV</span><span>状态</span>
+          </div>
+          <div class="league-row">
+            <strong>挪威超</strong><span>6</span><span>4-1-1</span><span class="clv-positive">+0.040（n=1）</span><span class="sample-state">样本不足</span>
+          </div>
+          <div class="league-row">
+            <strong>瑞典超</strong><span>4</span><span>3-1-0</span><span class="clv-negative">-0.020（n=1）</span><span class="sample-state">样本不足</span>
+          </div>
+          <div class="league-row">
+            <strong>巴甲</strong><span>4</span><span>2-1-1</span><span>暂无（n=0）</span><span class="sample-state">样本不足</span>
+          </div>
+          <div class="league-row">
+            <strong>中超</strong><span>2</span><span>2-0-0</span><span>暂无（n=0）</span><span class="sample-state">样本不足</span>
+          </div>
+        </div>
+        <p class="league-note">临场 CLV = 推荐赔率 − 开赛前 30 分钟内的同盘口赔率。n &lt; 5 时只作观察，不做绩效结论。</p>
+      </article>
+    </section>
+
+    <footer class="footer-note">
+      <span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；正式建议、锁单与生产发布仍保持关闭。</span>
+      <span>W2 Boss Decision Console v2.1</span>
+    </footer>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true">
+    <aside class="system-drawer" role="dialog" aria-modal="true" aria-label="系统状态">
+      <div class="drawer-head">
+        <div>
+          <div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;">System Status</div>
+          <h2>运行与安全边界</h2>
+        </div>
+        <button class="drawer-close" id="closeDrawer">×</button>
+      </div>
+
+      <div class="system-list">
+        <div class="system-item"><span>API 版本</span><strong>d2a7980</strong></div>
+        <div class="system-item"><span>Web 版本</span><strong>d2a7980</strong></div>
+        <div class="system-item"><span>Schema</span><strong class="pass">PASS</strong></div>
+        <div class="system-item"><span>API / Worker / Web</span><strong class="pass">HEALTHY</strong></div>
+        <div class="system-item"><span>Provider Calls</span><strong class="off">DISABLED</strong></div>
+        <div class="system-item"><span>Scheduler</span><strong class="off">STOPPED</strong></div>
+        <div class="system-item"><span>Formal Recommendation</span><strong class="off">DISABLED</strong></div>
+        <div class="system-item"><span>Lock / Production</span><strong class="off">DISABLED</strong></div>
+      </div>
+
+      <div class="drawer-warning">
+        这是老板层的系统摘要，不展示密钥、原始 payload、内部主机信息或完整 SHA。技术审计应进入独立 L2 页面。
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const readyScoreline = (decisionHash, evidenceHash, consistencyLabel, rows) => ({
+      status: "READY", simulationsCompleted: 10000, consistentSampleCount: 6417,
+      consistencyLabel, decisionHash, evidenceHash,
+      top3: rows.map(([scoreline, sampleCount]) => ({ scoreline, sampleCount, probability: sampleCount / 10000 }))
+    });
+    const decisions = [
+      {
+        id: "1494218", priority: "P1", dateLabel: "07-25 周六", time: "21:00", countdown: "4天后", league: "瑞典超 · 常规赛第14轮",
+        match: "代格福什 vs 尤尔加登", status: "pick", decision: "分析建议", recommendation: "客队 -0.75 @1.90",
+        model: 56.8, market: 49.7, delta: 7.1, ev: 7.4, uncertainty: 4.4, risk: "中", riskClass: "medium",
+        riskNote: "首发未确认", next: "赛前30分钟", nextDetail: "新盘口 / 首发 / 阵容异常",
+        snapshot: "07-21 18:59", ledger: "8aab83c", scoreline: readyScoreline("10ad2a2dec", "e04aa5d8ef", "全部符合：客队 -0.75", [["0-1", 1130], ["0-2", 980], ["1-2", 870]]),
+        reasons: ["模型与同盘口市场概率差达到 +7.1pp", "真实 xG 与球队评级方向一致", "执行报价与推荐方向、盘口线完全绑定"],
+        risks: ["首发尚未公布，阵容变化可能影响结论", "盘口若由 -0.75 跳到 -1.0 需重新计算", "EV 标准误 ±4.4%，正式推荐能力仍未开放"]
+      },
+      {
+        id: "1494223", priority: "P2", dateLabel: "07-26 周日", time: "20:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
+        match: "天狼星 vs 哥德堡", status: "pick", decision: "分析建议", recommendation: "小 3.5 @1.98",
+        model: 62.0, market: 55.0, delta: 7.0, ev: 6.1, uncertainty: 3.8, risk: "低", riskClass: "low",
+        riskNote: "盘口稳定", next: "首发公布后", nextDetail: "首发 / 伤停 / 总进球线变化",
+        snapshot: "07-21 18:59", ledger: "d4c81b2", scoreline: readyScoreline("22be819dec", "f18ca4e1ef", "全部符合：小 3.5", [["1-1", 1060], ["1-0", 930], ["0-1", 850]]),
+        reasons: ["总进球模型明显低于市场定价", "双方近期防守 xG 波动较小", "同一 bookmaker、同一 3.5 盘口完成双边去水"],
+        risks: ["早盘样本仍有限", "若主力前锋确认复出需重新评估", "赔率低于 1.82 时价值优势可能消失"]
+      },
+      {
+        id: "1494222", priority: "P3", dateLabel: "07-26 周日", time: "20:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
+        match: "布洛马波卡纳 vs 哈马比", status: "pick", decision: "分析建议", recommendation: "客队 -1.25 @1.92",
+        model: 58.3, market: 49.5, delta: 8.8, ev: 9.4, uncertainty: 5.2, risk: "高", riskClass: "high",
+        riskNote: "深盘波动", next: "盘口变动即重评", nextDetail: "盘口 / 首发 / 伤停",
+        snapshot: "07-21 18:59", ledger: "b37f20a", scoreline: readyScoreline("33cf920dec", "a29db5f2ef", "全部符合：客队 -1.25", [["0-2", 1010], ["1-3", 890], ["0-3", 740]]),
+        reasons: ["客队进攻评级与近期 xG 优势显著", "模型在 -1.25 盘口仍保留正 EV", "市场分歧超过分析级门槛"],
+        risks: ["深盘对早早丢球与红牌高度敏感", "当前不确定性偏高，属于高风险分析建议", "若盘口升至 -1.5，必须废止当前结论"]
+      },
+      {
+        id: "1494217", priority: "P4", dateLabel: "07-26 周日", time: "22:30", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
+        match: "马尔默 vs 埃尔夫斯堡", status: "pick", decision: "分析建议", recommendation: "大 2.5 @1.85",
+        model: 60.2, market: 54.1, delta: 6.1, ev: 5.6, uncertainty: 4.1, risk: "中", riskClass: "medium",
+        riskNote: "阵容待定", next: "赛前60分钟", nextDetail: "首发 / 天气 / 总进球线",
+        snapshot: "07-21 18:59", ledger: "9ae41dd", scoreline: readyScoreline("44da031dec", "b30ec6a3ef", "全部符合：大 2.5", [["2-1", 1080], ["2-2", 920], ["3-1", 810]]),
+        reasons: ["双方进攻 xG 均高于联赛中位数", "模型比分分布集中在 2-1 / 2-2 / 3-1", "2.5 盘口双边报价完整且新鲜"],
+        risks: ["若核心攻击手缺阵，进球预期会下降", "临场盘口升至 3.0 后需重新比较", "天气与场地信息尚未进入正式门禁"]
+      },
+      {
+        id: "1494220", priority: "P5", dateLabel: "07-27 周一", time: "01:00", countdown: "6天后", league: "瑞典超 · 常规赛第14轮",
+        match: "赫根 vs AIK Stockholm", status: "pick", decision: "分析建议", recommendation: "小 3.5 @1.91",
+        model: 62.4, market: 56.7, delta: 5.7, ev: 4.9, uncertainty: 3.6, risk: "低", riskClass: "low",
+        riskNote: "优势较窄", next: "赛前30分钟", nextDetail: "临场总进球线 / 首发",
+        snapshot: "07-21 18:59", ledger: "1f6de40", scoreline: readyScoreline("55eb142dec", "c41fd7b4ef", "全部符合：小 3.5", [["1-1", 1110], ["1-0", 900], ["0-1", 820]]),
+        reasons: ["总进球模型低于当前市场预期", "盘口仍处于可执行范围", "模型—市场差刚超过分析门槛"],
+        risks: ["优势边际较小，临场价格变化可能抹平 EV", "若盘口降至 3.25 需重新计算", "当前只属于分析建议，不属于正式推荐"]
+      },
+      {
+        id: "1494224", priority: "W1", dateLabel: "07-24 周五", time: "01:00", countdown: "3天后", league: "瑞典超 · 常规赛第14轮",
+        match: "北雪平 vs 瓦尔贝里", status: "watch", decision: "继续观察", recommendation: "优势不足 · 暂不选方向",
+        model: 51.4, market: 49.9, delta: 1.5, ev: 0.8, uncertainty: 4.9, risk: "中", riskClass: "medium",
+        riskNote: "分歧不足", next: "等待新盘口", nextDetail: "下一次受控采集",
+        snapshot: "07-21 18:59", ledger: "—", scoreline: null,
+        reasons: ["模型和市场接近，不足以形成分析方向", "盘口证据完整，但价值差未达到门槛", "保持 NO_EDGE 比强行推荐更可信"],
+        risks: ["暂无可执行方向", "临场盘口变化后结论可能改变", "当前不进入统一前向验证账本分母"]
+      },
+      {
+        id: "1494221", priority: "W2", dateLabel: "07-25 周六", time: "23:30", countdown: "4天后", league: "瑞典超 · 常规赛第14轮",
+        match: "米亚尔比 vs 厄斯特松德", status: "watch", decision: "继续观察", recommendation: "模型优势不足",
+        model: 52.6, market: 50.4, delta: 2.2, ev: 1.3, uncertainty: 4.2, risk: "低", riskClass: "low",
+        riskNote: "NO_EDGE", next: "赛前60分钟", nextDetail: "等待盘口收敛",
+        snapshot: "07-21 18:59", ledger: "—", scoreline: null,
+        reasons: ["模型概率虽略高于市场，但未达到 +5pp", "模型 EV 不足", "当前正确动作是继续观察"],
+        risks: ["不应把小幅分歧包装成推荐", "若出现同线价格改善再重新评估", "不进入命中率分母"]
+      },
+      {
+        id: "1494219", priority: "W3", dateLabel: "07-26 周日", time: "22:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
+        match: "卡尔马 vs 哈尔姆斯塔德", status: "watch", decision: "继续观察", recommendation: "NO_EDGE · 不操作",
+        model: 49.8, market: 49.2, delta: 0.6, ev: 0.2, uncertainty: 3.9, risk: "低", riskClass: "low",
+        riskNote: "无优势", next: "等待临场", nextDetail: "新报价或阵容变化",
+        snapshot: "07-21 18:59", ledger: "—", scoreline: null,
+        reasons: ["模型与市场高度一致", "没有可解释的价格优势", "NO_EDGE 是诚实结论"],
+        risks: ["不建议为了增加推荐数量降低门槛", "临场市场变化可能重新打开机会", "仅保留观察记录"]
+      },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `future-${index + 1}`, priority: `N${index + 1}`, dateLabel: ["07-27 周一","07-28 周二","07-29 周三","07-30 周四","07-31 周五","08-01 周六"][index], time: ["19:00","20:30","21:00","22:00","23:00","00:30"][index],
+        countdown: `${6 + index}天后`, league: "瑞典超 · 未来赛程", match: ["韦纳穆 vs 北雪平","哥德堡盖斯 vs 天狼星","尤尔加登 vs 马尔默","AIK vs 哈马比","赫根 vs 代格福什","埃尔夫斯堡 vs 米亚尔比"][index],
+        status: "not-ready", decision: "暂不可判断", recommendation: index % 2 ? "等待首轮盘口" : "尚未进入临场窗口",
+        model: null, market: null, delta: null, ev: null, uncertainty: null, risk: "中", riskClass: "medium",
+        riskNote: index % 2 ? "盘口未齐" : "未到采集时点", next: "待安排", nextDetail: "受控采集窗口",
+        snapshot: "—", ledger: "—", scoreline: null,
+        reasons: ["比赛尚未进入完整评估窗口", "当前不展示虚假概率或推荐", "达到采集条件后自动进入决策队列"],
+        risks: ["盘口或首发数据尚不完整", "不可用历史快照替代当前执行报价", "保持 NOT_READY"]
+      }))
+    ];
+
+    const list = document.getElementById("decisionList");
+    let activeFilter = "priority";
+    let selectedId = decisions[0].id;
+
+    const fmtPercent = (value) => value == null ? "--" : `${value.toFixed(1)}%`;
+    const fmtDelta = (value) => value == null ? "--" : `${value >= 0 ? "+" : ""}${value.toFixed(1)}pp`;
+    const fmtEv = (value) => value == null ? "--" : `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+
+    function filteredDecisions() {
+      if (activeFilter === "priority") return decisions.filter(item => item.status === "pick");
+      if (activeFilter === "risk") return decisions.filter(item => item.riskClass === "high" || item.status === "not-ready");
+      return decisions;
+    }
+
+    function renderList() {
+      const rows = filteredDecisions();
+      if (!rows.length) {
+        list.innerHTML = '<div class="empty-list">当前筛选条件下没有比赛</div>';
+        return;
+      }
+      list.innerHTML = rows.map(item => {
+        const statusClass = `status-${item.status}`;
+        const riskClass = item.riskClass || "medium";
+        const metrics = item.model == null
+          ? `<span><b>状态</b> ${item.recommendation}</span>`
+          : `<span><b>模型</b> ${fmtPercent(item.model)}</span><span><b>市场</b> ${fmtPercent(item.market)}</span><span><b>差值</b> ${fmtDelta(item.delta)}</span><span><b>EV</b> ${fmtEv(item.ev)}</span>`;
+        const scoreline = item.status === "pick" && item.scoreline?.status === "READY"
+          ? `<div class="scoreline-inline"><b>模型比分</b> ${item.scoreline.top3.map(row => row.scoreline).join(" · ")}</div>`
+          : "";
+        return `
+          <button class="decision-row ${statusClass} ${item.id === selectedId ? "is-selected" : ""}" data-id="${item.id}">
+            <div><span class="priority">${item.priority}</span></div>
+            <div class="kickoff"><strong>${item.dateLabel}</strong><b>${item.time}</b><span>${item.countdown}</span></div>
+            <div class="matchup"><strong>${item.match}</strong><span>${item.league}</span></div>
+            <div class="decision-main"><strong>${item.recommendation}</strong><div class="metric-line">${metrics}</div>${scoreline}</div>
+            <div class="risk-level ${riskClass}"><span>${item.risk}风险</span><small>${item.riskNote}</small></div>
+            <div class="next-action"><strong>${item.next}</strong><span>${item.nextDetail}</span></div>
+          </button>`;
+      }).join("");
+
+      list.querySelectorAll(".decision-row").forEach(row => {
+        row.addEventListener("click", () => {
+          selectedId = row.dataset.id;
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const item = decisions.find(row => row.id === selectedId) || filteredDecisions()[0] || decisions[0];
+      const badge = document.getElementById("detailBadge");
+      badge.className = "decision-badge" + (item.status === "watch" ? " watch" : item.status === "not-ready" ? " not-ready" : "");
+      badge.textContent = item.decision;
+      document.getElementById("detailSnapshot").textContent = item.snapshot === "—" ? "尚无本场决策快照" : `本场决策快照 · ${item.snapshot}`;
+      document.getElementById("detailMatch").textContent = item.match;
+      document.getElementById("detailMeta").innerHTML = `<span>${item.league}</span><strong>${item.dateLabel} ${item.time}</strong><small>${item.countdown}</small>`;
+      document.getElementById("heroLabel").textContent = item.status === "pick" ? "分析盘口" : item.status === "watch" ? "当前结论" : "数据状态";
+      document.getElementById("heroRecommendation").textContent = item.recommendation;
+      document.getElementById("heroFootnote").textContent = item.status === "pick"
+        ? "分析参考 · 非正式推荐 · 不执行自动锁单"
+        : item.status === "watch"
+        ? "NO_EDGE · 不强行产生推荐"
+        : "数据不完整 · 暂不输出模型结论";
+      document.getElementById("metricModel").textContent = fmtPercent(item.model);
+      document.getElementById("metricMarket").textContent = fmtPercent(item.market);
+      document.getElementById("metricDelta").textContent = fmtDelta(item.delta);
+      document.getElementById("metricEv").textContent = fmtEv(item.ev);
+      document.getElementById("metricUncertainty").textContent = item.uncertainty == null ? "--" : `±${fmtPercent(item.uncertainty)}`;
+      const scorelinePanel = document.getElementById("scorelinePanel");
+      if (item.status !== "pick") {
+        scorelinePanel.hidden = true;
+      } else if (!item.scoreline || item.scoreline.status !== "READY") {
+        scorelinePanel.hidden = false;
+        scorelinePanel.className = "scoreline-panel not-ready";
+        scorelinePanel.innerHTML = `<div><h3>模型比分 Top 3</h3><span>NOT_READY</span></div><p>${item.scoreline?.blocker || "SCORELINE_PROJECTION_MISSING"}</p>`;
+      } else {
+        scorelinePanel.hidden = false;
+        scorelinePanel.className = "scoreline-panel";
+        scorelinePanel.innerHTML = `<div class="scoreline-head"><h3>模型比分 Top 3</h3><span>${item.scoreline.simulationsCompleted.toLocaleString("en-US")} 次模拟</span></div><div class="scoreline-list">${item.scoreline.top3.map(row => `<div class="scoreline-row"><strong>${row.scoreline}</strong><span>${fmtPercent(row.probability * 100)}</span><small>${row.sampleCount.toLocaleString("en-US")}次</small></div>`).join("")}</div><div class="scoreline-foot"><strong>一致样本 ${item.scoreline.consistentSampleCount.toLocaleString("en-US")} / ${item.scoreline.simulationsCompleted.toLocaleString("en-US")}</strong><span>${item.scoreline.consistencyLabel}</span><code>decision ${item.scoreline.decisionHash.slice(0, 7)} · evidence ${item.scoreline.evidenceHash.slice(0, 7)}</code></div>`;
+      }
+      document.getElementById("reasonList").innerHTML = item.reasons.map(text => `<li>${text}</li>`).join("");
+      document.getElementById("riskList").innerHTML = item.risks.map(text => `<li>${text}</li>`).join("");
+      document.getElementById("nextActionTitle").textContent = item.status === "pick" ? `${item.next}重新评估` : item.next;
+      document.getElementById("nextActionDetail").textContent = `触发条件：${item.nextDetail}。`;
+      document.getElementById("ledgerStatus").textContent = item.status === "pick" ? "验证 ledger 已记录" : item.status === "watch" ? "仅保留观察证据" : "尚未进入验证 ledger";
+      document.getElementById("ledgerDetail").textContent = item.status === "pick" ? "待完场结算 · 不产生假赛果" : item.status === "watch" ? "不计入推荐命中率" : "待形成完整赛前决策";
+      document.getElementById("ledgerCode").textContent = item.ledger;
+    }
+
+    document.querySelectorAll(".filter-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".filter-tab").forEach(item => item.classList.remove("is-active"));
+        tab.classList.add("is-active");
+        activeFilter = tab.dataset.filter;
+        const rows = filteredDecisions();
+        if (!rows.some(item => item.id === selectedId)) selectedId = rows[0]?.id || decisions[0].id;
+        renderList();
+        renderDetail();
+      });
+    });
+
+    const backdrop = document.getElementById("drawerBackdrop");
+    const openDrawer = () => {
+      backdrop.classList.add("is-open");
+      backdrop.setAttribute("aria-hidden", "false");
+    };
+    const closeDrawer = () => {
+      backdrop.classList.remove("is-open");
+      backdrop.setAttribute("aria-hidden", "true");
+    };
+    document.getElementById("openDrawer").addEventListener("click", openDrawer);
+    document.getElementById("closeDrawer").addEventListener("click", closeDrawer);
+    backdrop.addEventListener("click", event => { if (event.target === backdrop) closeDrawer(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") closeDrawer(); });
+
+    renderList();
+    renderDetail();
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+{
+  "schema_version": "w2.forward_ledger_legacy_recovery.v1",
+  "environment": "staging",
+  "policy": "unique_validation_capture_exact_identity",
+  "reviewed_at_utc": "2026-07-19T06:45:00Z",
+  "entries": [
+    {
+      "fixture_id": "1492295",
+      "captured_at": "2026-07-11T21:13:05.448048Z",
+      "capture_hash": "76815e1fa5d46c3889badb658980b5c9bd26a316542cd4c8735b67f85ef7dc3c",
+      "kickoff_utc": "2026-07-17T23:00:00Z",
+      "competition": "71",
+      "home_team_name": "Fluminense",
+      "away_team_name": "RB Bragantino",
+      "market": "ASIAN_HANDICAP",
+      "selection": "AWAY_AH",
+      "line": "1",
+      "entry_price": 1.58,
+      "settlement_outcome": "WIN",
+      "final_score": {"home": 1, "away": 1, "status": "FT"}
+    },
+    {
+      "fixture_id": "1492297",
+      "captured_at": "2026-07-11T21:13:05.448048Z",
+      "capture_hash": "6a19d46d175633197c06ef0e041bbd92be37eb15ea2f8b4d0a277e0e4e63a627",
+      "kickoff_utc": "2026-07-17T23:00:00Z",
+      "competition": "71",
+      "home_team_name": "Mirassol",
+      "away_team_name": "Gremio",
+      "market": "ASIAN_HANDICAP",
+      "selection": "HOME_AH",
+      "line": "0",
+      "entry_price": 1.63,
+      "settlement_outcome": "WIN",
+      "final_score": {"home": 2, "away": 1, "status": "FT"}
+    },
+    {
+      "fixture_id": "1492299",
+      "captured_at": "2026-07-11T21:13:05.448048Z",
+      "capture_hash": "44abeedfa291d9fb2fb06420acac11ea56adb60924411128afe78811ce41ef0c",
+      "kickoff_utc": "2026-07-16T22:30:00Z",
+      "competition": "71",
+      "home_team_name": "Vitoria",
+      "away_team_name": "Vasco DA Gama",
+      "market": "TOTALS",
+      "selection": "UNDER",
+      "line": "2.75",
+      "entry_price": 1.5,
+      "settlement_outcome": "WIN",
+      "final_score": {"home": 1, "away": 0, "status": "FT"}
+    },
+    {
+      "fixture_id": "1576804",
+      "captured_at": "2026-07-07T15:42:02.270579Z",
+      "capture_hash": "0ceebd3db9a826d72cdafef626d64f54f7fdd837cca528a29188b3c1e93457bc",
+      "kickoff_utc": "2026-07-07T16:00:00Z",
+      "competition": "world_cup_2026",
+      "home_team_name": "Argentina",
+      "away_team_name": "Egypt",
+      "market": "TOTALS",
+      "selection": "OVER",
+      "line": "2.5",
+      "entry_price": 1.71,
+      "settlement_outcome": "WIN",
+      "final_score": {"home": 3, "away": 2, "status": "FT"}
+    }
+  ]
+}

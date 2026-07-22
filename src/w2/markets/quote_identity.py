@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 QUOTE_IDENTITY_SCHEMA_VERSION = "w2.quote_identity.v1"
+QUOTE_FRESHNESS_SCHEMA_VERSION = "w2.quote_freshness.v1"
+DEFAULT_QUOTE_MAX_AGE = timedelta(minutes=30)
 
 _REQUIRED_FIELDS = (
     "observation_id",
@@ -12,6 +17,7 @@ _REQUIRED_FIELDS = (
     "provider",
     "bookmaker_id",
     "bookmaker_name",
+    "capture_id",
     "canonical_market",
     "selection",
     "line",
@@ -107,6 +113,53 @@ def unavailable_quote_identity(*, market: str, blocker: str) -> dict[str, Any]:
     )
 
 
+def evaluate_quote_freshness(
+    identity: Mapping[str, Any],
+    *,
+    evaluated_at: datetime,
+    max_age: timedelta = DEFAULT_QUOTE_MAX_AGE,
+) -> dict[str, Any]:
+    """Attach freshness derived only from authoritative quote captured_at."""
+    payload = dict(identity)
+    blockers: list[str] = []
+    captured_at: datetime | None = None
+    if payload.get("schema_version") != QUOTE_IDENTITY_SCHEMA_VERSION:
+        blockers.append("UNSUPPORTED_QUOTE_IDENTITY_SCHEMA")
+    if payload.get("identity_status") != "COMPLETE":
+        blockers.append("QUOTE_IDENTITY_NOT_COMPLETE")
+    raw_captured_at = payload.get("captured_at")
+    if raw_captured_at in {None, ""}:
+        blockers.append("MISSING_AUTHORITATIVE_CAPTURED_AT")
+    else:
+        captured_at = _parse_utc(raw_captured_at)
+        if captured_at is None:
+            blockers.append("INVALID_AUTHORITATIVE_CAPTURED_AT")
+
+    reference = evaluated_at.astimezone(UTC)
+    age_seconds: float | None = None
+    status = "INCOMPLETE"
+    if not blockers and captured_at is not None:
+        age_seconds = (reference - captured_at).total_seconds()
+        if age_seconds < 0:
+            blockers.append("CAPTURED_AT_AFTER_EVALUATION")
+        elif age_seconds > max_age.total_seconds():
+            status = "STALE"
+            blockers.append("QUOTE_OLDER_THAN_30_MINUTES")
+        else:
+            status = "COMPLETE"
+    payload.update(
+        {
+            "freshness_schema_version": QUOTE_FRESHNESS_SCHEMA_VERSION,
+            "freshness_status": status,
+            "freshness_blockers": sorted(set(blockers)),
+            "evaluated_at": reference.isoformat().replace("+00:00", "Z"),
+            "age_seconds": None if age_seconds is None else round(age_seconds, 6),
+            "max_age_seconds": int(max_age.total_seconds()),
+        }
+    )
+    return payload
+
+
 def _payload(
     *,
     market: str,
@@ -123,18 +176,29 @@ def _payload(
         if value.get("observation_id") not in {None, ""}
     }
     complete_quotes = list(quote_payload.values())
-    return {
+    payload: dict[str, Any] = {
         "schema_version": QUOTE_IDENTITY_SCHEMA_VERSION,
         "market": market,
         "selected_line": None if selected_line is None else str(selected_line),
         "identity_status": status,
         "blockers": ordered_blockers,
         "observation_ids": observation_ids,
+        "fixture_id": _common_value(complete_quotes, "fixture_id"),
         "provider": _common_value(complete_quotes, "provider"),
         "bookmaker_id": _common_value(complete_quotes, "bookmaker_id"),
+        "capture_id": _common_value(complete_quotes, "capture_id"),
         "captured_at": _common_value(complete_quotes, "captured_at"),
+        "source_revision": _common_value(complete_quotes, "source_revision"),
+        "raw_payload_sha256": _common_value(complete_quotes, "raw_payload_sha256"),
         "quotes": quote_payload,
     }
+    payload["quote_identity_hash"] = _stable_hash(payload)
+    return payload
+
+
+def _stable_hash(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _common_value(rows: Sequence[Mapping[str, Any]], field: str) -> Any:
@@ -183,7 +247,9 @@ def _lines_match(market: str, selected: Any, first: Any, second: Any) -> bool:
     if selected_line is None or first_line is None or second_line is None:
         return False
     if market == "ASIAN_HANDICAP":
-        return abs(first_line) == abs(selected_line) and first_line == -second_line
+        # selected_line is the canonical HOME line.  Matching by magnitude hid
+        # a sign inversion where an AWAY price was evaluated as AWAY +line.
+        return first_line == selected_line and second_line == -selected_line
     return first_line == selected_line and second_line == selected_line
 
 
@@ -192,3 +258,13 @@ def _decimal(value: Any) -> Decimal | None:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
         return None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)

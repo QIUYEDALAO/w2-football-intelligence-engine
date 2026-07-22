@@ -1,0 +1,24 @@
+{
+  "schema_version": "w2.dynamic_quote_ev_lifecycle_evidence.v1",
+  "generated_at": "2026-07-22T00:00:00Z",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
+  "baseline_sha": "c62fa82d883633f3b33ff44810a5fbc294b215c5",
+  "scope": "OFFLINE_CONTRACT_AND_LOCAL_INTEGRATION",
+  "fixtures": [
+    {
+      "fixture_id": "offline:fixture-1",
+      "live_fixture": false,
+      "evaluation_versions": [
+        {"capture_id": "c1", "state": "SUPERSEDED", "ev": 0.08, "delta": 0.06, "ev_minus_se": 0.06, "checkpoint": "T-3h", "quote_identity": "quote-c1", "model_input_hash": "model-1"},
+        {"capture_id": "c2", "state": "NO_EDGE_CURRENT", "ev": 0.01, "delta": 0.02, "ev_minus_se": -0.02, "checkpoint": "T-3h", "quote_identity": "quote-c2", "model_input_hash": "model-1", "gate_shortfall": {"delta": 0.03, "ev_minus_se": 0.02}}
+      ],
+      "supersession_chain": ["c1", "c2"],
+      "current_active_state": "NO_EDGE_CURRENT",
+      "lineup_input_hash": null,
+      "post_lineup_quote_status": "NOT_EXERCISED_IN_LIVE_WINDOW",
+      "lock_snapshot_status": "OFFLINE_TEST_ONLY"
+    }
+  ],
+  "assertions": ["DYNAMIC_QUOTE_LIFECYCLE_PASS", "CURRENT_EV_SNAPSHOT_SEMANTICS_PASS", "NO_EDGE_REEVALUATION_PASS", "SOURCE_ABSENT_TRUTH_CONTRACT_PASS"],
+  "safety": ["PR_370_KEEP_DRAFT", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED"]
+}

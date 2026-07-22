@@ -14,7 +14,11 @@ KICKOFF = AS_OF + timedelta(hours=30)
 
 def _fixtures(count: int, kickoff: datetime = KICKOFF) -> list[dict[str, str]]:
     return [
-        {"fixture_id": f"fixture-{index}", "kickoff_utc": kickoff.isoformat()}
+        {
+            "fixture_id": f"fixture-{index}",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": kickoff.isoformat(),
+        }
         for index in range(count)
     ]
 
@@ -23,22 +27,34 @@ def test_generates_kickoff_aware_controlled_ticks() -> None:
     ticks = build_matchday_refresh_plan(
         _fixtures(1),
         as_of=AS_OF,
-        policy=MatchdayRefreshPolicy(),
+        policy=MatchdayRefreshPolicy(competition_id="allsvenskan"),
     )
 
-    assert [tick.label for tick in ticks] == ["T_24H", "T_3H", "T_90M", "T_30M", "T_15M"]
+    assert [tick.label for tick in ticks] == [
+        "T24_ODDS",
+        "T12_ODDS",
+        "T6_ODDS",
+        "T3_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T-30m_VALIDATION_LOCK",
+    ]
     assert [tick.offset_seconds_before_kickoff for tick in ticks] == [
         24 * 60 * 60,
+        12 * 60 * 60,
+        6 * 60 * 60,
         3 * 60 * 60,
-        90 * 60,
+        60 * 60,
+        45 * 60,
         30 * 60,
-        15 * 60,
+        30 * 60,
     ]
     assert all(tick.scheduled_at >= AS_OF for tick in ticks)
 
 
 def test_no_sixty_second_loop_or_random_task_key() -> None:
-    policy = MatchdayRefreshPolicy(min_interval_seconds=60)
+    policy = MatchdayRefreshPolicy(competition_id="allsvenskan", min_interval_seconds=60)
     first = build_matchday_refresh_plan(_fixtures(2), as_of=AS_OF, policy=policy)
     second = build_matchday_refresh_plan(_fixtures(2), as_of=AS_OF, policy=policy)
 
@@ -49,6 +65,7 @@ def test_no_sixty_second_loop_or_random_task_key() -> None:
 
 def test_endpoint_allowlist_skips_unauthorized_endpoints() -> None:
     policy = MatchdayRefreshPolicy(
+        competition_id="allsvenskan",
         allowed_endpoints=(
             "status",
             "fixtures",
@@ -79,9 +96,11 @@ def test_projected_calls_for_nine_fixtures_stays_under_default_cap() -> None:
         [f"fixture-{index}" for index in range(9)],
         ("status", "fixtures", "odds", "lineups", "statistics"),
     )
-    tick = build_matchday_refresh_plan(_fixtures(9), as_of=AS_OF, policy=MatchdayRefreshPolicy())[
-        0
-    ]
+    tick = build_matchday_refresh_plan(
+        _fixtures(9),
+        as_of=AS_OF,
+        policy=MatchdayRefreshPolicy(competition_id="allsvenskan"),
+    )[0]
 
     assert calls == {"status": 1, "fixtures": 1, "odds": 9, "lineups": 9}
     assert tick.projected_calls == 20
@@ -89,9 +108,11 @@ def test_projected_calls_for_nine_fixtures_stays_under_default_cap() -> None:
 
 
 def test_projected_calls_above_hard_cap_blocks_with_zero_provider_calls() -> None:
-    tick = build_matchday_refresh_plan(_fixtures(15), as_of=AS_OF, policy=MatchdayRefreshPolicy())[
-        0
-    ]
+    tick = build_matchday_refresh_plan(
+        _fixtures(15),
+        as_of=AS_OF,
+        policy=MatchdayRefreshPolicy(competition_id="allsvenskan"),
+    )[0]
     payload = tick.as_dict()
 
     assert tick.projected_calls == 32
@@ -104,7 +125,10 @@ def test_all_unauthorized_endpoints_blocks_without_projected_calls() -> None:
     tick = build_matchday_refresh_plan(
         _fixtures(3),
         as_of=AS_OF,
-        policy=MatchdayRefreshPolicy(allowed_endpoints=("statistics", "injuries")),
+        policy=MatchdayRefreshPolicy(
+            competition_id="allsvenskan",
+            allowed_endpoints=("statistics", "injuries"),
+        ),
     )[0]
 
     assert tick.allowed_endpoints == ()

@@ -9,6 +9,9 @@ from w2.dashboard.day_view import build_dashboard_day_view
 def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None:
     payload = {
         "generated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
+        "page_updated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
+        "odds_last_confirmed_at": "2026-07-05T01:00:00Z",
+        "next_refresh_tick": "2026-07-05T01:15:00Z",
         "date": "2026-07-05",
         "selected_football_day": "2026-07-05",
         "timezone": "Asia/Shanghai",
@@ -42,6 +45,19 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                     },
                     "ou": {"line": "2.5", "over_price": 1.91, "under_price": 1.93},
                 },
+                "last_known_odds": {
+                    "status": "REFERENCE_ONLY",
+                    "captured_at": "2026-07-04T10:00:00Z",
+                    "executable": False,
+                    "markets": {
+                        "ah": {
+                            "home_line": "-0.25",
+                            "home_price": 1.95,
+                            "away_line": "0.25",
+                            "away_price": 1.95,
+                        }
+                    },
+                },
                 "market_strip": [
                     {
                         "market": "ASIAN_HANDICAP",
@@ -53,6 +69,29 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                     "odds_status": "READY",
                     "lineups_status": "PROVIDER_EMPTY",
                     "xg_status": "INSUFFICIENT_HISTORY",
+                },
+                "pricing_shadow": {
+                    "simulation": {
+                        "status": "READY",
+                        "simulations": 10000,
+                    }
+                },
+                "scoreline_picks": [
+                    {
+                        "scoreline": "1-0",
+                        "home_goals": 1,
+                        "away_goals": 0,
+                        "probability": 0.12,
+                        "probability_label": "12%",
+                    }
+                ],
+                "scoreline_reference": {
+                    "source": "formal_simulation",
+                    "label": "模拟比分参考",
+                },
+                "scoreline_readiness": {
+                    "status": "READY",
+                    "source": "formal_simulation",
                 },
                 "pick": {
                     "market": "ASIAN_HANDICAP",
@@ -87,21 +126,25 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
     assert view["counts"]["total"] == 2
-    assert view["counts"]["analysis_pick"] == 1
+    assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
-    assert view["counts"]["watch"] == 1
+    assert view["counts"]["watch"] == 2
     assert view["counts"]["not_ready"] == 0
     assert view["counts"]["skip"] == 0
     assert view["counts"]["ready"] == 0
     assert view["counts"]["partial"] == 1
     assert view["counts"]["stale"] == 0
     assert view["counts"]["blocked"] == 1
-    assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 1
-    assert view["counts"]["by_decision_tier"]["WATCH"] == 1
+    assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 0
+    assert view["counts"]["by_decision_tier"]["WATCH"] == 2
     assert view["counts"]["by_data_status"]["READY"] == 0
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
     assert view["counts"]["legacy_fallback"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
+    assert view["freshness"]["page_updated_at"] == "2026-07-05T01:02:00Z"
+    assert view["freshness"]["odds_last_confirmed_at"] == "2026-07-05T01:00:00Z"
+    assert view["freshness"]["next_refresh_tick"] == "2026-07-05T01:15:00Z"
+    assert view["freshness"]["last_refresh"] == view["freshness"]["page_updated_at"]
     assert view["freshness"]["data_status_summary"] == view["counts"]["by_data_status"]
     assert view["navigation"]["current_date"] == "2026-07-05"
     assert view["navigation"]["previous_date"] == "2026-07-04"
@@ -114,29 +157,33 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["navigation"]["warning"] == (
         "未发现 day_view checkpoint，使用只读 read-model fallback"
     )
-    assert view["degradation"]["state"] == "OK"
+    assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
     assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
 
     contract_card = view["cards"][0]
     assert contract_card["source"] == "decision_contract"
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
-    assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
-    assert contract_card["market_probabilities"]["ah"]["probabilities"]["HOME_AH"] == 0.5
-    assert contract_card["market_probabilities"]["ou"]["probabilities"]["OVER"] == 0.502604
+    assert contract_card["current_odds"] == {}
+    assert contract_card["last_known_odds"]["status"] == "REFERENCE_ONLY"
+    assert contract_card["last_known_odds"]["executable"] is False
+    assert contract_card["market_probabilities"] == {}
     assert contract_card["market_strip"][0]["market"] == "ASIAN_HANDICAP"
     assert contract_card["data_refresh"]["odds_status"] == "READY"
+    assert contract_card["scoreline_simulations"] == 10000
+    assert contract_card["scoreline_picks"] == []
+    assert contract_card["scoreline_reference"] == {}
+    assert contract_card["scoreline_readiness"]["status"] == "READY"
     assert contract_card["probability_source"] == "MARKET_DEVIG"
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
-    assert contract_card["pick"]["disclaimer"] == (
-        "分析参考·非稳赢；production 动作需 RECOMMEND"
-    )
+    assert contract_card["pick"] is None
 
     legacy_card = view["cards"][1]
     assert legacy_card["source"] == "legacy_fallback"
-    assert legacy_card["decision_tier"] == "ANALYSIS_PICK"
-    assert legacy_card["lock_eligible"] is True
-    assert legacy_card["recommendation_id"] == "legacy-rec"
+    assert legacy_card["decision_tier"] == "WATCH"
+    assert legacy_card["lock_eligible"] is False
+    assert legacy_card["outcome_tracked"] is False
+    assert legacy_card["recommendation_id"] is None
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:

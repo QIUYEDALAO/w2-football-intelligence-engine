@@ -11,6 +11,7 @@ from w2.ingestion.market_timeline import (
     validate_timeline_payload,
     write_timeline_snapshot,
 )
+from w2.markets.asian_handicap_mainline import select_canonical_ah_mainline
 
 
 def _obs(
@@ -132,7 +133,7 @@ def test_totals_mainline_uses_latest_bucket_bookmaker_consensus_pair() -> None:
 
     assert snapshot is not None
     assert snapshot["line"] == 2.25
-    assert snapshot["selection_policy"] == "latest_bucket_ladder_balance_same_bookmaker_pair"
+    assert snapshot["selection_policy"] == "canonical_bookmaker_mainline_consensus_v1"
     assert snapshot["candidate_lines"][0]["line"] == 2.25
     assert round(float(snapshot["candidate_lines"][0]["over_price"]), 2) == 2.02
     assert round(float(snapshot["candidate_lines"][0]["under_price"]), 2) == 1.86
@@ -240,7 +241,7 @@ def test_rejects_stale_lock_observation() -> None:
     stale = kickoff - timedelta(hours=6, minutes=18)
     observations = [
         _obs(captured_at=stale, selection="HOME", line=0.5, odds=2.0),
-        _obs(captured_at=stale, selection="AWAY", line=0.5, odds=1.9),
+        _obs(captured_at=stale, selection="AWAY", line=-0.5, odds=1.9),
     ]
 
     result = select_mainline_snapshot_result(
@@ -260,7 +261,7 @@ def test_accepts_fresh_lock_observation() -> None:
     fresh = kickoff - timedelta(minutes=45)
     observations = [
         _obs(captured_at=fresh, selection="HOME", line=0.5, odds=2.0),
-        _obs(captured_at=fresh, selection="AWAY", line=0.5, odds=1.9),
+        _obs(captured_at=fresh, selection="AWAY", line=-0.5, odds=1.9),
     ]
 
     result = select_mainline_snapshot_result(
@@ -302,7 +303,7 @@ def test_non_lock_checkpoint_can_use_older_observation() -> None:
     t6 = kickoff - timedelta(hours=6, minutes=18)
     observations = [
         _obs(captured_at=t6, selection="HOME", line=0.5, odds=2.0),
-        _obs(captured_at=t6, selection="AWAY", line=0.5, odds=1.9),
+        _obs(captured_at=t6, selection="AWAY", line=-0.5, odds=1.9),
     ]
 
     snapshot = select_mainline_snapshot(
@@ -805,6 +806,32 @@ def test_ah_mainline_consensus_keeps_same_bookmaker_pair_for_selected_line() -> 
     assert snapshot["line"] == -0.75
     assert (snapshot["home_price"], snapshot["away_price"]) in {(2.07, 1.83), (1.95, 1.95)}
     assert (snapshot["home_price"], snapshot["away_price"]) != (2.07, 1.95)
+
+
+def test_ah_mainline_normalizes_provider_shared_line_to_complementary_identity() -> None:
+    kickoff = datetime(2026, 7, 19, 14, 30, tzinfo=UTC)
+    captured = kickoff - timedelta(hours=24)
+    observations = [
+        _obs(captured_at=captured, selection="Home +0.5", line=0.5, odds=1.75),
+        _obs(captured_at=captured, selection="Away +0.5", line=0.5, odds=1.93),
+    ]
+
+    selected = select_canonical_ah_mainline(
+        observations,
+        fixture_id="fx1",
+        target=captured,
+        kickoff=kickoff,
+    )
+
+    assert selected.status == "READY"
+    assert selected.authoritative_quote_rows is not None
+    home = selected.authoritative_quote_rows["home"]
+    away = selected.authoritative_quote_rows["away"]
+    assert float(home["line"]) == -float(away["line"])
+    assert home["provider_line"] == 0.5
+    assert away["provider_line"] == 0.5
+    assert home["selection"].lower().startswith("home")
+    assert away["selection"].lower().startswith("away")
 
 
 def test_ah_snapshot_requires_same_bookmaker_pair() -> None:

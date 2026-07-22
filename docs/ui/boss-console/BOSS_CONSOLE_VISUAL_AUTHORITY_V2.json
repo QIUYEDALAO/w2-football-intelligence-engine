@@ -1,0 +1,67 @@
+{
+  "schema_version": "w2.boss_console.visual_authority.v2",
+  "authority": "USER_APPROVED_V2_1_DYNAMIC_EV_AND_LINEUP_SEMANTICS",
+  "supersedes": "w2.boss_console_visual_authority.v1",
+  "pixel_contract": {
+    "browser": "playwright_chromium",
+    "locale": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "device_scale_factor": 1,
+    "max_diff_pixel_ratio": 0.0015,
+    "viewports": [
+      "2048x1152",
+      "1440x900",
+      "390x844"
+    ]
+  },
+  "protected_files": {
+    "docs/ui/boss-console/w2_boss_decision_console_prototype.html": {
+      "sha256": "fc77c717e8b93e16f00c2bdaeea5633513916df71a9cab208c0a05aefda9b5d6"
+    },
+    "apps/web/src/reference/boss-console/BossDecisionConsoleReference.tsx": {
+      "sha256": "60f9fd84be425a37ad6359a2b35525bb097cda0fccab8712fa5ff0832ac4fe20"
+    },
+    "apps/web/src/reference/boss-console/boss-decision-console.css": {
+      "sha256": "a8c94bee7d032ebb8caca46f0a2fbc108fa3b7cdeccf37b23f2dbece401450bf"
+    },
+    "apps/web/src/reference/boss-console/boss-console-model.ts": {
+      "sha256": "613472d2eaca7ef3a8f2a5909d45e4fa233b55d59cbf8d1d502cb2ba5fef5c2c"
+    },
+    "apps/web/src/reference/boss-console/boss-console-adapter.ts": {
+      "sha256": "af4f8bbc2c890db8af5c74924e10bb308cac5d8520e5712852f8008d6fa30bf7"
+    },
+    "apps/web/src/reference/boss-console/boss-console.fixture.ts": {
+      "sha256": "e8def82c4191ee6051f7e706e5c0986a3970820bbf826bdc3e45a166a96ef77e"
+    },
+    "apps/web/e2e/boss-console-visual.spec.ts": {
+      "sha256": "e507aedf3bbca6b58e0351638332e57ee8d3c4b6e860f779365967c8ca55c87d"
+    },
+    "docs/ui/boss-console/golden/v2.1/reference/boss-console-wide-2048.png": {
+      "sha256": "6bb86d797cc7609f37e0c7230087b319f7a3b97607acbdad3fdec29a98334699"
+    },
+    "docs/ui/boss-console/golden/v2.1/reference/boss-console-desktop-1440.png": {
+      "sha256": "cdce87a052fa77466082deea6e4d8a2a6ab17523d00f46a3b3c6e955ea030d5e"
+    },
+    "docs/ui/boss-console/golden/v2.1/reference/boss-console-mobile-390.png": {
+      "sha256": "86fae5d9698d84f1eef90c9ec08337d45447dc518135dd5cb2355ee104ff310c"
+    },
+    "docs/ui/boss-console/golden/v2.1/actual/boss-console-wide-2048.png": {
+      "sha256": "134f786ef743f63a9fb4162db69de895ce1c463b1dbc9fe4ffa01522e4d526d4"
+    },
+    "docs/ui/boss-console/golden/v2.1/actual/boss-console-desktop-1440.png": {
+      "sha256": "dd508141dc7515b212903028e321d085dc2dee885683cda8c7a762d6ea1005eb"
+    },
+    "docs/ui/boss-console/golden/v2.1/actual/boss-console-mobile-390.png": {
+      "sha256": "16d01d3b59ca3bfd80304ff3713ec7d4eff03ce3a6fcc4c763160d59b439b90b"
+    },
+    "docs/ui/boss-console/golden/v2.1/diff/boss-console-wide-2048.png": {
+      "sha256": "6919de54f44fc5cd4bbb3ef4895e003a91fd456d60c9a3cf1d0512581424091d"
+    },
+    "docs/ui/boss-console/golden/v2.1/diff/boss-console-desktop-1440.png": {
+      "sha256": "2b4d120533cc705325f6c87204c70644e12f877247e1f9508e34e13a7c89d135"
+    },
+    "docs/ui/boss-console/golden/v2.1/diff/boss-console-mobile-390.png": {
+      "sha256": "06b12148ed250aa28c98c5165cc7d9978b6bcf3ecbfcd75ea2dabf42e63049a3"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,7 @@ from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
     provider_endpoint_allowlist,
+    provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
 )
 from w2.providers.quota import (
@@ -41,6 +43,10 @@ class FutureRefreshError(RuntimeError):
 
 class RefreshLockError(RuntimeError):
     pass
+
+
+_FULL_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+_UNBOUND_SOURCE_REVISIONS = frozenset({"", "UNKNOWN", "LOCAL_UNDEPLOYED"})
 
 
 class LiveApiFootballPort(Protocol):
@@ -93,7 +99,7 @@ class FutureRefreshConfig:
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
     daily_usage_scope: str = "w2_ledger"
-    checkpoint_mode: str = "world_cup_three_checkpoint"
+    checkpoint_mode: str = "matchday_intake_v2_compatibility"
     trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
@@ -116,6 +122,7 @@ class FutureRefreshResult:
     status: str = "COMPLETED"
     raw_payload_written_count: int = 0
     error_code: str | None = None
+    materialized_fixture_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -261,7 +268,7 @@ def load_refresh_policy(
             daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
             daily_reserve=int(item.get("daily_reserve", quota_reserve)),
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
-            checkpoint_mode=str(item.get("checkpoint_mode", "legacy_full_checkpoint")),
+            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_intake_v2_compatibility")),
             trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
         )
     raise FutureRefreshError("FUTURE_REFRESH_COMPETITION_NOT_REGISTERED")
@@ -289,6 +296,7 @@ def config_from_policy(
         feature_enrichment_endpoints=policy.feature_enrichment_endpoints,
         feature_enrichment_request_budget=policy.feature_enrichment_request_budget,
         scheduler_interval_seconds=policy.scheduler_interval_seconds,
+        source_revision=_bound_source_revision(),
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
         daily_hard_cap=policy.daily_hard_cap,
@@ -297,6 +305,19 @@ def config_from_policy(
         checkpoint_mode=policy.checkpoint_mode,
         trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
     )
+
+
+def _bound_source_revision() -> str:
+    revision = (os.environ.get("W2_GIT_SHA") or "").strip()
+    environment = (os.environ.get("W2_ENVIRONMENT") or "").strip().lower()
+    local_or_test = environment in {"", "local", "test", "development"}
+    if _FULL_GIT_SHA.fullmatch(revision):
+        return revision
+    if local_or_test and revision not in _UNBOUND_SOURCE_REVISIONS:
+        return revision
+    if local_or_test:
+        return "LOCAL_UNDEPLOYED"
+    raise FutureRefreshError("SOURCE_REVISION_NOT_BOUND_TO_EXACT_GIT_SHA")
 
 
 class RefreshSingletonLock:
@@ -323,9 +344,7 @@ class RefreshSingletonLock:
         if redis_client is not None:
             self._backend = "redis"
             try:
-                return bool(
-                    redis_client.set(self.key, self.owner, nx=True, ex=self.ttl_seconds)
-                )
+                return bool(redis_client.set(self.key, self.owner, nx=True, ex=self.ttl_seconds))
             except RedisError:
                 return False
         current = now or utc_now()
@@ -513,6 +532,16 @@ def observations_from_odds_payload(
 ) -> list[dict[str, Any]]:
     raw_hash = raw_payload_sha256 or sha256_payload(payload)
     captured_at = iso(response.captured_at)
+    capture_id = sha256_payload(
+        {
+            "schema_version": "w2.future_refresh.odds_capture.v1",
+            "endpoint": response.endpoint,
+            "params": sanitize_params(dict(response.params)),
+            "captured_at": captured_at,
+            "raw_payload_sha256": raw_hash,
+            "source_revision": source_revision,
+        }
+    )
     rows: list[dict[str, Any]] = []
     provider_updated = captured_at
     for entry in payload.get("response", []):
@@ -540,12 +569,19 @@ def observations_from_odds_payload(
                     identity = {
                         "provider": "api_football",
                         "fixture_id": fixture_id,
+                        "capture_id": capture_id,
                         "bookmaker_id": bookmaker_id,
                         "bet_id": bet_id,
                         "selection": selection,
                         "line": line,
                         "decimal_odds": decimal_odds,
                         "raw_payload_sha256": raw_hash,
+                        # A quote observed again in a later provider response is a
+                        # new authoritative capture even when its business value
+                        # and payload hash are unchanged. Keeping the response
+                        # timestamp in the identity preserves append-only history
+                        # while replaying the same response remains idempotent.
+                        "captured_at": captured_at,
                     }
                     observation_id = sha256_payload(identity)
                     rows.append(
@@ -555,6 +591,7 @@ def observations_from_odds_payload(
                             "provider": "api_football",
                             "bookmaker_id": bookmaker_id,
                             "bookmaker_name": bookmaker_name,
+                            "capture_id": capture_id,
                             "provider_bet_id": bet_id,
                             "raw_market_label": raw_market,
                             "canonical_market": market,
@@ -631,6 +668,7 @@ class FutureFixtureRefreshService:
         config: FutureRefreshConfig | None = None,
         now: datetime | None = None,
         sleep: Any | None = None,
+        materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
     ) -> None:
         self.config = config or config_from_policy()
         self.client = client or ApiFootballClient(
@@ -639,6 +677,7 @@ class FutureFixtureRefreshService:
         )
         self.now = now or utc_now()
         self.sleep = sleep or time.sleep
+        self.materialize_public_artifacts = materialize_public_artifacts
         self._attempt_count = 0
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
@@ -646,6 +685,7 @@ class FutureFixtureRefreshService:
         self._raw_payload_written: set[str] = set()
         self._raw_payload_written_count = 0
         self._feature_enrichment_batch_count = 0
+        self._matchday_capture_by_payload: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -653,9 +693,7 @@ class FutureFixtureRefreshService:
     def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
         base = {"status", "fixtures", "odds"}
         enrichment = (
-            set(config.feature_enrichment_endpoints)
-            if config.feature_enrichment_enabled
-            else set()
+            set(config.feature_enrichment_endpoints) if config.feature_enrichment_enabled else set()
         )
         configured = base | (enrichment & {"statistics", "lineups", "injuries"})
         return frozenset(configured & set(provider_endpoint_allowlist()))
@@ -678,6 +716,7 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
             return result
+        self._validate_checkpoint_claims()
         tick_cap = self._provider_tick_hard_cap_preflight()
         if not tick_cap["allowed"]:
             blocker = str(tick_cap["blocker"])
@@ -753,12 +792,7 @@ class FutureFixtureRefreshService:
             self._request("status", {})
             fixtures_response = self._request(
                 "fixtures",
-                {
-                    "league": self.config.league_id,
-                    "season": self.config.season,
-                    "from": self.now.date().isoformat(),
-                    "to": (self.now + timedelta(days=self.config.horizon_days)).date().isoformat(),
-                },
+                self._fixtures_request_params(),
             )
             future_fixtures = self._future_fixtures(fixtures_response.payload)
             odds_responses = self._fetch_market_snapshots(future_fixtures)
@@ -808,11 +842,32 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
         return result
 
+    def _validate_checkpoint_claims(self) -> None:
+        if self.config.persistence != "db" or not self.config.refresh_checkpoints:
+            return
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        repository = MatchdayRuntimeRepository()
+        for checkpoint in self.config.refresh_checkpoints:
+            plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
+            claim_token = str(checkpoint.get("claim_token") or "")
+            fixture_id = str(checkpoint.get("fixture_id") or "")
+            if not plan_id or not claim_token:
+                raise FutureRefreshError("CHECKPOINT_CLAIM_REQUIRED")
+            repository.validate_checkpoint_claim(
+                plan_id=plan_id,
+                claim_token=claim_token,
+                now=self.now,
+                fixture_id=fixture_id or None,
+                competition_id=self.config.competition_id,
+                season=self.config.season,
+            )
+
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
-        max_attempts = max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1)
+        max_attempts = provider_http_max_attempts()
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
@@ -862,6 +917,22 @@ class FutureFixtureRefreshService:
                 payload_hash=payload_sha,
                 payload=raw_payload,
             )
+            if not raw_payload_persisted:
+                raise FutureRefreshError(f"RAW_PAYLOAD_WRITE_FAILED:{raw_payload_error}")
+            endpoint_capture_id, endpoint_capture_error = self._persist_matchday_endpoint_capture(
+                endpoint=endpoint,
+                params=params,
+                attempt=attempt,
+                response=response,
+                payload=raw_payload,
+            )
+            if (
+                self.config.persistence == "db"
+                and (endpoint_capture_error is not None or endpoint_capture_id is None)
+            ):
+                raise FutureRefreshError(
+                    f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}"
+                )
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -882,6 +953,8 @@ class FutureFixtureRefreshService:
                     "payload_sha256": payload_sha,
                     "raw_payload_persisted": raw_payload_persisted,
                     "raw_payload_error": raw_payload_error,
+                    "matchday_endpoint_capture_id": endpoint_capture_id,
+                    "matchday_endpoint_capture_error": endpoint_capture_error,
                     "diagnostic_code": self._diagnostic_code_for_response(
                         endpoint=endpoint,
                         response_count=response_size,
@@ -911,6 +984,128 @@ class FutureFixtureRefreshService:
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
 
+    def _persist_matchday_endpoint_capture(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        attempt: int,
+        response: LiveApiFootballResponse,
+        payload: dict[str, Any],
+    ) -> tuple[str | None, str | None]:
+        if self.config.persistence != "db":
+            return None, "NON_DB_PERSISTENCE"
+        try:
+            from w2.matchday.intake_v2 import endpoint_capture_contract
+            from w2.matchday.repository import MatchdayRuntimeRepository
+
+            fixture_id = str(params.get("fixture") or "") or None
+            matching_plans = self._matching_checkpoint_plans(
+                endpoint=endpoint,
+                fixture_id=fixture_id,
+                captured_at=response.captured_at,
+            )
+            checkpoint_names = sorted(
+                {
+                    str(item.get("checkpoint") or "")
+                    for item in matching_plans
+                    if item.get("checkpoint")
+                }
+            )
+            checkpoint_plan_ids = [
+                str(item.get("id") or item.get("plan_id") or "")
+                for item in matching_plans
+                if str(item.get("id") or item.get("plan_id") or "")
+            ]
+            quota = parse_api_football_quota(
+                headers=response.headers,
+                payload=response.payload,
+                observed_at=response.captured_at,
+            )
+            capture = endpoint_capture_contract(
+                endpoint=endpoint,
+                params=params,
+                requested_at=response.requested_at or response.captured_at,
+                provider_captured_at=response.captured_at,
+                status_code=response.status_code,
+                elapsed_ms=response.elapsed_ms,
+                payload=payload,
+                fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
+                competition_id=self.config.competition_id,
+                checkpoint=",".join(checkpoint_names) or None,
+                checkpoint_plan_ids=checkpoint_plan_ids,
+                attempt=attempt,
+                quota_values={
+                    "daily_remaining": quota.daily_remaining,
+                    "daily_limit": quota.daily_limit,
+                    "burst_remaining": quota.burst_remaining,
+                    "observed_at": iso(quota.observed_at),
+                    "daily_source": quota.daily_source,
+                    "daily_limit_source": quota.daily_limit_source,
+                    "burst_source": quota.burst_source,
+                },
+            )
+            repository = MatchdayRuntimeRepository()
+            repository.insert_endpoint_capture(capture)
+            if checkpoint_plan_ids:
+                repository.link_endpoint_capture_plans(
+                    capture_id=str(capture["capture_id"]),
+                    plan_ids=checkpoint_plan_ids,
+                    endpoint=endpoint,
+                    linked_at=response.captured_at,
+                )
+            lookup_key = self._capture_lookup_key(
+                endpoint=endpoint,
+                params=params,
+                raw_payload_sha256=str(capture["raw_payload_sha256"]),
+                captured_at=response.captured_at,
+            )
+            self._matchday_capture_by_payload[lookup_key] = capture
+            return str(capture["capture_id"]), None
+        except Exception as exc:
+            raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{exc}") from exc
+
+    def _matching_checkpoint_plans(
+        self,
+        *,
+        endpoint: str,
+        fixture_id: str | None,
+        captured_at: datetime,
+    ) -> list[dict[str, Any]]:
+        if not fixture_id:
+            return []
+        captured = captured_at.astimezone(UTC)
+        matches: list[dict[str, Any]] = []
+        for item in self.config.refresh_checkpoints:
+            raw = str(item.get("fixture_id") or "")
+            if raw not in {fixture_id, f"api_football:{fixture_id}"}:
+                continue
+            if endpoint not in set(item.get("endpoints") or []):
+                continue
+            window_start = parse_utc(item.get("window_start"))
+            window_end = parse_utc(item.get("window_end"))
+            if window_start is not None and captured < window_start:
+                continue
+            if window_end is not None and captured > window_end:
+                continue
+            matches.append(dict(item))
+        return matches
+
+    def _capture_lookup_key(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        raw_payload_sha256: str,
+        captured_at: datetime,
+    ) -> tuple[str, str, str, str]:
+        return (
+            endpoint,
+            sha256_payload(sanitize_params(params)),
+            raw_payload_sha256,
+            iso(captured_at),
+        )
+
     def _save_raw_payload_first(
         self,
         *,
@@ -924,15 +1119,32 @@ class FutureFixtureRefreshService:
             return True, None
         try:
             if self.config.persistence == "db":
-                self._db_repository().save_raw_payload(
+                repository = self._db_repository()
+                repository.save_raw_payload(
                     sha256=payload_hash,
                     endpoint=endpoint,
                     captured_at=response.captured_at,
                     payload=payload,
                 )
+                if endpoint == "lineups":
+                    fixture_id = str(params.get("fixture") or "")
+                    if not fixture_id:
+                        return False, "LINEUP_FIXTURE_ID_MISSING"
+                    try:
+                        repository.save_lineup_snapshots(
+                            fixture_id=fixture_id,
+                            captured_at=response.captured_at,
+                            raw_sha256=payload_hash,
+                            payload=payload,
+                        )
+                    except FutureRefreshPersistenceError:
+                        # The raw response remains valid audit evidence even when
+                        # an incomplete/unidentified XI must fail closed for
+                        # lineup-feature materialization.
+                        pass
             elif self.config.persistence == "file":
-                fixture_id = params.get("fixture")
-                suffix = f"_{fixture_id}" if fixture_id else ""
+                file_fixture_id = params.get("fixture")
+                suffix = f"_{file_fixture_id}" if file_fixture_id else ""
                 write_raw_once(
                     self.config.runtime_root / "raw" / f"{endpoint}{suffix}_{payload_hash}.json",
                     {
@@ -986,7 +1198,7 @@ class FutureFixtureRefreshService:
             return None
         if response_count == 0:
             return "PROVIDER_LINEUPS_EMPTY"
-        return "LINEUPS_MATERIALIZATION_MISSING"
+        return None if self.config.persistence == "db" else "LINEUPS_MATERIALIZATION_MISSING"
 
     def _provider_hard_cap_preflight(self) -> dict[str, Any]:
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
@@ -1142,9 +1354,7 @@ class FutureFixtureRefreshService:
             return []
         allowed = {"statistics", "lineups", "injuries"}
         endpoints = [
-            endpoint
-            for endpoint in self.config.feature_enrichment_endpoints
-            if endpoint in allowed
+            endpoint for endpoint in self.config.feature_enrichment_endpoints if endpoint in allowed
         ]
         if not endpoints:
             return []
@@ -1268,9 +1478,28 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
+            materialized_fixture_ids=(
+                self._materialize_refreshed_public_artifacts(
+                    appended=appended,
+                    fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
+                )
+                if self.materialize_public_artifacts is not None
+                else []
+            ),
         )
         self._write_audit(result)
         return result
+
+    def _materialize_refreshed_public_artifacts(
+        self,
+        *,
+        appended: int,
+        fixture_ids: list[str],
+    ) -> list[str]:
+        if not self.config.refresh_checkpoints or appended <= 0:
+            return []
+        materializer = self.materialize_public_artifacts or materialize_refreshed_public_artifacts
+        return materializer(fixture_ids)
 
     def _persist_db(
         self,
@@ -1280,27 +1509,59 @@ class FutureFixtureRefreshService:
         enrichment_responses: list[tuple[str, str, int]],
         blockers: list[str],
     ) -> FutureRefreshResult:
-        repository = self._db_repository()
         try:
+            from w2.matchday.repository import MatchdayRuntimeRepository
+
+            repository = MatchdayRuntimeRepository()
+            fixture_identities = self._fixture_identities_from_response(
+                fixtures_response=fixtures_response,
+                fixtures=fixtures,
+            )
+            repository.insert_fixture_identities(fixture_identities)
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
-                observations.extend(
-                    observations_from_odds_payload(
-                        fixture_id=fixture_id,
-                        payload=response.payload,
-                        response=response,
-                        source_revision=self.config.source_revision,
-                        raw_payload_sha256=self._request_payload_hash(
-                            endpoint="odds",
-                            params={"fixture": fixture_id},
-                            payload=response.payload,
-                        ),
+                from w2.matchday.intake_v2 import normalize_matchday_odds_payload
+
+                raw_record = self._raw_payload_record(
+                    endpoint="odds",
+                    params={"fixture": fixture_id},
+                    payload=response.payload,
+                )
+                raw_sha = sha256_payload(raw_record)
+                capture = self._matchday_capture_by_payload.get(
+                    self._capture_lookup_key(
+                        endpoint="odds",
+                        params={"fixture": fixture_id},
+                        raw_payload_sha256=raw_sha,
+                        captured_at=response.captured_at,
                     )
                 )
-            appended = repository.append_observations(observations)
-            latest_rows = repository.latest_market_observations_for_fixtures(
-                [fixture_id for fixture_id, _response in odds_responses]
-            )
+                if capture is None:
+                    raise FutureRefreshError("ENDPOINT_CAPTURE_REQUIRED_BEFORE_NORMALIZATION")
+                rows, rejections = normalize_matchday_odds_payload(
+                    response.payload,
+                    captured_at=response.captured_at,
+                    ingested_at=utc_now(),
+                    raw_payload_sha256=raw_sha,
+                    source_revision=self.config.source_revision,
+                    capture_id=str(capture["capture_id"]),
+                    competition_id=self.config.competition_id,
+                )
+                if any(
+                    item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT"
+                    for item in rejections
+                ):
+                    raise FutureRefreshError("OBSERVATION_NORMALIZATION_CONFLICT")
+                observations.extend(rows)
+            appended = repository.insert_market_observations(observations)
+            latest_rows = [
+                {
+                    **row,
+                    "fixture_id": str(row.get("provider_fixture_id") or row.get("fixture_id")),
+                    "selection": row.get("canonical_selection"),
+                }
+                for row in observations
+            ]
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
@@ -1320,9 +1581,87 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
+            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(
+                appended=appended,
+                fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
+            ),
         )
         self._write_audit(result)
         return result
+
+    def _fixtures_request_params(self) -> dict[str, str]:
+        return {
+            "league": self.config.league_id,
+            "season": self.config.season,
+            "from": self.now.date().isoformat(),
+            "to": (self.now + timedelta(days=self.config.horizon_days)).date().isoformat(),
+        }
+
+    def _fixture_identities_from_response(
+        self,
+        *,
+        fixtures_response: LiveApiFootballResponse,
+        fixtures: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        raw_record = self._raw_payload_record(
+            endpoint="fixtures",
+            params=self._fixtures_request_params(),
+            payload=fixtures_response.payload,
+        )
+        raw_sha = sha256_payload(raw_record)
+        capture = self._matchday_capture_by_payload.get(
+            self._capture_lookup_key(
+                endpoint="fixtures",
+                params=self._fixtures_request_params(),
+                raw_payload_sha256=raw_sha,
+                captured_at=fixtures_response.captured_at,
+            )
+        )
+        rows: list[dict[str, Any]] = []
+        for item in fixtures:
+            if not isinstance(item, dict):
+                continue
+            provider_fixture_id = fixture_id_from_payload(item)
+            kickoff = kickoff_from_payload(item)
+            teams_value = item.get("teams")
+            fixture_value = item.get("fixture")
+            league_value = item.get("league")
+            teams: Mapping[str, Any] = teams_value if isinstance(teams_value, dict) else {}
+            fixture: Mapping[str, Any] = (
+                fixture_value if isinstance(fixture_value, dict) else {}
+            )
+            league: Mapping[str, Any] = league_value if isinstance(league_value, dict) else {}
+            status_value = fixture.get("status")
+            home_value = teams.get("home")
+            away_value = teams.get("away")
+            status: Mapping[str, Any] = status_value if isinstance(status_value, dict) else {}
+            home: Mapping[str, Any] = home_value if isinstance(home_value, dict) else {}
+            away: Mapping[str, Any] = away_value if isinstance(away_value, dict) else {}
+            if not provider_fixture_id or kickoff is None:
+                continue
+            fixture_id = f"api_football:{provider_fixture_id}"
+            identity_body = {
+                "fixture_id": fixture_id,
+                "provider": "api_football",
+                "provider_fixture_id": provider_fixture_id,
+                "competition_id": self.config.competition_id,
+                "provider_league_id": str(league.get("id") or self.config.league_id),
+                "season": str(league.get("season") or self.config.season),
+                "kickoff_utc": iso(kickoff),
+                "fixture_status": str(status.get("short") or ""),
+                "home_provider_team_id": str(home.get("id") or ""),
+                "away_provider_team_id": str(away.get("id") or ""),
+                "home_w2_team_id": None,
+                "away_w2_team_id": None,
+                "team_identity_status": "REVIEW_REQUIRED",
+                "raw_payload_sha256": raw_sha,
+                "endpoint_capture_id": str(capture["capture_id"]) if capture else None,
+                "captured_at": iso(fixtures_response.captured_at),
+                "payload": item,
+                "schema_version": "MatchdayFixtureIdentityV1",
+            }
+            rows.append({**identity_body, "identity_hash": sha256_payload(identity_body)})
+        return rows
 
     def _audit_for_payload(self, payload_hash: str) -> dict[str, Any] | None:
         for item in self._audit:
@@ -1409,6 +1748,7 @@ class FutureFixtureRefreshService:
             "feature_enrichment_payload_count": result.feature_enrichment_payload_count,
             "feature_enrichment_batch_count": self._feature_enrichment_batch_count,
             "ledger_appended_count": result.ledger_appended_count,
+            "materialized_fixture_ids": result.materialized_fixture_ids,
             "raw_payload_written_count": result.raw_payload_written_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
@@ -1468,6 +1808,32 @@ class FutureFixtureRefreshService:
                     "source": checkpoint.get("source"),
                 },
             )
+            self._transition_checkpoint_plan(checkpoint, result)
+
+    def _transition_checkpoint_plan(
+        self,
+        checkpoint: dict[str, Any],
+        result: FutureRefreshResult,
+    ) -> None:
+        plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
+        claim_token = str(checkpoint.get("claim_token") or "")
+        if not plan_id or not claim_token:
+            return
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        status = "FAILED" if result.blockers else "CAPTURED"
+        repository = MatchdayRuntimeRepository()
+        repository.transition_checkpoint(
+            fixture_id=str(checkpoint.get("fixture_id") or ""),
+            competition_id=self.config.competition_id,
+            season=self.config.season,
+            checkpoint=str(checkpoint.get("checkpoint") or ""),
+            policy_version=str(checkpoint.get("policy_version") or "w2.matchday_intake_policy.v2"),
+            status=status,
+            capture_id=None,
+            now=result.generated_at_utc,
+            claim_token=claim_token,
+        )
 
 
 def deterministic_time_bucket(now: datetime, interval_seconds: int) -> str:
@@ -1497,6 +1863,7 @@ def run_future_fixture_refresh(
     persistence: str | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
+    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -1507,9 +1874,7 @@ def run_future_fixture_refresh(
         config = replace(config, persistence=persistence)
     if checkpoint_fixture_ids or refresh_checkpoints:
         lineups_count = sum(
-            1
-            for item in refresh_checkpoints
-            if "lineups" in set(item.get("endpoints") or [])
+            1 for item in refresh_checkpoints if "lineups" in set(item.get("endpoints") or [])
         )
         config = replace(
             config,
@@ -1517,9 +1882,7 @@ def run_future_fixture_refresh(
             refresh_checkpoints=tuple(refresh_checkpoints),
             max_fixture_candidates=max(len(set(checkpoint_fixture_ids)), 1),
             max_odds_requests=sum(
-                1
-                for item in refresh_checkpoints
-                if "odds" in set(item.get("endpoints") or [])
+                1 for item in refresh_checkpoints if "odds" in set(item.get("endpoints") or [])
             ),
             feature_enrichment_enabled=lineups_count > 0,
             feature_enrichment_endpoints=("lineups",),
@@ -1529,7 +1892,12 @@ def run_future_fixture_refresh(
                 2 + len(set(checkpoint_fixture_ids)) + lineups_count,
             ),
         )
-    return FutureFixtureRefreshService(client=client, config=config, now=now).run()
+    return FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=now,
+        materialize_public_artifacts=materialize_public_artifacts,
+    ).run()
 
 
 def run_future_refresh_task(
@@ -1550,6 +1918,7 @@ def run_future_refresh_task(
     provider_refresh_min_interval_seconds: int | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
+    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -1627,6 +1996,7 @@ def run_future_refresh_task(
             persistence=resolved_persistence,
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
+            materialize_public_artifacts=materialize_public_artifacts,
         )
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
@@ -1642,6 +2012,7 @@ def run_future_refresh_task(
             "formal_recommendation": False,
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": list(refresh_checkpoints),
+            "materialized_fixture_ids": result.materialized_fixture_ids,
         }
     except Exception as exc:
         summary = {
@@ -1675,6 +2046,34 @@ def run_future_refresh_task(
     )
     write_task_audit(root, audit, persistence=persistence)
     return audit
+
+
+def materialize_refreshed_public_artifacts(fixture_ids: list[str]) -> list[str]:
+    from w2.api.frozen_analysis import (
+        AnalysisCardCanaryMaterializer,
+        write_frozen_analysis_artifacts,
+    )
+    from w2.api.repository import ReadModelRepository
+    from w2.infrastructure.database import create_engine
+
+    ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+    if not ids:
+        return []
+    repository = ReadModelRepository()
+    materializer = AnalysisCardCanaryMaterializer(repository)
+    artifacts = []
+    for fixture_id in ids:
+        observations = repository.future_market_observations_for_fixtures([fixture_id])
+        captured_at = [
+            parsed
+            for row in observations
+            if (parsed := parse_utc(row.get("captured_at"))) is not None
+        ]
+        if not captured_at:
+            raise FutureRefreshError(f"PUBLIC_ARTIFACT_CAPTURE_MISSING:{fixture_id}")
+        artifacts.append(materializer.build(fixture_id, evaluated_at=max(captured_at)))
+    write_frozen_analysis_artifacts(create_engine(), artifacts)
+    return ids
 
 
 def write_task_audit(

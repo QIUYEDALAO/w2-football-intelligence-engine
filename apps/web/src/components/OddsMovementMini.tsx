@@ -1,4 +1,5 @@
 import type { DashboardMatchCard } from "../types/dashboard";
+import { signalStrengthLabel } from "../lib/normalize";
 import { formatAhDelta, formatSignedLine } from "../lib/pricingDisplay";
 
 const PATTERN_LABELS: Record<string, string> = {
@@ -73,12 +74,14 @@ export function OddsMovementMini({ match }: { match: DashboardMatchCard }) {
   const alternatives = hypothesis?.alternative_explanations?.length
     ? `替代解释：${hypothesis.alternative_explanations.join("、")}`
     : "替代解释：伤停或阵容信息、公众热度、盘口保护、我们的规则盘未校准";
+  const strength = match.bookmaker_intent?.signal_strength ?? match.bookmaker_intent?.confidence;
   return (
     <div className="odds-movement">
       <span aria-hidden="true">↗</span>
       <strong>{label}</strong>
       <span>{movementLine(match)}</span>
       <span>{divergenceLine(match)}</span>
+      <span>信号强度：{signalStrengthLabel(strength)}；规则评分，不是概率或命中率。</span>
       <span>{text}</span>
       <span>{alternatives}</span>
       <span>样本状态：{hypothesis?.sample_status ?? "观察中"}；赛后样本不足时不展示统计。</span>

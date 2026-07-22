@@ -101,6 +101,8 @@ services:
       - ./runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ./config:/app/config:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
@@ -129,6 +131,7 @@ services:
       W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
+      W2_READINESS_RELEASE_ROOT: /app
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY:?required}
     depends_on:
       postgres:
@@ -136,7 +139,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); assert r.status==200"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5); assert r.status==200"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -171,13 +174,15 @@ services:
       - ./config:/app/config:ro
       - ./config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
       W2_CELERY_BROKER_URL: redis://redis:6379/1
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
-      W2_PROVIDER_CALLS_DISABLED: "false"
-      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
@@ -236,6 +241,8 @@ services:
       - ./config:/app/config:ro
       - ./config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD:?required}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
@@ -243,11 +250,11 @@ services:
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
-      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
-      W2_PROVIDER_CALLS_DISABLED: "false"
-      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: ""
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "allsvenskan"
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"

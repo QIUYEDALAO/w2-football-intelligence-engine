@@ -1,0 +1,48 @@
+{
+  "always_retained": [
+    "FORMAL_DISABLED",
+    "LOCK_DISABLED",
+    "PRODUCTION_DISABLED",
+    "MANUAL_APPROVAL_REQUIRED"
+  ],
+  "answers": {
+    "F5_allsvenskan_canonical_source": false,
+    "F8_reviewed_asof_artifact": false,
+    "ah_ou_exact_quote_identity_complete": true,
+    "analysis_chain_closed": false,
+    "calibration_status": "UNVALIDATED",
+    "conflict": 0,
+    "existing_approved_mappings": 0,
+    "formal_lock_recommendation_writes_zero": true,
+    "history_valid_inputs": 0,
+    "missing": 16,
+    "ratings_valid_inputs": 0,
+    "review_required": 0,
+    "unique_provider_teams": 16,
+    "xg_valid_inputs": 0
+  },
+  "artifact_hash": "99bd71c77fb7c397fe784930fb2b94ab6bcdf8503c9df8c5108afc866180bd9e",
+  "baseline": {
+    "capability_manifest_sha": "59b78f997a8d55c9953c6667a3e35b9ec780aa98e9a2df36f684b3f0e0511422",
+    "implementation_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+    "migration_head": "0032_create_matchday_fixture_identities",
+    "remote_head_sha": "9e7f4c01f60ce6a32142f69dce7a80ee49abb53b",
+    "report_sha": "9e7f4c01f60ce6a32142f69dce7a80ee49abb53b",
+    "staging_release_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3"
+  },
+  "final_state": "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED",
+  "generated_at": "2026-07-21T00:00:00Z",
+  "implementation_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+  "input_snapshot_hash": "bcf38073af7651c78682e4c96527950632522b9bba3fe43d1cf7566c717932f4",
+  "locks_count_before_after": [
+    0,
+    0
+  ],
+  "recommendations_count_before_after": [
+    0,
+    0
+  ],
+  "remote_head_sha": "9e7f4c01f60ce6a32142f69dce7a80ee49abb53b",
+  "schema_version": "MATCHDAY_ANALYSIS_RECOMMENDATION_ACCEPTANCE_V1",
+  "staging_release_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3"
+}

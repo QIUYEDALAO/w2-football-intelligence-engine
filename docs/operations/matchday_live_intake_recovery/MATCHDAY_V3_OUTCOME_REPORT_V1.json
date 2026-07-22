@@ -1,0 +1,21 @@
+{
+  "current_truth_status": "SUPERSEDED",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "model_evidence_blockers": [
+    "NO_CANONICAL_FIXTURE_AVAILABLE",
+    "NO_EXACT_QUOTE_IDENTITY",
+    "LIVE_GATE_API_KEY_NOT_VISIBLE"
+  ],
+  "outcomes": [],
+  "schema_version": "MATCHDAY_V3_OUTCOME_REPORT_V1",
+  "status": "BLOCKED",
+  "summary": {
+    "ANALYSIS_PICK": 0,
+    "FORMAL_RECOMMEND": 0,
+    "LOCK": 0,
+    "NOT_READY": 0,
+    "NO_EDGE": 0
+  },
+  "superseded_by": "docs/operations/analysis_recommendation_closure/MATCHDAY_V3_OUTCOME_REPORT_V2.json",
+  "superseded_by_hash": "967c11db07c4c76ea8cbbc0f45d9365205e04a62ad7afcac3e1c33524a469f0d"
+}

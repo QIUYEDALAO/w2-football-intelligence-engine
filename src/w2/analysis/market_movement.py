@@ -218,7 +218,17 @@ def _latest_snapshot(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
 def _sort_key(item: dict[str, Any]) -> tuple[datetime, int]:
     parsed = parse_utc(item.get("as_of")) or datetime.min.replace(tzinfo=UTC)
     checkpoint = str(item.get("checkpoint") or "")
-    order = {"opening": 0, "T-24h": 1, "T-12h": 2, "T-6h": 3, "T-3h": 4, "T-1h": 5, "lock": 6}
+    order = {
+        "opening": 0,
+        "T-24h": 1,
+        "T-12h": 2,
+        "T-6h": 3,
+        "T-3h": 4,
+        "T-1h": 5,
+        "LINEUP_CONFIRMED": 6,
+        "lock": 7,
+        "T-30m_VALIDATION_LOCK": 8,
+    }
     return (parsed, order.get(checkpoint, 99))
 
 
@@ -271,8 +281,10 @@ def _timing(checkpoint: str) -> str:
         return "MID"
     if checkpoint == "T-1h":
         return "LATE"
-    if checkpoint == "lock":
+    if checkpoint in {"lock", "T-30m_VALIDATION_LOCK"}:
         return "LOCK_ONLY"
+    if checkpoint == "LINEUP_CONFIRMED":
+        return "LINEUP_EVENT"
     return "UNKNOWN"
 
 

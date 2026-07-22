@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from w2.domain.enums import DataStatus, DecisionReasonCode
+from w2.markets.quote_identity import QUOTE_IDENTITY_SCHEMA_VERSION
 
 READINESS_SOURCE: Literal["w2.readiness.data_gate.v1"] = "w2.readiness.data_gate.v1"
 
@@ -81,6 +82,9 @@ class DataReadinessResult:
     provider_budget_status: str | None
     field_statuses: tuple[DataFieldReadiness, ...]
     source: Literal["w2.readiness.data_gate.v1"] = READINESS_SOURCE
+    blocking_fields: tuple[str, ...] = ()
+    advisory_fields: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +98,9 @@ class DataReadinessResult:
             "provider_budget_status": self.provider_budget_status,
             "field_statuses": [field.as_dict() for field in self.field_statuses],
             "source": self.source,
+            "blocking_fields": list(self.blocking_fields),
+            "advisory_fields": list(self.advisory_fields),
+            "warnings": list(self.warnings),
         }
 
 
@@ -102,7 +109,6 @@ def evaluate_data_readiness(
     policy: DataFreshnessPolicy,
 ) -> DataReadinessResult:
     as_of = data.as_of.astimezone(UTC)
-    kickoff = data.kickoff_utc.astimezone(UTC)
     fields = _field_statuses(data, policy)
     missing = tuple(field.field for field in fields if not field.present)
     stale = tuple(field.field for field in fields if field.stale)
@@ -163,28 +169,29 @@ def evaluate_data_readiness(
             next_tick,
             provider_budget_status,
         )
-    if lineups_soft:
-        return _result(
-            DataStatus.PARTIAL,
-            fields,
-            DecisionReasonCode.LINEUPS_PENDING,
-            _lineups_next_eval(kickoff, as_of, policy, next_tick),
-            provider_budget_status,
-        )
-    if independent_soft:
-        return _result(
-            DataStatus.PARTIAL,
-            fields,
-            DecisionReasonCode.DATA_MISSING_XG,
-            next_tick,
-            provider_budget_status,
-        )
-    return _result(
+    result = _result(
         DataStatus.READY,
         fields,
         None,
         None,
         provider_budget_status,
+    )
+    advisory = tuple(
+        field for field in (*missing, *stale) if field in {"lineups", "xg", "ratings", "team_value"}
+    )
+    warnings = tuple(
+        "LINEUPS_NOT_CONFIRMED_ADVISORY" if lineups_soft else "OPTIONAL_ENRICHMENT_ADVISORY"
+        for lineups_soft, independent_soft in [(lineups_soft, independent_soft)]
+        if lineups_soft or independent_soft
+    )
+    return DataReadinessResult(
+        **{
+            field: getattr(result, field)
+            for field in result.__dataclass_fields__
+            if field not in {"advisory_fields", "warnings"}
+        },
+        advisory_fields=advisory,
+        warnings=warnings,
     )
 
 
@@ -203,7 +210,6 @@ def build_data_readiness_from_legacy_payload(
     available_inputs = _as_mapping(_get(analysis_readiness, "available_inputs"))
     pricing = _as_mapping(card.get("pricing_shadow"))
     current_odds = _as_mapping(card.get("current_odds"))
-    line_movement = _as_mapping(card.get("line_movement"))
     provider = provider_status or _as_mapping(card.get("provider_status"))
     provider_budget_status = _first_text(
         _get(provider, "provider_budget_status"),
@@ -235,14 +241,7 @@ def build_data_readiness_from_legacy_payload(
         or _has_market_odds(market)
         or _has_market_odds(recommendation)
     )
-    odds_captured_at = _parse_utc(
-        _first_text(
-            _get(current_odds, "captured_at"),
-            _get(line_movement, "captured_at"),
-            _get(raw_data_readiness, "odds_captured_at"),
-            _get(card, "generated_at"),
-        ),
-    )
+    odds_captured_at = _authoritative_quote_captured_at(card)
     lineups_available = _truthy(_get(available_inputs, "lineups")) or _truthy(
         _get(raw_data_readiness, "lineups"),
     )
@@ -255,9 +254,7 @@ def build_data_readiness_from_legacy_payload(
     )
     status = _first_text(_get(analysis_readiness, "status"))
     if status == "READY":
-        lineups_available = (
-            True if _get(available_inputs, "lineups") is None else lineups_available
-        )
+        lineups_available = True if _get(available_inputs, "lineups") is None else lineups_available
         xg_available = True if _get(available_inputs, "xg") is None else xg_available
         ratings_available = (
             True if _get(raw_data_readiness, "ratings") is None else ratings_available
@@ -292,6 +289,51 @@ def build_data_readiness_from_legacy_payload(
     return _merge_legacy_status(result, analysis_readiness, card, market, recommendation, policy)
 
 
+def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None:
+    candidate = _selected_or_evaluated_market_candidate(card)
+    if candidate:
+        quote_identity = _as_mapping(candidate.get("quote_identity"))
+        if (
+            _first_text(quote_identity.get("identity_status")) == "COMPLETE"
+            and _first_text(quote_identity.get("freshness_status")) != "INCOMPLETE"
+        ):
+            return _parse_utc(quote_identity.get("captured_at"))
+
+    audit = _as_mapping(card.get("quote_identity_audit"))
+    captured: list[datetime] = []
+    for key in ("ah", "ou"):
+        quote = _as_mapping(audit.get(key))
+        if quote.get("schema_version") != QUOTE_IDENTITY_SCHEMA_VERSION:
+            continue
+        if quote.get("identity_status") != "COMPLETE":
+            continue
+        if quote.get("freshness_status") == "INCOMPLETE":
+            continue
+        parsed = _parse_utc(quote.get("captured_at"))
+        if parsed is not None:
+            captured.append(parsed)
+    return min(captured) if captured else None
+
+
+def _selected_or_evaluated_market_candidate(card: Mapping[str, Any]) -> Mapping[str, Any]:
+    decision_v3 = _as_mapping(card.get("recommendation_decision_v3"))
+    for key in ("selected_candidate", "evaluated_candidate"):
+        candidate = _as_mapping(decision_v3.get(key))
+        if candidate:
+            return candidate
+    contract = _as_mapping(card.get("decision_contract"))
+    for key in ("selected_market_candidate", "pick"):
+        candidate = _as_mapping(contract.get(key))
+        if candidate:
+            return candidate
+    candidates = _as_mapping(card.get("market_candidates"))
+    for key in ("selected", "evaluated"):
+        candidate = _as_mapping(candidates.get(key))
+        if candidate:
+            return candidate
+    return {}
+
+
 def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | None:
     source = payload.get("source") or payload.get("readiness_source")
     if source != READINESS_SOURCE:
@@ -320,6 +362,9 @@ def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | Non
             for item in _list(payload.get("field_statuses"))
             if isinstance(item, Mapping)
         ),
+        blocking_fields=tuple(str(item) for item in _list(payload.get("blocking_fields"))),
+        advisory_fields=tuple(str(item) for item in _list(payload.get("advisory_fields"))),
+        warnings=tuple(str(item) for item in _list(payload.get("warnings"))),
     )
 
 

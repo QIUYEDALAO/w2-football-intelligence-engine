@@ -1,0 +1,19 @@
+{
+  "schema_version": "W2MatchdayRecommendationFactorGapContextV1",
+  "recorded_at": "2026-07-21",
+  "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+  "branch": "codex/w2-matchday-live-intake-recovery",
+  "pull_request": 369,
+  "user_question": "What factors are still required before W2 can recommend matches?",
+  "provider_visibility_status": "RESTORED_FOR_CONTROLLED_CANARY",
+  "remaining_factor_gaps": [
+    "TEAM_IDENTITY_REVIEW_REQUIRED",
+    "F5_CANONICAL_TEAM_HISTORY_NOT_READY",
+    "F8_REVIEWED_ASOF_TEAM_VALUE_NOT_READY",
+    "MATCHDAY_EVIDENCE_MANIFESTS_NOT_YET_MATERIALIZED",
+    "MODEL_EVIDENCE_NOT_VALIDATED",
+    "FORMAL_GATE_MANUAL_APPROVAL_REQUIRED",
+    "LOCK_DISABLED"
+  ],
+  "final_state": "MANUAL_APPROVAL_REQUIRED"
+}

@@ -7,7 +7,11 @@ from w2.features.xg_materialization import (
     materialize_rolling_xg,
     parse_team_xg_matches,
 )
-from w2.ingestion.xg_backfill import XgBackfillConfig, XgHistoryBackfillService
+from w2.ingestion.xg_backfill import (
+    XgBackfillConfig,
+    XgHistoryBackfillService,
+    run_xg_history_backfill,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 20, 12, 0, tzinfo=UTC)
@@ -145,6 +149,35 @@ class LowQuotaFakeClient(FakeClient):
         )
 
 
+class ShortHistoryFakeClient(FakeClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls.append((endpoint, params))
+        if endpoint == "fixtures":
+            team = params["team"]
+            opponent = "20" if team == "10" else "10"
+            payload = {
+                "response": [
+                    finished_fixture(
+                        f"{team}-new",
+                        NOW - timedelta(days=1),
+                        home=team,
+                        away=opponent,
+                    )
+                ]
+            }
+        else:
+            payload = statistics()
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=1,
+            payload=payload,
+            headers={"x-apisports-requests-remaining": "6000"},
+            captured_at=NOW,
+        )
+
+
 class FakeRepository:
     def __init__(self, *, request_count_today: int = 0) -> None:
         self.raw: list[tuple[str, str]] = []
@@ -209,6 +242,55 @@ class FakeRepository:
         return self.request_count_today
 
 
+class ExistingXgRepository(FakeRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.existing_matches = [
+            {
+                "id": f"old-{team}-{index}:{team}",
+                "fixture_id": f"old-{team}-{index}",
+                "team_id": team,
+                "opponent_team_id": "20" if team == "10" else "10",
+                "kickoff_at": (NOW - timedelta(days=5 - index)).isoformat(),
+                "captured_at": NOW.isoformat(),
+                "xg_for": 1.0,
+                "xg_against": 0.8,
+                "goals_for": 1,
+                "goals_against": 0,
+                "raw_payload_sha256": f"{index}" * 64,
+            }
+            for team in ("10", "20")
+            for index in range(2)
+        ]
+
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        return [*self.existing_matches, *self.matches]
+
+
+class MultiCompetitionRepository(FakeRepository):
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "fixture": {
+                    "id": "allsvenskan-target",
+                    "date": (NOW + timedelta(days=1)).isoformat(),
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 113, "season": "2026"},
+                "teams": {"home": {"id": 10}, "away": {"id": 20}},
+            },
+            {
+                "fixture": {
+                    "id": "world-cup-target",
+                    "date": (NOW + timedelta(days=1)).isoformat(),
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 1, "season": "2026"},
+                "teams": {"home": {"id": 30}, "away": {"id": 40}},
+            },
+        ]
+
+
 class BrokenUsageRepository(FakeRepository):
     def request_count_since(self, since: datetime) -> int:
         raise RuntimeError("usage audit unavailable")
@@ -231,6 +313,39 @@ def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> N
     assert result.candidate is False
     assert result.formal_recommendation is False
     assert {endpoint for endpoint, _ in repository.raw} == {"fixtures", "statistics"}
+
+
+def test_xg_backfill_competition_id_is_configurable(monkeypatch: Any) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
+    monkeypatch.setenv("W2_XG_BACKFILL_COMPETITION_ID", "allsvenskan")
+    monkeypatch.setenv("W2_XG_BACKFILL_REQUEST_BUDGET", "20")
+
+    client = FakeClient()
+    result = run_xg_history_backfill(
+        client=client,
+        repository=MultiCompetitionRepository(),
+        now=NOW,
+    )
+
+    assert result.team_count == 2
+    assert [call for call in client.calls if call[0] == "fixtures"] == [
+        ("fixtures", {"team": "10", "last": "5"}),
+        ("fixtures", {"team": "20", "last": "5"}),
+    ]
+
+
+def test_xg_backfill_rolls_forward_existing_persisted_xg_matches() -> None:
+    repository = ExistingXgRepository()
+    result = XgHistoryBackfillService(
+        client=ShortHistoryFakeClient(),
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    ).run()
+
+    assert result.team_xg_match_rows == 4
+    assert result.rolling_snapshot_rows == 2
 
 
 def test_xg_backfill_stops_before_consuming_live_reserve() -> None:

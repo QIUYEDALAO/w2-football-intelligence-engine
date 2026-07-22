@@ -1,0 +1,19 @@
+{
+  "schema_version": "w2.ah_formal_evidence_protocol.v1",
+  "protocol": {
+    "frozen_at_utc": "2026-07-20T00:00:00Z",
+    "train_end_utc": "2024-12-31T23:59:59Z",
+    "validation_end_utc": "2025-12-31T23:59:59Z",
+    "minimum_train_samples": 300,
+    "minimum_validation_samples": 100,
+    "minimum_holdout_samples": 100,
+    "minimum_stratum_samples": 30,
+    "bootstrap_replicates": 1000,
+    "bootstrap_seed": 7,
+    "candidate_ev_threshold": 0.035,
+    "candidate_edge_threshold": 0.035,
+    "maximum_holdout_log_loss_delta": 0.0,
+    "maximum_holdout_brier_delta": 0.0,
+    "no_harm_ci_upper_bound": 0.0
+  }
+}

@@ -5,6 +5,8 @@ from math import log
 
 CALIBRATION_VERSION = "w2.formal.lambda_baseline_prior.v1"
 CALIBRATION_STATUS = "BASELINE_PRIOR"
+MAX_LINEUP_AH_DELTA = 0.25
+MAX_LINEUP_TOTALS_DELTA = 0.30
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -41,6 +43,10 @@ def calibrate_lambdas(
     home_squad_value_eur: float | None,
     away_squad_value_eur: float | None,
     lineup_strength_adjustment: float = 0.0,
+    lineup_ah_adjustment: float = 0.0,
+    lineup_totals_adjustment: float = 0.0,
+    lineup_ah_evidence_enabled: bool = False,
+    lineup_totals_evidence_enabled: bool = False,
     apply_home_advantage: bool = True,
     params: LambdaCalibrationParams | None = None,
 ) -> LambdaCalibrationOutput:
@@ -76,6 +82,14 @@ def calibrate_lambdas(
         + value_delta
         + float(lineup_strength_adjustment) * params.lineup_adjustment_weight
     )
+    if lineup_ah_evidence_enabled:
+        adjusted_delta += _symmetric_clamp(lineup_ah_adjustment, MAX_LINEUP_AH_DELTA)
+    if lineup_totals_evidence_enabled:
+        total = _clamp(
+            total + _symmetric_clamp(lineup_totals_adjustment, MAX_LINEUP_TOTALS_DELTA),
+            minimum=params.minimum_total_goals,
+            maximum=params.maximum_total_goals,
+        )
     lambda_home = (total + adjusted_delta) / 2.0
     lambda_away = (total - adjusted_delta) / 2.0
     lambda_home = _clamp(
@@ -99,6 +113,8 @@ def calibrate_lambdas(
             "elo_gap_weight": params.elo_gap_weight,
             "squad_value_log_weight": params.squad_value_log_weight,
             "lineup_adjustment_weight": params.lineup_adjustment_weight,
+            "lineup_ah_delta_cap": MAX_LINEUP_AH_DELTA,
+            "lineup_totals_delta_cap": MAX_LINEUP_TOTALS_DELTA,
             "dixon_coles_rho": params.dixon_coles_rho,
             "minimum_lambda": params.minimum_lambda,
             "maximum_lambda": params.maximum_lambda,
@@ -110,9 +126,15 @@ def calibrate_lambdas(
             "elo": params.elo_gap_weight,
             "squad_value": params.squad_value_log_weight,
             "lineups": params.lineup_adjustment_weight,
+            "lineup_ah_enabled": float(lineup_ah_evidence_enabled),
+            "lineup_totals_enabled": float(lineup_totals_evidence_enabled),
         },
     )
 
 
 def _clamp(value: float, *, minimum: float, maximum: float) -> float:
     return min(max(float(value), minimum), maximum)
+
+
+def _symmetric_clamp(value: float, cap: float) -> float:
+    return min(max(float(value), -cap), cap)

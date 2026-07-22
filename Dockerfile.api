@@ -1,18 +1,23 @@
+ARG UV_BOOTSTRAP_IMAGE=ghcr.io/astral-sh/uv:0.11.30
+FROM ${UV_BOOTSTRAP_IMAGE} AS uv-bootstrap
 FROM python:3.12-slim
-ARG W2_GIT_SHA=UNKNOWN
-ARG W2_BUILD_TIME=UNKNOWN
-ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ARG PIP_INDEX_URL=
+ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH=/app/.venv/bin:$PATH \
-    W2_GIT_SHA=${W2_GIT_SHA} \
-    W2_BUILD_TIME=${W2_BUILD_TIME} \
-    W2_RELEASE_ID=${W2_RELEASE_ID}
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    UV_INDEX_URL=${UV_INDEX_URL} \
+    UV_HTTP_TIMEOUT=30 \
+    UV_HTTP_RETRIES=2
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
+COPY --from=uv-bootstrap /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock README.md ./
+RUN uv --version && uv sync --no-dev --frozen --no-editable --no-install-project
 COPY apps ./apps
 COPY src ./src
 COPY config ./config
+COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
 COPY migrations ./migrations
 COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/check_w2_market_timeline.py \
@@ -29,8 +34,11 @@ COPY scripts/run_w2_market_timeline_refresh.py \
      scripts/export_w2_audit_tables.py \
      scripts/debug_w2_modeling_sanity.py \
      scripts/debug_w2_s2_calibration_validation.py \
+     scripts/lmm_transfermarkt_snapshot.py \
+     scripts/lmm_materialize_stored_lineups.py \
+     scripts/materialize_analysis_card_canary.py \
      ./scripts/
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/w2-gate5-preflight
 RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_market_timeline.py \
@@ -46,12 +54,23 @@ RUN test -f /app/scripts/run_w2_market_timeline_refresh.py \
  && test -f /app/scripts/check_w2_production_readiness.py \
  && test -f /app/scripts/export_w2_audit_tables.py \
  && test -f /app/scripts/debug_w2_modeling_sanity.py \
- && test -f /app/scripts/debug_w2_s2_calibration_validation.py
+ && test -f /app/scripts/debug_w2_s2_calibration_validation.py \
+ && test -f /app/scripts/lmm_transfermarkt_snapshot.py \
+ && test -f /app/scripts/lmm_materialize_stored_lineups.py \
+ && test -f /app/scripts/materialize_analysis_card_canary.py \
+ && W2_LINEUP_POLICY_PATH=/app/image_config/policies/lineup_market_policy.v1.json \
+    /app/.venv/bin/python -c "from w2.lineups.intelligence import lineup_market_policy; assert lineup_market_policy()['schema_version'] == 'w2.lineup_market_policy.v1'"
+ARG W2_GIT_SHA=UNKNOWN
+ARG W2_BUILD_TIME=UNKNOWN
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ENV W2_GIT_SHA=${W2_GIT_SHA} \
+    W2_BUILD_TIME=${W2_BUILD_TIME} \
+    W2_RELEASE_ID=${W2_RELEASE_ID}
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \
       w2.release.id="${W2_RELEASE_ID}" \
       w2.runtime.contract.version="release-train-2-patch2"
 USER w2
-HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
-CMD ["uv", "run", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -10,7 +10,6 @@ from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.markets.devig import DevigMethod, devig
 
 CARD_SOURCE_CONTRACT = "decision_contract"
@@ -103,12 +102,24 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
-    decision_tier = _text(_field(card, contract, "decision_tier"), DecisionTier.SKIP.value)
-    data_status = _text(_field(card, contract, "data_status"), DataStatus.PARTIAL.value)
+    decision_tier = _text(_decision_field(card, contract, "decision_tier"), DecisionTier.SKIP.value)
+    data_status = _text(_decision_field(card, contract, "data_status"), DataStatus.PARTIAL.value)
     lifecycle_status = _text(
-        _field(card, contract, "lifecycle_status"),
+        _decision_field(card, contract, "lifecycle_status"),
         LifecycleStatus.DRAFT.value,
     )
+    market_context = _market_context_fields(card)
+    if data_status != DataStatus.READY.value or decision_tier == DecisionTier.NOT_READY.value:
+        market_context["current_odds"] = {}
+        market_context["market_probabilities"] = {}
+    decision_pick = _decision_field(card, contract, "pick")
+    has_directional_pick = decision_tier in {
+        DecisionTier.ANALYSIS_PICK.value,
+        DecisionTier.RECOMMEND.value,
+    } and isinstance(decision_pick, Mapping)
+    if not has_directional_pick:
+        market_context["scoreline_picks"] = []
+        market_context["scoreline_reference"] = {}
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
@@ -116,50 +127,66 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "data_status": data_status,
         "lifecycle_status": lifecycle_status,
         "outcome_tracked": _bool_or_default(
-            _field(card, contract, "outcome_tracked"),
+            _decision_field(card, contract, "outcome_tracked"),
             compute_outcome_tracked(DecisionTier(decision_tier))
             if _is_decision_tier(decision_tier)
             else False,
         ),
-        "lock_eligible": _bool_or_default(_field(card, contract, "lock_eligible"), False),
-        "recommendation_id": _optional_text(_field(card, contract, "recommendation_id")),
+        "lock_eligible": _bool_or_default(_decision_field(card, contract, "lock_eligible"), False),
+        "recommendation_id": _optional_text(_decision_field(card, contract, "recommendation_id")),
         "reason_code": _optional_text(_field(card, contract, "reason_code")),
         "action": _optional_text(_field(card, contract, "action")),
         "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
-        "provider_budget_status": _optional_text(
-            _field(card, contract, "provider_budget_status")
-        ),
+        "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
         "probability_source": _optional_text(_field(card, contract, "probability_source")),
-        "model_market_divergence": _mapping_copy(
-            _field(card, contract, "model_market_divergence")
-        ),
+        "model_market_divergence": _mapping_copy(_field(card, contract, "model_market_divergence")),
         "missing_fields": _string_list(_field(card, contract, "missing_fields")),
         "stale_fields": _string_list(_field(card, contract, "stale_fields")),
         "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
-        **_market_context_fields(card),
-        "pick": _mapping_copy(_field(card, contract, "pick"))
-        if isinstance(_field(card, contract, "pick"), Mapping)
-        else None,
+        **market_context,
+        "pick": _mapping_copy(decision_pick) if isinstance(decision_pick, Mapping) else None,
+        "secondary_picks": [
+            _mapping_copy(item)
+            for item in card.get("secondary_picks", [])
+            if isinstance(item, Mapping)
+        ][:1]
+        if has_directional_pick
+        else [],
+        "market_selection_audit": [
+            _mapping_copy(item)
+            for item in card.get("market_selection_audit", [])
+            if isinstance(item, Mapping)
+        ],
+        "lineup_provenance": _mapping_copy(card.get("lineup_provenance")),
+        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
         else None,
         "one_liner": _optional_text(_field(card, contract, "one_liner")),
         "card_hash": _optional_text(_field(card, contract, "card_hash")),
+        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
+        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
+        "artifact_hash": _optional_text(card.get("artifact_hash")),
+        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
     }
 
 
 def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    recommendation = _mapping(card.get("recommendation"))
-    legacy = legacy_decision_view(card, recommendation)
+    data_status = _text(card.get("data_status"), DataStatus.PARTIAL.value)
+    decision_tier = (
+        DecisionTier.WATCH.value
+        if data_status in {DataStatus.PARTIAL.value, DataStatus.STALE.value}
+        else DecisionTier.NOT_READY.value
+    )
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_LEGACY,
-        "decision_tier": legacy.decision_tier.value,
-        "data_status": _text(card.get("data_status"), DataStatus.PARTIAL.value),
+        "decision_tier": decision_tier,
+        "data_status": data_status,
         "lifecycle_status": _text(card.get("lifecycle_status"), LifecycleStatus.DRAFT.value),
-        "outcome_tracked": compute_outcome_tracked(legacy.decision_tier),
-        "lock_eligible": legacy.lock_eligible,
-        "recommendation_id": legacy.recommendation_id,
+        "outcome_tracked": False,
+        "lock_eligible": False,
+        "recommendation_id": None,
         "reason_code": _optional_text(card.get("reason_code")),
         "action": _optional_text(card.get("action")),
         "next_eval_at": _format_time(card.get("next_eval_at")),
@@ -171,11 +198,19 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "data_readiness": _mapping_copy(card.get("data_readiness")),
         **_market_context_fields(card),
         "pick": None,
+        "secondary_picks": [],
+        "market_selection_audit": [],
+        "lineup_provenance": {},
+        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
         else None,
         "one_liner": _optional_text(card.get("one_liner")),
         "card_hash": _optional_text(card.get("card_hash")),
+        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
+        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
+        "artifact_hash": _optional_text(card.get("artifact_hash")),
+        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
     }
 
 
@@ -195,13 +230,33 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_odds": _mapping_copy(card.get("current_odds")),
+        "market_candidates": _mapping_copy(card.get("market_candidates")),
+        "last_known_odds": _mapping_copy(card.get("last_known_odds")),
         "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
         "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
         "missing_inputs": _string_list(card.get("missing_inputs")),
+        "scoreline_picks": _mapping_list(card.get("scoreline_picks")),
+        "scoreline_reference": _mapping_copy(card.get("scoreline_reference")),
+        "scoreline_readiness": _mapping_copy(card.get("scoreline_readiness")),
+        "scoreline_simulations": _scoreline_simulations(card),
     }
+
+
+def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
+    simulation = _mapping(card.get("simulation"))
+    if not simulation:
+        simulation = _mapping(_mapping(card.get("pricing_shadow")).get("simulation"))
+    value = simulation.get("simulations")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    if isinstance(value, str) and value.isdigit() and int(value) > 0:
+        return int(value)
+    return None
 
 
 def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
@@ -315,8 +370,14 @@ def _freshness(
     stale = int(data_status_summary.get(DataStatus.STALE.value, 0))
     blocked = int(data_status_summary.get(DataStatus.BLOCKED.value, 0))
     return {
+        "page_updated_at": _format_time(
+            _first(payload.get("page_updated_at"), payload.get("generated_at"))
+        ),
+        "odds_last_confirmed_at": _format_time(payload.get("odds_last_confirmed_at")),
+        # Kept for one compatibility window; it is explicitly the page time,
+        # never an odds timestamp.
         "last_refresh": _format_time(
-            _first(payload.get("last_refresh"), payload.get("generated_at"))
+            _first(payload.get("page_updated_at"), payload.get("generated_at"))
         ),
         "next_refresh_tick": _format_time(
             _first(
@@ -385,6 +446,10 @@ def _field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> An
     if value is not None:
         return value
     return card.get(key)
+
+
+def _decision_field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> Any:
+    return contract.get(key) if contract else card.get(key)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

@@ -1,0 +1,26 @@
+{
+  "blockers": [
+    "MATCHDAY_FIXTURE_IDENTITIES_EMPTY_OR_UNAVAILABLE"
+  ],
+  "canonical_history_fixtures": 0,
+  "canonical_history_rows": 0,
+  "canonical_team_count": 0,
+  "competition_id": "allsvenskan",
+  "final_state": "MANUAL_APPROVAL_REQUIRED",
+  "fixture_identity_ready_count": 0,
+  "formal_ah": false,
+  "formal_ou": false,
+  "generated_at_utc": "2026-07-21T00:49:21.019612Z",
+  "h2h_rows": 0,
+  "production_recommendation": false,
+  "provider_audit": [],
+  "provider_call_count": 0,
+  "provider_crosswalk_count": 0,
+  "rating_snapshot_count": 0,
+  "recommendation_lock": false,
+  "schema_version": "W2FactorModelRemediationResultV1",
+  "season": "2026",
+  "smoke_fixture_readiness": [],
+  "xg_match_rows": 0,
+  "xg_status": "NOT_PROBED_PROVIDER_CALLS_DISABLED"
+}

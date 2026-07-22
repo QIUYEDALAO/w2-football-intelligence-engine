@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
-import { todayShanghai } from "../lib/formatters";
+import { footballDayShanghai } from "../lib/formatters";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
-import { BossDecisionView } from "./BossDecisionView";
+import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
 import { EmptySection } from "./EmptySection";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
@@ -41,7 +41,7 @@ export function DashboardPage() {
   const [view, setView] = useState<DashboardView | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const mode: DashboardMode = "future";
-  const [date, setDate] = useState(todayShanghai());
+  const [date, setDate] = useState(footballDayShanghai());
   const [updatedAt, setUpdatedAt] = useState("--");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -95,7 +95,7 @@ export function DashboardPage() {
   const showDiagnostics = shouldShowDiagnostics();
 
   return (
-    <main className="app-shell dashboard-v2">
+    <div className={view?.day_view ? undefined : "app-shell dashboard-v2"}>
       {view?.day_view ? null : view ? <ReleaseSyncBadge release={view.release} /> : null}
       {view?.day_view ? null : (
         <div className="dashboard-controls">
@@ -122,7 +122,7 @@ export function DashboardPage() {
 
       {state === "empty" && view ? (
         view.day_view ? (
-          <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+          <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
         ) : showDiagnostics ? (
           <DataDiagnosticsPanel debug={view.debug} release={view.release} />
         ) : (
@@ -133,14 +133,16 @@ export function DashboardPage() {
       {state === "ok" && view ? (
         <>
           {view.day_view ? (
-            <BossDecisionView dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+            <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}
-          <details className="global-diagnostics-drawer" open={showDiagnostics}>
-            <summary>全局技术诊断</summary>
-            <DataDiagnosticsPanel debug={view.debug} release={view.release} />
-          </details>
+          {view.day_view ? null : (
+            <details className="global-diagnostics-drawer" open={showDiagnostics}>
+              <summary>全局技术诊断</summary>
+              <DataDiagnosticsPanel debug={view.debug} release={view.release} />
+            </details>
+          )}
           {view.errors.length ? (
             <aside className="soft-errors">
               <strong>部分数据源暂不可用</strong>
@@ -150,7 +152,7 @@ export function DashboardPage() {
         </>
       ) : null}
 
-      <footer className="dashboard-disclaimer">赛前推荐仅由真实输入和策略规则生成；数据不足时保持观察，赛后统计仅在完场后展示。</footer>
-    </main>
+      {view?.day_view ? null : <footer className="dashboard-disclaimer">赛前推荐仅由真实输入和策略规则生成；数据不足时保持观察，赛后统计仅在完场后展示。</footer>}
+    </div>
   );
 }

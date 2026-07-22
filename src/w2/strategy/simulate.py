@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import random
+from bisect import bisect_left
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
@@ -36,8 +39,15 @@ class SimulationInputs:
     home_squad_value_eur: float | None = None
     away_squad_value_eur: float | None = None
     lineup_strength_adjustment: float = 0.0
+    lineup_ah_adjustment: float = 0.0
+    lineup_totals_adjustment: float = 0.0
+    lineup_ah_evidence_enabled: bool = False
+    lineup_totals_evidence_enabled: bool = False
     lambda_sigma_home: float = 0.0
     lambda_sigma_away: float = 0.0
+    lambda_uncertainty_method: str | None = None
+    lambda_uncertainty_status: str | None = None
+    lambda_uncertainty_audit: dict[str, Any] = field(default_factory=dict)
     neutral_site: bool = False
     input_readiness: dict[str, bool | str | int | float | None] = field(default_factory=dict)
 
@@ -73,8 +83,13 @@ def run_simulation(
     simulations: int = 10_000,
     max_goals: int = 12,
 ) -> SimulationOutput:
-    seed = _seed(inputs.fixture_id, SIMULATION_MODEL_VERSION)
     readiness = _input_readiness(inputs)
+    identity_inputs = asdict(inputs)
+    identity_inputs.pop("fixture_id", None)
+    identity_inputs.pop("input_readiness", None)
+    identity_inputs.pop("lambda_uncertainty_audit", None)
+    simulation_input_hash = _canonical_hash(identity_inputs)
+    seed = _seed(inputs.fixture_id, SIMULATION_MODEL_VERSION, simulation_input_hash)
     if not readiness["xg_ready"]:
         return SimulationOutput(
             model_version=SIMULATION_MODEL_VERSION,
@@ -120,10 +135,24 @@ def run_simulation(
         home_squad_value_eur=inputs.home_squad_value_eur,
         away_squad_value_eur=inputs.away_squad_value_eur,
         lineup_strength_adjustment=inputs.lineup_strength_adjustment,
+        lineup_ah_adjustment=inputs.lineup_ah_adjustment,
+        lineup_totals_adjustment=inputs.lineup_totals_adjustment,
+        lineup_ah_evidence_enabled=inputs.lineup_ah_evidence_enabled,
+        lineup_totals_evidence_enabled=inputs.lineup_totals_evidence_enabled,
         apply_home_advantage=not inputs.neutral_site,
     )
     sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
     sigma_away = max(float(inputs.lambda_sigma_away), 0.0)
+    uncertainty_method = (
+        "none"
+        if sigma_home == 0 and sigma_away == 0
+        else inputs.lambda_uncertainty_method or "deterministic_three_point"
+    )
+    uncertainty_status = (
+        inputs.lambda_uncertainty_status
+        if sigma_home > 0 or sigma_away > 0
+        else "NOT_READY"
+    )
     score_counts = _exact_score_matrix_with_uncertainty(
         calibration.lambda_home,
         calibration.lambda_away,
@@ -132,6 +161,22 @@ def run_simulation(
         rho=float(calibration.params.get("dixon_coles_rho") or 0.0),
         max_goals=max_goals,
     )
+    score_matrix_rows = [
+        {
+            "home_goals": home,
+            "away_goals": away,
+            "probability": round(probability, 12),
+        }
+        for (home, away), probability in sorted(score_counts.items())
+    ]
+    score_matrix_hash = _canonical_hash(score_matrix_rows)
+    seed = _seed(
+        inputs.fixture_id,
+        SIMULATION_MODEL_VERSION,
+        simulation_input_hash,
+        score_matrix_hash,
+    )
+    sampled_scores = sample_score_matrix(score_counts, simulations=simulations, seed=seed)
     total_counts: dict[int, float] = {}
     diff_counts: dict[int, float] = {}
     for (home_goals, away_goals), probability in score_counts.items():
@@ -148,11 +193,12 @@ def run_simulation(
             "scoreline": f"{home}-{away}",
             "home_goals": home,
             "away_goals": away,
-            "probability": round(probability, 6),
-            "probability_label": f"{round(probability * 100)}%",
+            "sample_count": count,
+            "probability": round(count / simulations, 6),
+            "probability_label": f"{round(count / simulations * 100)}%",
         }
-        for (home, away), probability in sorted(
-            score_counts.items(),
+        for (home, away), count in sorted(
+            sampled_scores.items(),
             key=lambda item: item[1],
             reverse=True,
         )[:3]
@@ -176,6 +222,8 @@ def run_simulation(
             "home_win": round(home_win, 6),
             "draw": round(draw, 6),
             "away_win": round(away_win, 6),
+            "distribution": score_matrix_rows,
+            "score_matrix_hash": score_matrix_hash,
         },
         ah_probabilities=ah_probabilities,
         ou_probabilities=ou_probabilities,
@@ -186,12 +234,77 @@ def run_simulation(
         calibration={
             "params": calibration.params,
             "input_weights": calibration.input_weights,
-            "seed_policy": "unused_exact_solution",
+            "seed_policy": "deterministic_score_matrix_sampling.v1",
+            "simulation_method": "seeded_joint_score_sampling",
+            "simulations_requested": simulations,
+            "simulations_completed": sum(sampled_scores.values()),
+            "simulation_input_hash": simulation_input_hash,
+            "source_score_matrix_hash": score_matrix_hash,
             "max_goals": max_goals,
-            "lambda_uncertainty_method": (
-                "none" if sigma_home == 0 and sigma_away == 0 else "deterministic_three_point"
-            ),
+            "lambda_uncertainty_method": uncertainty_method,
+            "lambda_uncertainty_status": uncertainty_status,
+            "lambda_uncertainty_audit": inputs.lambda_uncertainty_audit,
         },
+    )
+
+
+def sample_score_matrix(
+    score_matrix: dict[tuple[int, int], float],
+    *,
+    simulations: int,
+    seed: int,
+) -> Counter[tuple[int, int]]:
+    if simulations <= 0:
+        raise ValueError("simulations must be positive")
+    ordered = sorted(score_matrix.items())
+    total = sum(probability for _, probability in ordered)
+    if total <= 0:
+        raise ValueError("score matrix has no positive probability")
+    scores: list[tuple[int, int]] = []
+    cumulative: list[float] = []
+    running = 0.0
+    for score, probability in ordered:
+        if probability <= 0:
+            continue
+        running += probability / total
+        scores.append(score)
+        cumulative.append(running)
+    cumulative[-1] = 1.0
+    rng = random.Random(seed)  # noqa: S311 - deterministic model sampling, not security
+    return Counter(scores[bisect_left(cumulative, rng.random())] for _ in range(simulations))
+
+
+def score_matrix_from_simulation(simulation: dict[str, Any]) -> dict[tuple[int, int], float]:
+    summary = simulation.get("score_matrix_summary")
+    rows = summary.get("distribution") if isinstance(summary, dict) else None
+    if isinstance(rows, list) and rows:
+        matrix: dict[tuple[int, int], float] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                matrix[(int(row["home_goals"]), int(row["away_goals"]))] = float(
+                    row["probability"]
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        if matrix:
+            return matrix
+    lambda_home = simulation.get("lambda_home")
+    lambda_away = simulation.get("lambda_away")
+    if lambda_home is None or lambda_away is None:
+        return {}
+    calibration = simulation.get("calibration")
+    params = calibration.get("params") if isinstance(calibration, dict) else {}
+    return _exact_score_matrix_with_uncertainty(
+        float(lambda_home),
+        float(lambda_away),
+        sigma_home=max(float(simulation.get("lambda_sigma_home") or 0.0), 0.0),
+        sigma_away=max(float(simulation.get("lambda_sigma_away") or 0.0), 0.0),
+        rho=float(params.get("dixon_coles_rho") or 0.0) if isinstance(params, dict) else 0.0,
+        max_goals=int(calibration.get("max_goals") or 12)
+        if isinstance(calibration, dict)
+        else 12,
     )
 
 
@@ -587,9 +700,15 @@ def _distribution_value(distribution: dict[str, Any], outcome: SettlementOutcome
         return None
 
 
-def _seed(fixture_id: str, model_version: str) -> int:
-    digest = hashlib.sha256(f"{fixture_id}:{model_version}".encode()).hexdigest()
+def _seed(*parts: str) -> int:
+    digest = hashlib.sha256(":".join(parts).encode()).hexdigest()
     return int(digest[:16], 16)
+
+
+def _canonical_hash(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
 
 def _required_float(value: float | None) -> float:

@@ -128,6 +128,8 @@ class VersionResponse(BaseModel):
     read_model_fixture_count: int
     matchday_card_count: int
     result_event_count: int
+    release_identity: dict[str, Any]
+    capability_manifest: dict[str, Any]
     generated_at: datetime
 
 

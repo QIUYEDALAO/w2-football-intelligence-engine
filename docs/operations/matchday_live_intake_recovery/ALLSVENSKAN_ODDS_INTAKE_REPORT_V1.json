@@ -1,0 +1,26 @@
+{
+  "ah_complete_pair_count": 0,
+  "blockers": [
+    "LIVE_GATE_API_KEY_NOT_VISIBLE",
+    "NO_CANONICAL_FIXTURE_AVAILABLE"
+  ],
+  "bookmaker_count": 0,
+  "competition_id": "allsvenskan",
+  "current_truth_status": "SUPERSEDED",
+  "endpoint": "odds",
+  "fixtures_selected": 0,
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "normalized_observation_count": 0,
+  "odds_endpoint_response_count": null,
+  "one_x_two_complete_triplet_count": 0,
+  "ou_complete_pair_count": 0,
+  "provider": "api_football",
+  "provider_calls_attempted": 0,
+  "provider_http_calls_consumed": 0,
+  "raw_market_count": 0,
+  "rejection_count": 0,
+  "schema_version": "ALLSVENSKAN_ODDS_INTAKE_REPORT_V1",
+  "status": "BLOCKED",
+  "superseded_by": "docs/operations/analysis_recommendation_closure/MATCHDAY_MODEL_MARKET_EVIDENCE_V1.json",
+  "superseded_by_hash": "35e68c5a05b7bd864d28e31ccecdeced6a99924320a10d8a54a530f42c4e5f63"
+}

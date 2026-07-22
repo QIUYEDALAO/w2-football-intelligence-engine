@@ -1,0 +1,77 @@
+{
+  "schema_version": "W2MatchdayLiveIntakeRecoveryProgressV1",
+  "task": "W2 MATCHDAY-LIVE-INTAKE-RECOVERY",
+  "github_context": {
+    "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+    "branch": "codex/w2-matchday-live-intake-recovery",
+    "pull_request": 369,
+    "source_review_scope": "provider credential remediation, live fixture visibility, endpoint capture, canonical odds evidence, fixture identity authority"
+  },
+  "credential_status": {
+    "local_env_key_present": true,
+    "staging_env_key_present_after_remediation": true,
+    "auth_value_logged": false,
+    "provider_status_canary": "HTTP_200",
+    "fixtures_canary": {
+      "endpoint": "fixtures",
+      "competition": "allsvenskan",
+      "provider_league_id": "113",
+      "season": "2026",
+      "from": "2026-07-20",
+      "to": "2026-08-03",
+      "response_count": 16,
+      "payload_sha256": "05793353bc8a7a7ec976e0c53c88dde0e35863dae988ccdc91cafd49c950b3bf"
+    }
+  },
+  "staging_observed_facts_before_fixture_identity_migration": {
+    "allsvenskan_future_refresh_run_audit": {
+      "fixture_count": 14,
+      "mapping_count": 14,
+      "market_snapshot_count": 8,
+      "ledger_appended_count": 2699,
+      "request_count": 10,
+      "blockers": []
+    },
+    "allsvenskan_endpoint_captures": {
+      "fixtures": 1,
+      "odds": 8,
+      "status": 1
+    },
+    "allsvenskan_market_observations": {
+      "1X2": 231,
+      "ASIAN_HANDICAP": 1079,
+      "TOTALS": 1389
+    },
+    "complete_quote_groups": {
+      "1X2_complete_triplets": 77,
+      "AH_complete_pairs": 438,
+      "OU_complete_pairs": 684,
+      "fixtures_with_any_complete_quote": 8
+    }
+  },
+  "source_changes": {
+    "added_table": "matchday_fixture_identities",
+    "added_schema": "MatchdayFixtureIdentityV1",
+    "purpose": "Persist provider fixture identity independently from reviewed W2 team crosswalks.",
+    "team_identity_default_status": "REVIEW_REQUIRED",
+    "raw_payload_link": "raw_payload_sha256 plus endpoint_capture_id",
+    "conflict_policy": "FIXTURE_IDENTITY_CONFLICT"
+  },
+  "readiness_truth": {
+    "fixture_visibility": "RESTORED",
+    "provider_capture": "RESTORED",
+    "canonical_odds_observations": "RESTORED_FOR_CAPTURED_ODDS_FIXTURES",
+    "v3_recommendation": "NOT_READY",
+    "formal_recommendation": "BLOCKED",
+    "lock": "BLOCKED",
+    "production": "BLOCKED",
+    "remaining_blockers": [
+      "TEAM_IDENTITY_REVIEW_REQUIRED",
+      "F5_CANONICAL_TEAM_HISTORY_NOT_READY",
+      "F8_REVIEWED_ASOF_TEAM_VALUE_NOT_READY",
+      "MODEL_EVIDENCE_NOT_VALIDATED",
+      "MATCHDAY_EVIDENCE_MANIFESTS_NOT_YET_MATERIALIZED"
+    ]
+  },
+  "final_state": "MANUAL_APPROVAL_REQUIRED"
+}

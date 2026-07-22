@@ -1,0 +1,32 @@
+{
+  "artifact_hashes": [],
+  "blockers": [
+    "F8_EXPERT_REVIEW_REQUIRED",
+    "F8_STAGING_RUNTIME_QUERY_PENDING"
+  ],
+  "contains_private_data": false,
+  "formal_eligible": false,
+  "generated_at": "2026-07-20T15:39:10Z",
+  "missing_conflict_counts": {
+    "conflict_count": null,
+    "missing_mapping_count": null,
+    "missing_valuation_count": null
+  },
+  "player_crosswalk_summary": {
+    "APPROVED": 0,
+    "CONFLICT": 0,
+    "MISSING_REVIEW_PACKAGE_DATA": true,
+    "REVIEW_REQUIRED": 0
+  },
+  "redaction_status": "NO_PERSONAL_PROFILES_NO_RAW_SOURCE_FILES",
+  "roster_snapshot_identity": "NOT_INCLUDED_IN_REDACTED_SOURCE_PACKAGE",
+  "schema_version": "F8_IDENTITY_VALUE_REVIEW_PACKAGE_V1",
+  "status": "INCOMPLETE",
+  "team_crosswalk_summary": {
+    "APPROVED": 0,
+    "CONFLICT": 0,
+    "MISSING_REVIEW_PACKAGE_DATA": true,
+    "REVIEW_REQUIRED": 0
+  },
+  "valuation_as_of_summary": "NOT_READY_FOR_FORMAL_RUNTIME"
+}

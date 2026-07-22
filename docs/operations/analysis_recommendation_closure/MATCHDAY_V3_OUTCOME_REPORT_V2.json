@@ -1,0 +1,85 @@
+{
+  "artifact_hash": "967c11db07c4c76ea8cbbc0f45d9365205e04a62ad7afcac3e1c33524a469f0d",
+  "broad_model_evidence_not_validated_replaced_by_specific_blockers": true,
+  "final_state": "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED",
+  "fixture_ids": [
+    "1494224",
+    "1494218"
+  ],
+  "formal_recommend_count": 0,
+  "generated_at": "2026-07-21T00:00:00Z",
+  "implementation_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+  "input_snapshot_hash": "bcf38073af7651c78682e4c96527950632522b9bba3fe43d1cf7566c717932f4",
+  "lock_write_count": 0,
+  "outcomes": [
+    {
+      "canonical_public_v3": {
+        "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+        "fixture_id": "1494218",
+        "formal_eligible": false,
+        "lock_eligible": false,
+        "outcome": "NOT_READY",
+        "reason_code": "TEAM_IDENTITY_REVIEW_REQUIRED",
+        "recommendation_write": false,
+        "scope": "CANONICAL_PUBLIC"
+      },
+      "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+      "diagnostic_v3": {
+        "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+        "fixture_id": "1494218",
+        "formal_eligible": false,
+        "lock_eligible": false,
+        "not_formal": true,
+        "not_lockable": true,
+        "not_public": true,
+        "not_tracked": true,
+        "outcome": "SYSTEM_DEGRADED",
+        "reason_code": "MODEL_INPUTS_MISSING",
+        "scope": "DIAGNOSTIC_ONLY"
+      },
+      "fixture_id": "1494218",
+      "manifest_hash": "fa39832602b109bf304466068fe63ac18b5f621d04e80e83e9738d9ab3828dc1"
+    },
+    {
+      "canonical_public_v3": {
+        "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+        "fixture_id": "1494224",
+        "formal_eligible": false,
+        "lock_eligible": false,
+        "outcome": "NOT_READY",
+        "reason_code": "TEAM_IDENTITY_REVIEW_REQUIRED",
+        "recommendation_write": false,
+        "scope": "CANONICAL_PUBLIC"
+      },
+      "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+      "diagnostic_v3": {
+        "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+        "fixture_id": "1494224",
+        "formal_eligible": false,
+        "lock_eligible": false,
+        "not_formal": true,
+        "not_lockable": true,
+        "not_public": true,
+        "not_tracked": true,
+        "outcome": "SYSTEM_DEGRADED",
+        "reason_code": "MODEL_INPUTS_MISSING",
+        "scope": "DIAGNOSTIC_ONLY"
+      },
+      "fixture_id": "1494224",
+      "manifest_hash": "eea208930e2a2032e3d2d7abaa6779887ac934fb6eab60063ddd7f641add91d8"
+    }
+  ],
+  "recommendation_write_count": 0,
+  "remote_head_sha": "9e7f4c01f60ce6a32142f69dce7a80ee49abb53b",
+  "schema_version": "MATCHDAY_V3_OUTCOME_REPORT_V2",
+  "specific_blockers": [
+    "TEAM_IDENTITY_REVIEW_REQUIRED",
+    "F7_RATINGS_MISSING",
+    "F9_XG_MISSING",
+    "MODEL_PROBABILITY_NOT_COMPUTABLE",
+    "CALIBRATION_UNVALIDATED",
+    "F5_SOURCE_NOT_AVAILABLE_FOR_ALLSVENSKAN",
+    "F8_INCOMPLETE"
+  ],
+  "staging_release_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3"
+}

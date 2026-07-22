@@ -1,0 +1,81 @@
+{
+  "schema_version": "w2.transfermarkt_full_asset_audit.v1",
+  "audit_status": "SOURCE_READY",
+  "audit_scope": "official full DuckDB asset integrity and SE1 source coverage only; this does not materialize staging data or approve identity mappings",
+  "asset": {
+    "canonical_source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/transfermarkt-datasets.duckdb",
+    "upstream_repository": "https://github.com/dcaribou/transfermarkt-datasets",
+    "upstream_default_branch_commit": "59fa295c51fc23466f3a71542f8bf3d1335daa83",
+    "http_etag": "be1ddb1a13447294c2518b6c0d034003-25",
+    "http_last_modified": "2026-07-11T12:43:19Z",
+    "downloaded_at": "2026-07-22T16:33:23Z",
+    "asset_size_bytes": 204746752,
+    "sha256": "1217a880b61d9abe9ac6a822ebeed64dee5d47eecf463b0178e818216cbfb208",
+    "duckdb_version": "1.5.4",
+    "storage": "private, untracked; raw asset is deliberately excluded from Git"
+  },
+  "integrity": {
+    "duckdb_open_read_only": true,
+    "required_tables_present": [
+      "competitions",
+      "clubs",
+      "players",
+      "games",
+      "player_valuations",
+      "game_lineups"
+    ],
+    "show_tables": [
+      "appearances",
+      "club_games",
+      "clubs",
+      "competitions",
+      "countries",
+      "game_events",
+      "game_lineups",
+      "games",
+      "national_teams",
+      "player_valuations",
+      "players",
+      "transfers",
+      "version"
+    ]
+  },
+  "competition": {
+    "transfermarkt_competition_id": "SE1",
+    "name": "allsvenskan",
+    "declared_total_clubs": 16,
+    "covered_seasons": ["2024", "2025"],
+    "games": {"count": 329, "date_range": ["2025-03-29", "2026-07-06"]},
+    "historical_clubs": {"count": 19, "not_current_scope_proof": true},
+    "current_2026_game_participants": {"count": 16, "status": "SOURCE_SCOPE_PRESENT"},
+    "players_current_club_se1": 736,
+    "player_valuations": {"count": 2746, "date_range": ["2006-02-03", "2025-12-30"]},
+    "game_lineups": {
+      "count": 9664,
+      "date_range": ["2025-03-29", "2026-07-06"],
+      "distinct_games": 243,
+      "starting_lineup_rows": 5346,
+      "substitute_rows": 4318
+    }
+  },
+  "exact_queries": {
+    "competition_row": "SELECT * FROM competitions WHERE competition_id = 'SE1'",
+    "games": "SELECT count(*), min(date), max(date) FROM games WHERE competition_id = 'SE1'",
+    "historical_clubs": "SELECT count(DISTINCT club_id) FROM clubs WHERE domestic_competition_id = 'SE1'",
+    "current_2026_clubs": "SELECT count(DISTINCT club_id) FROM (SELECT home_club_id AS club_id FROM games WHERE competition_id = 'SE1' AND year(date) = 2026 UNION ALL SELECT away_club_id AS club_id FROM games WHERE competition_id = 'SE1' AND year(date) = 2026)",
+    "valuations": "SELECT count(*), min(date), max(date) FROM player_valuations WHERE player_club_domestic_competition_id = 'SE1'",
+    "lineups": "SELECT count(*), min(gl.date), max(gl.date), count(DISTINCT gl.game_id) FROM game_lineups gl JOIN games g ON g.game_id = gl.game_id WHERE g.competition_id = 'SE1'",
+    "lineup_types": "SELECT type, count(*) FROM game_lineups gl JOIN games g ON g.game_id = gl.game_id WHERE g.competition_id = 'SE1' GROUP BY type ORDER BY type"
+  },
+  "readiness": {
+    "source_asset": "SOURCE_READY",
+    "current_w2_16_club_reviewed_crosswalk": "TEAM_CROSSWALK_STAGING_MATERIALIZED_16_OF_16",
+    "player_identity_mappings": "PLAYER_IDENTITY_REVIEW_PENDING",
+    "staging_data": "STAGING_DATA_NOT_MATERIALIZED",
+    "real_lineup_canary": "REAL_LINEUP_CANARY_NOT_EVALUATED",
+    "numeric_lineup_adjustment": 0,
+    "formal": false,
+    "lock": false,
+    "production": false
+  }
+}

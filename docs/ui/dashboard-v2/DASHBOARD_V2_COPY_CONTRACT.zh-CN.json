@@ -1,0 +1,36 @@
+{
+  "schema_version": "w2.dashboard-v2.copy-contract.v1",
+  "required": [
+    "只读决策台",
+    "观察日",
+    "分析建议",
+    "前向验证账本",
+    "自动采集已暂停",
+    "当前显示最近冻结快照；下一次受控采集尚未安排。",
+    "已形成分析判断",
+    "分析级就绪",
+    "分析盘口",
+    "模型比分 Top 3",
+    "10,000 次模拟",
+    "赛后验证",
+    "联赛表现",
+    "分析参考 · 非稳赢 · 不构成投注建议"
+  ],
+  "forbidden": [
+    "已出推荐",
+    "推荐盘口",
+    "推荐比分",
+    "数据齐",
+    "历史恢复 cohort",
+    "持续更新",
+    "均按计划更新",
+    "比分胜率",
+    "Pinnacle 优先"
+  ],
+  "notes": {
+    "recommendation": "Public ANALYSIS_PICK copy must use 分析建议/分析参考, not 正式推荐.",
+    "scoreline": "Use 模拟出现概率 or 比分模拟概率. Never call a scoreline probability 胜率.",
+    "ledger": "Historical recovery and current records are one public forward ledger; provenance remains audit-only.",
+    "refresh": "Do not claim scheduled updates when provider/scheduler are paused or next_refresh_tick is null."
+  }
+}

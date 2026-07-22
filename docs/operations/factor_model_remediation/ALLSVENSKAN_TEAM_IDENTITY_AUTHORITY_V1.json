@@ -1,0 +1,16 @@
+{
+  "authority_hash": "89439650b30afa78589befce60c196b838604c29207110fea86e8dcdc5a336ca",
+  "authority_status": "DATA_DEPENDENCY_MISSING",
+  "canonical_teams": [],
+  "competition_id": "allsvenskan",
+  "fixture_identity_projection": [],
+  "formal_ah": false,
+  "formal_ou": false,
+  "generated_at_utc": "2026-07-21T00:49:21.019612Z",
+  "production_recommendation": false,
+  "provider_crosswalks": [],
+  "recommendation_lock": false,
+  "schema_version": "AllsvenskanTeamIdentityAuthorityV1",
+  "scope_note": "Provider-primary identity is valid for API-Football matchday analysis only; it is not a reviewed Football-Data or Transfermarkt crosswalk.",
+  "season": "2026"
+}

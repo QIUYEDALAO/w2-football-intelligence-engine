@@ -34,6 +34,7 @@ jobs:
     env:
       W2_ENVIRONMENT: test
       W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
       W2_REDIS_URL: redis://127.0.0.1:6379/0
       W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
       W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
@@ -46,6 +47,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        run: npm --prefix apps/web ci
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Boss Decision Console protected baseline
+        run: python3 scripts/check_boss_console_baseline.py
+      - name: Web typecheck
+        run: npm --prefix apps/web run typecheck
+      - name: Web build
+        run: npm --prefix apps/web run build
+      - name: Web E2E
+        run: npm --prefix apps/web run test:e2e
       - name: Install Python 3.12 dependencies
         run: uv sync --python 3.12 --all-groups --frozen
       - name: Stage 1 contract checker
@@ -63,7 +82,9 @@ jobs:
       - name: Alembic smoke
         run: |
           uv run --python 3.12 alembic upgrade head
-          uv run --python 3.12 alembic downgrade base
+          uv run --python 3.12 alembic downgrade 0028_create_matchday_evidence_authority
+          uv run --python 3.12 alembic upgrade head
+          uv run --python 3.12 alembic downgrade 0027_finalize_fah_authority_constraints
           uv run --python 3.12 alembic upgrade head
       - name: Docker Compose config
         run: docker compose config

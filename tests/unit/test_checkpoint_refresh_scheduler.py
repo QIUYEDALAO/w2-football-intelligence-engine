@@ -26,17 +26,45 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         fixture_id="fixture-1",
         kickoff_utc=kickoff,
         generated_at_utc=NOW,
+        competition_id="allsvenskan",
     )
 
     assert [plan.checkpoint for plan in plans] == [
-        "OPEN",
-        "T1_LINEUPS",
-        "T15M_CLOSE",
+        "T24_ODDS",
+        "T12_ODDS",
+        "T6_ODDS",
+        "T3_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T-30m_VALIDATION_LOCK",
     ]
-    assert plans[0].due_at_utc == NOW
-    assert plans[1].due_at_utc == kickoff - timedelta(hours=1)
-    assert plans[1].endpoints == ("odds", "lineups")
-    assert [plan.plan_id for plan in plans].count("fixture-1:T1_LINEUPS") == 1
+    by_checkpoint = {plan.checkpoint: plan for plan in plans}
+    assert by_checkpoint["T24_ODDS"].due_at_utc == kickoff - timedelta(hours=24)
+    assert by_checkpoint["T24_ODDS"].status == "DUE"
+    assert by_checkpoint["T6_ODDS"].due_at_utc == kickoff - timedelta(hours=6)
+    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
+    assert by_checkpoint["T60_ODDS_LINEUPS"].endpoints == ("odds", "lineups")
+    assert [plan.plan_id for plan in plans].count("fixture-1:T60_ODDS_LINEUPS") == 1
+
+
+def test_checkpoint_plan_marks_missed_intermediate_market_capture_without_backfill() -> None:
+    kickoff = datetime(2026, 7, 20, 17, tzinfo=UTC)
+    generated_at = datetime(2026, 7, 19, 23, tzinfo=UTC)
+
+    plans = checkpoint_plan_for_fixture(
+        fixture_id="fixture-1",
+        kickoff_utc=kickoff,
+        generated_at_utc=generated_at,
+        competition_id="allsvenskan",
+    )
+
+    due = {plan.checkpoint: plan.due_at_utc for plan in plans}
+    statuses = {plan.checkpoint: plan.status for plan in plans}
+    assert due["T24_ODDS"] == datetime(2026, 7, 19, 17, tzinfo=UTC)
+    assert statuses["T24_ODDS"] == "MISSED"
+    assert due["T12_ODDS"] == datetime(2026, 7, 20, 5, tzinfo=UTC)
+    assert due["T6_ODDS"] == datetime(2026, 7, 20, 11, tzinfo=UTC)
 
 
 def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
@@ -46,12 +74,16 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
         fixture_id="fixture-tz",
         kickoff_utc=kickoff_tokyo,
         generated_at_utc=NOW,
+        competition_id="allsvenskan",
     )
 
+    by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
-    assert plans[1].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
-    assert plans[2].checkpoint == "T15M_CLOSE"
-    assert plans[2].due_at_utc == datetime(2026, 7, 4, 23, 45, tzinfo=UTC)
+    assert by_checkpoint["T6_ODDS"].due_at_utc == datetime(2026, 7, 4, 18, 0, tzinfo=UTC)
+    assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
+    assert by_checkpoint["T-30m_VALIDATION_LOCK"].due_at_utc == datetime(
+        2026, 7, 4, 23, 30, tzinfo=UTC
+    )
 
 
 def test_line_jump_confirmation_triggers_after_half_ball_move() -> None:
@@ -92,12 +124,14 @@ def test_lineups_provider_empty_schedules_t45_and_t30_retries_at_due_windows() -
         kickoff_utc=kickoff,
         now=NOW + timedelta(minutes=20),
         lineups_status="PROVIDER_EMPTY",
+        competition_id="allsvenskan",
     )
     t30_plans = lineups_retry_plans(
         fixture_id="fixture-lineups",
         kickoff_utc=kickoff,
         now=NOW + timedelta(minutes=30),
         lineups_status="PROVIDER_EMPTY",
+        competition_id="allsvenskan",
     )
 
     assert [plan.checkpoint for plan in t45_plans] == ["T45_LINEUPS_RETRY"]
@@ -116,17 +150,19 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
             fixture_id="a",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
+            competition_id="allsvenskan",
         )[:2],
         *checkpoint_plan_for_fixture(
             fixture_id="b",
             kickoff_utc=NOW + timedelta(hours=1),
             generated_at_utc=NOW,
+            competition_id="allsvenskan",
         )[:2],
     ]
 
     selected, projected = select_checkpoint_batch(plans, hard_cap=4)
 
-    assert len(selected) == 2
+    assert len(selected) == 3
     assert projected == projected_calls_for_checkpoint_batch(selected)
     assert projected <= 4
 
@@ -168,22 +204,18 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
     policy = next(
-        item
-        for item in payload["competitions"]
-        if item["competition_id"] == "world_cup_2026"
+        item for item in payload["competitions"] if item["competition_id"] == "world_cup_2026"
     )
 
     assert policy["daily_hard_cap"] == 120
     assert policy["daily_reserve"] == 0
     assert policy["request_budget"] == 30
-    assert policy["checkpoint_mode"] == "world_cup_three_checkpoint"
+    assert policy["checkpoint_mode"] == "matchday_intake_v2_compatibility"
     assert policy["trickle_backfill_daily_budget"] == 0
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:
-    text = (ROOT / "docs/W2_HIBERNATE_WAKEUP_A160_WORKORDER.md").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "docs/W2_HIBERNATE_WAKEUP_A160_WORKORDER.md").read_text(encoding="utf-8")
 
     assert "trickle_backfill_daily_budget=60" in text
     assert "daily_reserve=40" in text

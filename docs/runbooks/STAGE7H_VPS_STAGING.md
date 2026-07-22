@@ -108,10 +108,10 @@ After every deploy that touches `web`, run these checks before accepting the
 release:
 
 ```bash
-curl -fsS http://43.155.208.138/ | grep -c '<div id="root">'
-curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v6'
-curl -fsS http://43.155.208.138/v1/version
-curl -fsS http://43.155.208.138/meta.json
+ssh -N -L 18080:127.0.0.1:18080 <staging-host-alias>
+curl -fsS http://127.0.0.1:18080/ | grep -c '<div id="root">'
+curl -fsS http://127.0.0.1:18080/v1/version
+curl -fsS http://127.0.0.1:18080/meta.json
 ```
 
 Acceptance:

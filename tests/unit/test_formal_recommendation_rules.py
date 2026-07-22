@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import replace
 
+from w2.formal.readiness import evaluate_formal_ah_readiness
 from w2.strategy.formal_recommendation import (
     _settlement_distribution_with_ev_se,
     build_formal_recommendation,
@@ -31,7 +34,57 @@ def ready_shadow(*, fair_ah: float = -1.25, leader: str = "HOME") -> dict[str, o
 
 
 def ready_analysis() -> dict[str, object]:
-    return {"status": "READY", "blockers": []}
+    calibration = {
+        "status": "PASS_FOR_SHADOW",
+        "artifact_hash": "a" * 64,
+        "code_sha": "b" * 64,
+        "factor_registry_sha": "c" * 64,
+    }
+    f5 = {"status": "READY", "manifest_hash": "d" * 64}
+    f8 = {"status": "READY", "manifest_hash": "e" * 64}
+    offline = {"conclusion": "PASS_FOR_SHADOW", "report_hash": "f" * 64}
+    forward = {"conclusion": "PASS_FOR_FORMAL_REVIEW", "report_hash": "1" * 64}
+    accepted_hashes = {
+        "calibration_artifact": "a" * 64,
+        "f5_manifest": "d" * 64,
+        "f8_manifest": "e" * 64,
+        "offline_evidence_report": "f" * 64,
+        "forward_shadow_report": "1" * 64,
+        "code_sha": "b" * 64,
+        "factor_registry_sha": "c" * 64,
+    }
+    approval = {
+        "schema_version": "w2.formal_ah_approval_manifest.v1",
+        "approved": True,
+        "reviewed_by": "reviewer",
+        "reviewed_at": "2026-07-20T00:00:00Z",
+        "accepted_hashes": accepted_hashes,
+        "accepted_hash_manifest_sha256": hashlib.sha256(
+            json.dumps(accepted_hashes, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
+    return {
+        "status": "READY",
+        "blockers": [],
+        "formal_ah_readiness": evaluate_formal_ah_readiness(
+            calibration=calibration,
+            f5_historical_ah=f5,
+            f8_identity_value=f8,
+            offline_evidence=offline,
+            forward_shadow=forward,
+            approval_manifest=approval,
+            fixture_evidence={
+                "prematch": True,
+                "executable_ah_quote": True,
+                "freshness_complete": True,
+                "same_pair_identity": True,
+                "simulation_ready": True,
+                "approved_calibration_version": True,
+                "integrity_asof": True,
+            },
+            capability_enabled=True,
+        ),
+    }
 
 
 def simulation(**overrides: object):
@@ -47,6 +100,8 @@ def simulation(**overrides: object):
         "away_elo": 1350.0,
         "home_squad_value_eur": 900_000_000.0,
         "away_squad_value_eur": 80_000_000.0,
+        "lambda_sigma_home": 0.001,
+        "lambda_sigma_away": 0.001,
     }
     payload.update(overrides)
     return run_simulation(SimulationInputs(**payload))  # type: ignore[arg-type]
@@ -59,8 +114,8 @@ def reverse_value_simulation() -> SimulationOutput:
         calibration_status="BASELINE_PRIOR",
         lambda_home=1.38,
         lambda_away=1.29,
-        lambda_sigma_home=0.0,
-        lambda_sigma_away=0.0,
+        lambda_sigma_home=0.001,
+        lambda_sigma_away=0.001,
         fair_ah=0.0,
         fair_ou=2.75,
         scoreline_picks=[
@@ -93,6 +148,7 @@ def reverse_value_simulation() -> SimulationOutput:
         status=READY,
         simulations=10_000,
         seed=123,
+        calibration={"lambda_uncertainty_method": "deterministic_three_point"},
     )
 
 
@@ -121,8 +177,8 @@ def off_ladder_simulation(*, rho: float = 0.12) -> SimulationOutput:
 
 def ev_gate_simulation(
     *,
-    lambda_sigma_home: float = 0.0,
-    lambda_sigma_away: float = 0.0,
+    lambda_sigma_home: float = 0.001,
+    lambda_sigma_away: float = 0.001,
     lambda_home: float | None = 1.4,
     lambda_away: float | None = 1.2,
 ) -> SimulationOutput:
@@ -164,7 +220,14 @@ def ev_gate_simulation(
         status=READY,
         simulations=10_000,
         seed=789,
-        calibration={"params": {"dixon_coles_rho": 0.12}},
+        calibration={
+            "params": {"dixon_coles_rho": 0.12},
+            "lambda_uncertainty_method": (
+                "none"
+                if lambda_sigma_home == 0 and lambda_sigma_away == 0
+                else "deterministic_three_point"
+            ),
+        },
     )
 
 
@@ -185,7 +248,7 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["beats_market_required"] is False
-    assert result.recommendation["ev_se"] == 0.0
+    assert result.recommendation["ev_se"] > 0.0
     assert result.recommendation["expected_value"] < 0.15
 
 
@@ -230,10 +293,10 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
     assert result.recommendation["ev_se"] > 0.0
 
 
-def test_ev_se_zero_keeps_existing_threshold_behavior() -> None:
+def test_zero_sigma_blocks_formal_uncertainty_validation() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
-        simulation=ev_gate_simulation(),
+        simulation=ev_gate_simulation(lambda_sigma_home=0.0, lambda_sigma_away=0.0),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
@@ -242,10 +305,9 @@ def test_ev_se_zero_keeps_existing_threshold_behavior() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
-    assert result.recommendation is not None
-    assert result.recommendation["expected_value"] == 0.036
-    assert result.recommendation["ev_se"] == 0.0
+    assert result.tier == "WATCH"
+    assert result.recommendation is None
+    assert "FORMAL_UNCERTAINTY_NOT_VALIDATED" in result.blockers
 
 
 def test_ev_within_uncertainty_band_returns_watch() -> None:
@@ -752,7 +814,7 @@ def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -
     assert "MISSING_AH_MARKET" not in result.blockers
 
 
-def test_config_off_suppresses_formal_without_changing_eligibility() -> None:
+def test_config_off_suppresses_formal_and_keeps_formal_ineligible() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
@@ -765,9 +827,34 @@ def test_config_off_suppresses_formal_without_changing_eligibility() -> None:
     )
 
     assert result.tier == "WATCH"
-    assert result.formal_eligible is True
+    assert result.formal_eligible is False
     assert result.formal_suppressed is True
     assert result.formal_suppressed_reason == "W2_FORMAL_RECOMMENDATION_ENABLED=false"
+
+
+def test_formal_builder_rejects_forged_readiness_dict() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
+        analysis_readiness={
+            "status": "READY",
+            "blockers": [],
+            "formal_ah_readiness": {
+                "admission_ready": True,
+                "formal_eligible": True,
+                "blockers": [],
+            },
+        },
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert result.formal_eligible is False
+    assert result.blockers == ["FORMAL_AH_READINESS_SCHEMA_INVALID"]
 
 
 def test_reverse_value_requires_explicit_price_value_copy() -> None:

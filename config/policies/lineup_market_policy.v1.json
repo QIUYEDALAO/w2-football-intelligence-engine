@@ -1,0 +1,33 @@
+{
+  "schema_version": "w2.lineup_market_policy.v1",
+  "valuation_system": "TRANSFERMARKT",
+  "top_five_strict": [
+    "premier_league",
+    "la_liga",
+    "serie_a",
+    "bundesliga",
+    "ligue_1"
+  ],
+  "non_top_five_grades": {
+    "allsvenskan": "C",
+    "argentina_primera": "C",
+    "brasileirao_serie_a": "C",
+    "chinese_super_league": "C",
+    "eliteserien": "C",
+    "eredivisie": "C",
+    "mls": "C",
+    "primeira_liga": "C",
+    "world_cup_2026": "C"
+  },
+  "grade_thresholds": {
+    "A": 0.9,
+    "B": 0.5
+  },
+  "numeric_adjustment": {
+    "ah_enabled": false,
+    "totals_enabled": false,
+    "reason": "FROZEN_OFFLINE_EVALUATION_NOT_PASSED"
+  },
+  "source_manifest": "docs/operations/W2_LMM0_COVERAGE_AUDIT_20260719.json",
+  "audit_status": "PARTIAL_HARD_GATE_PENDING_TRANSFERMARKT_DATASET"
+}

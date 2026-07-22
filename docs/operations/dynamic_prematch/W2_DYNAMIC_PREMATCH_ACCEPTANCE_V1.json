@@ -1,0 +1,12 @@
+{
+  "schema_version": "w2.dynamic_prematch_acceptance.v1",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
+  "baseline_sha": "c62fa82d883633f3b33ff44810a5fbc294b215c5",
+  "local_gates": {"pytest": {"status": "PASS", "passed": 1438, "skipped": 4}, "ruff": "PASS", "mypy": "PASS", "web_typecheck": "PASS", "boss_console_protected_baseline": "PASS", "web_playwright": {"status": "PASS", "passed": 26}, "migration_sqlite_roundtrip": "PASS"},
+  "github_ci": {"verified_head_sha": "d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec", "run_id": 29897588312, "verify": "PASS", "staging-parity": "PASS", "predeploy-e2e": "PASS"},
+  "live_execution": {"provider_calls": 0, "staging_deploy": false, "attempted_release_sha": "0d6ff597e110873dba6eb7a2a064e4c267b5f212", "restored_release_sha": "284a646f3a6fe9641b965d0d3d4d807f66b46c85", "status": "STAGING_IMAGE_BUILD_STALLED", "real_lineup_window": "NOT_EVALUATED", "public_read_20x": "NOT_RUN_BEFORE_STAGING_DEPLOY"},
+  "accepted_assertions": ["DYNAMIC_QUOTE_LIFECYCLE_CODE_CONTRACT_PASS", "CURRENT_EV_SNAPSHOT_SEMANTICS_CODE_CONTRACT_PASS", "NO_EDGE_REEVALUATION_CODE_CONTRACT_PASS", "SOURCE_ABSENT_TRUTH_CODE_CONTRACT_PASS", "LINEUP_BASELINE_CODE_CONTRACT_PASS", "LINEUP_CHANGE_FEATURES_CODE_CONTRACT_PASS", "LINEUP_POST_MARKET_REFRESH_CODE_CONTRACT_PASS", "LOCK_TIME_VALIDATION_CODE_CONTRACT_PASS"],
+  "player_valuation_state": ["PLAYER_VALUATION_CODE_PATH_READY", "PLAYER_VALUATION_DATA_NOT_MATERIALIZED", "STAGING_DATA_NOT_MATERIALIZED", "REAL_LINEUP_CANARY_NOT_EVALUATED"],
+  "lineup_mode": ["LINEUP_NUMERIC_ADJUSTMENT_DISABLED", "LINEUP_ADVISORY_ONLY"],
+  "release_state": ["PR_370_KEEP_DRAFT", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED"]
+}

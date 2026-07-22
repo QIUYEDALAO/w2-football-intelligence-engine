@@ -74,7 +74,9 @@ def test_open_to_current_home_lean_is_deterministic() -> None:
     assert first == second
     assert first.intent == IntentSignal.HOME_LEAN
     assert first.implied_side == TeamSide.HOME
-    assert first.confidence > 0.5
+    assert first.signal_strength > 0.5
+    assert "confidence" not in first.as_dict()
+    assert first.as_dict()["signal_strength"] == first.signal_strength
     assert first.candidate is False
     assert first.formal_recommendation is False
 
@@ -143,4 +145,4 @@ def test_future_snapshot_blocks_intent_as_leakage() -> None:
     )
 
     assert intent.intent == IntentSignal.LEAKAGE_BLOCKED
-    assert intent.confidence == 0.0
+    assert intent.signal_strength == 0.0

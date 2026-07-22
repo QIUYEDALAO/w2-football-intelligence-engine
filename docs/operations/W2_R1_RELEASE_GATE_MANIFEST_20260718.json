@@ -1,0 +1,115 @@
+{
+  "schema_version": "w2.release-gate-manifest.v1",
+  "generated_at": "2026-07-18T10:32:42.291817Z",
+  "overall_result": "PASS",
+  "release_identity": {
+    "schema_version": "w2.release-identity.v1",
+    "local_git_sha": {
+      "status": "AVAILABLE",
+      "value": "103813d7e8ea422756472cb9b4369e3c80876d09"
+    },
+    "release_id": {
+      "status": "AVAILABLE",
+      "value": "103813d7e8ea422756472cb9b4369e3c80876d09"
+    },
+    "image": {
+      "image_id": {
+        "status": "AVAILABLE",
+        "value": "sha256:ff25d732c8c61092a6e0a284d5eb69f2e20205bf29d96397bf8dd3fdea2b314f"
+      },
+      "oci_digest": {
+        "status": "UNAVAILABLE",
+        "value": "UNAVAILABLE"
+      },
+      "registry_digest": {
+        "status": "UNAVAILABLE",
+        "value": "UNAVAILABLE"
+      }
+    },
+    "alembic": {
+      "status": "MATCH",
+      "current": "0023_create_checkpoint_refresh_schedule",
+      "head": "0023_create_checkpoint_refresh_schedule"
+    },
+    "readiness_manifest": {
+      "status": "VALID",
+      "path": "config/readiness/staging.v1.json",
+      "sha256": "ee38c9c4bb7d8dba70dc7509e67cbeba739dc57fd8253b676b402eaba89c4524",
+      "schema_version": "w2.readiness.manifest.v1",
+      "artifacts": [
+        {
+          "path": "config/policies/future_fixture_refresh.v1.json",
+          "required": true,
+          "status": "MATCH",
+          "expected_sha256": "2c5b0a6cd3c81431120cb5530e356c979c495843a14db335ce31785b2710bc82",
+          "actual_sha256": "2c5b0a6cd3c81431120cb5530e356c979c495843a14db335ce31785b2710bc82"
+        },
+        {
+          "path": "config/policies/research_grade.v1.json",
+          "required": true,
+          "status": "MATCH",
+          "expected_sha256": "6fcec87fada21f93e016769b0049faf894e512f5e649ff444bc7e0c2b427fcfb",
+          "actual_sha256": "6fcec87fada21f93e016769b0049faf894e512f5e649ff444bc7e0c2b427fcfb"
+        },
+        {
+          "path": "config/environments/staging.yaml",
+          "required": true,
+          "status": "MATCH",
+          "expected_sha256": "2897f063ed49f380771016d3b975aee892ed68bd0a8dcb64137bbe27ff229d04",
+          "actual_sha256": "2897f063ed49f380771016d3b975aee892ed68bd0a8dcb64137bbe27ff229d04"
+        }
+      ]
+    }
+  },
+  "gates": [
+    {
+      "name": "python-quality",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "web-contract",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "acceptance-and-guards",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "isolated-predeploy-e2e",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "isolated-staging-parity",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "migration-upgrade-downgrade-upgrade",
+      "result": "NOT_APPLICABLE",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    },
+    {
+      "name": "formal-staging-canary",
+      "result": "PASS",
+      "evidence_path": "W2_R1_STAGING_CANARY_20260718.md",
+      "checked_at": "2026-07-18T10:30:00Z",
+      "evidence_sha256": "aff3365fbe29ce7f24b702cf6af2c91c8aa852ff3d7d1dcf6ad67f85c27d2feb"
+    }
+  ]
+}

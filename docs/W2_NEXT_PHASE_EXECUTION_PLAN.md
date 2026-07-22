@@ -1,5 +1,29 @@
 # W2 Next Phase Execution Plan
 
+## 2026-07-19 Current Local Context
+
+This section supersedes the historical PR #142–#151 sequencing below for current
+local execution.
+
+- Local `main` and the active branch both point to
+  `8e171dc05efc2fc3a512fff2c334d123d01db922`.
+- The unchanged GitHub tracking baseline is `github-w2/main@a80bcca`; no GitHub
+  synchronization is authorized by the current task.
+- The latest accepted Dashboard implementation recorded locally is
+  `01f8a75aa87cfaf58d0db3635eefc02016830d87`.
+- The next implementation package is the lineup-change and multi-market decision
+  plan in
+  [W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md](consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md).
+- The current Dashboard layout is frozen. Work is limited to source-backed data,
+  decision semantics and concise evidence inside the existing layout.
+- `ANALYSIS_PICK` remains outcome-tracked but never lock-eligible. `RECOMMEND`,
+  lock, OFFICIAL, champion and production writes remain unchanged.
+- This package changes data contracts and runtime decisions; after its one staging
+  canary, the three consecutive 09:00 read-only cycles restart from `0/3`.
+
+The older strategy and PR route remain below only as historical context. Where
+they conflict with this section or Decision Contract V2, this section wins.
+
 ## Status
 
 W2 is moving from an engineering pipeline into a matchday operating system. The

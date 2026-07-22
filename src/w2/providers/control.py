@@ -13,6 +13,7 @@ PROVIDER_CALLS_DISABLED = "PROVIDER_CALLS_DISABLED"
 PROVIDER_SCHEDULER_DISABLED = "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
 PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE = "PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE"
 DUPLICATE_TASK_KEY_SUPPRESSED = "DUPLICATE_TASK_KEY_SUPPRESSED"
+MAX_PROVIDER_HTTP_ATTEMPTS = 3
 
 
 class ProviderCallsDisabledError(RuntimeError):
@@ -64,6 +65,13 @@ def provider_refresh_min_interval_seconds() -> int:
 
 def provider_refresh_tick_hard_cap() -> int:
     return max(env_int("W2_PROVIDER_REFRESH_TICK_HARD_CAP", default=30), 0)
+
+
+def provider_http_max_attempts() -> int:
+    return min(
+        max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1),
+        MAX_PROVIDER_HTTP_ATTEMPTS,
+    )
 
 
 @dataclass(frozen=True)

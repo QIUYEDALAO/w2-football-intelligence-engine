@@ -1,0 +1,74 @@
+{
+  "schema_version": "W2MatchdayLiveIntakeStagingCanaryV1",
+  "task": "W2 MATCHDAY-LIVE-INTAKE-RECOVERY",
+  "github_context": {
+    "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+    "branch": "codex/w2-matchday-live-intake-recovery",
+    "pull_request": 369,
+    "commit_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3"
+  },
+  "deployment": {
+    "target": "staging",
+    "current_release_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+    "api_git_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+    "alembic_current": "0032_create_matchday_fixture_identities",
+    "table_created": "matchday_fixture_identities",
+    "scheduler_state_after_canary": "STOPPED"
+  },
+  "controlled_provider_canary": {
+    "competition": "allsvenskan",
+    "provider_league_id": "113",
+    "season": "2026",
+    "request_budget": 6,
+    "max_odds_requests": 2,
+    "status": "COMPLETED",
+    "fixture_count": 14,
+    "market_snapshot_count": 2,
+    "ledger_appended_count": 640,
+    "request_count": 4,
+    "selected_market_fixture_ids": [
+      "1494224",
+      "1494218"
+    ],
+    "blockers": []
+  },
+  "database_evidence_after_canary": {
+    "allsvenskan_fixture_identities": 14,
+    "allsvenskan_fixture_identities_with_endpoint_capture": 14,
+    "team_identity_status": {
+      "REVIEW_REQUIRED": 14
+    },
+    "allsvenskan_endpoint_captures": {
+      "fixtures": 2,
+      "odds": 10,
+      "status": 2
+    },
+    "allsvenskan_market_observations": {
+      "1X2": 288,
+      "ASIAN_HANDICAP": 1331,
+      "TOTALS": 1720
+    },
+    "recommendations": 0,
+    "recommendation_locks": 0
+  },
+  "readiness_truth_after_canary": {
+    "service_ready": true,
+    "matchday_intake_status": "NOT_READY",
+    "api_key_visible_to_worker": true,
+    "provider_calls_disabled_by_current_runtime_config": true,
+    "scheduler_enabled": false,
+    "future_refresh_enabled": false,
+    "allsvenskan_registered_for_continuous_scheduler": false,
+    "blockers": [
+      "PROVIDER_SCHEDULER_DISABLED",
+      "FUTURE_FIXTURE_REFRESH_DISABLED",
+      "PROVIDER_CALLS_DISABLED",
+      "ALLSVENSKAN_NOT_CONFIGURED",
+      "TEAM_IDENTITY_REVIEW_REQUIRED",
+      "F5_CANONICAL_TEAM_HISTORY_NOT_READY",
+      "F8_REVIEWED_ASOF_TEAM_VALUE_NOT_READY",
+      "MODEL_EVIDENCE_NOT_VALIDATED"
+    ]
+  },
+  "final_state": "MANUAL_APPROVAL_REQUIRED"
+}

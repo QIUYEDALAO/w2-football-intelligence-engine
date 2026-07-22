@@ -1,0 +1,53 @@
+{
+  "base_branch": "codex/w2-system-consolidation-implementation",
+  "capability_state": {
+    "formal_ah": false,
+    "formal_ou": false,
+    "production_recommendation": false,
+    "recommendation_lock": false,
+    "staging_validation_authorized": true
+  },
+  "changed_files": [],
+  "ci": {
+    "predeploy-e2e": "PASS",
+    "staging-parity": "PASS",
+    "verify": "PASS"
+  },
+  "contains_private_data": false,
+  "final_pr_head_sha": "TO_BE_RECORDED_AFTER_CI_STATUS_REPORT_COMMIT",
+  "fixed_source_blockers": [
+    "checkpoint PLANNED/DUE/MISSED state machine and worker claim",
+    "competition policy fail-closed with no World Cup fallback",
+    "endpoint capture mandatory before normalization",
+    "canonical matchday observation write path with identity conflict handling",
+    "manifest identity validation before repository insert",
+    "canonical V3 adapter path; quote-only no synthetic selector evidence",
+    "F5 two-sided W2 identity bridge",
+    "F8 complete artifact readiness semantics",
+    "desktop backup registry and restore drill semantics",
+    "predeploy-e2e canonical observation smoke check replaces legacy observation table assertion"
+  ],
+  "generated_at": "2026-07-20T15:39:10Z",
+  "generation_head_sha": "d4876dd0b6028469fd0980e18d0a7bdd1af22820",
+  "local_tests": {
+    "check_w2_all": "PASS",
+    "git_diff_check": "PASS",
+    "mypy_src_apps": "PASS",
+    "pytest": "1371 passed, 4 skipped",
+    "ruff": "PASS",
+    "sensitive_value_scan": "PASS",
+    "tracked_output_guard": "PASS",
+    "web_build": "PASS",
+    "web_e2e": "9 passed",
+    "web_typecheck": "PASS"
+  },
+  "redaction_status": "REDACTED",
+  "remaining_blockers": [
+    "staging preflight blocked: target W2_ENVIRONMENT unset, required staging",
+    "expert review pending"
+  ],
+  "schema_version": "PR366_REMEDIATION_REPORT_V1",
+  "source_branch": "codex/w2-consolidation-acceptance-package",
+  "start_sha": "601fd55c4f0bbe67faaa8df04535c945bd42fef4",
+  "updated_at": "2026-07-20T15:56:32Z"
+}

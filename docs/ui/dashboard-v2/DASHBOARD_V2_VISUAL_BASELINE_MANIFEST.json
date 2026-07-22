@@ -1,0 +1,62 @@
+{
+  "schema_version": "w2.dashboard-v2.visual-baseline-manifest.v1",
+  "authority_order": [
+    "DashboardV2Reference.tsx",
+    "dashboard-v2-reference.css",
+    "dashboard-v2-reference.fixture.ts",
+    "golden screenshots",
+    "copy contract",
+    "behavior contract"
+  ],
+  "official_renderer": {
+    "browser": "Playwright Chromium",
+    "device_scale_factor": 1,
+    "locale": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "fixed_now": "2026-07-21T12:33:00Z",
+    "max_diff_pixel_ratio": 0.0015,
+    "max_geometry_variance_px": 1
+  },
+  "protected_files": {
+    "apps/web/src/reference/dashboard-v2/DashboardV2Reference.tsx": {
+      "sha256": "b11ab9d524b63bf8178cd1b0b7543a45dd44c13b5239bd2cf03a900ce621da8b",
+      "bytes": 18938
+    },
+    "apps/web/src/reference/dashboard-v2/dashboard-v2-reference.css": {
+      "sha256": "003936c46e5aad4488fa34cc7725ad2ea795a21dd815879c24b5eeaa6d3df75e",
+      "bytes": 18556
+    },
+    "apps/web/src/reference/dashboard-v2/dashboard-v2-reference.fixture.ts": {
+      "sha256": "ef3b6fcf79ae078d2d625b287ddcdca317413d77306455a34f188bd89bcc350a",
+      "bytes": 14760
+    },
+    "apps/web/src/reference/dashboard-v2/dashboard-v2-model.ts": {
+      "sha256": "179b5a2a2d635a3da806c57dd508f2b483d5b6a8520009772d86fb9e8c59226d",
+      "bytes": 3186
+    },
+    "docs/ui/dashboard-v2/DASHBOARD_V2_COPY_CONTRACT.zh-CN.json": {
+      "sha256": "14078d1909513db5a74d628748cabfc755751561064aa4c4218d5fcf48cfb300",
+      "bytes": 1169
+    },
+    "docs/ui/dashboard-v2/DASHBOARD_V2_BEHAVIOR_CONTRACT.md": {
+      "sha256": "0b5b8e5355dcf2fd0a64965809fd079695bed36a19beaf372cdbe8d4fc22839f",
+      "bytes": 2135
+    },
+    "docs/ui/dashboard-v2/DASHBOARD_V2_PIXEL_CONTRACT.md": {
+      "sha256": "38ddeaafa9632d448d06d22f7ce0bd1be5d638cee2430f9897e49f37ff5b9fb2",
+      "bytes": 1357
+    },
+    "docs/ui/dashboard-v2/golden/dashboard-v2-wide-2048.png": {
+      "sha256": "7e37015aeee80bafd39e51959fbb1f6061b09217ab901cd05d0068ea3fb5752f",
+      "bytes": 352425
+    },
+    "docs/ui/dashboard-v2/golden/dashboard-v2-desktop-1440.png": {
+      "sha256": "f3f9614285ed13f64a445bd7c7faca7c44c4f6449788ba25946697ef4e74b2eb",
+      "bytes": 265695
+    },
+    "docs/ui/dashboard-v2/golden/dashboard-v2-mobile-390.png": {
+      "sha256": "b44b7c6b154b58b881b47f4a7e64f0e4d0cec3b6561124f05415a0ca858ee87d",
+      "bytes": 429559
+    }
+  }
+}

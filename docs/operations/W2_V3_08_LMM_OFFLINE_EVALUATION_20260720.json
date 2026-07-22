@@ -1,0 +1,56 @@
+{
+  "report_version": "w2.lmm_offline_increment_evidence.v1",
+  "mode": "OFFLINE_READ_ONLY",
+  "frozen_at_utc": "2026-07-20T00:00:00Z",
+  "protocol_path": "config/evaluations/lmm_offline_increment.v1.json",
+  "input_evidence": {
+    "coverage_audit_path": "docs/operations/W2_LMM0_COVERAGE_AUDIT_20260719.json",
+    "coverage_audit_sha256": "a517ad6e513f2ce96377bafd8cb0dc726a358e9595f4a7941adbfa1415d67256",
+    "lineup_snapshots": 132,
+    "complete_22_snapshots": 30,
+    "team_scoped_identity_mapped_count": 0,
+    "valuation_observations_materialized": 0,
+    "canonical_asof_safe_joined_ah_rows": 0,
+    "canonical_asof_safe_joined_ou_rows": 0
+  },
+  "comparators_evaluated": {
+    "baseline_no_lmm": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS",
+    "gate_only": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS",
+    "explanation_only": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS",
+    "lmm_ah": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS",
+    "lmm_ou": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS",
+    "combined": "NOT_EVALUABLE_NO_JOINED_OUTCOME_ROWS"
+  },
+  "metrics": {
+    "ah_log_loss": null,
+    "ah_brier": null,
+    "ah_settlement_distribution": null,
+    "ah_calibration": null,
+    "ah_clv": null,
+    "ou_log_loss": null,
+    "ou_brier": null,
+    "ou_rps": null,
+    "ou_calibration": null,
+    "ou_clv": null,
+    "bootstrap_ci": null,
+    "league_strata": null,
+    "coverage_grade_strata": null,
+    "identity_missing_sensitivity": null,
+    "post_announcement_forward_shadow": null
+  },
+  "conclusion": "INSUFFICIENT_EVIDENCE",
+  "blockers": [
+    "TRANSFERMARKT_DATASET_NOT_IMPORTED",
+    "PLAYER_IDENTITY_MAPPING_NOT_MATERIALIZED",
+    "PLAYER_VALUATION_OBSERVATIONS_NOT_MATERIALIZED",
+    "NO_CANONICAL_ASOF_SAFE_LMM_AH_JOIN",
+    "NO_CANONICAL_ASOF_SAFE_LMM_OU_JOIN",
+    "NO_HOLDOUT_BOOTSTRAP"
+  ],
+  "validation_state": "OFFLINE_EVALUATION_PENDING",
+  "numeric_effect_enabled": false,
+  "formal_ah_enabled": false,
+  "formal_ou_enabled": false,
+  "production_recommendation_enabled": false,
+  "recommendation_lock_enabled": false
+}

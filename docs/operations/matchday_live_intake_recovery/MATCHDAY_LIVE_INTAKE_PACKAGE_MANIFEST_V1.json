@@ -1,0 +1,32 @@
+{
+  "schema_version": "MATCHDAY_LIVE_INTAKE_PACKAGE_MANIFEST_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "final_status": "MATCHDAY_LIVE_INTAKE_REMEDIATION_REQUIRED",
+  "files": [
+    "LIVE_INTAKE_BASELINE_V1.json",
+    "LIVE_INTAKE_BASELINE_V1.md",
+    "MATCHDAY_LIVE_GATE_DIAGNOSIS_V1.json",
+    "MATCHDAY_LIVE_GATE_DIAGNOSIS_V1.md",
+    "MATCHDAY_RUNTIME_ENV_MATRIX_V1.json",
+    "MATCHDAY_RUNTIME_ENV_MATRIX_V1.md",
+    "ALLSVENSKAN_FIXTURE_INTAKE_REPORT_V1.json",
+    "ALLSVENSKAN_FIXTURE_INTAKE_REPORT_V1.md",
+    "ALLSVENSKAN_ODDS_INTAKE_REPORT_V1.json",
+    "ALLSVENSKAN_ODDS_INTAKE_REPORT_V1.md",
+    "ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V1.json",
+    "ALLSVENSKAN_TEAM_CROSSWALK_REVIEW_PACKAGE_V1.md",
+    "MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V1.json",
+    "MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V1.md",
+    "MATCHDAY_V3_OUTCOME_REPORT_V1.json",
+    "MATCHDAY_V3_OUTCOME_REPORT_V1.md",
+    "MATCHDAY_LIVE_INTAKE_ACCEPTANCE_V1.json",
+    "MATCHDAY_LIVE_INTAKE_ACCEPTANCE_V1.md"
+  ],
+  "redaction": {
+    "api_key_included": false,
+    "ssh_key_path_included": false,
+    "hostname_or_ip_included": false,
+    "database_url_included": false,
+    "raw_provider_payload_included": false
+  }
+}

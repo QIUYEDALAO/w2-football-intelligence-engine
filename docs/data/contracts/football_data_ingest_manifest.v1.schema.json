@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "w2.football_data_ingest_manifest.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_system",
+    "capture_time_precision",
+    "captured_at",
+    "exact_captured_at",
+    "source_snapshot_count",
+    "closing_ah_fact_count",
+    "pre_closing_ah_fact_count",
+    "phase_market_evidence_count",
+    "f5_ready_count",
+    "artifacts",
+    "manifest_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "w2.football_data_ingest_manifest.v1" },
+    "source_system": { "const": "FOOTBALL_DATA_CO_UK" },
+    "capture_time_precision": { "const": "SOURCE_PHASE_ONLY" },
+    "captured_at": { "type": "null" },
+    "exact_captured_at": { "const": false },
+    "manual_stop": { "const": "MANUAL_APPROVAL_REQUIRED" }
+  },
+  "additionalProperties": true
+}

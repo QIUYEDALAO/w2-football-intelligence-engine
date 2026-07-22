@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W2 Gate C 非 UI 验收</title>
+    <style>
+      :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #071311; color: #ecf7f2; }
+      main { max-width: 760px; margin: 0 auto; padding: 40px 22px 64px; }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      h2 { margin-top: 32px; font-size: 19px; }
+      .pass { color: #81e6a6; font-weight: 700; }
+      .card { margin-top: 16px; padding: 18px; border: 1px solid #24443a; border-radius: 12px; background: #0b1d19; }
+      ul { padding-left: 20px; line-height: 1.7; }
+      a { color: #8cebbb; }
+      .muted { color: #a9b8b2; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="muted">W2 Football Intelligence · staging</p>
+      <h1>Gate C（非 UI）验收</h1>
+      <p class="pass">验收结论：通过 · 已停在人工审批点</p>
+
+      <section class="card">
+        <h2>本次验证了什么</h2>
+        <ul>
+          <li>当前线上 API、Web 与 release 版本一致，服务健康。</li>
+          <li>赛后验证 canonical 样本保持 16 场：命中 11、未中 3、走水 2。</li>
+          <li>三场瑞典超冻结证据已验证，联赛身份正确，首发只作辅助项。</li>
+          <li>现有 Dashboard 在桌面与窄屏下均可正常访问，无横向溢出。</li>
+          <li>只读验证期间没有触发 provider、推荐、锁单或赛后 ledger 写入。</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>当前能力状态</h2>
+        <ul>
+          <li>AH 与 OU 正式推荐：关闭。</li>
+          <li>阵容数值调整：关闭。</li>
+          <li>锁单与 production 推荐：关闭。</li>
+          <li>瑞典超三场保持观察：模型证据不足时不伪造方向或推荐。</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>验收范围</h2>
+        <p>本次没有改变 Dashboard 的组件、布局、文案、路由或功能。原版 Gate C 的三层角色视图需另行批准后实施。</p>
+        <p><a href="/">返回当前 Dashboard</a></p>
+      </section>
+    </main>
+  </body>
+</html>

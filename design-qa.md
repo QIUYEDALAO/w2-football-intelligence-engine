@@ -1,51 +1,75 @@
-# W2 Dashboard Redesign QA
+# W2 Boss Decision Console V2.1 Design QA
 
-- source visual truth path: `/Users/liudehua/.codex/generated_images/019f2e5b-006c-7980-958d-b7d9c79d590b/ig_04ad2e845046f68b016a4cfbc82cd0819192d1093247c50fd3.png`
-- implementation desktop screenshot: `/tmp/w2_dashboard_redesign_desktop.png`
-- implementation mobile screenshot: `/tmp/w2_dashboard_redesign_mobile.png`
-- viewport: desktop `1536x1024`, mobile `390x844`
-- state: local frontend build with synthetic read-model data for visual density; no provider calls and no writes
+## Comparison Target
 
-## Full-View Comparison Evidence
+- Source visual truth: `docs/ui/boss-console/w2_boss_decision_console_prototype.html`
+- Reference captures: `docs/ui/boss-console/golden/v2.1/reference/`
+- React captures: `docs/ui/boss-console/golden/v2.1/actual/`
+- Pixel diffs: `docs/ui/boss-console/golden/v2.1/diff/`
+- Combined comparison evidence: `docs/ui/boss-console/golden/v2.1/qa/`
+- Browser: Playwright Chromium, `zh-CN`, `Asia/Shanghai`
+- Device scale factor: `1`
+- State: fixed visual dataset, analysis-priority filter, first fixture selected
 
-The implementation now matches the selected visual direction at the product-structure level:
+## Viewport Evidence
 
-- Compact top command bar replaces the previous large hero/header.
-- Three primary tabs sit directly under the command bar.
-- The trust strip is compact and adjacent to the tab layer.
-- The main content is a dense operational table, not large repeated cards.
-- The right rail is a selected-fixture inspector with post-match and league-performance previews.
-- The previous main-screen coverage matrix is absent.
+| CSS viewport | Reference pixels | React pixels | Differing-pixel ratio |
+| --- | --- | --- | --- |
+| 2048 x 1152 | 2048 x 1476 | 2048 x 1476 | 0.00000662 |
+| 1440 x 900 | 1440 x 1436 | 1440 x 1436 | 0.00000677 |
+| 390 x 844 | 390 x 4119 | 390 x 4119 | 0.00000187 |
 
-## Focused Region Comparison Evidence
+All ratios pass the unchanged `0.0015` maximum. Reference and implementation dimensions
+match at every viewport.
 
-Focused regions checked:
+## Full-View Comparison
 
-- Command bar: brand, Boss View control, date/environment/refresh metrics, and match/recommendation counters are in one compact row.
-- Match list: rows use fixed table columns for kickoff, league, fixture, market, confidence, data readiness, decision, and next evaluation.
-- Pinned recommendations: the top section is table-based and sorted by kickoff time.
-- Right inspector: selected match evidence and trust modules are separated from the dense list.
-- Mobile: table headers collapse, rows reflow, and there is no horizontal overflow.
+The combined desktop and mobile evidence compares the HTML authority and React output in
+the same image. Composition, workspace proportions, typography, spacing, palette, borders,
+date-first rows, scoreline placement, unified ledger, league table, and responsive stacking
+match without actionable P0/P1/P2 drift.
+
+## Focused Comparison
+
+`boss-console-detail-combined.png` compares the selected-fixture rail at native size. The
+match title, Shanghai kickoff hierarchy, exact quote, four model/market metrics, EV standard
+error, 10,000-sample Top 3, sample counts, probabilities, and market-consistency evidence
+match the source authority.
+
+## Fidelity Surfaces
+
+- Fonts and typography: matching family, weights, sizes, line heights, wrapping, numeric
+  alignment, and zero negative letter spacing.
+- Spacing and layout: matching grid tracks, fixed desktop workspace height, internal queue
+  and detail scrolling, panel padding, gaps, borders, and radii.
+- Color palette: matching dark green panel system and semantic blue, green, amber, and
+  red states.
+- Image and asset quality: this console contains no product imagery; no raster placeholder,
+  screenshot background, or newly approximated visual asset is used.
+- Copy and content: date, snapshot, model EV, EV standard error, scoreline, unified ledger,
+  and league labels match the V2.1 product contract.
+
+## Interaction Evidence
+
+- Filters, selection, system drawer, and Escape close behavior pass.
+- 5, 15, and 30 fixtures remain reachable; the desktop workspace height is stable.
+- Desktop queue scrolling preserves the header and selected-row state.
+- Mobile uses natural document scrolling and exposes all 30 fixtures.
+- The client clock advances once per minute without changing the API refresh timestamp.
+- A reversed global-odds/page-refresh timestamp fails visibly and exposes exact fields in L2.
+- Browser console: no application errors during the Playwright suite.
+
+## Comparison History
+
+1. Initial V2.1 implementation exposed legacy expectations for mobile nested scrolling,
+   whitespace in countdown copy, and public recovery wording.
+2. The implementation and HTML authority were corrected to natural mobile scrolling,
+   the frozen date-first copy, and one public ledger without recovery/cohort language.
+3. Post-fix source-to-React comparison passed all three viewports and all interaction tests.
 
 ## Findings
 
-No actionable P0/P1/P2 findings remain.
-
-P3 follow-up polish:
-
-- If exact logo artwork becomes available, replace the text-only `FOOTBALL INTELLIGENCE` wordmark.
-- Once backend exposes real Brier/log-loss/ROI by league, replace current sample placeholders in `联赛表现`.
-
-## Patches Made Since Previous QA Pass
-
-- Removed old release/date controls from the Boss View shell.
-- Replaced the large boss hero with a compact command bar.
-- Removed the four large metric cards from L1.
-- Rebuilt match rows as an eight-column dense table.
-- Added data-strength bars and status dots.
-- Kept recommendations pinned only when data-complete.
-- Fixed mobile overflow with a dedicated compact row layout.
-
-## Final Result
+No actionable P0, P1, or P2 visual differences remain. HTTPS and authentication are a
+separate staging security task and are not part of this UI fidelity result.
 
 final result: passed

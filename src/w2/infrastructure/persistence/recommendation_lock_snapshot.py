@@ -193,6 +193,9 @@ def _require_formal_ah_recommendation(
     card: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> None:
+    decision_v3 = _dict(card.get("recommendation_decision_v3"))
+    if decision_v3 and decision_v3.get("outcome") != "FORMAL_RECOMMEND":
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_V3_FORMAL_RECOMMEND")
     if card.get("formal_recommendation") is not True:
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_FORMAL")
     if str(recommendation.get("tier") or "").upper() != "FORMAL":

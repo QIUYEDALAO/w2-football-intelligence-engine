@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "W2 Formal AH Source Registry V1",
+  "type": "object",
+  "required": ["schema_version", "sources"],
+  "properties": {
+    "schema_version": { "const": "w2.formal_ah_source_registry.v1" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "provider",
+          "local_path",
+          "schema_version",
+          "license_status",
+          "retention_permitted",
+          "internal_backtest_permitted",
+          "snapshot_semantics",
+          "canonical_bookmaker_policy"
+        ],
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "provider": { "type": "string", "minLength": 1 },
+          "local_path": { "type": "string", "minLength": 1 },
+          "schema_version": { "type": "string", "minLength": 1 },
+          "license_status": { "const": "APPROVED" },
+          "retention_permitted": { "const": true },
+          "internal_backtest_permitted": { "const": true },
+          "snapshot_semantics": { "const": "CAPTURED_AT" },
+          "canonical_bookmaker_policy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["type"],
+                "additionalProperties": false,
+                "properties": { "type": { "const": "SINGLE_BOOK_SOURCE" } }
+              },
+              {
+                "type": "object",
+                "required": ["type", "bookmaker_id"],
+                "additionalProperties": false,
+                "properties": {
+                  "type": { "const": "EXACT_BOOKMAKER_ID" },
+                  "bookmaker_id": { "type": "string", "minLength": 1 }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["type", "bookmaker_ids"],
+                "additionalProperties": false,
+                "properties": {
+                  "type": { "const": "ORDERED_BOOKMAKER_PRIORITY" },
+                  "bookmaker_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,49 +1,51 @@
-# W2 R0.1a Staging Canary — 2026-07-18
+# W2 R0.1a-B1 Staging Canary — 2026-07-18
 
-Result: `BLOCKED_AND_ROLLED_BACK`
+Result: `PASS_LOCAL_DIRECT_RELEASE`
 
 ## Release under test
 
-- PR: #349.
-- Merge SHA: `5849374e61bc7b7fe91b6da41c637b5c65a4b9fb`.
-- GitHub run: `29628009629`.
-- `verify`, `staging-parity` and `predeploy-e2e`: pass.
+- Local implementation SHA: `3fc2412c258b996d4f8af6bd44f2799438f49504`.
+- Rollback baseline: `b5cfd6575ba7274692714c9fc814916a00c13e36`.
+- Delivery: local `git archive`; no GitHub fetch, pull, push, workflow or PR.
+- Isolated staging-parity, predeploy-e2e, migration smoke and fake-provider
+  contract: pass.
 
-## Passing evidence before the hard failure
+## Product projection proof
 
-- `/health`, `/ready`, `/v1/version` and DayView returned 200.
-- DayView retained 14 cards, all WATCH/PARTIAL, with ANALYSIS_PICK, RECOMMEND and
-  lock eligibility at zero.
-- The selected product projection hash was unchanged from the pre-deploy capture:
-  `70621303a66cd24908d3d946edc3fc2706f7c0be18e8be6066691af432dab00a`.
-- Scheduler was stopped and the Celery queue was empty.
-- Provider request count remained 673 throughout acceptance: active acceptance
-  provider delta was zero.
+- Baseline and post-deploy DayView each contained 14 cards, all WATCH/PARTIAL,
+  with ANALYSIS_PICK, RECOMMEND and lock eligibility at zero.
+- The canonical projection was serialized with `jq -S -c` and compared byte for
+  byte before hashing.
+- Baseline, post-deploy and final projection SHA-256:
+  `107a5e35c76f6736ffb0ce73060006c229549ad8572af740796c1e5ac1b4f92e`.
+- The earlier `09160e08...` value was rejected as a capture-recording error: a
+  fresh b5 response and the saved 3fc response produced identical projection
+  bytes and the same reproducible hash.
 
-## Hard failure
+## Bounded-read canary
 
-The first public analysis-card identity probe did not return. Docker recorded:
+- Fixture `1576804` first public request: HTTP 200 in 1.708 seconds.
+- Five sequential requests: HTTP 200 in 1.25–1.36 seconds.
+- Concurrent fixtures `1576804` and `1494210`: both HTTP 200 in 2.13–2.16
+  seconds.
+- Quote identity remained explainable: AH reported deterministic LINE_MISMATCH
+  conflict and OU reported COMPLETE provenance.
+- Every returned quote observation belonged to the requested fixture.
+- In-container contract used the real staging DB fixture-scoped reader while a
+  global reader failed on invocation: 5,388 scoped rows, global calls 0, route
+  PASS.
 
-- `oom`;
-- `die` with exit code 137;
-- two API container restarts.
+## Runtime and mutation gates
 
-This confirms the already documented public read-time rebuild boundary. R0.1a did
-not change model, feature or fallback behavior, but the approved runtime gate treats
-any OOM, exit 137 or restart as a hard failure regardless of attribution.
+- API restart 0, OOM false, exit 0 throughout.
+- API RSS after the final probe: 276.6 MiB, below the 347.9 MiB limit derived
+  from the 289.9 MiB baseline.
+- Provider request rows: 673 before and after.
+- `future_market_observation`: 3,757,226 before and after.
+- Celery queue: 0 before and after.
+- Recommendation, Gate 5, forward and shadow lock tables: all 0.
+- Alembic revision remained `0023_create_checkpoint_refresh_schedule`.
+- Scheduler was stopped during canary, then restored healthy with restart 0 and
+  OOM false. The staging watchdog timer was restored active.
 
-## Automatic rollback
-
-Staging was rebuilt and restored from the frozen release
-`b5cfd6575ba7274692714c9fc814916a00c13e36`.
-
-Post-rollback state:
-
-- API, Web, Worker and Scheduler: same frozen SHA, healthy, restart 0, OOM false.
-- Health, weak readiness, version and Web metadata probes: pass.
-- Redis Celery queue: 0.
-- Provider request count: 673.
-- Recommendation, Gate 5, shadow and forward lock rows: 0.
-- OFFICIAL and RECOMMEND were not enabled; production was not deployed.
-
-R0.1b must not start until the R0.1a staging exit gate has an approved resolution.
+R0.1a is accepted locally. The next authorized phase is R0.1b.

@@ -2,31 +2,54 @@
 
 ## Current gate
 
-Resolve the **R0.1a staging canary hard blocker** without mixing invariants.
+W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
+W2_DYNAMIC_PREMATCH_STAGING is authorized.
 
-## Next implementation
+W2_DYNAMIC_PREMATCH_V1 is deployed to staging and is waiting for a real
+confirmed-lineup window. The exact running release is
+`81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8`; Draft PR #370 remains Draft.
+GitHub Actions run `29916913849` passed `verify`, `staging-parity` and
+`predeploy-e2e`.
 
-R0.1a merged in PR #349 at
-`5849374e61bc7b7fe91b6da41c637b5c65a4b9fb`, with all three CI jobs passing.
-Its staging canary preserved DayView recommendation output but the public
-analysis-card probe triggered an API OOM, exit 137 and two restarts. Staging was
-automatically rolled back to `b5cfd6575ba7274692714c9fc814916a00c13e36`.
+The implementation is complete for the non-numeric lifecycle: append-only EV
+evaluation versions and supersession, `LINEUP_CONFIRMED`,
+`T-30m_VALIDATION_LOCK`, expected-XI/baseline comparison, fail-closed
+identity/as-of-value features, and the mandatory post-lineup fresh-exact-odds
+gate. The staging host is `root@118.196.30.136`; all six services are healthy.
 
-R0.1a must:
+The server's existing raw captures were repaired without provider calls:
+Eliteserien, Brasileirao Serie A and Chinese Super League each have eight
+fixture identities and eight observed fixtures, with zero orphan market
+fixtures. The public dashboard for 2026-07-25 shows fixture IDs `1494712`,
+`1492308` and `1523211` respectively.
 
-- project identity from authoritative `FutureMarketObservationModel` rows;
-- report `COMPLETE`, `INCOMPLETE` or `CONFLICT` with blockers;
-- preserve existing display, pick and tier outputs;
-- prove Fresh, Stale and Compatibility fixtures are explainable;
-- pass full local checks and all three GitHub CI jobs.
+This is deliberately not a live-lineup acceptance. Provider calls, scheduler
+refresh and future-fixture refresh remain disabled. No real official XI has
+yet triggered a fresh post-lineup quote, and the 20-read zero-delta probe has
+not been run. Transfermarkt's full source asset is verified, but reviewed team
+crosswalks, player identities and as-of valuation observations are not yet
+materialized in staging. Missing coverage therefore fails closed.
 
-Provider calls during acceptance were zero. The quote projection cannot be accepted
-through the public path while that path still performs the known unbounded read-time
-rebuild.
+Lineup remains `LINEUP_ADVISORY_ONLY`; AH, totals and lambda adjustments are
+all exactly `0.0`.
 
-Do not begin R0.1b or restore historical feature batches. Fixing the blocker requires
-either an explicit canary-scope ruling or resequencing the already planned bounded or
-frozen read invariant; both require a plan decision because they change the approved
-phase order.
-The complete phase contract is in
-[W2 V3 Correctness Recovery Plan](docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md).
+## Next execution
+
+1. In a real official-lineup window, temporarily authorize one bounded
+   `lineups` + post-confirmation `odds` canary for one fixture. Prove
+   `LINEUP_CONFIRMED → LINEUP_READY_MARKET_REFRESH_PENDING → fresh exact quote
+   → re-evaluation`, including `SUPERSEDED` evidence. If no such window exists,
+   retain `WAITING_FOR_REAL_LINEUP_WINDOW`.
+2. After the controlled canary, restore provider calls, scheduler and
+   future-fixture refresh to disabled, then run the 20-public-read zero-delta
+   probe and record the evidence.
+3. Materialize reviewed team crosswalks, provider/player identities and
+   as-of Transfermarkt valuations. Recompute league-level coverage before
+   claiming any real replacement-value feature coverage.
+4. Run leakage-safe rolling-origin ablation and forward shadow validation for
+   lineup adjustments. Do not enable numerical AH/OU/lambda adjustment without
+   the predeclared evidence and explicit manual approval.
+
+Formal recommendation, recommendation lock, OFFICIAL capture, champion switch
+and Production remain unauthorized. Manual approval is required for any of
+those transitions.

@@ -56,8 +56,8 @@ sudo docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsa
 
 section "local-http"
 for url in \
-  http://127.0.0.1/ \
-  http://127.0.0.1/meta.json \
+  http://127.0.0.1:18080/ \
+  http://127.0.0.1:18080/meta.json \
   http://127.0.0.1:18000/health \
   http://127.0.0.1:18000/ready \
   http://127.0.0.1:18000/v1/version

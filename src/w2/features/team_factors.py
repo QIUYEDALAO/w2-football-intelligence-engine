@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from w2.competitions.registry import CoverageProfile
@@ -29,6 +29,11 @@ class TeamMatchHistory:
     is_independent_signal: bool = True
     proxy_of: str | None = None
     collection_status: str = "READY"
+    ah_fact_id: str | None = None
+    ah_fact_hash: str | None = None
+    quote_identity_hash: str | None = None
+    result_identity_hash: str | None = None
+    settlement_outcome: str | None = None
 
     @property
     def observed_at(self) -> datetime:
@@ -48,6 +53,7 @@ class TeamRatingSnapshot:
     is_independent_signal: bool = True
     proxy_of: str | None = None
     collection_status: str = "READY"
+    artifact_provenance: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -61,6 +67,7 @@ class TeamValueSnapshot:
     is_independent_signal: bool = True
     proxy_of: str | None = None
     collection_status: str = "READY"
+    artifact_provenance: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -158,8 +165,12 @@ def recent_ah_cover_factor(
     )
     if blocked is not None:
         return blocked
-    home = [row for row in home_history if row.kickoff_at <= context.as_of and row.ah_result]
-    away = [row for row in away_history if row.kickoff_at <= context.as_of and row.ah_result]
+    home_rows = _canonical_ah_rows(home_history, context.as_of)
+    away_rows = _canonical_ah_rows(away_history, context.as_of)
+    home = [row for row in home_rows if row.ah_result in {"COVER", "NO_COVER"}]
+    away = [row for row in away_rows if row.ah_result in {"COVER", "NO_COVER"}]
+    home_push = sum(1 for row in home_rows if row.ah_result == "PUSH")
+    away_push = sum(1 for row in away_rows if row.ah_result == "PUSH")
     if not home or not away:
         home_status = _history_collection_status(home_history)
         away_status = _history_collection_status(away_history)
@@ -178,6 +189,11 @@ def recent_ah_cover_factor(
         )
     home_rate = sum(1 for row in home if row.ah_result == "COVER") / len(home)
     away_rate = sum(1 for row in away if row.ah_result == "COVER") / len(away)
+    fact_hashes = sorted(
+        row.ah_fact_hash or ""
+        for row in (*home_rows, *away_rows)
+        if row.ah_fact_hash
+    )
     score = max(min(home_rate - away_rate, 1.0), -1.0)
     return FeatureContribution(
         feature_id="F5_RECENT_AH_COVER",
@@ -190,12 +206,96 @@ def recent_ah_cover_factor(
         risk="赢盘率是弱信号，低权重，仅作解释因子。",
         coverage_key="settled_ah",
         observed_at=max([row.kickoff_at for row in home + away]),
-        inputs={"home_cover_rate": home_rate, "away_cover_rate": away_rate},
+        inputs={
+            "home_decisive_count": len(home),
+            "away_decisive_count": len(away),
+            "home_push_count": home_push,
+            "away_push_count": away_push,
+            "home_cover_rate": home_rate,
+            "away_cover_rate": away_rate,
+            "latest_historical_kickoff": max(row.kickoff_at for row in home + away).isoformat(),
+            "source_manifest_hash": _hash_strings(fact_hashes),
+            "fact_hashes": fact_hashes[:32],
+        },
         source=home[0].source if home[0].source == away[0].source else "mixed_history",
         source_group="team_fixture_history",
         is_independent_signal=True,
         collection_status="READY",
     )
+
+
+def _canonical_ah_rows(
+    history: list[TeamMatchHistory],
+    as_of: datetime,
+) -> list[TeamMatchHistory]:
+    by_fixture: dict[tuple[str, datetime], TeamMatchHistory] = {}
+    conflicted: set[tuple[str, datetime]] = set()
+    for row in history:
+        if row.kickoff_at >= as_of:
+            continue
+        if row.source != "canonical_historical_ah_fact":
+            continue
+        if row.source_group != "canonical_historical_ah_fact":
+            continue
+        if row.collection_status != "CANONICAL_AH_FACT":
+            continue
+        if row.proxy_of or row.collection_status in {"XG_PROXY", "SCORE_ONLY", "MANUAL_STRING"}:
+            continue
+        if not row.ah_fact_id or not row.ah_fact_hash or not row.settlement_outcome:
+            continue
+        mapped = _settlement_to_cover(row.settlement_outcome)
+        if mapped is None:
+            continue
+        key = (row.ah_fact_id, row.kickoff_at)
+        existing = by_fixture.get(key)
+        if existing is not None and existing.ah_fact_hash != row.ah_fact_hash:
+            conflicted.add(key)
+            by_fixture.pop(key, None)
+            continue
+        if key in conflicted:
+            continue
+        by_fixture.setdefault(
+            key,
+            TeamMatchHistory(
+                team_id=row.team_id,
+                opponent_id=row.opponent_id,
+                kickoff_at=row.kickoff_at,
+                goals_for=row.goals_for,
+                goals_against=row.goals_against,
+                opponent_rating=row.opponent_rating,
+                ah_line=row.ah_line,
+                ah_result=mapped,
+                source=row.source,
+                source_group=row.source_group,
+                is_independent_signal=row.is_independent_signal,
+                proxy_of=row.proxy_of,
+                collection_status=row.collection_status,
+                ah_fact_id=row.ah_fact_id,
+                ah_fact_hash=row.ah_fact_hash,
+                quote_identity_hash=row.quote_identity_hash,
+                result_identity_hash=row.result_identity_hash,
+                settlement_outcome=row.settlement_outcome,
+            ),
+        )
+    return sorted(by_fixture.values(), key=lambda item: (item.kickoff_at, item.ah_fact_id or ""))
+
+
+def _settlement_to_cover(value: str) -> str | None:
+    normalized = value.strip().upper()
+    if normalized in {"WIN", "HALF_WIN"}:
+        return "COVER"
+    if normalized in {"LOSS", "HALF_LOSS"}:
+        return "NO_COVER"
+    if normalized == "PUSH":
+        return "PUSH"
+    return None
+
+
+def _hash_strings(values: list[str]) -> str:
+    import hashlib
+    import json
+
+    return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
 
 def h2h_factor(
@@ -291,6 +391,8 @@ def strength_form_factor(
             "away_elo": away.elo,
             "attack_defence_gap": attack_defence_gap,
             "form_gap": form_gap,
+            "home_artifact_provenance": home.artifact_provenance,
+            "away_artifact_provenance": away.artifact_provenance,
         },
         source=home.source if home.source == away.source else "mixed_ratings",
         source_group=home.source_group
@@ -354,6 +456,8 @@ def squad_value_factor(
             "home_value_eur": home.squad_value_eur,
             "away_value_eur": away.squad_value_eur,
             "source_system": home.source_system,
+            "home_artifact_provenance": home.artifact_provenance,
+            "away_artifact_provenance": away.artifact_provenance,
         },
         source=home.source_system,
         source_group="squad_value",

@@ -1,0 +1,25 @@
+{
+  "schema_version": "w2.readiness.manifest.v1",
+  "required_artifacts": [
+    {
+      "path": "config/policies/future_fixture_refresh.v1.json",
+      "sha256": "e5443ace96c48ddf09d783ece7c92b4badcb8e8abaa6975c09d1a7b25108f76e",
+      "required": true
+    },
+    {
+      "path": "config/policies/matchday_intake.v2.json",
+      "sha256": "d18e13e3490835392799cf766d88ec2dcb94f8e51d163076bde6857fd8e3b39c",
+      "required": true
+    },
+    {
+      "path": "config/policies/research_grade.v1.json",
+      "sha256": "6fcec87fada21f93e016769b0049faf894e512f5e649ff444bc7e0c2b427fcfb",
+      "required": true
+    },
+    {
+      "path": "config/environments/staging.yaml",
+      "sha256": "2897f063ed49f380771016d3b975aee892ed68bd0a8dcb64137bbe27ff229d04",
+      "required": true
+    }
+  ]
+}

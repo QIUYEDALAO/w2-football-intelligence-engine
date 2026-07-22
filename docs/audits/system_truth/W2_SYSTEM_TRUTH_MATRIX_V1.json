@@ -1,0 +1,88 @@
+{
+  "audit_branch": "codex/w2-system-truth-audit",
+  "audit_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "blockers_before_calibration_or_unlock": [
+    "P0-DATA-ASSET-REGISTRY-MISSING",
+    "P0-PROVIDER-INTAKE-SPLIT",
+    "P0-CHECKPOINT-AUTHORITY-SPLIT",
+    "P0-RECOMMENDATION-STATE-SPLIT",
+    "P0-F5-F8-RUNTIME-DATA-MISSING"
+  ],
+  "db_writes": 0,
+  "deployment_actions": 0,
+  "findings": [
+    {
+      "evidence": "Football-Data local manifests and artifacts exist outside GitHub, but no canonical registry with backup/restore status is tracked.",
+      "id": "P0-DATA-ASSET-REGISTRY-MISSING",
+      "required_before_unlock": "Create registry, backup copy, restore drill, and code/data compatibility binding.",
+      "severity": "P0",
+      "title": "Historical data assets are not governed by durable W2DataAssetRegistryV1"
+    },
+    {
+      "evidence": "FutureRefreshService can execute provider calls and DB writes; Matchday V2 defines endpoint capture authority but live executor is gated.",
+      "id": "P0-PROVIDER-INTAKE-SPLIT",
+      "required_before_unlock": "All provider paths must go through endpoint capture contract or be explicitly compatibility-only.",
+      "severity": "P0",
+      "title": "Provider intake has two competing chains"
+    },
+    {
+      "evidence": "V2 policy exists, but future_fixture_refresh.v1 checkpoint_mode and matchday_schedule.v1/legacy constants remain present.",
+      "id": "P0-CHECKPOINT-AUTHORITY-SPLIT",
+      "required_before_unlock": "Remove or demote older checkpoint authority after zero-caller proof.",
+      "severity": "P0",
+      "title": "Checkpoint policy is not yet singular across scheduler/runtime/config"
+    },
+    {
+      "evidence": "WATCH/SKIP, ANALYSIS_PICK, FORMAL/LOCKED and V3 outcomes all have active code paths.",
+      "id": "P0-RECOMMENDATION-STATE-SPLIT",
+      "required_before_unlock": "Single canonical V3 decision_hash must feed API, Dashboard, tracking, lock, settlement and cohort.",
+      "severity": "P0",
+      "title": "Recommendation states remain distributed across legacy, analysis, V3, reporting and Dashboard projection"
+    },
+    {
+      "evidence": "F5 local dataset exists, but manifest still says W2_CANONICAL_IMPORT_NOT_EXECUTED and W2_RUNTIME_F5_NOT_READY; F8 has static/artifact/DB surfaces.",
+      "id": "P0-F5-F8-RUNTIME-DATA-MISSING",
+      "required_before_unlock": "Import F5 canonical DB/query path and declare one reviewed F8 as-of authority.",
+      "severity": "P0",
+      "title": "F5/F8 are not proven runtime-ready despite local/private artifacts"
+    },
+    {
+      "evidence": "This audit used GitHub/source/local private files only; no approved read-only staging SSH/container/DB evidence was captured.",
+      "id": "P1-RUNTIME-DEPLOYMENT-TRUTH-UNVERIFIED",
+      "required_before_unlock": "Run read-only runtime evidence capture with approved access and bind it to this matrix.",
+      "severity": "P1",
+      "title": "Staging running SHA and DB state were not verified in this audit turn"
+    }
+  ],
+  "generated_at": "2026-07-20T12:51:47.425145Z",
+  "main_sha": "a80bccaadc68f8bd691b45b46f25c10539473c0c",
+  "provider_calls": 0,
+  "schema_version": "W2_SYSTEM_TRUTH_MATRIX_V1",
+  "source_review_only": true,
+  "summary": {
+    "core_concepts": 22,
+    "final_state": "MANUAL_APPROVAL_REQUIRED",
+    "p0_count": 5,
+    "p1_count": 1
+  },
+  "truth_layers": [
+    {
+      "layer": "main",
+      "sha": "a80bccaadc68f8bd691b45b46f25c10539473c0c",
+      "status": "DOES_NOT_CONTAIN_STACKED_V2"
+    },
+    {
+      "layer": "latest_integrated_source",
+      "sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+      "status": "PR_363_SOURCE_REVIEW_ONLY"
+    },
+    {
+      "layer": "staging_release",
+      "status": "NOT_VERIFIED_READ_ONLY_ACCESS_REQUIRED"
+    },
+    {
+      "layer": "private_data_assets",
+      "status": "LOCAL_PRESENT_GOVERNANCE_INCOMPLETE"
+    }
+  ]
+}

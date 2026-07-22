@@ -527,6 +527,8 @@ button {
 }
 
 .boss-view-select {
+  display: inline-flex;
+  align-items: center;
   min-height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 6px;
@@ -548,13 +550,27 @@ button {
   white-space: nowrap;
 }
 
-.boss-command-meta span {
+.boss-command-meta > span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 30px;
-  padding: 0 18px;
+  padding: 0 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.boss-command-meta > .boss-time-pair {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.boss-time-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .boss-command-meta strong {
@@ -563,7 +579,7 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.boss-command-meta span:nth-last-child(-n + 2) strong {
+.boss-command-meta > span:nth-last-child(-n + 2) strong {
   color: #8fe46f;
   font-size: 18px;
 }
@@ -769,12 +785,19 @@ button {
   grid-template-columns: minmax(0, 1fr) minmax(390px, 0.36fr);
   gap: 12px;
   align-items: start;
+  height: calc(100vh - 190px);
+  min-height: 520px;
 }
 
 .schedule-board {
   display: grid;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .schedule-controls {
@@ -786,6 +809,9 @@ button {
   border-radius: 6px;
   padding: 8px;
   background: rgba(4, 14, 13, 0.82);
+  position: sticky;
+  top: 0;
+  z-index: 8;
 }
 
 .schedule-controls button {
@@ -869,10 +895,22 @@ button {
   color: #83908a;
   font-size: 11px;
   font-weight: 850;
+  position: sticky;
+  top: 58px;
+  z-index: 6;
+  background: #071513;
 }
 
-.schedule-section.is-collapsed .schedule-row-list .decision-row:nth-child(n + 5) {
-  display: none;
+.schedule-date-group {
+  position: sticky;
+  top: 92px;
+  z-index: 5;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #10201d;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .schedule-section.is-empty {
@@ -910,6 +948,37 @@ button {
   top: 14px;
   display: grid;
   gap: 10px;
+}
+
+.scoreline-projection-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.scoreline-projection-panel > span,
+.scoreline-projection-panel > strong,
+.scoreline-projection-panel > small {
+  grid-column: 1 / -1;
+}
+
+.scoreline-projection-panel > div {
+  display: contents;
+}
+
+.scoreline-projection-panel b,
+.scoreline-projection-panel em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreline-projection-panel em {
+  text-align: right;
+  color: var(--accent);
 }
 
 .timeline-layout {
@@ -1334,8 +1403,18 @@ button {
 .verification-list small,
 .league-performance-table span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.35;
   font-variant-numeric: tabular-nums;
+}
+
+.league-performance-table .league-clv-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .verification-list strong {
@@ -1346,14 +1425,48 @@ button {
 
 .league-performance-table > div,
 .league-performance-head {
-  grid-template-columns: minmax(120px, 1fr) 48px 64px 58px 64px;
+  grid-template-columns: minmax(108px, 1fr) 78px 96px 112px minmax(128px, 1fr);
   align-items: center;
   column-gap: 8px;
+}
+
+.league-performance-table span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .league-performance-head {
   background: rgba(255, 255, 255, 0.025);
   font-weight: 900;
+}
+
+@media (max-width: 900px) {
+  .league-performance-head {
+    display: none !important;
+  }
+
+  .league-performance-table > div:not(.league-performance-head) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+  }
+
+  .league-performance-table > div:not(.league-performance-head) > span {
+    display: grid;
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .league-performance-table > div:not(.league-performance-head) > span:first-child {
+    grid-column: 1 / -1;
+    color: var(--text);
+    font-weight: 900;
+  }
+
+  .league-performance-table > div:not(.league-performance-head) > span::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-weight: 700;
+  }
 }
 
 .boss-tab-panel {
@@ -1438,16 +1551,14 @@ button {
   font-size: 14px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .boss-header,
   .decision-row-main,
   .timeline-layout,
   .coverage-entry,
   .boss-workspace,
   .boss-commandbar,
-  .boss-tab-row,
-  .league-performance-table > div,
-  .league-performance-head {
+  .boss-tab-row {
     grid-template-columns: 1fr;
   }
 
@@ -1461,6 +1572,21 @@ button {
     display: grid;
   }
 
+  .boss-workspace {
+    height: auto;
+    min-height: 0;
+  }
+
+  .schedule-board {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .schedule-controls,
+  .schedule-date-group {
+    position: static;
+  }
+
   .boss-tabs {
     grid-template-columns: 1fr;
   }
@@ -1471,7 +1597,7 @@ button {
     white-space: normal;
   }
 
-  .boss-command-meta span {
+  .boss-command-meta > span {
     min-height: 24px;
     padding: 0 10px 0 0;
     border-left: 0;

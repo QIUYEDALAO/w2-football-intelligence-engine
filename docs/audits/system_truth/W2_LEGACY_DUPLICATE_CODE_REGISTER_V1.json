@@ -1,0 +1,713 @@
+{
+  "audit_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "generated_at": "2026-07-20T12:51:47.425145Z",
+  "items": [
+    {
+      "current_classification": "CONFLICTING_AUTHORITY",
+      "delete_condition": "Provider executor routes through MatchdayEndpointCaptureV1 and future refresh discovery is demoted.",
+      "domain": "Matchday/provider intake",
+      "id": "DUP-MATCHDAY-FUTURE-REFRESH",
+      "paths": [
+        "src/w2/ingestion/future_refresh.py",
+        "apps/scheduler/main.py",
+        "src/w2/matchday/intake_v2.py"
+      ],
+      "risk": "Provider calls can happen through future refresh while Matchday V2 remains review-only."
+    },
+    {
+      "current_classification": "CONFLICTING_AUTHORITY",
+      "delete_condition": "Only V2 policy is loaded; legacy constants removed; regression tests cover missed/no-backfill.",
+      "domain": "Checkpoint",
+      "id": "DUP-CHECKPOINT-POLICIES",
+      "paths": [
+        "config/policies/matchday_intake.v2.json",
+        "config/policies/future_fixture_refresh.v1.json",
+        "config/policies/matchday_schedule.v1.json",
+        "src/w2/ingestion/checkpoint_refresh.py"
+      ],
+      "risk": "Different checkpoint names/skip-vs-missed semantics can reappear."
+    },
+    {
+      "current_classification": "CONFLICTING_AUTHORITY",
+      "delete_condition": "All surfaces project from one V3 decision hash.",
+      "domain": "Recommendation",
+      "id": "DUP-RECOMMENDATION-STATES",
+      "paths": [
+        "src/w2/domain/recommendation_decision_v3.py",
+        "src/w2/strategy/shadow.py",
+        "src/w2/strategy/analysis_recommendation.py",
+        "src/w2/reporting/match_decision.py",
+        "src/w2/dashboard/recommendations.py"
+      ],
+      "risk": "ANALYSIS_PICK/WATCH/SKIP/FORMAL can be interpreted by different surfaces."
+    },
+    {
+      "current_classification": "DATA_DEPENDENCY_MISSING",
+      "delete_condition": "Canonical DB import and query API verified.",
+      "domain": "F5",
+      "id": "DUP-F5-SOURCE-LOCAL-RUNTIME",
+      "paths": [
+        "src/w2/historical/football_data_co_uk.py",
+        "src/w2/historical/fah_repository.py",
+        "src/w2/infrastructure/persistence/models.py"
+      ],
+      "risk": "Local JSONL dataset exists but runtime canonical query not ready."
+    },
+    {
+      "current_classification": "CONFLICTING_AUTHORITY",
+      "delete_condition": "Reviewed as-of artifact/table selected as canonical.",
+      "domain": "F8/team value",
+      "id": "DUP-F8-STATIC-ARTIFACT-DB",
+      "paths": [
+        "config/team_values/world_cup_2026.v1.json",
+        "src/w2/lineups/value_identity.py",
+        "src/w2/infrastructure/persistence/models.py"
+      ],
+      "risk": "Static values, artifacts and DB can diverge."
+    },
+    {
+      "current_classification": "CONFLICTING_AUTHORITY",
+      "delete_condition": "Single raw payload identity and compatibility mapping.",
+      "domain": "Raw payload",
+      "id": "DUP-RAW-PAYLOAD",
+      "paths": [
+        "src/w2/infrastructure/persistence/models.py",
+        "src/w2/infrastructure/persistence/future_refresh_models.py",
+        "src/w2/infrastructure/persistence/matchday_intake_models.py"
+      ],
+      "risk": "Different raw hash/identity algorithms for same provider evidence."
+    },
+    {
+      "current_classification": "ACTIVE_COMPATIBILITY",
+      "delete_condition": "Script registry marks ACTIVE_OPERATIONAL vs ONE_TIME_RECOVERY and CI enforces approvals.",
+      "domain": "Scripts",
+      "id": "DUP-SCRIPTS-RECOVERY-OPERATIONAL",
+      "paths": [
+        "scripts/inventory_existing_football_data.py",
+        "scripts/ingest_football_data_co_uk.py",
+        "scripts/run_fah_master_pipeline.py",
+        "scripts/run_w2_matchday_refresh_plan.py",
+        "scripts/run_w2_market_timeline_refresh.py"
+      ],
+      "risk": "One-time recovery scripts may be reused as runtime path."
+    }
+  ],
+  "schema_version": "W2_LEGACY_DUPLICATE_CODE_REGISTER_V1",
+  "script_inventory": [
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/audit_football_data_co_uk.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/audit_formal_ah_historical_sources.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/build_canonical_historical_ah_facts.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ONE_TIME_RECOVERY",
+      "path": "scripts/build_fah_approval_package.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/build_stage5_demo_datasets.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/build_stage7i_final_evidence.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/build_stage7i_successor_candidates.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/capture_runtime_release_evidence.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/capture_stage7i_fixture_lifecycle.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_compose_staging_ports.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_public_ingress.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_team_values_mapping.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_tracked_outputs.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_acceptance.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_all.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_analysis_governance.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_formal_tracking.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_future_refresh_staging_contract.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_gate5_preflight.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_league_remediation_readiness.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_market_timeline.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_production_readiness.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_s2_readiness.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage10a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage10b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage10c.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage10d.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage11a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage12a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage12b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage13a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage14a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage15a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage1_contracts.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage3_data_model.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage4_ingestion.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage4b_live_smoke.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage5_asof.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage5b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage6_market.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage6b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7_models.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7c.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7d.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7e.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7f.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7g.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7h.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage7i.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage8_replay.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage9a.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/check_w2_stage9b.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ONE_TIME_RECOVERY",
+      "path": "scripts/clean_w2_legacy_ah_pool.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/debug_w2_formal_market.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/debug_w2_formal_recommendations.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/debug_w2_modeling_sanity.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/debug_w2_s2_calibration_validation.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/deploy_stage7h_staging.sh",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/diagnose_staging_runtime.sh",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/export_w2_audit_tables.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/export_w2_world_cup_team_ids.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/generate_release_gate_manifest.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/generate_w2_report.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/import_stage5b_historical_data.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/import_team_identity_crosswalk.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ONE_TIME_RECOVERY",
+      "path": "scripts/ingest_football_data_co_uk.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ONE_TIME_RECOVERY",
+      "path": "scripts/inventory_existing_football_data.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/lmm_coverage_audit.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/lmm_materialize_stored_lineups.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/lmm_transfermarkt_snapshot.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/materialize_analysis_card_canary.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/materialize_team_value_asof.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/preflight_runtime_writable.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/project_stage10b_live_snapshot.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/project_stage10c_matchday_read_model.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/publish_w2_static_report.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ONE_TIME_RECOVERY",
+      "path": "scripts/recover_staging_runtime.sh",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/render_ai_card_text.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/replay_provider_fixture.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_fah_master_pipeline.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/run_predeploy_e2e_smoke.sh",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_prematch_refresh.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_readiness_fault_injection.sh",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage10c_daily_cycle.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage11a_backup_restore_drill.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage12a_migration_dry_run.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage12a_shadow_dry_run.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage12b_shadow_comparison.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage13a_world_cup_dry_run.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage14a_league_audit.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage15a_operations_dry_run.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage4b_live_smoke.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage6_market_backtest.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage7i_observer.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage8_replay.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage9a_shadow_replay.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_stage9b_shadow_cycle.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_ah_formal_evidence.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_formal_tracking.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_forward_outcome_ledger.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/run_w2_free_tier_2024_backtest.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_handicap_walkforward.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_independent_signal_backfill.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/run_w2_league_whitelist_audit.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_market_baseline_eval.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_market_timeline_refresh.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_matchday_refresh_plan.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_outcome_result_refresh.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/run_w2_pro_day1_sprint.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_r2_offline_evaluation.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_replay_frontdoor.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_report_runner.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_w2_settlement_history.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/run_xg_history_backfill.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/seed_staging_dashboard.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/select_stage7i_successor.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/smoke.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/summarize_w2_league_audit_diagnosis.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/summarize_w2_league_provider_usage.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_AUDIT",
+      "path": "scripts/summarize_w2_league_whitelist_scope.py",
+      "provider_or_runtime_risk": true
+    },
+    {
+      "classification": "ACTIVE_OPERATIONAL",
+      "path": "scripts/verify_release_sync.py",
+      "provider_or_runtime_risk": false
+    },
+    {
+      "classification": "UNSAFE_WITHOUT_APPROVAL",
+      "path": "scripts/watch_staging_runtime.sh",
+      "provider_or_runtime_risk": true
+    }
+  ]
+}
