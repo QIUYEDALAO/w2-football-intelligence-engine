@@ -65,7 +65,7 @@ def _assert_sole_pick(card: dict[str, Any]) -> None:
         or pick.get("selection") != "OVER"
         or str(pick.get("line")) != "2.75"
         or abs(float(pick.get("odds")) - 1.86) > 0.000001
-        or v3.get("outcome_tracked") is not True
+        or card.get("outcome_tracked") is not True
     ):
         raise ValueError("SOLE_PICK_CONTRACT_MISMATCH")
 
