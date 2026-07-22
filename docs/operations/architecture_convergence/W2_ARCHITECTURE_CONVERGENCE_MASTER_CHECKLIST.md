@@ -180,7 +180,7 @@ NO_ARCHITECTURE_SCOPE_ADDED_TO_PR_370
 ```text
 Status: IN_PROGRESS
 Branch: codex/arch-p0-01-remove-report-reads
-PR: PENDING
+PR: #375 (Draft)
 Base SHA: 160a67505e2ba725b70250635ee71ce99e11b812
 Started at: 2026-07-23T07:08:42+0800
 Owner: Codex
