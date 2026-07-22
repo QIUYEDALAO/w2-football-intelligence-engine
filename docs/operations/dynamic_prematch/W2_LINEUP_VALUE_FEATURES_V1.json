@@ -5,6 +5,7 @@
   "features": ["regular_starters_missing", "replacement_value_delta_eur", "value_delta_ratio", "goalkeeper_replacement_delta", "defensive_replacement_delta", "midfield_replacement_delta", "attacking_replacement_delta", "out_of_position_count", "formation_changed", "starter_continuity", "defensive_disruption", "attacking_disruption", "bench_value_eur", "captain_missing", "mapping_coverage", "valuation_coverage"],
   "as_of_rule": "valuation.observed_at <= lineup.captured_at",
   "unresolved_role_status": "ROLE_REPLACEMENT_UNRESOLVED",
-  "result": "LINEUP_CHANGE_FEATURES_PASS",
+  "result": "CODE_CONTRACT_PASS",
+  "staging_data_state": "STAGING_DATA_NOT_MATERIALIZED",
   "numeric_adjustment": {"enabled": false, "ah": 0.0, "totals": 0.0, "lambda": 0.0}
 }

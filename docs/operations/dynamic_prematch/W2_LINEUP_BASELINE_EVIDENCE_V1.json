@@ -3,7 +3,8 @@
   "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
   "scope": "OFFLINE_CONTRACT",
   "baseline_contract": {"lookback_matches": 10, "recent_five_weight": 1.0, "older_five_weight": 0.6, "future_rows_excluded": true, "fixture_ids_recorded": true, "artifact_hash_recorded": true},
-  "result": "LINEUP_BASELINE_PASS",
+  "result": "CODE_CONTRACT_PASS",
   "live_fixture_count": 0,
-  "live_status": "NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE"
+  "live_status": "REAL_LINEUP_CANARY_NOT_EVALUATED",
+  "staging_data_state": "STAGING_DATA_NOT_MATERIALIZED"
 }
