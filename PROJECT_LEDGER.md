@@ -431,7 +431,7 @@ Detailed evidence:
 
 - Work started from exact Draft PR #370 head
   `c62fa82d883633f3b33ff44810a5fbc294b215c5`; exact code implementation is
-  `401b82d46c5afb5b907c396c67dcf1fef97c0f53`.
+  `8132afd6bc16b7426c58184528111d443baf4b53`.
 - Every new exact quote/model input produces an immutable evaluation version;
   supersession is stored separately, and the current projection supports
   `NO_EDGE → ACTIVE`, `ACTIVE → NO_EDGE`, stale and source-absent states.
@@ -444,7 +444,10 @@ Detailed evidence:
   within ±5 minutes. EV and best price cannot influence selection; post-kickoff
   and incomplete inputs are rejected.
 - Full local gates passed: `1438 passed / 4 skipped`, Ruff, Mypy, Web typecheck
-  and SQLite migration upgrade/downgrade/re-upgrade.
+  and SQLite migration upgrade/downgrade/re-upgrade. After the first CI run
+  correctly rejected stale Boss Console protected hashes, the scoped authority
+  was refreshed; the protected-baseline check and all 14 Boss Console
+  Playwright tests then passed locally.
 - Machine evidence is under
   `docs/operations/dynamic_prematch/`. It explicitly records no provider call,
   no staging deployment and `WAITING_FOR_REAL_LINEUP_WINDOW`; no synthetic XI

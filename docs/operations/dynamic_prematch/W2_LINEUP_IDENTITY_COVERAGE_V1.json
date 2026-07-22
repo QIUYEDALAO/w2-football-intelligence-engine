@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.lineup_identity_coverage_evidence.v1",
-  "implementation_sha": "401b82d46c5afb5b907c396c67dcf1fef97c0f53",
+  "implementation_sha": "8132afd6bc16b7426c58184528111d443baf4b53",
   "scope": "PIPELINE_CONTRACT",
   "required_fields": ["canonical_player_id", "provider_player_id", "position", "mapping_review_status", "source_artifact_hash"],
   "controls": {"explicit_review_required": true, "fuzzy_auto_approval": false, "duplicate_starter_fail_closed": true, "cross_team_identity_conflict_fail_closed": true},

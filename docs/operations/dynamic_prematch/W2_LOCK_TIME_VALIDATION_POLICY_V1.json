@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.lock_time_validation_policy_evidence.v1",
-  "implementation_sha": "401b82d46c5afb5b907c396c67dcf1fef97c0f53",
+  "implementation_sha": "8132afd6bc16b7426c58184528111d443baf4b53",
   "checkpoint": "T-30m_VALIDATION_LOCK",
   "target_minutes_before_kickoff": 30,
   "tolerance_minutes": 5,

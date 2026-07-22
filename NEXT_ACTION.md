@@ -3,7 +3,7 @@
 ## Current gate
 
 The dynamic EV and confirmed-lineup lifecycle is locally verified on exact code
-implementation `401b82d46c5afb5b907c396c67dcf1fef97c0f53`, based on PR #370
+implementation `8132afd6bc16b7426c58184528111d443baf4b53`, based on PR #370
 head `c62fa82d883633f3b33ff44810a5fbc294b215c5`.
 
 Local gates passed: 1438 Python tests (4 environment-dependent skips), Ruff,

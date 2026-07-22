@@ -27,7 +27,7 @@ repository:
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/w2-factor-model-remediation-master
   task_baseline_sha: c62fa82d883633f3b33ff44810a5fbc294b215c5
-  local_code_implementation_sha: 401b82d46c5afb5b907c396c67dcf1fef97c0f53
+  local_code_implementation_sha: 8132afd6bc16b7426c58184528111d443baf4b53
   local_work_branch: codex/w2-dynamic-ev-lineup-v1
   github_sync_status: PENDING_NORMAL_PR_UPDATE
   ci_status: CHECK_PR_370
@@ -59,6 +59,8 @@ local_verification:
   ruff: PASS
   mypy: PASS
   web_typecheck: PASS
+  boss_console_protected_baseline: PASS
+  boss_console_playwright: 14_PASS
   migration_sqlite_roundtrip: PASS
 
 staging:
