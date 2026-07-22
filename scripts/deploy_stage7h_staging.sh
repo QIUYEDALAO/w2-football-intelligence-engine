@@ -172,12 +172,22 @@ export W2_BUILD_TIME='${BUILD_TIME}'
 export W2_RELEASE_ID='${REVISION}'
 export PIP_INDEX_URL='${BUILD_PIP_INDEX_URL}'
 export UV_INDEX_URL='${BUILD_UV_INDEX_URL}'
+# The staging host's Docker build can stall while pip fetches uv even though
+# its running release already contains a verified uv binary. Bootstrap the new
+# images from that current binary, retaining the public GHCR default for CI.
+UV_BOOTSTRAP_IMAGE="w2-staging-uv-bootstrap:${ROLLBACK_REVISION}"
+if ! sudo docker image inspect "\${UV_BOOTSTRAP_IMAGE}" >/dev/null 2>&1; then
+  printf '%s\n' 'FROM w2-staging-api:latest' 'RUN cp /usr/local/bin/uv /uv' \
+    | sudo docker build --tag "\${UV_BOOTSTRAP_IMAGE}" -
+fi
+sudo docker run --rm --entrypoint /uv "\${UV_BOOTSTRAP_IMAGE}" --version
+export UV_BOOTSTRAP_IMAGE
 # This VPS Docker/BuildKit version can panic inside a multi-target Bake build.
 # Building one target at a time prevents that daemon crash from interrupting
 # the currently running staging containers.
 for service in migration api worker scheduler web; do
   echo "building staging service: \${service}"
-  sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID,PIP_INDEX_URL,UV_INDEX_URL docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build "\${service}"
+  sudo --preserve-env=W2_GIT_SHA,W2_BUILD_TIME,W2_RELEASE_ID,PIP_INDEX_URL,UV_INDEX_URL,UV_BOOTSTRAP_IMAGE docker compose --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -f infra/compose/compose.staging.yml build "\${service}"
 done
 API_IMAGE_ID=\"\$(sudo docker image inspect --format='{{.Id}}' w2-staging-api:latest)\"
 if ! printf '%s\n' \"\${API_IMAGE_ID}\" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
