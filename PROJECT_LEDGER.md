@@ -426,3 +426,28 @@ Detailed evidence:
 
 Detailed evidence:
 [W2 validation outcome settlement](docs/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md).
+
+## 2026-07-22 — Dynamic EV and confirmed-lineup lifecycle locally verified
+
+- Work started from exact Draft PR #370 head
+  `c62fa82d883633f3b33ff44810a5fbc294b215c5`; exact code implementation is
+  `401b82d46c5afb5b907c396c67dcf1fef97c0f53`.
+- Every new exact quote/model input produces an immutable evaluation version;
+  supersession is stored separately, and the current projection supports
+  `NO_EDGE → ACTIVE`, `ACTIVE → NO_EDGE`, stale and source-absent states.
+- `LINEUP_CONFIRMED` invalidates the old model input and blocks EV reuse until a
+  complete exact quote captured after lineup confirmation is present.
+- Confirmed-XI materialization now fails closed for incomplete or conflicting
+  identities, uses reviewed canonical mappings and as-of valuations, and emits
+  role-specific replacement, continuity and disruption features.
+- `T-30m_VALIDATION_LOCK` selects one validation snapshot by time proximity
+  within ±5 minutes. EV and best price cannot influence selection; post-kickoff
+  and incomplete inputs are rejected.
+- Full local gates passed: `1438 passed / 4 skipped`, Ruff, Mypy, Web typecheck
+  and SQLite migration upgrade/downgrade/re-upgrade.
+- Machine evidence is under
+  `docs/operations/dynamic_prematch/`. It explicitly records no provider call,
+  no staging deployment and `WAITING_FOR_REAL_LINEUP_WINDOW`; no synthetic XI
+  is claimed as a live pass.
+- Lineup AH/OU/lambda adjustments remain `0.0` and advisory-only. PR #370 stays
+  Draft; Formal, Lock, OFFICIAL and Production remain disabled.

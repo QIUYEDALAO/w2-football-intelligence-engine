@@ -2,43 +2,34 @@
 
 ## Current gate
 
-R3 is `staging_accepted`. LMM0–LMM8, the Dashboard ledger-authority repair and
-validation outcome auto-settlement are `staging_accepted` on exact local
-implementation `8aa4a888df463f8cc075c42ed468174f83e15444`. GitHub was not
-accessed or synchronized.
+The dynamic EV and confirmed-lineup lifecycle is locally verified on exact code
+implementation `401b82d46c5afb5b907c396c67dcf1fef97c0f53`, based on PR #370
+head `c62fa82d883633f3b33ff44810a5fbc294b215c5`.
 
-The settlement runtime change resets the consecutive natural-day read-only
-count to `0/3`. The next eligible patrols are 2026-07-20, 2026-07-21 and
-2026-07-22 at 09:00 Asia/Shanghai on the same implementation SHA, images and
-data contract.
+Local gates passed: 1438 Python tests (4 environment-dependent skips), Ruff,
+Mypy, Web typecheck and the SQLite migration roundtrip. The implementation adds
+append-only evaluation versions, supersession projection, `LINEUP_CONFIRMED`,
+`T-30m_VALIDATION_LOCK`, as-of lineup identity/value features and the
+post-lineup fresh-odds gate.
 
-Validation is now 23 handled of 23: 14 hit, 4 miss, 2 push and 3 void. One old
-SHADOW capture has no entry quote and is explicitly quarantined as
-`SETTLEMENT_ERROR`; it is not a validation pending fixture, is not fabricated
-as VOID and will not trigger repeated provider calls unless its identity
-changes.
-
-Current Swedish fixtures have only early odds captured around 2026-07-17 22:48
-Beijing. The hard missing input is an AH/OU quote captured within the executable
-30-minute freshness window. The next scheduled collection is 2026-07-19 16:30.
-After that collection, a pick forms only if a quote is complete and fresh and
-the market decision score passes; otherwise the Dashboard must state the next
-failed gate. These non-top-five fixtures do not have a hard lineup gate.
+This is not staging or live-lineup acceptance. There was no provider call and
+no real confirmed-lineup window, so operational status is
+`WAITING_FOR_REAL_LINEUP_WINDOW`. Numeric lineup adjustment remains zero and
+advisory-only.
 
 ## Next execution
 
-1. At 16:30, allow the existing controlled scheduler to perform its normal
-   collection; do not issue an extra provider request from acceptance work.
-2. Confirm that the Dashboard shows the latest captured time and either a
-   qualified AH/OU pick or a precise remaining blocker.
-3. Run the real staging read-only patrol at 09:00 on 2026-07-20, 2026-07-21 and
-   2026-07-22. Count at most one PASS per natural day.
-4. UNKNOWN and hard failures do not count. A data-contract, decision or runtime
-   correction resets the sequence; pure wording changes do not.
-5. After `3/3`, record the conditionally authorized read-only production state
-   without rebuilding or changing the candidate.
+1. Update the existing Draft PR #370 with this implementation and require its
+   normal CI checks to pass. Do not mark the PR ready for review.
+2. Only after CI is green, deploy the exact accepted implementation SHA to
+   staging while keeping the scheduler and provider refresh switches disabled.
+3. Rebuild upcoming-fixture state read-only. If a real lineup window exists,
+   run one controlled lineup + odds event canary for that fixture; otherwise
+   retain `WAITING_FOR_REAL_LINEUP_WINDOW`.
+4. Restore provider calls, scheduler and future-fixture refresh to disabled,
+   then run 20 public reads and prove zero provider-call and DB-write deltas.
+5. Update the machine evidence with actual staging SHA and canary results.
 
-Champion switching, formal RECOMMEND, lock, OFFICIAL and write-enabled
-production remain unauthorized. No GitHub fetch, pull, push or PR is authorized.
-R4 is authorized for approval-package preparation only; no R4 switch is
-implicitly approved.
+Formal recommendation, recommendation lock, OFFICIAL capture, champion switch
+and Production remain unauthorized. Manual approval is required for any of
+those transitions.
