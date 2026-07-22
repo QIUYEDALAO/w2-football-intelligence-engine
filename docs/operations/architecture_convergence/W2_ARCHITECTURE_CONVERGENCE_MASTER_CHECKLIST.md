@@ -89,34 +89,32 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 - [x] 不增加新联赛、新市场、新表、新 Dashboard 功能。
 - [x] 核验 migration current=head。
 - [x] 核验 recommendation、lock、OFFICIAL、formal settlement 仍为 0。
-- [ ] exact-head CI 全绿。
+- [x] exact-head CI 全绿。
 - [ ] staging canary 结果进入当前已有上下文。
 - [ ] PR #370 完成审核并合并。
 - [ ] 删除/关闭 PR #370 对应长期工作分支前，确认所有证据已进入 main。
 
 ```text
 Status: BLOCKED
-Branch: codex/w2-arch01-pr370-scope-closure
-PR: #372 (Draft)
-Base SHA: 09ca14a969b835314c93c122b80c3cfa1bbf9c6c
-Started at: 2026-07-22T21:58:35+0800
+Branch: codex/w2-arch01-exact-head-ci-status
+PR: PENDING_CREATION
+Base SHA: fc8a6360a132ffe5922c78be5fa1541ec02ab185
+Started at: 2026-07-22T22:59:13+0800
 Owner: Codex
-Blocker: WAITING_FOR_REAL_LINEUP_WINDOW; EXACT_HEAD_CI_FAILED
-Evidence: staging observed at 2026-07-22T13:53:31Z; nearest fixtures kick off at
+Blocker: WAITING_FOR_REAL_LINEUP_WINDOW
+Evidence: staging re-observed at 2026-07-22T14:59:13Z; nearest fixtures kick off at
   2026-07-22T17:00:00Z; structured_lineup_snapshots=0;
-  lineup_confirmed_events=0; lineups=0. No provider canary was opened. Exact-head
-  CI run 29926300189 failed because NEXT_ACTION.md does not contain the delivery
-  status sentence required by tests/contract/test_delivery_status_documentation.py.
-Next required decision: External reviewer must authorize or supply the scoped
-  PR #370 status-document contract repair; execute the already-approved bounded
-  canary only when a real official-lineup window exists.
+  lineup_confirmed_events=0; lineups=0. No provider canary was opened. PR #370
+  exact-head CI run 29929890310 passed verify, staging-parity and predeploy-e2e.
+Next required decision: None. Execute the already-approved bounded canary only
+  when a real official-lineup window exists.
 ```
 
 ARCH-01 当前核验：
 
 ```text
-PR_370_EXACT_HEAD=9266343075d24a9d48de64d45db07bf69917c61b
-PR_370_HEAD_CHANGE=EMPTY_CI_TRIGGER_ONLY
+PR_370_EXACT_HEAD=210367a99fa8b448e2ab00bdd878ec485fe1e42a
+PR_370_HEAD_CHANGE=STATUS_DOCUMENT_CONTRACT_ONLY
 PR_370_PRODUCTION_CODE_DELTA=0
 PR_370_ARCHITECTURE_SCOPE_DELTA=0
 STAGING_SHA=81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
@@ -134,9 +132,8 @@ RECOMMENDATION_LOCK_OFFICIAL_FORMAL_SETTLEMENT_DELTA=0
 CANARY_RESULT=WAITING_FOR_REAL_LINEUP_WINDOW
 CANARY_PROVIDER_CALLS=0
 CANARY_WRITE_DELTA=0
-EXACT_HEAD_CI_RUN=29926300189
-EXACT_HEAD_CI_STATUS=FAIL
-EXACT_HEAD_CI_FAILURE=DELIVERY_STATUS_DOCUMENTATION_CONTRACT_MISMATCH
+EXACT_HEAD_CI_RUN=29929890310
+EXACT_HEAD_CI_STATUS=PASS
 FORMAL_DISABLED
 LOCK_DISABLED
 PRODUCTION_DISABLED
