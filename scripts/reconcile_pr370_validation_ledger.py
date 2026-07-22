@@ -127,7 +127,7 @@ def main() -> int:
         and isinstance(row.get("capture_identity_hash"), str)
     ]
     target_ids = {str(row["fixture_id"]) for row in targets}
-    if target_ids not in {set(OLD_FIXTURE_IDS), {SOLE_PICK_FIXTURE_ID}}:
+    if target_ids != set(OLD_FIXTURE_IDS) and target_ids != {SOLE_PICK_FIXTURE_ID}:
         raise ValueError("UNEXPECTED_ACTIVE_PENDING_VALIDATION_SET")
 
     supersession = append_capture_supersessions(
