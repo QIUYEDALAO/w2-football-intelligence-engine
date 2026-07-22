@@ -220,7 +220,7 @@ NEW_FALLBACKS = 0
 ```text
 Status: IN_PROGRESS
 Branch: codex/arch-p0-02-odds-read-authority
-PR: PENDING
+PR: #376 (Draft)
 Base SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
 Started at: 2026-07-23T07:34:21+0800
 Owner: Codex
