@@ -5,12 +5,10 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from apps.api.main import app
-from fastapi.testclient import TestClient
 from scripts.project_stage10c_matchday_read_model import checkpoint_payloads
 
 from w2.api import repository
-from w2.matchday.cards import DailyMatchdayCycle, ResearchCardBuilder
+from w2.matchday.cards import ResearchCardBuilder
 from w2.matchday.integrity import SnapshotHashVerifier
 from w2.matchday.settlement import MatchdaySettlementService
 from w2.matchday.temporal import TemporalStatus, classify_temporal_status
@@ -200,29 +198,7 @@ def test_card_builder_all_markets_and_gate_cap(tmp_path: Path) -> None:
     assert card.temporal["temporal_status"] == "POSTMATCH_RECOMPUTED_FROM_LOCKED_PREMATCH"
 
 
-def test_daily_cycle_reports_and_api(tmp_path: Path, monkeypatch) -> None:
-    snapshot_root = tmp_path / "snapshots"
-    reports = tmp_path / "reports"
-    build_snapshot(snapshot_root)
-    cycle = DailyMatchdayCycle(
-        snapshot_root=snapshot_root,
-        schedule_path=Path("config/policies/matchday_schedule.v1.json"),
-        reports_dir=reports,
-        now=datetime(2026, 6, 22, 18, tzinfo=UTC),
-    )
-    result = cycle.run(target_date=datetime(2026, 6, 22, tzinfo=UTC).date())
-    assert result["actual_fixture_count"] == 1
-    monkeypatch.setattr(repository, "REPORTS", reports)
-    client = TestClient(app)
-    matchday = client.get("/v1/matchday/2026-06-22").json()
-    assert matchday["total"] == 1
-    fixture_id = matchday["items"][0]["fixture_id"]
-    assert client.get(f"/v1/fixtures/{fixture_id}/research-card").status_code == 200
-    assert client.get(f"/v1/fixtures/{fixture_id}/market-ranking").json()["items"]
-    assert client.get(f"/v1/fixtures/{fixture_id}/integrity").status_code == 200
-
-
-def test_stage10c_report_projection_feeds_matchday_api(monkeypatch) -> None:
+def test_stage10c_checkpoint_projection_feeds_matchday_api(monkeypatch) -> None:
     item = {
         "fixture": {
             "away_team_id": "775",

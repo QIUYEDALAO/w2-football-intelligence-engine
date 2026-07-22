@@ -13,7 +13,6 @@ from typing import Any
 ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
 TOP_FIVE_CONFIG_DIR = ROOT / "config/competitions/top_five"
 STAGE5B_RAW = ROOT / "runtime/stage5b/raw"
-STAGE5B_CLUB_REPORT = ROOT / "reports/W2_STAGE5B_CLUB_DATA_QUALITY.json"
 
 
 class SeasonLifecycle(StrEnum):
