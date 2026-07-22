@@ -1,0 +1,68 @@
+{
+  "delta": {
+    "forward_prediction_lock": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "gate5_recommendation_lock_event": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "matchday_endpoint_captures": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "matchday_evidence_manifests": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "provider_request_logs": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "raw_payload_references": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "recommendation_locks": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "recommendations": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "settlements": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "shadow_strategy_event": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "shadow_strategy_lock": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"},
+    "shadow_strategy_settlement": {"count_delta": 0, "hash_unchanged": true, "status": "PRESENT"}
+  },
+  "fixtures": [
+    {
+      "data_status": "STALE",
+      "decision": "WATCH",
+      "decision_tier": "WATCH",
+      "fixture_id": "1494218",
+      "pick": null,
+      "primary_market": null,
+      "reason_code": "DATA_STALE_ODDS",
+      "v3": {
+        "decision_envelope_hash": "8d54bdd3586f294a83c2545a6b74c99e9f3c1964b192afea54a83374741db664",
+        "decision_hash": "b8d06f9cdf4f3fdddaf7d8c661408049b76ca574556e048fa10a2efd439710c8",
+        "evaluated_candidate": null,
+        "hash_parity": {
+          "card_hash": "6ecc8c962654ff68abeefb409469e34bb4d2e69da1e03833e70032ac68ee15f9",
+          "decision_contract_card_hash": "6ecc8c962654ff68abeefb409469e34bb4d2e69da1e03833e70032ac68ee15f9",
+          "v3_audit_v2_card_hash": "6ecc8c962654ff68abeefb409469e34bb4d2e69da1e03833e70032ac68ee15f9"
+        },
+        "identity_status": "PASS",
+        "outcome": "NOT_READY",
+        "reason": {"code": "DATA_STALE_ODDS", "message": "数据或可执行盘口尚未就绪"},
+        "selected_candidate": null,
+        "status": "PRESENT"
+      }
+    },
+    {
+      "data_status": "STALE",
+      "decision": "WATCH",
+      "decision_tier": "WATCH",
+      "fixture_id": "1494224",
+      "pick": null,
+      "primary_market": null,
+      "reason_code": "DATA_STALE_ODDS",
+      "v3": {
+        "decision_envelope_hash": "4e87e6d3b66d75b95bcdf0b8c84edd6172d6656603e050d3e204bbb6a455e405",
+        "decision_hash": "904992378fe0b61611f3aa7c9cf22e0a3bf23970a688bdf89ef260ef4a1f3b4a",
+        "evaluated_candidate": null,
+        "hash_parity": {
+          "card_hash": "c8e7b10ec66b4f80e50aa2cd88561ee5ded94b55fee97118d84d2f0027b5390f",
+          "decision_contract_card_hash": "c8e7b10ec66b4f80e50aa2cd88561ee5ded94b55fee97118d84d2f0027b5390f",
+          "v3_audit_v2_card_hash": "c8e7b10ec66b4f80e50aa2cd88561ee5ded94b55fee97118d84d2f0027b5390f"
+        },
+        "identity_status": "PASS",
+        "outcome": "NOT_READY",
+        "reason": {"code": "DATA_STALE_ODDS", "message": "数据或可执行盘口尚未就绪"},
+        "selected_candidate": null,
+        "status": "PRESENT"
+      }
+    }
+  ],
+  "read_count": 20,
+  "zero_write_pass": true
+}

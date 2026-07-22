@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--approve-settlement-write", action="store_true", default=False)
     parser.add_argument("--json", action="store_true", default=False, dest="json_output")
     parser.add_argument("--as-of")
+    parser.add_argument("--competition-id")
     parser.add_argument("--fixture-id", action="append", default=[])
     parser.add_argument("--kickoff-utc", action="append", default=[])
     parser.add_argument("--home-team", action="append", default=[])
@@ -49,6 +50,7 @@ def main() -> int:
         lines=args.line,
         odds=args.odds,
         fixture_count=fixture_count,
+        competition_id=args.competition_id,
     )
     as_of = _parse_utc(args.as_of) if args.as_of else datetime.now(UTC)
     football_day = _football_day(args.date, as_of)
@@ -106,15 +108,19 @@ def _fixture_rows(
     lines: list[str],
     odds: list[str],
     fixture_count: int,
+    competition_id: str | None,
 ) -> list[dict[str, Any]]:
     _validate_optional_count("--home-team", home_teams, fixture_count)
     _validate_optional_count("--away-team", away_teams, fixture_count)
     _validate_optional_count("--market", markets, fixture_count)
     _validate_optional_count("--line", lines, fixture_count)
     _validate_optional_count("--odds", odds, fixture_count)
+    if fixture_count and not competition_id:
+        raise SystemExit("--competition-id is required when fixtures are provided")
     return [
         {
             "fixture_id": fixture_id,
+            "competition_id": competition_id,
             "kickoff_utc": kickoff,
             "home_team": _optional_at(home_teams, index),
             "away_team": _optional_at(away_teams, index),

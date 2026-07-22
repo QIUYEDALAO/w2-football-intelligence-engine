@@ -1,0 +1,10 @@
+{
+  "schema_version": "w2.player_valuation_staging_materialization.v1",
+  "status": "PLAYER_IDENTITY_REVIEW_PENDING",
+  "deployment": {"code_sha": "f854bceb888eb74bb219ea084431eb09fe0ad138", "migration_revision": "0036_require_reviewed_player_identity"},
+  "preconditions": {"approved_allsvenskan_team_crosswalks": 16, "provider_to_w2_canonical_teams": 16, "allsvenskan_fixtures": 0, "structured_lineup_snapshots": 0, "structured_lineup_players": 0, "provider_players": 0, "player_identity_mappings": 0},
+  "valuation_observations": {"before": 0, "inserted": 0, "already_present": 0, "rejected": 0, "conflicted": 0, "after": 0, "distinct_allsvenskan_players": 0, "minimum_observed_at": null, "maximum_observed_at": null, "future_leakage_count": 0},
+  "blocker": "No provider fixture, player, or confirmed-lineup fact exists in staging from which API-Football player IDs can be mapped to Transfermarkt identities. CANDIDATE or REVIEWED player mappings must not be fabricated from the source asset alone.",
+  "real_lineup_canary": "WAITING_FOR_REAL_LINEUP_WINDOW",
+  "safety": ["LINEUP_ADVISORY_ONLY", "LINEUP_NUMERIC_ADJUSTMENT_DISABLED", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED", "PR_370_KEEP_DRAFT"]
+}

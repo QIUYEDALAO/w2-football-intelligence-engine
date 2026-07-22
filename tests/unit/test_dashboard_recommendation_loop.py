@@ -185,8 +185,8 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["validation"]["score_exact_hit"] is True
     assert card["validation"]["counted_in_official"] is False
     assert card["validation"]["counted_in_analysis_shadow"] is True
-    assert len(card["scoreline_picks"]) == 3
-    assert card["scoreline_picks"][0]["probability_label"] == "22%"
+    assert card["scoreline_picks"] == []
+    assert card["scoreline_reference"] is None
 
     performance = payload["performance"]
     assert performance["sample_size"] == 0
@@ -225,6 +225,8 @@ def test_non_formal_ah_market_lean_does_not_hand_build_direction_text() -> None:
 
     assert decorated["lean_cn"] is None
     assert decorated["lean"] is None
+    assert decorated["signal_strength"] == 0.7
+    assert "confidence" not in decorated
     text = json.dumps(decorated, ensure_ascii=False)
     assert "客队方向 0.25" not in text
     assert not re.search(r"(让|受让)\s*[+-]?\d+(?:\.\d+)?", text)
@@ -648,6 +650,23 @@ def test_dashboard_card_exposes_data_refresh_status_without_promoting_flags() ->
     assert card["data_refresh"]["status_label"] == "provider 未返回"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
+
+
+def test_dashboard_data_refresh_does_not_mark_historical_odds_ready_when_stale() -> None:
+    service = ReadModelService(repository=cast(Any, object()))
+
+    refresh = service._dashboard_data_refresh(
+        card={
+            "data_status": "STALE",
+            "non_pick": {"reason_code": "DATA_STALE_ODDS"},
+            "data_readiness": {"lineups_status": "NOT_REQUESTED"},
+        },
+        readiness={"available_inputs": {"market_observations": 3}},
+        row={},
+    )
+
+    assert refresh["odds_status"] == "STALE"
+    assert refresh["lineups_status_label"] == "未到首发请求时点"
 
 
 def test_dashboard_exposes_market_movement_without_promoting_flags(
@@ -1430,7 +1449,7 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
 
 
-def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
+def test_dashboard_hides_formal_simulation_scorelines_without_public_pick() -> None:
     service = ReadModelService(
         repository=cast(
             Any,
@@ -1468,13 +1487,10 @@ def test_dashboard_scoreline_picks_prefer_formal_simulation_source() -> None:
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
     assert card["scoreline_readiness"]["source"] == "formal_simulation"
-    assert card["scoreline_picks"] == card["pricing_shadow"]["simulation"]["scoreline_picks"][:3]
-    assert card["scoreline_picks"][0]["scoreline"] != "4-4"
-    assert card["scoreline_reference"]["source"] == "formal_simulation"
-    assert card["scoreline_reference"]["top_scorelines"] == card["scoreline_picks"]
-    assert card["scoreline_reference"]["high_total"]["threshold"] == 4
-    assert card["scoreline_reference"]["very_high_total"]["threshold"] == 5
-    assert card["scoreline_reference"]["ah_key_scorelines"] == []
+    assert card["decision_tier"] not in {"ANALYSIS_PICK", "RECOMMEND"}
+    assert card["pick"] is None
+    assert card["scoreline_picks"] == []
+    assert card["scoreline_reference"] is None
 
 
 def test_validation_summary_reports_sample_insufficiency_without_fake_hit_rate() -> None:

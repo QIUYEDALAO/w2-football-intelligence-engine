@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", default=False)
     parser.add_argument("--json", action="store_true", default=False, dest="json_output")
     parser.add_argument("--fixture-id", action="append", default=[])
+    parser.add_argument("--competition-id")
     parser.add_argument("--kickoff-utc", action="append", default=[])
     parser.add_argument("--as-of")
     args = parser.parse_args()
@@ -41,13 +42,20 @@ def main() -> int:
         )
     if len(args.fixture_id) != len(args.kickoff_utc):
         raise SystemExit("--fixture-id and --kickoff-utc counts must match")
+    if args.fixture_id and not args.competition_id:
+        raise SystemExit("--competition-id is required when fixtures are provided")
 
     as_of = _parse_utc(args.as_of) if args.as_of else datetime.now(UTC)
     fixtures = [
-        {"fixture_id": fixture_id, "kickoff_utc": kickoff}
+        {
+            "fixture_id": fixture_id,
+            "competition_id": args.competition_id,
+            "kickoff_utc": kickoff,
+        }
         for fixture_id, kickoff in zip(args.fixture_id, args.kickoff_utc, strict=True)
     ]
     policy = MatchdayRefreshPolicy(
+        competition_id=args.competition_id,
         allowed_endpoints=tuple(provider_endpoint_allowlist()),
         tick_hard_cap=provider_refresh_tick_hard_cap(),
         min_interval_seconds=_env_int("W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS", 900),

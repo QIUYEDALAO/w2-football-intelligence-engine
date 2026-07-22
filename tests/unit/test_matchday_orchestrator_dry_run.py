@@ -14,6 +14,10 @@ def _payload(
     environment: str = "staging",
     fixtures: list[dict[str, object]],
 ) -> dict[str, object]:
+    fixtures = [
+        {"competition_id": "allsvenskan", **fixture}
+        for fixture in fixtures
+    ]
     return build_matchday_dry_run(
         football_day=date(2026, 7, 5),
         environment=environment,
@@ -64,18 +68,25 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
     refresh = payload["refresh_plan_summary"]  # type: ignore[assignment]
     labels = {tick["label"] for tick in refresh["ticks"]}  # type: ignore[index]
 
-    assert fixture["data_status"] == DataStatus.PARTIAL.value
-    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert "分析参考" in fixture["decision_contract"]["pick"]["disclaimer"]  # type: ignore[index]
-    assert "非稳赢" in fixture["decision_contract"]["pick"]["disclaimer"]  # type: ignore[index]
-    assert {"T_24H", "T_3H", "T_90M", "T_30M", "T_15M"}.issubset(labels)
+    assert fixture["data_status"] == DataStatus.READY.value
+    assert fixture["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
+    assert fixture["decision_contract"]["outcome_tracked"] is False  # type: ignore[index]
+    assert {
+        "T24_ODDS",
+        "T6_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_LINEUPS_RETRY",
+        "T30_LINEUPS_RETRY",
+        "T-30m_VALIDATION_LOCK",
+    }.issubset(labels)
     assert refresh["endpoint_allowlist"] == ["status", "fixtures", "odds", "lineups"]  # type: ignore[index]
     assert refresh["skipped_endpoints"] == ["statistics"]  # type: ignore[index]
     assert payload["next_refresh_tick"] is not None
     assert payload["environment_policy"]["disclaimer"]  # type: ignore[index]
 
 
-def test_production_analysis_pick_is_not_lock_eligible() -> None:
+def test_production_missing_quote_provenance_is_not_ready() -> None:
     payload = _payload(
         environment="production",
         fixtures=[
@@ -94,12 +105,14 @@ def test_production_analysis_pick_is_not_lock_eligible() -> None:
     )
     fixture = payload["fixtures"][0]  # type: ignore[index]
 
-    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fixture["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
+    assert fixture["decision_contract"]["outcome_tracked"] is False  # type: ignore[index]
     assert fixture["lock_eligible"] is False
     assert payload["environment_policy"]["lock_policy"]["name"] == "production_B"  # type: ignore[index]
 
 
-def test_staging_analysis_pick_does_not_create_lock_candidate() -> None:
+def test_staging_missing_quote_provenance_does_not_create_lock_candidate() -> None:
     payload = _payload(
         fixtures=[
             {
@@ -119,7 +132,9 @@ def test_staging_analysis_pick_does_not_create_lock_candidate() -> None:
 
     fixture = payload["fixtures"][0]  # type: ignore[index]
 
-    assert fixture["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fixture["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fixture["decision_contract"]["pick"] is None  # type: ignore[index]
+    assert fixture["decision_contract"]["outcome_tracked"] is False  # type: ignore[index]
     assert fixture["lock_eligible"] is False
     assert payload["lock_candidates"] == []
     assert payload["would_write_lock"] is False

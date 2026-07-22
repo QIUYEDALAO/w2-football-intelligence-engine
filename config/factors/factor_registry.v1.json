@@ -1,0 +1,16 @@
+{
+  "schema_version": "w2.factor_registry.v1",
+  "factors": [
+    {"factor_id":"F1_MARKET_MOVEMENT","version":1,"lifecycle":"EXPLANATION_ONLY","roles":["EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"market","independent_evidence_eligible":false,"numeric_effect_enabled":false,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F2_BOOKMAKER_INTENT","version":1,"lifecycle":"EXPLANATION_ONLY","roles":["EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"market","independent_evidence_eligible":false,"numeric_effect_enabled":false,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F3_REST_FITNESS","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"team_fixture_history","independent_evidence_eligible":true,"numeric_effect_enabled":true,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F4_MATCH_IMPORTANCE","version":1,"lifecycle":"EXPLANATION_ONLY","roles":["EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"match_importance","independent_evidence_eligible":false,"numeric_effect_enabled":false,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F5_RECENT_AH_COVER","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP"],"source_group":"team_fixture_history","independent_evidence_eligible":true,"numeric_effect_enabled":true,"proxy_of":"F3_REST_FITNESS","validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F6_H2H","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"h2h","independent_evidence_eligible":true,"numeric_effect_enabled":true,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F7_STRENGTH_FORM","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"ratings","independent_evidence_eligible":true,"numeric_effect_enabled":true,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F8_SQUAD_VALUE","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"squad_value","independent_evidence_eligible":true,"numeric_effect_enabled":true,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F9_TRUE_XG","version":1,"lifecycle":"ACTIVE","roles":["SCORING","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"xg","independent_evidence_eligible":true,"numeric_effect_enabled":true,"validation_state":"POLICY_THRESHOLD_UNVALIDATED"},
+    {"factor_id":"F10_LINEUPS_INJURIES","version":1,"lifecycle":"RETIRED","roles":[],"markets":[],"source_group":"lineup","independent_evidence_eligible":false,"numeric_effect_enabled":false,"validation_state":"RETIRED"},
+    {"factor_id":"F10_LMM_V1","version":1,"lifecycle":"ACTIVE","roles":["GATE","EXPLANATION"],"markets":["ASIAN_HANDICAP","TOTALS"],"source_group":"lineup","source_authority":"official_lineups_plus_frozen_mapping","independent_evidence_eligible":false,"numeric_effect_enabled":false,"readiness_authority":"lineup_provenance","validation_state":"OFFLINE_EVALUATION_PENDING"}
+  ]
+}

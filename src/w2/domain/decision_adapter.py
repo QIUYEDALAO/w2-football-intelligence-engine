@@ -31,6 +31,17 @@ MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
 MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
 
 
+def _selected_market_candidate(
+    card: Mapping[str, Any], market: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """Return the market-scoped evidence even when no pick was selected."""
+    name = str(_get(market, "market") or _get(card, "primary_market") or "")
+    candidates = _as_mapping(_get(card, "market_candidates"))
+    key = {"ASIAN_HANDICAP": "ah", "TOTALS": "ou"}.get(name, name)
+    candidate = _as_mapping(candidates.get(key))
+    return dict(candidate) if candidate else None
+
+
 def build_decision_contract_fields(
     *,
     card: Mapping[str, Any],
@@ -67,6 +78,12 @@ def build_decision_contract_fields(
         probability_source=probability_source,
         model_market_divergence=model_market_divergence,
     )
+    quote_provenance_status = _quote_provenance_status(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+    )
+    available_quote_provenance = _available_quote_provenance(card)
     lifecycle_status = _lifecycle_status(card)
     recommendation_id = _first_text(
         _get(recommendation, "recommendation_id"),
@@ -86,11 +103,24 @@ def build_decision_contract_fields(
         recommendation_id=recommendation_id,
         forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
     ):
-        tier = DecisionTier.ANALYSIS_PICK if market_complete else DecisionTier.WATCH
+        tier = DecisionTier.WATCH
+    tier = _enforce_non_ready_no_pick(
+        tier=tier,
+        data_status=data_status,
+        quote_provenance_status=quote_provenance_status,
+    )
+    if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
+        recommendation_id = None
     legacy = legacy_decision_view(card, market)
     legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
+    evaluated_candidate = _selected_market_candidate(card, market)
     pick_payload = (
-        _pick_payload(card=card, market=market, recommendation=recommendation)
+        _pick_payload(
+            card=card,
+            market=market,
+            recommendation=recommendation,
+            evaluated_candidate=evaluated_candidate,
+        )
         if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
         else None
     )
@@ -138,7 +168,7 @@ def build_decision_contract_fields(
         DecisionPolicyConfig(
             now_utc=as_of,
             data_integrity_passed=data_status is DataStatus.READY,
-            market_complete=market_complete,
+            market_complete=market_complete and quote_provenance_status == "COMPLETE",
             forward_ev_evidence_satisfied=forward_ev_evidence_satisfied,
         ),
     )
@@ -152,6 +182,31 @@ def build_decision_contract_fields(
         "environment": environment,
         "lock_eligible": lock_eligible,
         "legacy_formal": legacy_formal,
+        "integrity_status": "PASS",
+        "quote_provenance_status": quote_provenance_status,
+        "formal_ah_readiness": {
+            "schema_version": "w2.formal_ah_readiness.v1",
+            "global_gates": {},
+            "fixture_gates": [],
+            "approval_status": {"passed": False, "reason": "FORMAL_HUMAN_APPROVAL_MISSING"},
+            "approved_hashes": {},
+            "blockers": ["FORMAL_HUMAN_APPROVAL_MISSING"],
+            "admission_ready": False,
+            "formal_eligible": False,
+            "lock_eligible": False,
+        },
+        # A no-pick has no selected quote by definition.  Preserve that status
+        # while separately exposing whether auditable same-line quote evidence
+        # exists for the available AH/OU markets.
+        "available_quote_provenance": available_quote_provenance,
+        "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "selected_market_candidate": evaluated_candidate,
+        "analysis_evidence": _as_mapping(evaluated_candidate.get("analysis_evidence"))
+        if evaluated_candidate
+        else {},
+        "analysis_evidence_hash": evaluated_candidate.get("evidence_hash")
+        if evaluated_candidate
+        else None,
     }
     summary["card_hash"] = _validated_card_hash(
         core=core,
@@ -202,7 +257,7 @@ def _decision_tier(
         _get(recommendation, "tier"),
     )
     if decision == "NO_EDGE":
-        return DecisionTier.WATCH
+        return DecisionTier.SKIP
     if decision in {"ANALYSIS_PICK", "PICK", "FORMAL"}:
         if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
             return DecisionTier.WATCH
@@ -241,6 +296,69 @@ def _recommend_prerequisites_satisfied(
     )
 
 
+def _enforce_non_ready_no_pick(
+    *,
+    tier: DecisionTier,
+    data_status: DataStatus,
+    quote_provenance_status: str,
+) -> DecisionTier:
+    if data_status is DataStatus.BLOCKED or quote_provenance_status == "INCOMPLETE":
+        return DecisionTier.NOT_READY
+    if data_status in {DataStatus.STALE, DataStatus.PARTIAL} or quote_provenance_status == "STALE":
+        return DecisionTier.WATCH
+    if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
+        if quote_provenance_status != "COMPLETE":
+            return DecisionTier.NOT_READY
+    return tier
+
+
+def _quote_provenance_status(
+    *,
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+) -> str:
+    audit = _as_mapping(_get(card, "quote_identity_audit"))
+    market_name = _first_upper(_get(recommendation, "market"), _get(market, "market"))
+    audit_key = {
+        "AH": "ah",
+        "ASIAN_HANDICAP": "ah",
+        "OU": "ou",
+        "TOTALS": "ou",
+    }.get(market_name or "")
+    if audit_key is None:
+        return "MISSING"
+    identity = _as_mapping(_get(audit, audit_key))
+    if not identity:
+        return "MISSING"
+    if _first_upper(_get(identity, "identity_status")) != "COMPLETE":
+        return "INCOMPLETE"
+    freshness = _first_upper(_get(identity, "freshness_status"))
+    if freshness == "STALE":
+        return "STALE"
+    if freshness != "COMPLETE":
+        return "INCOMPLETE"
+    return "COMPLETE"
+
+
+def _available_quote_provenance(card: Mapping[str, Any]) -> dict[str, str]:
+    audit = _as_mapping(_get(card, "quote_identity_audit"))
+    statuses: dict[str, str] = {}
+    for market, key in (("AH", "ah"), ("OU", "ou")):
+        identity = _as_mapping(_get(audit, key))
+        if not identity:
+            statuses[market] = "MISSING"
+            continue
+        if _first_upper(_get(identity, "identity_status")) != "COMPLETE":
+            statuses[market] = "INCOMPLETE"
+            continue
+        freshness = _first_upper(_get(identity, "freshness_status"))
+        statuses[market] = "COMPLETE" if freshness == "COMPLETE" else (
+            "STALE" if freshness == "STALE" else "INCOMPLETE"
+        )
+    return statuses
+
+
 def _market_anchor_display_tier(
     *,
     tier: DecisionTier,
@@ -251,6 +369,8 @@ def _market_anchor_display_tier(
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         return tier
     if not _market_anchor_display_enabled():
+        return tier
+    if str(model_market_divergence.get("compatibility_only") or "").lower() != "true":
         return tier
     if data_status is DataStatus.BLOCKED:
         return DecisionTier.NOT_READY
@@ -347,10 +467,51 @@ def _pick_payload(
     card: Mapping[str, Any],
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
+    evaluated_candidate: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     pricing = _as_mapping(_get(card, "pricing_shadow"))
+    evaluated = _as_mapping(evaluated_candidate)
+    executable_quote = _as_mapping(_as_mapping(evaluated.get("quotes")).get("executable"))
+    analysis_evidence = _as_mapping(evaluated.get("analysis_evidence"))
+    model_probability = _as_mapping(analysis_evidence.get("model_probability"))
+    comparison = _as_mapping(analysis_evidence.get("comparison"))
     pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
+    if evaluated:
+        pick_market = _first_text(evaluated.get("market"), pick_market)
     fair_key, market_key, edge_key = _pricing_keys_for_market(pick_market)
+    canonical_ready = (
+        analysis_evidence.get("status") == "COMPLETE"
+        and comparison.get("analysis_direction_allowed") is True
+        and executable_quote.get("line") is not None
+        and executable_quote.get("decimal_odds") is not None
+    )
+    if canonical_ready:
+        return {
+            "market": pick_market,
+            "selection": _first_text(evaluated.get("selection")),
+            "line": _first_text(executable_quote.get("line"), evaluated.get("line")),
+            "odds": _first_text(executable_quote.get("decimal_odds")),
+            "fair_line": evaluated.get("fair_line"),
+            "market_line": evaluated.get("market_line"),
+            "value_edge": _number(model_probability.get("expected_value")),
+            "key_factors": [str(comparison.get("reason_code") or "MODEL_MARKET_EDGE_READY")],
+            "risks": [
+                "ANALYSIS_ONLY_FORMAL_DISABLED",
+                *[
+                    str(warning)
+                    for warning in _string_list(evaluated.get("warnings"))
+                    if warning == "EV_PLAUSIBILITY_REVIEW"
+                ],
+            ],
+            "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
+            "quote_identity": dict(_as_mapping(evaluated.get("quote_identity"))),
+            "model_probability": dict(model_probability),
+            "market_probability": analysis_evidence.get("market_probability"),
+            "probability_delta": comparison.get("probability_delta"),
+            "expected_value": model_probability.get("expected_value"),
+            "uncertainty": model_probability.get("ev_se"),
+            "disclaimer": ANALYSIS_PICK_DISCLAIMER,
+        }
     return {
         "market": pick_market,
         "selection": _first_text(
@@ -448,7 +609,10 @@ def _reason_code(
     if wants_pick and _market_anchor_display_enabled():
         probability_source = _probability_source(card, market, recommendation)
         model_market_divergence = _model_market_divergence(card, market, recommendation)
-        if _market_anchor_blocks_pick(
+        compatibility_only = (
+            str(model_market_divergence.get("compatibility_only") or "").lower() == "true"
+        )
+        if compatibility_only and _market_anchor_blocks_pick(
             probability_source=probability_source,
             model_market_divergence=model_market_divergence,
         ):
@@ -662,13 +826,34 @@ def _model_market_divergence(
 ) -> Mapping[str, Any]:
     explicit = _as_mapping(_get(card, "model_market_divergence"))
     if explicit:
-        return explicit
+        return {
+            **explicit,
+            "compatibility_only": explicit.get("compatibility_only", True),
+        }
+    candidate = _selected_market_candidate(card, market)
+    evidence = _as_mapping(candidate.get("analysis_evidence")) if candidate else {}
+    if str(evidence.get("evidence_contract_version") or "").endswith(".v2"):
+        comparison = _as_mapping(evidence.get("comparison"))
+        return {
+            "source": "analysis_evidence",
+            "status": str(comparison.get("status") or evidence.get("status") or "UNKNOWN"),
+            "magnitude": _number(comparison.get("probability_delta")),
+            "lock_divergence": None,
+            "model_fair_line": _optional_text(candidate.get("fair_line")) if candidate else None,
+            "market_line": _optional_text(candidate.get("market_line")) if candidate else None,
+            "calibration_status": _optional_text(
+                _get(_as_mapping(evidence.get("model_probability")), "calibration_status")
+            ),
+            "direction_allowed": _truthy(comparison.get("analysis_direction_allowed")),
+            "compatibility_only": False,
+        }
     divergence = _as_mapping(_get(card, "market_divergence"))
     pricing = _as_mapping(_get(card, "pricing_shadow"))
     pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
     fair_key, market_key, _edge_key = _pricing_keys_for_market(pick_market)
     return {
         "source": "market_divergence" if divergence else "adapter_fallback",
+        "compatibility_only": True,
         "status": str(_get(divergence, "status") or "UNKNOWN"),
         "magnitude": _number(_get(divergence, "magnitude")),
         "lock_divergence": _number(_get(divergence, "lock_divergence")),

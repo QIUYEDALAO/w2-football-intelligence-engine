@@ -76,13 +76,13 @@ for attempt in 1 2 3 4 5 6; do
   echo "probe_attempt=${attempt}"
   api_ok=false
   web_ok=false
-  if curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/health >/tmp/w2-health.json; then
+  if curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/tmp/w2-ready.json; then
     api_ok=true
   fi
-  if curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1/meta.json >/tmp/w2-meta.json; then
+  if curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18080/meta.json >/tmp/w2-meta.json; then
     web_ok=true
   fi
-  echo "api_health=${api_ok} web_meta=${web_ok}"
+  echo "api_ready=${api_ok} web_meta=${web_ok}"
   if [[ "${api_ok}" == "true" && "${web_ok}" == "true" ]]; then
     echo "staging_recovery=PASS"
     exit 0

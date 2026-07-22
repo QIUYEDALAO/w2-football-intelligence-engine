@@ -1,96 +1,150 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-18T03:15:02Z"
-authority: CURRENT_MAIN_RECOVERY_BASELINE
+updated_at: "2026-07-22T12:00:00Z"
+authority: GITHUB_DRAFT_PR_WITH_LOCAL_EVIDENCE
+
+delivery_status_vocabulary:
+  - implemented
+  - locally_verified
+  - staging_accepted
+  - production_approved
 
 context_read_order:
   - PROJECT_STATE.yaml
   - PROJECT_LEDGER.md
   - NEXT_ACTION.md
-  - docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md
-  - docs/operations/W2_R0_0_BASELINE_FREEZE_20260718.md
-  - docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md
-  - docs/consolidation/W2_DECISION_CONTRACT_V2.md
-  - docs/consolidation/W2_TASK_ACCEPTANCE_LEDGER.md
+  - docs/operations/dynamic_prematch/W2_DYNAMIC_PREMATCH_ACCEPTANCE_V1.md
+  - docs/operations/dynamic_prematch/W2_DYNAMIC_QUOTE_EV_LIFECYCLE_V1.md
+  - docs/operations/dynamic_prematch/W2_LINEUP_BASELINE_EVIDENCE_V1.md
+  - docs/operations/dynamic_prematch/W2_LINEUP_IDENTITY_COVERAGE_V1.md
+  - docs/operations/dynamic_prematch/W2_LINEUP_VALUE_FEATURES_V1.md
+  - docs/operations/dynamic_prematch/W2_LINEUP_POST_ODDS_REFRESH_V1.md
+  - docs/operations/dynamic_prematch/W2_LOCK_TIME_VALIDATION_POLICY_V1.md
+  - docs/operations/factor_model_remediation/W2_PR370_ACCEPTANCE_REMEDIATION_RESULT_2026-07-21.md
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  recovery_baseline_sha: 7c7f16fd2c44468ba4932ef83473bd35f285cbd4
-  main_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  tree_sha: 5881fb0234e25311a7c9b5db9aeec07a89a3bd12
-  baseline_reason: Restore pre-GPT-5.6 expert review baseline
-  historical_pr_policy: SPECIFICATION_AND_FAILURE_CASE_LIBRARY_ONLY
-  prohibited_bulk_restore_range: "#333-#346"
+  pull_request: 370
+  pull_request_mode: DRAFT
+  pull_request_head_branch: codex/w2-factor-model-remediation-master
+  task_baseline_sha: c62fa82d883633f3b33ff44810a5fbc294b215c5
+  local_code_implementation_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  local_work_branch: codex/w2-dynamic-ev-lineup-v1
+  github_sync_status: SYNCED_TO_DRAFT_PR
+  github_verified_head_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  ci_status: PASS
+  ci_run_id: 29916913849
+  ci_checks:
+    verify: PASS
+    staging-parity: PASS
+    predeploy-e2e: PASS
 
 current_phase:
-  id: R0.1a
-  name: quote_identity_observation
-  status: BLOCKED_STAGING_CANARY_ROLLED_BACK
-  next_phase: R0.1b
-  next_phase_gate: R0.1A_PR_MERGED_AND_STAGING_CANARY_PASS
-  blocker: PUBLIC_ANALYSIS_CARD_OOM_EXIT137
+  id: W2_DYNAMIC_PREMATCH_V1
+  name: dynamic_quote_ev_and_lineup_value_pipeline
+  status: locally_verified
+  acceptance_state: STAGING_DEPLOYED_WAITING_REAL_LINEUP_CANARY
+  blocker: WAITING_FOR_REAL_LINEUP_WINDOW_AND_POST_LINEUP_FRESH_ODDS
+  next_phase: W2_DYNAMIC_PREMATCH_STAGING
+  checkpoints:
+    dynamic_quote_lifecycle: locally_verified
+    current_ev_snapshot_semantics: locally_verified
+    no_edge_reevaluation: locally_verified
+    source_absent_truth_contract: locally_verified
+    lineup_baseline: locally_verified
+    lineup_identity_pipeline: locally_verified
+    lineup_change_features: locally_verified
+    lineup_post_market_refresh: locally_verified
+    t30_validation_snapshot: locally_verified
+
+active_workstream:
+  id: DYNAMIC_EV_LINEUP
+  status: locally_verified
+  checkpoints:
+    dynamic_quote_lifecycle: locally_verified
+    current_ev_snapshot_semantics: locally_verified
+    no_edge_reevaluation: locally_verified
+    source_absent_truth_contract: locally_verified
+    lineup_baseline: locally_verified
+    lineup_identity_pipeline: locally_verified
+    lineup_change_features: locally_verified
+    lineup_post_market_refresh: locally_verified
+    t30_validation_snapshot: locally_verified
+
+local_verification:
+  pytest_passed: 1438
+  pytest_skipped: 4
+  ruff: PASS
+  mypy: PASS
+  web_typecheck: PASS
+  boss_console_protected_baseline: PASS
+  web_playwright: 26_PASS
+  migration_sqlite_roundtrip: PASS
 
 staging:
-  deployed_sha: b5cfd6575ba7274692714c9fc814916a00c13e36
-  deployed_tree_sha: 31eae0ba07361eb7ad195afccc985784f868c5c7
-  tree_matches_main: false
-  health_http_status: 200
-  weak_ready_http_status: 200
-  service_health: healthy
-  restart_count: 0
-  oom_killed: false
-  redis_queue_length: 0
+  deployed_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  deployment_status: DEPLOYED_HEALTHY_REUSE_DEPENDENCY_IMAGE
   production_deployed: false
+  provider_calls: 0
+  staging_host: 118.196.30.136
+  ssh_preflight: PASS_AS_ROOT
+  attempted_release_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  restored_release_sha: null
+  real_lineup_canary: WAITING_FOR_REAL_LINEUP_WINDOW
+  public_read_20x: NOT_RUN
+  public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
+
+fixture_recovery:
+  source: existing_staging_raw_fixture_and_odds_captures
+  provider_calls: 0
+  recovered_fixture_identities:
+    eliteserien: 8
+    brasileirao_serie_a: 8
+    chinese_super_league: 8
+  orphan_market_fixture_counts:
+    eliteserien: 0
+    brasileirao_serie_a: 0
+    chinese_super_league: 0
+  public_dashboard_proof:
+    date: "2026-07-25"
+    fixture_ids:
+      eliteserien: "1494712"
+      brasileirao_serie_a: "1492308"
+      chinese_super_league: "1523211"
+
+valuation_materialization:
+  transfermarkt_source_asset: SOURCE_READY
+  reviewed_team_crosswalk: NOT_MATERIALIZED
+  reviewed_player_identity: NOT_MATERIALIZED
+  asof_valuation_observations: NOT_MATERIALIZED
+  consequence: LINEUP_VALUE_FEATURES_FAIL_CLOSED_WHEN_COVERAGE_IS_MISSING
+
+lineup_policy:
+  mode: LINEUP_ADVISORY_ONLY
+  numeric_adjustment_enabled: false
+  ah_adjustment: 0.0
+  totals_adjustment: 0.0
+  lambda_adjustment: 0.0
+  activation_requires:
+    - rolling_origin_offline_validation
+    - no_future_leakage_review
+    - forward_shadow_validation
+    - manual_approval
 
 safety_switches:
-  recommend_enabled: false
-  candidate_enabled: false
+  provider_calls_disabled: true
+  provider_scheduler_enabled: false
+  future_fixture_refresh_enabled: false
   formal_recommendation_enabled: false
-  production_release: false
-  lock_count: 0
+  recommendation_lock_enabled: false
   official_enabled: false
-  xg_backfill_enabled: false
+  production_release: false
+  manual_approval_required: true
 
-current_tree_ci:
-  r0_0_pr: 348
-  r0_0_merge_sha: 37767123313483ecd8dc9607b4bb085d7cb6db36
-  r0_0_run_id: 29627555671
-  r0_1a_pr: 349
-  r0_1a_merge_sha: 5849374e61bc7b7fe91b6da41c637b5c65a4b9fb
-  r0_1a_run_id: 29628009629
-  verify: PASS
-  staging_parity: PASS
-  predeploy_e2e: PASS
-  historical_test_counts_reusable: false
-
-confirmed_open_boundaries:
-  - WEAK_READINESS_SURFACES
-  - PUBLIC_ANALYSIS_CARD_READ_TIME_REBUILD
-  - QUOTE_IDENTITY_AND_FRESHNESS_NOT_DOMAIN_HARD_GATES
-  - METRICS_SINK_AND_EXPORTER_DISCONNECTED
-  - PUBLIC_READS_INCLUDE_UNBOUNDED_GLOBAL_FALLBACKS
-  - PUBLIC_ANALYSIS_CARD_OOM_EXIT137
-
-phase_order:
-  - R0.0
-  - R0.1a
-  - R0.1b
-  - R0.1c
-  - R0.2
-  - R0.3
-  - R0.4
-  - R0.5
-  - R0.6
-  - R1
-  - R2
-  - R3
-  - R4
-
-blocked_until_r0_0_through_r0_3_pass:
-  - bulk_restore_pr_333_through_346
-  - T6_through_T15_expansion
-  - frozen_l2
-  - model_champion_switch
-  - recommend
-  - lock
-  - official
-  - production
+release_invariants:
+  - PR_370_KEEP_DRAFT
+  - FORMAL_DISABLED
+  - LOCK_DISABLED
+  - PRODUCTION_DISABLED
+  - LINEUP_NUMERIC_ADJUSTMENT_DISABLED
+  - LINEUP_ADVISORY_ONLY
+  - MANUAL_APPROVAL_REQUIRED

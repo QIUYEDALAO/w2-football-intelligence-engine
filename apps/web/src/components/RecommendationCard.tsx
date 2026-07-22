@@ -126,32 +126,11 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
 
 function verdictState(match: DashboardMatchCard): VerdictState {
-  const phase = matchPhase(match.kickoff_utc, match.status);
-  const settlement = match.validation?.settlement;
-  if ((settlement && settlement !== "PENDING") || phase === "LIVE" || phase === "FINISHED") {
-    return "LOCKED";
-  }
-  if (match.recommendation?.tier === "FORMAL" && match.formal_recommendation === true) {
-    return "REFERENCE";
-  }
-  const shadow = match.pricing_shadow;
-  if (!shadow || shadow.status === "INSUFFICIENT_INDEPENDENT_FACTORS") {
-    return "INSUFFICIENT";
-  }
-  if (!hasValidatedAhCalibration(shadow)) {
-    return "WATCH";
-  }
-  const coverage = typeof shadow.coverage === "number" && Number.isFinite(shadow.coverage)
-    ? shadow.coverage
-    : 0;
-  const hasAh = shadow.fair_ah != null && shadow.market_ah != null;
-  if (!hasAh || coverage < 0.5) {
-    return "WATCH";
-  }
-  if (shadow.edge_ah == null || Math.abs(shadow.edge_ah) < 0.25 || shadow.status === "WATCH") {
-    return "WATCH";
-  }
-  return "REFERENCE";
+  const outcome = match.recommendation_decision_v3?.outcome;
+  if (outcome === "ANALYSIS_PICK" || outcome === "FORMAL_RECOMMEND") return "REFERENCE";
+  if (outcome === "SYSTEM_DEGRADED" || outcome === "NOT_READY") return "INSUFFICIENT";
+  if (outcome === "NO_EDGE") return "WATCH";
+  return "INSUFFICIENT";
 }
 
 function cardTone(state: VerdictState): string {
@@ -320,6 +299,8 @@ function displayReason(reason: string): string {
 }
 
 function formalReason(match: DashboardMatchCard): string {
+  const v3Reason = match.recommendation_decision_v3?.reason?.message;
+  if (v3Reason) return v3Reason;
   if (match.formal_suppressed_reason) {
     return `正式推荐被抑制：${formalSuppressedReasonLabel(match.formal_suppressed_reason)}`;
   }
@@ -378,6 +359,16 @@ function dataLine(match: DashboardMatchCard): string {
 }
 
 function actionabilityLine(match: DashboardMatchCard): string {
+  const v3 = match.recommendation_decision_v3;
+  if (v3?.outcome === "SYSTEM_DEGRADED") return "数据链异常，等待系统复核";
+  if (v3?.outcome === "NOT_READY") return v3.reason?.message || "数据未就绪，等待下一次复核";
+  if (v3?.outcome === "NO_EDGE") return "数据完整但未形成分析优势";
+  if (v3?.outcome === "ANALYSIS_PICK") {
+    return v3.selected_candidate?.market === "TOTALS"
+      ? "大小球分析参考，正式推荐当前仅支持全场让球"
+      : "赛前分析参考，尚未开放正式推荐";
+  }
+  if (v3?.outcome === "FORMAL_RECOMMEND") return "正式推荐：已通过全部前置条件";
   if (match.recommendation?.tier === "FORMAL") return "正式推荐：赛前真实数据与模拟策略自洽";
   const items = readinessItems({ data_readiness: match.data_readiness });
   const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);

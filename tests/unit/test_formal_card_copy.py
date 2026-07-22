@@ -66,16 +66,22 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
     assert "locked_pre_match_recommendation" in types
 
 
-def test_dashboard_defaults_to_boss_decision_view() -> None:
+def test_dashboard_defaults_to_boss_console_with_previous_views_retained_for_rollback() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
     boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
+    boss_console = (
+        ROOT / "apps/web/src/reference/boss-console/BossDecisionConsole.tsx"
+    ).read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
     assert 'const mode: DashboardMode = "future"' in page
     assert "未来 36 小时暂无比赛" in page
     assert "未来 14 天暂无可展示比赛" in page
-    assert "BossDecisionView" in page
-    assert "todayShanghai()" in page
+    assert "BossDecisionConsole" in page
+    assert "BossDecisionView" not in page
+    assert "BossDecisionConsoleReference" in boss_console
+    assert "adaptBossDecisionConsole" in boss_console
+    assert "footballDayShanghai()" in page
     assert "footballDayShanghai" in formatters
     assert "next_available_date" in page
     assert "selected_date_has_data" in page
@@ -88,7 +94,7 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "futureSchedule" in boss_view
     assert "ScheduleSection" in boss_view
     assert "CoverageFoldout" in boss_view
-    assert "值得看" in boss_view
+    assert "已形成分析判断" in boss_view
     assert "赛中 / 刚开赛" in boss_view
     assert "marketSourceLabel" in boss_view
     assert "VerificationPreview" in boss_view
@@ -100,6 +106,39 @@ def test_dashboard_defaults_to_boss_decision_view() -> None:
     assert "displayLineForTeam" in boss_view
     assert "世界杯输出按 staging 保守展示" in boss_view
     assert "L2 技术诊断" in boss_view
+    assert "近 30 天" not in boss_view
+    assert "最多 3 场" not in boss_view
+    assert (
+        "orderedForTriage(dayView.cards.filter(isReadyRecommendation)).slice(0, 3)"
+        not in boss_view
+    )
+    assert (
+        "orderedForTriage(activeCards.filter(isReadyRecommendation)).slice(0, 3)"
+        not in boss_view
+    )
+    assert "performance_cohort" in boss_view
+    assert "outcomes_canonical" not in boss_view
+    assert "前向验证记录与赛果" in boss_view
+    assert "全部已处理" not in boss_view
+    assert "可核验 {settled}/{processed}" not in boss_view
+    assert "页面更新" in boss_view
+    assert "全局最近赔率" in boss_view
+    assert "下次采集" in boss_view
+    assert "最近盘口" in boss_view
+    assert "已过期，仅参考" in boss_view
+    assert "已有早盘·待临场更新" in boss_view
+    assert "只读决策台" in boss_view
+    assert "Boss View</button>" not in boss_view
+    assert "T{minutesUntil" not in boss_view
+    assert "验证 ledger 已记录" in boss_view
+    assert "待写入验证 ledger" in boss_view
+    assert "capture_identity_hash" in boss_view
+    assert "分析推荐已形成，但尚未写入验证 ledger" in boss_view
+    assert "真实前向卡已进入 ledger" not in boss_view
+    assert "已纳入验证追踪" not in boss_view
+    assert "本场尚未产生前向验证记录" in boss_view
+    assert "只有赛前形成分析参考或正式推荐" in boss_view
+    assert "最后刷新" not in boss_view
 
 
 def test_ah_display_helpers_use_home_team_view_contract() -> None:

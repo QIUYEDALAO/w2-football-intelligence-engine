@@ -5,25 +5,26 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from w2.ingestion.future_refresh import parse_utc
+from w2.matchday.intake_v2 import (
+    POLICY_VERSION as MATCHDAY_INTAKE_POLICY_VERSION,
+)
+from w2.matchday.intake_v2 import (
+    MatchdayCompetitionPolicy,
+    build_checkpoint_plans,
+    competition_policies,
+    load_matchday_policy,
+)
 
 CHECKPOINT_REFRESH_CONTRACT = "w2.checkpoint_refresh.v1"
+CHECKPOINT_REFRESH_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
 WORLD_CUP_DAILY_PROVIDER_BUDGET = 100
 WORLD_CUP_MATCHDAY_PROVIDER_BUDGET = 80
 WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET = 0
 WORLD_CUP_BUDGET_RESERVE = 20
 
-CHECKPOINT_OFFSETS: tuple[tuple[str, timedelta, tuple[str, ...]], ...] = (
-    ("OPEN", timedelta(hours=-48), ("odds",)),
-    ("T1_LINEUPS", timedelta(hours=-1), ("odds", "lineups")),
-    ("T15M_CLOSE", timedelta(minutes=-15), ("odds",)),
-)
-
-LINEUPS_RETRY_CHECKPOINTS: tuple[tuple[str, timedelta], ...] = (
-    ("T45_LINEUPS_RETRY", timedelta(minutes=-45)),
-    ("T30_LINEUPS_RETRY", timedelta(minutes=-30)),
-)
-
 JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
+LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
+T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 
 
 @dataclass(frozen=True)
@@ -58,32 +59,54 @@ def checkpoint_plan_for_fixture(
     fixture_id: str,
     kickoff_utc: datetime,
     generated_at_utc: datetime,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
 ) -> list[FixtureCheckpointPlan]:
-    kickoff = normalize_utc(kickoff_utc)
-    generated_at = normalize_utc(generated_at_utc)
-    if kickoff < generated_at - timedelta(hours=3):
-        return []
-    plans: list[FixtureCheckpointPlan] = []
-    for checkpoint, offset, endpoints in CHECKPOINT_OFFSETS:
-        due_at = kickoff + offset
-        if checkpoint == "OPEN" and due_at < generated_at:
-            due_at = generated_at
-        plans.append(
-            FixtureCheckpointPlan(
-                fixture_id=str(fixture_id),
-                checkpoint=checkpoint,
-                kickoff_utc=kickoff,
-                due_at_utc=due_at,
-                endpoints=endpoints,
-            )
+    resolved_policy = policy or _v2_policy_for_legacy_checkpoint(competition_id=competition_id)
+    v2_plans = build_checkpoint_plans(
+        fixture_id=str(fixture_id),
+        competition_id=resolved_policy.competition_id,
+        season=resolved_policy.season,
+        kickoff_utc=kickoff_utc,
+        now=generated_at_utc,
+        policy=resolved_policy,
+    )
+    return [
+        FixtureCheckpointPlan(
+            fixture_id=item.fixture_id,
+            checkpoint=item.checkpoint,
+            kickoff_utc=item.kickoff_utc,
+            due_at_utc=item.scheduled_at,
+            endpoints=item.endpoints,
+            source="matchday_intake_v2_adapter",
+            status=item.status,
         )
-    return plans
+        for item in v2_plans
+    ]
+
+
+def _v2_policy_for_legacy_checkpoint(
+    *,
+    competition_id: str | None,
+) -> MatchdayCompetitionPolicy:
+    if not competition_id:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    try:
+        policies = competition_policies(load_matchday_policy())
+    except (FileNotFoundError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE") from exc
+    policy = policies.get(competition_id)
+    if policy is None:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    return policy
 
 
 def checkpoint_plans_from_fixture_payloads(
     fixtures: list[dict[str, Any]],
     *,
     now: datetime,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
     horizon: timedelta = timedelta(hours=48),
 ) -> list[FixtureCheckpointPlan]:
     current = normalize_utc(now)
@@ -104,6 +127,8 @@ def checkpoint_plans_from_fixture_payloads(
                 fixture_id=fixture_id,
                 kickoff_utc=kickoff,
                 generated_at_utc=current,
+                competition_id=competition_id,
+                policy=policy,
             )
         )
     return plans
@@ -115,20 +140,28 @@ def lineups_retry_plans(
     kickoff_utc: datetime,
     now: datetime,
     lineups_status: str,
+    competition_id: str | None = None,
+    policy: MatchdayCompetitionPolicy | None = None,
 ) -> list[FixtureCheckpointPlan]:
     status = lineups_status.upper()
     if status not in {"PROVIDER_EMPTY", "MISSING_LINEUPS", "NOT_READY"}:
         return []
+    resolved_policy = policy or _v2_policy_for_legacy_checkpoint(competition_id=competition_id)
+    lineup_checkpoints = [
+        item
+        for item in resolved_policy.checkpoints
+        if item.enabled and item.endpoints == ("lineups",)
+    ]
     kickoff = normalize_utc(kickoff_utc)
     current = normalize_utc(now)
     plans: list[FixtureCheckpointPlan] = []
-    for checkpoint, offset in LINEUPS_RETRY_CHECKPOINTS:
-        due_at = kickoff + offset
+    for checkpoint in lineup_checkpoints:
+        due_at = kickoff - timedelta(seconds=checkpoint.offset_seconds_before_kickoff)
         if current <= kickoff and current >= due_at - timedelta(minutes=5):
             plans.append(
                 FixtureCheckpointPlan(
                     fixture_id=str(fixture_id),
-                    checkpoint=checkpoint,
+                    checkpoint=checkpoint.name,
                     kickoff_utc=kickoff,
                     due_at_utc=due_at,
                     endpoints=("lineups",),
@@ -158,6 +191,34 @@ def line_jump_confirmation_plan(
         due_at_utc=observed_at + timedelta(minutes=10),
         endpoints=("odds",),
         source="line_jump",
+    )
+
+
+def lineup_confirmed_refresh_plan(
+    *,
+    fixture_id: str,
+    kickoff_utc: datetime,
+    captured_at_utc: datetime,
+    home_starters: int,
+    away_starters: int,
+    lineup_input_hash: str,
+) -> FixtureCheckpointPlan:
+    """Schedule the mandatory fresh-odds fetch after both XIs are confirmed."""
+    kickoff = normalize_utc(kickoff_utc)
+    captured_at = normalize_utc(captured_at_utc)
+    if home_starters != 11 or away_starters != 11:
+        raise ValueError("STARTING_XI_INCOMPLETE")
+    if not lineup_input_hash:
+        raise ValueError("LINEUP_INPUT_HASH_MISSING")
+    if captured_at >= kickoff:
+        raise ValueError("POST_KICKOFF_LINEUP_REJECTED")
+    return FixtureCheckpointPlan(
+        fixture_id=str(fixture_id),
+        checkpoint=LINEUP_CONFIRMED_CHECKPOINT,
+        kickoff_utc=kickoff,
+        due_at_utc=captured_at,
+        endpoints=("odds",),
+        source=f"lineup_confirmed:{lineup_input_hash}",
     )
 
 
@@ -200,12 +261,10 @@ def world_cup_matchday_budget_projection(
     matchday_budget: int = WORLD_CUP_MATCHDAY_PROVIDER_BUDGET,
     trickle_backfill_budget: int = WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET,
 ) -> dict[str, int | bool]:
-    base_per_fixture = 3  # OPEN, T1 odds, T15 close.
+    base_per_fixture = 4  # OPEN, T6 odds, T1 odds, T15 close.
     lineups_per_fixture = 1
     retry_per_fixture = 2 if include_retries else 0
-    fixture_calls = fixture_count * (
-        base_per_fixture + lineups_per_fixture + retry_per_fixture
-    )
+    fixture_calls = fixture_count * (base_per_fixture + lineups_per_fixture + retry_per_fixture)
     status_fixture_overhead = 2 if include_status_fixture_overhead and fixture_count > 0 else 0
     projected = fixture_calls + status_fixture_overhead
     return {

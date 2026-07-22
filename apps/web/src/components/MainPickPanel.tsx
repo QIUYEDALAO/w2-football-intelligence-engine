@@ -1,4 +1,4 @@
-import { ConfidenceDots } from "./ConfidenceDots";
+import { SignalStrengthDots } from "./ConfidenceDots";
 import {
   isMarketPick,
   leanLabel,
@@ -36,7 +36,7 @@ export function MainPickPanel({ card }: { card: DashboardCard }) {
         ) : null}
         {card.ai_summary ? <p className="ai-summary">{card.ai_summary}</p> : null}
       </div>
-      <ConfidenceDots value={isPick ? market.confidence : 0} />
+      <SignalStrengthDots value={isPick ? market.signal_strength ?? market.confidence : 0} />
     </section>
   );
 }

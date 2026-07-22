@@ -1,0 +1,11 @@
+{
+  "schema_version": "w2.lineup_identity_coverage_evidence.v1",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
+  "scope": "PIPELINE_CONTRACT",
+  "required_fields": ["canonical_player_id", "provider_player_id", "position", "mapping_review_status", "source_artifact_hash"],
+  "controls": {"explicit_review_required": true, "fuzzy_auto_approval": false, "duplicate_starter_fail_closed": true, "cross_team_identity_conflict_fail_closed": true},
+  "current_live_coverage": null,
+  "result": "CODE_CONTRACT_PASS",
+  "live_status": "REAL_LINEUP_CANARY_NOT_EVALUATED",
+  "staging_data_state": "STAGING_DATA_NOT_MATERIALIZED"
+}

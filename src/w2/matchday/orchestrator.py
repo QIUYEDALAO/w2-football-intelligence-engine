@@ -78,10 +78,12 @@ def build_matchday_dry_run(
             "would_write_settlement": False,
         }
 
+    competition_id = _single_competition_id(normalized)
     fixture_outputs = [
         _fixture_dry_run(item, environment=environment, as_of=current) for item in normalized
     ]
     refresh_policy = MatchdayRefreshPolicy(
+        competition_id=competition_id,
         allowed_endpoints=tuple(configured_endpoints),
         tick_hard_cap=refresh_hard_cap,
         min_interval_seconds=refresh_min_interval_seconds,
@@ -245,6 +247,7 @@ def _fixture_dry_run(
             "source": "w2.matchday.dry_run",
             "fixture_id": fixture_id,
             "competition_id": _optional_text(fixture.get("competition_id")) or "",
+            "quote_identity_audit": fixture.get("quote_identity_audit"),
         },
         market=market_payload,
         recommendation=_recommendation_payload(fixture, market_payload),
@@ -469,8 +472,17 @@ def _normalize_fixture(item: Mapping[str, Any]) -> dict[str, Any]:
     return {
         **dict(item),
         "fixture_id": fixture_id,
+        "competition_id": str(item.get("competition_id") or ""),
         "kickoff_utc": _datetime_value(kickoff),
     }
+
+
+def _single_competition_id(fixtures: Sequence[Mapping[str, Any]]) -> str:
+    values = {str(item.get("competition_id") or "") for item in fixtures}
+    values.discard("")
+    if len(values) != 1:
+        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
+    return values.pop()
 
 
 def _endpoint_lists(endpoints: Sequence[str]) -> tuple[list[str], list[str]]:

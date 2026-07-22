@@ -15,9 +15,7 @@ COMPOSE = (
 FORBIDDEN_PUBLIC = {
     "::",
 }
-ALLOWED_PUBLIC_BINDINGS = {
-    ("web", "0.0.0.0:80:8080"),  # noqa: S104 - intentional public staging web.
-}
+ALLOWED_PUBLIC_BINDINGS: set[tuple[str, str]] = set()
 FORBIDDEN_SHORT = {
     "8000:8000",
     "8080:8080",
@@ -71,8 +69,8 @@ def main() -> int:
     web_ports = service_ports(compose, "web")
     if api_ports != ["127.0.0.1:18000:8000"]:
         fail("api must bind exactly 127.0.0.1:18000:8000")
-    if web_ports != ["0.0.0.0:80:8080"]:
-        fail("web must bind exactly 0.0.0.0:80:8080")
+    if web_ports != ["127.0.0.1:18080:8080"]:
+        fail("web must bind exactly 127.0.0.1:18080:8080")
     for service, definition in services.items():
         ports = [normalize_port(port) for port in definition.get("ports", [])]
         assert_no_public_ports(ports, service)

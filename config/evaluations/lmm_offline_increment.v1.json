@@ -1,0 +1,15 @@
+{
+  "schema_version": "w2.lmm_offline_increment_protocol.v1",
+  "frozen_at_utc": "2026-07-20T00:00:00Z",
+  "splits": {
+    "train_end_utc": "2024-12-31T23:59:59Z",
+    "validation_end_utc": "2025-12-31T23:59:59Z",
+    "holdout_start_utc": "2026-01-01T00:00:00Z"
+  },
+  "minimum_samples": {"overall": 500, "league": 50, "coverage_grade": 50},
+  "bootstrap": {"method": "paired_percentile", "replicates": 2000, "seed": 20260719},
+  "comparators": ["baseline_no_lmm", "gate_only", "explanation_only", "lmm_ah", "lmm_ou", "combined"],
+  "required_frozen_fields": ["official_lineup_asof", "historical_starting_xi_baseline_asof", "provider_transfermarkt_identity", "valuation_asof", "formation", "position", "substitutes", "absence", "continuity", "settlement", "market_snapshot", "closing_snapshot"],
+  "no_harm": {"holdout_ci_upper_bound": 0.0, "coverage_delta_minimum": -0.02},
+  "numeric_effect_enabled": false
+}

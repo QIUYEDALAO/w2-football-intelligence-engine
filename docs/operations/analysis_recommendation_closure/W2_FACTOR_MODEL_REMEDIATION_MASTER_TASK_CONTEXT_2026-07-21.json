@@ -1,0 +1,26 @@
+{
+  "schema_version": "W2FactorModelRemediationMasterTaskContextV1",
+  "recorded_at": "2026-07-21",
+  "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+  "source_branch": "codex/w2-analysis-recommendation-closure",
+  "target_branch": "codex/w2-factor-model-remediation-master",
+  "target_worktree": "/Users/liudehua/.hermes/workspace/w2-factor-model-remediation-master",
+  "task": "W2 FACTOR-MODEL-REMEDIATION-MASTER",
+  "default_provider_calls": 0,
+  "controlled_provider_calls_allowed": true,
+  "hard_safety": {
+    "formal_disabled": true,
+    "lock_disabled": true,
+    "production_disabled": true,
+    "recommendation_writes_forbidden": true,
+    "official_writes_forbidden": true,
+    "cohort_writes_forbidden": true,
+    "model_weights_unchanged": true,
+    "model_thresholds_unchanged": true
+  },
+  "allowed_final_states": [
+    "ANALYSIS_RECOMMENDATION_CHAIN_VALIDATED",
+    "ANALYSIS_CHAIN_XG_SOURCE_UNAVAILABLE",
+    "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED"
+  ]
+}

@@ -5,6 +5,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.formal.readiness import validate_formal_ah_readiness
+from w2.markets.settlement_probability import effective_settlement_probability
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
@@ -87,12 +90,16 @@ class FormalRecommendationResult:
 
 
 def formal_recommendations_enabled() -> bool:
-    return os.getenv("W2_FORMAL_RECOMMENDATION_ENABLED", "").strip().lower() in {
+    manifest = load_recommendation_capability_manifest()
+    manifest_enabled = manifest.capability("formal_ah").feature_enabled
+    raw_legacy_admission = os.getenv("W2_FORMAL_RECOMMENDATION_ENABLED", "").strip().lower()
+    legacy_admission_enabled = raw_legacy_admission in {
         "1",
         "true",
         "yes",
         "on",
     }
+    return manifest_enabled and legacy_admission_enabled
 
 
 def build_formal_recommendation(
@@ -105,17 +112,28 @@ def build_formal_recommendation(
     home_team_name: str,
     away_team_name: str,
     enabled: bool | None = None,
+    ah_market_candidate: dict[str, Any] | None = None,
+    formal_ah_readiness: dict[str, Any] | None = None,
 ) -> FormalRecommendationResult:
     enabled = formal_recommendations_enabled() if enabled is None else enabled
-    ah = canonical_ah_market(current_odds=current_odds, pricing_shadow=pricing_shadow)
+    readiness_gate = _formal_ah_readiness_gate(
+        formal_ah_readiness=formal_ah_readiness,
+        analysis_readiness=analysis_readiness,
+    )
+    executable_odds = _candidate_executable_odds(ah_market_candidate)
+    canonical_odds = {"ah": executable_odds} if executable_odds is not None else current_odds
+    ah = canonical_ah_market(current_odds=canonical_odds, pricing_shadow=pricing_shadow)
     blockers = _blockers(
         fixture_status=fixture_status,
         simulation=simulation,
         canonical_market=ah,
-        current_odds=current_odds,
+        current_odds=canonical_odds,
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
+    if ah_market_candidate is not None and executable_odds is None:
+        blockers.append("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
+    blockers.extend(readiness_gate)
     if blockers:
         return FormalRecommendationResult(
             tier="WATCH",
@@ -129,6 +147,8 @@ def build_formal_recommendation(
     assert simulation is not None
     if ah is None or ah.validation_status != "READY":
         return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
+    if not _lambda_uncertainty_validated(simulation):
+        return _watch("FORMAL_UNCERTAINTY_NOT_VALIDATED", canonical_ah_market=ah)
     home_distribution, home_ev, home_ev_se = _settlement_distribution_with_ev_se(
         simulation,
         "HOME",
@@ -227,10 +247,10 @@ def build_formal_recommendation(
         return FormalRecommendationResult(
             tier="WATCH",
             recommendation=None,
-            formal_eligible=True,
+            formal_eligible=False,
             formal_suppressed=True,
             formal_suppressed_reason="W2_FORMAL_RECOMMENDATION_ENABLED=false",
-            blockers=[],
+            blockers=["FORMAL_AH_CAPABILITY_DISABLED"],
             canonical_ah_market=ah.as_dict(),
         )
     return FormalRecommendationResult(
@@ -242,6 +262,46 @@ def build_formal_recommendation(
         blockers=[],
         canonical_ah_market=ah.as_dict(),
     )
+
+
+def _candidate_executable_odds(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return AH odds only from a complete executable V3 candidate.
+
+    Legacy callers may omit the candidate during the compatibility period.  Once
+    supplied, an incomplete, stale, or reference-only candidate must fail closed
+    rather than falling back to the top-level legacy odds map.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    if candidate.get("market") != "ASIAN_HANDICAP":
+        return None
+    if candidate.get("quote_status") != "COMPLETE" or candidate.get("quote_usage") != "EXECUTABLE":
+        return None
+    quotes = candidate.get("quotes")
+    executable = quotes.get("executable") if isinstance(quotes, dict) else None
+    return dict(executable) if isinstance(executable, dict) else None
+
+
+def _formal_ah_readiness_gate(
+    *,
+    formal_ah_readiness: dict[str, Any] | None,
+    analysis_readiness: dict[str, Any] | None,
+) -> list[str]:
+    readiness = formal_ah_readiness
+    if readiness is None and isinstance(analysis_readiness, dict):
+        nested = analysis_readiness.get("formal_ah_readiness")
+        readiness = nested if isinstance(nested, dict) else None
+    if not isinstance(readiness, dict):
+        return ["FORMAL_AH_READINESS_MISSING"]
+    try:
+        readiness = validate_formal_ah_readiness(readiness)
+    except ValueError as exc:
+        return [str(exc)]
+    blockers = [str(item) for item in readiness.get("blockers", []) if str(item)]
+    if readiness.get("formal_eligible") is not True or readiness.get("admission_ready") is not True:
+        return blockers or ["FORMAL_AH_ADMISSION_NOT_READY"]
+    return []
+
 
 def _blockers(
     *,
@@ -273,7 +333,10 @@ def _blockers(
         )
         if consensus_blocker:
             blockers.append(consensus_blocker)
-    signal_count = _number((pricing_shadow or {}).get("independent_signal_count"))
+    signal_count = _number(
+        (pricing_shadow or {}).get("distinct_evidence_group_count")
+        or (pricing_shadow or {}).get("independent_signal_count")
+    )
     if signal_count is None or signal_count < FORMAL_MIN_INDEPENDENT_SIGNALS:
         blockers.append("INSUFFICIENT_INDEPENDENT_SIGNALS")
     readiness_blockers = []
@@ -464,9 +527,7 @@ def _settlement_distribution_from_ladder(
             if row_line is None or abs(row_line - (line if side == "HOME" else -line)) > 0.001:
                 continue
             key = (
-                "home_settlement_distribution"
-                if side == "HOME"
-                else "away_settlement_distribution"
+                "home_settlement_distribution" if side == "HOME" else "away_settlement_distribution"
             )
             distribution = row.get(key)
             if isinstance(distribution, dict):
@@ -508,16 +569,20 @@ def _simulation_rho(simulation: SimulationOutput) -> float:
     return _number(params.get("dixon_coles_rho")) or 0.0
 
 
+def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
+    calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
+    method = str(calibration.get("lambda_uncertainty_method") or "").lower()
+    if method in {"", "none"}:
+        return False
+    sigma_home = _number(simulation.lambda_sigma_home)
+    sigma_away = _number(simulation.lambda_sigma_away)
+    return sigma_home is not None and sigma_away is not None and (
+        sigma_home > 0 or sigma_away > 0
+    )
+
+
 def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
-    win = _number(distribution.get("WIN")) or 0.0
-    half_win = _number(distribution.get("HALF_WIN")) or 0.0
-    push = _number(distribution.get("PUSH")) or 0.0
-    half_loss = _number(distribution.get("HALF_LOSS")) or 0.0
-    loss = _number(distribution.get("LOSS")) or 0.0
-    total = win + half_win + push + half_loss + loss
-    if abs(total - 1.0) > 0.02:
-        return None
-    return round(win + half_win * 0.5 + push * 0.5, 6)
+    return effective_settlement_probability(distribution)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:
@@ -548,8 +613,7 @@ def _canonical_ah_blocker(
     if not _is_quarter_line(home_line) or not _is_quarter_line(away_line):
         return "AH_MARKET_LINE_NOT_QUARTER"
     if not (
-        AH_PRICE_MIN <= home_price <= AH_PRICE_MAX
-        and AH_PRICE_MIN <= away_price <= AH_PRICE_MAX
+        AH_PRICE_MIN <= home_price <= AH_PRICE_MAX and AH_PRICE_MIN <= away_price <= AH_PRICE_MAX
     ):
         return "AH_MARKET_PRICE_OUT_OF_RANGE"
     if abs(home_price - away_price) > AH_MAX_PRICE_GAP:
@@ -649,11 +713,7 @@ def _scoreline_dominant_side(
     *,
     min_direction_margin: float,
 ) -> str:
-    summary = (
-        score_matrix_summary
-        if isinstance(score_matrix_summary, dict)
-        else {}
-    )
+    summary = score_matrix_summary if isinstance(score_matrix_summary, dict) else {}
     home = _number(summary.get("home_win"))
     away = _number(summary.get("away_win"))
     if home is None or away is None:
@@ -677,7 +737,7 @@ def _reason(
 ) -> str:
     team = home_team_name if side == "HOME" else away_team_name
     base = (
-        f"模拟公平盘 { _format_line(fair_ah) }，市场盘 { _format_line(market_line) }，"
+        f"模拟公平盘 {_format_line(fair_ah)}，市场盘 {_format_line(market_line)}，"
         f"{team} 亚洲让球结算期望为 {round(expected_value * 100)}pct；"
         f"有效覆盖概率 {round(model_probability * 100)}%，市场基准 "
         f"{round(devig_probability * 100)}%。"

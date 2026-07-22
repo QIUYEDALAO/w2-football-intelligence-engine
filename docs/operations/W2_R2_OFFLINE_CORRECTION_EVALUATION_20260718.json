@@ -1,0 +1,150 @@
+{
+  "artifact_sha256": "7fd9e7b79dc915149abc98d64d38d098b2d70605bf2c779aba3519c146c8da73",
+  "coverage": {
+    "baseline": 1.0,
+    "candidate": 1.0
+  },
+  "evaluation_status": "SHADOW_CANDIDATE_ONLY",
+  "feature_change": {
+    "prediction_rows_changed": 0,
+    "rolling_form_rows_changed": 12
+  },
+  "input": {
+    "path": "tests/fixtures/gate4/dixon_coles_matches.json",
+    "sha256": "309e4b36c8c4eace13899d9960386b7008c9d5989262c2e13af5937245c2bf70"
+  },
+  "interpretation": {
+    "claim": "The rolling-form state correction changes stored features but the selected model does not currently consume those features, so paired probability metrics are unchanged on this fixed snapshot.",
+    "not_production_hit_rate": true,
+    "probability_metrics_changed": false
+  },
+  "metrics": {
+    "baseline": {
+      "brier": 0.572094,
+      "ece": 0.147009,
+      "log_loss": 0.961123,
+      "rps": 0.193735
+    },
+    "candidate": {
+      "brier": 0.572094,
+      "ece": 0.147009,
+      "log_loss": 0.961123,
+      "rps": 0.193735
+    },
+    "candidate_minus_baseline": {
+      "brier": 0.0,
+      "ece": 0.0,
+      "log_loss": 0.0,
+      "rps": 0.0
+    }
+  },
+  "model": "TIME_DECAY_ATTACK_DEFENCE",
+  "paired_bootstrap": {
+    "brier": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean_delta": 0.0
+    },
+    "ece": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean_delta": 0.0
+    },
+    "log_loss": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean_delta": 0.0
+    },
+    "rps": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean_delta": 0.0
+    }
+  },
+  "promotion": {
+    "champion_changed": false,
+    "production_changed": false,
+    "recommend_lock_changed": false
+  },
+  "schema_version": "w2.r2-offline-correction-evaluation.v1",
+  "split": {
+    "policy": "chronological_fixed_holdout",
+    "train_count": 12,
+    "train_fixture_ids": [
+      "dc-001",
+      "dc-002",
+      "dc-003",
+      "dc-004",
+      "dc-005",
+      "dc-006",
+      "dc-007",
+      "dc-008",
+      "dc-009",
+      "dc-010",
+      "dc-011",
+      "dc-012"
+    ],
+    "validation_count": 12,
+    "validation_fixture_ids": [
+      "dc-013",
+      "dc-014",
+      "dc-015",
+      "dc-016",
+      "dc-017",
+      "dc-018",
+      "dc-019",
+      "dc-020",
+      "dc-021",
+      "dc-022",
+      "dc-023",
+      "dc-024"
+    ]
+  },
+  "strata": {
+    "AWAY": {
+      "baseline": {
+        "brier": 0.570093,
+        "ece": 0.312483,
+        "log_loss": 0.959809,
+        "rps": 0.244469
+      },
+      "candidate": {
+        "brier": 0.570093,
+        "ece": 0.312483,
+        "log_loss": 0.959809,
+        "rps": 0.244469
+      },
+      "count": 5
+    },
+    "DRAW": {
+      "baseline": {
+        "brier": 0.789973,
+        "ece": 0.443902,
+        "log_loss": 1.257414,
+        "rps": 0.139165
+      },
+      "candidate": {
+        "brier": 0.789973,
+        "ece": 0.443902,
+        "log_loss": 1.257414,
+        "rps": 0.139165
+      },
+      "count": 3
+    },
+    "HOME": {
+      "baseline": {
+        "brier": 0.411185,
+        "ece": 0.515161,
+        "log_loss": 0.740548,
+        "rps": 0.171245
+      },
+      "candidate": {
+        "brier": 0.411185,
+        "ece": 0.515161,
+        "log_loss": 0.740548,
+        "rps": 0.171245
+      },
+      "count": 4
+    }
+  }
+}

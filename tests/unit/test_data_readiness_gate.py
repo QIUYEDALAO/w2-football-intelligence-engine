@@ -8,6 +8,7 @@ from w2.readiness.data_gate import (
     DataReadinessInput,
     build_data_readiness_from_legacy_payload,
     evaluate_data_readiness,
+    result_from_mapping,
 )
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
@@ -99,34 +100,34 @@ def test_stale_odds_marks_stale() -> None:
     assert result.stale_fields == ("odds",)
 
 
-def test_lineups_missing_before_t90_is_partial_not_blocked() -> None:
+def test_lineups_missing_before_t90_is_advisory_not_blocked() -> None:
     as_of = KICKOFF - timedelta(minutes=120)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("lineups",)
     assert result.missing_fields == ("lineups",)
 
 
-def test_lineups_missing_after_t30_is_still_partial_by_default() -> None:
+def test_lineups_missing_after_t30_is_advisory_by_default() -> None:
     as_of = KICKOFF - timedelta(minutes=20)
     result = evaluate_data_readiness(
         _input(lineups_available=False, as_of=as_of, odds_captured_at=as_of - timedelta(minutes=5)),
         POLICY,
     )
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.LINEUPS_PENDING
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("lineups",)
 
 
-def test_missing_xg_is_partial() -> None:
+def test_missing_xg_is_advisory_when_not_hard_required() -> None:
     result = evaluate_data_readiness(_input(xg_available=False), POLICY)
 
-    assert result.data_status is DataStatus.PARTIAL
-    assert result.reason_code is DecisionReasonCode.DATA_MISSING_XG
+    assert result.data_status is DataStatus.READY
+    assert result.advisory_fields == ("xg",)
     assert "xg" in result.missing_fields
 
 
@@ -152,3 +153,125 @@ def test_baseline_prior_and_calibration_report_are_not_readiness_blockers() -> N
 
     assert result.data_status is not DataStatus.BLOCKED
     assert result.reason_code is not DecisionReasonCode.COVERAGE_NONE
+
+
+def test_legacy_gate_uses_authoritative_quote_capture_for_staleness() -> None:
+    captured = NOW - timedelta(minutes=31)
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "generated_at": NOW.isoformat(),
+            "data_readiness": {"market_observations": 2, "bookmakers": 1},
+            "quote_identity_audit": {
+                "ou": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "STALE",
+                    "captured_at": captured.isoformat(),
+                }
+            },
+        },
+        market={"market": "TOTALS"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "PARTIAL",
+            "blockers": ["MARKET_UNAVAILABLE"],
+            "available_inputs": {"market_observations": 2, "odds_snapshots": 1},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    assert result.data_status is DataStatus.STALE
+    assert result.reason_code is DecisionReasonCode.DATA_STALE_ODDS
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at == captured
+
+
+def test_generated_at_does_not_fill_missing_authoritative_quote_time() -> None:
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "generated_at": NOW.isoformat(),
+            "data_readiness": {"market_observations": 2, "bookmakers": 1},
+        },
+        market={"market": "TOTALS"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "PARTIAL",
+            "available_inputs": {"market_observations": 2, "odds_snapshots": 1},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at is None
+
+
+def test_readiness_result_round_trips_blocking_advisory_and_warnings() -> None:
+    original = evaluate_data_readiness(_input(lineups_available=False), POLICY)
+    payload = {
+        **original.as_dict(),
+        "blocking_fields": ["odds"],
+        "advisory_fields": ["lineups"],
+        "warnings": ["LINEUPS_NOT_CONFIRMED_ADVISORY"],
+    }
+
+    parsed = result_from_mapping(payload)
+
+    assert parsed is not None
+    assert parsed.as_dict() == payload
+
+
+def test_selected_market_quote_time_is_not_polluted_by_other_market() -> None:
+    fresh_ah = NOW - timedelta(minutes=5)
+    stale_ou = NOW - timedelta(minutes=31)
+    result = build_data_readiness_from_legacy_payload(
+        card={
+            "fixture_id": "fixture-1",
+            "data_readiness": {"market_observations": 4, "bookmakers": 1},
+            "decision_contract": {
+                "selected_market_candidate": {
+                    "market": "ASIAN_HANDICAP",
+                    "quote_identity": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": fresh_ah.isoformat(),
+                    },
+                }
+            },
+            "quote_identity_audit": {
+                "ah": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "COMPLETE",
+                    "captured_at": fresh_ah.isoformat(),
+                },
+                "ou": {
+                    "schema_version": "w2.quote_identity.v1",
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "STALE",
+                    "captured_at": stale_ou.isoformat(),
+                },
+            },
+        },
+        market={"market": "ASIAN_HANDICAP"},
+        recommendation=None,
+        analysis_readiness={
+            "status": "READY",
+            "available_inputs": {"market_observations": 4, "odds_snapshots": 2},
+        },
+        provider_status=None,
+        as_of=NOW,
+        kickoff_utc=KICKOFF,
+        policy=POLICY,
+    )
+
+    assert result.data_status is DataStatus.READY
+    odds = next(field for field in result.field_statuses if field.field == "odds")
+    assert odds.captured_at == fresh_ah

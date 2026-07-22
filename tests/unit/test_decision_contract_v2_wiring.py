@@ -9,6 +9,14 @@ NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(hours=4)
 
 
+def _complete_quote_audit() -> dict[str, object]:
+    identity = {
+        "identity_status": "COMPLETE",
+        "freshness_status": "COMPLETE",
+    }
+    return {"ah": dict(identity), "ou": dict(identity)}
+
+
 def _fields(
     *,
     card: dict[str, object] | None = None,
@@ -17,8 +25,13 @@ def _fields(
     readiness: dict[str, object] | None = None,
     environment: str = "staging",
 ) -> dict[str, object]:
+    card_payload: dict[str, object] = {
+        "source": "unit",
+        "quote_identity_audit": _complete_quote_audit(),
+    }
+    card_payload.update(card or {})
     return build_decision_contract_fields(
-        card=card or {"source": "unit"},
+        card=card_payload,
         market=market,
         recommendation=recommendation,
         readiness=readiness or {"status": "PARTIAL", "blockers": []},
@@ -30,7 +43,7 @@ def _fields(
     )
 
 
-def test_missing_lineups_soft_gate_keeps_staging_analysis_pick() -> None:
+def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
     fields = _fields(
         market={
             "market": "ASIAN_HANDICAP",
@@ -43,10 +56,8 @@ def test_missing_lineups_soft_gate_keeps_staging_analysis_pick() -> None:
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert fields["data_status"] == DataStatus.PARTIAL.value
+    assert fields["data_status"] == DataStatus.READY.value
     assert fields["outcome_tracked"] is True
-    assert fields["reason_code"] == DecisionReasonCode.LINEUPS_PENDING.value
-    assert fields["action"] == "等官方首发"
     assert fields["missing_fields"] == ["lineups", "xg", "ratings", "team_value"]
     assert fields["pick"] is not None
     assert fields["non_pick"] is None
@@ -71,7 +82,7 @@ def test_totals_pick_uses_totals_pricing_shadow_not_ah_lines() -> None:
             "line": "2.25",
             "odds": "2.03",
         },
-        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+        readiness={"status": "READY", "blockers": []},
     )
 
     pick = fields["pick"]
@@ -130,17 +141,21 @@ def test_readiness_status_mapping_is_not_optimistic() -> None:
     }
     assert _fields(market=ready_market, readiness={"status": "READY", "blockers": []})[
         "data_status"
-    ] == (
-        DataStatus.READY.value
+    ] == (DataStatus.READY.value)
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+        )["data_status"]
+        == DataStatus.READY.value
     )
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
-    )["data_status"] == DataStatus.PARTIAL.value
-    assert _fields(
-        market=ready_market,
-        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
-    )["data_status"] == DataStatus.STALE.value
+    assert (
+        _fields(
+            market=ready_market,
+            readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+        )["data_status"]
+        == DataStatus.STALE.value
+    )
 
 
 def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
@@ -220,7 +235,7 @@ def test_analysis_pick_and_lock_policy_are_environmental() -> None:
     assert "非稳赢" in staging["pick"]["disclaimer"]  # type: ignore[index]
 
 
-def test_partial_readiness_keeps_analysis_pick_for_staging_analysis() -> None:
+def test_advisory_readiness_keeps_analysis_pick() -> None:
     fields = _fields(
         market={
             "market": "ASIAN_HANDICAP",
@@ -235,7 +250,9 @@ def test_partial_readiness_keeps_analysis_pick_for_staging_analysis() -> None:
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert fields["pick"] is not None
     assert fields["non_pick"] is None
-    assert fields["data_status"] == DataStatus.PARTIAL.value
+    assert fields["outcome_tracked"] is True
+    assert fields["lock_eligible"] is False
+    assert fields["data_status"] == DataStatus.READY.value
 
 
 def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
@@ -250,11 +267,20 @@ def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
         readiness={"status": "READY", "blockers": []},
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["decision_tier"] == DecisionTier.SKIP.value
     assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
     assert fields["pick"] is None
     assert fields["non_pick"] is not None
     assert fields["outcome_tracked"] is False
+    assert fields["quote_provenance_status"] == "COMPLETE"
+    assert fields["available_quote_provenance"] == {"AH": "COMPLETE", "OU": "COMPLETE"}
+
+
+def test_no_selected_market_keeps_available_quote_evidence_distinct() -> None:
+    fields = _fields(market=None, readiness={"status": "READY", "blockers": []})
+
+    assert fields["quote_provenance_status"] == "MISSING"
+    assert fields["available_quote_provenance"] == {"AH": "COMPLETE", "OU": "COMPLETE"}
 
 
 def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
@@ -476,9 +502,10 @@ def test_recommend_requires_prerequisites_before_lock_eligible() -> None:
     )
 
     assert without_evidence["lock_eligible"] is False
-    assert without_evidence["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert without_evidence["decision_tier"] == DecisionTier.WATCH.value
+    assert without_evidence["recommendation_id"] is None
     assert with_evidence["decision_tier"] == DecisionTier.RECOMMEND.value
-    assert with_evidence["lock_eligible"] is True
+    assert with_evidence["lock_eligible"] is False
 
 
 def test_legacy_formal_is_analysis_pick_with_compatibility_marker() -> None:
@@ -523,14 +550,69 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
     assert analysis["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
     assert analysis["pick"] is not None
     assert analysis["non_pick"] is None
-    assert "分析参考" in analysis["pick"]["disclaimer"]  # type: ignore[index]
-    assert "非稳赢" in analysis["pick"]["disclaimer"]  # type: ignore[index]
     assert watch["decision_tier"] == DecisionTier.WATCH.value
     assert watch["pick"] is None
     assert watch["non_pick"] is not None
     assert blocked["decision_tier"] == DecisionTier.NOT_READY.value
     assert blocked["pick"] is None
     assert blocked["non_pick"] is not None
+
+
+def test_incomplete_or_conflicting_quote_provenance_forces_not_ready() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+    missing = _fields(
+        card={"quote_identity_audit": {}},
+        market=market,
+        readiness={"status": "READY", "blockers": []},
+    )
+    conflict = _fields(
+        card={
+            "recommendation_id": "rec-conflict",
+            "quote_identity_audit": {
+                "ah": {"identity_status": "CONFLICT", "freshness_status": "INCOMPLETE"}
+            },
+        },
+        market=market,
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    for fields in (missing, conflict):
+        assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+        assert fields["pick"] is None
+        assert fields["recommendation_id"] is None
+        assert fields["outcome_tracked"] is False
+        assert fields["lock_eligible"] is False
+
+
+def test_stale_quote_provenance_forces_watch_and_clears_executable_odds() -> None:
+    fields = _fields(
+        card={
+            "recommendation_id": "rec-stale",
+            "quote_identity_audit": {
+                "ah": {"identity_status": "COMPLETE", "freshness_status": "STALE"}
+            },
+        },
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        readiness={"status": "READY", "blockers": []},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.WATCH.value
+    assert fields["pick"] is None
+    assert fields["recommendation_id"] is None
+    assert fields["outcome_tracked"] is False
+    assert fields["lock_eligible"] is False
 
 
 def test_provider_budget_exhausted_is_stale_readiness() -> None:

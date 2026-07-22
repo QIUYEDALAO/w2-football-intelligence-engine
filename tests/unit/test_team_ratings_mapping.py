@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+from w2.api import repository as api_repository
+from w2.api.repository import ReadModelService
+from w2.features.framework import FeatureContext
 
 ROOT = Path(__file__).resolve().parents[2]
 RATINGS_PATH = ROOT / "config/team_ratings/world_cup_2026.v1.json"
@@ -43,3 +48,33 @@ def test_world_cup_real_elo_mapping_has_reviewed_static_source_metadata() -> Non
         assert item["confidence"] >= 0.9
         assert isinstance(item["elo"], int)
         assert 300 <= item["elo"] <= 2300
+
+
+def test_team_ratings_do_not_fallback_to_world_cup_for_other_competition(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "config/team_ratings/world_cup_2026.v1.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(RATINGS_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(api_repository, "ROOT", tmp_path)
+    service = ReadModelService(repository=cast(Any, object()))
+    context = FeatureContext(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        home_team_id="1",
+        away_team_id="2",
+        kickoff_at=datetime(2026, 7, 10, 18, tzinfo=UTC),
+        as_of=datetime(2026, 7, 1, tzinfo=UTC),
+    )
+
+    home, away = service._team_ratings_from_static_mapping(
+        context=context,
+        home_team_id="1",
+        away_team_id="2",
+        history_home_ratings=[],
+        history_away_ratings=[],
+    )
+
+    assert home == []
+    assert away == []

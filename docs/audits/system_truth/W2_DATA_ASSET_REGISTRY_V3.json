@@ -1,0 +1,63 @@
+{
+  "artifact_sha": "063ac35c80f221b30e0801baf3f2f4f7de6c5f56b6970233bf095f8fc21b91e3",
+  "assets": [
+    {
+      "asset_alias": "$W2_FOOTBALL_DATA_ROOT",
+      "asset_id": "football_data_co_uk_historical_ah_2019_2026_v1",
+      "backup_state": "BACKUP_LOCATION_REQUIRED",
+      "blockers": [
+        "BACKUP_LOCATION_REQUIRED",
+        "RESTORE_DRILL_NOT_EXECUTED",
+        "LICENSE_HUMAN_REVIEW_REQUIRED",
+        "TEAM_CROSSWALK_REVIEW_REQUIRED"
+      ],
+      "consumer_versions": [
+        "football_data_co_uk_adapter.v2",
+        "fah_repository"
+      ],
+      "coverage_summary": {
+        "closing_ah_facts": 12459,
+        "f5_dataset_rows": 49822,
+        "leagues": {
+          "D1": "Germany Bundesliga",
+          "E0": "England Premier",
+          "F1": "France Ligue 1",
+          "I1": "Italy Serie A",
+          "SP1": "Spain La Liga"
+        },
+        "phase_market_evidence": 36395,
+        "pre_closing_ah_facts": 12452,
+        "seasons": [
+          "1920",
+          "2021",
+          "2122",
+          "2223",
+          "2324",
+          "2425",
+          "2526"
+        ]
+      },
+      "ingest_manifest_hash": "79cb87588c5b7ae3b603001ab8fd98c7ffa15369e7c8c3b53df2527cd990aa7a",
+      "license_review_state": "HUMAN_REVIEW_REQUIRED",
+      "manifest_hash": "dacfce6fe50f5a02a31bd824c4661a6e891ae1eb52093a6ef79dcbddb35727a2",
+      "purpose": [
+        "historical_market_fact",
+        "F5_dataset",
+        "phase_market_evidence"
+      ],
+      "restore_state": "RESTORE_DRILL_NOT_EXECUTED",
+      "schema": "football_data_co_uk_adapter.v2"
+    }
+  ],
+  "audit_generator_sha": "22391c8a961bc94ee7dd748858d23e244e97827a",
+  "audit_output_commit_sha": "PENDING_COMMIT",
+  "finding_refs": [
+    "P0-DATA-ASSET-REGISTRY-MISSING",
+    "P0-F5-RUNTIME-DATA-MISSING"
+  ],
+  "generated_at": "2026-07-20T13:40:59.001913Z",
+  "private_registry_location": "$W2_FOOTBALL_DATA_ROOT/registry/",
+  "schema_version": "W2_DATA_ASSET_REGISTRY_V3",
+  "source_review_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "tracked_registry_scope": "ALIASES_AND_HASHES_ONLY"
+}

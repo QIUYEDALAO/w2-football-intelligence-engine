@@ -1,12 +1,26 @@
-export type MarketCode = "ASIAN_HANDICAP" | "TOTALS" | "FIRST_HALF_GOALS" | "SCORE";
+export type MarketCode =
+  | "ASIAN_HANDICAP"
+  | "TOTALS"
+  | "FIRST_HALF_GOALS"
+  | "SCORE";
 
 export type Decision = "PICK" | "SKIP" | "WATCH" | "ANALYSIS_PICK" | string;
 
-export type DecisionTier = "NOT_READY" | "SKIP" | "WATCH" | "ANALYSIS_PICK" | "RECOMMEND";
+export type DecisionTier =
+  | "NOT_READY"
+  | "SKIP"
+  | "WATCH"
+  | "ANALYSIS_PICK"
+  | "RECOMMEND";
 
 export type DataStatus = "READY" | "PARTIAL" | "STALE" | "BLOCKED";
 
-export type LifecycleStatus = "DRAFT" | "LOCKED" | "SUPERSEDED" | "VOID" | "SETTLED";
+export type LifecycleStatus =
+  | "DRAFT"
+  | "LOCKED"
+  | "SUPERSEDED"
+  | "VOID"
+  | "SETTLED";
 
 export type FilterMode = "ALL" | "PICK" | "SKIP" | "WATCH";
 
@@ -19,6 +33,8 @@ export interface MarketAnalysis {
   tendency?: string | null;
   lean?: string | null;
   lean_cn?: string | null;
+  signal_strength?: number | string | null;
+  /** Legacy input only; normalized display treats this as signal strength. */
   confidence?: number | string | null;
   line?: string | number | null;
   odds?: string | number | null;
@@ -32,6 +48,10 @@ export interface MarketAnalysis {
   risks_cn?: unknown;
   reference_scores?: unknown;
   scores?: unknown;
+  decision_score?: number | string | null;
+  selection_role?: "PRIMARY" | "SECONDARY" | null;
+  lineup_adjustment?: number | string | null;
+  lineup_status?: string | null;
 }
 
 export interface ReadinessPayload {
@@ -42,7 +62,11 @@ export interface ReadinessPayload {
   lineups?: boolean | string | number | null;
 }
 
-export type AnalysisReadinessStatus = "READY" | "PARTIAL" | "BLOCKED" | "UNKNOWN";
+export type AnalysisReadinessStatus =
+  | "READY"
+  | "PARTIAL"
+  | "BLOCKED"
+  | "UNKNOWN";
 
 export interface AnalysisReadiness {
   status: AnalysisReadinessStatus;
@@ -66,6 +90,8 @@ export interface BookmakerIntentPayload {
   label_cn?: string | null;
   opening_line?: string | number | null;
   current_line?: string | number | null;
+  signal_strength?: number | string | null;
+  /** Legacy input only; new API output omits this heuristic field. */
   confidence?: number | string | null;
 }
 
@@ -174,7 +200,10 @@ export interface DashboardCard {
   bookmaker_intent?: BookmakerIntentPayload | Record<string, unknown> | null;
   market_movement?: MarketMovementPayload | Record<string, unknown> | null;
   market_divergence?: MarketDivergencePayload | Record<string, unknown> | null;
-  bookmaker_hypothesis?: BookmakerHypothesisPayload | Record<string, unknown> | null;
+  bookmaker_hypothesis?:
+    | BookmakerHypothesisPayload
+    | Record<string, unknown>
+    | null;
   markets?: unknown;
   data_readiness?: ReadinessPayload | Record<string, unknown> | null;
   risks_cn?: unknown;
@@ -213,11 +242,29 @@ export interface DashboardStats {
   highWatch: number;
 }
 
-export type MatchStatus = "UPCOMING" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED" | "UNKNOWN";
+export type MatchStatus =
+  | "UPCOMING"
+  | "LIVE"
+  | "FINISHED"
+  | "POSTPONED"
+  | "CANCELLED"
+  | "UNKNOWN";
 
-export type RecommendationTier = "FORMAL" | "CANDIDATE" | "ANALYSIS_PICK" | "WATCH" | "NO_RECOMMENDATION";
+export type RecommendationTier =
+  | "FORMAL"
+  | "CANDIDATE"
+  | "ANALYSIS_PICK"
+  | "WATCH"
+  | "NO_RECOMMENDATION";
 
-export type SettlementStatus = "PENDING" | "HIT" | "MISS" | "PUSH" | "VOID" | "NO_BET" | "UNKNOWN";
+export type SettlementStatus =
+  | "PENDING"
+  | "HIT"
+  | "MISS"
+  | "PUSH"
+  | "VOID"
+  | "NO_BET"
+  | "UNKNOWN";
 
 export type DashboardMode = "today" | "next36" | "future" | "results" | "all";
 
@@ -235,11 +282,21 @@ export interface ScorelineReference {
   source?: string | null;
   label?: string | null;
   top_scorelines?: ScorelinePick[];
+  direction_top3?: Array<
+    ScorelinePick & {
+      selection?: string | null;
+      line?: string | number | null;
+      outcome?: string | null;
+      source?: string | null;
+    }
+  >;
   high_total?: {
     threshold?: number;
     probability?: number | null;
     probability_label?: string | null;
-    representative_scoreline?: (ScorelinePick & { source?: string | null }) | null;
+    representative_scoreline?:
+      | (ScorelinePick & { source?: string | null })
+      | null;
   } | null;
   very_high_total?: {
     threshold?: number;
@@ -258,6 +315,31 @@ export interface ScorelineReference {
     settlement_probability_label?: string | null;
     source?: string | null;
   }>;
+  scoreline_projection?: {
+    schema_version?: string;
+    status?: string;
+    reason?: string | null;
+    simulation_method?: string;
+    simulations_requested?: number;
+    simulations_completed?: number;
+    seed?: number;
+    source_score_matrix_hash?: string;
+    simulation_input_hash?: string;
+    decision_hash?: string | null;
+    consistent_sample_count?: number;
+    consistent_sample_rate?: number;
+    consistency_status?: string;
+    evidence_hash?: string;
+    top3?: Array<
+      ScorelinePick & {
+        sample_count?: number;
+        unconditional_probability?: number;
+        conditional_probability?: number;
+        primary_settlement?: string;
+        secondary_settlements?: string[];
+      }
+    >;
+  } | null;
 }
 
 export interface ScorelineReadiness {
@@ -298,7 +380,12 @@ export interface RecommendationPick {
 }
 
 export type LockedPreMatchStatus = "LOCKED" | "NO_PREMATCH_FORMAL" | string;
-export type LockedSettlementStatus = "PENDING" | "SETTLED" | "WAITING_RESULT" | "NO_BET" | string;
+export type LockedSettlementStatus =
+  | "PENDING"
+  | "SETTLED"
+  | "WAITING_RESULT"
+  | "NO_BET"
+  | string;
 
 export interface LockedPreMatchRecommendation {
   status: LockedPreMatchStatus;
@@ -327,7 +414,11 @@ export interface LockedPreMatchRecommendation {
   } | null;
 }
 
-export type PricingShadowStatus = "RULE_BASED_UNCALIBRATED" | "INSUFFICIENT_INDEPENDENT_FACTORS" | "WATCH" | string;
+export type PricingShadowStatus =
+  | "RULE_BASED_UNCALIBRATED"
+  | "INSUFFICIENT_INDEPENDENT_FACTORS"
+  | "WATCH"
+  | string;
 
 export interface PricingShadowFactor {
   id: string;
@@ -363,13 +454,16 @@ export interface PricingShadow {
   independent_signal_groups?: string[];
   xg_derived_factor_count?: number;
   missing_independent_sources?: string[];
-  factor_source_summary?: Record<string, {
-    source?: string | null;
-    source_group?: string | null;
-    is_independent_signal?: boolean;
-    proxy_of?: string | null;
-    collection_status?: string | null;
-  }>;
+  factor_source_summary?: Record<
+    string,
+    {
+      source?: string | null;
+      source_group?: string | null;
+      is_independent_signal?: boolean;
+      proxy_of?: string | null;
+      collection_status?: string | null;
+    }
+  >;
   simulation?: Record<string, unknown> | null;
   simulation_model_version?: string | null;
   simulation_calibration_version?: string | null;
@@ -454,14 +548,35 @@ export interface DashboardMatchCard {
   result?: MatchResult | null;
   validation?: ValidationSummary | null;
   current_odds?: Record<string, unknown>;
+  last_known_odds?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
-  bookmaker_intent?: Record<string, unknown>;
+  bookmaker_intent?: BookmakerIntentPayload;
   market_movement?: MarketMovementPayload | null;
   market_divergence?: MarketDivergencePayload | null;
   bookmaker_hypothesis?: BookmakerHypothesisPayload | null;
   pricing_shadow?: PricingShadow | null;
+  recommendation_decision_v3?: RecommendationDecisionV3 | null;
   missing_inputs: string[];
+}
+
+export type RecommendationOutcomeV3 =
+  | "NOT_READY"
+  | "NO_EDGE"
+  | "ANALYSIS_PICK"
+  | "FORMAL_RECOMMEND"
+  | "SYSTEM_DEGRADED";
+
+export interface RecommendationDecisionV3 {
+  schema_version: "w2.recommendation_decision.v3";
+  outcome: RecommendationOutcomeV3;
+  reason?: { code?: string; message?: string } | null;
+  next_action?: string | null;
+  selected_candidate?: Record<string, unknown> | null;
+  evaluated_candidate?: Record<string, unknown> | null;
+  statuses?: Record<string, string>;
+  warnings?: string[];
+  decision_hash?: string;
 }
 
 export interface DashboardPerformance {
@@ -519,6 +634,101 @@ export interface ForwardLedgerLeaguePerformance {
   clv_median_decimal?: number | null;
 }
 
+export interface ForwardLedgerValidationLeaguePerformance {
+  competition_id?: string | null;
+  league: string;
+  validation_fixture_count: number;
+  validation_settled_fixture_count: number;
+  canonical_settled_fixture_count: number;
+  canonical_excluded_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+  clv_sample_count: number;
+  clv_median_decimal?: number | null;
+}
+
+export interface ForwardLedgerOutcomeSummary {
+  settled_sample_count: number;
+  hit_count: number;
+  miss_count: number;
+  push_count: number;
+  void_count: number;
+  hit_rate?: number | null;
+}
+
+export interface ForwardLedgerCohortOutcomeSummary extends ForwardLedgerOutcomeSummary {
+  decisive_count: number;
+}
+
+export interface ForwardLedgerCohortClvSummary {
+  sample_count: number;
+  candidate_count: number;
+  missing_count: number;
+  median_decimal?: number | null;
+  positive_count: number;
+  negative_count: number;
+  push_count: number;
+  line_changed_count: number;
+  stale_closing_count: number;
+  insufficient_snapshot_count: number;
+  method?: string;
+}
+
+export interface ForwardLedgerCohortLeaguePerformance {
+  competition_id?: string | null;
+  league: string;
+  processed_count: number;
+  eligible_count: number;
+  excluded_count: number;
+  decisive_count: number;
+  outcomes: ForwardLedgerCohortOutcomeSummary;
+  clv: ForwardLedgerCohortClvSummary;
+  rate_status: "AVAILABLE" | "INSUFFICIENT";
+}
+
+export interface ForwardLedgerCohortExclusion {
+  fixture_id: string;
+  competition_id?: string | null;
+  league: string;
+  home_team_name: string;
+  away_team_name: string;
+  kickoff_utc: string;
+  settlement_outcome: string;
+  reason_code: string;
+  reason_label: string;
+}
+
+export interface ForwardLedgerCohortRecovery {
+  fixture_id: string;
+  competition_id?: string | null;
+  league: string;
+  home_team_name: string;
+  away_team_name: string;
+  kickoff_utc: string;
+  settlement_outcome: string;
+  recovery_code: string;
+  recovery_label: string;
+}
+
+export interface ForwardLedgerPerformanceCohort {
+  validation_count: number;
+  processed_count: number;
+  eligible_count: number;
+  excluded_count: number;
+  recovered_count: number;
+  pending_count: number;
+  outcomes: ForwardLedgerCohortOutcomeSummary;
+  clv: ForwardLedgerCohortClvSummary;
+  by_league: ForwardLedgerCohortLeaguePerformance[];
+  exclusions: ForwardLedgerCohortExclusion[];
+  recoveries: ForwardLedgerCohortRecovery[];
+  integrity_status: string;
+  invariants: Record<string, boolean | string>;
+}
+
 export interface ForwardLedgerPerformance {
   schema_version?: string;
   source?: string;
@@ -531,17 +741,56 @@ export interface ForwardLedgerPerformance {
   push_count: number;
   void_count: number;
   hit_rate?: number | null;
+  validation_fixture_count: number;
+  validation_settled_fixture_count: number;
+  validation_pending_fixture_count: number;
+  validation_pending_status?: {
+    waiting_finish_count: number;
+    postponed_count: number;
+    result_missing_count: number;
+    settlement_error_count: number;
+    details?: Array<{
+      fixture_id: string;
+      category: string;
+      capture_identity_hash?: string | null;
+      card_hash?: string | null;
+      decision_hash?: string | null;
+      recommendation_scope?: string | null;
+      last_checked_at_utc?: string | null;
+      next_check_at_utc?: string | null;
+    }>;
+  };
+  outcomes_validation: ForwardLedgerOutcomeSummary;
+  outcomes_canonical: ForwardLedgerOutcomeSummary;
+  performance_cohort: ForwardLedgerPerformanceCohort;
+  outcomes: ForwardLedgerOutcomeSummary;
+  outcomes_shadow: ForwardLedgerOutcomeSummary;
+  canonical_settled_fixture_count: number;
+  canonical_excluded_count: number;
+  canonical_excluded_by_reason: Record<string, number>;
+  validation_excluded_count: number;
+  validation_excluded_by_reason: Record<string, number>;
+  evidence_window: {
+    first_capture_at?: string | null;
+    latest_capture_at?: string | null;
+    latest_outcome_at?: string | null;
+  };
   accumulation_label: string;
   clv: {
     sample_count: number;
+    candidate_count: number;
+    missing_count: number;
     median_decimal?: number | null;
     positive_count: number;
     negative_count: number;
     push_count: number;
     line_changed_count: number;
+    stale_closing_count: number;
+    insufficient_snapshot_count: number;
     method?: string;
   };
   by_league: ForwardLedgerLeaguePerformance[];
+  by_league_validation: ForwardLedgerValidationLeaguePerformance[];
   mock_data?: boolean;
 }
 
@@ -578,6 +827,7 @@ export interface ApiVersion {
   read_model_fixture_count: number;
   matchday_card_count: number;
   result_event_count: number;
+  release_identity?: Record<string, unknown>;
   generated_at?: string;
 }
 
@@ -631,6 +881,8 @@ export interface DashboardDayViewCounts {
 }
 
 export interface DashboardDayViewFreshness {
+  page_updated_at?: string | null;
+  odds_last_confirmed_at?: string | null;
   last_refresh?: string | null;
   next_refresh_tick?: string | null;
   provider_budget_status?: string | null;
@@ -654,6 +906,7 @@ export interface DashboardDayViewCard {
   status?: string | null;
   source?: string | null;
   decision_tier: DecisionTier;
+  recommendation_decision_v3?: RecommendationDecisionV3 | null;
   data_status: DataStatus;
   lifecycle_status: LifecycleStatus;
   outcome_tracked: boolean;
@@ -669,12 +922,17 @@ export interface DashboardDayViewCard {
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
   current_odds?: Record<string, unknown>;
+  last_known_odds?: Record<string, unknown>;
   market_probabilities?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
   missing_inputs?: string[];
+  scoreline_picks: ScorelinePick[];
+  scoreline_reference?: ScorelineReference | null;
+  scoreline_readiness?: ScorelineReadiness | null;
+  scoreline_simulations?: number | null;
   pick?: {
     market?: string | null;
     selection?: string | null;
@@ -682,6 +940,17 @@ export interface DashboardDayViewCard {
     odds?: string | number | null;
     disclaimer?: string | null;
   } | null;
+  secondary_picks?: Array<{
+    market?: string | null;
+    tendency?: string | null;
+    lean?: string | null;
+    line?: string | number | null;
+    odds?: string | number | null;
+    decision_score?: number | string | null;
+  }>;
+  market_selection_audit?: Array<Record<string, unknown>>;
+  lineup_provenance?: Record<string, unknown>;
+  dynamic_prematch?: Record<string, unknown>;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;

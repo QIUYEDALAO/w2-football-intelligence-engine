@@ -351,3 +351,76 @@
 - 回填幂等:同一 fixture/market/selection/settled_side 重跑不会重复写;无 FT 赛果不产 outcome;线或价格缺失写 `VOID` + `void_reason`。
 - staging 调度开关已预置:`W2_FORWARD_OUTCOME_BACKFILL_ENABLED` 默认代码为 false,staging compose 显式 true,间隔默认 `3600s`;production 不启用。
 - 下一步队列保持不变:FIX-C(锚定阈值 0.25 线差单位 + devig POWER 统一) -> FIX-D(R4.1b champion model_family 接线)。
+
+### 2026-07-18 · R1 本地检查点（正式 staging canary 前）
+
+- 状态统一为 `implemented / locally_verified / staging_accepted / production_approved`；
+  旧 PR #333–#347 只作需求与失败案例线索，不代表当前树已合入或通过。
+- R1.1–R1.4 已 `locally_verified`：共享有界指标、机器发布证据、fail-closed
+  runtime degradation、Chromium 五态 Web 合约均通过专项与各检查点全量门。
+- R1.5 为 `implemented`。R1 尚未 `staging_accepted`，不得进入 R2；下一步是
+  R1 全阶段本地/隔离 Gate，通过后只做一次 formal staging canary。
+- GitHub、champion、RECOMMEND/lock、OFFICIAL 与 production 均未变更。
+
+### 2026-07-18 · R1 正式 staging 验收
+
+- R1 exact candidate `103813d7e8ea422756472cb9b4369e3c80876d09` 已完成本地、
+  隔离 predeploy/parity 与正式 staging canary，状态升级为 `staging_accepted`。
+- 产品 projection hash、provider/业务表/checkpoint/ledger/lock/queue 均保持不变；
+  四服务健康且 restart/OOM/exit137 为 0，scheduler/watchdog 已恢复 active。
+- canary 中发现并修复镜像身份查询与 stopped scheduler RSS 采集缺陷；旧 OCI index
+  丢失事实已写入正式证据，后续部署会在移动 fixed tag 前保留 revision-scoped
+  rollback tags。
+- `next_phase=R2`，只授权离线确定性模型修正；不自动替换 champion，不开放
+  RECOMMEND/lock、OFFICIAL 或 production。
+
+### 2026-07-19 · 首发变化与多市场决策任务重新排期
+
+- 用户确认首发的价值不应简化为“首发总身价”；本轮改为建模关键缺席、位置替换、
+  客串、阵型偏移、组合连续性和替补深度。
+- GitHub Transfermarkt 数据只读核验确认：`players` 有 `position/sub_position`，
+  `game_lineups` 有逐场首发/替补与本场位置，`games` 有双方阵型，足以建立赛前常用
+  阵容基线；临场正式首发仍由受控 API-Football 采集提供。
+- 当前代码虽同时产生 AH/OU 分析，但最终使用第一个 `PICK`，且市场顺序 AH 在 OU 前，
+  造成事实上的让球优先；正式 recommendation 路径也只支持 AH。本轮只修
+  `ANALYSIS_PICK` 的 AH/OU 独立准入和择优，不开放正式 RECOMMEND。
+- 五大联赛采用 `lineup_policy=REQUIRED`；其他联赛按真实覆盖审计分 A/B/C，首发作为
+  可选增强，不使用一个硬门阻塞全部非五大赛事。
+- Dashboard 原布局冻结；所有合格比赛继续展示。推荐比分必须服从最终 AH/OU 市场，
+  无最终 pick 时不显示方向性比分。
+- 完整任务清单：
+  `docs/consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md`。
+- 本地上下文：`local_main_sha=8e171dc05efc2fc3a512fff2c334d123d01db922`，
+  `github_w2_main_baseline=a80bcca`，未同步 GitHub，未部署。
+- 本计划属于数据契约和运行时决策变更；全部本地/隔离 Gate 通过后只做一次 staging
+  canary，随后连续三个 09:00 只读周期从 `0/3` 重新累计。
+
+### 2026-07-19 · LMM0–LMM8 正式 staging 验收
+
+- Exact candidate `198c603db424371014e1f738596a9befa8a9486c` 通过本地全量、
+  Web/Playwright、隔离 predeploy/parity、迁移往返和正式 staging canary，状态为
+  `staging_accepted_awaiting_three_cycles`。
+- 0024、Transfermarkt 身份/身价、结构化阵容、确定性球队基线、阵容完整性、AH/OU
+  独立择优、统一 Decision Contract 和原 Dashboard 数据投影已在 staging 验收。
+- 当前覆盖政策为 C，LMM4 数值阵容权重保持 0；未通过冻结离线证据门前不对公开 xG
+  施加推测性影响。该限制不撤销阵容 readiness、provenance、解释和市场独立择优。
+- 公开顺序/并发读取 provider、业务表、checkpoint、ledger、lock 和 queue 增量均为
+  0；无 pick 时不再显示方向性推荐比分。四服务健康，restart/OOM/exit137 为 0，
+  scheduler/watchdog 已恢复。
+- 三周期重新从 `0/3` 累计。用户批准加速为 2026-07-19 10:00 首次巡检，随后
+  2026-07-20、2026-07-21 各 09:00；三个自然日必须保持同一 SHA、镜像和数据契约。
+  GitHub、champion、RECOMMEND/lock、OFFICIAL 与 write-enabled production
+  均未变更。
+
+### 2026-07-19 · Dashboard ledger authority 修复验收
+
+- 10:00 巡检发现 staging Dashboard 将真实验证 23 场错误显示为 0。真实共享 ledger
+  完整未丢失；根因是非 editable 安装后 API 从 site-packages 路径推导了错误 runtime。
+- `438ac07e8ad3b30dbe1c4107b759100e1cae7418` 显式绑定 `/app/runtime` 后恢复
+  23 场、已结算 15、待结算 8、命中 10、未中 3、走水 2；ledger hash、provider、
+  queue 均无变化。
+- Dashboard 将“数据陈旧”替换为实际缺项、现有早盘采集时间和下一采集时点。当前三场
+  瑞典超缺的是 30 分钟新鲜度内的临场 AH/OU 赔率，预计 16:30 正常采集后重新判断；
+  非五大联赛不以首发为硬门，也不承诺必然形成 pick。
+- 该运行时修复使三周期重置为 `0/3`；10:00 故障巡检不计数，下一组为 7 月 20–22
+  日各 09:00。GitHub 和所有高风险开关不变。

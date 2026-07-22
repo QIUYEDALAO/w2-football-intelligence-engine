@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -196,13 +196,67 @@ class TeamState:
     defence: float = 1.25
     matches: int = 0
     last_played: datetime | None = None
-    form_points: list[float] | None = None
+    form_points: list[float] = field(default_factory=list)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "rating": self.rating,
+            "attack": self.attack,
+            "defence": self.defence,
+            "matches": self.matches,
+            "last_played": self.last_played.isoformat() if self.last_played else None,
+            "form_points": list(self.form_points),
+        }
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> TeamState:
+        last_played_raw = payload.get("last_played")
+        last_played = (
+            require_utc(datetime.fromisoformat(str(last_played_raw)), "last_played")
+            if last_played_raw
+            else None
+        )
+        form_points = payload.get("form_points")
+        return cls(
+            rating=float(payload.get("rating", 1500.0)),
+            attack=float(payload.get("attack", 1.25)),
+            defence=float(payload.get("defence", 1.25)),
+            matches=int(payload.get("matches", 0)),
+            last_played=last_played,
+            form_points=[float(point) for point in form_points or []],
+        )
 
 
 class AsOfFeatureBuilder:
     def __init__(self, *, decay_days: float = 365.0) -> None:
         self.decay_days = decay_days
         self.states: dict[str, TeamState] = {}
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "schema_version": "w2.asof-feature-state.v1",
+            "decay_days": self.decay_days,
+            "teams": {
+                team: state.to_payload() for team, state in sorted(self.states.items())
+            },
+        }
+
+    @classmethod
+    def from_snapshot(cls, payload: dict[str, Any]) -> AsOfFeatureBuilder:
+        if payload.get("schema_version") != "w2.asof-feature-state.v1":
+            raise ValueError("unsupported as-of feature state schema")
+        teams = payload.get("teams")
+        if not isinstance(teams, dict):
+            raise ValueError("as-of feature state teams must be an object")
+        builder = cls(decay_days=float(payload.get("decay_days", 365.0)))
+        builder.states = {
+            str(team): TeamState.from_payload(state)
+            for team, state in sorted(teams.items())
+            if isinstance(state, dict)
+        }
+        if len(builder.states) != len(teams):
+            raise ValueError("as-of feature team state must be an object")
+        return builder
 
     def features(self, match: MatchRecord) -> dict[str, float | bool | str]:
         home = self.states.get(match.home_team, TeamState())
@@ -243,8 +297,8 @@ class AsOfFeatureBuilder:
         return features
 
     def update(self, match: MatchRecord) -> None:
-        home = self.states.setdefault(match.home_team, TeamState(form_points=[]))
-        away = self.states.setdefault(match.away_team, TeamState(form_points=[]))
+        home = self.states.setdefault(match.home_team, TeamState())
+        away = self.states.setdefault(match.away_team, TeamState())
         expected_home = 1.0 / (1.0 + 10 ** ((away.rating - home.rating) / 400))
         actual_home = (
             1.0
@@ -267,10 +321,10 @@ class AsOfFeatureBuilder:
         away.matches += 1
         home.last_played = match.kickoff_utc
         away.last_played = match.kickoff_utc
-        (home.form_points or []).append(
+        home.form_points.append(
             3.0 if actual_home == 1.0 else 1.0 if actual_home == 0.5 else 0.0
         )
-        (away.form_points or []).append(
+        away.form_points.append(
             3.0 if actual_home == 0.0 else 1.0 if actual_home == 0.5 else 0.0
         )
 
@@ -286,7 +340,7 @@ def _inactivity_decay(rest_days: float) -> float:
 
 
 def _rolling_form(state: TeamState) -> float:
-    points = state.form_points or []
+    points = state.form_points
     recent = points[-5:]
     return sum(recent) / max(len(recent) * 3, 1)
 

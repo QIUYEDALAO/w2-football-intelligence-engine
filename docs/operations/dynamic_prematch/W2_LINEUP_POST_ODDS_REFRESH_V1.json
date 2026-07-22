@@ -1,0 +1,10 @@
+{
+  "schema_version": "w2.lineup_post_odds_refresh_evidence.v1",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
+  "scope": "OFFLINE_CONTRACT",
+  "transition": ["LINEUP_CONFIRMED", "LINEUP_READY_MARKET_REFRESH_PENDING", "POST_LINEUP_FRESH_EXACT_QUOTE", "EV_RECOMPUTED"],
+  "pre_lineup_quote_reuse_allowed": false,
+  "old_model_input_superseded": true,
+  "result": "LINEUP_POST_MARKET_REFRESH_PASS",
+  "live_canary": "NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE"
+}

@@ -27,6 +27,7 @@ class CanonicalAhMainline:
     selected_bookmakers: list[str] | None = None
     source_payload_ids: list[str] | None = None
     authoritative_quote_rows: dict[str, dict[str, Any]] | None = None
+    authoritative_quote_rows_by_line: dict[str, dict[str, dict[str, Any]]] | None = None
     quarantined_count: int = 0
     quarantine_reasons: dict[str, int] | None = None
 
@@ -119,6 +120,24 @@ def select_canonical_ah_mainline(
         for item in candidate_lines
         if Decimal(str(item["line"])) != selected_line
     ]
+    quote_rows_by_line = {
+        _format_decimal(line): {
+            side.lower(): dict(representative_vote["sides"][side]["row"])
+            for side in ("HOME", "AWAY")
+        }
+        for line, line_votes in by_line.items()
+        for representative_vote in [
+            min(
+                line_votes,
+                key=lambda item: (
+                    float(item["balance_distance"]),
+                    float(item["price_gap"]),
+                    float(item["mid_distance"]),
+                    str(item["bookmaker"]),
+                ),
+            )
+        ]
+    }
     return CanonicalAhMainline(
         status="READY",
         line=selected_line,
@@ -147,9 +166,9 @@ def select_canonical_ah_mainline(
             },
         ),
         authoritative_quote_rows={
-            side.lower(): dict(representative["sides"][side]["row"])
-            for side in ("HOME", "AWAY")
+            side.lower(): dict(representative["sides"][side]["row"]) for side in ("HOME", "AWAY")
         },
+        authoritative_quote_rows_by_line=quote_rows_by_line,
         quarantined_count=sum(quarantine_reasons.values()),
         quarantine_reasons=quarantine_reasons,
     )
@@ -185,7 +204,7 @@ def _quarantine_reason(row: dict[str, Any], *, fixture_id: str) -> str | None:
 
 
 def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_bookmaker_line: dict[tuple[str, Decimal], dict[str, Any]] = {}
+    by_bookmaker: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in rows:
         bookmaker = str(
             row.get("bookmaker_id") or row.get("bookmaker") or row.get("bookmaker_name")
@@ -195,51 +214,62 @@ def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]
         price = _float(row.get("decimal_odds") or row.get("executable_odds"))
         if line is None or side not in {"HOME", "AWAY"} or price is None:
             continue
-        home_line = line if side == "HOME" else -line
-        key = (bookmaker, abs(home_line))
-        pair = by_bookmaker_line.setdefault(
-            key,
-            {
-                "bookmaker": bookmaker,
-                "line": home_line,
-                "sides": {},
-                "provider": row.get("provider") or row.get("source") or "read_model",
-                "source_payload_ids": set(),
-            },
+        by_bookmaker.setdefault(bookmaker, {"HOME": [], "AWAY": []})[side].append(
+            {"line": line, "price": price, "row": row}
         )
-        if side == "HOME":
-            pair["line"] = home_line
-        payload_id = (
-            row.get("raw_payload_sha256") or row.get("source_payload_id") or row.get("sha256")
-        )
-        if payload_id:
-            pair["source_payload_ids"].add(str(payload_id))
-        current = pair["sides"].get(side)
-        if current is None or price > float(current["price"]):
-            pair["sides"][side] = {"price": price, "line": line, "row": row}
     per_bookmaker: dict[str, list[dict[str, Any]]] = {}
-    for pair in by_bookmaker_line.values():
-        sides = pair.get("sides") or {}
-        if set(sides) < {"HOME", "AWAY"}:
-            continue
-        prices = [float(sides["HOME"]["price"]), float(sides["AWAY"]["price"])]
-        if not _valid_price_pair(prices):
-            continue
-        line = Decimal(str(pair["line"]))
-        vote = {
-            "bookmaker": str(pair["bookmaker"]),
-            "line": line,
-            "sides": sides,
-            "home_price": prices[0],
-            "away_price": prices[1],
-            "price_gap": round(abs(prices[0] - prices[1]), 6),
-            "balance_distance": _devig_balance_distance(prices),
-            "mid_distance": round(abs((sum(prices) / 2) - 1.90), 6),
-            "implied_sum": round(sum(1 / value for value in prices), 6),
-            "provider": pair.get("provider"),
-            "source_payload_ids": sorted(pair.get("source_payload_ids") or []),
-        }
-        per_bookmaker.setdefault(str(pair["bookmaker"]), []).append(vote)
+    for bookmaker, sides in by_bookmaker.items():
+        for home in sides["HOME"]:
+            for away in sides["AWAY"]:
+                home_line = Decimal(str(home["line"]))
+                away_provider_line = Decimal(str(away["line"]))
+                # API-Football supplies two legitimate AH shapes: some books
+                # repeat one home-perspective line on both selections, while
+                # others expose complementary team-perspective lines.  Convert
+                # either shape to the one canonical contract used downstream.
+                if away_provider_line not in {home_line, -home_line}:
+                    continue
+                prices = [float(home["price"]), float(away["price"])]
+                if not _valid_price_pair(prices):
+                    continue
+                home_row = dict(home["row"])
+                away_row = dict(away["row"])
+                home_row["provider_line"] = home_row.get("line")
+                away_row["provider_line"] = away_row.get("line")
+                home_row["line"] = _format_decimal(home_line)
+                away_row["line"] = _format_decimal(-home_line)
+                payload_ids = {
+                    str(payload_id)
+                    for payload_id in (
+                        home_row.get("raw_payload_sha256")
+                        or home_row.get("source_payload_id")
+                        or home_row.get("sha256"),
+                        away_row.get("raw_payload_sha256")
+                        or away_row.get("source_payload_id")
+                        or away_row.get("sha256"),
+                    )
+                    if payload_id
+                }
+                per_bookmaker.setdefault(bookmaker, []).append(
+                    {
+                        "bookmaker": bookmaker,
+                        "line": home_line,
+                        "sides": {
+                            "HOME": {"price": prices[0], "line": home_line, "row": home_row},
+                            "AWAY": {"price": prices[1], "line": -home_line, "row": away_row},
+                        },
+                        "home_price": prices[0],
+                        "away_price": prices[1],
+                        "price_gap": round(abs(prices[0] - prices[1]), 6),
+                        "balance_distance": _devig_balance_distance(prices),
+                        "mid_distance": round(abs((sum(prices) / 2) - 1.90), 6),
+                        "implied_sum": round(sum(1 / value for value in prices), 6),
+                        "provider": home_row.get("provider")
+                        or home_row.get("source")
+                        or "read_model",
+                        "source_payload_ids": sorted(payload_ids),
+                    }
+                )
     votes: list[dict[str, Any]] = []
     for candidates in per_bookmaker.values():
         candidates.sort(

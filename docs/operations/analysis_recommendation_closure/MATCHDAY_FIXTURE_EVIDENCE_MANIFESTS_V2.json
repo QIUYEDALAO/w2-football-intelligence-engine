@@ -1,0 +1,476 @@
+{
+  "artifact_hash": "fea3999a7984d9fc8908c42182ee9871c434eed34cd796da6293dc80ff35cb83",
+  "final_state": "ANALYSIS_CHAIN_MODEL_INPUT_REMEDIATION_REQUIRED",
+  "fixture_ids": [
+    "1494224",
+    "1494218"
+  ],
+  "formal_recommend_count": 0,
+  "generated_at": "2026-07-21T00:00:00Z",
+  "implementation_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3",
+  "input_snapshot_hash": "bcf38073af7651c78682e4c96527950632522b9bba3fe43d1cf7566c717932f4",
+  "lock_write_count": 0,
+  "manifest_count": 2,
+  "manifests": [
+    {
+      "F5_status": "SOURCE_NOT_AVAILABLE_FOR_ALLSVENSKAN",
+      "F8_status": "INCOMPLETE",
+      "LMM_status": "MISSING",
+      "blockers": [
+        "TEAM_IDENTITY_REVIEW_REQUIRED",
+        "F7_RATINGS_MISSING",
+        "F9_XG_MISSING",
+        "MODEL_PROBABILITY_NOT_COMPUTABLE"
+      ],
+      "checkpoint_coverage": "ENDPOINT_CAPTURE_PRESENT_NO_SCHEDULED_CHECKPOINT_CAPTURE_FOR_ANALYSIS_TASK",
+      "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+      "endpoint_capture_ids": [
+        "11c024cc3cb4318a987a742adfb5c2cacd276c390505adde270c5244713ed2a3",
+        "f41dbd58a15546d88820471285e9d8d5f6f27ec6f54a1b459f536827500d1446"
+      ],
+      "exact_quote_identity": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_id": "16",
+          "bookmaker_name": "Unibet",
+          "capture_id": "f41dbd58a15546d88820471285e9d8d5f6f27ec6f54a1b459f536827500d1446",
+          "captured_at": "2026-07-20T22:50:50Z",
+          "fixture_id": "1494218",
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_devig_probability": {
+            "AWAY": 0.787546,
+            "HOME": 0.212454
+          },
+          "observation_ids": [
+            "61ef562a594e08d4cb23c13af71e94c7dd1e827bcc811b868d6eeabf46b37519",
+            "a6cd150da559a52ce99880a3a2faf81ae74fa96d2b103d0fa1bd548f6b2811e4"
+          ],
+          "overround": 0.094627,
+          "quote_identity_hash": "44210a6595bd9a9c8393db891d035df06d63317e217451edd0a9ab65e45ef931",
+          "selections": [
+            {
+              "decimal_odds": "1.16",
+              "provider_selection": "Away -0.5",
+              "selection": "AWAY"
+            },
+            {
+              "decimal_odds": "4.3",
+              "provider_selection": "Home -0.5",
+              "selection": "HOME"
+            }
+          ]
+        },
+        "TOTALS": {
+          "bookmaker_id": "16",
+          "bookmaker_name": "Unibet",
+          "capture_id": "f41dbd58a15546d88820471285e9d8d5f6f27ec6f54a1b459f536827500d1446",
+          "captured_at": "2026-07-20T22:50:50Z",
+          "fixture_id": "1494218",
+          "line": "1.5",
+          "market": "TOTALS",
+          "market_devig_probability": {
+            "OVER": 0.76087,
+            "UNDER": 0.23913
+          },
+          "observation_ids": [
+            "19992a46e06dda6b1bcc5c84b4c0ec5f69694bddd979028bfd57768be9c63893",
+            "f024f35767378f8e60464115da20b74399cf1cd7b2bbc390bb1beaed9845f316"
+          ],
+          "overround": 0.086187,
+          "quote_identity_hash": "3b4e06c71624f6c852efb936856bb8e3916977a8b2ecf9be43b3c1203679178c",
+          "selections": [
+            {
+              "decimal_odds": "1.21",
+              "provider_selection": "Over 1.5",
+              "selection": "OVER"
+            },
+            {
+              "decimal_odds": "3.85",
+              "provider_selection": "Under 1.5",
+              "selection": "UNDER"
+            }
+          ]
+        }
+      },
+      "factor_readiness_hashes": [
+        "15d9899832a5c359e7b50a6d8420655b8952b87ab99f1f70602f7b682955f39c",
+        "c45b14ea079f541ccd37249a2947db3df36fde7d013e5062559aca19dc0359ef",
+        "5a47d1192a9b88173c8a5ba8aed34bde21c83be3662e7ad113a1367f5f002452",
+        "d24c7596a1a343e25ee4f57765cbffd1301b383612d3be0a832a7d10b23c4e9b",
+        "7b7465f5165ae18dd80aa823f7b7ca658b0a1ca4c44710cdd21fd484d7aff094",
+        "66b25b3096bfd1b61f6f90b12097971f9bbd53958e808ee16d2b1f79e3eb057e",
+        "f8ddd48095c96d22a62125b5e2e953335d4f31bcee179ea81bb7b46f12e4a2f7",
+        "062c171086df81a5f3101f805bd5b4450137b986ac5a97e1e33c56ca356628ba",
+        "d1a57224d5d8d2539324d6f3131d3863ccd06b91054f624ccc9f0a55c370e611",
+        "5e7effe03955cbed7979cff8b0cd343d4a08d4ec2c759ca170666f464ef41b17"
+      ],
+      "fixture_identity": {
+        "away_provider_team_id": "364",
+        "away_provider_team_name": "Djurgardens IF",
+        "away_w2_team_id": null,
+        "captured_at": "2026-07-20T22:50:48.985662Z",
+        "competition_id": "allsvenskan",
+        "endpoint_capture_id": "e6f6209f72c80e894116077e1e7b91f70eedec6e645aa515b857f900dc86b35b",
+        "fixture_id": "api_football:1494218",
+        "fixture_status": "NS",
+        "home_provider_team_id": "2172",
+        "home_provider_team_name": "Degerfors IF",
+        "home_w2_team_id": null,
+        "identity_hash": "36ccefba5ae0345de0ef1daf7e9d0295720a247c8aae99beb6e076c6f9b41422",
+        "kickoff_utc": "2026-07-25T13:00:00Z",
+        "league_name": "Allsvenskan",
+        "provider": "api_football",
+        "provider_fixture_id": "1494218",
+        "provider_league_id": "113",
+        "raw_payload_sha256": "325cb6d76d0b549706d5d5270527497f126856808cb4b5a3f2f5e3a1257be36d",
+        "round": "Regular Season - 14",
+        "season": "2026",
+        "team_identity_status": "REVIEW_REQUIRED",
+        "venue_name": "Stora Valla"
+      },
+      "manifest_hash": "fa39832602b109bf304466068fe63ac18b5f621d04e80e83e9738d9ab3828dc1",
+      "market_evidence_hash": "c2eeedd820a2ab26cc15bdb0a30c68a290c0f49dba8eedd392e75b80245c576c",
+      "model_evidence_hashes": [
+        "c0e309e1a8d3a326a8b729654978abfd7a0b3b1718d2dc44a26a11efe67c8cd3",
+        "c6a7163e2f8232a918ec00528172e26c3c19414736c99c83f7ceddc4f076098a",
+        "b7ff2d2837e2d9014b66f97fd1163c2ed0b1f96f6ef535ed472f8a67bb01efad",
+        "4509543091fbc194301b2b143fa43269139e10066b24d050d12fa0360f69c813"
+      ],
+      "next_action": "REVIEW_TEAM_IDENTITY_AND_MATERIALIZE_MODEL_INPUTS",
+      "schema_version": "MatchdayEvidenceManifestV2",
+      "team_identity_status": "REVIEW_REQUIRED",
+      "v3_decision": {
+        "canonical_public": {
+          "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+          "fixture_id": "1494218",
+          "formal_eligible": false,
+          "lock_eligible": false,
+          "outcome": "NOT_READY",
+          "reason_code": "TEAM_IDENTITY_REVIEW_REQUIRED",
+          "recommendation_write": false,
+          "scope": "CANONICAL_PUBLIC"
+        },
+        "diagnostic": {
+          "decision_hash": "e4723a73d17d4bc3bbeb104a3f2a31b1a18c2d8148a44e7c53907df67ff3819f",
+          "fixture_id": "1494218",
+          "formal_eligible": false,
+          "lock_eligible": false,
+          "not_formal": true,
+          "not_lockable": true,
+          "not_public": true,
+          "not_tracked": true,
+          "outcome": "SYSTEM_DEGRADED",
+          "reason_code": "MODEL_INPUTS_MISSING",
+          "scope": "DIAGNOSTIC_ONLY"
+        },
+        "model_evidence_hashes": [
+          "c0e309e1a8d3a326a8b729654978abfd7a0b3b1718d2dc44a26a11efe67c8cd3",
+          "c6a7163e2f8232a918ec00528172e26c3c19414736c99c83f7ceddc4f076098a",
+          "b7ff2d2837e2d9014b66f97fd1163c2ed0b1f96f6ef535ed472f8a67bb01efad",
+          "4509543091fbc194301b2b143fa43269139e10066b24d050d12fa0360f69c813"
+        ],
+        "quote_identities": {
+          "ASIAN_HANDICAP": {
+            "bookmaker_id": "16",
+            "bookmaker_name": "Unibet",
+            "capture_id": "f41dbd58a15546d88820471285e9d8d5f6f27ec6f54a1b459f536827500d1446",
+            "captured_at": "2026-07-20T22:50:50Z",
+            "fixture_id": "1494218",
+            "line": "-0.5",
+            "market": "ASIAN_HANDICAP",
+            "market_devig_probability": {
+              "AWAY": 0.787546,
+              "HOME": 0.212454
+            },
+            "observation_ids": [
+              "61ef562a594e08d4cb23c13af71e94c7dd1e827bcc811b868d6eeabf46b37519",
+              "a6cd150da559a52ce99880a3a2faf81ae74fa96d2b103d0fa1bd548f6b2811e4"
+            ],
+            "overround": 0.094627,
+            "quote_identity_hash": "44210a6595bd9a9c8393db891d035df06d63317e217451edd0a9ab65e45ef931",
+            "selections": [
+              {
+                "decimal_odds": "1.16",
+                "provider_selection": "Away -0.5",
+                "selection": "AWAY"
+              },
+              {
+                "decimal_odds": "4.3",
+                "provider_selection": "Home -0.5",
+                "selection": "HOME"
+              }
+            ]
+          },
+          "TOTALS": {
+            "bookmaker_id": "16",
+            "bookmaker_name": "Unibet",
+            "capture_id": "f41dbd58a15546d88820471285e9d8d5f6f27ec6f54a1b459f536827500d1446",
+            "captured_at": "2026-07-20T22:50:50Z",
+            "fixture_id": "1494218",
+            "line": "1.5",
+            "market": "TOTALS",
+            "market_devig_probability": {
+              "OVER": 0.76087,
+              "UNDER": 0.23913
+            },
+            "observation_ids": [
+              "19992a46e06dda6b1bcc5c84b4c0ec5f69694bddd979028bfd57768be9c63893",
+              "f024f35767378f8e60464115da20b74399cf1cd7b2bbc390bb1beaed9845f316"
+            ],
+            "overround": 0.086187,
+            "quote_identity_hash": "3b4e06c71624f6c852efb936856bb8e3916977a8b2ecf9be43b3c1203679178c",
+            "selections": [
+              {
+                "decimal_odds": "1.21",
+                "provider_selection": "Over 1.5",
+                "selection": "OVER"
+              },
+              {
+                "decimal_odds": "3.85",
+                "provider_selection": "Under 1.5",
+                "selection": "UNDER"
+              }
+            ]
+          }
+        }
+      },
+      "warnings": [
+        "F5_SOURCE_NOT_AVAILABLE_FOR_ALLSVENSKAN",
+        "F8_INCOMPLETE",
+        "LMM_MISSING_ADVISORY"
+      ]
+    },
+    {
+      "F5_status": "SOURCE_NOT_AVAILABLE_FOR_ALLSVENSKAN",
+      "F8_status": "INCOMPLETE",
+      "LMM_status": "MISSING",
+      "blockers": [
+        "TEAM_IDENTITY_REVIEW_REQUIRED",
+        "F7_RATINGS_MISSING",
+        "F9_XG_MISSING",
+        "MODEL_PROBABILITY_NOT_COMPUTABLE"
+      ],
+      "checkpoint_coverage": "ENDPOINT_CAPTURE_PRESENT_NO_SCHEDULED_CHECKPOINT_CAPTURE_FOR_ANALYSIS_TASK",
+      "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+      "endpoint_capture_ids": [
+        "347c0444c8e425ddd2d11fe7b24950aba534e290c8e7fc585f15c395af6d4da2",
+        "e7fa37703839bb87756e708c542d5459a9ad7053031371e8a760540d4a0179a8"
+      ],
+      "exact_quote_identity": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_id": "16",
+          "bookmaker_name": "Unibet",
+          "capture_id": "e7fa37703839bb87756e708c542d5459a9ad7053031371e8a760540d4a0179a8",
+          "captured_at": "2026-07-20T22:50:49Z",
+          "fixture_id": "1494224",
+          "line": "-0.5",
+          "market": "ASIAN_HANDICAP",
+          "market_devig_probability": {
+            "AWAY": 0.353234,
+            "HOME": 0.646766
+          },
+          "observation_ids": [
+            "ab7bae20c2df1d797d787b9a8e3fb39a0f8688446e45a9768be2c8d19453b838",
+            "f044f68561e4bde32d9a89631d54e62c36c3bec9dcc1b5f488bb5550427c2e09"
+          ],
+          "overround": 0.088841,
+          "quote_identity_hash": "c473747da7bda528e626de5f0468726dd3f7f3a97ab02b1f9afb2b2e5c813bcb",
+          "selections": [
+            {
+              "decimal_odds": "2.6",
+              "provider_selection": "Away -0.5",
+              "selection": "AWAY"
+            },
+            {
+              "decimal_odds": "1.42",
+              "provider_selection": "Home -0.5",
+              "selection": "HOME"
+            }
+          ]
+        },
+        "TOTALS": {
+          "bookmaker_id": "16",
+          "bookmaker_name": "Unibet",
+          "capture_id": "e7fa37703839bb87756e708c542d5459a9ad7053031371e8a760540d4a0179a8",
+          "captured_at": "2026-07-20T22:50:49Z",
+          "fixture_id": "1494224",
+          "line": "1.5",
+          "market": "TOTALS",
+          "market_devig_probability": {
+            "OVER": 0.786106,
+            "UNDER": 0.213894
+          },
+          "observation_ids": [
+            "ce1afbb589df3c35ad5d1079d97413d5bfd47abff2246358f31990b69d88a297",
+            "29883fd63f22aed60127e451475e8d7ac94c60b49815977479724da30713b21c"
+          ],
+          "overround": 0.087259,
+          "quote_identity_hash": "615835fa8cb6cee79917f5c58390bc12dcf97602d7105a2d562ffe7a3e3a5af7",
+          "selections": [
+            {
+              "decimal_odds": "1.17",
+              "provider_selection": "Over 1.5",
+              "selection": "OVER"
+            },
+            {
+              "decimal_odds": "4.3",
+              "provider_selection": "Under 1.5",
+              "selection": "UNDER"
+            }
+          ]
+        }
+      },
+      "factor_readiness_hashes": [
+        "40bd4083082cef7ff40a11c668a9f1faf55429006e8deb11f0ec004d3527d8a3",
+        "cfe0c2343785b252abd1a89640bdc10ccbd27312ef78b93f6ef3474327d4db62",
+        "db46203fef70843e16f5abe71e3f25b887c062bd4a93f32cfa112060580aee73",
+        "1d81cf33c710501aa20057724dc0cf8e2dcc53fbfbc644c99e550f28fcf42b74",
+        "e8adf525e16244a91bb8cfb664eecfa65b6a177e7172a5eec74ca8b857a47a7a",
+        "502893cc65075d4780166f811f0d1b9e057d818719e974eff1391963fae136ed",
+        "1dd816eedb5a96602a84c92e173cd0d4165b51170ae69f60dc766240cd77c94a",
+        "56983a2a0a7012187e8c9f600890aa7bc1958091c4baf28bab56dc76ad6352d9",
+        "470dbc3e82290d438a25d67e3ab2aa72fb939ed174c5605a0313f44db6e00670",
+        "d9a3824c0eca3b35d310d42688d585ac152c0f31149b4c9c8c438ed1e83c44d5"
+      ],
+      "fixture_identity": {
+        "away_provider_team_id": "2166",
+        "away_provider_team_name": "Orgryte IS",
+        "away_w2_team_id": null,
+        "captured_at": "2026-07-20T22:50:48.985662Z",
+        "competition_id": "allsvenskan",
+        "endpoint_capture_id": "e6f6209f72c80e894116077e1e7b91f70eedec6e645aa515b857f900dc86b35b",
+        "fixture_id": "api_football:1494224",
+        "fixture_status": "NS",
+        "home_provider_team_id": "2241",
+        "home_provider_team_name": "Vasteras SK FK",
+        "home_w2_team_id": null,
+        "identity_hash": "a2c0921fcaf9d71f1d170e07f205759743da138a9d7ae9f53d82b6d400f389c4",
+        "kickoff_utc": "2026-07-24T17:00:00Z",
+        "league_name": "Allsvenskan",
+        "provider": "api_football",
+        "provider_fixture_id": "1494224",
+        "provider_league_id": "113",
+        "raw_payload_sha256": "325cb6d76d0b549706d5d5270527497f126856808cb4b5a3f2f5e3a1257be36d",
+        "round": "Regular Season - 14",
+        "season": "2026",
+        "team_identity_status": "REVIEW_REQUIRED",
+        "venue_name": "Hitachi Energy Arena"
+      },
+      "manifest_hash": "eea208930e2a2032e3d2d7abaa6779887ac934fb6eab60063ddd7f641add91d8",
+      "market_evidence_hash": "a30995351bcad6eaf158240498909881de81af0ae7e52ad24325487f3b9494ff",
+      "model_evidence_hashes": [
+        "db516b5bf00350f9bb2b92b8dca836d8ff79ca3c9f26771d04ab42816dc570ea",
+        "7856a4627a692dafc0ed1abda01349c9c140aee787d0670fac99ff6bc75f4a89",
+        "3846b4b3616c92af99b9701d1b9baebc23f4821aa30d57b9a3b378dbe979a7c1",
+        "0bc952e19eebada9532cfd4ffe45d19d4ae1757f8ae43d749c1ecdd9875dad0c"
+      ],
+      "next_action": "REVIEW_TEAM_IDENTITY_AND_MATERIALIZE_MODEL_INPUTS",
+      "schema_version": "MatchdayEvidenceManifestV2",
+      "team_identity_status": "REVIEW_REQUIRED",
+      "v3_decision": {
+        "canonical_public": {
+          "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+          "fixture_id": "1494224",
+          "formal_eligible": false,
+          "lock_eligible": false,
+          "outcome": "NOT_READY",
+          "reason_code": "TEAM_IDENTITY_REVIEW_REQUIRED",
+          "recommendation_write": false,
+          "scope": "CANONICAL_PUBLIC"
+        },
+        "diagnostic": {
+          "decision_hash": "51eb9638f9484b91cc84fc54e2cd9f56792ce12ad3d348bf94497a95fd913e6c",
+          "fixture_id": "1494224",
+          "formal_eligible": false,
+          "lock_eligible": false,
+          "not_formal": true,
+          "not_lockable": true,
+          "not_public": true,
+          "not_tracked": true,
+          "outcome": "SYSTEM_DEGRADED",
+          "reason_code": "MODEL_INPUTS_MISSING",
+          "scope": "DIAGNOSTIC_ONLY"
+        },
+        "model_evidence_hashes": [
+          "db516b5bf00350f9bb2b92b8dca836d8ff79ca3c9f26771d04ab42816dc570ea",
+          "7856a4627a692dafc0ed1abda01349c9c140aee787d0670fac99ff6bc75f4a89",
+          "3846b4b3616c92af99b9701d1b9baebc23f4821aa30d57b9a3b378dbe979a7c1",
+          "0bc952e19eebada9532cfd4ffe45d19d4ae1757f8ae43d749c1ecdd9875dad0c"
+        ],
+        "quote_identities": {
+          "ASIAN_HANDICAP": {
+            "bookmaker_id": "16",
+            "bookmaker_name": "Unibet",
+            "capture_id": "e7fa37703839bb87756e708c542d5459a9ad7053031371e8a760540d4a0179a8",
+            "captured_at": "2026-07-20T22:50:49Z",
+            "fixture_id": "1494224",
+            "line": "-0.5",
+            "market": "ASIAN_HANDICAP",
+            "market_devig_probability": {
+              "AWAY": 0.353234,
+              "HOME": 0.646766
+            },
+            "observation_ids": [
+              "ab7bae20c2df1d797d787b9a8e3fb39a0f8688446e45a9768be2c8d19453b838",
+              "f044f68561e4bde32d9a89631d54e62c36c3bec9dcc1b5f488bb5550427c2e09"
+            ],
+            "overround": 0.088841,
+            "quote_identity_hash": "c473747da7bda528e626de5f0468726dd3f7f3a97ab02b1f9afb2b2e5c813bcb",
+            "selections": [
+              {
+                "decimal_odds": "2.6",
+                "provider_selection": "Away -0.5",
+                "selection": "AWAY"
+              },
+              {
+                "decimal_odds": "1.42",
+                "provider_selection": "Home -0.5",
+                "selection": "HOME"
+              }
+            ]
+          },
+          "TOTALS": {
+            "bookmaker_id": "16",
+            "bookmaker_name": "Unibet",
+            "capture_id": "e7fa37703839bb87756e708c542d5459a9ad7053031371e8a760540d4a0179a8",
+            "captured_at": "2026-07-20T22:50:49Z",
+            "fixture_id": "1494224",
+            "line": "1.5",
+            "market": "TOTALS",
+            "market_devig_probability": {
+              "OVER": 0.786106,
+              "UNDER": 0.213894
+            },
+            "observation_ids": [
+              "ce1afbb589df3c35ad5d1079d97413d5bfd47abff2246358f31990b69d88a297",
+              "29883fd63f22aed60127e451475e8d7ac94c60b49815977479724da30713b21c"
+            ],
+            "overround": 0.087259,
+            "quote_identity_hash": "615835fa8cb6cee79917f5c58390bc12dcf97602d7105a2d562ffe7a3e3a5af7",
+            "selections": [
+              {
+                "decimal_odds": "1.17",
+                "provider_selection": "Over 1.5",
+                "selection": "OVER"
+              },
+              {
+                "decimal_odds": "4.3",
+                "provider_selection": "Under 1.5",
+                "selection": "UNDER"
+              }
+            ]
+          }
+        }
+      },
+      "warnings": [
+        "F5_SOURCE_NOT_AVAILABLE_FOR_ALLSVENSKAN",
+        "F8_INCOMPLETE",
+        "LMM_MISSING_ADVISORY"
+      ]
+    }
+  ],
+  "recommendation_write_count": 0,
+  "remote_head_sha": "9e7f4c01f60ce6a32142f69dce7a80ee49abb53b",
+  "schema_version": "MATCHDAY_FIXTURE_EVIDENCE_MANIFESTS_V2",
+  "staging_release_sha": "50a03f8fd00749134fd800ab631a3c36d126caa3"
+}

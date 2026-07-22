@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from time import monotonic
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -10,7 +9,6 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from w2.api.cache import read_cache
-from w2.api.metrics import metrics
 from w2.api.repository import ReadModelService
 from w2.api.schemas import (
     AnalysisCardResponse,
@@ -50,6 +48,7 @@ from w2.api.schemas import (
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.monitoring.health import HealthPayload, build_health_payload
+from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -81,9 +80,13 @@ def public_health() -> HealthPayload:
     return build_health_payload()
 
 
-@public_router.get("/ready", response_model=HealthPayload)
-def public_ready() -> HealthPayload:
-    return build_health_payload()
+@public_router.get("/ready", response_model=ReadinessPayload)
+def public_ready(response: Response) -> ReadinessPayload:
+    payload = build_readiness_payload()
+    response.status_code = 200 if payload.status == "READY" else 503
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</ready>; rel="canonical"'
+    return payload
 
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -128,7 +131,7 @@ def dashboard(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.dashboard(
+        **service.public_dashboard(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
@@ -145,7 +148,7 @@ def dashboard_day_view(
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    payload = service.dashboard(
+    payload = service.public_dashboard(
         target_date=date,
         window=normalized_window,
         timezone=timezone,
@@ -172,7 +175,7 @@ def dashboard_summary(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.dashboard_summary(
+        **service.public_dashboard_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
@@ -190,7 +193,7 @@ def validation_summary(
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     return {
         "request_id": request_id(request),
-        **service.validation_summary(
+        **service.public_validation_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
@@ -220,7 +223,6 @@ def list_fixtures(
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
     if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
 ) -> Any:
-    started = monotonic()
     items, total = service.fixtures(
         timezone=timezone,
         page=page,
@@ -236,7 +238,6 @@ def list_fixtures(
         "meta": PageMeta(page=page, page_size=page_size, total=total).model_dump(),
         "items": items,
     }
-    metrics.record("/v1/fixtures", 200, started)
     cache_key = ":".join(
         [
             "fixtures",
@@ -330,13 +331,10 @@ def matchday_coverage(request: Request, date: str | None = None) -> dict[str, An
 
 @public_router.get("/fixtures/{fixture_id}", response_model=FixtureDetailResponse)
 def fixture_detail(fixture_id: str, request: Request, timezone: str = "UTC") -> dict[str, Any]:
-    started = monotonic()
     item = service.fixture(fixture_id, timezone)
     if item is None:
-        metrics.record("/v1/fixtures/{fixture_id}", 404, started)
         raise HTTPException(status_code=404, detail="fixture not found")
     item["request_id"] = request_id(request)
-    metrics.record("/v1/fixtures/{fixture_id}", 200, started)
     return item
 
 
@@ -365,7 +363,7 @@ def research_card(fixture_id: str, request: Request) -> dict[str, Any]:
     response_model=AnalysisCardResponse,
 )
 def analysis_card(fixture_id: str, request: Request) -> dict[str, Any]:
-    card = service.analysis_card(fixture_id)
+    card = service.public_analysis_card_bounded(fixture_id)
     if card is None:
         raise HTTPException(status_code=404, detail="analysis card not found")
     return {"request_id": request_id(request), "fixture_id": fixture_id, "card": card}

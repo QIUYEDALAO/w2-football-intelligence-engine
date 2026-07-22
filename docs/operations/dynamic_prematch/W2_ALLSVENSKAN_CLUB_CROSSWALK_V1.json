@@ -1,0 +1,29 @@
+{
+  "schema_version": "w2.allsvenskan_club_crosswalk.v1",
+  "status": "PLAYER_IDENTITY_REVIEW_PENDING",
+  "scope": {"competition_id": "allsvenskan", "provider_season": "2026", "transfermarkt_competition_id": "SE1", "denominator": 16},
+  "review_policy": "Name/competition matched rows are CANDIDATE only. A W2 canonical team identity, reviewer and reviewed_at are required before REVIEWED or staging writes.",
+  "source_artifact_sha256": "1217a880b61d9abe9ac6a822ebeed64dee5d47eecf463b0178e818216cbfb208",
+  "candidate_mapping_hash": "207b3c81090345155bf776af9ae474c528d757d6661b15532a83ebdcffbaf1d3",
+  "counts": {"candidate": 16, "reviewed": 0, "conflict": 0, "missing": 0},
+  "items": [
+    {"provider_team_id": "377", "provider_name": "AIK Stockholm", "transfermarkt_club_id": "272", "transfermarkt_name": "Allmänna Idrottsklubben", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "367", "provider_name": "BK Hacken", "transfermarkt_club_id": "1109", "transfermarkt_name": "BK Häcken", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "2172", "provider_name": "Degerfors IF", "transfermarkt_club_id": "3641", "transfermarkt_name": "Degerfors IF", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "364", "provider_name": "Djurgardens IF", "transfermarkt_club_id": "1044", "transfermarkt_name": "Djurgårdens Idrottsförening", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "2170", "provider_name": "Gais", "transfermarkt_club_id": "7009", "transfermarkt_name": "Göteborgs Atlet- och Idrottssällskap", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "766", "provider_name": "Halmstad", "transfermarkt_club_id": "1011", "transfermarkt_name": "Halmstads BK", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "363", "provider_name": "Hammarby FF", "transfermarkt_club_id": "1059", "transfermarkt_name": "Hammarby IF", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "371", "provider_name": "IF Brommapojkarna", "transfermarkt_club_id": "1092", "transfermarkt_name": "Idrottsföreningen  Brommapojkarna", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "372", "provider_name": "IF Elfsborg", "transfermarkt_club_id": "1101", "transfermarkt_name": "Idrottsföreningen Elfsborg", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "366", "provider_name": "IFK Goteborg", "transfermarkt_club_id": "801", "transfermarkt_name": "Idrottsföreningen Kamraterna Göteborg", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "374", "provider_name": "Kalmar FF", "transfermarkt_club_id": "3654", "transfermarkt_name": "Kalmar Fotbollförening", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "375", "provider_name": "Malmo FF", "transfermarkt_club_id": "496", "transfermarkt_name": "Malmö Fotbollförening", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "2240", "provider_name": "Mjallby AIF", "transfermarkt_club_id": "2719", "transfermarkt_name": "Mjällby Almänna Idrottsförening", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "2166", "provider_name": "Orgryte IS", "transfermarkt_club_id": "1118", "transfermarkt_name": "Örgryte IS", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "370", "provider_name": "Sirius", "transfermarkt_club_id": "7945", "transfermarkt_name": "IK Sirius", "w2_team_id": null, "status": "CANDIDATE"},
+    {"provider_team_id": "2241", "provider_name": "Vasteras SK FK", "transfermarkt_club_id": "5202", "transfermarkt_name": "Västerås Sportklubb FK", "w2_team_id": null, "status": "CANDIDATE"}
+  ],
+  "blockers": ["W2_CANONICAL_TEAM_ID_MISSING", "REVIEWER_AND_REVIEWED_AT_MISSING", "REVIEWED_16_OF_16_REQUIRED_BEFORE_STAGING_MATERIALIZATION"],
+  "release_state": ["LINEUP_ADVISORY_ONLY", "LINEUP_NUMERIC_ADJUSTMENT_DISABLED", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED", "PR_370_KEEP_DRAFT"]
+}

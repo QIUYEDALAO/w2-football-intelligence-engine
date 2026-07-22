@@ -20,7 +20,10 @@
 - [x] Dashboard 只读取一套当前状态。
 - [x] 部署改为 CI 构建镜像、服务器拉取镜像。
 - [x] 在现有系统上分阶段调整，不推倒重建，不并行建设第二套系统。
-- [x] PR #370 完成当前 canary 范围后结束；架构收敛不得继续追加到 PR #370。
+- [x] PR #370 范围冻结；其已验证代码通过独立 baseline integration PR 接入
+  `main`，不得继续向 PR #370 追加代码或文档。
+- [x] 真实首发 canary 延后为独立 ops 验收任务，不再是 P0 架构工作的
+  前置条件；只有真实首发窗口出现时才执行。
 - [x] P0 两周内完成；整体工程参考周期 6–8 周。
 
 ### 唯一允许继续的现有功能工作
@@ -28,10 +31,13 @@
 在功能冻结期间，只允许：
 
 ```text
-PR #370 当前已排期的真实首发窗口 canary
+PR #370 VERIFIED BASELINE INTEGRATION
+ARCHITECTURE CONVERGENCE TASKS IN CHECKLIST ORDER
+REAL LINEUP CANARY AS A SEPARATE OPS ACCEPTANCE TASK
 ```
 
-它属于已有功能验收，不属于新增功能。
+以上均不得新增功能。真实首发 canary 属于后续既有功能验收；没有真实
+首发窗口时不得开启 Provider 或伪造结果。
 
 ---
 
@@ -58,7 +64,9 @@ PR #370 当前已排期的真实首发窗口 canary
 
 ## 三、任务执行顺序
 
-任务必须严格按顺序执行。前一项没有打勾，下一项不得开始。
+任务必须严格按顺序执行。ARCH-01 的代码范围已冻结，真实首发 canary
+已移出 P0 前置条件。PR #370 已验证基线经独立 integration PR 接入
+`main` 且 PR #370 关闭后，立即开始 ARCH-P0-01。
 
 # 阶段 0：冻结、收口 PR #370
 
@@ -84,30 +92,34 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 ## ARCH-01：完成并关闭 PR #370
 
 - [x] 重新核验 PR #370 exact head。
-- [ ] 只完成老板允许的真实首发窗口 canary。
+- [x] 冻结 PR #370 范围，不再追加代码或文档。
+- [x] 将真实首发 canary 延后为独立 ops 验收任务，并从 P0 前置条件移除。
 - [x] 不增加任何架构收敛代码。
 - [x] 不增加新联赛、新市场、新表、新 Dashboard 功能。
 - [x] 核验 migration current=head。
 - [x] 核验 recommendation、lock、OFFICIAL、formal settlement 仍为 0。
 - [x] exact-head CI 全绿。
-- [ ] staging canary 结果进入当前已有上下文。
-- [ ] PR #370 完成审核并合并。
-- [ ] 删除/关闭 PR #370 对应长期工作分支前，确认所有证据已进入 main。
+- [ ] 独立 baseline integration PR exact-head CI 全绿并完成外部审核。
+- [ ] baseline integration PR 合并到 `main`。
+- [ ] 基线接入后关闭 PR #370，并确认所有证据已进入 `main`。
 
 ```text
-Status: BLOCKED
-Branch: codex/w2-arch01-exact-head-ci-status
-PR: #373 (Draft)
-Base SHA: fc8a6360a132ffe5922c78be5fa1541ec02ab185
-Started at: 2026-07-22T22:59:13+0800
+Status: IN_PROGRESS
+Branch: codex/w2-pr370-baseline-integration
+PR: #374 (Draft)
+Base SHA: cb2a040f826926af98154c644718f013e96d0e79
+Started at: 2026-07-22T23:20:00+0800
 Owner: Codex
-Blocker: WAITING_FOR_REAL_LINEUP_WINDOW
-Evidence: staging re-observed at 2026-07-22T14:59:13Z; nearest fixtures kick off at
-  2026-07-22T17:00:00Z; structured_lineup_snapshots=0;
-  lineup_confirmed_events=0; lineups=0. No provider canary was opened. PR #370
+PR_370_SCOPE_FROZEN
+REAL_LINEUP_CANARY_DEFERRED
+P0_ARCHITECTURE_WORK_UNBLOCKED
+Evidence: PR #370 exact head remains 210367a99fa8b448e2ab00bdd878ec485fe1e42a;
   exact-head CI run 29929890310 passed verify, staging-parity and predeploy-e2e.
-Next required decision: None. Execute the already-approved bounded canary only
-  when a real official-lineup window exists.
+  Baseline integration is limited to merging that verified tree into current
+  main and retaining this checklist. No feature, table, configuration or
+  fallback is added beyond the verified PR #370 tree.
+Next required action: merge the baseline integration after external review,
+  close PR #370, then start ARCH-P0-01 immediately.
 ```
 
 ARCH-01 当前核验：
@@ -129,7 +141,7 @@ FORMAL_SETTLEMENTS_CURRENT_COUNT=0
 SAFETY_COUNTS_BEFORE_AT=2026-07-22T13:53:31Z
 SAFETY_COUNTS_AFTER_AT=2026-07-22T14:02:25Z
 RECOMMENDATION_LOCK_OFFICIAL_FORMAL_SETTLEMENT_DELTA=0
-CANARY_RESULT=WAITING_FOR_REAL_LINEUP_WINDOW
+CANARY_RESULT=REAL_LINEUP_CANARY_DEFERRED
 CANARY_PROVIDER_CALLS=0
 CANARY_WRITE_DELTA=0
 EXACT_HEAD_CI_RUN=29929890310
@@ -143,8 +155,11 @@ MANUAL_APPROVAL_REQUIRED
 **完成标准**
 
 ```text
-PR_370_SCOPE_CLOSED
-PR_370_MERGED
+PR_370_SCOPE_FROZEN
+PR_370_VERIFIED_BASELINE_MERGED_TO_MAIN
+PR_370_CLOSED_AFTER_BASELINE_INTEGRATION
+REAL_LINEUP_CANARY_DEFERRED_TO_OPS_ACCEPTANCE
+P0_ARCHITECTURE_WORK_UNBLOCKED
 NO_ARCHITECTURE_SCOPE_ADDED_TO_PR_370
 ```
 

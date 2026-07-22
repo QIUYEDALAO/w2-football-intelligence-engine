@@ -1,0 +1,10 @@
+{
+  "schema_version": "w2.team_crosswalk_staging_materialization.v1",
+  "status": "TEAM_CROSSWALK_STAGING_MATERIALIZED",
+  "deployment": {"code_sha": "f854bceb888eb74bb219ea084431eb09fe0ad138", "github_ci_run": 29904250777, "migration_revision": "0036_require_reviewed_player_identity"},
+  "scope": {"competition_id": "allsvenskan", "season": "2026", "provider": "api_football"},
+  "source_asset_sha256": "1217a880b61d9abe9ac6a822ebeed64dee5d47eecf463b0178e818216cbfb208",
+  "provider_to_w2_canonical": {"reviewed": 16, "conflict": 0, "missing": 0, "status": "PROVIDER_PRIMARY_READY"},
+  "provider_w2_to_transfermarkt": {"attempted": 16, "inserted": 16, "already_present": 0, "rejected": 0, "conflicted": 0, "after_approved": 16, "reviewed_by": "operator:liudehua", "reviewed_at": "2026-07-22T09:14:50Z"},
+  "safety": ["LINEUP_ADVISORY_ONLY", "LINEUP_NUMERIC_ADJUSTMENT_DISABLED", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED", "PR_370_KEEP_DRAFT"]
+}

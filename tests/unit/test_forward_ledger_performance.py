@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
-from w2.tracking.forward_ledger_performance import forward_ledger_performance
+import pytest
+
+from w2.tracking.forward_ledger_performance import _eligible_clv_rows, forward_ledger_performance
 
 
 def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: Path) -> None:
@@ -26,8 +29,95 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     assert payload["fixture_count"] == 2
     assert payload["settled_sample_count"] == 0
     assert payload["hit_rate"] is None
-    assert payload["accumulation_label"] == "积累中 2/200"
+    assert payload["accumulation_label"] == "积累中 0/200"
+    assert payload["validation_fixture_count"] == 0
+    assert payload["validation_market_pick_count"] == 0
     assert payload["mock_data"] is False
+
+
+def test_forward_ledger_pending_details_expose_capture_identity(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-v3",
+            "decision_hash": "decision-hash-v3",
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    detail = payload["validation_pending_status"]["details"][0]
+    assert detail["fixture_id"] == "fixture-1"
+    assert detail["capture_identity_hash"] == "capture-hash-v3"
+    assert detail["card_hash"] == "card-fixture-1"
+    assert detail["decision_hash"] == "decision-hash-v3"
+    assert detail["recommendation_scope"] == "VALIDATION"
+
+
+def test_forward_ledger_excludes_superseded_capture_from_validation(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture["capture_identity_hash"] = "bad-ah-capture"
+    supersession = {
+        "schema_version": "w2.forward_outcome_ledger.v3",
+        "record_type": "supersession",
+        "supersession_status": "SUPERSEDED",
+        "reason_code": "AH_SELECTED_SIDE_LINE_MISMATCH",
+        "fixture_id": "fixture-1",
+        "target_capture_identity_hash": "bad-ah-capture",
+    }
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, supersession])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 2
+    assert payload["active_record_count"] == 1
+    assert payload["superseded_capture_count"] == 1
+    assert payload["validation_fixture_count"] == 0
+    assert payload["validation_pending_fixture_count"] == 0
+
+
+def test_forward_ledger_latest_same_decision_capture_repairs_identity_format(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    older = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    older.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "old-capture",
+            "decision_hash": "decision-hash",
+            "competition_id": "113",
+        }
+    )
+    newer = dict(older)
+    newer.update(
+        {
+            "captured_at": "2026-07-07T00:10:00Z",
+            "capture_identity_hash": "new-capture",
+            "competition_id": "allsvenskan",
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [older, newer])
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert payload["validation_fixture_count"] == 1
+    assert payload["validation_excluded_count"] == 0
+    detail = payload["validation_pending_status"]["details"][0]
+    assert detail["capture_identity_hash"] == "new-capture"
 
 
 def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) -> None:
@@ -36,9 +126,9 @@ def test_forward_ledger_performance_counts_only_real_outcomes(tmp_path: Path) ->
     _write_jsonl(
         root / "2026-07-07_staging.jsonl",
         [
-            {**_record("2026-07-07T00:00:00Z", fixture_id="fixture-1"), "outcome": "WIN"},
-            {**_record("2026-07-07T01:00:00Z", fixture_id="fixture-2"), "outcome": "LOSS"},
-            {**_record("2026-07-07T02:00:00Z", fixture_id="fixture-3"), "outcome": "PUSH"},
+            _outcome_record("fixture-1", "WIN", side="pick", scope="OFFICIAL"),
+            _outcome_record("fixture-2", "LOSS", side="pick", scope="OFFICIAL"),
+            _outcome_record("fixture-3", "PUSH", side="pick", scope="OFFICIAL"),
             _record("2026-07-07T03:00:00Z", fixture_id="fixture-4"),
         ],
     )
@@ -104,9 +194,10 @@ def test_forward_ledger_performance_reads_mixed_v1_v2_and_outcome_records(
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["record_count"] == 4
-    assert payload["settled_sample_count"] == 2
-    assert payload["push_count"] == 1
+    assert payload["settled_sample_count"] == 0
+    assert payload["push_count"] == 0
     assert payload["outcomes_shadow"]["void_count"] == 1
+    assert payload["validation_excluded_count"] == 0
 
 
 def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_path: Path) -> None:
@@ -141,6 +232,63 @@ def test_forward_ledger_performance_clv_uses_same_line_entry_minus_closing(tmp_p
     assert payload["by_league"][0]["clv_median_decimal"] == 0.15
 
 
+def test_forward_ledger_performance_excludes_stale_last_snapshot_from_clv(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    entry = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    closing = _validation_capture("fixture-1", "2026-07-08T00:29:00Z")
+    outcome = _outcome_record("fixture-1", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "source_capture_hash": entry["card_hash"],
+            "source_captured_at": entry["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [entry, closing, outcome],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+    clv = payload["performance_cohort"]["clv"]
+
+    assert clv["sample_count"] == 0
+    assert clv["candidate_count"] == 1
+    assert clv["missing_count"] == 1
+    assert clv["stale_closing_count"] == 1
+    assert clv["median_decimal"] is None
+    assert "closing_within_30m_before_kickoff" in clv["method"]
+
+
+def test_eligible_clv_matches_canonical_market_and_selection() -> None:
+    rows = [
+        {
+            "fixture_id": "fixture-1",
+            "market": "TOTALS",
+            "selection": "OVER",
+            "clv_decimal": 0.2,
+        },
+        {
+            "fixture_id": "fixture-1",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "clv_decimal": -0.1,
+        },
+    ]
+    canonical = [
+        {
+            "fixture_id": "fixture-1",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+        }
+    ]
+
+    assert _eligible_clv_rows(rows, canonical) == [rows[1]]
+
+
 def test_forward_ledger_performance_tracks_shadow_clv_separately(
     tmp_path: Path,
 ) -> None:
@@ -172,7 +320,8 @@ def test_forward_ledger_performance_tracks_shadow_clv_separately(
     assert payload["clv_shadow"]["sample_count"] == 1
     assert payload["clv_shadow"]["median_decimal"] == 0.15
     assert payload["clv_shadow"]["method"] == (
-        "shadow_pick_entry_minus_closing_same_line; not_displayed_direction"
+        "shadow_pick_entry_minus_closing_decimal_odds_same_line; "
+        "closing_within_30m_before_kickoff; not_displayed_direction"
     )
     assert "shadow CLV" in payload["accrual_note"]
     assert payload["by_league"][0]["clv_shadow_median_decimal"] == 0.15
@@ -209,6 +358,421 @@ def test_forward_ledger_performance_reads_legacy_v1_capture_records(
 
     assert payload["clv"]["sample_count"] == 1
     assert payload["clv"]["median_decimal"] == 0.15
+
+
+def test_validation_counts_unique_fixtures_and_keeps_scopes_separate(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    duplicate = _validation_capture("fixture-1", "2026-07-07T01:00:00Z")
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [
+            first,
+            duplicate,
+            _outcome_record("fixture-1", "PUSH", side="pick", scope="VALIDATION"),
+            _outcome_record("official-1", "WIN", side="pick", scope="OFFICIAL"),
+            _outcome_record("shadow-1", "LOSS", side="shadow_pick", scope="SHADOW"),
+        ],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["record_count"] == 5
+    assert payload["validation_fixture_count"] == 1
+    assert payload["validation_settled_fixture_count"] == 1
+    assert payload["validation_pending_fixture_count"] == 0
+    assert payload["outcomes_validation"]["push_count"] == 1
+    assert payload["outcomes_validation"]["hit_rate"] is None
+    assert payload["outcomes"]["hit_count"] == 1
+    assert payload["outcomes_shadow"]["miss_count"] == 1
+
+
+def test_validation_pending_status_explains_missing_result(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    (tmp_path / "forward_outcome_result_refresh_state.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.outcome_result_refresh.v1",
+                "fixtures": {
+                    "fixture-1": {
+                        "status": "RESULT_MISSING",
+                        "checked_at_utc": "2026-07-08T04:00:00Z",
+                        "next_check_at_utc": "2026-07-08T05:00:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = forward_ledger_performance(
+        tmp_path,
+        now=datetime(2026, 7, 8, 6, 0, tzinfo=UTC),
+    )
+
+    status = payload["validation_pending_status"]
+    assert status["result_missing_count"] == 1
+    assert status["settlement_error_count"] == 0
+    assert status["details"][0]["category"] == "RESULT_MISSING"
+
+
+def test_validation_identity_conflict_fails_closed(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    conflict = _validation_capture("fixture-1", "2026-07-07T01:00:00Z")
+    conflict["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [first, conflict])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["validation_fixture_count"] == 0
+    assert payload["validation_excluded_by_reason"] == {"RECOMMENDATION_IDENTITY_CONFLICT": 1}
+
+
+def test_complete_v3_capture_counts_as_canonical_and_reports_calibration(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-1",
+            "artifact_provenance": {"artifact_hash": "artifact-hash-1"},
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": "2026-07-07T00:00:00Z",
+                    }
+                }
+            },
+            "probability_identity": {
+                "market_probabilities": {
+                    "one_x_two": {"probabilities": {"HOME": 0.5, "DRAW": 0.3, "AWAY": 0.2}}
+                }
+            },
+        }
+    )
+    capture["current_odds"] = {
+        "ah": {
+            "home_line": "-1",
+            "away_line": "+1",
+            "home_price": 1.9,
+            "away_price": 1.8,
+        }
+    }
+    outcome = _outcome_record("fixture-1", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "capture_identity_hash": "capture-hash-1",
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+            "entry_price": 1.9,
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["canonical_excluded_count"] == 0
+    assert payload["calibration"]["sample_count"] == 1
+    assert payload["calibration"]["log_loss"] > 0
+    assert payload["calibration"]["research_roi"] == 0.9
+
+
+def test_validation_league_rows_merge_rounds_and_use_canonical_outcomes(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    captures = []
+    outcomes = []
+    for fixture_id, round_number, outcome_value in (
+        ("fixture-18", 18, "WIN"),
+        ("fixture-19", 19, "LOSS"),
+    ):
+        capture = _validation_capture(fixture_id, f"2026-07-{round_number:02d}T00:00:00Z")
+        capture["competition_id"] = "169"
+        capture["competition_name"] = f"中超 · 常规赛第{round_number}轮"
+        outcome = _outcome_record(fixture_id, outcome_value, side="pick", scope="VALIDATION")
+        outcome.update(
+            {
+                "source_capture_hash": capture["card_hash"],
+                "source_captured_at": capture["captured_at"],
+                "final_score": {"home": 2, "away": 1, "status": "FT"},
+            }
+        )
+        captures.append(capture)
+        outcomes.append(outcome)
+    _write_jsonl(root / "2026-07-18_staging.jsonl", [*captures, *outcomes])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["outcomes_canonical"]["settled_sample_count"] == 2
+    assert payload["outcomes_canonical"]["hit_rate"] == 0.5
+    assert payload["by_league_validation"] == [
+        {
+            "competition_id": "169",
+            "league": "中超",
+            "validation_fixture_count": 2,
+            "validation_settled_fixture_count": 2,
+            "canonical_settled_fixture_count": 2,
+            "canonical_excluded_count": 0,
+            "hit_count": 1,
+            "miss_count": 1,
+            "push_count": 0,
+            "void_count": 0,
+            "hit_rate": 0.5,
+            "clv_sample_count": 0,
+            "clv_median_decimal": None,
+        }
+    ]
+
+
+def test_legacy_capture_with_unique_outcome_link_is_inherited_without_calibration(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-legacy", "2026-07-07T00:00:00Z")
+    capture["schema_version"] = "w2.forward_outcome_ledger.v2"
+    outcome = _outcome_record("fixture-legacy", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "source_capture_hash": capture["card_hash"],
+            "source_captured_at": capture["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["canonical_excluded_count"] == 0
+    assert payload["calibration"]["sample_count"] == 0
+
+
+def test_v3_missing_probability_remains_canonical_but_skips_calibration(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-v3", "2026-07-07T00:00:00Z")
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": "capture-hash-v3",
+            "artifact_provenance": {"artifact_hash": "artifact-hash-v3"},
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": "2026-07-07T00:00:00Z",
+                    }
+                }
+            },
+        }
+    )
+    outcome = _outcome_record("fixture-v3", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "capture_identity_hash": "capture-hash-v3",
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    payload = forward_ledger_performance(tmp_path)
+
+    assert payload["canonical_settled_fixture_count"] == 1
+    assert payload["calibration"]["sample_count"] == 0
+
+
+def test_performance_cohort_partitions_samples_and_filters_clv(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    eligible_entry = _validation_capture("eligible", "2026-07-07T00:00:00Z")
+    eligible_close = _validation_capture("eligible", "2026-07-08T00:30:00Z")
+    eligible_close["current_odds"] = {
+        "ah": {
+            "home_line": "-1",
+            "away_line": "+1",
+            "home_price": 1.8,
+            "away_price": 2.0,
+        }
+    }
+    eligible_outcome = _outcome_record("eligible", "WIN", side="pick", scope="VALIDATION")
+    eligible_outcome.update(
+        {
+            "source_capture_hash": eligible_entry["card_hash"],
+            "source_captured_at": eligible_entry["captured_at"],
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    excluded = _validation_capture("excluded", "2026-07-07T00:05:00Z")
+    excluded["competition_id"] = "169"
+    excluded["competition_name"] = "中超 · 常规赛第19轮"
+    excluded_outcome = _outcome_record("excluded", "LOSS", side="pick", scope="VALIDATION")
+    excluded_outcome.update({"final_score": {"home": 0, "away": 1, "status": "FT"}})
+    pending = _validation_capture("pending", "2026-07-07T00:10:00Z")
+    _write_jsonl(
+        root / "2026-07-07_staging.jsonl",
+        [eligible_entry, eligible_close, eligible_outcome, excluded, excluded_outcome, pending],
+    )
+
+    payload = forward_ledger_performance(tmp_path)
+    cohort = payload["performance_cohort"]
+
+    assert payload["schema_version"] == "w2.forward_ledger_performance.v3"
+    assert cohort["validation_count"] == 3
+    assert cohort["processed_count"] == 2
+    assert cohort["eligible_count"] == 1
+    assert cohort["excluded_count"] == 1
+    assert cohort["pending_count"] == 1
+    assert cohort["outcomes"]["decisive_count"] == 1
+    assert cohort["outcomes"]["hit_rate"] == 1.0
+    assert cohort["clv"]["sample_count"] == 1
+    assert cohort["clv"]["median_decimal"] == 0.2
+    assert cohort["invariants"]["status"] == "PASS"
+    assert cohort["integrity_status"] == "PASS"
+    assert cohort["exclusions"] == [
+        {
+            "fixture_id": "excluded",
+            "competition_id": "169",
+            "league": "中超",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+            "kickoff_utc": "2026-07-08T01:00:00Z",
+            "settlement_outcome": "LOSS",
+            "reason_code": "LEGACY_CAPTURE_LINK_MISSING",
+            "reason_label": "历史推荐与赛果身份链缺失",
+        }
+    ]
+    csl = next(row for row in cohort["by_league"] if row["competition_id"] == "169")
+    assert csl["processed_count"] == 1
+    assert csl["eligible_count"] == 0
+    assert csl["excluded_count"] == 1
+    assert csl["rate_status"] == "INSUFFICIENT"
+
+
+def test_unique_legacy_capture_can_be_recovered_by_audited_manifest(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-recovered", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("legacy-recovered", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome)
+
+    payload = forward_ledger_performance(tmp_path, legacy_recovery_manifest=manifest)
+    cohort = payload["performance_cohort"]
+
+    assert cohort["eligible_count"] == 1
+    assert cohort["excluded_count"] == 0
+    assert cohort["recovered_count"] == 1
+    assert cohort["outcomes"]["hit_count"] == 1
+    assert cohort["recoveries"][0]["fixture_id"] == "legacy-recovered"
+    assert cohort["recoveries"][0]["recovery_code"] == (
+        "UNIQUE_LEGACY_CAPTURE_RECONSTRUCTED"
+    )
+
+
+def test_performance_cohort_fails_closed_on_settlement_quote_mismatch(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("fixture-mismatch", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("fixture-mismatch", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "source_capture_hash": capture["card_hash"],
+            "source_captured_at": capture["captured_at"],
+            "entry_price": 1.99,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+
+    with pytest.raises(ValueError, match="settlement_chain_complete"):
+        forward_ledger_performance(tmp_path)
+
+
+def test_legacy_recovery_rejects_tampered_capture(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-rejected", "2026-07-07T00:00:00Z")
+    outcome = _outcome_record("legacy-rejected", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome, capture_hash="tampered")
+
+    payload = forward_ledger_performance(tmp_path, legacy_recovery_manifest=manifest)
+    cohort = payload["performance_cohort"]
+
+    assert cohort["eligible_count"] == 0
+    assert cohort["excluded_count"] == 1
+    assert cohort["recovered_count"] == 0
+    assert cohort["exclusions"][0]["reason_code"] == "LEGACY_CAPTURE_LINK_MISSING"
+
+
+def test_legacy_recovery_rejects_multiple_possible_captures(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _validation_capture("legacy-ambiguous", "2026-07-07T00:00:00Z")
+    duplicate = _validation_capture("legacy-ambiguous", "2026-07-07T00:10:00Z")
+    outcome = _outcome_record("legacy-ambiguous", "WIN", side="pick", scope="VALIDATION")
+    outcome.update(
+        {
+            "entry_line": "-1",
+            "entry_price": 2.0,
+            "final_score": {"home": 2, "away": 0, "status": "FT"},
+        }
+    )
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, duplicate, outcome])
+    manifest = tmp_path / "recovery.json"
+    _write_recovery_manifest(manifest, capture, outcome)
+
+    cohort = forward_ledger_performance(
+        tmp_path,
+        legacy_recovery_manifest=manifest,
+    )["performance_cohort"]
+
+    assert cohort["eligible_count"] == 0
+    assert cohort["excluded_count"] == 1
+    assert cohort["recovered_count"] == 0
+
+
+def _validation_capture(fixture_id: str, captured_at: str) -> dict[str, object]:
+    return {
+        **_record(captured_at, fixture_id=fixture_id, pick=True),
+        "schema_version": "w2.forward_outcome_ledger.v2",
+        "recommendation_scope": "VALIDATION",
+        "competition_id": "league-1",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
+        "card_hash": f"card-{fixture_id}",
+        "decision_tier": "ANALYSIS_PICK",
+        "outcome_tracked": True,
+    }
 
 
 def _record(
@@ -258,8 +822,9 @@ def _outcome_record(
     settlement_outcome: str,
     *,
     side: str,
+    scope: str | None = None,
 ) -> dict[str, object]:
-    return {
+    row: dict[str, object] = {
         "schema_version": "w2.forward_outcome_ledger.v2",
         "record_type": "outcome",
         "settled_at": "2026-07-08T03:00:00Z",
@@ -270,13 +835,53 @@ def _outcome_record(
         "card_hash": f"hash-{fixture_id}",
         "market": "ASIAN_HANDICAP",
         "selection": "HOME_AH",
+        "entry_line": "-1",
+        "entry_price": 2.0,
         "settled_side": side,
         "settlement_outcome": settlement_outcome,
     }
+    if scope is not None:
+        row["recommendation_scope"] = scope
+    return row
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text(
         "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows),
+        encoding="utf-8",
+    )
+
+
+def _write_recovery_manifest(
+    path: Path,
+    capture: dict[str, object],
+    outcome: dict[str, object],
+    *,
+    capture_hash: str | None = None,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.forward_ledger_legacy_recovery.v1",
+                "environment": "staging",
+                "entries": [
+                    {
+                        "fixture_id": capture["fixture_id"],
+                        "captured_at": capture["captured_at"],
+                        "capture_hash": capture_hash or capture["card_hash"],
+                        "kickoff_utc": capture["kickoff_utc"],
+                        "competition": capture["competition_id"],
+                        "home_team_name": capture["home_team_name"],
+                        "away_team_name": capture["away_team_name"],
+                        "market": "ASIAN_HANDICAP",
+                        "selection": "HOME_AH",
+                        "line": "-1",
+                        "entry_price": 2.0,
+                        "settlement_outcome": outcome["settlement_outcome"],
+                        "final_score": outcome["final_score"],
+                    }
+                ],
+            }
+        ),
         encoding="utf-8",
     )

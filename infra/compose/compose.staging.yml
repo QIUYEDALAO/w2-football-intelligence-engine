@@ -58,12 +58,13 @@ services:
       context: ../..
       dockerfile: Dockerfile.migrations
       args:
+        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
       - "alembic"
       - "upgrade"
       - "head"
@@ -91,12 +92,13 @@ services:
       context: ../..
       dockerfile: Dockerfile.api
       args:
+        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
       - "uvicorn"
       - "apps.api.main:app"
       - "--host"
@@ -110,10 +112,15 @@ services:
       - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
       W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+      W2_IMAGE_ID: ${W2_API_IMAGE_ID:-UNAVAILABLE}
+      W2_OCI_DIGEST: ${W2_API_OCI_DIGEST:-UNAVAILABLE}
+      W2_REGISTRY_DIGEST: ${W2_API_REGISTRY_DIGEST:-UNAVAILABLE}
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD}@postgres:5432/w2
       W2_REDIS_URL: redis://redis:6379/0
       W2_CELERY_BROKER_URL: redis://redis:6379/1
@@ -142,6 +149,8 @@ services:
       W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
+      W2_READINESS_RELEASE_ROOT: /app
+      W2_LINEUP_POLICY_PATH: /app/image_config/policies/lineup_market_policy.v1.json
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
     depends_on:
       postgres:
@@ -149,7 +158,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); assert r.status==200"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5); assert r.status==200"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -169,12 +178,13 @@ services:
       context: ../..
       dockerfile: Dockerfile.worker
       args:
+        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
       - "celery"
       - "-A"
       - "apps.worker.celery_app"
@@ -189,6 +199,8 @@ services:
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
@@ -197,8 +209,8 @@ services:
       W2_REDIS_URL: redis://redis:6379/0
       W2_CELERY_BROKER_URL: redis://redis:6379/1
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
-      W2_PROVIDER_CALLS_DISABLED: "false"
-      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
@@ -210,6 +222,8 @@ services:
       W2_XG_BACKFILL_ENABLED: "false"
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
+      W2_FORWARD_OUTCOME_RUNTIME_ROOT: /app/runtime
+      W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES: "20"
       W2_DEEPSEEK_ENABLED: "false"
       W2_RECOMMENDATION_ENABLED: "false"
       W2_CANDIDATE_ENABLED: "false"
@@ -221,12 +235,13 @@ services:
       W2_MARKET_TIMELINE_RUNTIME_ROOT: /app/market_timeline_snapshots
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
+      W2_LINEUP_POLICY_PATH: /app/image_config/policies/lineup_market_policy.v1.json
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime')"]
+      test: ["CMD", "python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime')"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -246,12 +261,13 @@ services:
       context: ../..
       dockerfile: Dockerfile.scheduler
       args:
+        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        UV_INDEX_URL: ${UV_INDEX_URL:-}
         W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
         W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
         W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
     command:
-      - "uv"
-      - "run"
       - "python"
       - "-m"
       - "apps.scheduler.main"
@@ -261,6 +277,8 @@ services:
       - ../../config:/app/config:ro
       - ../../config/policies:/app/config/policies:ro
     environment:
+      W2_APP_ROOT: /app
+      W2_RUNTIME_ROOT: /app/runtime
       W2_ENVIRONMENT: staging
       W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
       W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
@@ -271,11 +289,11 @@ services:
       W2_CELERY_RESULT_BACKEND: redis://redis:6379/2
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
-      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
-      W2_PROVIDER_CALLS_DISABLED: "false"
-      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: ""
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "allsvenskan"
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
@@ -295,6 +313,8 @@ services:
       W2_FORWARD_OUTCOME_BACKFILL_ENABLED: ${W2_FORWARD_OUTCOME_BACKFILL_ENABLED:-true}
       W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS: ${W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS:-3600}
       W2_FORWARD_OUTCOME_BACKFILL_WINDOW: ${W2_FORWARD_OUTCOME_BACKFILL_WINDOW:-future}
+      W2_FORWARD_OUTCOME_RUNTIME_ROOT: /app/runtime
+      W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES: "20"
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
       W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_DEEPSEEK_ENABLED: "false"
@@ -306,12 +326,13 @@ services:
       W2_API_MINIMUM_RESERVE: "1500"
       CELERY_WORKER_CONCURRENCY: "1"
       W2_SERVICE_VERSION: staging-0.1.0
+      W2_LINEUP_POLICY_PATH: /app/image_config/policies/lineup_market_policy.v1.json
       W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready; assert 'heartbeat' in heartbeat(); assert future_fixture_refresh_contract_ready()"]
+      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready, future_fixture_refresh_enabled; assert 'heartbeat' in heartbeat(); assert not future_fixture_refresh_enabled() or future_fixture_refresh_contract_ready()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -338,7 +359,7 @@ services:
         VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
         VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
     ports:
-      - "0.0.0.0:80:8080"
+      - "127.0.0.1:18080:8080"
     environment:
       W2_ENVIRONMENT: staging
     volumes:

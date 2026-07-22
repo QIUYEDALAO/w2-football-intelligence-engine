@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -8,7 +9,7 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.repository import ReadModelService
+from w2.api.repository import ReadModelService, _next_future_evaluation
 
 
 class EmptyReleaseRepository:
@@ -84,6 +85,48 @@ class CountingFutureFixtureRepository(FutureFixtureRepository):
         return super().fixture_payloads()
 
 
+class SplitPublicFixtureRepository(FutureFixtureRepository):
+    def public_release_counts(self, *, limit: int) -> dict[str, int]:
+        assert limit == 512
+        return {
+            "read_model_fixture_count": 0,
+            "matchday_card_count": 0,
+            "future_fixture_count": 1,
+            "result_event_count": 0,
+        }
+
+    def public_fixture_payloads(self, *, limit: int) -> list[dict[str, Any]]:
+        return self.fixture_payloads()[1:2][:limit]
+
+
+class RefreshStatusRepository(FutureFixtureRepository):
+    def public_market_refresh_status(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        assert fixture_ids == ["9001"]
+        return {
+            "odds_last_confirmed_at": "2026-06-26T09:45:00Z",
+            "next_refresh_tick": "2026-06-26T09:55:00Z",
+        }
+
+
+class MutableRefreshStatusRepository(CountingFutureFixtureRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.odds_last_confirmed_at = "2026-06-26T09:45:00Z"
+
+    def public_market_refresh_status(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str | None]:
+        assert fixture_ids == ["9001"]
+        return {
+            "odds_last_confirmed_at": self.odds_last_confirmed_at,
+            "next_refresh_tick": "2026-06-26T09:55:00Z",
+        }
+
+
 def test_version_is_unknown_safe_for_empty_environment(monkeypatch) -> None:
     monkeypatch.delenv("W2_GIT_SHA", raising=False)
     monkeypatch.delenv("W2_BUILD_TIME", raising=False)
@@ -146,6 +189,36 @@ def test_public_dashboard_defaults_to_lightweight_response(monkeypatch) -> None:
 
     assert dashboard["debug"] == {}
     assert dashboard["all"] == []
+
+
+def test_dashboard_dedupe_prefers_terminal_provider_result_over_stale_matchday_card() -> None:
+    service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+
+    rows = service._dedupe_dashboard_rows(
+        [
+            {
+                "fixture_id": "1494210",
+                "status": "UPCOMING",
+                "kickoff_utc": "2026-07-19T14:30:00Z",
+                "_result": None,
+            },
+            {
+                "fixture_id": "1494210",
+                "status": "FT",
+                "kickoff_utc": "2026-07-19T14:30:00Z",
+                "_result": {"home": 2, "away": 1},
+            },
+        ]
+    )
+
+    assert rows == [
+        {
+            "fixture_id": "1494210",
+            "status": "FT",
+            "kickoff_utc": "2026-07-19T14:30:00Z",
+            "_result": {"home": 2, "away": 1},
+        }
+    ]
 
 
 def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -> None:
@@ -212,6 +285,29 @@ def test_dashboard_falls_back_to_future_fixture_payloads() -> None:
     assert today["debug"]["future_fixture_max_kickoff_utc"] == "2026-06-28T10:00:00Z"
     assert today["debug"]["next_available_date"] == "2026-06-26"
     assert len(all_payload["all"]) == 2
+
+
+def test_dashboard_exposes_distinct_page_quote_and_planned_refresh_times() -> None:
+    service = ReadModelService(repository=cast(Any, RefreshStatusRepository()))
+
+    payload = service.dashboard(target_date="2026-06-26", window="today")
+
+    assert payload["page_updated_at"] == payload["generated_at"]
+    assert payload["odds_last_confirmed_at"] == "2026-06-26T09:45:00Z"
+    assert payload["next_refresh_tick"] == "2026-06-26T09:55:00Z"
+
+
+def test_next_future_evaluation_discards_past_card_time() -> None:
+    selected = _next_future_evaluation(
+        [
+            "2026-07-19T01:30:00Z",
+            "2026-07-19T08:30:00Z",
+            "2026-07-19T09:00:00Z",
+        ],
+        now=datetime(2026, 7, 19, 5, 56, tzinfo=UTC),
+    )
+
+    assert selected == "2026-07-19T08:30:00Z"
 
 
 def test_dashboard_future_window_uses_full_cards_not_index_rows(monkeypatch) -> None:
@@ -343,7 +439,10 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     card = payload["all"][0]
     upcoming_ref = payload["upcoming"][0]
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
-    assert len(encoded) < 6500
+    # The v3 cohort temporarily travels beside the v2 compatibility scorecard.
+    # Heavy per-card diagnostics must still be removed, while the full two-card
+    # response remains bounded during that compatibility cycle.
+    assert len(encoded) < 9000
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",
@@ -413,6 +512,58 @@ def test_dashboard_reuses_short_lived_cache_for_same_window() -> None:
     assert len(first["all"]) == 1
     assert second == first
     assert repository.fixture_payload_calls == 1
+
+
+def test_dashboard_invalidates_cache_when_quote_confirmation_advances() -> None:
+    repository = MutableRefreshStatusRepository()
+    service = ReadModelService(repository=cast(Any, repository))
+
+    first = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    cached = service.dashboard(target_date="2026-06-26", window="today", include_debug=False)
+    repository.odds_last_confirmed_at = "2026-06-26T09:50:00Z"
+    refreshed = service.dashboard(
+        target_date="2026-06-26",
+        window="today",
+        include_debug=False,
+    )
+
+    assert cached == first
+    assert repository.fixture_payload_calls == 2
+    assert refreshed["odds_last_confirmed_at"] == "2026-06-26T09:50:00Z"
+    assert refreshed["generated_at"] > first["generated_at"]
+
+
+def test_unbounded_warm_cache_does_not_pollute_public_dashboard() -> None:
+    service = ReadModelService(repository=cast(Any, SplitPublicFixtureRepository()))
+
+    warmed = service.dashboard(
+        target_date="2026-06-26",
+        window="all",
+        include_debug=False,
+    )
+    public = service.public_dashboard(
+        target_date="2026-06-26",
+        window="all",
+        include_debug=False,
+    )
+
+    assert [card["fixture_id"] for card in warmed["all"]] == ["9001", "9002"]
+    assert [card["fixture_id"] for card in public["all"]] == ["9001"]
+
+
+def test_startup_warm_cache_only_materializes_bounded_public_scope() -> None:
+    service = ReadModelService(repository=cast(Any, SplitPublicFixtureRepository()))
+
+    service.warm_dashboard_cache()
+
+    assert len(service._dashboard_response_cache) == 3
+    assert all(cache_key[-1] is True for cache_key in service._dashboard_response_cache)
+    all_payload = next(
+        payload
+        for cache_key, (_, payload) in service._dashboard_response_cache.items()
+        if cache_key[1] == "all"
+    )
+    assert [card["fixture_id"] for card in all_payload["all"]] == ["9001"]
 
 
 def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:

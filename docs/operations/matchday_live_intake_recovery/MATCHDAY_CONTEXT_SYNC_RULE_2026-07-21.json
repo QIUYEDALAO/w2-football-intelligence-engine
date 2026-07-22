@@ -1,0 +1,19 @@
+{
+  "schema_version": "W2MatchdayContextSyncRuleV1",
+  "recorded_at": "2026-07-21",
+  "repository": "QIUYEDALAO/w2-football-intelligence-engine",
+  "branch": "codex/w2-matchday-live-intake-recovery",
+  "pull_request": 369,
+  "rule": {
+    "update_github_context_file_on_every_user_instruction": true,
+    "new_pull_request_required": false,
+    "ci_required": false,
+    "context_only_commit_convention": "[skip ci]",
+    "forbidden_content": [
+      "auth material",
+      "private keys",
+      "raw provider payloads"
+    ]
+  },
+  "status": "ACTIVE"
+}

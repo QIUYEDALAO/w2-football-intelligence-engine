@@ -1,0 +1,14 @@
+{
+  "schema_version": "w2.lock_time_validation_policy_evidence.v1",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
+  "checkpoint": "T-30m_VALIDATION_LOCK",
+  "target_minutes_before_kickoff": 30,
+  "tolerance_minutes": 5,
+  "selection_order": ["absolute_time_distance", "captured_at", "capture_id"],
+  "ev_or_price_in_selection_order": false,
+  "post_kickoff_rejected": true,
+  "one_active_snapshot_per_fixture": true,
+  "unavailable_status": "LOCK_SNAPSHOT_UNAVAILABLE",
+  "result": "LOCK_TIME_VALIDATION_PASS",
+  "recommendation_lock_enabled": false
+}

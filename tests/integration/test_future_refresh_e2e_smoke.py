@@ -113,13 +113,17 @@ def read_json(path: Path) -> dict[str, Any]:
 
 def test_matchday_refresh_blocked_tick_has_zero_provider_calls_contract() -> None:
     fixtures = [
-        {"fixture_id": f"fixture-{index}", "kickoff_utc": "2026-07-05T03:00:00Z"}
+        {
+            "fixture_id": f"fixture-{index}",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": "2026-07-05T03:00:00Z",
+        }
         for index in range(15)
     ]
     tick = build_matchday_refresh_plan(
         fixtures,
         as_of=datetime(2026, 7, 4, 0, 0, tzinfo=UTC),
-        policy=MatchdayRefreshPolicy(),
+        policy=MatchdayRefreshPolicy(competition_id="allsvenskan"),
     )[0]
 
     assert tick.status == "BLOCKED"
@@ -175,7 +179,10 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
     monkeypatch.setattr(

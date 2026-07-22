@@ -1,0 +1,65 @@
+{
+  "deltas": [
+    {
+      "contains_matchday_v2": false,
+      "layer": "main",
+      "sha": "a80bccaadc68f8bd691b45b46f25c10539473c0c",
+      "status": "BEHIND_STACKED_PR"
+    },
+    {
+      "contains_matchday_v2": true,
+      "layer": "latest_source_review",
+      "sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+      "status": "SOURCE_REVIEW_ONLY"
+    },
+    {
+      "layer": "staging_release",
+      "sha": "UNKNOWN",
+      "status": "READ_ONLY_RUNTIME_EVIDENCE_REQUIRED"
+    },
+    {
+      "layer": "private_data_assets",
+      "status": "LOCAL_FOUND_NOT_BACKED_UP_OR_RESTORED"
+    }
+  ],
+  "generated_at": "2026-07-20T12:51:47.425145Z",
+  "github_open_pr_stack": [
+    {
+      "base": "codex/w2-fah-data-ingest-01-remediation",
+      "draft": true,
+      "head": "codex/w2-matchday-intake-v2",
+      "pr": 363,
+      "sha": "94ba834559c0beba5b38075bd358a8e92a434a51"
+    },
+    {
+      "draft": true,
+      "head": "codex/w2-fah-data-ingest-01-remediation",
+      "pr": 362,
+      "sha": "785c4ac2837cc1961f91fca79aa6ad0e734a598f"
+    },
+    {
+      "draft": true,
+      "head": "codex/w2-fah-data-ingest-01",
+      "pr": 361,
+      "sha": "a7f206aee0f603a7a0ee29185e498a535de36b6c"
+    },
+    {
+      "draft": true,
+      "head": "codex/w2-football-data-recovery",
+      "pr": 360,
+      "sha": "18602ea82ab9910cfb0812bf9495605e43e4a9f6"
+    }
+  ],
+  "main_sha": "a80bccaadc68f8bd691b45b46f25c10539473c0c",
+  "non_actions": {
+    "db_writes": 0,
+    "deployment": false,
+    "production_mutation": false,
+    "provider_calls": 0,
+    "staging_mutation": false
+  },
+  "production_release": "RUNTIME_NOT_VERIFIED",
+  "schema_version": "W2_RUNTIME_DEPLOYMENT_DELTA_V1",
+  "source_review_sha": "94ba834559c0beba5b38075bd358a8e92a434a51",
+  "staging_release": "RUNTIME_NOT_VERIFIED"
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,6 +26,11 @@ class Settings(BaseSettings):
     celery_broker_url: SecretStr | None = None
     celery_result_backend: SecretStr | None = None
     minio_endpoint: str | None = None
+    readiness_release_root: Path = Path(".")
+    readiness_manifest_path: Path = Path("config/readiness/staging.v1.json")
+    readiness_runtime_path: Path = Path("runtime")
+    readiness_config_path: Path = Path("config")
+    readiness_migrations_path: Path = Path("migrations")
 
     @field_validator("database_url", "redis_url", "celery_broker_url", "celery_result_backend")
     @classmethod
@@ -45,4 +51,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

@@ -47,11 +47,447 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
   restarts after rollback; queue, provider baseline and locks remain unchanged.
 - R0.1b has not started.
 
+### R0.1a-B1 local direct reacceptance
+
+- Local SHA `3fc2412c258b996d4f8af6bd44f2799438f49504` replaced the unbounded public
+  analysis-card observation read with a request-local fixture-scoped reader.
+- Local validation passed with `1084 passed, 4 skipped`, Ruff, Mypy, TypeScript,
+  Web production build, acceptance, tracked-output, credential scan and migration gates.
+- Isolated staging-parity/predeploy-e2e, migration and fake-provider contracts
+  passed without GitHub.
+- First, five sequential and two-fixture concurrent public probes all returned
+  200. API restart and OOM stayed zero; final RSS was 276.6 MiB.
+- The real staging scoped reader returned 5,388 target rows while the injected
+  global reader was never called.
+- Provider, observation, queue and lock counts were unchanged. Canonical DayView
+  projection bytes were identical before and after deployment.
+- R0.1a is PASS. R0.1b is now authorized.
+
 Detailed canary evidence:
 [W2 R0.1a Staging Canary](docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.1b quote freshness isolation
+
+- Local SHA `13183b3eabd9022cada47a76d01fa619648bd01f` introduced one freshness
+  evaluator using authoritative observation `captured_at` only.
+- Missing, invalid or conflicting provenance is INCOMPLETE; quotes older than 30
+  minutes are STALE. Neither class enters current odds or current pricing.
+- Final local validation reported `1094 passed, 4 skipped`; static, Web,
+  acceptance, migration and isolated predeploy gates passed.
+- Staging DayView cards remained WATCH with no pick/recommendation/lock. All
+  visible cards were STALE and exposed no current odds.
+- Shared-fixture product projections were byte-identical. Provider, observation,
+  queue and lock counts did not change; all services remained restart zero/OOM
+  false and scheduler/watchdog state was restored.
+- R0.1b is PASS. R0.1c is now authorized.
+
+Detailed canary evidence:
+[W2 R0.1b Staging Canary](docs/operations/W2_R0_1B_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.1c non-READY no-pick invariant
+
+- Local SHA `58ca49793f2011148e5bfc7d2f1ac5c9062ffbf8` established one final
+  Decision Contract postcondition and made DayView, public analysis-card and
+  tracking project it without restoring legacy picks.
+- Final local validation reported `1097 passed, 4 skipped`; static, Web,
+  acceptance, migration and isolated predeploy gates passed.
+- Staging contained 10 WATCH cards and one expected NOT_READY card. Every card
+  had zero pick, recommendation, executable odds, lock eligibility and outcome
+  tracking. The public analysis-card projected the same semantics.
+- Provider, observation, queue and lock counts did not change. API RSS was
+  268.1 MiB; all services remained restart zero/OOM false and scheduler/watchdog
+  state was restored.
+- R0.1c is PASS. R0.2 is now authorized.
+
+Detailed canary evidence:
+[W2 R0.1c Staging Canary](docs/operations/W2_R0_1C_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.2 canonical readiness 503
+
+- Local SHA `87e2ba15b5920c369ca90583b0b0d2dd1a73a74a` separated pure liveness
+  from canonical fail-closed readiness.
+- Root and legacy readiness share one payload/status; the legacy route adds
+  deprecation and canonical Link headers. Docker, release and watchdog probes
+  now use root `/ready`.
+- Local full validation reported `1107 passed, 4 skipped`; static, Web,
+  acceptance, migration, staging-parity and predeploy gates passed.
+- Dedicated temporary dependencies proved DB, Redis, schema, artifact and mount
+  failures return 503 and recover to 200 without touching formal staging.
+- Formal staging remained product-identical and mutation-free. All services are
+  healthy with restart zero/OOM false; scheduler/watchdog state was restored.
+- R0.2 is PASS. `next_phase=R0.3`; this run stops before R0.3.
+
+Detailed canary evidence:
+[W2 R0.2 Staging Canary](docs/operations/W2_R0_2_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.3 fixture-scoped bounded public reads
+
+- Implementation SHA `7e383e2f21fcd0b488ffc95cd58c6c6394291855` separates
+  public bounded readers from explicitly offline global readers.
+- Observation reads are capped at 256 rows per fixture; raw payload reads at 32
+  payloads/256 response items; xG history at 20 rows per team.
+- Local validation passed with `1112 passed, 4 skipped`, Ruff, Mypy, Web build,
+  acceptance, tracked-output, credential and diff gates.
+- Isolated predeploy-e2e and staging-parity passed. Formal canary injected
+  fail-on-call global observation/raw/xG readers and recorded zero global calls.
+- DayView product hash stayed `f2e282491966350c04a317d39d53424a25d6a09eee5421bb8e249f4b96917280`.
+  Provider, observation, raw, checkpoint, queue and lock counts did not change.
+- API RSS was 219.4 MiB against a 349.2 MiB cap; all services ended healthy with
+  restart zero/OOM false, and scheduler/watchdog state was restored.
+- R0.3 is PASS. R0.4 is authorized by the full local execution plan.
+
+Detailed canary evidence:
+[W2 R0.3 Staging Canary](docs/operations/W2_R0_3_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.4 deterministic sidecar materializer
+
+- Implementation SHA `7a5181f3b0cc0e12ae3dbade225d3725b7b06518` adds a
+  versioned three-fixture canary namespace without changing public reads.
+- An explicit evaluation reference is part of the input manifest; write time and
+  run identity are excluded from canonical bytes and hashes.
+- Local validation passed with `1118 passed, 4 skipped`, all static/Web/acceptance
+  guards, isolated predeploy-e2e and staging-parity.
+- The three staging fixtures repeated with byte-identical payloads and artifact
+  hashes. Sequential and concurrent reads returned one stable hash per fixture.
+- Missing inputs, old schema, identity conflict and hash mismatch fail closed;
+  batch writes are one transaction and leave no partial visible checkpoint.
+- Public analysis cards and the DayView product projection stayed unchanged.
+  Provider, observation, raw, queue and lock counts did not change; only three
+  canary checkpoint rows were added.
+- All services ended healthy with restart zero/OOM false; scheduler and watchdog
+  were restored. R0.4 is PASS and R0.5 is authorized.
+
+Detailed canary evidence:
+[W2 R0.4 Staging Canary](docs/operations/W2_R0_4_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.5 frozen analysis-card canary
+
+- Implementation SHA `4b880b49acb0b33376c61d2cf8bba608a8682c47` switches only
+  the three named canary fixtures to verified frozen checkpoint reads.
+- Local validation passed with `1125 passed, 4 skipped`, all static/Web/acceptance
+  guards, isolated predeploy-e2e and staging-parity.
+- Sequential and concurrent staging reads returned stable bytes and the three R0.4
+  artifact hashes. An in-container fail-on-call tripwire recorded three artifact
+  reads and zero legacy/global/provider/model calls.
+- Decision, tier, pick, quote identity/freshness and DayView product semantics
+  stayed unchanged. Frozen `evaluated_at` replaced the live request reference for
+  two audits by design; authoritative quote `captured_at` did not change.
+- Provider, observation, raw, checkpoint, queue, business and lock counts did not
+  change. All services ended healthy with restart zero/OOM false; scheduler and
+  watchdog were restored. R0.5 is PASS and R0.6 is authorized.
+
+Detailed canary evidence:
+[W2 R0.5 Staging Canary](docs/operations/W2_R0_5_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R0.6 frozen public cutover
+
+- Implementation SHA `1d582f1a51370abcb69d3732c2366f28cc80102d` moves
+  analysis-card, fixture detail, Dashboard and DayView onto one bounded frozen
+  authority. Missing artifacts fail closed without legacy rebuild.
+- Final local validation passed with `1132 passed, 4 skipped`, all static/Web/
+  acceptance guards, isolated predeploy-e2e, staging-parity and migration smoke.
+- The 102-fixture inventory produced 44 deterministic artifacts and 58 explicit
+  unavailable results. All 71 visible fixtures were consistent across four
+  endpoints; 15 matched the frozen baseline and 56 were safely NOT_READY.
+- Hard gates found and forced rollback for wall-clock artifact data, a global
+  Dashboard count read, startup cache pollution and excess dual-cache RSS. Each
+  issue was fixed and covered before the accepted canary.
+- Provider, observation, raw, queue, ledger and lock counts did not change. Only
+  44 expected frozen checkpoint rows were added. Final p95 was 0.191 seconds;
+  RSS ratios, restart and OOM gates passed.
+- All services, scheduler and watchdog ended healthy/active. R0.6 is PASS and R1
+  is authorized by the full local execution plan.
+
+Detailed canary evidence:
+[W2 R0.6 Staging Canary](docs/operations/W2_R0_6_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R1 local checkpoints before phase canary
+
+- R1.1 `locally_verified`: API metrics and `/metrics` share a thread-safe process
+  registry; fixed-bucket histograms retain no samples. Route/status/readiness,
+  provider/model, checkpoint, tripwire and materializer metrics are exposed.
+- R1.2 `locally_verified`: `/v1/version` exposes local SHA, release/image digest
+  availability, Alembic current/head and readiness artifact hashes. Release Gate
+  manifests hash their evidence and are written atomically.
+- R1.3 `locally_verified`: retries and response cache are bounded; observation
+  batches fail without partial writes; runtime evidence fails on queue, restart,
+  OOM, exit137, service state, RSS or checkpoint-lag anomalies.
+- R1.4 `locally_verified`: Chromium covers READY, STALE, BLOCKED, INCOMPLETE and
+  checkpoint-missing Dashboard/DayView/analysis-card contracts. Non-ready Web
+  projection clears residual pick, current odds, recommendation and lock fields.
+- R1.5 `implemented`: the four delivery states are now explicit. This entry is not
+  staging acceptance. R1 phase-wide gates and its single canary remain pending.
+- No GitHub synchronization, champion switch, RECOMMEND/lock enable, OFFICIAL or
+  production action occurred.
+
+## 2026-07-18 — R1 staging acceptance
+
+- Exact local candidate `103813d7e8ea422756472cb9b4369e3c80876d09` passed
+  `1150 passed / 4 skipped`, Ruff, Mypy, Web typecheck/build, five Chromium E2E
+  cases, acceptance/guards, exact-candidate isolated predeploy and parity.
+- Formal staging proved exact API/Web release identity, matching Alembic and
+  readiness artifacts, shared bounded metrics, stopped/running scheduler runtime
+  evidence and byte-identical product projection hash `18647c8de4838fb3…`.
+- Provider/business/checkpoint/ledger/lock/queue counts had zero canary delta.
+  Four services finished healthy with restart/OOM/exit137 zero; scheduler and
+  watchdog returned active.
+- Two hard failures were rolled back and fixed before acceptance: stale-container
+  image enumeration and stopped-scheduler RSS collection. The second rollback
+  could restore the R0.6 source/config but not its original BuildKit index IDs;
+  that identity loss is recorded in the canary report. Revision-scoped rollback
+  tags are now retained and verified before fixed tags move.
+- R1 is `staging_accepted`; `next_phase=R2`. GitHub, champion, thresholds,
+  league scope, RECOMMEND/lock, OFFICIAL and production remain unchanged.
+
+Detailed evidence:
+[W2 R1 Staging Canary](docs/operations/W2_R1_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R2 offline corrections and staging acceptance
+
+- R2.1–R2.4 completed as separate deterministic commits: persistent rolling
+  form, explicit half-goal `0.5` contract, truthful `signal_strength` semantics,
+  and fixed-snapshot paired offline evaluation.
+- Final exact candidate `6f300d028939bb227683cc644461a7dc67988a77`
+  passed `1158 passed / 4 skipped`, all static/Web/acceptance guards, staging-host
+  parity and isolated predeploy.
+- Offline evaluation changed all 12 validation rolling-form feature rows but no
+  probability row because the selected model does not consume that feature;
+  log loss, Brier, RPS and ECE deltas were honestly zero. The result remains
+  shadow-only.
+- The first canary found legacy frozen payloads bypassing the confidence-to-
+  strength projection. Exact R1 rollback completed before repair; a real-shape
+  regression was added and every gate rerun.
+- The accepted canary verified three real legacy checkpoints under sequential
+  and concurrent load. Provider/business/checkpoint/ledger/lock/queue counts
+  had zero canary delta, and 39 DayView cards matched R1 after only allowed field,
+  derived-hash and request-time normalization.
+- All services ended healthy with RSS within 1.20x, restart/OOM/exit137 zero;
+  scheduler and watchdog returned active. R2 is `staging_accepted` and R3 is
+  authorized for append-only forward shadow evidence only.
+
+Detailed evidence:
+[W2 R2 Staging Canary](docs/operations/W2_R2_STAGING_CANARY_20260718.md).
+
+## 2026-07-18 — R3 read-only staging candidate
+
+- R3 ledger performance v2 now separates VALIDATION, OFFICIAL and SHADOW;
+  `record_count` remains L2 audit only. Historical rows are certified without
+  rewriting, identity conflicts fail closed, and ledger v3 links outcomes to
+  original capture identity.
+- The rejected Dashboard redesign was reverted. Exact implementation SHA
+  `7e4c0aea790f2bce678b4ab6a2d20ba51d583316` retains the original layout and
+  corrects only visible data semantics. All qualifying matches are displayed;
+  no arbitrary three-match cap remains.
+- Local gates passed with `1163 passed / 4 skipped`, all static/Web/acceptance
+  guards and six Chromium contracts. Staging health/readiness/version/DayView/
+  Dashboard probes passed with provider delta zero, queue zero, exact release
+  identity, schema/artifact match and runtime/RSS gates green.
+- Current real figures are 23 validation fixtures, 15 settled, 8 pending,
+  10 hit, 3 miss, 2 push, 0 void and 12 canonical settled fixtures.
+- The candidate is `staging_accepted_awaiting_three_cycles`, not production
+  approved. Consecutive Beijing 09:00 cycles are `0/3`; the first eligible
+  cycle is 2026-07-19. Champion, RECOMMEND/lock and OFFICIAL remain unchanged.
+
+Detailed evidence:
+[W2 R3 read-only staging candidate](docs/operations/W2_R3_READONLY_STAGING_CANDIDATE_20260718.md).
+
+## 2026-07-18 — R4 approval packs prepared in parallel
+
+- Champion review material is prepared but does not support or authorize a
+  champion switch; explicit later approval remains required.
+- RECOMMEND/lock review material is prepared; the 200 canonical settled-fixture
+  target and explicit later approval remain required. RECOMMEND, lock and
+  OFFICIAL are unchanged.
+- Read-only production has the user's conditional authorization after three
+  consecutive real Beijing 09:00 patrol PASS cycles. The current immutable
+  implementation is `94bcd62`; state remains `0/3` and not production approved.
+- This documentation-only preparation does not rebuild staging and does not
+  reset the cycle candidate.
+
+Detailed evidence:
+[W2 R4 approval packs](docs/operations/W2_R4_APPROVAL_PACKS_20260718.md).
+
+## 2026-07-18 — repeated quote capture and freshness correction
+
+- Final staging implementation `94bcd62c67ed3fe50bba5ee65be10133556f83d0`
+  retains a new append-only observation identity when a later authoritative
+  provider response repeats unchanged odds. It does not overwrite historical
+  `captured_at`, loosen the 30-minute gate or substitute page generation time.
+- Dashboard layout remains unchanged. Page update, odds confirmation and next
+  collection are separately labeled, and cache reuse is invalidated by a newer
+  fixture-scoped refresh watermark.
+- The natural 23:45 T-15 checkpoint proved all 3,870 quotes for fixture 1494704
+  were unchanged from 23:00 while all 3,870 new observation IDs remained
+  distinct. Both refreshed fixtures were rematerialized before checkpoint
+  completion.
+- The public card's odds field is no longer stale and its quote identity is
+  COMPLETE. Its current NOT_READY reason is the truthful, separate
+  `MARKET_UNAVAILABLE` condition; no pick, recommendation or lock was created.
+- Local gates passed with `1173 passed / 4 skipped`; all static, Web, browser,
+  acceptance and safety guards passed. Public probe provider delta and business
+  writes were zero; queue, restart/OOM/exit137 and RSS gates passed.
+- R3 remains `staging_accepted_awaiting_three_cycles`, reset to `0/3`; first
+  eligible patrol is 2026-07-19 09:00 Beijing. GitHub, champion,
+  RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
+
+Detailed evidence:
+[W2 repeated-capture freshness canary](docs/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md).
 
 ## Delivery rule
 
 R0.1a may start only after the R0.0 PR is merged with `verify`,
 `staging-parity` and `predeploy-e2e` passing. Every later phase follows the same
 merge-before-next-phase rule.
+
+## 2026-07-19 — LMM0-LMM8 implementation started
+
+- User authorized the complete lineup identity, valuation, formation and
+  independent AH/OU decision workstream from local `main@8e171dc`.
+- Work continues on `codex/w2-lmm-lineup-multimarket`; GitHub synchronization
+  remains prohibited and no staging deployment has occurred.
+- The accepted staging implementation remains `01f8a75`. The three-cycle gate
+  will restart at `0/3` only after the exact LMM candidate passes all local and
+  isolated gates and its single staging canary.
+- Champion, RECOMMEND/lock, OFFICIAL and write-enabled production remain
+  unchanged.
+
+## 2026-07-19 — LMM0-LMM8 staging acceptance
+
+- Exact local implementation
+  `198c603db424371014e1f738596a9befa8a9486c` passed `1206 passed / 4 skipped`,
+  all static/Web/Playwright/acceptance guards, exact-archive predeploy,
+  staging parity and isolated migration roundtrip.
+- Migration `0024_create_lineup_intelligence` is active. Staging contains
+  50,149 Transfermarkt player references, 31,507 valuation observations,
+  60 structured lineup snapshots, 1,527 lineup players, 60 deterministic team
+  baselines and 660 player identity mappings.
+- Formal sequential and concurrent public canaries kept provider, business,
+  checkpoint, ledger, lock and queue deltas at zero. Non-ready cards exposed no
+  pick or directional scoreline. All four services finished healthy with
+  restart/OOM/exit137 zero and scheduler/watchdog restored.
+- Earlier candidates with scoreline leakage, missing persisted baselines,
+  hidden runtime policy and runtime `uv run` dependency sync were rejected,
+  rolled back and covered by regression or release contract tests before the
+  successful deployment.
+- LMM4 numeric lineup adjustment remains zero because its frozen offline
+  evidence gate has not passed; readiness, provenance, explanation and AH/OU
+  independent market selection are accepted without inventing an effect.
+- The three-cycle gate is reset to `0/3`. The user approved an accelerated
+  natural-day schedule: 2026-07-19 10:00, then 2026-07-20 and 2026-07-21 at
+  09:00 Beijing, all on the same SHA and images. GitHub, champion,
+  RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
+
+Detailed evidence:
+[W2 LMM staging acceptance](docs/operations/W2_LMM_STAGING_CANARY_20260719.md).
+
+## 2026-07-19 — Dashboard ledger authority regression fixed
+
+- The 10:00 patrol correctly exposed that the new API showed zero validation
+  fixtures. The real 12-file shared ledger was intact; the installed package had
+  derived an invalid runtime root under `/app/.venv/lib/python3.12/runtime`.
+- Exact repair `438ac07e8ad3b30dbe1c4107b759100e1cae7418` explicitly binds API, worker
+  and scheduler to `/app/runtime`. Dashboard validation recovered to 23
+  fixtures, 15 settled, 8 pending, 10 hit, 3 miss, 2 push and 0 void.
+- Ledger hash, provider count, queue and business state remained unchanged.
+  Full local gate passed with `1207 passed / 4 skipped`; exact-archive isolated
+  predeploy and formal staging probes passed. All services ended healthy with
+  restart/OOM zero and scheduler/watchdog restored.
+- Dashboard no longer hides the cause behind “数据陈旧”. For the current three
+  fixtures it states that the missing hard input is an odds quote within the
+  30-minute freshness window, identifies the old early market and gives the
+  next scheduled collection time, without promising a recommendation.
+- The failed 10:00 patrol does not count. Because a runtime fix was deployed,
+  the sequence resets to `0/3`; next eligible patrols are July 20–22 at 09:00
+  Beijing on the same SHA and images.
+
+Detailed evidence:
+[W2 Dashboard ledger authority fix](docs/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md).
+
+## 2026-07-19 — Validation outcome auto-settlement staging acceptance
+
+- Exact implementation `8aa4a888df463f8cc075c42ed468174f83e15444`
+  now scans canonical pending fixture-market captures from the explicit shared
+  ledger path and refreshes only due fixture IDs under the shared provider cap.
+- Settlement supports AH and TOTALS, uses the 90-minute fulltime score for
+  FT/AET/PEN, handles terminal VOID and postponed-over-48h policy, and keeps
+  VALIDATION, OFFICIAL and SHADOW separate.
+- A dry-run exposed cross-day legacy duplication and a finished shadow capture
+  without a quote. The failed candidate was rolled back, duplicate settlement
+  was removed, and missing settlement inputs now fail closed. The remaining
+  invalid shadow identity is quarantined as `SETTLEMENT_ERROR` and does not
+  repeatedly query the provider.
+- Final validation authority is 23 handled of 23: 14 hit, 4 miss, 2 push and 3
+  void, with 77.78% decisive hit rate. OFFICIAL remains zero; locks and queue
+  remain zero. Four services are healthy at the accepted SHA with restart/OOM
+  zero.
+- Full gate finished at `1217 passed / 4 skipped`; Ruff, Mypy, Web build,
+  Playwright, acceptance guards and exact-archive isolated predeploy passed.
+  The stability sequence is reset to `0/3` for July 20–22 at 09:00 Beijing.
+
+Detailed evidence:
+[W2 validation outcome settlement](docs/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md).
+
+## 2026-07-22 — Dynamic EV and confirmed-lineup lifecycle locally verified
+
+- Work started from exact Draft PR #370 head
+  `c62fa82d883633f3b33ff44810a5fbc294b215c5`; exact code implementation is
+  `d44db97abd46c4e78814e4787d61db41ffc2acb7`.
+- Every new exact quote/model input produces an immutable evaluation version;
+  supersession is stored separately, and the current projection supports
+  `NO_EDGE → ACTIVE`, `ACTIVE → NO_EDGE`, stale and source-absent states.
+- `LINEUP_CONFIRMED` invalidates the old model input and blocks EV reuse until a
+  complete exact quote captured after lineup confirmation is present.
+- Confirmed-XI materialization now fails closed for incomplete or conflicting
+  identities, uses reviewed canonical mappings and as-of valuations, and emits
+  role-specific replacement, continuity and disruption features.
+- `T-30m_VALIDATION_LOCK` selects one validation snapshot by time proximity
+  within ±5 minutes. EV and best price cannot influence selection; post-kickoff
+  and incomplete inputs are rejected.
+- Full local gates passed: `1438 passed / 4 skipped`, Ruff, Mypy, Web typecheck
+  and SQLite migration upgrade/downgrade/re-upgrade. After the first CI run
+  correctly rejected stale Boss Console protected hashes, the scoped authority
+  was refreshed. A subsequent full-Web check exposed one obsolete generic
+  `STALE` assertion; product copy and the assertion now state that the old quote
+  is reference-only. The protected baseline and all 26 Web E2E tests pass.
+- Machine evidence is under
+  `docs/operations/dynamic_prematch/`. It explicitly records no provider call,
+  no staging deployment and `WAITING_FOR_REAL_LINEUP_WINDOW`; no synthetic XI
+  is claimed as a live pass.
+- Lineup AH/OU/lambda adjustments remain `0.0` and advisory-only. PR #370 stays
+  Draft; Formal, Lock, OFFICIAL and Production remain disabled.
+- Draft PR #370 verified head
+  `d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec` passed normal GitHub Actions run
+  `29897588312`: `verify`, `staging-parity` and `predeploy-e2e` all passed.
+- The originally documented host was stale. The correct staging target is
+  `root@118.196.30.136`; the supplied key authenticated and showed active
+  service/watchdog on release `284a646f…`.
+- Exact head `0d6ff59…` was archived, uploaded and structurally validated; its
+  rollback images were preserved before the symlink switch. Docker then stalled
+  in `pip install uv` during the migration image build. The incomplete release
+  was stopped and `/opt/w2/current` was restored to `284a646f…`; API and
+  watchdog remained active, and provider calls remained zero.
+- Current operational blocker is `STAGING_IMAGE_BUILD_STALLED`, not a fabricated
+  live-lineup-window result.
+
+## 2026-07-22 — Dynamic lifecycle deployed; fixture recovery and pending live canary
+
+- Draft PR #370 head `81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8` passed GitHub
+  Actions run `29916913849` (`verify`, `staging-parity`, `predeploy-e2e`). It
+  is deployed to `root@118.196.30.136`; API, web, worker, scheduler, Postgres
+  and Redis are healthy. The scheduler healthcheck was corrected so a
+  deliberately disabled Draft provider refresh is not falsely reported as
+  unhealthy.
+- The slow cold Docker dependency path was bypassed safely for source-only
+  releases by deriving the candidate image from the previously verified
+  dependency image and verifying imports from candidate `/app/src`. No cache
+  prune or dependency redownload was used for the final releases.
+- Existing raw fixture/odds captures were repaired with zero provider calls.
+  Eliteserien, Brasileirao Serie A and Chinese Super League each now have eight
+  fixture identities and eight observed fixtures; each has zero orphan market
+  fixtures. Public dashboard proof for 2026-07-25 is `1494712` (Eliteserien),
+  `1492308` (Brasileirao Serie A), and `1523211` (Chinese Super League).
+- The dynamic and lineup code is deployed, but no real official XI followed by
+  a fresh exact odds quote has yet occurred. The live canary, post-canary
+  20-read zero-delta probe, reviewed Transfermarkt crosswalk/player identity,
+  and as-of valuation materialization remain pending. This is why lineup stays
+  advisory-only and all numeric lineup adjustments remain zero.

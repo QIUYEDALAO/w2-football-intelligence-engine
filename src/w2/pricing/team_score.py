@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from w2.domain.factor_registry import factor_policy, is_scoring_factor
 from w2.pricing.scale import DEFAULT_FACTOR_SCALE_PARAMS, FactorScaleParams
 
 ALLOWED_INDEPENDENT_FACTORS = frozenset(
@@ -37,7 +38,8 @@ def independent_team_scores(
     scoring_factors = [
         factor
         for factor in factors
-        if factor["is_independent_signal"] is True
+        if is_scoring_factor(str(factor["id"]))
+        and factor["is_independent_signal"] is True
         and str(factor["source_group"]) in AUTHORITATIVE_SIGNAL_GROUPS
     ]
     signal_groups = sorted(
@@ -65,6 +67,8 @@ def independent_team_scores(
         "factors": factors,
         "coverage": coverage,
         "independent_signal_count": len(signal_groups),
+        "distinct_evidence_group_count": len(signal_groups),
+        "threshold_validation_status": "POLICY_THRESHOLD_UNVALIDATED",
         "independent_signal_groups": signal_groups,
         "xg_derived_factor_count": sum(1 for factor in factors if factor["source_group"] == "xg"),
         "missing_independent_sources": [
@@ -79,6 +83,7 @@ def independent_team_scores(
 
 
 def _factor(item: dict[str, Any], *, scale: FactorScaleParams) -> dict[str, Any]:
+    policy = factor_policy(_factor_id(item))
     side = str(item.get("side") or "NEUTRAL")
     if side not in {"HOME", "AWAY", "NEUTRAL"}:
         side = "UNKNOWN"
@@ -90,7 +95,8 @@ def _factor(item: dict[str, Any], *, scale: FactorScaleParams) -> dict[str, Any]
         "status": str(item.get("status") or "UNKNOWN"),
         "source": _optional_text(item.get("source")),
         "source_group": _optional_text(item.get("source_group")),
-        "is_independent_signal": bool(item.get("is_independent_signal") is True),
+        "is_independent_signal": bool(item.get("is_independent_signal") is True)
+        and bool(policy.get("independent_evidence_eligible")),
         "proxy_of": _optional_text(item.get("proxy_of")),
         "collection_status": _optional_text(item.get("collection_status")) or "READY",
         "inputs": item.get("inputs") if isinstance(item.get("inputs"), dict) else {},

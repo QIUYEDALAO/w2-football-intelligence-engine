@@ -1,0 +1,46 @@
+{
+  "schema_version": "LIVE_INTAKE_BASELINE_V1",
+  "generated_at_utc": "2026-07-20T22:12:54Z",
+  "environment": "staging",
+  "source_baseline_sha": "037b88cd529e4c19ecf7ddc51f50106a6a996572",
+  "release_directory_sha": "037b88cd529e4c19ecf7ddc51f50106a6a996572",
+  "api_ready_status": "READY",
+  "schema_revision": "0031_finalize_matchday_execution_identity",
+  "services": {
+    "api": "healthy",
+    "web": "healthy",
+    "worker": "healthy",
+    "scheduler": "stopped_for_diagnosis",
+    "postgres": "healthy",
+    "redis": "healthy"
+  },
+  "counts": {
+    "provider_request_logs": 0,
+    "raw_payload": 0,
+    "matchday_endpoint_captures": 0,
+    "canonical_fixture_table_fixtures": "present_count_not_sampled",
+    "matchday_market_observations": 0,
+    "matchday_evidence_manifests": 0,
+    "recommendations": 0,
+    "recommendation_locks": 0,
+    "future_refresh_run_audit": 40,
+    "matchday_checkpoint_plans": 0,
+    "official_captures": "table_absent",
+    "formal_recommendations": "table_absent",
+    "performance_cohort": "table_absent"
+  },
+  "recent_future_refresh_blocker": {
+    "competition_id": "allsvenskan",
+    "fixture_count": 0,
+    "market_snapshot_count": 0,
+    "request_count": 1,
+    "blockers": [
+      "LiveNetworkDisabledError"
+    ]
+  },
+  "notes": [
+    "The public /ready endpoint reports service readiness only.",
+    "No matchday-intake-specific READY status was exposed at this baseline.",
+    "Scheduler automatic loop was stopped before live diagnosis to avoid repeated provider calls."
+  ]
+}

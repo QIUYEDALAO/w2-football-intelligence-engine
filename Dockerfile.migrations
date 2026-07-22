@@ -1,25 +1,36 @@
+ARG UV_BOOTSTRAP_IMAGE=ghcr.io/astral-sh/uv:0.11.30
+FROM ${UV_BOOTSTRAP_IMAGE} AS uv-bootstrap
 FROM python:3.12-slim
-ARG W2_GIT_SHA=UNKNOWN
-ARG W2_BUILD_TIME=UNKNOWN
-ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ARG PIP_INDEX_URL=
+ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH=/app/.venv/bin:$PATH \
-    W2_GIT_SHA=${W2_GIT_SHA} \
-    W2_BUILD_TIME=${W2_BUILD_TIME} \
-    W2_RELEASE_ID=${W2_RELEASE_ID}
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    UV_INDEX_URL=${UV_INDEX_URL} \
+    UV_HTTP_TIMEOUT=30 \
+    UV_HTTP_RETRIES=2
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
-COPY pyproject.toml uv.lock README.md alembic.ini ./
+COPY --from=uv-bootstrap /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock README.md ./
+RUN uv --version && uv sync --no-dev --frozen --no-editable --no-install-project
+COPY alembic.ini ./
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
-RUN pip install --no-cache-dir uv && uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
+RUN uv sync --no-dev --frozen --no-editable && chown -R w2:w2 /app/.venv
 RUN test -x /app/.venv/bin/python && test -x /app/.venv/bin/alembic
+ARG W2_GIT_SHA=UNKNOWN
+ARG W2_BUILD_TIME=UNKNOWN
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ENV W2_GIT_SHA=${W2_GIT_SHA} \
+    W2_BUILD_TIME=${W2_BUILD_TIME} \
+    W2_RELEASE_ID=${W2_RELEASE_ID}
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
       org.opencontainers.image.revision="${W2_GIT_SHA}" \
       org.opencontainers.image.created="${W2_BUILD_TIME}" \
       w2.release.id="${W2_RELEASE_ID}" \
       w2.runtime.contract.version="release-train-2-patch2"
 USER w2
-HEALTHCHECK CMD uv run alembic current || exit 1
-CMD ["uv", "run", "alembic", "upgrade", "head"]
+HEALTHCHECK CMD alembic current || exit 1
+CMD ["alembic", "upgrade", "head"]

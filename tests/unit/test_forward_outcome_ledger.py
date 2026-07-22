@@ -6,7 +6,13 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from w2.tracking.forward_outcome_ledger import backfill_outcomes, run_forward_outcome_ledger
+from w2.tracking.forward_outcome_ledger import (
+    append_capture_supersessions,
+    backfill_outcomes,
+    build_forward_outcome_records,
+    pending_outcome_entries,
+    run_forward_outcome_ledger,
+)
 
 
 def _day_view() -> dict[str, object]:
@@ -68,6 +74,71 @@ def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
     assert list(tmp_path.glob("*.jsonl")) == []
 
 
+def test_capture_supersession_is_append_only_and_removes_pending_entry(tmp_path: Path) -> None:
+    ledger_root = tmp_path / "forward_outcome_ledger"
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.update(  # type: ignore[union-attr]
+        {
+            "decision_tier": "ANALYSIS_PICK",
+            "outcome_tracked": True,
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "+1.25",
+            },
+        }
+    )
+    capture = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=ledger_root,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    capture_hash = capture["records"][0]["capture_identity_hash"] if capture["records"] else None
+    if capture_hash is None:
+        row = json.loads(
+            (ledger_root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()[0]
+        )
+        capture_hash = row["capture_identity_hash"]
+    assert len(pending_outcome_entries(tmp_path)) == 1
+
+    result = append_capture_supersessions(
+        tmp_path,
+        [{"fixture_id": "fixture-1", "capture_identity_hash": capture_hash}],
+        reason_code="AH_SELECTED_SIDE_LINE_MISMATCH",
+        superseded_at=datetime(2026, 7, 7, 13, 0, tzinfo=UTC),
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert result["written"] == 1
+    assert len(pending_outcome_entries(tmp_path)) == 0
+    original = ledger_root / "2026-07-07_staging.jsonl"
+    assert original.exists()
+    supersession = tmp_path / "forward_outcome_ledger" / "2026-07-07-supersessions_staging.jsonl"
+    row = json.loads(supersession.read_text(encoding="utf-8"))
+    assert row["supersession_status"] == "SUPERSEDED"
+    assert row["target_capture_identity_hash"] == capture_hash
+
+
+def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["secondary_picks"] = [  # type: ignore[index]
+        {"market": "TOTALS", "selection": "UNDER", "line": "2.5"},
+        {"market": "ASIAN_HANDICAP", "selection": "HOME_AH", "line": "-0.5"},
+    ]
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    assert records[0]["secondary_picks"] == [
+        {"market": "TOTALS", "selection": "UNDER", "line": "2.5"}
+    ]
+
+
 def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     first = run_forward_outcome_ledger(
         _day_view(),
@@ -90,6 +161,21 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
     assert second["written"] == 0
     assert second["skipped_existing"] == 1
     assert len(rows) == 1
+    assert rows[0]["schema_version"] == "w2.forward_outcome_ledger.v3"
+    assert rows[0]["recommendation_scope"] == "SHADOW"
+    assert rows[0]["fixture_identity"] == {
+        "fixture_id": "fixture-1",
+        "kickoff_utc": "2026-07-07T16:00:00Z",
+        "competition_id": "world_cup_2026",
+        "competition_name": "World Cup",
+        "home_team_id": None,
+        "home_team_name": "Argentina",
+        "away_team_id": None,
+        "away_team_name": "Egypt",
+    }
+    assert len(rows[0]["capture_identity_hash"]) == 64
+    assert rows[0]["quote_provenance"]["schema_version"] == "w2.quote_provenance.v1"
+    assert rows[0]["artifact_provenance"]["artifact_hash"] == "hash-1"
     assert rows[0]["not_a_lock"] is True
     assert rows[0]["posthoc_only"] is True
     assert rows[0]["record_type"] == "capture"
@@ -106,6 +192,248 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
         "not_displayed": True,
     }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
+
+
+def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.update(  # type: ignore[union-attr]
+        {
+            "decision_tier": "ANALYSIS_PICK",
+            "reason_code": "ANALYSIS_ONLY",
+            "outcome_tracked": True,
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "AWAY",
+                "line": "+1.25",
+                "odds": None,
+            },
+            "recommendation_decision_v3": {
+                "schema_version": "w2.recommendation_decision.v3",
+                "outcome": "ANALYSIS_PICK",
+                "selected_candidate": {
+                    "market": "ASIAN_HANDICAP",
+                    "selection": "AWAY",
+                    "line": "+1.25",
+                    "odds": None,
+                },
+                "decision_hash": "decision-hash",
+            },
+        }
+    )
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert payload["written"] == 1
+    assert rows[0]["recommendation_scope"] == "VALIDATION"
+    assert rows[0]["outcome_tracked"] is True
+    assert rows[0]["lock_eligible"] is False
+    assert rows[0]["pick"]["selection"] == "AWAY_AH"
+    assert rows[0]["pick"]["entry_line"] == "+1.25"
+    assert rows[0]["pick"]["entry_price"] == 1.93
+    assert rows[0]["pick"]["odds"] == 1.93
+
+
+def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card.pop("home_team_name")  # type: ignore[union-attr]
+    card.pop("away_team_name")  # type: ignore[union-attr]
+    card["home_name"] = "Public Home"  # type: ignore[index]
+    card["away_name"] = "Public Away"  # type: ignore[index]
+
+    payload = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert payload["written"] == 1
+    assert rows[0]["fixture_identity"]["home_team_name"] == "Public Home"
+    assert rows[0]["fixture_identity"]["away_team_name"] == "Public Away"
+
+
+def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
+    tmp_path: Path,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    capture = run_forward_outcome_ledger(
+        day_view,
+        dry_run=False,
+        write_artifacts=True,
+        runtime_root=tmp_path / "forward_outcome_ledger",
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert capture["written"] == 2
+    capture_rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert {
+        (row["shadow_pick"]["market"], row["shadow_pick"]["selection"])
+        for row in capture_rows
+    } == {("ASIAN_HANDICAP", "HOME_AH"), ("TOTALS", "OVER")}
+    assert all(row["shadow_pick"]["not_a_recommendation"] is True for row in capture_rows)
+    assert all(row["shadow_pick"]["not_displayed"] is True for row in capture_rows)
+
+    settlement = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 1)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert settlement["written"] == 2
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    assert {(row["market"], row["selection"], row["settlement_outcome"]) for row in outcomes} == {
+        ("ASIAN_HANDICAP", "HOME_AH", "HALF_LOSS"),
+        ("TOTALS", "OVER", "WIN"),
+    }
+
+
+def test_forward_outcome_ledger_rejects_cross_line_ou_shadow(tmp_path: Path) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.75",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert [row["shadow_pick"]["market"] for row in records] == ["ASIAN_HANDICAP"]
+
+
+def test_v3_no_edge_still_captures_isolated_same_line_shadow_markets() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
+    card["outcome_tracked"] = True  # type: ignore[index]
+    card["recommendation_decision_v3"] = {  # type: ignore[index]
+        "schema_version": "w2.recommendation_decision.v3",
+        "outcome": "NO_EDGE",
+    }
+    card["current_odds"]["ou"] = {  # type: ignore[index]
+        "line": "2.5",
+        "over_price": "1.91",
+        "under_price": "1.93",
+    }
+    card["pricing_shadow"] = {"fair_ou": 2.75, "market_ou": 2.5}  # type: ignore[index]
+
+    records = build_forward_outcome_records(
+        day_view,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert {
+        (row["recommendation_scope"], row["shadow_pick"]["market"])
+        for row in records
+    } == {("SHADOW", "ASIAN_HANDICAP"), ("SHADOW", "TOTALS")}
+    assert all(row["not_a_lock"] is True for row in records)
+
+
+def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    next_day = dict(capture)
+    next_day["football_day"] = "2026-07-08"
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    _write_jsonl(root / "2026-07-08_staging.jsonl", [next_day])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 0)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    outcomes = [
+        json.loads(line)
+        for path in root.glob("*.jsonl")
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if json.loads(line).get("record_type") == "outcome"
+    ]
+    assert payload["written"] == 1
+    assert payload["record_count"] == 1
+    assert len(outcomes) == 1
+
+
+def test_forward_outcome_backfill_does_not_void_shadow_without_quote(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    capture["decision_tier"] = "WATCH"
+    capture["recommendation_scope"] = "SHADOW"
+    capture["outcome_tracked"] = False
+    capture["pick"] = None
+    capture["shadow_pick"] = {
+        "market": "TOTALS",
+        "selection": "OVER",
+        "not_a_recommendation": True,
+        "not_displayed": True,
+    }
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 1)]},
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    assert payload["written"] == 0
+    assert payload["record_count"] == 0
+    assert payload["unresolved_count"] == 1
+    assert payload["status"] == "PARTIAL"
 
 
 def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
@@ -155,7 +483,7 @@ def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
     assert not output_root.exists()
 
 
-def test_forward_outcome_backfill_writes_win_push_half_loss_and_void(
+def test_forward_outcome_backfill_writes_win_push_half_loss_and_fails_closed_without_quote(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "forward_outcome_ledger"
@@ -189,20 +517,15 @@ def test_forward_outcome_backfill_writes_win_push_half_loss_and_void(
         json.loads(line)
         for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    outcomes = {
-        row["fixture_id"]: row
-        for row in rows
-        if row.get("record_type") == "outcome"
-    }
+    outcomes = {row["fixture_id"]: row for row in rows if row.get("record_type") == "outcome"}
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["settlement_write"] is False
-    assert payload["written"] == 4
+    assert payload["written"] == 3
     assert outcomes["fixture-win"]["settlement_outcome"] == "WIN"
     assert outcomes["fixture-push"]["settlement_outcome"] == "PUSH"
     assert outcomes["fixture-half-loss"]["settlement_outcome"] == "HALF_LOSS"
-    assert outcomes["fixture-void"]["settlement_outcome"] == "VOID"
-    assert outcomes["fixture-void"]["void_reason"] == "MISSING_ENTRY_LINE_OR_PRICE"
+    assert "fixture-void" not in outcomes
     assert outcomes["fixture-win"]["settled_side"] == "pick"
     assert outcomes["fixture-win"]["final_score"] == {
         "home": 2,
@@ -225,7 +548,8 @@ def test_forward_outcome_backfill_is_idempotent(tmp_path: Path) -> None:
 
     assert first["written"] == 1
     assert second["written"] == 0
-    assert second["skipped_existing"] == 1
+    assert second["skipped_existing"] == 0
+    assert second["status"] == "NO_DUE_WORK"
 
 
 def test_forward_outcome_backfill_ignores_non_ft_results(tmp_path: Path) -> None:
@@ -274,14 +598,96 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
         json.loads(line)
         for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    outcomes = [
-        row for row in rows if row.get("record_type") == "outcome"
-    ]
+    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
     assert payload["written"] == 2
     assert {row["settled_side"] for row in outcomes} == {"pick", "shadow_pick"}
     shadow = [row for row in outcomes if row["settled_side"] == "shadow_pick"][0]
     assert shadow["settlement_outcome"] == "LOSS"
     assert shadow["selection"] == "AWAY_AH"
+
+
+def test_forward_outcome_backfill_settles_totals_and_uses_fulltime_score(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-ou", "hash-ou", home_line="-1", home_price="1.9")
+    capture["pick"] = {"market": "TOTALS", "selection": "OVER"}
+    capture["current_odds"] = {"ou": {"line": "2.75", "over_price": "1.9", "under_price": "1.9"}}
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {
+            "results": [
+                {
+                    "fixture": {"id": "fixture-ou", "status": {"short": "AET"}},
+                    "goals": {"home": 3, "away": 1},
+                    "score": {"fulltime": {"home": 1, "away": 1}},
+                }
+            ]
+        },
+        dry_run=False,
+        write_artifacts=True,
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    outcome = [row for row in rows if row.get("record_type") == "outcome"][0]
+    assert payload["status"] == "PASS"
+    assert outcome["final_score"] == {"home": 1, "away": 1, "status": "AET"}
+    assert outcome["settlement_outcome"] == "LOSS"
+
+
+def test_pending_entries_and_zero_result_are_not_false_pass(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+
+    pending = pending_outcome_entries(
+        tmp_path,
+        now=datetime(2026, 7, 8, 6, 0, tzinfo=UTC),
+    )
+    payload = backfill_outcomes(tmp_path, {"results": []})
+
+    assert len(pending) == 1
+    assert pending[0]["due"] is True
+    assert payload["status"] == "PARTIAL"
+    assert payload["pending_count"] == 1
+    assert payload["unresolved_count"] == 1
+
+
+def test_v3_validation_identity_conflict_is_not_settled(tmp_path: Path) -> None:
+    root = tmp_path / "forward_outcome_ledger"
+    root.mkdir()
+    first = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
+    first.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "recommendation_scope": "VALIDATION",
+            "outcome_tracked": True,
+            "capture_identity_hash": "capture-1",
+            "competition_id": "league-1",
+            "home_team_name": "Home",
+            "away_team_name": "Away",
+        }
+    )
+    conflict = dict(first)
+    conflict["captured_at"] = "2026-07-07T01:00:00Z"
+    conflict["capture_identity_hash"] = "capture-2"
+    conflict["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}
+    _write_jsonl(root / "2026-07-07_staging.jsonl", [first, conflict])
+
+    payload = backfill_outcomes(
+        tmp_path,
+        {"results": [_result("fixture-1", 2, 0)]},
+    )
+
+    assert payload["status"] == "NO_DUE_WORK"
+    assert payload["record_count"] == 0
 
 
 def _capture(
@@ -309,7 +715,12 @@ def _capture(
         "kickoff_utc": "2026-07-08T02:00:00Z",
         "competition_id": "world_cup_2026",
         "competition_name": "World Cup",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
         "card_hash": card_hash,
+        "decision_tier": "ANALYSIS_PICK",
+        "recommendation_scope": "VALIDATION",
+        "outcome_tracked": True,
         "pick": {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"},
         "current_odds": {"ah": ah},
     }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,7 @@ from w2.ingestion.future_refresh import (
     parse_line,
     run_future_refresh_task,
 )
+from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -227,9 +228,7 @@ def test_odds_payload_does_not_put_half_or_card_handicap_into_full_time_ah_pool(
     assert {row["raw_market_label"] for row in full_time_ah_rows} == {"Asian Handicap"}
     assert {row["line"] for row in full_time_ah_rows} == {"-1.25", "+1.25"}
     assert {
-        row["canonical_market"]
-        for row in rows
-        if row["raw_market_label"] != "Asian Handicap"
+        row["canonical_market"] for row in rows if row["raw_market_label"] != "Asian Handicap"
     } == {"ASIAN_HANDICAP_FIRST_HALF", "CARDS_ASIAN_HANDICAP"}
 
 
@@ -278,6 +277,130 @@ def test_odds_payload_records_split_totals_line_as_quarter_line() -> None:
     totals_rows = [row for row in rows if row["canonical_market"] == "TOTALS"]
     assert {row["line"] for row in totals_rows} == {"2.25"}
     assert {row["decimal_odds"] for row in totals_rows} == {"2.03", "1.85"}
+
+
+def test_unchanged_odds_reobserved_later_get_new_append_only_capture_identity() -> None:
+    client = FakeApiFootballClient()
+    payload = client.payload("odds", {"fixture": "1489404"})
+    first_response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=NOW,
+    )
+    confirmed_at = NOW + timedelta(minutes=45)
+    second_response = LiveApiFootballResponse(
+        endpoint="odds",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=7,
+        payload=payload,
+        headers={},
+        captured_at=confirmed_at,
+    )
+
+    first = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=first_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+    replay = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=first_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+    confirmed = observations_from_odds_payload(
+        fixture_id="1489404",
+        payload=payload,
+        response=second_response,
+        source_revision="test",
+        raw_payload_sha256="same-payload",
+    )
+
+    assert [row["observation_id"] for row in replay] == [row["observation_id"] for row in first]
+    assert {row["observation_id"] for row in first}.isdisjoint(
+        row["observation_id"] for row in confirmed
+    )
+    assert {row["captured_at"] for row in first} == {NOW.isoformat().replace("+00:00", "Z")}
+    assert {row["captured_at"] for row in confirmed} == {
+        confirmed_at.isoformat().replace("+00:00", "Z")
+    }
+
+
+def test_unchanged_ah_odds_later_confirmation_restores_complete_freshness() -> None:
+    payload = {
+        "response": [
+            {
+                "fixture": {"id": 1489404},
+                "bookmakers": [
+                    {
+                        "id": 1,
+                        "name": "Book A",
+                        "bets": [
+                            {
+                                "id": 4,
+                                "name": "Asian Handicap",
+                                "values": [
+                                    {"value": "Home -0.5", "odd": "1.91"},
+                                    {"value": "Away +0.5", "odd": "1.97"},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    def observations_at(captured_at: datetime) -> list[dict[str, Any]]:
+        response = LiveApiFootballResponse(
+            endpoint="odds",
+            params={"fixture": "1489404"},
+            status_code=200,
+            elapsed_ms=7,
+            payload=payload,
+            headers={},
+            captured_at=captured_at,
+        )
+        return observations_from_odds_payload(
+            fixture_id="1489404",
+            payload=payload,
+            response=response,
+            source_revision="test",
+            raw_payload_sha256="same-payload-hash",
+        )
+
+    first_rows = observations_at(NOW)
+    confirmed_at = NOW + timedelta(minutes=45)
+    confirmed_rows = observations_at(confirmed_at)
+
+    def freshness(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        by_selection = {str(row["selection"]).split()[0].lower(): row for row in rows}
+        identity = project_quote_identity(
+            market="ASIAN_HANDICAP",
+            selected_line="-0.5",
+            authoritative_rows={
+                "home": by_selection["home"],
+                "away": by_selection["away"],
+            },
+        )
+        return evaluate_quote_freshness(
+            identity,
+            evaluated_at=confirmed_at + timedelta(minutes=1),
+        )
+
+    assert freshness(first_rows)["freshness_status"] == "STALE"
+    confirmed_freshness = freshness(confirmed_rows)
+    assert confirmed_freshness["freshness_status"] == "COMPLETE"
+    assert confirmed_freshness["age_seconds"] == 60
+    assert {row["raw_payload_sha256"] for row in confirmed_rows} == {"same-payload-hash"}
 
 
 class ManyFutureFixturesClient(FakeApiFootballClient):
@@ -693,12 +816,10 @@ def test_future_refresh_endpoint_allowlist_skips_unauthorized_enrichment(
     ]
     assert result.feature_enrichment_payload_count == 1
     assert any(
-        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:statistics"
-        for item in audit["requests"]
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:statistics" for item in audit["requests"]
     )
     assert any(
-        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:injuries"
-        for item in audit["requests"]
+        item["error_code"] == "ENDPOINT_NOT_AUTHORIZED:injuries" for item in audit["requests"]
     )
 
 
@@ -786,6 +907,24 @@ def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
     assert result.blockers == ["PROVIDER_HTTP_429"]
     assert len(client.calls) == 1
     assert "PROVIDER_HTTP_429" in audit
+
+
+def test_future_refresh_caps_configured_provider_retries(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "999")
+    client = FakeApiFootballClient(status_code=429)
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.request_count == 3
+    assert len(client.calls) == 3
 
 
 def test_future_refresh_daily_hard_cap_blocks_before_provider_call(
@@ -891,13 +1030,34 @@ def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Pat
         raise AssertionError("unregistered policy unexpectedly loaded")
 
 
+def test_future_refresh_binds_source_revision_to_staging_git_sha(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
+
+    config = config_from_policy(competition_id="world_cup_2026")
+
+    assert config.source_revision == "a" * 40
+
+
+def test_future_refresh_staging_requires_exact_source_revision(monkeypatch) -> None:
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "UNKNOWN")
+
+    try:
+        config_from_policy(competition_id="world_cup_2026")
+    except FutureRefreshError as exc:
+        assert str(exc) == "SOURCE_REVISION_NOT_BOUND_TO_EXACT_GIT_SHA"
+    else:  # pragma: no cover
+        raise AssertionError("staging refresh must fail closed without exact source revision")
+
+
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 
     assert config.daily_hard_cap == 120
     assert config.daily_reserve == 0
     assert config.request_budget == 30
-    assert config.checkpoint_mode == "world_cup_three_checkpoint"
+    assert config.checkpoint_mode == "matchday_intake_v2_compatibility"
     assert config.trickle_backfill_daily_budget == 0
 
 
@@ -949,6 +1109,74 @@ def test_future_refresh_task_writes_audit_and_blocks_duplicate_bucket(tmp_path: 
     assert audit.status == "ALREADY_RUNNING"
     assert (tmp_path / "task_audit/task-1.json").is_file()
     assert existing.release()
+
+
+def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
+    tmp_path: Path,
+) -> None:
+    materialized: list[list[str]] = []
+    checkpoint = {
+        "fixture_id": "1489404",
+        "checkpoint": "T1_LINEUPS",
+        "kickoff_utc": "2026-06-23T17:00:00Z",
+        "due_at": "2026-06-23T16:00:00Z",
+        "endpoints": ["odds"],
+        "source": "scheduled",
+    }
+
+    audit = run_future_refresh_task(
+        task_id="task-materialize",
+        key="checkpoint-refresh:test:materialize",
+        queued_at=NOW,
+        runtime_root=tmp_path,
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="file",
+        checkpoint_fixture_ids=("1489404",),
+        refresh_checkpoints=(checkpoint,),
+        materialize_public_artifacts=lambda fixture_ids: (
+            materialized.append(fixture_ids) or fixture_ids
+        ),
+    )
+
+    assert audit.status == "COMPLETED"
+    assert materialized == [["1489404"]]
+    assert audit.result["materialized_fixture_ids"] == ["1489404"]
+
+
+def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
+    tmp_path: Path,
+) -> None:
+    checkpoint = {
+        "fixture_id": "1489404",
+        "checkpoint": "T1_LINEUPS",
+        "kickoff_utc": "2026-06-23T17:00:00Z",
+        "due_at": "2026-06-23T16:00:00Z",
+        "endpoints": ["odds"],
+        "source": "scheduled",
+    }
+
+    def fail_materialization(_fixture_ids: list[str]) -> list[str]:
+        raise RuntimeError("artifact write failed")
+
+    audit = run_future_refresh_task(
+        task_id="task-materialize-failure",
+        key="checkpoint-refresh:test:materialize-failure",
+        queued_at=NOW,
+        runtime_root=tmp_path,
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="file",
+        checkpoint_fixture_ids=("1489404",),
+        refresh_checkpoints=(checkpoint,),
+        materialize_public_artifacts=fail_materialization,
+    )
+    refresh_audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == ["RuntimeError"]
+    assert refresh_audit["status"] == "PARTIAL_FAILED"
+    assert refresh_audit["error_code"] == "RuntimeError"
 
 
 def test_future_refresh_error_type_is_runtime_error() -> None:

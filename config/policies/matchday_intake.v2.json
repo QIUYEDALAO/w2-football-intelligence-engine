@@ -1,0 +1,177 @@
+{
+  "version": "w2.matchday_intake_policy.v2",
+  "schema_version": "w2.matchday_intake_policy.v2",
+  "default_provider": "api_football",
+  "default_fixture_statuses": ["NS", "TBD"],
+  "canonical_checkpoints": [
+    "T48_OPEN",
+    "T24_ODDS",
+    "T12_ODDS",
+    "T6_ODDS",
+    "T3_ODDS",
+    "T60_ODDS_LINEUPS",
+    "T45_LINEUPS_RETRY",
+    "T30_LINEUPS_RETRY",
+    "LINEUP_CONFIRMED",
+    "T-30m_VALIDATION_LOCK"
+  ],
+  "competitions": [
+    {
+      "competition_id": "allsvenskan",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "113",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": ["NS", "TBD"],
+      "checkpoints": [
+        {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T12_ODDS", "offset_seconds_before_kickoff": 43200, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+      ],
+      "endpoint_matrix": {
+        "competition_tick": ["status", "fixtures"],
+        "fixture_tick": ["odds"],
+        "lineup_window": ["lineups"],
+        "audit_extensions_disabled": ["injuries", "statistics"]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 120, "quota_reserve": 20},
+      "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
+      "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    },
+    {
+      "competition_id": "brasileirao_serie_a",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "71",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": ["NS", "TBD"],
+      "checkpoints": [
+        {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T12_ODDS", "offset_seconds_before_kickoff": 43200, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+      ],
+      "endpoint_matrix": {
+        "competition_tick": ["status", "fixtures"],
+        "fixture_tick": ["odds"],
+        "lineup_window": ["lineups"],
+        "audit_extensions_disabled": ["injuries", "statistics"]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 120, "quota_reserve": 20},
+      "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
+      "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    },
+    {
+      "competition_id": "chinese_super_league",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "169",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": ["NS", "TBD"],
+      "checkpoints": [
+        {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T12_ODDS", "offset_seconds_before_kickoff": 43200, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+      ],
+      "endpoint_matrix": {
+        "competition_tick": ["status", "fixtures"],
+        "fixture_tick": ["odds"],
+        "lineup_window": ["lineups"],
+        "audit_extensions_disabled": ["injuries", "statistics"]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 120, "quota_reserve": 20},
+      "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
+      "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    },
+    {
+      "competition_id": "eliteserien",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "103",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": ["NS", "TBD"],
+      "checkpoints": [
+        {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T12_ODDS", "offset_seconds_before_kickoff": 43200, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+      ],
+      "endpoint_matrix": {
+        "competition_tick": ["status", "fixtures"],
+        "fixture_tick": ["odds"],
+        "lineup_window": ["lineups"],
+        "audit_extensions_disabled": ["injuries", "statistics"]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 120, "quota_reserve": 20},
+      "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
+      "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    },
+    {
+      "competition_id": "world_cup_2026",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "1",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": ["NS", "TBD"],
+      "checkpoints": [
+        {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
+        {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+      ],
+      "endpoint_matrix": {
+        "competition_tick": ["status", "fixtures"],
+        "fixture_tick": ["odds"],
+        "lineup_window": ["lineups"],
+        "audit_extensions_disabled": ["injuries", "statistics"]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "STRICT",
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 120, "quota_reserve": 20},
+      "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
+      "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    }
+  ],
+  "runtime_safety": {
+    "formal_ah": false,
+    "formal_ou": false,
+    "lineup_numeric_adjustment_ah": false,
+    "lineup_numeric_adjustment_ou": false,
+    "recommendation_lock": false,
+    "production_recommendation": false,
+    "official_captures": false
+  }
+}

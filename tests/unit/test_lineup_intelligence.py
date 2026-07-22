@@ -1,0 +1,289 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
+
+import pytest
+
+from w2.api.repository import ReadModelService
+from w2.lineups.intelligence import (
+    CoverageGrade,
+    LineupAdjustment,
+    LineupGate,
+    MappingStatus,
+    PlayerIdentityCandidate,
+    apply_lineup_adjustments,
+    build_team_baseline,
+    derive_lineup_change_features,
+    grade_coverage,
+    resolve_player_identity,
+    select_asof_player_valuation,
+    validate_confirmed_lineup_snapshot,
+)
+
+
+def test_identity_mapping_is_deterministic_and_team_scoped() -> None:
+    candidates = [
+        PlayerIdentityCandidate(
+            transfermarkt_player_id="tm-1",
+            player_name="José Álvarez",
+            team_external_id="team-1",
+            position="Central Midfield",
+        ),
+        PlayerIdentityCandidate(
+            transfermarkt_player_id="tm-2",
+            player_name="Jose Alvarez",
+            team_external_id="team-2",
+            position="Central Midfield",
+        ),
+    ]
+    first = resolve_player_identity(
+        api_football_player_id="api-1",
+        player_name="Jose Alvarez",
+        team_external_id="team-1",
+        provider_position="M",
+        candidates=candidates,
+    )
+    second = resolve_player_identity(
+        api_football_player_id="api-1",
+        player_name="José Álvarez",
+        team_external_id="team-1",
+        provider_position="M",
+        candidates=candidates,
+    )
+    assert first.status is MappingStatus.CANDIDATE
+    assert first.transfermarkt_player_id == "tm-1"
+    assert first.identity_hash == second.identity_hash
+
+
+def test_identity_mapping_fails_closed_on_ambiguity() -> None:
+    candidate = PlayerIdentityCandidate(
+        transfermarkt_player_id="tm-1",
+        player_name="John Smith",
+        team_external_id="team-1",
+    )
+    result = resolve_player_identity(
+        api_football_player_id="api-1",
+        player_name="John Smith",
+        team_external_id="team-1",
+        provider_position=None,
+        candidates=[candidate, candidate],
+    )
+    assert result.status is MappingStatus.CONFLICT
+    assert result.transfermarkt_player_id is None
+
+
+def test_baseline_is_asof_safe_and_deterministic() -> None:
+    as_of = datetime(2026, 7, 19, tzinfo=UTC)
+    rows = [
+        {
+            "fixture_id": f"f-{index}",
+            "team_external_id": "team-1",
+            "kickoff_at": as_of - timedelta(days=index + 1),
+            "formation": "4-3-3",
+            "starters": [{"player_id": "p-1", "position": "F"}],
+        }
+        for index in range(11)
+    ]
+    rows.append(
+        {
+            "fixture_id": "future",
+            "team_external_id": "team-1",
+            "kickoff_at": as_of + timedelta(days=1),
+            "formation": "5-4-1",
+            "starters": [{"player_id": "future", "position": "F"}],
+        }
+    )
+    first = build_team_baseline(rows, team_external_id="team-1", as_of=as_of)
+    second = build_team_baseline(list(reversed(rows)), team_external_id="team-1", as_of=as_of)
+    assert first == second
+    assert first["match_count"] == 10
+    assert "future" not in first["input_fixture_ids"]
+
+
+def test_independent_lineup_adjustments_are_evidence_gated_and_capped() -> None:
+    disabled = apply_lineup_adjustments(
+        lambda_home=1.5,
+        lambda_away=1.0,
+        adjustment=LineupAdjustment(ah_delta=1.0, totals_delta=1.0),
+    )
+    enabled = apply_lineup_adjustments(
+        lambda_home=1.5,
+        lambda_away=1.0,
+        adjustment=LineupAdjustment(
+            ah_delta=1.0,
+            totals_delta=1.0,
+            ah_evidence_enabled=True,
+            totals_evidence_enabled=True,
+        ),
+    )
+    assert disabled == (1.5, 1.0)
+    assert enabled == (1.775, 1.025)
+
+
+def test_lineup_changes_are_position_aware_and_fail_closed() -> None:
+    baseline = {
+        "common_formation": "4-3-3",
+        "players": [{"player_id": "regular", "starter_weight": 5.0, "usual_position": "D"}],
+    }
+    starters = [
+        {"player_id": "regular", "position": "F", "value_delta_eur": -1_000_000},
+        *({"player_id": f"p-{index}", "position": "M"} for index in range(9)),
+    ]
+    features = derive_lineup_change_features(
+        baseline=baseline,
+        starters=starters,
+        substitutes=[{"market_value_eur": 2_000_000}],
+        formation="5-4-1",
+    )
+    assert features.status == "INCOMPLETE"
+    assert features.blockers == ("STARTING_XI_INCOMPLETE",)
+    assert features.out_of_position_count == 1
+    assert features.formation_changed
+    assert features.bench_value_eur == 2_000_000
+
+
+def test_top_five_confirmation_gate_does_not_require_identity_or_value_enrichment() -> None:
+    gate = LineupGate()
+    blocked = gate.evaluate(
+        competition_code="GB1",
+        confirmed=True,
+        home_starters=11,
+        away_starters=11,
+        uniquely_mapped_starters=21,
+        valued_starters=22,
+        formation_count=2,
+        quotes_complete_and_fresh=True,
+        audited_coverage_rate=0.95,
+    )
+    assert blocked.eligible
+    assert blocked.blockers == ()
+    assert not blocked.numeric_adjustment_enabled
+
+
+def test_non_top_five_grade_controls_numeric_enhancement_not_pick_gate() -> None:
+    gate = LineupGate()
+    result = gate.evaluate(
+        competition_code="SE1",
+        confirmed=False,
+        home_starters=0,
+        away_starters=0,
+        uniquely_mapped_starters=0,
+        valued_starters=0,
+        formation_count=0,
+        quotes_complete_and_fresh=True,
+        audited_coverage_rate=0.49,
+    )
+    assert result.eligible
+    assert result.grade is CoverageGrade.C
+    assert not result.numeric_adjustment_enabled
+    assert grade_coverage(0.5) is CoverageGrade.B
+    assert grade_coverage(0.9) is CoverageGrade.A
+
+
+def test_asof_valuation_excludes_future_observation() -> None:
+    as_of = datetime(2026, 7, 19, tzinfo=UTC)
+    result = select_asof_player_valuation(
+        [
+            {
+                "transfermarkt_player_id": "tm-1",
+                "observed_at": as_of - timedelta(days=1),
+                "market_value_eur": 5_000_000,
+                "source": "TRANSFERMARKT",
+                "source_sha256": "old",
+                "mapping_review_status": "APPROVED",
+            },
+            {
+                "transfermarkt_player_id": "tm-1",
+                "observed_at": as_of + timedelta(days=1),
+                "market_value_eur": 9_000_000,
+                "source": "TRANSFERMARKT",
+                "source_sha256": "future",
+                "mapping_review_status": "APPROVED",
+            },
+        ],
+        valuation_source_player_id="tm-1",
+        as_of=as_of,
+    )
+    assert result["market_value_eur"] == 5_000_000
+    assert result["source_artifact_hash"] == "old"
+
+
+def test_confirmed_lineup_snapshot_fails_closed() -> None:
+    kickoff = datetime(2026, 7, 19, 18, tzinfo=UTC)
+    starters = [{"player_id": f"p-{index}", "mapping_status": "MATCHED"} for index in range(10)]
+    starters.append({"player_id": "p-1", "mapping_status": "CONFLICT"})
+    blockers = validate_confirmed_lineup_snapshot(
+        fixture_id="other",
+        expected_fixture_id="fixture-1",
+        captured_at=kickoff,
+        kickoff_at=kickoff,
+        starters=starters,
+    )
+    assert set(blockers) == {
+        "FIXTURE_IDENTITY_CONFLICT",
+        "POST_KICKOFF_LINEUP_REJECTED",
+        "DUPLICATE_STARTER",
+        "PLAYER_MAPPING_CONFLICT",
+    }
+
+
+@pytest.mark.parametrize(
+    ("competition_id", "expected_eligible", "expected_decision"),
+    [
+        ("allsvenskan", True, "PICK"),
+        ("premier_league", True, "PICK"),
+    ],
+)
+def test_public_lineup_gate_projects_policy_and_strict_baseline_blocker(
+    monkeypatch: pytest.MonkeyPatch,
+    competition_id: str,
+    expected_eligible: bool,
+    expected_decision: str,
+) -> None:
+    class EvidenceRepository:
+        def lineup_gate_evidence(self, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "status": "INCOMPLETE",
+                "confirmed": True,
+                "starter_counts": [11, 11],
+                "uniquely_mapped_starters": 22,
+                "valued_starters": 22,
+                "formation_count": 2,
+                "blockers": ["LINEUP_BASELINE_MISSING"],
+            }
+
+    service = ReadModelService(repository=cast(Any, object()))
+    monkeypatch.setattr(service, "_future_refresh_repository", lambda: EvidenceRepository())
+    monkeypatch.setattr(
+        service,
+        "_competition_id_from_provider_fixture",
+        lambda _fixture: competition_id,
+    )
+    payload: dict[str, Any] = {
+        "markets": [
+            {
+                "market": "ASIAN_HANDICAP",
+                "decision": "PICK",
+                "tendency": "HOME_AH",
+            }
+        ]
+    }
+
+    service._apply_lineup_gate(
+        payload,
+        fixture={},
+        fixture_id="fixture-1",
+        as_of=datetime(2026, 7, 19, tzinfo=UTC),
+        mainline_selection={
+            "ASIAN_HANDICAP": {"status": "READY"},
+            "TOTALS": {"status": "READY"},
+        },
+    )
+
+    provenance = payload["lineup_provenance"]
+    assert provenance["coverage_grade"] == "C"
+    assert provenance["gate_eligible"] is expected_eligible
+    assert provenance["numeric_adjustment_enabled"] is False
+    assert provenance["lineup_ah_adjustment"] == 0.0
+    assert payload["markets"][0]["decision"] == expected_decision

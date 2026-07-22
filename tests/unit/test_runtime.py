@@ -102,9 +102,7 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
 
     assert result["status"] == "QUEUED"
     assert str(result["task_key"]).startswith("checkpoint-refresh:world_cup_2026:2026:")
-    assert result["provider_refresh_min_interval_policy"] == (
-        "REPLACED_BY_PER_FIXTURE_CHECKPOINTS"
-    )
+    assert result["provider_refresh_min_interval_policy"] == ("REPLACED_BY_PER_FIXTURE_CHECKPOINTS")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
     assert sent[0]["kwargs"]["checkpoint_fixture_ids"] == ["1489404"]
@@ -256,6 +254,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv(
         "W2_STAGING_ENABLED_COMPETITIONS",
         "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
@@ -309,10 +308,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     assert result["status"] == "QUEUED"
     assert result["queued_count"] == 5
     assert len(sent) == 5
-    assert {
-        item["kwargs"]["competition_id"]
-        for item in sent
-    } == {
+    assert {item["kwargs"]["competition_id"] for item in sent} == {
         "world_cup_2026",
         "brasileirao_serie_a",
         "chinese_super_league",
@@ -327,6 +323,7 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
@@ -365,9 +362,7 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
 
     assert result["status"] == "QUEUED"
     assert result["competition_id"] == "brasileirao_serie_a"
-    assert result["provider_refresh_min_interval_policy"] == (
-        "INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"
-    )
+    assert result["provider_refresh_min_interval_policy"] == ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES")
     assert sent == [
         {
             "name": "w2.future_fixture_refresh",
@@ -387,6 +382,7 @@ def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
     sent: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
@@ -658,6 +654,7 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
 
 
 def test_worker_forward_outcome_backfill_task_reports_safety_flags(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app._run_forward_outcome_backfill",
         lambda **kwargs: {
@@ -725,15 +722,18 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
     class FakeRepository:
-        def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
-            return len(plans)
+        def upsert_checkpoint_plan(self, plan: object) -> str:
+            return "plan"
 
         def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
             raise AssertionError("must not read global due rows without generated plans")
 
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            raise AssertionError("must not claim rows without generated plans")
+
     monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda **kwargs: [])
     monkeypatch.setattr(
-        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        "w2.matchday.repository.MatchdayRuntimeRepository",
         FakeRepository,
     )
 
@@ -764,10 +764,10 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
     ]
 
     class FakeRepository:
-        def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
-            return len(plans)
+        def upsert_checkpoint_plan(self, plan: object) -> str:
+            return "plan"
 
-        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
             return [
                 {
                     "id": "checkpoint:9999:open",
@@ -777,8 +777,13 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
                     "due_at": "2026-06-25T12:00:00Z",
                     "endpoints": ["odds"],
                     "source": "scheduled",
+                    "claim_token": "token",
+                    "claim_expires_at": "2026-06-25T12:15:00Z",
                 }
             ]
+
+        def release_checkpoint_claim(self, **kwargs: object) -> bool:
+            return True
 
     monkeypatch.setattr(
         scheduler_main,
@@ -786,7 +791,7 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
         lambda **kwargs: fixtures,
     )
     monkeypatch.setattr(
-        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        "w2.matchday.repository.MatchdayRuntimeRepository",
         FakeRepository,
     )
 
