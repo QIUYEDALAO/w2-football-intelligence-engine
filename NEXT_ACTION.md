@@ -14,19 +14,24 @@ append-only evaluation versions, supersession projection, `LINEUP_CONFIRMED`,
 `T-30m_VALIDATION_LOCK`, as-of lineup identity/value features and the
 post-lineup fresh-odds gate.
 
-This is not staging or live-lineup acceptance. There was no provider call and
-no real confirmed-lineup window, so operational status is
-`WAITING_FOR_REAL_LINEUP_WINDOW`. Numeric lineup adjustment remains zero and
-advisory-only.
+Draft PR #370 normal CI passed on verified head
+`d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec` (run `29897588312`):
+`verify`, `staging-parity` and `predeploy-e2e` are green.
+
+This is not staging or live-lineup acceptance. The staging read-only preflight
+was blocked because the server rejected the available SSH public keys, so no
+deployment, provider call or real-lineup-window inspection occurred. Operational
+status is `STAGING_SSH_AUTH_UNAVAILABLE`; lineup numeric adjustment remains zero
+and advisory-only.
 
 ## Next execution
 
 W2_DYNAMIC_PREMATCH_STAGING is authorized only after the existing Draft PR #370
 passes its normal CI checks; this does not authorize Formal, Lock or Production.
 
-1. Update the existing Draft PR #370 with this implementation and require its
-   normal CI checks to pass. Do not mark the PR ready for review.
-2. Only after CI is green, deploy the exact accepted implementation SHA to
+1. Restore authorized SSH access to the existing staging host; do not mark PR
+   #370 ready for review.
+2. Deploy the exact accepted implementation SHA to
    staging while keeping the scheduler and provider refresh switches disabled.
 3. Rebuild upcoming-fixture state read-only. If a real lineup window exists,
    run one controlled lineup + odds event canary for that fixture; otherwise

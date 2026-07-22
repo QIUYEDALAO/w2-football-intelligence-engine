@@ -5,5 +5,5 @@
   "required_fields": ["canonical_player_id", "provider_player_id", "position", "mapping_review_status", "source_artifact_hash"],
   "controls": {"explicit_review_required": true, "fuzzy_auto_approval": false, "duplicate_starter_fail_closed": true, "cross_team_identity_conflict_fail_closed": true},
   "current_live_coverage": null,
-  "live_status": "WAITING_FOR_REAL_LINEUP_WINDOW"
+  "live_status": "NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE"
 }

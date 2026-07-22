@@ -3,7 +3,8 @@
   "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
   "baseline_sha": "c62fa82d883633f3b33ff44810a5fbc294b215c5",
   "local_gates": {"pytest": {"status": "PASS", "passed": 1438, "skipped": 4}, "ruff": "PASS", "mypy": "PASS", "web_typecheck": "PASS", "boss_console_protected_baseline": "PASS", "web_playwright": {"status": "PASS", "passed": 26}, "migration_sqlite_roundtrip": "PASS"},
-  "live_execution": {"provider_calls": 0, "staging_deploy": false, "status": "WAITING_FOR_REAL_LINEUP_WINDOW", "public_read_20x": "NOT_RUN_BEFORE_STAGING_DEPLOY"},
+  "github_ci": {"verified_head_sha": "d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec", "run_id": 29897588312, "verify": "PASS", "staging-parity": "PASS", "predeploy-e2e": "PASS"},
+  "live_execution": {"provider_calls": 0, "staging_deploy": false, "status": "STAGING_SSH_AUTH_UNAVAILABLE", "real_lineup_window": "NOT_EVALUATED", "public_read_20x": "NOT_RUN_BEFORE_STAGING_DEPLOY"},
   "accepted_assertions": ["DYNAMIC_QUOTE_LIFECYCLE_PASS", "CURRENT_EV_SNAPSHOT_SEMANTICS_PASS", "NO_EDGE_REEVALUATION_PASS", "SOURCE_ABSENT_TRUTH_CONTRACT_PASS", "LINEUP_BASELINE_PASS", "LINEUP_CHANGE_FEATURES_PASS", "LINEUP_POST_MARKET_REFRESH_PASS", "LOCK_TIME_VALIDATION_PASS"],
   "lineup_mode": ["LINEUP_NUMERIC_ADJUSTMENT_DISABLED", "LINEUP_ADVISORY_ONLY"],
   "release_state": ["PR_370_KEEP_DRAFT", "FORMAL_DISABLED", "LOCK_DISABLED", "PRODUCTION_DISABLED", "MANUAL_APPROVAL_REQUIRED"]

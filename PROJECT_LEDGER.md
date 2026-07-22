@@ -455,3 +455,11 @@ Detailed evidence:
   is claimed as a live pass.
 - Lineup AH/OU/lambda adjustments remain `0.0` and advisory-only. PR #370 stays
   Draft; Formal, Lock, OFFICIAL and Production remain disabled.
+- Draft PR #370 verified head
+  `d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec` passed normal GitHub Actions run
+  `29897588312`: `verify`, `staging-parity` and `predeploy-e2e` all passed.
+- The subsequent staging read-only preflight made no provider call and no
+  deployment. Both documented staging accounts rejected the available public
+  keys, so exact-SHA deployment and real-lineup-window inspection were not
+  attempted. Current operational blocker is `STAGING_SSH_AUTH_UNAVAILABLE`, not
+  a fabricated `WAITING_FOR_REAL_LINEUP_WINDOW` live result.

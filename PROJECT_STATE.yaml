@@ -29,15 +29,21 @@ repository:
   task_baseline_sha: c62fa82d883633f3b33ff44810a5fbc294b215c5
   local_code_implementation_sha: d44db97abd46c4e78814e4787d61db41ffc2acb7
   local_work_branch: codex/w2-dynamic-ev-lineup-v1
-  github_sync_status: PENDING_NORMAL_PR_UPDATE
-  ci_status: CHECK_PR_370
+  github_sync_status: SYNCED_TO_DRAFT_PR
+  github_verified_head_sha: d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec
+  ci_status: PASS
+  ci_run_id: 29897588312
+  ci_checks:
+    verify: PASS
+    staging-parity: PASS
+    predeploy-e2e: PASS
 
 current_phase:
   id: W2_DYNAMIC_PREMATCH_V1
   name: dynamic_quote_ev_and_lineup_value_pipeline
   status: locally_verified
-  acceptance_state: awaiting_draft_pr_ci_and_exact_sha_staging
-  blocker: WAITING_FOR_REAL_LINEUP_WINDOW
+  acceptance_state: awaiting_exact_sha_staging_access
+  blocker: STAGING_SSH_AUTH_UNAVAILABLE
   next_phase: W2_DYNAMIC_PREMATCH_STAGING
   checkpoints:
     dynamic_quote_lifecycle: locally_verified
@@ -79,7 +85,8 @@ staging:
   deployment_status: NOT_DEPLOYED_BY_THIS_TASK
   production_deployed: false
   provider_calls: 0
-  real_lineup_canary: WAITING_FOR_REAL_LINEUP_WINDOW
+  ssh_preflight: PUBLICKEY_AUTH_REJECTED
+  real_lineup_canary: NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE
   public_read_20x: NOT_RUN_BEFORE_STAGING_DEPLOY
 
 lineup_policy:

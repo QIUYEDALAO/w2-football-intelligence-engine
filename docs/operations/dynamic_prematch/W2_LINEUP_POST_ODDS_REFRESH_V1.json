@@ -6,5 +6,5 @@
   "pre_lineup_quote_reuse_allowed": false,
   "old_model_input_superseded": true,
   "result": "LINEUP_POST_MARKET_REFRESH_PASS",
-  "live_canary": "WAITING_FOR_REAL_LINEUP_WINDOW"
+  "live_canary": "NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE"
 }

@@ -5,5 +5,5 @@
   "baseline_contract": {"lookback_matches": 10, "recent_five_weight": 1.0, "older_five_weight": 0.6, "future_rows_excluded": true, "fixture_ids_recorded": true, "artifact_hash_recorded": true},
   "result": "LINEUP_BASELINE_PASS",
   "live_fixture_count": 0,
-  "live_status": "WAITING_FOR_REAL_LINEUP_WINDOW"
+  "live_status": "NOT_EVALUATED_STAGING_ACCESS_UNAVAILABLE"
 }
