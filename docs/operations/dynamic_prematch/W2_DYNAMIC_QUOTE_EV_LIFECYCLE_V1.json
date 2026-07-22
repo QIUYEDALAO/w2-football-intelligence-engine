@@ -1,7 +1,7 @@
 {
   "schema_version": "w2.dynamic_quote_ev_lifecycle_evidence.v1",
   "generated_at": "2026-07-22T00:00:00Z",
-  "implementation_sha": "8132afd6bc16b7426c58184528111d443baf4b53",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
   "baseline_sha": "c62fa82d883633f3b33ff44810a5fbc294b215c5",
   "scope": "OFFLINE_CONTRACT_AND_LOCAL_INTEGRATION",
   "fixtures": [

@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.lineup_baseline_evidence.v1",
-  "implementation_sha": "8132afd6bc16b7426c58184528111d443baf4b53",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
   "scope": "OFFLINE_CONTRACT",
   "baseline_contract": {"lookback_matches": 10, "recent_five_weight": 1.0, "older_five_weight": 0.6, "future_rows_excluded": true, "fixture_ids_recorded": true, "artifact_hash_recorded": true},
   "result": "LINEUP_BASELINE_PASS",

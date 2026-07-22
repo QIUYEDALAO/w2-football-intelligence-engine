@@ -431,7 +431,7 @@ Detailed evidence:
 
 - Work started from exact Draft PR #370 head
   `c62fa82d883633f3b33ff44810a5fbc294b215c5`; exact code implementation is
-  `8132afd6bc16b7426c58184528111d443baf4b53`.
+  `d44db97abd46c4e78814e4787d61db41ffc2acb7`.
 - Every new exact quote/model input produces an immutable evaluation version;
   supersession is stored separately, and the current projection supports
   `NO_EDGE → ACTIVE`, `ACTIVE → NO_EDGE`, stale and source-absent states.
@@ -446,8 +446,9 @@ Detailed evidence:
 - Full local gates passed: `1438 passed / 4 skipped`, Ruff, Mypy, Web typecheck
   and SQLite migration upgrade/downgrade/re-upgrade. After the first CI run
   correctly rejected stale Boss Console protected hashes, the scoped authority
-  was refreshed; the protected-baseline check and all 14 Boss Console
-  Playwright tests then passed locally.
+  was refreshed. A subsequent full-Web check exposed one obsolete generic
+  `STALE` assertion; product copy and the assertion now state that the old quote
+  is reference-only. The protected baseline and all 26 Web E2E tests pass.
 - Machine evidence is under
   `docs/operations/dynamic_prematch/`. It explicitly records no provider call,
   no staging deployment and `WAITING_FOR_REAL_LINEUP_WINDOW`; no synthetic XI

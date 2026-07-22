@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.lineup_value_features_evidence.v1",
-  "implementation_sha": "8132afd6bc16b7426c58184528111d443baf4b53",
+  "implementation_sha": "d44db97abd46c4e78814e4787d61db41ffc2acb7",
   "scope": "OFFLINE_CONTRACT",
   "features": ["regular_starters_missing", "replacement_value_delta_eur", "value_delta_ratio", "goalkeeper_replacement_delta", "defensive_replacement_delta", "midfield_replacement_delta", "attacking_replacement_delta", "out_of_position_count", "formation_changed", "starter_continuity", "defensive_disruption", "attacking_disruption", "bench_value_eur", "captain_missing", "mapping_coverage", "valuation_coverage"],
   "as_of_rule": "valuation.observed_at <= lineup.captured_at",
