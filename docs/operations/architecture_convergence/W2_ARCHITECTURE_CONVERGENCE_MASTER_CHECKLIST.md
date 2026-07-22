@@ -64,13 +64,13 @@ PR #370 当前已排期的真实首发窗口 canary
 
 ## ARCH-00：在 GitHub 建立总清单
 
-- [ ] 在仓库创建本文件：
+- [x] 在仓库创建本文件：
   `docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`
-- [ ] 记录当前 main SHA、PR #370 head、staging SHA、migration head。
-- [ ] 在文件中写明功能冻结和红线。
-- [ ] 不修改生产代码。
-- [ ] 建立一个 docs-only Draft PR。
-- [ ] 完整 CI 通过并合并。
+- [x] 记录当前 main SHA、PR #370 head、staging SHA、migration head。
+- [x] 在文件中写明功能冻结和红线。
+- [x] 不修改生产代码。
+- [x] 建立一个 docs-only Draft PR。
+- [x] 完整 CI 通过并合并。
 
 **完成标准**
 
@@ -83,16 +83,65 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 
 ## ARCH-01：完成并关闭 PR #370
 
-- [ ] 重新核验 PR #370 exact head。
+- [x] 重新核验 PR #370 exact head。
 - [ ] 只完成老板允许的真实首发窗口 canary。
-- [ ] 不增加任何架构收敛代码。
-- [ ] 不增加新联赛、新市场、新表、新 Dashboard 功能。
-- [ ] 核验 migration current=head。
-- [ ] 核验 recommendation、lock、OFFICIAL、formal settlement 仍为 0。
+- [x] 不增加任何架构收敛代码。
+- [x] 不增加新联赛、新市场、新表、新 Dashboard 功能。
+- [x] 核验 migration current=head。
+- [x] 核验 recommendation、lock、OFFICIAL、formal settlement 仍为 0。
 - [ ] exact-head CI 全绿。
 - [ ] staging canary 结果进入当前已有上下文。
 - [ ] PR #370 完成审核并合并。
 - [ ] 删除/关闭 PR #370 对应长期工作分支前，确认所有证据已进入 main。
+
+```text
+Status: BLOCKED
+Branch: codex/w2-arch01-pr370-scope-closure
+PR: #372 (Draft)
+Base SHA: 09ca14a969b835314c93c122b80c3cfa1bbf9c6c
+Started at: 2026-07-22T21:58:35+0800
+Owner: Codex
+Blocker: WAITING_FOR_REAL_LINEUP_WINDOW; EXACT_HEAD_CI_FAILED
+Evidence: staging observed at 2026-07-22T13:53:31Z; nearest fixtures kick off at
+  2026-07-22T17:00:00Z; structured_lineup_snapshots=0;
+  lineup_confirmed_events=0; lineups=0. No provider canary was opened. Exact-head
+  CI run 29926300189 failed because NEXT_ACTION.md does not contain the delivery
+  status sentence required by tests/contract/test_delivery_status_documentation.py.
+Next required decision: External reviewer must authorize or supply the scoped
+  PR #370 status-document contract repair; execute the already-approved bounded
+  canary only when a real official-lineup window exists.
+```
+
+ARCH-01 当前核验：
+
+```text
+PR_370_EXACT_HEAD=9266343075d24a9d48de64d45db07bf69917c61b
+PR_370_HEAD_CHANGE=EMPTY_CI_TRIGGER_ONLY
+PR_370_PRODUCTION_CODE_DELTA=0
+PR_370_ARCHITECTURE_SCOPE_DELTA=0
+STAGING_SHA=81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+PR_370_MIGRATION_HEAD=0036_require_reviewed_player_identity
+STAGING_MIGRATION_CURRENT=0036_require_reviewed_player_identity
+RECOMMENDATIONS_CURRENT_COUNT=0
+RECOMMENDATION_LOCKS_CURRENT_COUNT=0
+FORWARD_PREDICTION_LOCKS_CURRENT_COUNT=0
+GATE5_RECOMMENDATION_LOCK_EVENTS_CURRENT_COUNT=0
+OFFICIAL_LEDGER_SCOPE_CURRENT_COUNT=0
+FORMAL_SETTLEMENTS_CURRENT_COUNT=0
+SAFETY_COUNTS_BEFORE_AT=2026-07-22T13:53:31Z
+SAFETY_COUNTS_AFTER_AT=2026-07-22T14:02:25Z
+RECOMMENDATION_LOCK_OFFICIAL_FORMAL_SETTLEMENT_DELTA=0
+CANARY_RESULT=WAITING_FOR_REAL_LINEUP_WINDOW
+CANARY_PROVIDER_CALLS=0
+CANARY_WRITE_DELTA=0
+EXACT_HEAD_CI_RUN=29926300189
+EXACT_HEAD_CI_STATUS=FAIL
+EXACT_HEAD_CI_FAILURE=DELIVERY_STATUS_DOCUMENTATION_CONTRACT_MISMATCH
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
 
 **完成标准**
 
@@ -635,12 +684,17 @@ MANUAL_APPROVAL_REQUIRED
 ## 七、ARCH-00 执行记录
 
 ```text
-Status: IN_PROGRESS
+Status: DONE
 Branch: codex/w2-architecture-convergence-master-checklist
-PR: #371 (Draft)
+PR: #371 (Merged)
 Base SHA: a80bccaadc68f8bd691b45b46f25c10539473c0c
 Started at: 2026-07-22T21:30:56+0800
 Owner: Codex
+Merged PR: #371
+Merge SHA: 09ca14a969b835314c93c122b80c3cfa1bbf9c6c
+CI run: 29924431421
+Staging acceptance: DOCS_ONLY_BASELINE_READ_ONLY_VERIFIED
+Completed at: 2026-07-22T13:40:14Z
 ```
 
 ### 已核验基线
