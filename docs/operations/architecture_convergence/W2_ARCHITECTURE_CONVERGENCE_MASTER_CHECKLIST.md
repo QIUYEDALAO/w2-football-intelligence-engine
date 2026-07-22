@@ -222,6 +222,7 @@ Status: IN_PROGRESS
 Branch: codex/arch-p0-02-odds-read-authority
 PR: #376 (Draft)
 Base SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
+Implementation-head CI: 29967281687 (verify, staging-parity, predeploy-e2e passed)
 Started at: 2026-07-23T07:34:21+0800
 Owner: Codex
 Authority table: matchday_market_observations
@@ -262,7 +263,7 @@ Local full validation: W2 all-stage verify PASS; 1450 passed, 4 skipped.
   - captured_at；
   - quote identity。
 - [x] Dashboard 与分析读取均经过唯一仓储入口。
-- [ ] 完整 CI、staging 对账、20 次只读零写通过。
+- [x] 完整 CI、staging 对账、20 次只读零写通过。
 - [ ] PR 合并。
 
 **验收**
