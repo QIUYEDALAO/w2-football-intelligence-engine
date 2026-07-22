@@ -38,6 +38,17 @@ current_phase:
   status: locally_verified
   acceptance_state: awaiting_draft_pr_ci_and_exact_sha_staging
   blocker: WAITING_FOR_REAL_LINEUP_WINDOW
+  next_phase: W2_DYNAMIC_PREMATCH_STAGING
+  checkpoints:
+    dynamic_quote_lifecycle: locally_verified
+    current_ev_snapshot_semantics: locally_verified
+    no_edge_reevaluation: locally_verified
+    source_absent_truth_contract: locally_verified
+    lineup_baseline: locally_verified
+    lineup_identity_pipeline: locally_verified
+    lineup_change_features: locally_verified
+    lineup_post_market_refresh: locally_verified
+    t30_validation_snapshot: locally_verified
 
 active_workstream:
   id: DYNAMIC_EV_LINEUP
@@ -66,6 +77,7 @@ local_verification:
 staging:
   deployed_sha: null
   deployment_status: NOT_DEPLOYED_BY_THIS_TASK
+  production_deployed: false
   provider_calls: 0
   real_lineup_canary: WAITING_FOR_REAL_LINEUP_WINDOW
   public_read_20x: NOT_RUN_BEFORE_STAGING_DEPLOY

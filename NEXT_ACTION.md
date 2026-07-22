@@ -2,6 +2,8 @@
 
 ## Current gate
 
+W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
+
 The dynamic EV and confirmed-lineup lifecycle is locally verified on exact code
 implementation `d44db97abd46c4e78814e4787d61db41ffc2acb7`, based on PR #370
 head `c62fa82d883633f3b33ff44810a5fbc294b215c5`.
@@ -18,6 +20,9 @@ no real confirmed-lineup window, so operational status is
 advisory-only.
 
 ## Next execution
+
+W2_DYNAMIC_PREMATCH_STAGING is authorized only after the existing Draft PR #370
+passes its normal CI checks; this does not authorize Formal, Lock or Production.
 
 1. Update the existing Draft PR #370 with this implementation and require its
    normal CI checks to pass. Do not mark the PR ready for review.
