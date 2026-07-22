@@ -12,8 +12,8 @@ from typing import Any
 
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
 from w2.tracking.forward_outcome_ledger import (
+    _ledger_rows_by_file,
     append_capture_supersessions,
-    load_forward_ledger_records,
     run_forward_outcome_ledger,
 )
 
@@ -89,6 +89,12 @@ def _pending_audit(performance: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _ledger_records(runtime_root: Path) -> list[dict[str, Any]]:
+    """Read the append-only ledger without making it a second authority."""
+    rows_by_file = _ledger_rows_by_file(runtime_root / "forward_outcome_ledger")
+    return [row for rows in rows_by_file.values() for row in rows]
+
+
 def main() -> int:
     args = _args()
     captured_at = _parse_utc(args.captured_at)
@@ -114,7 +120,7 @@ def main() -> int:
             "capture_identity_hash": row.get("capture_identity_hash"),
             "decision_hash": row.get("decision_hash"),
         }
-        for row in load_forward_ledger_records(args.runtime_root / "forward_outcome_ledger")
+        for row in _ledger_records(args.runtime_root)
         if row.get("record_type") == "capture"
         and row.get("recommendation_scope") == "VALIDATION"
         and str(row.get("fixture_id")) in OLD_FIXTURE_IDS
