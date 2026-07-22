@@ -27,6 +27,12 @@ def _args() -> argparse.Namespace:
     parser.add_argument("--day-view-json", type=Path, required=True)
     parser.add_argument("--runtime-root", type=Path, required=True)
     parser.add_argument("--captured-at", required=True)
+    parser.add_argument(
+        "--legacy-recovery-manifest",
+        type=Path,
+        required=True,
+        help="Reviewed staging-only legacy recovery manifest used by the public ledger.",
+    )
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--output-json", type=Path, required=True)
     return parser.parse_args()
@@ -109,7 +115,11 @@ def main() -> int:
     _assert_sole_pick(sole_pick)
 
     ledger_hash_before = _ledger_hash(args.runtime_root)
-    before = forward_ledger_performance(args.runtime_root, now=captured_at)
+    before = forward_ledger_performance(
+        args.runtime_root,
+        now=captured_at,
+        legacy_recovery_manifest=args.legacy_recovery_manifest,
+    )
     before_pending = _pending_audit(before)
     # Supersede every historical validation capture for the five fixtures.
     # Otherwise an older duplicate could become active after the latest row is
@@ -149,7 +159,11 @@ def main() -> int:
         write_artifacts=args.write,
         runtime_root=args.runtime_root / "forward_outcome_ledger",
     )
-    after = forward_ledger_performance(args.runtime_root, now=captured_at)
+    after = forward_ledger_performance(
+        args.runtime_root,
+        now=captured_at,
+        legacy_recovery_manifest=args.legacy_recovery_manifest,
+    )
     cohort = after.get("performance_cohort", {})
     expected = {
         "validation_count": 24,
@@ -167,6 +181,7 @@ def main() -> int:
         "write": bool(args.write),
         "reason_code": SUPERSESSION_REASON,
         "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
+        "legacy_recovery_manifest": str(args.legacy_recovery_manifest),
         "ledger_hash_before": ledger_hash_before,
         "active_pending_before": before_pending,
         "supersessions": supersession,
