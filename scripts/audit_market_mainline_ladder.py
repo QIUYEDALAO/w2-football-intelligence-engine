@@ -167,7 +167,9 @@ def main() -> int:
     cards = {str(card["fixture_id"]): card for card in day_view.get("cards", [])}
     rows_by_provider_fixture: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in observations:
-        rows_by_provider_fixture[str(row["provider_fixture_id"])].append(row)
+        provider_fixture_id = row.get("provider_fixture_id") or row.get("fixture_id")
+        if provider_fixture_id is not None:
+            rows_by_provider_fixture[str(provider_fixture_id)].append(row)
 
     fixtures = []
     for fixture_id, card in sorted(cards.items(), key=lambda item: int(item[0])):

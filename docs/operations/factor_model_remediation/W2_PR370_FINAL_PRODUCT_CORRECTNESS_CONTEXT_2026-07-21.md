@@ -218,6 +218,85 @@ Its SHA256 is:
 
 `e71c8d0ed4d43bdf84648f05f5f38c1124ce6e4055ba77fcec069e3cbfa29fea`
 
+## Post-mainline acceptance closure
+
+On 2026-07-22 Asia/Shanghai, the post-mainline acceptance closure was executed against
+the deployed implementation SHA `284a646f3a6fe9641b965d0d3d4d807f66b46c85`.
+The API and web both reported that SHA; Alembic current and head were both
+`0033_create_canonical_team_identity`. The worker was healthy and the scheduler remained
+intentionally stopped. Provider calls remained disabled throughout.
+
+### Mainline and ledger evidence
+
+- The fresh self-contained ladder package covered 8 source-ready fixtures (6 source-absent
+  fixtures were reported separately), using 10,648 source observations and zero provider or
+  database writes.
+- The sole current analysis pick is fixture `1494222`: `TOTALS OVER 2.75 @1.86`, executed
+  by Unibet. Its consensus mainline is 2.75 with three complete paired-bookmaker votes and
+  median O/U 1.83/1.90. The exact quote identity is complete.
+- The append-only ledger correction superseded 18 historical duplicate captures spanning the
+  five affected fixture scopes with reason `TOTALS_MAINLINE_POLICY_SUPERSEDED`. It appended
+  exactly one new validation capture for `1494222 OVER 2.75 @1.86`; no historical row was
+  deleted.
+- Public forward-ledger accounting is now: 24 validation records, 23 settled, 1 pending,
+  16 eligible settled, and 7 evidence-repair pending. The reviewed recovery manifest accounts
+  for four uniquely matched legacy captures.
+
+### Quarter-line EV audit
+
+The independent audit recomputed fixture `1494222` from its frozen analysis artifact:
+
+- model probability 0.596063; market devig probability 0.494565; delta 0.101498;
+  EV 0.21444411287444756; EV SE 0.093216;
+- `P(total <= 2)=0.2981700025708191` (LOSS), `P(total = 3)=0.2115341449856487`
+  (HALF_WIN), and `P(total >= 4)=0.4902958524435322` (WIN);
+- lambda home/away 2.045508 / 1.580492; lambda sigma home/away 0.299628 / 0.243096;
+  exact matrix hash `0d472dbd89f95c619cea81b3a3285b4f4831eac5063e5e8940ccf2d04fa48b41`.
+
+The audit passed its reviewed tolerance. It retains `EV_PLAUSIBILITY_REVIEW` and
+`ANALYSIS_ONLY_FORMAL_DISABLED`; it does not change formal eligibility.
+
+### Readiness and read-only evidence
+
+- The mode-aware Stage7H deployment check passed core API/web/worker/schema/read-only
+  readiness with the scheduler intentionally stopped. It did not force scheduler activation.
+- Twenty root HTTP, live day-view, and frozen-artifact reads produced zero provider calls,
+  zero database writes, zero recommendation/lock/OFFICIAL/formal-settlement writes, and an
+  unchanged ledger/cohort hash. The live response varies only in request and generation IDs;
+  its normalized semantic hash was stable across all 20 reads.
+- The actual root route was captured from `http://118.196.30.136/`, not a visual fixture.
+  It displayed one analysis pick, six observe/no-edge rows, fixture 1494222, `OVER 2.75 @1.86`,
+  the market-mainline ladder, and the unified 24/23/16/7/1 ledger. The root's sequence label
+  was `A6`, not the requested `A1`; therefore `REAL_PRODUCTION_SCREENSHOT_PASS` is not claimed.
+
+Private runtime evidence remains outside GitHub under
+`/opt/w2/shared/runtime/reports/`: `pr370_ledger_reconciliation.json`,
+`pr370_totals_quarter_ev_audit.json`, `pr370_market_mainline_ladder_audit.json`, and
+`pr370_20read_canary_current.json`.
+
+### Remaining blockers
+
+HTTPS plus authentication/private-network access is still absent. The raw public HTTP listener
+therefore remains a staging access-control blocker. The root-page A1 ordering requirement is
+also not yet met. Both are outside the accepted model and market-authority changes.
+
+```text
+FORWARD_LEDGER_MAINLINE_SUPERSESSION_PASS
+TOTALS_QUARTER_LINE_EV_RECOMPUTE_PASS
+FRESH_LADDER_EVIDENCE_SELF_CONTAINED_PASS
+AH_CANDIDATE_ROLE_SIGNED_LINE_PASS
+MODE_AWARE_DEPLOYMENT_READINESS_PASS
+OBSERVATION_REMATERIALIZER_IDEMPOTENCY_PASS
+LIVE_FROZEN_HTTP_PARITY_PASS
+REAL_PRODUCTION_SCREENSHOT_PASS: NOT CLAIMED (A6, not A1)
+STAGING_ACCESS_CONTROL_PASS: NOT CLAIMED (HTTP without auth/HTTPS)
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+PR_370_KEEP_DRAFT
+```
+
 Implementation status:
 
 - the prototype DOM and CSS were ported to a production React presentation component;
