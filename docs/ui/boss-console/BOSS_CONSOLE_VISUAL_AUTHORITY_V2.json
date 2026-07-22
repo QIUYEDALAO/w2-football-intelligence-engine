@@ -28,7 +28,7 @@
       "sha256": "613472d2eaca7ef3a8f2a5909d45e4fa233b55d59cbf8d1d502cb2ba5fef5c2c"
     },
     "apps/web/src/reference/boss-console/boss-console-adapter.ts": {
-      "sha256": "7215661cd727caa41958d2aeed454e1077e6b2c9ddc76b387f82897e46fb45fa"
+      "sha256": "af4f8bbc2c890db8af5c74924e10bb308cac5d8520e5712852f8008d6fa30bf7"
     },
     "apps/web/src/reference/boss-console/boss-console.fixture.ts": {
       "sha256": "e8def82c4191ee6051f7e706e5c0986a3970820bbf826bdc3e45a166a96ef77e"

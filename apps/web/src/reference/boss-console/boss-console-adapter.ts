@@ -63,6 +63,9 @@ function decisionReasons(fixture: DashboardV2FixtureModel): string[] {
 }
 
 function noEdgeCopy(fixture: DashboardV2FixtureModel): string {
+  if (fixture.dataStatus === "STALE") {
+    return "旧报价仅供参考，等待下一次受控采集";
+  }
   const delta = fixture.quote?.probabilityDelta;
   const threshold = fixture.dynamicSnapshot?.requiredDelta ?? 0.05;
   if (delta != null && delta < threshold) {
