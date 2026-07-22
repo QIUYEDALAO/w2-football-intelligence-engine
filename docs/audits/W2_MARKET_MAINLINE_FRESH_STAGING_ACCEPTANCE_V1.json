@@ -1,0 +1,72 @@
+{
+  "schema_version": "w2.market-mainline-fresh-staging-acceptance.v1",
+  "exact_sha": "0038853e39756e6ee41a0924f82b724896e8b213",
+  "github_actions_run": 29884359829,
+  "deployment": {
+    "api_sha_match": true,
+    "web_sha_match": true,
+    "alembic_current_head_match": true,
+    "public_http_status": 200,
+    "scheduler_stopped": true,
+    "provider_calls_disabled_after_window": true
+  },
+  "controlled_provider_window": {
+    "status": "COMPLETED",
+    "fixture_count": 14,
+    "market_snapshot_count": 8,
+    "request_count": 10,
+    "remaining_quota": 7482,
+    "blockers": []
+  },
+  "outcome_counts": {
+    "ANALYSIS_PICK": 1,
+    "NO_EDGE": 6,
+    "NOT_READY": 1
+  },
+  "fixtures": [
+    {"fixture_id": "1494224", "outcome": "NO_EDGE", "totals_mainline": "3.0"},
+    {"fixture_id": "1494218", "outcome": "NO_EDGE", "totals_mainline": "2.75"},
+    {"fixture_id": "1494221", "outcome": "NO_EDGE", "totals_mainline": "2.5"},
+    {"fixture_id": "1494223", "outcome": "NO_EDGE", "totals_mainline": "3.25"},
+    {"fixture_id": "1494217", "outcome": "NO_EDGE", "totals_mainline": "3.25"},
+    {
+      "fixture_id": "1494222",
+      "outcome": "ANALYSIS_PICK",
+      "market": "TOTALS",
+      "selection": "OVER",
+      "line": "2.75",
+      "candidate_role": "MARKET_MAINLINE",
+      "execution_bookmaker": "Unibet",
+      "execution_odds": 1.86,
+      "model_probability": 0.596063,
+      "market_probability": 0.494565,
+      "probability_delta": 0.101498,
+      "expected_value": 0.214444,
+      "uncertainty": 0.093216
+    },
+    {"fixture_id": "1494219", "outcome": "NOT_READY", "reason": "MARKET_UNAVAILABLE", "totals_mainline": "3.0"},
+    {"fixture_id": "1494220", "outcome": "NO_EDGE", "totals_mainline": "3.0"}
+  ],
+  "read_canary": {
+    "live_read_count": 20,
+    "http_read_count_per_fixture": 20,
+    "all_http_200": true,
+    "all_card_hash_stable": true,
+    "dashboard_hash_stable": true,
+    "live_frozen_outcome_parity": true,
+    "zero_write_pass": true,
+    "canonical_cohort_hash_unchanged": true,
+    "official_storage_hash_unchanged": true,
+    "forward_ledger_unchanged": true
+  },
+  "safety": {
+    "recommendations": 0,
+    "recommendation_locks": 0,
+    "forward_prediction_locks": 0,
+    "formal_settlements": 0,
+    "formal_disabled": true,
+    "lock_disabled": true,
+    "production_disabled": true,
+    "manual_approval_required": true
+  }
+}

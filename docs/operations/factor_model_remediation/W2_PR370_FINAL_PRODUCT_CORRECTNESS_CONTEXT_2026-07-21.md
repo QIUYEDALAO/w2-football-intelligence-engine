@@ -409,3 +409,132 @@ PROVIDER_CALLS_DISABLED
 SCHEDULER_STOPPED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Exact-SHA mainline deployment and fresh regeneration
+
+The mainline implementation was committed and pushed as
+`0038853e39756e6ee41a0924f82b724896e8b213`. GitHub Actions run `29884359829`
+completed successfully: `verify`, `staging-parity`, and `predeploy-e2e` all passed.
+
+The exact SHA was rebuilt as Docker images and deployed to staging. The first automated
+post-deploy probe correctly rolled back because the legacy health checker requires a
+running scheduler, while this task requires the scheduler to remain stopped. The same
+verified images were then activated with a controlled service set: API, Web, and worker
+running; scheduler stopped.
+
+```text
+/opt/w2/current=0038853e39756e6ee41a0924f82b724896e8b213
+api_git_sha=0038853e39756e6ee41a0924f82b724896e8b213
+web_git_sha=0038853e39756e6ee41a0924f82b724896e8b213
+api_image=sha256:cddf23755d773302431f7ca647893e08599827344eb7a40163976b7faa8d0de4
+alembic_current=head=0033_create_canonical_team_identity
+public_http=200
+scheduler=stopped
+W2_PROVIDER_CALLS_DISABLED=true
+W2_PROVIDER_SCHEDULER_ENABLED=false
+W2_RECOMMENDATION_ENABLED=false
+W2_PRODUCTION_RELEASE=false
+```
+
+The stored quotes were more than ten hours old. A single controlled provider window ran
+without starting the scheduler:
+
+```text
+status=COMPLETED
+fixture_count=14
+market_snapshot_count=8
+request_count=10
+remaining_quota=7482
+blockers=[]
+```
+
+Eight immutable frozen analysis artifacts were rebuilt from the exact-image future-refresh
+observations. A separate compatibility rematerializer attempt returned
+`OBSERVATION_IDENTITY_CONFLICT` because the provider returned an already known raw payload
+under a new source revision. It made no recommendation, lock, or OFFICIAL write and did not
+block the canonical future-refresh observation path or frozen materialization. This
+compatibility-path conflict remains recorded for follow-up; it was not hidden or bypassed.
+
+Fresh truthful outcomes after the mainline cutover:
+
+```text
+1494224 NO_EDGE
+1494218 NO_EDGE
+1494221 NO_EDGE
+1494223 NO_EDGE
+1494217 NO_EDGE
+1494222 ANALYSIS_PICK: TOTALS OVER 2.75 @1.86, Unibet
+1494219 NOT_READY: MARKET_UNAVAILABLE
+1494220 NO_EDGE
+
+ANALYSIS_PICK=1
+NO_EDGE=6
+NOT_READY=1
+```
+
+The sole analysis pick is the market mainline, not an alternate:
+
+```text
+fixture=1494222
+market_mainline=TOTALS 2.75
+complete_pair_bookmakers=3
+bookmaker_votes=3
+median_over/under=1.83/1.90
+market_devig_probability=0.494565
+selection=OVER
+execution_odds=1.86
+execution_bookmaker=Unibet
+model_probability=0.596063
+probability_delta=0.101498
+expected_value=0.214444
+uncertainty=0.093216
+candidate_role=MARKET_MAINLINE
+```
+
+This replaces the previous `5/5 TOTALS at 1.67-1.70` cluster. The implementation did not
+preserve a target pick count. Fixture `1494218`, previously `OVER 2.5 @1.70`, now has
+market mainline `2.75` with fresh median prices `1.88/1.85` and truthfully resolves to
+`NO_EDGE`.
+
+Twenty live service reads and twenty HTTP/frozen reads per fixture passed:
+
+```text
+all_http_200=true
+all_card_hash_stable=true
+dashboard_hash_stable=true
+live_frozen_outcome_parity=true
+listed_table_zero_write=true
+canonical_cohort_hash_unchanged=true
+official_storage_hash_unchanged=true
+forward_ledger_unchanged=true
+recommendations=0
+recommendation_locks=0
+forward_prediction_locks=0
+formal_settlements=0
+```
+
+Private runtime reports remain on staging at:
+
+```text
+/opt/w2/shared/runtime/reports/service_live_mainline_ladder_exact_image_0038853_20read_20260722.json
+/opt/w2/shared/runtime/reports/http_frozen_mainline_ladder_exact_image_0038853_20read_20260722.json
+```
+
+Final task state:
+
+```text
+TOTALS_LADDER_AUDIT_PASS
+MARKET_MAINLINE_CONTRACT_PASS
+MAINLINE_ALTERNATE_SEPARATION_PASS
+ODDS_CLUSTER_EXPLAINED
+GLOBAL_QUOTE_TIME_CONSISTENCY_PASS
+PRIORITY_SEMANTICS_PASS
+RISK_CLASSIFICATION_POLICY_PASS
+MARKET_CONCENTRATION_AUDIT_PASS
+LIVE_FROZEN_HTTP_PARITY_PASS
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```
