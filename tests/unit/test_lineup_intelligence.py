@@ -51,7 +51,7 @@ def test_identity_mapping_is_deterministic_and_team_scoped() -> None:
         provider_position="M",
         candidates=candidates,
     )
-    assert first.status is MappingStatus.MATCHED
+    assert first.status is MappingStatus.CANDIDATE
     assert first.transfermarkt_player_id == "tm-1"
     assert first.identity_hash == second.identity_hash
 

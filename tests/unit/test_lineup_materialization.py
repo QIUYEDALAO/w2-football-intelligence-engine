@@ -86,6 +86,32 @@ def test_lineup_materialization_rejects_one_team_without_visible_partial_rows() 
         assert session.scalar(select(func.count(StructuredLineupSnapshotModel.id))) == 0
 
 
+def test_historical_null_lineup_identity_hash_fails_closed() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    captured_at = datetime(2026, 7, 19, tzinfo=UTC)
+    with Session(engine) as session:
+        for team_id in (10, 20):
+            snapshot = StructuredLineupSnapshotModel(
+                fixture_id="legacy-fixture",
+                team_external_id=str(team_id),
+                team_name=f"Team {team_id}",
+                formation="4-3-3",
+                captured_at=captured_at,
+                confirmed=True,
+                authoritative_status="COMPLETE",
+                raw_sha256="a" * 64,
+                lineup_identity_hash=None,
+                schema_version="w2.structured_lineup.v1",
+            )
+            session.add(snapshot)
+        session.commit()
+    repository = FutureRefreshDbRepository(engine=engine)
+    assert repository.lineup_gate_evidence(
+        fixture_id="legacy-fixture", as_of=captured_at
+    )["blockers"] == ["LINEUP_IDENTITY_HASH_MISSING"]
+
+
 def test_saved_lineup_materializer_is_bounded_provider_free_and_idempotent() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

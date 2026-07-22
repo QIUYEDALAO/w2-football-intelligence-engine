@@ -40,7 +40,8 @@ class CoverageGrade(StrEnum):
 
 
 class MappingStatus(StrEnum):
-    MATCHED = "MATCHED"
+    CANDIDATE = "CANDIDATE"
+    REVIEWED = "REVIEWED"
     MISSING = "MISSING"
     CONFLICT = "CONFLICT"
 
@@ -209,7 +210,7 @@ def resolve_player_identity(
     ]
     matched_id = matching[0].transfermarkt_player_id if len(matching) == 1 else None
     status = (
-        MappingStatus.MATCHED
+        MappingStatus.CANDIDATE
         if matched_id
         else MappingStatus.CONFLICT
         if matching
@@ -479,7 +480,7 @@ def derive_lineup_change_features(
     mapping_coverage = _coverage(
         [
             bool(player.get("canonical_player_id"))
-            or str(player.get("mapping_status") or "").upper() in {"MATCHED", "REVIEWED"}
+            or str(player.get("mapping_status") or "").upper() == "REVIEWED"
             for player in starters
         ]
     )

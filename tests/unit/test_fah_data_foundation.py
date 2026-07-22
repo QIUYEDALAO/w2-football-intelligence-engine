@@ -32,6 +32,7 @@ from w2.lineups.value_identity import (
     PlayerIdentityCrosswalkV1,
     TeamIdentityCrosswalkV1,
     approved_crosswalk_for_team,
+    audit_transfermarkt_asset,
     build_player_crosswalk,
     build_team_crosswalk,
     materialize_team_value_asof,
@@ -47,6 +48,95 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def test_transfermarkt_asset_audit_requires_allsvenskan_sixteen_club_coverage(
+    tmp_path: Path,
+) -> None:
+    _write_csv(tmp_path / "competitions.csv", [{"competition_id": "SE1", "name": "Allsvenskan"}])
+    clubs = [
+        {"club_id": str(index), "domestic_competition_id": "SE1"}
+        for index in range(1, 17)
+    ]
+    _write_csv(tmp_path / "clubs.csv", clubs)
+    _write_csv(
+        tmp_path / "players.csv",
+        [{"player_id": "p-1", "current_club_id": "1"}],
+    )
+    _write_csv(
+        tmp_path / "player_valuations.csv",
+        [{"player_id": "p-1", "date": "2026-07-01", "market_value_in_eur": "1000000"}],
+    )
+    _write_csv(
+        tmp_path / "games.csv",
+        [{"game_id": "g-1", "competition_id": "SE1", "season": "2026"}],
+    )
+    _write_csv(tmp_path / "game_lineups.csv", [{"game_id": "g-1", "player_id": "p-1"}])
+    result = audit_transfermarkt_asset(
+        source_root=tmp_path,
+        asset_descriptor={
+            "upstream_repository": "dcaribou/transfermarkt-datasets",
+            "upstream_revision": "abc123",
+            "downloaded_at": "2026-07-22T00:00:00Z",
+            "license_review": "CC0-1.0 reviewed",
+            "asset_sha256": "a" * 64,
+            "asset_size_bytes": 123,
+            "source_freshness_date": "2026-07-11",
+            "asset_format": "DUCKDB",
+            "official_full_asset": True,
+        },
+    )
+    assert result["status"] == "SOURCE_READY"
+    assert result["club_count"] == 16
+    assert result["player_valuation_rows"] == 1
+    assert result["game_lineup_rows"] == 1
+    assert result["valuation_observed_at_range"] == [
+        "2026-07-01T00:00:00Z",
+        "2026-07-01T00:00:00Z",
+    ]
+
+
+def test_transfermarkt_asset_audit_fails_closed_without_sixteen_clubs(tmp_path: Path) -> None:
+    _write_csv(tmp_path / "competitions.csv", [{"competition_id": "SE1", "name": "Allsvenskan"}])
+    _write_csv(tmp_path / "clubs.csv", [{"club_id": "1", "domestic_competition_id": "SE1"}])
+    result = audit_transfermarkt_asset(source_root=tmp_path, asset_descriptor={})
+    assert result["status"] == "ASSET_DOWNLOAD_INCOMPLETE_OR_WRONG"
+    assert "players.csv" in result["missing_required_tables"]
+
+
+def test_transfermarkt_asset_audit_accepts_historical_club_coverage_above_sixteen(
+    tmp_path: Path,
+) -> None:
+    _write_csv(tmp_path / "competitions.csv", [{"competition_id": "SE1", "name": "Allsvenskan"}])
+    _write_csv(
+        tmp_path / "clubs.csv",
+        [
+            {"club_id": str(index), "domestic_competition_id": "SE1"}
+            for index in range(1, 18)
+        ],
+    )
+    for name, rows in {
+        "players.csv": [{"player_id": "p-1", "current_club_id": "1"}],
+        "player_valuations.csv": [{"player_id": "p-1", "observed_at": "2026-07-01T00:00:00Z"}],
+        "games.csv": [{"game_id": "g-1", "competition_id": "SE1", "season": "2026"}],
+        "game_lineups.csv": [{"game_id": "g-1", "player_id": "p-1"}],
+    }.items():
+        _write_csv(tmp_path / name, rows)
+    result = audit_transfermarkt_asset(
+        source_root=tmp_path,
+        asset_descriptor={
+            "upstream_repository": "dcaribou/transfermarkt-datasets",
+            "upstream_revision": "abc123",
+            "downloaded_at": "2026-07-22T00:00:00Z",
+            "license_review": "CC0-1.0 reviewed",
+            "asset_sha256": "a" * 64,
+            "asset_size_bytes": 123,
+            "asset_format": "DUCKDB",
+            "official_full_asset": True,
+        },
+    )
+    assert result["status"] == "SOURCE_READY"
+    assert result["club_count"] == 17
 
 
 def _registry(path: Path, *, local_path: str, **overrides: object) -> Path:

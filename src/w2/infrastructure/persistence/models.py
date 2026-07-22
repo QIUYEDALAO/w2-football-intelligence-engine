@@ -374,7 +374,10 @@ class StructuredLineupSnapshotModel(Base):
     confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     authoritative_status: Mapped[str] = mapped_column(String(32), nullable=False)
     raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    lineup_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Migration 0034 intentionally permits NULL for historical snapshots that
+    # predate deterministic lineup identities. Read paths must fail closed
+    # until such a row is re-materialized with a hash.
+    lineup_identity_hash: Mapped[str | None] = mapped_column(String(64))
     team_w2_id: Mapped[str | None] = mapped_column(String(128))
     source_capture_id: Mapped[str | None] = mapped_column(String(128))
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)

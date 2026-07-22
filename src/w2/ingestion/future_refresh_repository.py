@@ -324,7 +324,7 @@ class FutureRefreshDbRepository:
                             transfermarkt_position=team_confirmed[0].position
                             if len(team_confirmed) == 1
                             else None,
-                            mapping_status="REVIEW_REQUIRED",
+                            mapping_status="CANDIDATE",
                             evidence={
                                 "reason": "TEAM_CROSSWALK_MISSING",
                                 "candidate_ids": sorted(
@@ -334,7 +334,7 @@ class FutureRefreshDbRepository:
                                 "team_name": snapshot.team_name,
                                 "compatibility_note": (
                                     "name-only club matching is review-only and cannot "
-                                    "create MATCHED"
+                                    "create REVIEWED"
                                 ),
                             },
                             identity_hash=resolution.identity_hash,
@@ -406,7 +406,7 @@ class FutureRefreshDbRepository:
             }
             mapping.canonical_player_id = str(canonical_player_id)
             mapping.transfermarkt_player_id = str(transfermarkt_player_id)
-            mapping.mapping_status = "MATCHED"
+            mapping.mapping_status = "REVIEWED"
             mapping.reviewed_by = str(reviewed_by)
             mapping.reviewed_at = reviewed_at
             mapping.evidence = {**mapping.evidence, **identity_payload, "review_status": "APPROVED"}
@@ -439,7 +439,7 @@ class FutureRefreshDbRepository:
                 player.identity_mapping_id = mapping.id
                 player.canonical_player_id = str(canonical_player_id)
                 player.valuation_source_player_id = str(transfermarkt_player_id)
-                player.mapping_status = "MATCHED"
+                player.mapping_status = "REVIEWED"
             session.commit()
             return mapping.identity_hash
 
@@ -472,6 +472,18 @@ class FutureRefreshDbRepository:
                     "valued_starters": 0,
                     "formation_count": sum(bool(row.formation) for row in selected),
                     "blockers": ["LINEUP_SNAPSHOT_INCOMPLETE"],
+                }
+            if any(not snapshot.lineup_identity_hash for snapshot in selected):
+                return {
+                    "status": "INCOMPLETE",
+                    "confirmed": False,
+                    "team_count": len(selected),
+                    "starter_counts": [],
+                    "uniquely_mapped_starters": 0,
+                    "valued_starters": 0,
+                    "formation_count": sum(bool(row.formation) for row in selected),
+                    "blockers": ["LINEUP_IDENTITY_HASH_MISSING"],
+                    "schema_version": "w2.lineup_gate_evidence.v1",
                 }
             starter_counts: list[int] = []
             mappings: list[PlayerIdentityMappingModel] = []
@@ -514,7 +526,7 @@ class FutureRefreshDbRepository:
                     .where(
                         PlayerIdentityMappingModel.api_football_player_id.in_(all_api_ids),
                         PlayerIdentityMappingModel.team_external_id == snapshot.team_external_id,
-                        PlayerIdentityMappingModel.mapping_status == "MATCHED",
+                        PlayerIdentityMappingModel.mapping_status == "REVIEWED",
                         PlayerIdentityMappingModel.valid_from <= snapshot.captured_at,
                         (PlayerIdentityMappingModel.valid_to.is_(None))
                         | (PlayerIdentityMappingModel.valid_to > snapshot.captured_at),

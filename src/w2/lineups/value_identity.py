@@ -19,6 +19,7 @@ from w2.historical.formal_ah import (
     parse_utc,
     stable_hash,
 )
+from w2.lineups.intelligence import normalize_player_name
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -197,6 +198,7 @@ def load_transfermarkt_source_root(source_root: Path) -> dict[str, Any]:
     files = {
         name: _first_existing(source_root, name)
         for name in (
+            "competitions.csv",
             "clubs.csv",
             "players.csv",
             "player_valuations.csv",
@@ -214,6 +216,134 @@ def load_transfermarkt_source_root(source_root: Path) -> dict[str, Any]:
         }
         for key, path in files.items()
     }
+
+
+def audit_transfermarkt_asset(
+    *,
+    source_root: Path,
+    asset_descriptor: Mapping[str, Any],
+    competition_name: str = "Allsvenskan",
+) -> dict[str, Any]:
+    """Produce a source-backed, fail-closed coverage manifest.
+
+    The caller supplies a locally pinned CSV export (or tables extracted from a
+    pinned DuckDB asset). No network access, database writes, name-only team
+    approval, or player auto-approval occurs here.
+    """
+    sources = load_transfermarkt_source_root(source_root)
+    required_tables = (
+        "competitions.csv",
+        "clubs.csv",
+        "players.csv",
+        "player_valuations.csv",
+        "games.csv",
+        "game_lineups.csv",
+    )
+    missing_tables = [name for name in required_tables if not sources[name]["path"]]
+    competitions = sources["competitions.csv"]["rows"]
+    competition_ids = sorted(
+        {
+            str(row.get("competition_id") or row.get("id") or "")
+            for row in competitions
+            if _competition_name(row) == normalize_player_name(competition_name)
+        }
+        - {""}
+    )
+    clubs = [
+        row
+        for row in sources["clubs.csv"]["rows"]
+        if str(
+            row.get("domestic_competition_id")
+            or row.get("competition_id")
+            or row.get("competition_code")
+            or ""
+        )
+        in competition_ids
+    ]
+    club_ids = {
+        str(row.get("club_id") or row.get("id") or "") for row in clubs
+    } - {""}
+    players = [
+        row
+        for row in sources["players.csv"]["rows"]
+        if str(row.get("current_club_id") or row.get("club_id") or "") in club_ids
+    ]
+    player_ids = {str(row.get("player_id") or row.get("id") or "") for row in players} - {""}
+    valuations = [
+        row
+        for row in sources["player_valuations.csv"]["rows"]
+        if str(row.get("player_id") or row.get("transfermarkt_player_id") or "") in player_ids
+    ]
+    games = [
+        row
+        for row in sources["games.csv"]["rows"]
+        if str(row.get("competition_id") or row.get("competition_code") or "") in competition_ids
+    ]
+    game_ids = {str(row.get("game_id") or row.get("id") or "") for row in games} - {""}
+    lineups = [
+        row
+        for row in sources["game_lineups.csv"]["rows"]
+        if str(row.get("game_id") or "") in game_ids
+    ]
+    valuation_dates = sorted(
+        observed.isoformat().replace("+00:00", "Z")
+        for row in valuations
+        if (
+            observed := parse_utc(
+                row.get("date") or row.get("valuation_date") or row.get("observed_at")
+            )
+        )
+        is not None
+    )
+    descriptor = dict(asset_descriptor)
+    required_descriptor = (
+        "upstream_repository",
+        "upstream_revision",
+        "downloaded_at",
+        "license_review",
+        "asset_sha256",
+        "asset_size_bytes",
+    )
+    descriptor_missing = [key for key in required_descriptor if not descriptor.get(key)]
+    full_asset_verified = bool(
+        descriptor.get("asset_format") == "DUCKDB"
+        and not descriptor_missing
+        and descriptor.get("official_full_asset") is True
+    )
+    if missing_tables or not full_asset_verified:
+        status = "ASSET_DOWNLOAD_INCOMPLETE_OR_WRONG"
+    elif not competition_ids or len(club_ids) < 16:
+        status = "PLAYER_VALUATION_SOURCE_COVERAGE_INSUFFICIENT"
+    elif not valuations or not lineups:
+        status = "SOURCE_PARTIAL"
+    else:
+        status = "SOURCE_READY"
+    payload = {
+        "schema_version": "w2.transfermarkt_asset_manifest.v1",
+        "status": status,
+        "asset": descriptor,
+        "asset_table_hashes": {
+            name: sources[name]["sha256"] for name in required_tables
+        },
+        "table_row_counts": {name: len(sources[name]["rows"]) for name in required_tables},
+        "missing_required_tables": missing_tables,
+        "missing_asset_descriptor_fields": descriptor_missing,
+        "official_full_asset_verified": full_asset_verified,
+        "competition_name": competition_name,
+        "competition_ids": competition_ids,
+        "covered_season_range": _season_range(games),
+        "club_count": len(club_ids),
+        "minimum_required_current_club_count": 16,
+        "player_count": len(player_ids),
+        "player_valuation_rows": len(valuations),
+        "game_lineup_rows": len(lineups),
+        "valuation_observed_at_range": (
+            [valuation_dates[0], valuation_dates[-1]] if valuation_dates else None
+        ),
+        "source_freshness_date": descriptor.get("source_freshness_date"),
+    }
+    payload["manifest_hash"] = stable_hash(payload)
+    return payload
 
 
 def materialize_team_value_asof(
@@ -519,6 +649,23 @@ def _approved_players_for_team(
 
 def _membership_player_id(row: Mapping[str, Any]) -> str:
     return str(row.get("transfermarkt_player_id") or row.get("player_id") or "")
+
+
+def _competition_name(row: Mapping[str, Any]) -> str:
+    return normalize_player_name(
+        str(row.get("name") or row.get("competition_name") or row.get("competition_code") or "")
+    )
+
+
+def _season_range(rows: list[Mapping[str, Any]]) -> list[str] | None:
+    values = sorted(
+        {
+            str(row.get("season") or row.get("season_id") or "")
+            for row in rows
+            if str(row.get("season") or row.get("season_id") or "")
+        }
+    )
+    return [values[0], values[-1]] if values else None
 
 
 def _latest_valuation(
