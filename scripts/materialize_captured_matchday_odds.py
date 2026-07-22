@@ -20,6 +20,12 @@ from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel 
 from w2.infrastructure.persistence.matchday_intake_models import (  # noqa: E402
     MatchdayEndpointCaptureModel,
 )
+from w2.ingestion.future_refresh import (  # noqa: E402
+    fixture_id_from_payload,
+    iso,
+    kickoff_from_payload,
+    sha256_payload,
+)
 from w2.matchday.intake_v2 import normalize_matchday_odds_payload  # noqa: E402
 from w2.matchday.repository import MatchdayRuntimeRepository  # noqa: E402
 
@@ -46,6 +52,78 @@ def _latest_capture(session: Session, fixture_id: str) -> MatchdayEndpointCaptur
     )
 
 
+def _fixture_identity_from_capture(
+    session: Session,
+    *,
+    fixture_id: str,
+    competition_id: str,
+) -> dict[str, Any] | None:
+    """Recover an identity from the captured fixtures payload before odds replay.
+
+    The recovery path must never create odds-only fixtures.  Historic captures
+    predate the identity write, so locate the matching fixture in the source
+    endpoint capture and rebuild the same identity shape used by live refresh.
+    """
+    provider_fixture_id = _fixture_id(fixture_id).removeprefix("api_football:")
+    captures = session.scalars(
+        select(MatchdayEndpointCaptureModel)
+        .where(
+            MatchdayEndpointCaptureModel.endpoint == "fixtures",
+            MatchdayEndpointCaptureModel.competition_id == competition_id,
+            MatchdayEndpointCaptureModel.capture_status == "CAPTURED",
+        )
+        .order_by(MatchdayEndpointCaptureModel.provider_captured_at.desc())
+    )
+    for capture in captures:
+        raw = session.get(RawPayloadModel, capture.raw_payload_sha256)
+        if raw is None:
+            continue
+        response = raw.payload.get("response") if isinstance(raw.payload, dict) else None
+        if not isinstance(response, list):
+            continue
+        item = next(
+            (
+                value
+                for value in response
+                if isinstance(value, dict) and fixture_id_from_payload(value) == provider_fixture_id
+            ),
+            None,
+        )
+        if item is None:
+            continue
+        kickoff = kickoff_from_payload(item)
+        if kickoff is None:
+            return None
+        fixture = item.get("fixture") if isinstance(item.get("fixture"), dict) else {}
+        league = item.get("league") if isinstance(item.get("league"), dict) else {}
+        teams = item.get("teams") if isinstance(item.get("teams"), dict) else {}
+        status = fixture.get("status") if isinstance(fixture.get("status"), dict) else {}
+        home = teams.get("home") if isinstance(teams.get("home"), dict) else {}
+        away = teams.get("away") if isinstance(teams.get("away"), dict) else {}
+        identity_body = {
+            "fixture_id": _fixture_id(fixture_id),
+            "provider": "api_football",
+            "provider_fixture_id": provider_fixture_id,
+            "competition_id": competition_id,
+            "provider_league_id": str(league.get("id") or ""),
+            "season": str(league.get("season") or ""),
+            "kickoff_utc": iso(kickoff),
+            "fixture_status": str(status.get("short") or ""),
+            "home_provider_team_id": str(home.get("id") or ""),
+            "away_provider_team_id": str(away.get("id") or ""),
+            "home_w2_team_id": None,
+            "away_w2_team_id": None,
+            "team_identity_status": "REVIEW_REQUIRED",
+            "raw_payload_sha256": capture.raw_payload_sha256,
+            "endpoint_capture_id": capture.capture_id,
+            "captured_at": iso(capture.provider_captured_at),
+            "payload": item,
+            "schema_version": "MatchdayFixtureIdentityV1",
+        }
+        return {**identity_body, "identity_hash": sha256_payload(identity_body)}
+    return None
+
+
 def materialize(
     fixture_ids: list[str],
     *,
@@ -60,6 +138,22 @@ def materialize(
     total_rejections = 0
     with Session(engine) as session:
         for fixture_id in fixture_ids:
+            identity = _fixture_identity_from_capture(
+                session,
+                fixture_id=fixture_id,
+                competition_id=competition_id,
+            )
+            if identity is None:
+                results.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "status": "FIXTURE_IDENTITY_CAPTURE_MISSING",
+                        "inserted": 0,
+                        "rejected": 0,
+                    }
+                )
+                continue
+            identity_inserted = repository.insert_fixture_identities([identity])
             capture = _latest_capture(session, fixture_id)
             if capture is None:
                 results.append(
@@ -99,6 +193,7 @@ def materialize(
                 {
                     "fixture_id": fixture_id,
                     "status": "MATERIALIZED",
+                    "fixture_identity_inserted": identity_inserted,
                     "capture_id": capture.capture_id,
                     "captured_at": _iso(capture.provider_captured_at),
                     "raw_payload_sha256": capture.raw_payload_sha256,

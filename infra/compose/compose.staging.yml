@@ -291,7 +291,7 @@ services:
       W2_FORWARD_HOLDOUT_NETWORK: "true"
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
       W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: ""
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "world_cup_2026"
+      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "allsvenskan"
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
@@ -332,7 +332,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready; assert 'heartbeat' in heartbeat(); assert future_fixture_refresh_contract_ready()"]
+      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready, future_fixture_refresh_enabled; assert 'heartbeat' in heartbeat(); assert not future_fixture_refresh_enabled() or future_fixture_refresh_contract_ready()"]
       interval: 30s
       timeout: 10s
       retries: 3

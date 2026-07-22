@@ -80,6 +80,8 @@ services:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+      W2_FORWARD_OUTCOME_LEDGER_ENABLED: "false"
+      W2_FORWARD_OUTCOME_BACKFILL_ENABLED: "false"
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
@@ -141,7 +143,7 @@ from pathlib import Path
 
 assert os.getuid() == 10001, f"api uid must be 10001, got {os.getuid()}"
 assert Path("/app/config").is_dir()
-assert Path("/app/config/competitions/world_cup_2026.v1.json").is_file()
+assert Path("/app/config/competitions/national_leagues/allsvenskan.v1.json").is_file()
 assert Path("/app/config/policies/future_fixture_refresh.v1.json").is_file()
 assert Path("/app/runtime").is_dir()
 print("predeploy_e2e api mount checks PASS")
@@ -154,7 +156,7 @@ import os
 from pathlib import Path
 
 assert os.getuid() == 10001, f"worker uid must be 10001, got {os.getuid()}"
-assert Path("/app/config/competitions/world_cup_2026.v1.json").is_file()
+assert Path("/app/config/competitions/national_leagues/allsvenskan.v1.json").is_file()
 assert Path("/app/config/policies/future_fixture_refresh.v1.json").is_file()
 assert Path("/app/runtime").is_dir()
 print("predeploy_e2e worker mount checks PASS")
@@ -276,7 +278,7 @@ class FakeLiveApiFootballPort:
 
 fake = FakeLiveApiFootballPort()
 key = deterministic_task_key(
-    competition_id="world_cup_2026",
+    competition_id="allsvenskan",
     season="2026",
     now=NOW,
     interval_seconds=900,
@@ -285,7 +287,7 @@ audit = run_future_refresh_task(
     task_id=f"{key}:predeploy-e2e",
     key=key,
     queued_at=NOW,
-    competition_id="world_cup_2026",
+    competition_id="allsvenskan",
     runtime_root=Path("/app/runtime/future_refresh"),
     client=fake,
     now=NOW,
@@ -436,7 +438,7 @@ BLOCKED_ENDPOINT_COUNT="$(
 )"
 RUN_AUDIT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
-    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'world_cup_2026' and candidate = false and formal_recommendation = false;"
+    psql -U w2_user -d w2 -tAc "select count(*) from future_refresh_run_audit where competition_id = 'allsvenskan' and candidate = false and formal_recommendation = false;"
 )"
 LINEUP_SNAPSHOT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \

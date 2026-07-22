@@ -9,7 +9,9 @@ TOP_FIVE_COMPETITIONS = (
     "serie_a",
     "ligue_1",
 )
-WORLD_CUP_COMPETITIONS = ("world_cup_2026",)
+# Tournament football is deliberately outside the current W2 league whitelist:
+# its one-off format is not in scope for the league-calibrated workflow.
+WORLD_CUP_COMPETITIONS: tuple[str, ...] = ()
 IN_SEASON_NATIONAL_LEAGUES = (
     "brasileirao_serie_a",
     "argentina_primera",

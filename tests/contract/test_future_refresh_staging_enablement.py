@@ -36,7 +36,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "world_cup_2026"
+        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "allsvenskan"
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == ""
         assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
@@ -131,17 +131,16 @@ def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
 
 
-def test_future_refresh_policy_matches_staging_competition() -> None:
+def test_world_cup_legacy_policy_does_not_restore_league_whitelist() -> None:
     import json
 
     policy = json.loads(
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
-    world_cup = next(
-        item for item in policy["competitions"] if item["competition_id"] == "world_cup_2026"
-    )
-    assert world_cup["enabled"] is True
-    assert world_cup["season"] == "2026"
+    assert any(item["competition_id"] == "world_cup_2026" for item in policy["competitions"])
+    from w2.competitions.league_whitelist_scope import ALL_WHITELIST_COMPETITIONS
+
+    assert "world_cup_2026" not in ALL_WHITELIST_COMPETITIONS
 
 
 def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:
@@ -176,7 +175,10 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.scheduler.main.due_checkpoint_refresh_batch",
@@ -213,7 +215,7 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
     result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert result["competition_id"] == "world_cup_2026"
+    assert result["competition_id"] == "allsvenskan"
     assert sent[0]["name"] == "w2.future_fixture_refresh"
 
 
@@ -222,7 +224,10 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
         raise AssertionError("health contract must not dispatch")
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setattr(celery_app, "send_task", forbidden_send_task)
     runtime_path = ROOT / "runtime/future_refresh"
     before_exists = runtime_path.exists()

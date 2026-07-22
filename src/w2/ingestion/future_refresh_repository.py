@@ -1503,6 +1503,20 @@ class FutureRefreshDbRepository:
         bounded_limit = max(0, min(int(payload_limit), 128))
         if not fixture_id or bounded_limit == 0:
             return None
+        identity = self.matchday_fixture_identity(fixture_id)
+        if (
+            identity is not None
+            and str(identity.get("status") or "") != "FIXTURE_ID_ALIAS_CONFLICT"
+        ):
+            identity_id = str(identity.get("fixture_id") or "")
+            with Session(self.engine) as session:
+                identity_row = session.scalar(
+                    select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.fixture_id == identity_id
+                    )
+                )
+            if identity_row is not None and isinstance(identity_row.payload, dict):
+                return identity_row.payload
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
@@ -1542,7 +1556,23 @@ class FutureRefreshDbRepository:
                     .limit(bounded_payloads)
                 )
             )
+            identity_rows = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel)
+                    .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
+                    .limit(bounded_items)
+                )
+            )
         fixtures: dict[str, dict[str, Any]] = {}
+        for identity in identity_rows:
+            payload = identity.payload
+            fixture_id = (
+                str(payload.get("fixture", {}).get("id") or "")
+                if isinstance(payload, dict)
+                else ""
+            )
+            if fixture_id:
+                fixtures[fixture_id] = payload
         for row in rows:
             response = row.payload.get("response")
             if not isinstance(response, list):
