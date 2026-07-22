@@ -16,6 +16,8 @@ from w2.lineups.intelligence import (
     grade_coverage,
     lineup_requirement,
     resolve_player_identity,
+    select_asof_player_valuation,
+    validate_confirmed_lineup_snapshot,
 )
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     "grade_coverage",
     "lineup_requirement",
     "resolve_player_identity",
+    "select_asof_player_valuation",
+    "validate_confirmed_lineup_snapshot",
 ]

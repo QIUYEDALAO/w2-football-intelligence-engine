@@ -158,6 +158,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
             if isinstance(item, Mapping)
         ],
         "lineup_provenance": _mapping_copy(card.get("lineup_provenance")),
+        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
         "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
         if isinstance(_field(card, contract, "non_pick"), Mapping)
         else None,
@@ -200,6 +201,7 @@ def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "secondary_picks": [],
         "market_selection_audit": [],
         "lineup_provenance": {},
+        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
         "non_pick": _mapping_copy(card.get("non_pick"))
         if isinstance(card.get("non_pick"), Mapping)
         else None,

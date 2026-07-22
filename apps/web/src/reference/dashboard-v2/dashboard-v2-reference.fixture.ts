@@ -1,7 +1,7 @@
 import type { DashboardV2FixtureModel, DashboardV2ViewModel } from "./dashboard-v2-model";
 
 const ready = (
-  fixture: Omit<DashboardV2FixtureModel, "decisionTier" | "dataStatus" | "reasonLabel" | "modelLabel" | "calibrationLabel" | "dataFacts" | "tracking">,
+  fixture: Omit<DashboardV2FixtureModel, "decisionTier" | "dataStatus" | "reasonLabel" | "modelLabel" | "calibrationLabel" | "dataFacts" | "dynamicSnapshot" | "lineupFacts" | "tracking">,
 ): DashboardV2FixtureModel => ({
   ...fixture,
   decisionTier: "ANALYSIS_PICK",
@@ -10,6 +10,8 @@ const ready = (
   modelLabel: "精确 DC-Poisson",
   calibrationLabel: "基线先验模型 · 尚未完成正式校准验证",
   dataFacts: ["盘口身份完整", "真实 xG 已就绪", "内部评级已就绪", "首发未到采集时点"],
+  dynamicSnapshot: null,
+  lineupFacts: ["尚未到公布窗口或确认首发尚未取得", "模型影响：仅 advisory · 数值调整关闭"],
   tracking: {
     status: "CAPTURED_PENDING",
     label: "验证 ledger 已记录",
@@ -19,7 +21,7 @@ const ready = (
 });
 
 const quiet = (
-  fixture: Omit<DashboardV2FixtureModel, "decisionTier" | "dataStatus" | "reasonLabel" | "modelLabel" | "calibrationLabel" | "dataFacts" | "tracking">,
+  fixture: Omit<DashboardV2FixtureModel, "decisionTier" | "dataStatus" | "reasonLabel" | "modelLabel" | "calibrationLabel" | "dataFacts" | "dynamicSnapshot" | "lineupFacts" | "tracking">,
   decisionTier: "NO_EDGE" | "WATCH" | "NOT_READY" | "SKIP",
   reasonLabel: string,
   dataStatus: "READY" | "PARTIAL" | "STALE" | "BLOCKED" = "READY",
@@ -31,6 +33,8 @@ const quiet = (
   modelLabel: "精确 DC-Poisson",
   calibrationLabel: "基线先验模型 · 尚未完成正式校准验证",
   dataFacts: ["真实赛程", "只读分析", reasonLabel],
+  dynamicSnapshot: null,
+  lineupFacts: ["尚未到公布窗口或确认首发尚未取得", "模型影响：仅 advisory · 数值调整关闭"],
   tracking: {
     status: "NOT_CAPTURED",
     label: "本场未进入验证分母",

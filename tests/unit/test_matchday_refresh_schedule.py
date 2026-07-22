@@ -38,7 +38,7 @@ def test_generates_kickoff_aware_controlled_ticks() -> None:
         "T60_ODDS_LINEUPS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
-        "T30_FINAL_PREMATCH",
+        "T-30m_VALIDATION_LOCK",
     ]
     assert [tick.offset_seconds_before_kickoff for tick in ticks] == [
         24 * 60 * 60,

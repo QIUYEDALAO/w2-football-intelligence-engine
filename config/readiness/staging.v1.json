@@ -8,7 +8,7 @@
     },
     {
       "path": "config/policies/matchday_intake.v2.json",
-      "sha256": "8214f27afb713699cb81c8d25d265ae87e805863142027f710053e23ca87cb8f",
+      "sha256": "d18e13e3490835392799cf766d88ec2dcb94f8e51d163076bde6857fd8e3b39c",
       "required": true
     },
     {

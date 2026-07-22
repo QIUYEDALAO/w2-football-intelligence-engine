@@ -62,6 +62,20 @@ function decisionReasons(fixture: DashboardV2FixtureModel): string[] {
     : ["当前证据不足以形成分析方向", "保持真实状态，不强行产生建议", "等待下一次受控评估"];
 }
 
+function noEdgeCopy(fixture: DashboardV2FixtureModel): string {
+  const delta = fixture.quote?.probabilityDelta;
+  const threshold = fixture.dynamicSnapshot?.requiredDelta ?? 0.05;
+  if (delta != null && delta < threshold) {
+    return `Delta ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)}pp，低于 ${(threshold * 100).toFixed(1)}pp 门槛，尚差 ${((threshold - delta) * 100).toFixed(1)}pp`;
+  }
+  const ev = fixture.quote?.expectedValue;
+  const evMinusSe = fixture.dynamicSnapshot?.currentEvMinusSe;
+  if (ev != null && evMinusSe != null && evMinusSe <= 0) {
+    return `EV ${ev >= 0 ? "+" : ""}${(ev * 100).toFixed(1)}%，但 EV-SE = ${(evMinusSe * 100).toFixed(1)}%，稳健性未通过`;
+  }
+  return "当前完整快照未通过 EV、Delta 与 EV-SE 稳健门";
+}
+
 function decisionRisks(fixture: DashboardV2FixtureModel): string[] {
   const risks: string[] = [];
   if (fixture.calibrationLabel) risks.push(fixture.calibrationLabel);
@@ -119,6 +133,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
     const risk = riskLevel(fixture);
     const [action, detail] = nextAction(fixture, model.health.automaticCollectionPaused);
     const quote = fixture.quote;
+    const dynamic = fixture.dynamicSnapshot;
     const mainlinePrices = quote?.marketMainlineOverPrice != null
       ? `大${quote.marketMainlineOverPrice.toFixed(2)} / 小${quote.marketMainlineUnderPrice?.toFixed(2) ?? "--"}`
       : quote?.marketMainlineHomePrice != null
@@ -137,7 +152,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
         status === "pick"
           ? fixture.primaryMarketLabel.replace(/^让球 · |^大小球 · /, "")
           : status === "watch"
-            ? "优势不足 · 暂不选方向"
+            ? noEdgeCopy(fixture)
             : fixture.reasonLabel || "尚未进入完整评估窗口",
       modelProbability: fixture.quote?.modelProbability ?? null,
       marketProbability: fixture.quote?.marketProbability ?? null,
@@ -170,6 +185,12 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       nextAction: action,
       nextDetail: detail,
       snapshotAt: fixture.quote?.capturedAt ?? null,
+      lifecycleState: dynamic?.state ?? null,
+      quoteAgeSeconds: dynamic?.quoteAgeSeconds ?? null,
+      latestCheckpoint: dynamic?.checkpoint ?? null,
+      nextCheckpoint: dynamic?.nextCheckpoint ?? null,
+      automaticRefreshStatus: dynamic?.automaticRefreshStatus ?? "等待评估快照",
+      lineupFacts: fixture.lineupFacts,
       ledgerCode: fixture.tracking.captureHash || "—",
       ledgerStatus: fixture.tracking.label,
       ledgerDetail: fixture.tracking.detail,

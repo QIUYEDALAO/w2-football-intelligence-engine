@@ -11,6 +11,12 @@ from w2.infrastructure.persistence.challenger_models import (
     ForwardHoldoutRunModel,
     ForwardPredictionLockModel,
 )
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchSupersessionModel,
+    LineupConfirmedEventModel,
+    T30ValidationSnapshotModel,
+)
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
     CanonicalTeamModel,
@@ -189,6 +195,8 @@ __all__ = [
     "DatasetSourceModel",
     "DatasetVersionModel",
     "DependencyRiskModel",
+    "DynamicPrematchEvaluationModel",
+    "DynamicPrematchSupersessionModel",
     "FeatureSnapshotModel",
     "FreshnessAlertModel",
     "FutureRefreshCheckpointAuditModel",
@@ -214,6 +222,7 @@ __all__ = [
     "InjuryModel",
     "IngestionRunModel",
     "LineupModel",
+    "LineupConfirmedEventModel",
     "LeagueProfileModel",
     "LeagueReadinessAuditModel",
     "LeagueSeasonModel",
@@ -289,6 +298,7 @@ __all__ = [
     "SuspensionModel",
     "SyncCursorModel",
     "TeamModel",
+    "T30ValidationSnapshotModel",
     "TeamIdentityCrosswalkModel",
     "TeamRatingModel",
     "TeamRatingSnapshotModel",

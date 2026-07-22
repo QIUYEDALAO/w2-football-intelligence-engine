@@ -37,7 +37,7 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         "T60_ODDS_LINEUPS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
-        "T30_FINAL_PREMATCH",
+        "T-30m_VALIDATION_LOCK",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert by_checkpoint["T24_ODDS"].due_at_utc == kickoff - timedelta(hours=24)
@@ -81,7 +81,7 @@ def test_checkpoint_plan_generation_normalizes_timezone_aware_kickoff() -> None:
     assert plans[0].kickoff_utc == datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
     assert by_checkpoint["T6_ODDS"].due_at_utc == datetime(2026, 7, 4, 18, 0, tzinfo=UTC)
     assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == datetime(2026, 7, 4, 23, 0, tzinfo=UTC)
-    assert by_checkpoint["T30_FINAL_PREMATCH"].due_at_utc == datetime(
+    assert by_checkpoint["T-30m_VALIDATION_LOCK"].due_at_utc == datetime(
         2026, 7, 4, 23, 30, tzinfo=UTC
     )
 

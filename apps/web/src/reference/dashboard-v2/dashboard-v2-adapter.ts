@@ -72,6 +72,62 @@ function fieldReadiness(card: DashboardDayViewCard, field: string): UnknownRecor
   return record(statuses.find((item) => text(record(item).field) === field));
 }
 
+function nextCheckpoint(checkpoint: string): string | null {
+  const sequence = ["opening", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "LINEUP_CONFIRMED", "T-30m_VALIDATION_LOCK"];
+  const index = sequence.indexOf(checkpoint);
+  return index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : null;
+}
+
+function dynamicSnapshot(card: DashboardDayViewCard): DashboardV2FixtureModel["dynamicSnapshot"] {
+  const lifecycle = record(card.dynamic_prematch);
+  const current = Array.isArray(lifecycle.current) ? lifecycle.current.map(record) : [];
+  const selected = current[0];
+  if (!selected) return null;
+  const evaluatedAt = text(selected.evaluated_at) || null;
+  const capturedAt = text(selected.capture_at) || null;
+  const evaluated = evaluatedAt ? new Date(evaluatedAt).getTime() : Number.NaN;
+  const captured = capturedAt ? new Date(capturedAt).getTime() : Number.NaN;
+  const checkpoint = text(selected.checkpoint) || null;
+  const state = text(selected.state);
+  return {
+    state,
+    evaluatedAt,
+    capturedAt,
+    quoteAgeSeconds: Number.isFinite(evaluated) && Number.isFinite(captured)
+      ? Math.max(0, Math.round((evaluated - captured) / 1000))
+      : null,
+    checkpoint,
+    nextCheckpoint: checkpoint ? nextCheckpoint(checkpoint) : null,
+    automaticRefreshStatus: state === "LINEUP_READY_MARKET_REFRESH_PENDING"
+      ? "首发后盘口刷新中"
+      : state === "STALE_PENDING_REFRESH"
+        ? "等待自动刷新"
+        : "已评估当前快照",
+    currentEvMinusSe: numberValue(selected.current_ev_minus_se),
+    requiredDelta: numberValue(selected.required_delta),
+  };
+}
+
+function lineupFacts(card: DashboardDayViewCard): string[] {
+  const lineup = record(card.lineup_provenance);
+  const features = Array.isArray(lineup.lineup_change_features)
+    ? lineup.lineup_change_features.map(record)
+    : [];
+  if (lineup.confirmed !== true) return ["尚未到公布窗口或确认首发尚未取得"];
+  const facts = ["确认首发 11/11 · 双方已确认"];
+  for (const feature of features.slice(0, 2)) {
+    const continuity = numberValue(feature.starter_continuity);
+    const missing = numberValue(feature.regular_starters_missing);
+    if (continuity != null) facts.push(`首发连续性 ${(continuity * 100).toFixed(1)}% · 常规主力缺席 ${missing ?? 0}`);
+    if (feature.formation_changed === true) facts.push("阵型相对常用结构已变化");
+    const mapping = numberValue(feature.mapping_coverage);
+    const valuation = numberValue(feature.valuation_coverage);
+    if (mapping != null || valuation != null) facts.push(`映射覆盖 ${((mapping ?? 0) * 100).toFixed(1)}% · 估值覆盖 ${((valuation ?? 0) * 100).toFixed(1)}%`);
+  }
+  facts.push("模型影响：仅 advisory · 数值调整关闭");
+  return facts.slice(0, 6);
+}
+
 function decisionTier(card: DashboardDayViewCard): DashboardV2DecisionTier {
   const outcome = text(card.recommendation_decision_v3?.outcome).toUpperCase();
   if (outcome === "ANALYSIS_PICK") return "ANALYSIS_PICK";
@@ -271,6 +327,13 @@ function fixtureModel(
   const xg = fieldReadiness(card, "xg");
   const ratings = fieldReadiness(card, "ratings");
   const lineups = fieldReadiness(card, "lineups");
+  const dynamic = dynamicSnapshot(card);
+  const lineupSummary = lineupFacts(card);
+  const sourceAbsent = dynamic?.state === "NOT_READY_SOURCE_ABSENT"
+    || (
+      text(card.reason_code) === "CURRENT_QUOTE_MISSING"
+      && (!card.current_odds || Object.keys(card.current_odds).length === 0)
+    );
   return {
     fixtureId: card.fixture_id,
     kickoffUtc: card.kickoff_utc ?? "",
@@ -280,7 +343,9 @@ function fixtureModel(
     awayTeam: translateTeam(card.away_team_name || "客队"),
     decisionTier: decisionTier(card),
     dataStatus: card.data_status,
-    reasonLabel: card.reason_code || card.recommendation_decision_v3?.reason?.message || null,
+    reasonLabel: sourceAbsent
+      ? "当前采集窗口尚未取得完整盘口"
+      : card.reason_code || card.recommendation_decision_v3?.reason?.message || null,
     nextEvaluationAt: card.next_eval_at ?? null,
     primaryMarketLabel: primaryMarketLabel(card),
     secondaryMarketLabel: secondaryMarketLabel(card),
@@ -298,6 +363,8 @@ function fixtureModel(
       `内部评级 ${ratings.present === true ? "已就绪" : text(ratings.reason_code || "待确认")}`,
       `首发 ${lineups.present === true ? "已就绪" : "未到采集时间"}`,
     ],
+    dynamicSnapshot: dynamic,
+    lineupFacts: lineupSummary,
     tracking: trackingModel(card, performance),
   };
 }

@@ -78,7 +78,7 @@ def test_market_line_odds_returns_decision_and_refresh_plan() -> None:
         "T60_ODDS_LINEUPS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
-        "T30_FINAL_PREMATCH",
+        "T-30m_VALIDATION_LOCK",
     }.issubset(labels)
     assert refresh["endpoint_allowlist"] == ["status", "fixtures", "odds", "lineups"]  # type: ignore[index]
     assert refresh["skipped_endpoints"] == ["statistics"]  # type: ignore[index]

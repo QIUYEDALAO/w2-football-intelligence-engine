@@ -17,6 +17,8 @@ from w2.lineups.intelligence import (
     derive_lineup_change_features,
     grade_coverage,
     resolve_player_identity,
+    select_asof_player_valuation,
+    validate_confirmed_lineup_snapshot,
 )
 
 
@@ -177,6 +179,53 @@ def test_non_top_five_grade_controls_numeric_enhancement_not_pick_gate() -> None
     assert not result.numeric_adjustment_enabled
     assert grade_coverage(0.5) is CoverageGrade.B
     assert grade_coverage(0.9) is CoverageGrade.A
+
+
+def test_asof_valuation_excludes_future_observation() -> None:
+    as_of = datetime(2026, 7, 19, tzinfo=UTC)
+    result = select_asof_player_valuation(
+        [
+            {
+                "transfermarkt_player_id": "tm-1",
+                "observed_at": as_of - timedelta(days=1),
+                "market_value_eur": 5_000_000,
+                "source": "TRANSFERMARKT",
+                "source_sha256": "old",
+                "mapping_review_status": "APPROVED",
+            },
+            {
+                "transfermarkt_player_id": "tm-1",
+                "observed_at": as_of + timedelta(days=1),
+                "market_value_eur": 9_000_000,
+                "source": "TRANSFERMARKT",
+                "source_sha256": "future",
+                "mapping_review_status": "APPROVED",
+            },
+        ],
+        valuation_source_player_id="tm-1",
+        as_of=as_of,
+    )
+    assert result["market_value_eur"] == 5_000_000
+    assert result["source_artifact_hash"] == "old"
+
+
+def test_confirmed_lineup_snapshot_fails_closed() -> None:
+    kickoff = datetime(2026, 7, 19, 18, tzinfo=UTC)
+    starters = [{"player_id": f"p-{index}", "mapping_status": "MATCHED"} for index in range(10)]
+    starters.append({"player_id": "p-1", "mapping_status": "CONFLICT"})
+    blockers = validate_confirmed_lineup_snapshot(
+        fixture_id="other",
+        expected_fixture_id="fixture-1",
+        captured_at=kickoff,
+        kickoff_at=kickoff,
+        starters=starters,
+    )
+    assert set(blockers) == {
+        "FIXTURE_IDENTITY_CONFLICT",
+        "POST_KICKOFF_LINEUP_REJECTED",
+        "DUPLICATE_STARTER",
+        "PLAYER_MAPPING_CONFLICT",
+    }
 
 
 @pytest.mark.parametrize(

@@ -197,12 +197,30 @@ def _side_evidence(
             },
         }
     delta = round(float(model["effective_probability"]) - float(market_probability), 6)
-    allowed = bool(model.get("expected_value", 0.0) > 0 and delta >= MIN_MARKET_ANCHOR_DIVERGENCE)
+    current_ev = float(model.get("expected_value", 0.0))
+    current_ev_se = float(model.get("ev_se", 0.0))
+    current_ev_minus_se = round(current_ev - current_ev_se, 6)
+    allowed = bool(
+        current_ev > 0
+        and delta >= MIN_MARKET_ANCHOR_DIVERGENCE
+        and current_ev_minus_se > 0
+    )
     return {
         "line": _text(line),
         "model_probability": model,
         "comparison": {
             "probability_delta": delta,
+            "current_ev": round(current_ev, 6),
+            "current_delta": delta,
+            "current_ev_minus_se": current_ev_minus_se,
+            "required_ev": 0.0,
+            "required_delta": MIN_MARKET_ANCHOR_DIVERGENCE,
+            "required_ev_minus_se": 0.0,
+            "shortfall": {
+                "ev": round(max(-current_ev, 0.0), 6),
+                "delta": round(max(MIN_MARKET_ANCHOR_DIVERGENCE - delta, 0.0), 6),
+                "ev_minus_se": round(max(-current_ev_minus_se, 0.0), 6),
+            },
             "analysis_direction_allowed": allowed,
             "status": "READY" if allowed else "NO_EDGE",
             "reason_code": "MODEL_MARKET_EDGE_READY"

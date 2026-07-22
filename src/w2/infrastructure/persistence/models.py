@@ -295,6 +295,7 @@ class PlayerIdentityMappingModel(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     api_football_player_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_player_id: Mapped[str | None] = mapped_column(String(128))
     transfermarkt_player_id: Mapped[str | None] = mapped_column(String(64))
     team_external_id: Mapped[str] = mapped_column(String(64), nullable=False)
     player_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -349,6 +350,10 @@ class PlayerValuationObservationModel(Base):
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    mapping_review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNKNOWN"
+    )
 
 
 class StructuredLineupSnapshotModel(Base):
@@ -369,6 +374,9 @@ class StructuredLineupSnapshotModel(Base):
     confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     authoritative_status: Mapped[str] = mapped_column(String(32), nullable=False)
     raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    lineup_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    team_w2_id: Mapped[str | None] = mapped_column(String(128))
+    source_capture_id: Mapped[str | None] = mapped_column(String(128))
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
@@ -395,6 +403,8 @@ class StructuredLineupPlayerModel(Base):
     identity_mapping_id: Mapped[str | None] = mapped_column(
         ForeignKey("player_identity_mappings.id")
     )
+    canonical_player_id: Mapped[str | None] = mapped_column(String(128))
+    valuation_source_player_id: Mapped[str | None] = mapped_column(String(64))
     mapping_status: Mapped[str] = mapped_column(String(32), nullable=False)
 
 

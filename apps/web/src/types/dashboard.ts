@@ -950,6 +950,7 @@ export interface DashboardDayViewCard {
   }>;
   market_selection_audit?: Array<Record<string, unknown>>;
   lineup_provenance?: Record<string, unknown>;
+  dynamic_prematch?: Record<string, unknown>;
   non_pick?: Record<string, unknown> | null;
   one_liner?: string | null;
   card_hash?: string | null;

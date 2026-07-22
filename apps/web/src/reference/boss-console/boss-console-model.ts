@@ -36,6 +36,12 @@ export interface BossDecisionItem {
   nextAction: string;
   nextDetail: string;
   snapshotAt: string | null;
+  lifecycleState: string | null;
+  quoteAgeSeconds: number | null;
+  latestCheckpoint: string | null;
+  nextCheckpoint: string | null;
+  automaticRefreshStatus: string;
+  lineupFacts: string[];
   ledgerCode: string;
   ledgerStatus: string;
   ledgerDetail: string;

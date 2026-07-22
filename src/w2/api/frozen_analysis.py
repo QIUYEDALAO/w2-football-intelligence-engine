@@ -340,6 +340,175 @@ def write_frozen_analysis_artifacts(
         except Exception:
             session.rollback()
             raise
+    _append_dynamic_prematch_evaluations(engine, validated)
+
+
+def _append_dynamic_prematch_evaluations(
+    engine: Engine,
+    artifacts: list[FrozenAnalysisArtifact],
+) -> None:
+    from w2.prematch.lifecycle import DynamicEvaluationInput, classify_evaluation
+    from w2.prematch.repository import DynamicPrematchRepository
+
+    repository = DynamicPrematchRepository(engine)
+    for artifact in artifacts:
+        card = artifact.payload.get("analysis_card")
+        manifest = artifact.payload.get("input_manifest")
+        if not isinstance(card, dict) or not isinstance(manifest, dict):
+            continue
+        fixture_id = str(card.get("fixture_id") or "")
+        evaluated_at = _parse_utc(manifest.get("evaluated_at"))
+        candidates = card.get("market_candidates")
+        if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
+            continue
+        lineup = card.get("lineup_provenance")
+        lineup = lineup if isinstance(lineup, dict) else {}
+        lineup_confirmed_at = _parse_utc(lineup.get("captured_at"))
+        lineup_input_hash = (
+            canonical_sha256(
+                {
+                    "captured_at": lineup.get("captured_at"),
+                    "raw_sha256": lineup.get("raw_sha256"),
+                    "baseline_artifact_hashes": lineup.get("baseline_artifact_hashes"),
+                    "lineup_change_features": lineup.get("lineup_change_features"),
+                }
+            )
+            if lineup_confirmed_at is not None and lineup.get("confirmed") is True
+            else None
+        )
+        for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
+            candidate = candidates.get(key)
+            if not isinstance(candidate, dict):
+                continue
+            evidence = candidate.get("analysis_evidence")
+            if not isinstance(evidence, dict):
+                continue
+            selection, side = _dynamic_evaluation_side(candidate, evidence)
+            if not selection or not isinstance(side, dict):
+                continue
+            model = side.get("model_probability")
+            comparison = side.get("comparison")
+            quote_identity = evidence.get("quote_identity")
+            market_probability = evidence.get("market_probability")
+            if not all(
+                isinstance(item, dict)
+                for item in (model, comparison, quote_identity, market_probability)
+            ):
+                continue
+            model = cast(dict[str, Any], model)
+            comparison = cast(dict[str, Any], comparison)
+            quote_identity = cast(dict[str, Any], quote_identity)
+            market_probability = cast(dict[str, Any], market_probability)
+            normalized = selection.lower().replace("_ah", "")
+            quote = (quote_identity.get("quotes") or {}).get(normalized)
+            quote = quote if isinstance(quote, dict) else {}
+            devig = market_probability.get("devig")
+            devig = devig if isinstance(devig, dict) else {}
+            capture_at = _parse_utc(quote.get("captured_at") or quote_identity.get("captured_at"))
+            checkpoint = _latest_checkpoint(card)
+            value = DynamicEvaluationInput(
+                fixture_id=fixture_id,
+                market=str(candidate.get("market") or default_market),
+                selection=selection,
+                exact_line=_float_or_none(quote.get("line") or candidate.get("line")),
+                bookmaker_id=str(
+                    quote.get("bookmaker_id")
+                    or quote_identity.get("bookmaker_id")
+                    or ""
+                )
+                or None,
+                capture_id=str(
+                    quote.get("capture_id")
+                    or quote.get("raw_payload_sha256")
+                    or quote_identity.get("capture_id")
+                    or ""
+                )
+                or None,
+                quote_identity_hash=canonical_sha256(quote_identity),
+                model_input_hash=canonical_sha256(
+                    {
+                        "simulation": manifest.get("simulation_sha256"),
+                        "analysis_evidence": manifest.get("analysis_evidence_sha256"),
+                        "lineup_input_hash": lineup_input_hash,
+                    }
+                ),
+                evaluated_at=evaluated_at,
+                checkpoint=checkpoint,
+                capture_at=capture_at,
+                source_observations_present=True,
+                exact_quote_complete=str(quote_identity.get("identity_status") or "").upper()
+                == "COMPLETE",
+                quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
+                == "COMPLETE",
+                model_ready=str(model.get("status") or "").upper() == "READY",
+                market_probability_ready=bool(devig),
+                identity_conflict=False,
+                model_probability=_float_or_none(model.get("effective_probability")),
+                market_probability=_float_or_none(devig.get(selection)),
+                expected_value=_float_or_none(model.get("expected_value")),
+                ev_se=_float_or_none(model.get("ev_se")),
+                decimal_odds=_float_or_none(quote.get("decimal_odds")),
+                lineup_input_hash=lineup_input_hash,
+                lineup_confirmed_at=lineup_confirmed_at,
+                post_lineup_quote=bool(
+                    lineup_confirmed_at is None
+                    or (capture_at is not None and capture_at >= lineup_confirmed_at)
+                ),
+            )
+            repository.append_evaluation(classify_evaluation(value))
+
+
+def _dynamic_evaluation_side(
+    candidate: dict[str, Any],
+    evidence: dict[str, Any],
+) -> tuple[str, dict[str, Any] | None]:
+    sides = evidence.get("side_evidence")
+    if not isinstance(sides, dict):
+        return "", None
+    selected = str(candidate.get("selection") or "")
+    if selected and isinstance(sides.get(selected), dict):
+        return selected, cast(dict[str, Any], sides[selected])
+    ready: list[tuple[float, str, dict[str, Any]]] = []
+    for selection, raw in sides.items():
+        if not isinstance(raw, dict):
+            continue
+        model = raw.get("model_probability")
+        if not isinstance(model, dict) or str(model.get("status") or "") != "READY":
+            continue
+        ev = _float_or_none(model.get("expected_value"))
+        if ev is not None:
+            ready.append((ev, str(selection), raw))
+    if not ready:
+        return "", None
+    _ev, selection, side = max(ready, key=lambda item: (item[0], item[1]))
+    return selection, side
+
+
+def _latest_checkpoint(card: dict[str, Any]) -> str:
+    timeline = card.get("market_timeline")
+    if isinstance(timeline, dict):
+        checkpoints = timeline.get("checkpoints_seen")
+        if isinstance(checkpoints, list) and checkpoints:
+            return str(checkpoints[-1])
+    return "capture"
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+    except ValueError:
+        return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def read_frozen_analysis_artifact(

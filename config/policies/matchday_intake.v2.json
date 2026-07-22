@@ -12,7 +12,8 @@
     "T60_ODDS_LINEUPS",
     "T45_LINEUPS_RETRY",
     "T30_LINEUPS_RETRY",
-    "T30_FINAL_PREMATCH"
+    "LINEUP_CONFIRMED",
+    "T-30m_VALIDATION_LOCK"
   ],
   "competitions": [
     {
@@ -31,7 +32,7 @@
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T30_FINAL_PREMATCH", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 900, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -61,7 +62,7 @@
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T30_FINAL_PREMATCH", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 900, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -91,7 +92,7 @@
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T30_FINAL_PREMATCH", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 900, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -121,7 +122,7 @@
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T30_FINAL_PREMATCH", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 900, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -149,7 +150,7 @@
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T30_FINAL_PREMATCH", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 900, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],

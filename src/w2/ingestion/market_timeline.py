@@ -22,7 +22,19 @@ from w2.markets.totals_mainline import (
 
 MARKET_TIMELINE_SCHEMA_VERSION = "w2.market_timeline.v1"
 DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
-CHECKPOINTS = ("opening", "T-24h", "T-12h", "T-6h", "T-3h", "T-1h", "lock")
+LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
+T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
+CHECKPOINTS = (
+    "opening",
+    "T-24h",
+    "T-12h",
+    "T-6h",
+    "T-3h",
+    "T-1h",
+    "lock",
+    LINEUP_CONFIRMED_CHECKPOINT,
+    T30_VALIDATION_CHECKPOINT,
+)
 AUTO_CHECKPOINT_GRACE = timedelta(minutes=20)
 AUTO_LOCK_WINDOW = timedelta(hours=1)
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
@@ -85,6 +97,9 @@ def due_checkpoints(kickoff: datetime, now: datetime, checkpoint: str) -> list[s
             due.append(item)
     if kickoff_utc - AUTO_LOCK_WINDOW <= now_utc < kickoff_utc:
         due.append("lock")
+    t30_target = kickoff_utc - timedelta(minutes=30)
+    if t30_target - timedelta(minutes=5) <= now_utc <= t30_target + timedelta(minutes=5):
+        due.append(T30_VALIDATION_CHECKPOINT)
     return list(dict.fromkeys(due))
 
 
@@ -122,7 +137,11 @@ def select_mainline_snapshot_result(
     if checkpoint not in CHECKPOINTS:
         return SnapshotSelectionResult(snapshot=None, reason="NO_OBSERVATION")
     kickoff_utc = kickoff.astimezone(UTC)
-    target = _checkpoint_target(checkpoint=checkpoint, kickoff=kickoff_utc)
+    target = _checkpoint_target(
+        checkpoint=checkpoint,
+        kickoff=kickoff_utc,
+        generated_at=generated_at,
+    )
     if market == "ASIAN_HANDICAP":
         selected_ah = select_canonical_ah_mainline(
             observations=observations,
@@ -150,6 +169,18 @@ def select_mainline_snapshot_result(
             fresh_after = kickoff_utc - timedelta(minutes=max(lock_max_age_minutes, 0))
             if selected_ah.captured_at is None or selected_ah.captured_at < fresh_after:
                 return SnapshotSelectionResult(snapshot=None, reason="NO_FRESH_LOCK_OBSERVATION")
+        if checkpoint == T30_VALIDATION_CHECKPOINT:
+            earliest = kickoff_utc - timedelta(minutes=35)
+            latest = kickoff_utc - timedelta(minutes=25)
+            if (
+                selected_ah.captured_at is None
+                or selected_ah.captured_at < earliest
+                or selected_ah.captured_at > latest
+            ):
+                return SnapshotSelectionResult(
+                    snapshot=None,
+                    reason="LOCK_SNAPSHOT_UNAVAILABLE",
+                )
         captured_at = selected_ah.captured_at or target
         source = {
             "bookmaker_count": selected_ah.bookmaker_count,
@@ -209,6 +240,18 @@ def select_mainline_snapshot_result(
             return SnapshotSelectionResult(
                 snapshot=None,
                 reason="NO_FRESH_LOCK_OBSERVATION",
+            )
+    if checkpoint == T30_VALIDATION_CHECKPOINT:
+        earliest = kickoff_utc - timedelta(minutes=35)
+        latest = kickoff_utc - timedelta(minutes=25)
+        if (
+            selected_totals.captured_at is None
+            or selected_totals.captured_at < earliest
+            or selected_totals.captured_at > latest
+        ):
+            return SnapshotSelectionResult(
+                snapshot=None,
+                reason="LOCK_SNAPSHOT_UNAVAILABLE",
             )
     captured_at = selected_totals.captured_at or target
     source = {
@@ -390,11 +433,19 @@ def find_lock_snapshot(
     return None
 
 
-def _checkpoint_target(*, checkpoint: str, kickoff: datetime) -> datetime:
+def _checkpoint_target(
+    *, checkpoint: str, kickoff: datetime, generated_at: datetime | None = None
+) -> datetime:
     if checkpoint == "opening":
         return kickoff
     if checkpoint == "lock":
         return kickoff
+    if checkpoint == LINEUP_CONFIRMED_CHECKPOINT:
+        return (generated_at or datetime.now(UTC)).astimezone(UTC)
+    if checkpoint == T30_VALIDATION_CHECKPOINT:
+        # Select the latest controlled capture through the right edge of the
+        # reviewed T-30 ±5 minute window; a second guard above rejects older data.
+        return kickoff - timedelta(minutes=25)
     return kickoff - _TIMELINE_SELECTION_TARGETS[checkpoint]
 
 

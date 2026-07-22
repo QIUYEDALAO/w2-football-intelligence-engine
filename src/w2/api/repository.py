@@ -501,6 +501,14 @@ class ReadModelRepository:
 
         return read_frozen_analysis_artifact(create_engine(), fixture_id)
 
+    def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+        from w2.prematch.repository import DynamicPrematchRepository
+
+        try:
+            return DynamicPrematchRepository(create_engine()).lifecycle(fixture_id)
+        except SQLAlchemyError:
+            return {}
+
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()
@@ -2079,10 +2087,12 @@ class ReadModelService:
             card = request_service.analysis_card(fixture_id)
         if card is None:
             return None
-        return request_service._project_public_analysis_decision_contract(
+        projected = request_service._project_public_analysis_decision_contract(
             fixture_id=fixture_id,
             card=card,
         )
+        request_service._attach_dynamic_prematch_lifecycle(projected)
+        return projected
 
     def _uses_frozen_public_authority(self) -> bool:
         reader = getattr(self.repository, "analysis_card_canary_artifact", None)
@@ -2142,6 +2152,7 @@ class ReadModelService:
             "fixture_identity": deepcopy(artifact.payload["fixture_identity"]),
             "input_manifest": deepcopy(artifact.payload["input_manifest"]),
         }
+        self._attach_dynamic_prematch_lifecycle(card)
         if self._frozen_ah_side_line_conflict(card):
             return self._fail_closed_public_analysis_card(
                 card,
@@ -2149,6 +2160,19 @@ class ReadModelService:
             )
         self._enforce_non_pick_scoreline_invariant(card)
         return card
+
+    def _attach_dynamic_prematch_lifecycle(self, card: dict[str, Any]) -> None:
+        fixture_id = str(card.get("fixture_id") or "")
+        reader = getattr(self.repository, "dynamic_prematch_lifecycle", None)
+        if not fixture_id or not callable(reader):
+            return
+        try:
+            lifecycle = reader(fixture_id)
+        except Exception:
+            return
+        if not isinstance(lifecycle, dict) or not lifecycle.get("versions"):
+            return
+        card["dynamic_prematch"] = lifecycle
 
     def _frozen_ah_side_line_conflict(self, card: dict[str, Any]) -> bool:
         contract = card.get("decision_contract")
@@ -2962,6 +2986,28 @@ class ReadModelService:
         totals_adjustment_enabled = bool(adjustment_policy.get("totals_enabled")) and bool(
             gate.numeric_adjustment_enabled
         )
+        lineup_captured_at = _parse_utc_text(evidence.get("captured_at"))
+        post_lineup_quote_ready: dict[str, bool] = {}
+        for market_name, selected in mainline_selection.items():
+            observations = selected.get("observations") if isinstance(selected, dict) else None
+            captures = [
+                parsed
+                for row in observations if isinstance(observations, list) and isinstance(row, dict)
+                if (parsed := _parse_utc_text(row.get("captured_at") or row.get("captured_at_utc")))
+                is not None
+            ] if isinstance(observations, list) else []
+            post_lineup_quote_ready[market_name] = bool(
+                lineup_captured_at is None
+                or (captures and max(captures) >= lineup_captured_at)
+            )
+        lineup_refresh_pending = bool(
+            evidence.get("confirmed")
+            and lineup_captured_at is not None
+            and not all(
+                post_lineup_quote_ready.get(market, False)
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            )
+        )
         payload["lineup_provenance"] = {
             **evidence,
             "competition_id": competition_id,
@@ -2977,8 +3023,17 @@ class ReadModelService:
                 "blockers": enrichment_blockers,
             },
             "numeric_adjustment_enabled": (ah_adjustment_enabled or totals_adjustment_enabled),
+            "lineup_event_status": "LINEUP_CONFIRMED"
+            if evidence.get("confirmed")
+            else "LINEUP_NOT_CONFIRMED",
+            "lineup_feature_status": "LINEUP_CHANGE_FEATURES_READY"
+            if evidence.get("lineup_change_features")
+            else "LINEUP_CHANGE_FEATURES_PENDING",
+            "lineup_advisory": True,
             "lineup_ah_adjustment": 0.0,
             "lineup_totals_adjustment": 0.0,
+            "lineup_lambda_home_adjustment": 0.0,
+            "lineup_lambda_away_adjustment": 0.0,
             "lineup_ah_evidence_enabled": ah_adjustment_enabled,
             "lineup_totals_evidence_enabled": totals_adjustment_enabled,
             "adjustment_gate_reason": adjustment_policy.get("reason"),
@@ -2989,7 +3044,28 @@ class ReadModelService:
                 else ["LINEUPS_NOT_CONFIRMED_ADVISORY"]
             ),
             "policy_version": "w2.lineup_market_policy.v1",
+            "post_lineup_quote_ready": post_lineup_quote_ready,
+            "market_refresh_state": "LINEUP_READY_MARKET_REFRESH_PENDING"
+            if lineup_refresh_pending
+            else "READY",
         }
+        if lineup_refresh_pending:
+            markets = payload.get("markets")
+            if isinstance(markets, list):
+                for market in markets:
+                    if not isinstance(market, dict):
+                        continue
+                    market_name = str(market.get("market") or "")
+                    if market_name not in {"ASIAN_HANDICAP", "TOTALS"}:
+                        continue
+                    if post_lineup_quote_ready.get(market_name) is True:
+                        continue
+                    market["decision"] = "WATCH"
+                    market["tendency"] = None
+                    market["analysis_direction_allowed"] = False
+                    market["reasons"] = ["首发已确认，等待首发后的 fresh exact quote。"]
+                    market["risks"] = ["POST_LINEUP_FRESH_QUOTE_PENDING"]
+            self._refresh_analysis_card_decision(payload)
         if gate_eligible or requirement != "STRICT":
             return
         markets = payload.get("markets")
@@ -6575,6 +6651,8 @@ class ReadModelService:
             "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),
             "quote_identity_audit": card.get("quote_identity_audit", {}),
+            "dynamic_prematch": card.get("dynamic_prematch", {}),
+            "lineup_provenance": card.get("lineup_provenance", {}),
             "frozen_artifact_provenance": card.get("frozen_artifact_provenance"),
             "artifact_hash": (
                 cast(dict[str, Any], card["frozen_artifact_provenance"]).get("artifact_hash")

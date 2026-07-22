@@ -125,6 +125,18 @@ export interface DashboardV2FixtureModel {
   modelLabel: string;
   calibrationLabel: string;
   dataFacts: string[];
+  dynamicSnapshot: {
+    state: string;
+    evaluatedAt: string | null;
+    capturedAt: string | null;
+    quoteAgeSeconds: number | null;
+    checkpoint: string | null;
+    nextCheckpoint: string | null;
+    automaticRefreshStatus: string;
+    currentEvMinusSe: number | null;
+    requiredDelta: number | null;
+  } | null;
+  lineupFacts: string[];
   tracking: DashboardV2TrackingModel;
 }
 

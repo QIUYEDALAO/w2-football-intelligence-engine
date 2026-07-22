@@ -285,7 +285,7 @@ def test_endpoint_capture_can_link_multiple_checkpoint_plans_explicitly() -> Non
         "blockers": [],
     }
     plan_ids = []
-    for checkpoint in ("T30_LINEUPS_RETRY", "T30_FINAL_PREMATCH"):
+    for checkpoint in ("T30_LINEUPS_RETRY", "T-30m_VALIDATION_LOCK"):
         payload = {**base, "checkpoint": checkpoint}
         payload["plan_hash"] = stable_hash(payload)
         plan_ids.append(repository.upsert_checkpoint_plan(payload))
@@ -299,7 +299,7 @@ def test_endpoint_capture_can_link_multiple_checkpoint_plans_explicitly() -> Non
         payload=_odds_payload(),
         fixture_id="api_football:100",
         competition_id="allsvenskan",
-        checkpoint="T30_FINAL_PREMATCH,T30_LINEUPS_RETRY",
+        checkpoint="T-30m_VALIDATION_LOCK,T30_LINEUPS_RETRY",
         checkpoint_plan_ids=plan_ids,
     )
     repository.insert_endpoint_capture(capture)

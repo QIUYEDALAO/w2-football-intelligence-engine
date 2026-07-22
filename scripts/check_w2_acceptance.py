@@ -178,7 +178,7 @@ def _refresh_safety_acceptance() -> dict[str, Any]:
         "T60_ODDS_LINEUPS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
-        "T30_FINAL_PREMATCH",
+        "T-30m_VALIDATION_LOCK",
     }
     if not expected_labels.issubset(labels):
         blockers.append("MISSING_REFRESH_TICKS")

@@ -1130,12 +1130,18 @@ class FutureFixtureRefreshService:
                     fixture_id = str(params.get("fixture") or "")
                     if not fixture_id:
                         return False, "LINEUP_FIXTURE_ID_MISSING"
-                    repository.save_lineup_snapshots(
-                        fixture_id=fixture_id,
-                        captured_at=response.captured_at,
-                        raw_sha256=payload_hash,
-                        payload=payload,
-                    )
+                    try:
+                        repository.save_lineup_snapshots(
+                            fixture_id=fixture_id,
+                            captured_at=response.captured_at,
+                            raw_sha256=payload_hash,
+                            payload=payload,
+                        )
+                    except FutureRefreshPersistenceError:
+                        # The raw response remains valid audit evidence even when
+                        # an incomplete/unidentified XI must fail closed for
+                        # lineup-feature materialization.
+                        pass
             elif self.config.persistence == "file":
                 file_fixture_id = params.get("fixture")
                 suffix = f"_{file_fixture_id}" if file_fixture_id else ""

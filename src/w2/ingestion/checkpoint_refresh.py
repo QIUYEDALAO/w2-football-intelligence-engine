@@ -23,6 +23,8 @@ WORLD_CUP_TRICKLE_BACKFILL_DAILY_BUDGET = 0
 WORLD_CUP_BUDGET_RESERVE = 20
 
 JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
+LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
+T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 
 
 @dataclass(frozen=True)
@@ -189,6 +191,34 @@ def line_jump_confirmation_plan(
         due_at_utc=observed_at + timedelta(minutes=10),
         endpoints=("odds",),
         source="line_jump",
+    )
+
+
+def lineup_confirmed_refresh_plan(
+    *,
+    fixture_id: str,
+    kickoff_utc: datetime,
+    captured_at_utc: datetime,
+    home_starters: int,
+    away_starters: int,
+    lineup_input_hash: str,
+) -> FixtureCheckpointPlan:
+    """Schedule the mandatory fresh-odds fetch after both XIs are confirmed."""
+    kickoff = normalize_utc(kickoff_utc)
+    captured_at = normalize_utc(captured_at_utc)
+    if home_starters != 11 or away_starters != 11:
+        raise ValueError("STARTING_XI_INCOMPLETE")
+    if not lineup_input_hash:
+        raise ValueError("LINEUP_INPUT_HASH_MISSING")
+    if captured_at >= kickoff:
+        raise ValueError("POST_KICKOFF_LINEUP_REJECTED")
+    return FixtureCheckpointPlan(
+        fixture_id=str(fixture_id),
+        checkpoint=LINEUP_CONFIRMED_CHECKPOINT,
+        kickoff_utc=kickoff,
+        due_at_utc=captured_at,
+        endpoints=("odds",),
+        source=f"lineup_confirmed:{lineup_input_hash}",
     )
 
 

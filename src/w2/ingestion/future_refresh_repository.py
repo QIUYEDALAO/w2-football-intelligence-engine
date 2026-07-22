@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -153,7 +155,19 @@ class FutureRefreshDbRepository:
         raw_sha256: str,
         payload: dict[str, Any],
         materialize_baselines: bool = True,
+        kickoff_at: datetime | None = None,
+        source_capture_id: str | None = None,
     ) -> int:
+        if captured_at.tzinfo is None:
+            raise FutureRefreshPersistenceError("LINEUP_CAPTURE_TIMEZONE_INVALID")
+        if kickoff_at is not None:
+            resolved_kickoff = (
+                kickoff_at.astimezone(UTC)
+                if kickoff_at.tzinfo is not None
+                else kickoff_at.replace(tzinfo=UTC)
+            )
+            if captured_at.astimezone(UTC) >= resolved_kickoff:
+                raise FutureRefreshPersistenceError("POST_KICKOFF_LINEUP_REJECTED")
         response = payload.get("response")
         if not isinstance(response, list):
             raise FutureRefreshPersistenceError("LINEUP_RESPONSE_INVALID")
@@ -168,6 +182,28 @@ class FutureRefreshDbRepository:
                 continue
             starters = self._lineup_players(team_row.get("startXI"), starter=True)
             substitutes = self._lineup_players(team_row.get("substitutes"), starter=False)
+            starter_ids = [str(player["api_football_player_id"]) for player in starters]
+            if len(starters) != 11:
+                raise FutureRefreshPersistenceError("STARTING_XI_INCOMPLETE")
+            if len(set(starter_ids)) != len(starter_ids):
+                raise FutureRefreshPersistenceError("DUPLICATE_STARTER")
+            lineup_identity_hash = hashlib.sha256(
+                json.dumps(
+                    {
+                        "fixture_id": str(fixture_id),
+                        "team_external_id": team_id,
+                        "formation": str(team_row.get("formation") or "") or None,
+                        "starters": sorted(starter_ids),
+                        "substitutes": sorted(
+                            str(player["api_football_player_id"]) for player in substitutes
+                        ),
+                        "captured_at": captured_at.astimezone(UTC).isoformat(),
+                        "raw_sha256": raw_sha256,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
             snapshots.append(
                 (
                     StructuredLineupSnapshotModel(
@@ -176,16 +212,26 @@ class FutureRefreshDbRepository:
                         team_name=team_name or team_id,
                         formation=str(team_row.get("formation") or "") or None,
                         captured_at=captured_at,
-                        confirmed=len(starters) == 11,
-                        authoritative_status="COMPLETE" if len(starters) == 11 else "INCOMPLETE",
+                        confirmed=True,
+                        authoritative_status="COMPLETE",
                         raw_sha256=raw_sha256,
-                        schema_version="w2.structured_lineup.v1",
+                        lineup_identity_hash=lineup_identity_hash,
+                        source_capture_id=source_capture_id,
+                        schema_version="w2.structured_lineup.v2",
                     ),
                     [*starters, *substitutes],
                 )
             )
-        if len(snapshots) < 2:
+        if len(snapshots) != 2 or len({item[0].team_external_id for item in snapshots}) != 2:
             raise FutureRefreshPersistenceError("LINEUP_TEAMS_INCOMPLETE")
+        all_starter_ids = [
+            str(player["api_football_player_id"])
+            for _snapshot, players in snapshots
+            for player in players
+            if bool(player.get("starter"))
+        ]
+        if len(set(all_starter_ids)) != 22:
+            raise FutureRefreshPersistenceError("LINEUP_FIXTURE_PLAYER_IDENTITY_CONFLICT")
         with Session(self.engine) as session:
             try:
                 for snapshot, players in snapshots:
@@ -307,6 +353,96 @@ class FutureRefreshDbRepository:
             session.commit()
             return appended
 
+    def approve_player_identity_mapping(
+        self,
+        *,
+        api_football_player_id: str,
+        team_external_id: str,
+        canonical_player_id: str,
+        transfermarkt_player_id: str,
+        reviewed_by: str,
+        reviewed_at: datetime,
+        source_artifact_hash: str,
+    ) -> str:
+        """Materialize an explicit reviewed crosswalk; never fuzzy-auto-approve."""
+        if not all(
+            str(value).strip()
+            for value in (
+                api_football_player_id,
+                team_external_id,
+                canonical_player_id,
+                transfermarkt_player_id,
+                reviewed_by,
+                source_artifact_hash,
+            )
+        ):
+            raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_INCOMPLETE")
+        if reviewed_at.tzinfo is None:
+            raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_TIMEZONE_INVALID")
+        with Session(self.engine) as session:
+            candidates = list(
+                session.scalars(
+                    select(PlayerIdentityMappingModel)
+                    .where(
+                        PlayerIdentityMappingModel.api_football_player_id
+                        == str(api_football_player_id),
+                        PlayerIdentityMappingModel.team_external_id == str(team_external_id),
+                        PlayerIdentityMappingModel.valid_from <= reviewed_at,
+                    )
+                    .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                )
+            )
+            mapping = candidates[0] if candidates else None
+            if mapping is None:
+                raise FutureRefreshPersistenceError("PLAYER_IDENTITY_MAPPING_CANDIDATE_MISSING")
+            identity_payload = {
+                "api_football_player_id": str(api_football_player_id),
+                "team_external_id": str(team_external_id),
+                "canonical_player_id": str(canonical_player_id),
+                "transfermarkt_player_id": str(transfermarkt_player_id),
+                "reviewed_by": str(reviewed_by),
+                "reviewed_at": reviewed_at.astimezone(UTC).isoformat(),
+                "source_artifact_hash": str(source_artifact_hash),
+            }
+            mapping.canonical_player_id = str(canonical_player_id)
+            mapping.transfermarkt_player_id = str(transfermarkt_player_id)
+            mapping.mapping_status = "MATCHED"
+            mapping.reviewed_by = str(reviewed_by)
+            mapping.reviewed_at = reviewed_at
+            mapping.evidence = {**mapping.evidence, **identity_payload, "review_status": "APPROVED"}
+            mapping.identity_hash = hashlib.sha256(
+                json.dumps(
+                    identity_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            snapshots = session.scalars(
+                select(StructuredLineupSnapshotModel).where(
+                    StructuredLineupSnapshotModel.team_external_id == str(team_external_id),
+                    StructuredLineupSnapshotModel.captured_at <= reviewed_at,
+                )
+            ).all()
+            snapshot_ids = [snapshot.id for snapshot in snapshots]
+            players = (
+                session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id.in_(snapshot_ids),
+                        StructuredLineupPlayerModel.api_football_player_id
+                        == str(api_football_player_id),
+                    )
+                ).all()
+                if snapshot_ids
+                else []
+            )
+            for player in players:
+                player.identity_mapping_id = mapping.id
+                player.canonical_player_id = str(canonical_player_id)
+                player.valuation_source_player_id = str(transfermarkt_player_id)
+                player.mapping_status = "MATCHED"
+            session.commit()
+            return mapping.identity_hash
+
     def lineup_gate_evidence(
         self,
         *,
@@ -339,6 +475,7 @@ class FutureRefreshDbRepository:
                 }
             starter_counts: list[int] = []
             mappings: list[PlayerIdentityMappingModel] = []
+            valued_starter_api_ids: set[str] = set()
             baseline_hashes: list[str] = []
             change_features: list[dict[str, Any]] = []
             evidence_blockers: list[str] = []
@@ -351,23 +488,6 @@ class FutureRefreshDbRepository:
                 starters = [player for player in players if player.starter]
                 substitutes = [player for player in players if not player.starter]
                 starter_counts.append(len(starters))
-                api_ids = [player.api_football_player_id for player in starters]
-                team_mappings = session.scalars(
-                    select(PlayerIdentityMappingModel)
-                    .where(
-                        PlayerIdentityMappingModel.api_football_player_id.in_(api_ids),
-                        PlayerIdentityMappingModel.team_external_id == snapshot.team_external_id,
-                        PlayerIdentityMappingModel.mapping_status == "MATCHED",
-                        PlayerIdentityMappingModel.valid_from <= as_of,
-                        (PlayerIdentityMappingModel.valid_to.is_(None))
-                        | (PlayerIdentityMappingModel.valid_to > as_of),
-                    )
-                    .order_by(PlayerIdentityMappingModel.valid_from.desc())
-                ).all()
-                newest_mapping: dict[str, PlayerIdentityMappingModel] = {}
-                for mapping in team_mappings:
-                    newest_mapping.setdefault(mapping.api_football_player_id, mapping)
-                mappings.extend(newest_mapping.values())
                 baseline = session.scalar(
                     select(TeamLineupBaselineModel)
                     .where(
@@ -377,6 +497,101 @@ class FutureRefreshDbRepository:
                     .order_by(TeamLineupBaselineModel.as_of_time.desc())
                     .limit(1)
                 )
+                baseline_players = (
+                    [
+                        player
+                        for player in baseline.payload.get("players", [])
+                        if isinstance(player, dict)
+                    ]
+                    if baseline is not None
+                    else []
+                )
+                all_api_ids = {
+                    player.api_football_player_id for player in [*starters, *substitutes]
+                } | {str(player.get("player_id") or "") for player in baseline_players}
+                team_mappings = session.scalars(
+                    select(PlayerIdentityMappingModel)
+                    .where(
+                        PlayerIdentityMappingModel.api_football_player_id.in_(all_api_ids),
+                        PlayerIdentityMappingModel.team_external_id == snapshot.team_external_id,
+                        PlayerIdentityMappingModel.mapping_status == "MATCHED",
+                        PlayerIdentityMappingModel.valid_from <= snapshot.captured_at,
+                        (PlayerIdentityMappingModel.valid_to.is_(None))
+                        | (PlayerIdentityMappingModel.valid_to > snapshot.captured_at),
+                    )
+                    .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                ).all()
+                newest_mapping: dict[str, PlayerIdentityMappingModel] = {}
+                for mapping in team_mappings:
+                    newest_mapping.setdefault(mapping.api_football_player_id, mapping)
+                starter_api_ids = {player.api_football_player_id for player in starters}
+                mappings.extend(
+                    mapping
+                    for api_id, mapping in newest_mapping.items()
+                    if api_id in starter_api_ids
+                )
+                transfermarkt_ids = {
+                    str(mapping.transfermarkt_player_id)
+                    for mapping in newest_mapping.values()
+                    if mapping.transfermarkt_player_id
+                }
+                valuation_rows = session.scalars(
+                    select(PlayerValuationObservationModel)
+                    .where(
+                        PlayerValuationObservationModel.transfermarkt_player_id.in_(
+                            transfermarkt_ids
+                        ),
+                        PlayerValuationObservationModel.observed_at <= snapshot.captured_at,
+                    )
+                    .order_by(PlayerValuationObservationModel.observed_at.desc())
+                ).all()
+                newest_valuation: dict[str, PlayerValuationObservationModel] = {}
+                for valuation in valuation_rows:
+                    newest_valuation.setdefault(valuation.transfermarkt_player_id, valuation)
+
+                def enriched_player(
+                    api_id: str,
+                    *,
+                    position: str | None,
+                    captain: bool = False,
+                    original: dict[str, Any] | None = None,
+                    mapping_lookup: dict[str, PlayerIdentityMappingModel] = newest_mapping,
+                    valuation_lookup: dict[
+                        str, PlayerValuationObservationModel
+                    ] = newest_valuation,
+                    starter_ids: set[str] = starter_api_ids,
+                ) -> dict[str, Any]:
+                    result = dict(original or {})
+                    mapping = mapping_lookup.get(api_id)
+                    valuation = (
+                        valuation_lookup.get(str(mapping.transfermarkt_player_id))
+                        if mapping is not None and mapping.transfermarkt_player_id
+                        else None
+                    )
+                    result.update(
+                        player_id=api_id,
+                        position=position,
+                        captain=captain,
+                        canonical_player_id=(mapping.canonical_player_id if mapping else None),
+                        mapping_status=(mapping.mapping_status if mapping else "MISSING"),
+                        valuation_source_player_id=(
+                            mapping.transfermarkt_player_id if mapping else None
+                        ),
+                        market_value_eur=(
+                            float(valuation.market_value_eur) if valuation is not None else None
+                        ),
+                        valuation_observed_at=(
+                            valuation.observed_at if valuation is not None else None
+                        ),
+                        valuation_source=(valuation.source if valuation is not None else None),
+                        valuation_source_artifact_hash=(
+                            valuation.source_sha256 if valuation is not None else None
+                        ),
+                    )
+                    if api_id in starter_ids and valuation is not None:
+                        valued_starter_api_ids.add(api_id)
+                    return result
+
                 if baseline is None:
                     evidence_blockers.append("LINEUP_BASELINE_MISSING")
                     change_features.append(
@@ -388,22 +603,33 @@ class FutureRefreshDbRepository:
                     )
                 else:
                     baseline_hashes.append(baseline.artifact_hash)
+                    enriched_baseline = {
+                        **baseline.payload,
+                        "players": [
+                            enriched_player(
+                                str(player.get("player_id") or ""),
+                                position=str(player.get("usual_position") or "") or None,
+                                original=player,
+                            )
+                            for player in baseline_players
+                        ],
+                    }
                     features = derive_lineup_change_features(
-                        baseline=baseline.payload,
+                        baseline=enriched_baseline,
                         starters=[
-                            {
-                                "player_id": player.api_football_player_id,
-                                "position": player.provider_position,
-                                "value_delta_eur": 0.0,
-                            }
+                            enriched_player(
+                                player.api_football_player_id,
+                                position=player.provider_position,
+                                captain=player.captain,
+                            )
                             for player in starters
                         ],
                         substitutes=[
-                            {
-                                "player_id": player.api_football_player_id,
-                                "position": player.provider_position,
-                                "market_value_eur": 0.0,
-                            }
+                            enriched_player(
+                                player.api_football_player_id,
+                                position=player.provider_position,
+                                captain=player.captain,
+                            )
                             for player in substitutes
                         ],
                         formation=snapshot.formation,
@@ -419,36 +645,21 @@ class FutureRefreshDbRepository:
                     evidence_blockers.extend(features.blockers)
             if len({snapshot.captured_at for snapshot in selected}) != 1:
                 evidence_blockers.append("LINEUP_SNAPSHOT_TIME_MISMATCH")
-            transfermarkt_ids = {
-                str(mapping.transfermarkt_player_id)
-                for mapping in mappings
-                if mapping.transfermarkt_player_id
-            }
-            valued_ids = set(
-                session.scalars(
-                    select(PlayerValuationObservationModel.transfermarkt_player_id)
-                    .where(
-                        PlayerValuationObservationModel.transfermarkt_player_id.in_(
-                            transfermarkt_ids
-                        ),
-                        PlayerValuationObservationModel.observed_at <= as_of,
-                    )
-                    .distinct()
-                ).all()
-            )
             if len(mappings) != 22:
                 evidence_blockers.append("PLAYER_IDENTITY_MAPPING_INCOMPLETE")
-            if len(valued_ids) != 22:
+            if len(valued_starter_api_ids) != 22:
                 evidence_blockers.append("PLAYER_VALUATION_INCOMPLETE")
             return {
                 "status": "COMPLETE"
-                if starter_counts == [11, 11] and len(mappings) == 22 and len(valued_ids) == 22
+                if starter_counts == [11, 11]
+                and len(mappings) == 22
+                and len(valued_starter_api_ids) == 22
                 else "INCOMPLETE",
                 "confirmed": all(snapshot.confirmed for snapshot in selected),
                 "team_count": 2,
                 "starter_counts": starter_counts,
                 "uniquely_mapped_starters": len(mappings),
-                "valued_starters": len(valued_ids),
+                "valued_starters": len(valued_starter_api_ids),
                 "formation_count": sum(bool(snapshot.formation) for snapshot in selected),
                 "captured_at": max(snapshot.captured_at for snapshot in selected).isoformat(),
                 "raw_sha256": sorted({snapshot.raw_sha256 for snapshot in selected}),
