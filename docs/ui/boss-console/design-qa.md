@@ -15,8 +15,8 @@
 
 | CSS viewport | Reference pixels | React pixels | Differing-pixel ratio |
 | --- | --- | --- | --- |
-| 2048 x 1152 | 2048 x 1476 | 2048 x 1476 | 0.00000662 |
-| 1440 x 900 | 1440 x 1436 | 1440 x 1436 | 0.00000677 |
+| 2048 x 1152 | 2048 x 1476 | 2048 x 1476 | 0.00002415 |
+| 1440 x 900 | 1440 x 1436 | 1440 x 1436 | 0.00003240 |
 | 390 x 844 | 390 x 4119 | 390 x 4119 | 0.00000187 |
 
 All ratios pass the unchanged `0.0015` maximum. Reference and implementation dimensions
@@ -58,6 +58,13 @@ match the source authority.
 - The client clock advances once per minute without changing the API refresh timestamp.
 - A reversed global-odds/page-refresh timestamp fails visibly and exposes exact fields in L2.
 - Browser console: no application errors during the Playwright suite.
+- The market contract fixture proves separate market mainline, analysis selection, and
+  execution quote labels; the full ladder expands without hiding `2.75` or its rejection
+  evidence.
+- Queue order is labelled `A1...` sequence rather than a false priority score.
+- Scheduler-off copy states that the prematch review is planned and controlled capture is
+  not yet arranged.
+- Data, market identity, lineup, and numeric EV standard-error risks remain separate.
 
 ## Comparison History
 

@@ -62,6 +62,14 @@ export interface DashboardV2ScorelineProjection {
 
 export interface DashboardV2QuoteModel {
   marketPolicyLabel: string;
+  candidateRole?: "MARKET_MAINLINE" | "ALTERNATE_LINE";
+  marketMainlineLine?: string;
+  marketMainlineBookmakerCount?: number;
+  marketMainlineVoteCount?: number;
+  marketMainlineOverPrice?: number | null;
+  marketMainlineUnderPrice?: number | null;
+  marketMainlineHomePrice?: number | null;
+  marketMainlineAwayPrice?: number | null;
   bookmaker: string;
   capturedAt: string;
   marketLabel: string;
@@ -70,6 +78,22 @@ export interface DashboardV2QuoteModel {
   odds: number;
   marketProbability: number | null;
   modelProbability: number | null;
+  probabilityDelta: number | null;
+  expectedValue: number | null;
+  uncertainty: number | null;
+  ladder?: DashboardV2MarketLadderRow[];
+}
+
+export interface DashboardV2MarketLadderRow {
+  line: string;
+  completePairBookmakerCount: number;
+  bookmakerVoteCount: number;
+  leftPrice: number | null;
+  rightPrice: number | null;
+  status: string;
+  reason: string | null;
+  modelProbability: number | null;
+  marketProbability: number | null;
   probabilityDelta: number | null;
   expectedValue: number | null;
   uncertainty: number | null;

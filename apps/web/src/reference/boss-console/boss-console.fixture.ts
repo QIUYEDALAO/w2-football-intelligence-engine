@@ -43,6 +43,11 @@ function item(
     expectedValue: null,
     uncertainty: null,
     scorelineProjection: null,
+    candidateRole: null,
+    marketPolicyLabel: null,
+    marketMainlineLabel: null,
+    executionQuoteLabel: null,
+    marketLadder: [],
     risk: "中",
     riskLevel: "medium",
     riskNote: pick ? "首发未确认" : watch ? "NO_EDGE" : "未到采集时点",
@@ -63,6 +68,9 @@ function item(
       : watch
         ? ["暂无可执行方向", "临场盘口变化后结论可能改变", "当前不进入统一前向验证账本分母"]
         : ["盘口或首发数据尚不完整", "不可用历史快照替代当前执行报价", "保持 NOT_READY"],
+    dataRisk: pick || watch ? "READY" : "阻断",
+    marketIdentityRisk: pick || watch ? "主线身份完整" : "盘口身份待确认",
+    lineupRisk: pick ? "首发待确认" : "首发证据未进入建议门",
     ...value,
   };
 }

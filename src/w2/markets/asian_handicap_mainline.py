@@ -27,6 +27,7 @@ class CanonicalAhMainline:
     selected_bookmakers: list[str] | None = None
     source_payload_ids: list[str] | None = None
     authoritative_quote_rows: dict[str, dict[str, Any]] | None = None
+    authoritative_quote_rows_by_line: dict[str, dict[str, dict[str, Any]]] | None = None
     quarantined_count: int = 0
     quarantine_reasons: dict[str, int] | None = None
 
@@ -119,6 +120,24 @@ def select_canonical_ah_mainline(
         for item in candidate_lines
         if Decimal(str(item["line"])) != selected_line
     ]
+    quote_rows_by_line = {
+        _format_decimal(line): {
+            side.lower(): dict(representative_vote["sides"][side]["row"])
+            for side in ("HOME", "AWAY")
+        }
+        for line, line_votes in by_line.items()
+        for representative_vote in [
+            min(
+                line_votes,
+                key=lambda item: (
+                    float(item["balance_distance"]),
+                    float(item["price_gap"]),
+                    float(item["mid_distance"]),
+                    str(item["bookmaker"]),
+                ),
+            )
+        ]
+    }
     return CanonicalAhMainline(
         status="READY",
         line=selected_line,
@@ -147,9 +166,9 @@ def select_canonical_ah_mainline(
             },
         ),
         authoritative_quote_rows={
-            side.lower(): dict(representative["sides"][side]["row"])
-            for side in ("HOME", "AWAY")
+            side.lower(): dict(representative["sides"][side]["row"]) for side in ("HOME", "AWAY")
         },
+        authoritative_quote_rows_by_line=quote_rows_by_line,
         quarantined_count=sum(quarantine_reasons.values()),
         quarantine_reasons=quarantine_reasons,
     )

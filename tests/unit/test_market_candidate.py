@@ -263,6 +263,64 @@ def test_ah_side_line_sign_conflict_fails_closed() -> None:
     assert "AH_SIDE_LINE_IDENTITY_CONFLICT" in candidate["blockers"]
 
 
+def test_full_ladder_is_evaluated_but_alternates_remain_comparison_only() -> None:
+    mainline_audit = _audit()
+    mainline_audit["market"] = "TOTALS"
+    mainline_audit["selected_line"] = "2.75"
+    quotes = mainline_audit["quotes"]
+    assert isinstance(quotes, dict)
+    for side in ("over", "under"):
+        assert isinstance(quotes[side], dict)
+        quotes[side]["line"] = "2.75"
+    alternate_audit = {
+        **mainline_audit,
+        "selected_line": "2.5",
+        "quote_identity_hash": "d" * 64,
+        "quotes": {
+            side: {**quotes[side], "line": "2.5"} for side in ("over", "under")
+        },
+    }
+    candidate = build_market_candidates(
+        markets=[{"market": "TOTALS", "tendency": "OVER", "line": "2.75"}],
+        quote_identity_audit={"ou": mainline_audit},
+        current_odds={
+            "ou": {
+                "line": "2.75",
+                "selection_policy": "canonical_bookmaker_mainline_consensus_v1",
+                "candidate_ladder_hash": "e" * 64,
+                "candidate_lines": [
+                    {
+                        "line": 2.75,
+                        "status": "SELECTED_MARKET_MAINLINE",
+                        "complete_pair_bookmaker_count": 6,
+                        "bookmaker_vote_count": 6,
+                        "median_over_price": 1.91,
+                        "median_under_price": 1.91,
+                    },
+                    {"line": 2.5, "status": "REJECTED", "reason": "LOWER_BOOKMAKER_CONSENSUS"},
+                ],
+                "ladder_quote_identity_audits": {
+                    "2.75": mainline_audit,
+                    "2.5": alternate_audit,
+                },
+            }
+        },
+        pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
+    )["ou"]
+
+    ladder = candidate["market_ladder_evaluation"]
+    assert ladder["evaluated_candidate_count"] == 4
+    assert len(ladder["mainline_candidates"]) == 2
+    assert len(ladder["alternate_candidates"]) == 2
+    assert all(row["admission"] == "COMPARISON_ONLY" for row in ladder["alternate_candidates"])
+    assert candidate["candidate_role"] == "MARKET_MAINLINE"
+    assert candidate["market_mainline"]["line"] == "2.75"
+    assert candidate["market_mainline"]["bookmaker_vote_count"] == 6
+
+
 def test_away_minus_point_seven_five_keeps_negative_selected_line() -> None:
     audit = _audit()
     audit["selected_line"] = "0.75"

@@ -146,12 +146,20 @@ def _candidate(
     if side_identity_conflict:
         blockers.append(str(evidence["status"]))
     if quote_complete and not executable:
-        blockers.append(
-            "NO_DIRECTION_SELECTED" if selection is None else "QUOTE_NOT_EXECUTABLE"
-        )
+        blockers.append("NO_DIRECTION_SELECTED" if selection is None else "QUOTE_NOT_EXECUTABLE")
     elif not executable and not blockers:
         blockers.append("QUOTE_NOT_EXECUTABLE")
     reference = _reference_quote(audit)
+    ladder_evaluation = _ladder_evaluation(
+        market=market,
+        odds=odds,
+        simulation=simulation,
+        fixture_id=fixture_id,
+        competition_id=competition_id,
+        selected_line=line,
+        selected_selection=selection,
+    )
+    candidate_role = "MARKET_MAINLINE" if _same_line(line, odds.get("line")) else "ALTERNATE_LINE"
     return {
         "schema_version": MARKET_CANDIDATE_SCHEMA_VERSION,
         "market": market,
@@ -161,6 +169,22 @@ def _candidate(
         ),
         "selection": selection,
         "line": evidence.get("selected_side_line") if selection is not None else line,
+        "candidate_role": candidate_role,
+        "market_mainline": _market_mainline_contract(odds),
+        "analysis_selected_candidate": {
+            "market": market,
+            "selection": selection,
+            "line": evidence.get("selected_side_line") if selection is not None else line,
+            "candidate_role": candidate_role,
+            "model_probability": model.get("effective_probability"),
+            "market_probability": _selected_market_probability(evidence, selection),
+            "probability_delta": comparison.get("probability_delta"),
+            "expected_value": model.get("expected_value"),
+            "uncertainty": model.get("ev_se"),
+            "quote_identity_hash": audit.get("quote_identity_hash"),
+        },
+        "execution_quote": dict(selected_quote) if selected_quote else None,
+        "market_ladder_evaluation": ladder_evaluation,
         "quote_status": quote_status,
         "quote_usage": "EXECUTABLE"
         if executable
@@ -224,6 +248,135 @@ def _candidate(
         "blockers": sorted(set(blockers)),
         "warnings": ["REFERENCE_QUOTE_NOT_FOR_EV"] if not executable and reference else [],
     }
+
+
+def _market_mainline_contract(odds: Mapping[str, Any]) -> dict[str, Any]:
+    candidate_lines = odds.get("candidate_lines")
+    selected = (
+        next(
+            (
+                item
+                for item in candidate_lines
+                if isinstance(item, Mapping) and item.get("status") == "SELECTED_MARKET_MAINLINE"
+            ),
+            None,
+        )
+        if isinstance(candidate_lines, Sequence)
+        else None
+    )
+    selected_row = dict(selected) if isinstance(selected, Mapping) else {}
+    return {
+        "line": odds.get("line"),
+        "selection_policy": odds.get("selection_policy"),
+        "candidate_ladder_hash": odds.get("candidate_ladder_hash"),
+        "complete_pair_bookmaker_count": selected_row.get(
+            "complete_pair_bookmaker_count",
+            selected_row.get("bookmaker_count"),
+        ),
+        "bookmaker_vote_count": selected_row.get("bookmaker_vote_count"),
+        "median_over_price": selected_row.get("median_over_price"),
+        "median_under_price": selected_row.get("median_under_price"),
+        "median_home_price": selected_row.get("median_home_price"),
+        "median_away_price": selected_row.get("median_away_price"),
+        "devig_over_probability": selected_row.get("devig_over_probability"),
+        "devig_under_probability": selected_row.get("devig_under_probability"),
+        "balance_distance": selected_row.get("balance_distance"),
+        "captured_at": selected_row.get("captured_at") or selected_row.get("as_of"),
+    }
+
+
+def _ladder_evaluation(
+    *,
+    market: str,
+    odds: Mapping[str, Any],
+    simulation: Mapping[str, Any] | None,
+    fixture_id: str,
+    competition_id: str,
+    selected_line: object,
+    selected_selection: object,
+) -> dict[str, Any]:
+    raw_candidates = odds.get("candidate_lines")
+    audits = _mapping(odds.get("ladder_quote_identity_audits"))
+    if not isinstance(raw_candidates, Sequence):
+        raw_candidates = []
+    candidates: list[dict[str, Any]] = []
+    edge_count = 0
+    for raw in raw_candidates:
+        if not isinstance(raw, Mapping) or raw.get("line") is None:
+            continue
+        line = raw.get("line")
+        audit = _mapping(audits.get(str(line)))
+        evidence = build_analysis_market_evidence(
+            fixture_id=fixture_id,
+            competition_id=competition_id,
+            market=market,
+            selection=None,
+            line=line,
+            quote_identity_audit={_KEYS[market]: audit},
+            simulation=simulation,
+        )
+        side_evidence = _mapping(evidence.get("side_evidence"))
+        market_probability = _mapping(_mapping(evidence.get("market_probability")).get("devig"))
+        role = "MARKET_MAINLINE" if _same_line(line, odds.get("line")) else "ALTERNATE_LINE"
+        for side, side_raw in side_evidence.items():
+            side_row = _mapping(side_raw)
+            model = _mapping(side_row.get("model_probability"))
+            comparison = _mapping(side_row.get("comparison"))
+            allowed = comparison.get("analysis_direction_allowed") is True
+            edge_count += int(allowed)
+            candidates.append(
+                {
+                    "market": market,
+                    "selection": side,
+                    "line": side_row.get("line") or line,
+                    "candidate_role": role,
+                    "admission": "ANALYSIS_ELIGIBLE"
+                    if role == "MARKET_MAINLINE"
+                    else "COMPARISON_ONLY",
+                    "selected": (
+                        role == "MARKET_MAINLINE"
+                        and _same_line(side_row.get("line") or line, selected_line)
+                        and str(side) == str(selected_selection or "")
+                    ),
+                    "model_probability": model.get("effective_probability"),
+                    "market_probability": market_probability.get(str(side)),
+                    "probability_delta": comparison.get("probability_delta"),
+                    "expected_value": model.get("expected_value"),
+                    "uncertainty": model.get("ev_se"),
+                    "analysis_direction_allowed": allowed,
+                    "reason_code": comparison.get("reason_code"),
+                    "quote_identity_hash": audit.get("quote_identity_hash"),
+                    "quote_status": audit.get("identity_status"),
+                    "freshness_status": audit.get("freshness_status"),
+                }
+            )
+    return {
+        "schema_version": "w2.market_ladder_evaluation.v1",
+        "selection_policy": odds.get("selection_policy"),
+        "candidate_ladder_hash": odds.get("candidate_ladder_hash"),
+        "evaluated_candidate_count": len(candidates),
+        "edge_count": edge_count,
+        "mainline_candidates": [
+            row for row in candidates if row["candidate_role"] == "MARKET_MAINLINE"
+        ],
+        "alternate_candidates": [
+            row for row in candidates if row["candidate_role"] == "ALTERNATE_LINE"
+        ],
+        "candidates": candidates,
+        "alternate_admission_policy": "COMPARISON_ONLY_NO_REVIEWED_ADMISSION_POLICY",
+    }
+
+
+def _selected_market_probability(evidence: Mapping[str, Any], selection: object) -> Any:
+    side = _text(selection)
+    return _mapping(_mapping(evidence.get("market_probability")).get("devig")).get(side)
+
+
+def _same_line(first: object, second: object) -> bool:
+    try:
+        return abs(float(first) - float(second)) <= 0.0001  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return str(first) == str(second)
 
 
 def _best_analysis_side(evidence: Mapping[str, Any]) -> str | None:

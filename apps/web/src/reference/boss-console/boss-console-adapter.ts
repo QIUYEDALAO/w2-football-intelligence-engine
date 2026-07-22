@@ -20,10 +20,11 @@ import type {
 
 function riskLevel(fixture: DashboardV2FixtureModel): BossRiskLevel {
   if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "high";
-  const uncertainty = fixture.quote?.uncertainty;
-  if (uncertainty != null && uncertainty >= 0.05) return "high";
-  if (uncertainty != null && uncertainty < 0.04) return "low";
-  return "medium";
+  if (fixture.quote?.candidateRole === "ALTERNATE_LINE") return "high";
+  if (fixture.dataFacts.some((fact) => fact.includes("首发") && !fact.includes("已就绪"))) {
+    return "medium";
+  }
+  return "low";
 }
 
 function riskCopy(level: BossRiskLevel): string {
@@ -36,13 +37,16 @@ function decisionStatus(fixture: DashboardV2FixtureModel): BossDecisionItem["sta
   return "watch";
 }
 
-function priorityLabel(status: BossDecisionItem["status"], index: number): string {
-  const prefix = status === "pick" ? "P" : status === "watch" ? "W" : "N";
-  return `${prefix}${index + 1}`;
+function priorityLabel(index: number): string {
+  return `A${index + 1}`;
 }
 
-function nextAction(fixture: DashboardV2FixtureModel): [string, string] {
+function nextAction(
+  fixture: DashboardV2FixtureModel,
+  automaticCollectionPaused: boolean,
+): [string, string] {
   if (fixture.nextEvaluationAt) return ["下次评估", "新盘口 / 首发 / 阵容异常"];
+  if (automaticCollectionPaused) return ["计划复核：赛前30分钟", "状态：受控采集尚未安排"];
   if (fixture.decisionTier === "NOT_READY") return ["待安排", "受控采集窗口"];
   if (fixture.decisionTier === "ANALYSIS_PICK") return ["赛前30分钟", "新盘口 / 首发 / 阵容异常"];
   return ["等待新盘口", "下一次受控采集"];
@@ -66,6 +70,9 @@ function decisionRisks(fixture: DashboardV2FixtureModel): string[] {
   }
   if (fixture.quote?.uncertainty != null) {
     risks.push(`EV 标准误 ±${(fixture.quote.uncertainty * 100).toFixed(1)}%`);
+  }
+  if ((fixture.quote?.expectedValue ?? 0) >= 0.15) {
+    risks.push("EV_PLAUSIBILITY_REVIEW：异常高 EV 需单独复核");
   }
   if (fixture.decisionTier !== "ANALYSIS_PICK") risks.push("当前不进入验证推荐分母");
   return risks.slice(0, 3).length
@@ -107,15 +114,19 @@ export function dedupeLeaguePerformance(
 }
 
 export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): BossConsoleModel {
-  const counters = { pick: 0, watch: 0, "not-ready": 0 };
-  const decisions = model.fixtures.map((fixture) => {
+  const decisions = model.fixtures.map((fixture, index) => {
     const status = decisionStatus(fixture);
-    const index = counters[status]++;
     const risk = riskLevel(fixture);
-    const [action, detail] = nextAction(fixture);
+    const [action, detail] = nextAction(fixture, model.health.automaticCollectionPaused);
+    const quote = fixture.quote;
+    const mainlinePrices = quote?.marketMainlineOverPrice != null
+      ? `大${quote.marketMainlineOverPrice.toFixed(2)} / 小${quote.marketMainlineUnderPrice?.toFixed(2) ?? "--"}`
+      : quote?.marketMainlineHomePrice != null
+        ? `主${quote.marketMainlineHomePrice.toFixed(2)} / 客${quote.marketMainlineAwayPrice?.toFixed(2) ?? "--"}`
+        : "双边中位价待确认";
     return {
       id: fixture.fixtureId,
-      priority: priorityLabel(status, index),
+      priority: priorityLabel(index),
       kickoffUtc: fixture.kickoffUtc,
       fixtureStatus: fixture.status,
       league: fixture.competition,
@@ -134,6 +145,15 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       expectedValue: fixture.quote?.expectedValue ?? null,
       uncertainty: fixture.quote?.uncertainty ?? null,
       scorelineProjection: fixture.scorelineProjection,
+      candidateRole: quote?.candidateRole ?? null,
+      marketPolicyLabel: quote?.marketPolicyLabel ?? null,
+      marketMainlineLabel: quote
+        ? `市场主线：${quote.marketMainlineLine} · ${quote.marketMainlineBookmakerCount}家完整双边 · ${quote.marketMainlineVoteCount}票 · ${mainlinePrices}`
+        : null,
+      executionQuoteLabel: quote
+        ? `分析选择：${fixture.primaryMarketLabel} · ${quote.candidateRole === "ALTERNATE_LINE" ? "替代盘" : "市场主线"} · ${quote.bookmaker}`
+        : null,
+      marketLadder: quote?.ladder ?? [],
       risk: riskCopy(risk),
       riskLevel: risk,
       riskNote:
@@ -155,6 +175,12 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       ledgerDetail: fixture.tracking.detail,
       reasons: decisionReasons(fixture),
       risks: decisionRisks(fixture),
+      dataRisk: fixture.dataStatus === "BLOCKED" ? "阻断" : fixture.dataStatus,
+      marketIdentityRisk:
+        quote?.candidateRole === "ALTERNATE_LINE" ? "替代盘，禁止冒充主线" : "主线身份完整",
+      lineupRisk: fixture.dataFacts.some(
+        (fact) => fact.includes("首发") && !fact.includes("已就绪"),
+      ) ? "首发待确认" : "首发证据已就绪",
     } satisfies BossDecisionItem;
   });
 

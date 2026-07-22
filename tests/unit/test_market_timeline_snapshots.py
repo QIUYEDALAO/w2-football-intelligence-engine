@@ -133,7 +133,7 @@ def test_totals_mainline_uses_latest_bucket_bookmaker_consensus_pair() -> None:
 
     assert snapshot is not None
     assert snapshot["line"] == 2.25
-    assert snapshot["selection_policy"] == "latest_bucket_ladder_balance_same_bookmaker_pair"
+    assert snapshot["selection_policy"] == "canonical_bookmaker_mainline_consensus_v1"
     assert snapshot["candidate_lines"][0]["line"] == 2.25
     assert round(float(snapshot["candidate_lines"][0]["over_price"]), 2) == 2.02
     assert round(float(snapshot["candidate_lines"][0]["under_price"]), 2) == 1.86

@@ -483,6 +483,17 @@
       font-weight: 700;
     }
 
+    .market-layer {
+      display: grid;
+      gap: 3px;
+      margin-top: 7px;
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .market-layer b { color: #a9c9bb; font-weight: 700; }
+    .market-layer span { color: var(--muted); }
+
     .scoreline-inline {
       margin-top: 7px;
       color: #c5d7ce;
@@ -557,6 +568,21 @@
         radial-gradient(circle at 90% 0%, rgba(88, 166, 255, 0.13), transparent 35%),
         transparent;
     }
+
+    .market-contract {
+      display: grid;
+      gap: 5px;
+      margin-top: 12px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.025);
+      font-size: 10px;
+    }
+
+    .market-contract strong { color: #dce9e3; }
+    .market-contract span { color: var(--muted); }
+    .market-contract code { color: var(--blue); overflow-wrap: anywhere; }
 
     .detail-eyebrow {
       display: flex;
@@ -735,6 +761,45 @@
       overflow-wrap: anywhere;
     }
 
+    .market-ladder {
+      margin: 12px 20px 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .market-ladder summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 12px;
+      color: #dce9e3;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .market-ladder summary small { color: var(--muted); font-size: 9px; }
+    .market-ladder-table { overflow-x: auto; border-top: 1px solid var(--line); }
+
+    .market-ladder-row {
+      display: grid;
+      grid-template-columns: 48px 96px 72px 112px 94px minmax(150px, 1fr);
+      gap: 8px;
+      min-width: 640px;
+      padding: 8px 11px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 9px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .market-ladder-row:last-child { border-bottom: 0; }
+    .market-ladder-row.head { color: var(--muted-2); font-weight: 750; }
+    .market-ladder-row strong { color: #dce9e3; }
+    .market-ladder-row .selected { color: var(--green); }
+    .market-ladder-row .rejected { color: var(--amber); overflow-wrap: anywhere; }
+
     .scoreline-list {
       display: grid;
       gap: 6px;
@@ -814,6 +879,26 @@
     }
 
     .detail-section.risks li::before { background: var(--amber); }
+
+    .risk-breakdown {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .risk-breakdown span {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .risk-breakdown b { color: #dce9e3; font-weight: 750; }
 
     .next-action-box {
       margin-top: 10px;
@@ -1303,6 +1388,8 @@
       .metric-grid { padding: 12px 14px; }
       .metric-card strong { font-size: 18px; }
       .scoreline-panel { margin: 0 14px; }
+      .market-ladder { margin: 12px 14px 0; }
+      .risk-breakdown { grid-template-columns: 1fr; }
       .detail-sections { padding: 0 14px 14px; }
 
       .lower-grid {

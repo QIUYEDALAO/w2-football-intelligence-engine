@@ -327,3 +327,85 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Market mainline ladder and Boss Console authority audit
+
+On 2026-07-22 Asia/Shanghai, the operator supplied
+`W2_MARKET_MAINLINE_LADDER_AND_BOSS_CONSOLE_AUDIT_TASK.md`. The exact source and staging
+baseline was `ea81f9cf6ff23b763564ca044b3f80a7e736c5ed`; provider calls remained disabled and
+the scheduler remained stopped.
+
+The read-only staging export covered 14 upcoming Allsvenskan fixtures and 33,999 stored
+market observations. Eight fixtures had canonical source observations; six later
+fixtures had no captured AH/OU rows and are reported as `SOURCE_LINE_ABSENT`. The audit
+made no provider call and no database write.
+
+The central confirmed defect was the duplicated TOTALS mainline policy. Both the market
+timeline and read model required a line to equal the maximum complete-pair bookmaker
+count before comparing ladder balance. Existing consensus-floor and balanced-override
+helpers were unreachable dead policy. A legitimate zero balance was also converted to
+`999` by truthy fallback handling.
+
+For fixture `1494218`, the latest same-capture evidence proves:
+
+```text
+2.50: 8 complete pairs, median O/U 1.70/2.11,
+      devig 0.553806/0.446194, balance distance 0.053806
+2.75: 6 complete pairs, median O/U 1.875/1.865,
+      devig 0.498663/0.501337, balance distance 0.001337
+```
+
+The old frozen analysis selected `OVER 2.5 @1.70` because of strict maximum complete-pair
+count. The new policy gives each bookmaker one vote for its own most balanced complete
+line, applies the reviewed consensus floor, and permits a bounded balanced override only
+inside that floor. It selects `2.75` for this fixture.
+
+The same read-only recomputation changes the five old TOTALS mainlines as follows:
+
+```text
+1494217: 3.50 -> 3.25
+1494218: 2.50 -> 2.75
+1494220: 3.50 -> 3.00
+1494222: 2.50 -> 2.75
+1494223: 3.50 -> 3.25
+```
+
+This explains the old odds cluster: all five frozen picks were TOTALS, their mean selected
+odds was `1.686`, median `1.68`, and 5/5 fell in `1.65-1.72`. Those decisions must be
+recomputed from fresh exact quotes after the implementation SHA passes CI; no target pick
+count may be preserved.
+
+Implementation scope now recorded in GitHub context:
+
+- shared `canonical_bookmaker_mainline_consensus_v1` TOTALS authority;
+- one bookmaker, one vote across its complete ladder;
+- consensus floor `max_count <= 1 -> 1`, otherwise `max(2, max_count - 2)`;
+- bounded balanced override at distance `<=0.06` and improvement `>=0.03`;
+- deterministic ladder hash, complete-pair count, vote count, medians, devig probabilities,
+  observation IDs, exact rejection reasons, and representative quote identity;
+- full AH/OU ladder model evaluation remains read-only;
+- only `MARKET_MAINLINE` has analysis admission; `ALTERNATE_LINE` remains comparison-only;
+- Boss Console separates market mainline, analysis candidate, and execution quote;
+- array order is labelled `A1...` sequence, not priority;
+- EV standard error is a numeric uncertainty field, not an automatic high-risk class;
+- stopped scheduling is displayed as a planned review with controlled capture not arranged.
+
+Tracked evidence:
+
+```text
+docs/audits/W2_MARKET_MAINLINE_LADDER_AUDIT_V1.json
+docs/audits/W2_MARKET_MAINLINE_LADDER_AUDIT_V1.md
+audit_hash=bab9671cf2fb780798dd36fdfcd6110d128703c09f6c497aa18f269192ab49c0
+```
+
+Safety state remains:
+
+```text
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+PROVIDER_CALLS_DISABLED
+SCHEDULER_STOPPED
+MANUAL_APPROVAL_REQUIRED
+```

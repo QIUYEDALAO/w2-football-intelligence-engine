@@ -200,6 +200,7 @@ function DecisionRow({
       <div className="matchup"><strong>{item.match}</strong><span>{item.league}</span></div>
       <div className="decision-main">
         <strong>{item.recommendation}</strong>
+        {item.marketMainlineLabel ? <div className="market-layer"><b>{item.marketMainlineLabel}</b><span>{item.executionQuoteLabel}</span></div> : null}
         <div className="metric-line">
           {item.modelProbability == null ? (
             <span><b>状态</b> {item.recommendation}</span>
@@ -252,6 +253,28 @@ function ScorelineProjection({ item }: { item: BossDecisionItem }) {
   );
 }
 
+function MarketLadder({ item }: { item: BossDecisionItem }) {
+  if (!item.marketLadder.length) return null;
+  return (
+    <details className="market-ladder" data-ui="market-ladder">
+      <summary><span>盘口阶梯</span><small>{item.marketLadder.length} 条完整 line · 点击展开</small></summary>
+      <div className="market-ladder-table">
+        <div className="market-ladder-row head"><span>Line</span><span>双边中位价</span><span>完整/票</span><span>模型/市场</span><span>EV/SE</span><span>裁决</span></div>
+        {item.marketLadder.map((row) => (
+          <div className="market-ladder-row" key={row.line}>
+            <strong>{row.line}</strong>
+            <span>{row.leftPrice?.toFixed(2) ?? "--"} / {row.rightPrice?.toFixed(2) ?? "--"}</span>
+            <span>{row.completePairBookmakerCount}家 / {row.bookmakerVoteCount}票</span>
+            <span>{formatPercent(row.modelProbability)} / {formatPercent(row.marketProbability)}</span>
+            <span>{formatEv(row.expectedValue)} / ±{formatPercent(row.uncertainty)}</span>
+            <span className={row.status === "SELECTED_MARKET_MAINLINE" ? "selected" : "rejected"}>{row.status === "SELECTED_MARKET_MAINLINE" ? "市场主线" : row.reason ?? "拒绝"}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
   const badgeClass = item.status === "watch" ? " watch" : item.status === "not-ready" ? " not-ready" : "";
   const kickoff = kickoffDisplay(item.kickoffUtc, item.fixtureStatus, now);
@@ -269,6 +292,7 @@ function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
           <strong>{item.recommendation}</strong>
           <small>{item.status === "pick" ? "分析参考 · 非正式推荐 · 不执行自动锁单" : item.status === "watch" ? "NO_EDGE · 不强行产生推荐" : "数据不完整 · 暂不输出模型结论"}</small>
         </div>
+        {item.marketMainlineLabel ? <div className="market-contract"><strong>{item.marketMainlineLabel}</strong><span>{item.executionQuoteLabel}</span><code>{item.marketPolicyLabel}</code></div> : null}
       </div>
 
       <div className="metric-grid">
@@ -280,12 +304,13 @@ function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
       </div>
 
       <ScorelineProjection item={item} />
+      <MarketLadder item={item} />
       <div className="detail-sections">
         <section className="detail-section"><h3>核心依据</h3><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section>
-        <section className="detail-section risks"><h3>风险与失效条件</h3><ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
+        <section className="detail-section risks"><h3>风险与失效条件</h3>{item.marketPolicyLabel ? <div className="risk-breakdown"><span>数据风险 <b>{item.dataRisk}</b></span><span>盘口身份 <b>{item.marketIdentityRisk}</b></span><span>首发风险 <b>{item.lineupRisk}</b></span><span>EV 标准误 <b>±{formatPercent(item.uncertainty)}</b></span></div> : null}<ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
         <section className="detail-section">
           <h3>下一动作</h3>
-          <div className="next-action-box"><strong>{item.status === "pick" ? `${item.nextAction}重新评估` : item.nextAction}</strong><span>触发条件：{item.nextDetail}。</span></div>
+          <div className="next-action-box"><strong>{item.marketPolicyLabel ? item.nextAction : item.status === "pick" ? `${item.nextAction}重新评估` : item.nextAction}</strong><span>{item.marketPolicyLabel ? item.nextDetail : `触发条件：${item.nextDetail}。`}</span></div>
           <div className="ledger-card"><div><strong>{item.ledgerStatus}</strong><span>{item.ledgerDetail}</span></div><code>{shortHash(item.ledgerCode)}</code></div>
         </section>
       </div>
@@ -368,7 +393,7 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
       <main className="workspace">
         <section className="panel decision-panel" data-ui="decision-panel">
           <div className="panel-header"><div className="panel-title"><span>Executive Queue</span><h2>今日重点决策</h2><p>分析建议置顶；其余严格按开球时间。{prototypeCopy ? "固定数据用于视觉验收。" : "所有数值均来自当前冻结证据。"}</p></div><div className="filter-tabs" role="tablist" aria-label="决策筛选"><button className={`filter-tab${filter === "priority" ? " is-active" : ""}`} onClick={() => selectFilter("priority")}>决策优先</button><button className={`filter-tab${filter === "all" ? " is-active" : ""}`} onClick={() => selectFilter("all")}>全部赛程 {model.decisions.length}/{model.decisions.length} 场</button><button className={`filter-tab${filter === "risk" ? " is-active" : ""}`} onClick={() => selectFilter("risk")}>仅看异常</button></div></div>
-          <div className="decision-table-head" aria-hidden="true"><span>优先级</span><span>开球</span><span>比赛</span><span>结论与核心差异</span><span>风险状态</span><span>下一动作</span></div>
+          <div className="decision-table-head" aria-hidden="true"><span>序号</span><span>开球</span><span>比赛</span><span>结论与核心差异</span><span>风险状态</span><span>下一动作</span></div>
           <div className="decision-list" data-ui="schedule-scroller">{filtered.length ? filtered.map((item) => <DecisionRow key={item.id} item={item} selected={item.id === selected.id} now={now} onSelect={setSelectedId} />) : <div className="empty-list">当前筛选条件下没有比赛</div>}</div>
         </section>
         <DetailPanel item={selected} now={now} />

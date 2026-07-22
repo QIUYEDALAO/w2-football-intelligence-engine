@@ -230,6 +230,24 @@ test.describe("Boss Decision Console source contract", () => {
     await expect(page.locator("body")).not.toContainText("不与历史混算");
   });
 
+  test("market mainline, analysis candidate and execution quote stay separate", async ({ page }) => {
+    await page.goto(`${FIXTURE_URL}?marketContract=1`);
+    await freezeMotion(page);
+    const selected = page.locator("[data-ui='selected-match-panel']");
+    await expect(selected).toContainText("市场主线：2.75 · 6家完整双边 · 6票");
+    await expect(selected).toContainText("分析选择：大小球 · 大 2.75 @1.91");
+    await expect(selected).toContainText("计划复核：赛前30分钟");
+    await expect(selected).toContainText("状态：受控采集尚未安排");
+    await expect(selected).toContainText(/盘口身份\s*主线身份完整/);
+    await selected.locator("[data-ui='market-ladder'] summary").click();
+    await expect(selected.locator("[data-ui='market-ladder']")).toContainText("2.75");
+    await expect(selected.locator("[data-ui='market-ladder']")).toContainText(
+      "LOWER_BOOKMAKER_CONSENSUS",
+    );
+    await expect(page.locator(".decision-table-head")).toContainText("序号");
+    await expect(page.locator("[data-fixture-id='1494218'] .priority")).toHaveText("A1");
+  });
+
   test("date-first presentation covers boundary and lifecycle states", () => {
     const now = new Date("2026-07-21T12:33:00Z");
     expect(kickoffDisplay("2026-07-25T13:00:00Z", "NS", now)).toEqual({

@@ -15,6 +15,10 @@ from w2.markets.asian_handicap_scope import (
     is_full_time_asian_handicap_observation,
     is_full_time_totals_observation,
 )
+from w2.markets.totals_mainline import (
+    CANONICAL_TOTALS_MAINLINE_POLICY,
+    select_canonical_totals_mainline,
+)
 
 MARKET_TIMELINE_SCHEMA_VERSION = "w2.market_timeline.v1"
 DEFAULT_TIMELINE_DIR = Path("runtime/market_timeline_snapshots")
@@ -177,40 +181,41 @@ def select_mainline_snapshot_result(
         }
         ah_snapshot["source_hash"] = _source_hash({**ah_snapshot, "source": source})
         return SnapshotSelectionResult(snapshot=ah_snapshot)
-    groups = _market_groups(
+    selected_totals = select_canonical_totals_mainline(
         observations=observations,
         fixture_id=fixture_id,
-        market=market,
         target=target,
         kickoff=kickoff_utc,
+        opening=checkpoint == "opening",
     )
-    if not groups:
+    if selected_totals.status != "READY" or selected_totals.line is None:
         return SnapshotSelectionResult(
             snapshot=None,
-            reason=_missing_snapshot_reason(
-                observations=observations,
-                fixture_id=fixture_id,
-                market=market,
-                target=target,
-                kickoff=kickoff_utc,
+            reason=(
+                selected_totals.status
+                if selected_totals.status != "UNAVAILABLE"
+                else _missing_snapshot_reason(
+                    observations=observations,
+                    fixture_id=fixture_id,
+                    market=market,
+                    target=target,
+                    kickoff=kickoff_utc,
+                )
             ),
         )
     if checkpoint == "lock":
         fresh_after = kickoff_utc - timedelta(minutes=max(lock_max_age_minutes, 0))
-        groups = [item for item in groups if item["captured_at"] >= fresh_after]
-        if not groups:
+        if selected_totals.captured_at is None or selected_totals.captured_at < fresh_after:
             return SnapshotSelectionResult(
                 snapshot=None,
                 reason="NO_FRESH_LOCK_OBSERVATION",
             )
-    selected = _select_mainline_group(groups, market=market, checkpoint=checkpoint)
-    captured_at = selected["captured_at"]
-    line = selected["line"]
-    sides = selected["sides"]
+    captured_at = selected_totals.captured_at or target
     source = {
-        "bookmaker_count": selected["bookmaker_count"],
-        "bookmakers": sorted(selected["bookmakers"]),
-        "source_payload_ids": sorted(selected["source_payload_ids"]),
+        "complete_pair_bookmaker_count": selected_totals.complete_pair_bookmaker_count,
+        "bookmaker_vote_count": selected_totals.bookmaker_vote_count,
+        "bookmakers": selected_totals.selected_bookmakers or [],
+        "source_payload_ids": selected_totals.source_payload_ids or [],
     }
     snapshot: dict[str, Any] = {
         "schema_version": MARKET_TIMELINE_SCHEMA_VERSION,
@@ -219,28 +224,24 @@ def select_mainline_snapshot_result(
         "market": market,
         "as_of": iso_z(captured_at),
         "kickoff_utc": iso_z(kickoff_utc),
-        "line": _json_number(line),
-        "bookmaker_count": selected["bookmaker_count"],
-        "source_payload_id": ",".join(sorted(selected["source_payload_ids"])) or None,
-        "provider": selected["provider"],
+        "line": _json_number(float(selected_totals.line)),
+        "bookmaker_count": selected_totals.complete_pair_bookmaker_count,
+        "complete_pair_bookmaker_count": selected_totals.complete_pair_bookmaker_count,
+        "bookmaker_vote_count": selected_totals.bookmaker_vote_count,
+        "bookmaker_consensus_floor": selected_totals.consensus_floor,
+        "source_payload_id": ",".join(selected_totals.source_payload_ids or []) or None,
+        "provider": selected_totals.provider or "read_model",
         "immutable": True,
         "generated_at": iso_z(generated_at or datetime.now(UTC)),
+        "selection_policy": CANONICAL_TOTALS_MAINLINE_POLICY,
+        "candidate_ladder_hash": selected_totals.candidate_ladder_hash,
+        "candidate_lines": selected_totals.candidate_lines or [],
+        "rejected_lines": selected_totals.rejected_lines or [],
+        "over_price": _json_number(float(selected_totals.over_price or 0.0)),
+        "under_price": _json_number(float(selected_totals.under_price or 0.0)),
+        "quarantined_observation_count": selected_totals.quarantined_count,
+        "quarantine_reasons": selected_totals.quarantine_reasons or {},
     }
-    if market in {"ASIAN_HANDICAP", "TOTALS"}:
-        snapshot["selection_policy"] = selected.get(
-            "selection_policy",
-            "latest_bucket_ladder_balance_same_bookmaker_pair",
-        )
-        if selected.get("selection_warning"):
-            snapshot["selection_warning"] = selected.get("selection_warning")
-        snapshot["candidate_lines"] = selected.get("candidate_lines", [])
-        snapshot["rejected_lines"] = selected.get("rejected_lines", [])
-    if market == "ASIAN_HANDICAP":
-        snapshot["home_price"] = _json_number(sides["HOME"]["decimal_odds"])
-        snapshot["away_price"] = _json_number(sides["AWAY"]["decimal_odds"])
-    else:
-        snapshot["over_price"] = _json_number(sides["OVER"]["decimal_odds"])
-        snapshot["under_price"] = _json_number(sides["UNDER"]["decimal_odds"])
     snapshot["source_hash"] = _source_hash({**snapshot, "source": source})
     return SnapshotSelectionResult(snapshot=snapshot)
 

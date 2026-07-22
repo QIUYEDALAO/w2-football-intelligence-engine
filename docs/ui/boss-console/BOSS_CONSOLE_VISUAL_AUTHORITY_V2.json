@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.boss_console.visual_authority.v2",
-  "authority": "USER_APPROVED_V2_1_REMEDIATION",
+  "authority": "USER_APPROVED_V2_1_MARKET_MAINLINE_SEMANTICS",
   "supersedes": "w2.boss_console_visual_authority.v1",
   "pixel_contract": {
     "browser": "playwright_chromium",
@@ -19,22 +19,22 @@
       "sha256": "fc77c717e8b93e16f00c2bdaeea5633513916df71a9cab208c0a05aefda9b5d6"
     },
     "apps/web/src/reference/boss-console/BossDecisionConsoleReference.tsx": {
-      "sha256": "653c306fbfc26d4188712b4f34917d40c4c8ffc830e795d22027c4349733caa3"
+      "sha256": "0b5e80524693c986f6408097327e3b7358c2b18aa6c56000ec16ad2e06e71a18"
     },
     "apps/web/src/reference/boss-console/boss-decision-console.css": {
-      "sha256": "925ba148863a9f7f561d06e14e2e2f9dd7702a189e9ea24f1da73e2b1c34bdcf"
+      "sha256": "a8c94bee7d032ebb8caca46f0a2fbc108fa3b7cdeccf37b23f2dbece401450bf"
     },
     "apps/web/src/reference/boss-console/boss-console-model.ts": {
-      "sha256": "6b2384b7e33294e99b5c93c6f28f84a758168f8bd57a872bdbf364ee8529e865"
+      "sha256": "d06d088a0984b414172d723a7028e233a2653c5566c795f70a1536cda4aa177b"
     },
     "apps/web/src/reference/boss-console/boss-console-adapter.ts": {
-      "sha256": "cc26148f71fdda8794d82534edcb1a299c3ff455e93f3281e5aabc7e4d7b0103"
+      "sha256": "feae42ea311e7ae8ab81270ebbfebe59ba1f90522a48096261d9b3fa2024c123"
     },
     "apps/web/src/reference/boss-console/boss-console.fixture.ts": {
-      "sha256": "b040d52ea83d96eae2103c325749b3502ec187aa7d587b2752267aca3d8901a3"
+      "sha256": "72aa097ae393ab0f30ff2de8ef902ae8031f8689549aa5d173dc5ae7474ed666"
     },
     "apps/web/e2e/boss-console-visual.spec.ts": {
-      "sha256": "4373126799fcf02a94bffaada0f30abb10d0b3e2a908bec816dbad1d2c8688a4"
+      "sha256": "e507aedf3bbca6b58e0351638332e57ee8d3c4b6e860f779365967c8ca55c87d"
     },
     "docs/ui/boss-console/golden/v2.1/reference/boss-console-wide-2048.png": {
       "sha256": "6bb86d797cc7609f37e0c7230087b319f7a3b97607acbdad3fdec29a98334699"

@@ -24,6 +24,11 @@ export interface BossDecisionItem {
   expectedValue: number | null;
   uncertainty: number | null;
   scorelineProjection: DashboardV2ScorelineProjection | null;
+  candidateRole: "MARKET_MAINLINE" | "ALTERNATE_LINE" | null;
+  marketPolicyLabel: string | null;
+  marketMainlineLabel: string | null;
+  executionQuoteLabel: string | null;
+  marketLadder: import("../dashboard-v2/dashboard-v2-model").DashboardV2MarketLadderRow[];
   risk: string;
   riskLevel: BossRiskLevel;
   riskNote: string;
@@ -36,6 +41,9 @@ export interface BossDecisionItem {
   ledgerDetail: string;
   reasons: string[];
   risks: string[];
+  dataRisk: string;
+  marketIdentityRisk: string;
+  lineupRisk: string;
 }
 
 export interface BossConsoleRuntime {
