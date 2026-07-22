@@ -97,7 +97,7 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 ```text
 Status: BLOCKED
 Branch: codex/w2-arch01-pr370-scope-closure
-PR: PENDING_CREATION
+PR: #372 (Draft)
 Base SHA: 09ca14a969b835314c93c122b80c3cfa1bbf9c6c
 Started at: 2026-07-22T21:58:35+0800
 Owner: Codex
