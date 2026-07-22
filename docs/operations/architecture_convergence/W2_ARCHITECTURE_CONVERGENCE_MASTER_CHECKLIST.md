@@ -637,7 +637,7 @@ MANUAL_APPROVAL_REQUIRED
 ```text
 Status: IN_PROGRESS
 Branch: codex/w2-architecture-convergence-master-checklist
-PR: PENDING_CREATION
+PR: #371 (Draft)
 Base SHA: a80bccaadc68f8bd691b45b46f25c10539473c0c
 Started at: 2026-07-22T21:30:56+0800
 Owner: Codex
