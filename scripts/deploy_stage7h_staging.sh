@@ -177,7 +177,7 @@ export UV_INDEX_URL='${BUILD_UV_INDEX_URL}'
 # images from that current binary, retaining the public GHCR default for CI.
 UV_BOOTSTRAP_IMAGE="w2-staging-uv-bootstrap:${ROLLBACK_REVISION}"
 if ! sudo docker image inspect "\${UV_BOOTSTRAP_IMAGE}" >/dev/null 2>&1; then
-  printf '%s\n' 'FROM w2-staging-api:latest' 'RUN cp /usr/local/bin/uv /uv' \
+  printf '%s\n' 'FROM w2-staging-api:latest' 'USER root' 'RUN cp /usr/local/bin/uv /uv' \
     | sudo docker build --tag "\${UV_BOOTSTRAP_IMAGE}" -
 fi
 sudo docker run --rm --entrypoint /uv "\${UV_BOOTSTRAP_IMAGE}" --version
