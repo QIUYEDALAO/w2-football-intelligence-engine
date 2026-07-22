@@ -1,52 +1,75 @@
-# Boss Decision Console Design QA
+# W2 Boss Decision Console V2.1 Design QA
 
-Status: **PASSED**
+## Comparison Target
 
-## Authority
-
-- Approved source: `docs/ui/boss-console/w2_boss_decision_console_prototype.html`
-- Source SHA256: `e71c8d0ed4d43bdf84648f05f5f38c1124ce6e4055ba77fcec069e3cbfa29fea`
-- Source type: user-supplied HTML/CSS/JavaScript prototype
-- Superseded authority: Dashboard V2 reference pack and its conflicting golden images
-
-## Visual Comparison
-
-Playwright renders the approved source HTML and the React visual fixture in the same
-Chromium runtime, locale, timezone, viewport, and device scale. The two full-page PNGs
-are compared pixel by pixel with Playwright/pixelmatch's standard `0.2` YIQ color
-threshold and a one-pixel spatial tolerance for Linux glyph rasterization.
-
-- Chromium viewport: `1440 x 900`
-- Locale: `zh-CN`
-- Timezone: `Asia/Shanghai`
+- Source visual truth: `docs/ui/boss-console/w2_boss_decision_console_prototype.html`
+- Reference captures: `docs/ui/boss-console/golden/v2.1/reference/`
+- React captures: `docs/ui/boss-console/golden/v2.1/actual/`
+- Pixel diffs: `docs/ui/boss-console/golden/v2.1/diff/`
+- Combined comparison evidence: `docs/ui/boss-console/golden/v2.1/qa/`
+- Browser: Playwright Chromium, `zh-CN`, `Asia/Shanghai`
 - Device scale factor: `1`
-- Maximum changed-pixel ratio: `0.15%`
-- Result: **PASS**
-- Source and implementation image dimensions: identical
+- State: fixed visual dataset, analysis-priority filter, first fixture selected
 
-## Geometry And Behavior
+## Viewport Evidence
 
-- Initial priority queue contains the same five analysis rows: PASS
-- `全部赛程 14` reveals all fourteen fixtures: PASS
-- `仅看异常` shows the source-defined seven exception rows: PASS
-- Row selection updates the right-side evidence panel: PASS
-- System drawer opens and closes with Escape: PASS
-- Queue has bounded internal scrolling and the last fixture remains reachable: PASS
-- Formal recommendations remain `0`: PASS
-- Automatic collection remains visibly paused: PASS
-- Product boundary `分析建议 != 正式推荐` remains visible: PASS
+| CSS viewport | Reference pixels | React pixels | Differing-pixel ratio |
+| --- | --- | --- | --- |
+| 2048 x 1152 | 2048 x 1476 | 2048 x 1476 | 0.00000662 |
+| 1440 x 900 | 1440 x 1436 | 1440 x 1436 | 0.00000677 |
+| 390 x 844 | 390 x 4119 | 390 x 4119 | 0.00000187 |
 
-## Production Data Boundary
+All ratios pass the unchanged `0.0015` maximum. Reference and implementation dimensions
+match at every viewport.
 
-The production route uses the same presentation component but receives data only through
-`boss-console-adapter.ts`. The fixed visual fixture is exposed only by the development/test
-route. The production component does not compute model probability, market probability,
-EV, uncertainty, market direction, or ledger outcomes.
+## Full-View Comparison
 
-The prototype-only phrases `演示数据`, `历史恢复 cohort`, and `演示稿` are enabled only
-for source-image comparison. The production route uses truthful frozen-evidence and unified
-ledger wording without changing the approved geometry.
+The combined desktop and mobile evidence compares the HTML authority and React output in
+the same image. Composition, workspace proportions, typography, spacing, palette, borders,
+date-first rows, scoreline placement, unified ledger, league table, and responsive stacking
+match without actionable P0/P1/P2 drift.
 
-## Final Verdict
+## Focused Comparison
 
-`BOSS_DECISION_CONSOLE_SOURCE_PIXEL_CONTRACT_PASS`
+`boss-console-detail-combined.png` compares the selected-fixture rail at native size. The
+match title, Shanghai kickoff hierarchy, exact quote, four model/market metrics, EV standard
+error, 10,000-sample Top 3, sample counts, probabilities, and market-consistency evidence
+match the source authority.
+
+## Fidelity Surfaces
+
+- Fonts and typography: matching family, weights, sizes, line heights, wrapping, numeric
+  alignment, and zero negative letter spacing.
+- Spacing and layout: matching grid tracks, fixed desktop workspace height, internal queue
+  and detail scrolling, panel padding, gaps, borders, and radii.
+- Color palette: matching dark green panel system and semantic blue, green, amber, and
+  red states.
+- Image and asset quality: this console contains no product imagery; no raster placeholder,
+  screenshot background, or newly approximated visual asset is used.
+- Copy and content: date, snapshot, model EV, EV standard error, scoreline, unified ledger,
+  and league labels match the V2.1 product contract.
+
+## Interaction Evidence
+
+- Filters, selection, system drawer, and Escape close behavior pass.
+- 5, 15, and 30 fixtures remain reachable; the desktop workspace height is stable.
+- Desktop queue scrolling preserves the header and selected-row state.
+- Mobile uses natural document scrolling and exposes all 30 fixtures.
+- The client clock advances once per minute without changing the API refresh timestamp.
+- A reversed global-odds/page-refresh timestamp fails visibly and exposes exact fields in L2.
+- Browser console: no application errors during the Playwright suite.
+
+## Comparison History
+
+1. Initial V2.1 implementation exposed legacy expectations for mobile nested scrolling,
+   whitespace in countdown copy, and public recovery wording.
+2. The implementation and HTML authority were corrected to natural mobile scrolling,
+   the frozen date-first copy, and one public ledger without recovery/cohort language.
+3. Post-fix source-to-React comparison passed all three viewports and all interaction tests.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain. HTTPS and authentication are a
+separate staging security task and are not part of this UI fidelity result.
+
+final result: passed

@@ -417,11 +417,12 @@ test("READY renders the unified pick and verified analysis-card", async ({
   await expect(selected).toContainText("模型概率60.0%");
   await expect(selected).toContainText("市场概率52.0%");
   await expect(selected).toContainText("模型－市场+8.0pp");
-  await expect(selected).toContainText("风险后 EV+14.6%");
+  await expect(selected).toContainText("模型 EV+14.6%");
+  await expect(selected).toContainText("EV 标准误 ±4.0%");
   await expect(page.locator(".topbar")).toContainText("分析建议1");
   await expect(page.locator(".topbar")).toContainText("正式建议0");
-  await expect(page.locator(".topbar")).toContainText("决策快照17:55");
-  await expect(page.locator(".topbar")).toContainText("页面刷新18:00");
+  await expect(page.locator(".topbar")).toContainText("全局最近赔率07-18 17:55");
+  await expect(page.locator(".topbar")).toContainText("页面刷新07-18 18:00");
   await expect(page.locator(".headline-kpi")).toHaveCount(5);
   const analysis = await page.evaluate(async () => {
     const response = await fetch("/v1/fixtures/fixture-ready/analysis-card");
@@ -466,7 +467,7 @@ test("30 fixtures remain reachable through the desktop schedule viewport", async
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
     "READY Home 30",
   );
-  await expect(page.getByRole("button", { name: "全部赛程 30" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "全部赛程 30/30 场" })).toBeVisible();
 });
 
 test("the source console keeps all 15 fixtures reachable in its queue", async ({ page }) => {
@@ -480,7 +481,7 @@ test("the source console keeps all 15 fixtures reachable in its queue", async ({
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
   }));
-  expect(geometry.overflowY).toBe("auto");
+  expect(geometry.overflowY).toBe("visible");
   expect(geometry.scrollHeight).toBeGreaterThanOrEqual(geometry.clientHeight);
   await page
     .locator("[data-fixture-id]")
@@ -532,19 +533,20 @@ test("Shanghai queue clock advances while canonical time formatting handles matc
     await json(route, payload);
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "全部赛程 4" }).click();
+  await page.getByRole("button", { name: "全部赛程 4/4 场" }).click();
 
   const today = page.locator("[data-fixture-id]").filter({ hasText: "Today Home" });
   await expect(today).toContainText("20:45");
-  await expect(today).toContainText(/还有 4[45] 分钟/);
+  await expect(today).toContainText(/还有 4[45]分钟/);
   await page.clock.fastForward(60_000);
-  await expect(today).toContainText(/还有 4[34] 分钟/);
+  await expect(today).toContainText(/还有 4[34]分钟/);
 
   const tomorrow = page
     .locator("[data-fixture-id]")
     .filter({ hasText: "Tomorrow Home" });
   await expect(tomorrow).toContainText("08:30");
-  await expect(tomorrow).toContainText(/还有 12 小时2[89]分/);
+  await expect(tomorrow).toContainText("明天");
+  await expect(tomorrow).toContainText("01-01 周五");
   expect(
     kickoffPresentation(
       { kickoff_utc: "2026-12-31T10:57:00Z", status: "LIVE" },
@@ -570,7 +572,7 @@ test("stored early odds remain visible as reference while waiting for the premat
 }) => {
   await installRoutes(page, "STALE", 1, true);
   await page.goto("/");
-  await page.getByRole("button", { name: "全部赛程 1" }).click();
+  await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
 
   const row = page
     .locator("[data-fixture-id]")
@@ -596,7 +598,7 @@ test("enabled leagues and club teams render localized Chinese names", async ({
     await json(route, payload);
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "全部赛程 1" }).click();
+  await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
 
   const row = page
     .locator("[data-fixture-id]")
@@ -607,7 +609,7 @@ test("enabled leagues and club teams render localized Chinese names", async ({
   await expect(row).not.toContainText("Allsvenskan");
 });
 
-test("post-match validation uses one canonical cohort at desktop and 824px", async ({
+test("post-match validation uses one unified public ledger at desktop and 824px", async ({
   page,
 }) => {
   await installRoutes(page, "STALE", 1, true);
@@ -797,7 +799,7 @@ for (const scenario of [
   }) => {
     await installRoutes(page, scenario);
     await page.goto("/");
-    await page.getByRole("button", { name: "全部赛程 1" }).click();
+    await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
 
     const row = page
       .locator("[data-fixture-id]")

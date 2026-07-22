@@ -105,6 +105,7 @@ export interface DashboardV2FixtureModel {
 }
 
 export interface DashboardV2LeaguePerformanceRow {
+  competitionKey?: string;
   league: string;
   eligibleCount: number;
   hitCount: number;

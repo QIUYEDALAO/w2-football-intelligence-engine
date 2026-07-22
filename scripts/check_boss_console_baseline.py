@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "docs/ui/boss-console/BOSS_CONSOLE_VISUAL_AUTHORITY_V1.json"
+MANIFEST = ROOT / "docs/ui/boss-console/BOSS_CONSOLE_VISUAL_AUTHORITY_V2.json"
 
 
 def sha256(path: Path) -> str:

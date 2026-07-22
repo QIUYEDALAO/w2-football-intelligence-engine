@@ -263,3 +263,67 @@ LOCK_DISABLED
 PRODUCTION_DISABLED
 MANUAL_APPROVAL_REQUIRED
 ```
+
+## Boss Decision Console V2.1 authority remediation
+
+On 2026-07-22 Asia/Shanghai, the product authority supplied
+`W2_BOSS_CONSOLE_V2_1_UI_REMEDIATION_TASK.md` and explicitly authorized revision of the
+previously protected Boss Console source. The exact GitHub starting head was
+`8002a5c54b8d3dc56a3b119a83037aabc0b0f946`.
+
+The visual authority is upgraded to `w2.boss_console.visual_authority.v2`. The V2.1
+contract now includes:
+
+- Shanghai date-first fixture rows for future, tomorrow, today, live, and finished states;
+- full-date global odds, page refresh, fixture snapshot, and last-check timestamps;
+- visible fail-closed handling when the global odds timestamp is later than page refresh;
+- direct Boss adapter projection of the backend `scoreline_projection`, with no frontend
+  simulation, sorting, completion, or market-direction inference;
+- list and selected-fixture display of the backend Top 3, 10,000 sample count, raw sample
+  counts, unconditional probabilities, consistent-sample denominator, constraint label,
+  decision hash, evidence hash, and exact NOT_READY blocker;
+- a fixed desktop workspace with independent schedule/detail scrolling and natural mobile
+  document scrolling;
+- one public forward-validation ledger with the identities `28=23+5`, `23=16+7`, and
+  `16=11+3+2`;
+- canonical competition-key league deduplication with zero-sample alias removal;
+- truthful `模型 EV` and `EV 标准误` labels;
+- a top-level unique high-risk fixture count and separately stated lineup/evidence counts.
+
+The reference HTML and React implementation were compared in the same Playwright Chromium
+at `2048x1152`, `1440x900`, and `390x844`, with the existing 0.15% threshold unchanged.
+Measured differing-pixel ratios are:
+
+```text
+2048: 0.00000662
+1440: 0.00000677
+390:  0.00000187
+```
+
+Reference, actual, diff, and combined QA images are tracked under
+`docs/ui/boss-console/golden/v2.1/`. The browser contract also verifies 5, 15, and 30
+fixture reachability, sticky queue header behavior, selected-row persistence, mobile
+natural scrolling, minute-clock advancement, lifecycle time states, scoreline market
+examples, projection ordering, exact blocker display, and canonical league deduplication.
+
+Scope remains UI-only. No provider window, recommendation write, lock write, OFFICIAL
+write, formal settlement, model-weight change, EV-threshold change, or quote-freshness
+change is authorized by this revision.
+
+```text
+BOSS_CONSOLE_DATE_FIRST_PASS
+BOSS_CONSOLE_SCORELINE_TOP3_PASS
+BOSS_CONSOLE_10000_SAMPLE_DISPLAY_PASS
+BOSS_CONSOLE_INTERNAL_SCROLL_PASS
+BOSS_CONSOLE_UNIFIED_LEDGER_PASS
+BOSS_CONSOLE_LEAGUE_DEDUPE_PASS
+BOSS_CONSOLE_METRIC_SEMANTICS_PASS
+BOSS_CONSOLE_PIXEL_AUTHORITY_V2_PASS
+NO_PROVIDER_CALLS
+NO_MODEL_OR_BACKEND_CHANGE
+PR_370_KEEP_DRAFT
+FORMAL_DISABLED
+LOCK_DISABLED
+PRODUCTION_DISABLED
+MANUAL_APPROVAL_REQUIRED
+```

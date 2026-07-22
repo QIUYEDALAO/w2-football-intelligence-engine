@@ -9,6 +9,7 @@ import {
 } from "../dashboard-v2/dashboard-v2-adapter";
 import type {
   DashboardV2FixtureModel,
+  DashboardV2LeaguePerformanceRow,
   DashboardV2ViewModel,
 } from "../dashboard-v2/dashboard-v2-model";
 import type {
@@ -64,12 +65,45 @@ function decisionRisks(fixture: DashboardV2FixtureModel): string[] {
     risks.push("首发尚未公布，阵容变化可能影响结论");
   }
   if (fixture.quote?.uncertainty != null) {
-    risks.push(`不确定性 ±${(fixture.quote.uncertainty * 100).toFixed(1)}pp`);
+    risks.push(`EV 标准误 ±${(fixture.quote.uncertainty * 100).toFixed(1)}%`);
   }
   if (fixture.decisionTier !== "ANALYSIS_PICK") risks.push("当前不进入验证推荐分母");
   return risks.slice(0, 3).length
     ? risks.slice(0, 3)
     : ["盘口或首发数据尚不完整", "不可使用旧快照替代执行报价", "保持 NOT_READY"];
+}
+
+function leagueFallbackKey(league: string): string {
+  return league
+    .toLowerCase()
+    .replace(/allsvenskan|瑞典超/g, "allsvenskan")
+    .replace(/eliteserien|挪威超/g, "eliteserien")
+    .replace(/serie a|巴甲/g, "brasileirao_serie_a")
+    .replace(/super league|中超/g, "chinese_super_league")
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
+export function dedupeLeaguePerformance(
+  rows: DashboardV2LeaguePerformanceRow[],
+): DashboardV2LeaguePerformanceRow[] {
+  const canonical = new Map<string, DashboardV2LeaguePerformanceRow>();
+  for (const row of rows) {
+    if (row.eligibleCount <= 0) continue;
+    const key = row.competitionKey || leagueFallbackKey(row.league);
+    const current = canonical.get(key);
+    if (
+      !current
+      || row.eligibleCount > current.eligibleCount
+      || (
+        row.eligibleCount === current.eligibleCount
+        && row.clvSampleCount > current.clvSampleCount
+      )
+    ) {
+      canonical.set(key, row);
+    }
+  }
+  return [...canonical.values()];
 }
 
 export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): BossConsoleModel {
@@ -83,6 +117,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       id: fixture.fixtureId,
       priority: priorityLabel(status, index),
       kickoffUtc: fixture.kickoffUtc,
+      fixtureStatus: fixture.status,
       league: fixture.competition,
       match: `${fixture.homeTeam} vs ${fixture.awayTeam}`,
       status,
@@ -98,6 +133,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       probabilityDelta: fixture.quote?.probabilityDelta ?? null,
       expectedValue: fixture.quote?.expectedValue ?? null,
       uncertainty: fixture.quote?.uncertainty ?? null,
+      scorelineProjection: fixture.scorelineProjection,
       risk: riskCopy(risk),
       riskLevel: risk,
       riskNote:
@@ -108,6 +144,9 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
             : risk === "low"
               ? "盘口稳定"
               : "首发未确认",
+      lineupPending: fixture.dataFacts.some(
+        (fact) => fact.includes("首发") && !fact.includes("已就绪"),
+      ),
       nextAction: action,
       nextDetail: detail,
       snapshotAt: fixture.quote?.capturedAt ?? null,
@@ -124,10 +163,14 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
     ledger: model.ledger,
     decisions,
     selectedDecisionId: model.selectedFixtureId,
-    leaguePerformance: model.leaguePerformance,
+    leaguePerformance: dedupeLeaguePerformance(model.leaguePerformance),
     automaticCollectionPaused: model.health.automaticCollectionPaused,
-    riskExceptionCount: decisions.filter((item) => item.riskLevel === "high").length,
-    lineupPendingCount: decisions.filter((item) => item.riskNote.includes("首发")).length,
+    riskExceptionCount: new Set(
+      decisions.filter((item) => item.riskLevel === "high").map((item) => item.id),
+    ).size,
+    lineupPendingCount: new Set(
+      decisions.filter((item) => item.lineupPending).map((item) => item.id),
+    ).size,
     lastCheckedAt: model.release.pageUpdatedAt,
     runtime: {
       schemaStatus: "PASS",

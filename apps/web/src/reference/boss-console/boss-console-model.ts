@@ -2,6 +2,7 @@ import type {
   DashboardV2LeaguePerformanceRow,
   DashboardV2LedgerModel,
   DashboardV2ReleaseModel,
+  DashboardV2ScorelineProjection,
 } from "../dashboard-v2/dashboard-v2-model";
 
 export type BossDecisionStatus = "pick" | "watch" | "not-ready";
@@ -11,6 +12,7 @@ export interface BossDecisionItem {
   id: string;
   priority: string;
   kickoffUtc: string;
+  fixtureStatus: string;
   league: string;
   match: string;
   status: BossDecisionStatus;
@@ -21,9 +23,11 @@ export interface BossDecisionItem {
   probabilityDelta: number | null;
   expectedValue: number | null;
   uncertainty: number | null;
+  scorelineProjection: DashboardV2ScorelineProjection | null;
   risk: string;
   riskLevel: BossRiskLevel;
   riskNote: string;
+  lineupPending: boolean;
   nextAction: string;
   nextDetail: string;
   snapshotAt: string | null;

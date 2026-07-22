@@ -1,61 +1,75 @@
-**Findings**
+# W2 Boss Decision Console V2.1 Design QA
 
-- [P0] The protected React implementation and approved golden screenshots are different authorities.
-  Location: Dashboard V2 visual fixture route.
-  Evidence: the protected component sorts fixtures by `kickoffUtc`, so the two 20:00 matches render before the selected 21:00 match. The 1440 golden places the selected 21:00 match first. The React output also creates separate `07-26` and `07-27` groups, while the golden's hand-authored preview groups both under `07-26`.
-  Impact: the required `maxDiffPixelRatio <= 0.0015` cannot pass without changing a protected file, replacing the golden, or testing a different DOM than production.
-  Fix: provide a corrected pack whose golden screenshots were captured from the protected React component and fixed fixture, or explicitly approve a protected-source revision that matches the current goldens.
+## Comparison Target
 
-- [P1] The supplied visual test expected locator crops, while the approved goldens are full-page captures.
-  Location: `apps/web/e2e/dashboard-v2-visual.spec.ts`.
-  Evidence: locator screenshots measured 1920x1201, 1416x949, and 374x4685; approved goldens measure 2048x1202, 1440x950, and 390x4709.
-  Impact: the original test could not compare against the supplied goldens.
-  Fix: the integration test now uses full-page screenshots and maps directly to the protected golden paths. This exposes the authority conflict above without weakening the 0.15% threshold.
+- Source visual truth: `docs/ui/boss-console/w2_boss_decision_console_prototype.html`
+- Reference captures: `docs/ui/boss-console/golden/v2.1/reference/`
+- React captures: `docs/ui/boss-console/golden/v2.1/actual/`
+- Pixel diffs: `docs/ui/boss-console/golden/v2.1/diff/`
+- Combined comparison evidence: `docs/ui/boss-console/golden/v2.1/qa/`
+- Browser: Playwright Chromium, `zh-CN`, `Asia/Shanghai`
+- Device scale factor: `1`
+- State: fixed visual dataset, analysis-priority filter, first fixture selected
 
-**Open Questions**
+## Viewport Evidence
 
-- The authority order names the protected React source before the golden screenshots, but the acceptance contract requires the current goldens. Human design authority must choose which one is corrected.
-- The pack contains no approved scroll-bottom or scoreline-panel crop goldens. Those states are covered by geometry, visibility, exact-copy, and interaction assertions, but cannot receive an independent pixel verdict without human-supplied baselines.
+| CSS viewport | Reference pixels | React pixels | Differing-pixel ratio |
+| --- | --- | --- | --- |
+| 2048 x 1152 | 2048 x 1476 | 2048 x 1476 | 0.00000662 |
+| 1440 x 900 | 1440 x 1436 | 1440 x 1436 | 0.00000677 |
+| 390 x 844 | 390 x 4119 | 390 x 4119 | 0.00000187 |
 
-**Implementation Checklist**
+All ratios pass the unchanged `0.0015` maximum. Reference and implementation dimensions
+match at every viewport.
 
-- Protected baseline SHA256 guard: passed.
-- Adapter, production entry, and visual route: integrated.
-- Fixed visual data is dev/test-only and absent from the production bundle: passed.
-- Real V3 `evaluated_candidate.analysis_evidence` survives API normalization and maps exact bookmaker, quote time, model/market probabilities, delta, EV, and uncertainty: passed.
-- TypeScript typecheck and production build: passed.
-- Full W2 all-stage verification: passed (1411 tests passed, 4 environment-dependent tests skipped).
-- 15-fixture internal-scroll reachability: passed.
-- Scoreline Top 3 and market-consistency behavior: passed.
-- Unified forward-ledger behavior: passed.
-- Full-page golden comparison at 2048, 1440, and 390: blocked by source-pack authority conflict.
+## Full-View Comparison
 
-**Follow-up Polish**
+The combined desktop and mobile evidence compares the HTML authority and React output in
+the same image. Composition, workspace proportions, typography, spacing, palette, borders,
+date-first rows, scoreline placement, unified ledger, league table, and responsive stacking
+match without actionable P0/P1/P2 drift.
 
-- None. Visual polish is intentionally frozen until the source/golden conflict is resolved.
+## Focused Comparison
 
-Source visual truth paths:
+`boss-console-detail-combined.png` compares the selected-fixture rail at native size. The
+match title, Shanghai kickoff hierarchy, exact quote, four model/market metrics, EV standard
+error, 10,000-sample Top 3, sample counts, probabilities, and market-consistency evidence
+match the source authority.
 
-- `docs/ui/dashboard-v2/golden/dashboard-v2-wide-2048.png`
-- `docs/ui/dashboard-v2/golden/dashboard-v2-desktop-1440.png`
-- `docs/ui/dashboard-v2/golden/dashboard-v2-mobile-390.png`
+## Fidelity Surfaces
 
-Implementation evidence:
+- Fonts and typography: matching family, weights, sizes, line heights, wrapping, numeric
+  alignment, and zero negative letter spacing.
+- Spacing and layout: matching grid tracks, fixed desktop workspace height, internal queue
+  and detail scrolling, panel padding, gaps, borders, and radii.
+- Color palette: matching dark green panel system and semantic blue, green, amber, and
+  red states.
+- Image and asset quality: this console contains no product imagery; no raster placeholder,
+  screenshot background, or newly approximated visual asset is used.
+- Copy and content: date, snapshot, model EV, EV standard error, scoreline, unified ledger,
+  and league labels match the V2.1 product contract.
 
-- Playwright run: 15 behavior/contract tests passed; the three official viewport comparisons failed only on the source/golden authority conflict recorded above.
-- In-app browser capture: `/tmp/w2-dashboard-v2-inapp-1440.png`
-- Side-by-side comparison: `/tmp/w2-dashboard-v2-qa-comparison.png`
-- Viewport: 1440x900, zh-CN, Asia/Shanghai, deviceScaleFactor=1.
-- State: fixed visual fixture, selected fixture `1494218`, all-schedule filter.
-- Primary interactions tested: analysis-only filter (5 visible), all-schedule filter (15 visible), fixture selection and right-rail update.
-- Browser console errors: none.
-- Full-view comparison: completed with source and implementation in one side-by-side image.
-- Focused comparison: scoreline panel is included in the full-page golden and separately verified by exact content and rail-bounds assertions; no additional human-approved crop golden exists.
+## Interaction Evidence
 
-Comparison history:
+- Filters, selection, system drawer, and Escape close behavior pass.
+- 5, 15, and 30 fixtures remain reachable; the desktop workspace height is stable.
+- Desktop queue scrolling preserves the header and selected-row state.
+- Mobile uses natural document scrolling and exposes all 30 fixtures.
+- The client clock advances once per minute without changing the API refresh timestamp.
+- A reversed global-odds/page-refresh timestamp fails visibly and exposes exact fields in L2.
+- Browser console: no application errors during the Playwright suite.
 
-1. Repeated comparison found 3% / 4% / 7% full-page differences at 2048 / 1440 / 390, including fixture ordering, date grouping, row copy, and page height.
-2. Protected hashes were rechecked and remained unchanged, proving the mismatch is in the supplied reference pack rather than an integration edit.
-3. No protected source, golden image, or threshold was changed.
+## Comparison History
 
-final result: blocked
+1. Initial V2.1 implementation exposed legacy expectations for mobile nested scrolling,
+   whitespace in countdown copy, and public recovery wording.
+2. The implementation and HTML authority were corrected to natural mobile scrolling,
+   the frozen date-first copy, and one public ledger without recovery/cohort language.
+3. Post-fix source-to-React comparison passed all three viewports and all interaction tests.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain. HTTPS and authentication are a
+separate staging security task and are not part of this UI fidelity result.
+
+final result: passed

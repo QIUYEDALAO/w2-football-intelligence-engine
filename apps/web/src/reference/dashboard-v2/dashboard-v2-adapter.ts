@@ -255,7 +255,8 @@ function fixtureModel(
 
 function leagueRows(performance?: DashboardPerformance): DashboardV2LeaguePerformanceRow[] {
   return (performance?.forward_ledger?.performance_cohort.by_league ?? []).map((row) => ({
-    league: row.league,
+    competitionKey: row.competition_id || undefined,
+    league: translateCompetition(row.league),
     eligibleCount: row.eligible_count,
     hitCount: row.outcomes.hit_count,
     missCount: row.outcomes.miss_count,
