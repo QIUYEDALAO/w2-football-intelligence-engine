@@ -200,7 +200,8 @@ def test_projector_validates_and_writes_idempotent_read_model(tmp_path: Path, mo
     model = client.get("/v1/fixtures/1489399/model-probabilities").json()
     assert market["probability_type"] == "market_fair_probability"
     assert model["probability_type"] == "independent_model_probability"
-    assert "ARGENTINA_WIN" in market["probabilities"]
+    assert market["probabilities"] == {}
+    assert market["quality"] == "MARKET_NOT_COMPARABLE"
     get_settings.cache_clear()
 
 

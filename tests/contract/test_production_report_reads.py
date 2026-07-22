@@ -7,16 +7,17 @@ from typing import Any
 from w2.api import repository
 from w2.tracking.formal_results import endpoint_summary
 
-API_SOURCE_ROOT = Path("src/w2/api")
+API_SOURCE_ROOTS = (Path("src/w2/api"), Path("apps/api"))
 REPORT_PATH_PATTERN = re.compile(r"(?:^|[\"'/])reports(?:[\"'/])", re.IGNORECASE)
 
 
 def test_production_api_source_cannot_reference_reports_paths() -> None:
     violations: list[str] = []
-    for path in sorted(API_SOURCE_ROOT.rglob("*.py")):
-        source = path.read_text(encoding="utf-8")
-        if "REPORTS" in source or REPORT_PATH_PATTERN.search(source):
-            violations.append(str(path))
+    for root in API_SOURCE_ROOTS:
+        for path in sorted(root.rglob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            if "REPORTS" in source or REPORT_PATH_PATTERN.search(source):
+                violations.append(str(path))
     assert violations == []
 
 

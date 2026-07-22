@@ -669,7 +669,7 @@ def test_dashboard_data_refresh_does_not_mark_historical_odds_ready_when_stale()
     assert refresh["lineups_status_label"] == "未到首发请求时点"
 
 
-def test_dashboard_exposes_market_movement_without_promoting_flags(
+def test_dashboard_ignores_runtime_market_timeline_for_current_odds(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -765,17 +765,9 @@ def test_dashboard_exposes_market_movement_without_promoting_flags(
 
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
-    assert card["market_movement"]["status"] == "READY"
-    assert card["market_movement"]["line_move_direction"] == "HOME_DEEPENED"
-    assert card["market_timeline"]["status"] == "READY"
-    assert card["market_timeline"]["label"] == "盘口时间线 · 参照 · 未验证"
-    assert card["market_timeline"]["verified"] is False
-    assert card["market_timeline"]["direction_allowed"] is False
-    assert card["market_timeline"]["open"]["line"] == -0.5
-    assert card["market_timeline"]["open"]["as_of"] == "2026-06-26T08:00:00Z"
-    assert card["market_timeline"]["current"]["line"] == -1.0
-    assert card["market_timeline"]["current"]["as_of"] == "2026-06-26T09:30:00Z"
-    assert card["market_timeline"]["pattern"] == "JUMP_LINE"
+    assert card["current_odds"]["ah"] == {"line": "-1.0", "price": 1.86}
+    assert card["market_movement"]["status"] == "INSUFFICIENT"
+    assert card["market_timeline"]["status"] == "INSUFFICIENT"
     assert card["market_divergence"]["direction_allowed"] is False
     assert card["market_divergence"]["calibration_status"] == "UNVALIDATED"
     assert card["bookmaker_hypothesis"]["label"] == "盘口假设 · 未验证"
@@ -785,7 +777,7 @@ def test_dashboard_exposes_market_movement_without_promoting_flags(
     assert card["pricing_shadow"]["beats_market"] is False
 
 
-def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
+def test_dashboard_does_not_fill_missing_ah_from_runtime_timeline(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -874,22 +866,9 @@ def test_dashboard_formal_uses_timeline_ah_prices_as_canonical_market(
 
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
 
-    assert card["current_odds"]["ah"]["home_line"] == "-1"
-    assert card["current_odds"]["ah"]["away_line"] == "1"
-    assert card["current_odds"]["ah"]["home_price"] == 1.95
-    assert card["current_odds"]["ah"]["away_price"] == 1.95
-    assert (
-        card["current_odds"]["ah"]["selection_policy"]
-        == "latest_bucket_ladder_balance_same_bookmaker_pair"
-    )
-    assert card["current_odds"]["ah"]["candidate_lines"][0]["line"] == -1.0
-    assert card["current_odds"]["ah"]["rejected_lines"][0]["line"] == -0.5
-    assert card["pricing_shadow"]["market_ah"] == -1.0
-    assert card["pricing_shadow"]["canonical_ah_market_validation_status"] == "READY"
-    assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
-    assert card["pricing_shadow"]["canonical_ah_market"]["home_line"] == -1.0
-    assert card["pricing_shadow"]["canonical_ah_market"]["away_line"] == 1.0
-    assert "MISSING_AH_MARKET" not in card["pricing_shadow"]["formal_blockers"]
+    assert card["current_odds"] == {"ou": {"line": "2.5", "price": 1.9}}
+    assert card["market_timeline"]["status"] == "INSUFFICIENT"
+    assert "MISSING_AH_MARKET" in card["pricing_shadow"]["formal_blockers"]
     assert card["formal_recommendation"] is False
     assert card["recommendation"]["tier"] == "WATCH"
     assert card["recommendation"]["formal_recommendation"] is False
@@ -1090,46 +1069,12 @@ def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
     assert "selection_warning" not in odds_entry
 
 
-def test_read_model_corrects_legacy_timeline_snapshot_to_consensus_mainline() -> None:
+def test_read_model_has_no_runtime_timeline_mainline_corrector() -> None:
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
-    corrected = service._consensus_first_ah_snapshot(
-        {
-            "market": "ASIAN_HANDICAP",
-            "line": -2.5,
-            "home_price": 1.93,
-            "away_price": 1.86,
-            "bookmaker_count": 2,
-            "candidate_lines": [
-                {
-                    "selection_rank": 1,
-                    "line": -2.5,
-                    "home_price": 1.93,
-                    "away_price": 1.86,
-                    "bookmaker_count": 2,
-                    "balance_distance": 0.010052,
-                },
-                {
-                    "selection_rank": 6,
-                    "line": -1.25,
-                    "home_price": 2.24,
-                    "away_price": 1.685,
-                    "bookmaker_count": 4,
-                    "balance_distance": 0.070525,
-                },
-            ],
-        }
-    )
-
-    assert corrected is not None
-    assert corrected["line"] == -1.25
-    assert corrected["home_price"] == 2.24
-    assert corrected["away_price"] == 1.685
-    assert corrected["bookmaker_count"] == 4
-    assert corrected["selection_policy"] == "consensus_first_bookmaker_count_then_balance"
-    assert corrected["selection_warning"] == "READTIME_CONSENSUS_MAINLINE_CORRECTED"
+    assert not hasattr(service, "_consensus_first_ah_snapshot")
 
 
-def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
+def test_dashboard_ignores_runtime_mainline_materialization(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -1240,16 +1185,11 @@ def test_dashboard_blocks_stale_pricing_shadow_mainline_materialization(
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
     shadow = card["pricing_shadow"]
 
-    assert card["current_odds"]["ah"]["home_line"] == "-1.25"
-    assert shadow["market_ah"] == -1.25
-    assert shadow["materialized_market_ah"] == -2.5
-    assert shadow["selector_market_ah"] == -1.25
+    assert card["current_odds"]["ah"]["home_line"] == "-2.5"
+    assert shadow["market_ah"] == -2.5
+    assert "materialized_market_ah" not in shadow
+    assert "selector_market_ah" not in shadow
     assert shadow["edge_ah"] is None
-    assert shadow["mainline_materialization_status"] == "STALE"
-    assert shadow["mainline_materialization_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
-    assert shadow["canonical_ah_market_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
-    assert shadow["canonical_ah_market_validation_status"] == "BLOCKED"
-    assert "AH_MAINLINE_STALE_MATERIALIZATION" in shadow["formal_blockers"]
     assert card["formal_recommendation"] is False
 
 
@@ -1269,44 +1209,22 @@ def test_runtime_ah_mainline_recompute_is_diagnostic_only_by_default(
         },
         "pricing_shadow": {"market_ah": -2.5, "fair_ah": -0.25, "edge_ah": -2.25},
     }
-    timeline = {
-        "snapshots": [
-            {
-                "market": "ASIAN_HANDICAP",
-                "line": -1.25,
-                "home_price": 2.24,
-                "away_price": 1.685,
-                "bookmaker_count": 4,
-                "selection_policy": "consensus_first_bookmaker_count_then_balance",
-            }
-        ]
-    }
-
-    service._apply_signed_ah_line_from_timeline(card, timeline)
+    assert not hasattr(service, "_apply_signed_ah_line_from_timeline")
 
     assert card["current_odds"]["ah"]["home_line"] == "-2.5"
     assert card["pricing_shadow"]["market_ah"] == -2.5
     assert card["pricing_shadow"]["edge_ah"] == -2.25
-    assert card["pricing_shadow"]["materialized_market_ah"] == -2.5
-    assert card["pricing_shadow"]["selector_market_ah"] == -1.25
-    assert (
-        card["pricing_shadow"]["mainline_materialization_blocker"]
-        == "AH_MAINLINE_STALE_MATERIALIZATION"
-    )
+    assert "materialized_market_ah" not in card["pricing_shadow"]
+    assert "selector_market_ah" not in card["pricing_shadow"]
 
 
 def test_pricing_shadow_mainline_reconciliation_recomputes_edge() -> None:
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
     shadow = {"market_ah": -2.5, "fair_ah": -0.25}
 
-    service._reconcile_pricing_shadow_ah_mainline(shadow, -1.25)
+    assert not hasattr(service, "_reconcile_pricing_shadow_ah_mainline")
 
-    assert shadow["market_ah"] == -1.25
-    assert shadow["edge_ah"] == -1.0
-    assert shadow["materialized_market_ah"] == -2.5
-    assert shadow["selector_market_ah"] == -1.25
-    assert shadow["mainline_materialization_status"] == "STALE"
-    assert shadow["mainline_materialization_blocker"] == "AH_MAINLINE_STALE_MATERIALIZATION"
+    assert shadow == {"market_ah": -2.5, "fair_ah": -0.25}
 
 
 def test_read_model_mainline_rejects_cross_bookmaker_ah_pairing() -> None:

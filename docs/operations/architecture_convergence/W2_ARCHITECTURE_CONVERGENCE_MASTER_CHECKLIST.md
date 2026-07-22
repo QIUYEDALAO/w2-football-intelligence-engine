@@ -178,10 +178,12 @@ NO_ARCHITECTURE_SCOPE_ADDED_TO_PR_370
 **独立 PR，只处理这一项。**
 
 ```text
-Status: IN_PROGRESS
+Status: DONE
 Branch: codex/arch-p0-01-remove-report-reads
-PR: #375 (Draft)
+PR: #375 (MERGED)
 Base SHA: 160a67505e2ba725b70250635ee71ce99e11b812
+Merge SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
+Exact-head CI: 29965523791 (verify, staging-parity, predeploy-e2e passed)
 Started at: 2026-07-23T07:08:42+0800
 Owner: Codex
 Evidence: All 12 production API report targets are absent; tracked reports/ file
@@ -191,16 +193,16 @@ Rollback: Revert this PR. No schema, data, configuration, provider or safety
   switch change is included.
 ```
 
-- [ ] 全量列出 `src/w2/api/repository.py` 及相关生产代码读取的 `reports/*.json`。
-- [ ] 逐项证明目标文件不存在或生产运行不应依赖。
-- [ ] 删除所有生产读取路径和静默默认值 fallback。
-- [ ] 不用新的文件 fallback 替代旧 fallback。
-- [ ] 缺少数据库事实时返回明确的 `NOT_READY` 或错误状态。
-- [ ] 新增回归测试：生产 API 不访问 `reports/`。
-- [ ] 新增静态检查：禁止生产代码重新引用 `reports/*.json`。
-- [ ] 完整 CI 通过。
-- [ ] staging 语义对账通过。
-- [ ] PR 合并。
+- [x] 全量列出 `src/w2/api/repository.py` 及相关生产代码读取的 `reports/*.json`。
+- [x] 逐项证明目标文件不存在或生产运行不应依赖。
+- [x] 删除所有生产读取路径和静默默认值 fallback。
+- [x] 不用新的文件 fallback 替代旧 fallback。
+- [x] 缺少数据库事实时返回明确的 `NOT_READY` 或错误状态。
+- [x] 新增回归测试：生产 API 不访问 `reports/`。
+- [x] 新增静态检查：禁止生产代码重新引用 `reports/*.json`。
+- [x] 完整 CI 通过。
+- [x] staging 语义对账通过。
+- [x] PR 合并。
 
 **验收**
 
@@ -215,18 +217,42 @@ NEW_FALLBACKS = 0
 
 **独立 PR，只收敛“读”，不先重写所有写入。**
 
-- [ ] 盘点所有活跃赔率读取表和文件：
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p0-02-odds-read-authority
+PR: PENDING
+Base SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
+Started at: 2026-07-23T07:34:21+0800
+Owner: Codex
+Authority table: matchday_market_observations
+Authority method: ReadModelRepository.future_market_observations_for_fixtures()
+Scope: Read convergence only; no schema, write-path, provider, configuration or
+  safety-switch change.
+Rollback: Revert this PR. Historical tables and all existing writers remain.
+Inventory: matchday_market_observations is the sole production quote/readiness
+  source. future_market_observation and odds_observations remain unchanged but
+  are not production read authorities. runtime/stage7e/market_snapshots.json,
+  runtime market timelines, normalized frozen snapshots and staging seed files
+  cannot fill a production response; offline projectors/writers remain audit-only.
+Reconciliation: fixture, bookmaker, market, selection, signed line, odds,
+  captured_at and observation_id quote identity matched the canonical row.
+Read-only proof: 20 sequential scoped reads returned identical identity; SQL
+  INSERT/UPDATE/DELETE/MERGE count was 0 and authority row count stayed 1.
+Local full validation: W2 all-stage verify PASS; 1450 passed, 4 skipped.
+```
+
+- [x] 盘点所有活跃赔率读取表和文件：
   - `future_market_observation` 或当前等价表；
   - `matchday_market_observations`；
   - `odds_observations`；
   - `runtime/stage7e/market_snapshots.json`；
   - 其他 runtime/seed/frozen 读取。
-- [ ] 指定一套当前阶段的唯一读取仓储方法。
-- [ ] `market_snapshots()` 不再把数据库与 runtime JSON 相加合并。
-- [ ] runtime JSON 降级为审计副本，不能影响生产返回值。
-- [ ] 当前没有数据库赔率时，明确返回无数据，不能用 seed/文件补值。
-- [ ] 保持所有历史表原样，P0 不 drop 表。
-- [ ] 增加 old/new 结果对账：
+- [x] 指定一套当前阶段的唯一读取仓储方法。
+- [x] `market_snapshots()` 不再把数据库与 runtime JSON 相加合并。
+- [x] runtime JSON 降级为审计副本，不能影响生产返回值。
+- [x] 当前没有数据库赔率时，明确返回无数据，不能用 seed/文件补值。
+- [x] 保持所有历史表原样，P0 不 drop 表。
+- [x] 增加 old/new 结果对账：
   - fixture；
   - bookmaker；
   - market；
@@ -235,7 +261,7 @@ NEW_FALLBACKS = 0
   - odds；
   - captured_at；
   - quote identity。
-- [ ] Dashboard 与分析读取均经过唯一仓储入口。
+- [x] Dashboard 与分析读取均经过唯一仓储入口。
 - [ ] 完整 CI、staging 对账、20 次只读零写通过。
 - [ ] PR 合并。
 

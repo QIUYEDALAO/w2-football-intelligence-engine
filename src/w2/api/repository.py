@@ -70,7 +70,6 @@ from w2.infrastructure.persistence.shadow_strategy_models import (
 )
 from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
-from w2.ingestion.market_timeline import DEFAULT_TIMELINE_DIR, load_timeline, timeline_path
 from w2.lineups.intelligence import (
     LineupGate,
     audited_coverage_rate,
@@ -130,10 +129,8 @@ from w2.strategy.analysis_recommendation import (
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.formal_recommendation import (
-    AH_MAINLINE_STALE_MATERIALIZATION,
     ah_display_contract,
     build_formal_recommendation,
-    canonical_ah_market,
     formal_recommendation_id,
     formal_recommendations_enabled,
 )
@@ -163,7 +160,6 @@ FORWARD_LEDGER_LEGACY_RECOVERY = (
 MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
-STAGING_DASHBOARD_SEED = RUNTIME / "dashboard/staging_seed_dashboard.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
 
@@ -267,10 +263,6 @@ def _truthy_flag(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "y"}
     return False
-
-
-def _runtime_ah_mainline_recompute_enabled() -> bool:
-    return _truthy_flag(os.getenv("W2_RECOMPUTE_AH_MAINLINE_AT_READ"))
 
 
 def _optional_truthy_flag(value: Any) -> bool | None:
@@ -686,45 +678,17 @@ class ReadModelRepository:
                             fixtures[fixture_id] = item
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
-    def market_snapshots_for_fixture(self, fixture_id: str) -> list[dict[str, Any]]:
-        db_repository = future_refresh_db_repository()
-        reader = (
-            getattr(db_repository, "market_snapshots_for_fixture", None)
-            if db_repository is not None
-            else None
-        )
-        if callable(reader):
-            with suppress(Exception):
-                return cast(list[dict[str, Any]], reader(fixture_id))
-        if db_repository is not None and get_settings().environment in {
-            Environment.LOCAL,
-            Environment.TEST,
-        }:
-            offline_reader = getattr(db_repository, "market_snapshots", None)
-            if callable(offline_reader):
-                with suppress(Exception):
-                    return [
-                        row
-                        for row in offline_reader()
-                        if str(row.get("fixture_id") or "") == fixture_id
-                    ]
-        return []
-
     def forward_locks(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/prediction_locks.json", []))
 
     def market_snapshots(self) -> list[dict[str, Any]]:
-        snapshots: list[dict[str, Any]] = []
         db_repository = future_refresh_db_repository()
-        if db_repository is not None:
-            try:
-                snapshots.extend(db_repository.market_snapshots())
-            except Exception:
-                snapshots = []
-        snapshots.extend(
-            cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/market_snapshots.json", []))
-        )
-        return snapshots
+        if db_repository is None:
+            return []
+        try:
+            return db_repository.market_snapshots()
+        except Exception:
+            return []
 
     def future_market_observations(self) -> list[dict[str, Any]]:
         db_repository = future_refresh_db_repository()
@@ -749,15 +713,6 @@ class ReadModelRepository:
             reader = getattr(db_repository, "latest_market_observations_for_fixtures", None)
             if callable(reader):
                 return cast(list[dict[str, Any]], reader(fixture_ids))
-            if get_settings().environment in {Environment.LOCAL, Environment.TEST}:
-                offline_reader = getattr(db_repository, "latest_market_observations", None)
-                if callable(offline_reader):
-                    allowed = set(fixture_ids)
-                    return [
-                        row
-                        for row in offline_reader()
-                        if str(row.get("fixture_id") or "") in allowed
-                    ]
         return []
 
     def public_market_refresh_status(
@@ -798,10 +753,6 @@ class ReadModelRepository:
 
     def result_events(self) -> list[dict[str, Any]]:
         return cast(list[dict[str, Any]], load_json(RUNTIME / "stage7e/result_events.json", []))
-
-    def staging_seed_dashboard(self) -> dict[str, Any] | None:
-        payload = load_json(STAGING_DASHBOARD_SEED, None)
-        return cast(dict[str, Any], payload) if isinstance(payload, dict) else None
 
     def release_counts(self) -> dict[str, int]:
         return {
@@ -1251,18 +1202,6 @@ class ReadModelService:
             return []
         return rows
 
-    def _market_snapshots_bounded(self, fixture_id: str) -> list[dict[str, Any]]:
-        reader = getattr(self.repository, "market_snapshots_for_fixture", None)
-        if not callable(reader):
-            return []
-        try:
-            rows = cast(list[dict[str, Any]], reader(fixture_id))
-        except Exception:
-            return []
-        if any(str(row.get("fixture_id") or "") != fixture_id for row in rows):
-            return []
-        return rows[:64]
-
     def _formal_snapshots_by_fixture(self) -> dict[str, list[dict[str, Any]]]:
         if self._formal_snapshots_by_fixture_cache is None:
             grouped: dict[str, list[dict[str, Any]]] = {}
@@ -1364,18 +1303,6 @@ class ReadModelService:
         self._reset_read_caches()
         version = self.version()
         counts = self._release_counts()
-        seed = self.repository.staging_seed_dashboard()
-        if not counts["read_model_fixture_count"] and not counts["matchday_card_count"] and seed:
-            return self._seed_dashboard_response(
-                seed,
-                requested_date=requested_date,
-                window=window,
-                timezone=timezone,
-                version=version,
-                counts=counts,
-                include_debug=include_debug,
-            )
-
         today_rows = self.matchday(target_date=requested_date.isoformat()).get("items", [])
         next36_rows = self.matchday_next_36_hours().get("items", [])
         result_rows = [row for row in self._all_matchday_rows() if self._is_finished_row(row)]
@@ -2041,6 +1968,8 @@ class ReadModelService:
         use_frozen_canary: bool = True,
     ) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
+        # Verified frozen database artifacts remain a canary authority. Local
+        # runtime/frozen files are never consulted here.
         if use_frozen_canary and self._uses_frozen_public_authority():
             return self._public_frozen_analysis_card(fixture_id)
         request_service = ReadModelService(repository=self.repository)
@@ -5105,7 +5034,6 @@ class ReadModelService:
             self._bounded_public_request = previous_bounded_state
         if item is not None:
             row = self._fixture_summary(item, timezone)
-            snapshots = self._market_snapshots_bounded(fixture_id)
             locks: list[dict[str, Any]] = []
             observations = self._fixture_observations_bounded(fixture_id)
             observed_markets: set[str] = {
@@ -5120,13 +5048,9 @@ class ReadModelService:
                 {
                     "request_id": "",
                     "venue": item.get("fixture", {}).get("venue", {}).get("name"),
-                    "bookmaker_count": max(
-                        [snapshot.get("bookmaker_count", 0) for snapshot in snapshots]
-                        + [len(obs_bookmaker_ids)]
-                        or [0]
-                    ),
+                    "bookmaker_count": len(obs_bookmaker_ids),
                     "market_coverage": {
-                        "ONE_X_TWO": bool(snapshots) or "ONE_X_TWO" in observed_markets,
+                        "ONE_X_TWO": "ONE_X_TWO" in observed_markets,
                         "ASIAN_HANDICAP": "ASIAN_HANDICAP" in observed_markets,
                         "TOTALS": "TOTALS" in observed_markets,
                         "BTTS": "BTTS" in observed_markets,
@@ -5136,7 +5060,7 @@ class ReadModelService:
                         "fixture_source": "api_football_cached",
                         "probability_source": "stage7e_forward_holdout",
                     },
-                    "risk_notes": [] if snapshots else ["market_not_comparable"],
+                    "risk_notes": [] if observations else ["market_not_comparable"],
                     "analysis_card": self.public_analysis_card_bounded(fixture_id),
                 }
             )
@@ -5437,9 +5361,9 @@ class ReadModelService:
             return None
 
     def _attach_market_movement_fields(self, card: dict[str, Any]) -> None:
-        fixture_id = str(card.get("fixture_id") or "")
-        timeline = self._market_timeline_payload(fixture_id) if fixture_id else {}
-        self._apply_signed_ah_line_from_timeline(card, timeline)
+        # Runtime timeline files are immutable audit artifacts, not a source
+        # for production odds or current-line projection.
+        timeline: dict[str, Any] = {}
         movement = build_market_movement(timeline)
         divergence = build_market_divergence(
             pricing_shadow=card.get("pricing_shadow")
@@ -5457,80 +5381,6 @@ class ReadModelService:
             market_movement=movement,
             market_divergence=divergence,
         )
-
-    def _apply_signed_ah_line_from_timeline(
-        self,
-        card: dict[str, Any],
-        timeline: dict[str, Any],
-    ) -> None:
-        latest_ah = self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline))
-        signed_line = self._snapshot_float(latest_ah, "line")
-        if signed_line is None:
-            return
-        if not self._timeline_ah_snapshot_is_canonical_ready(latest_ah):
-            return
-        if not _runtime_ah_mainline_recompute_enabled():
-            shadow = card.get("pricing_shadow")
-            if isinstance(shadow, dict):
-                self._reconcile_pricing_shadow_ah_mainline(
-                    shadow,
-                    signed_line,
-                    overwrite_materialized=False,
-                )
-                self._attach_ah_display_contract(card)
-            return
-        odds = card.get("current_odds")
-        if not isinstance(odds, dict):
-            odds = {}
-            card["current_odds"] = odds
-        ah = odds.get("ah")
-        if not isinstance(ah, dict):
-            ah = {}
-            odds["ah"] = ah
-        ah["home_line"] = f"{signed_line:g}"
-        ah["away_line"] = f"{-signed_line:g}"
-        ah["line"] = f"{abs(signed_line):g}"
-        home_price = self._snapshot_float(latest_ah, "home_price")
-        away_price = self._snapshot_float(latest_ah, "away_price")
-        if home_price is not None:
-            ah["home_price"] = home_price
-        if away_price is not None:
-            ah["away_price"] = away_price
-        if home_price is not None or away_price is not None:
-            ah["source"] = "market_timeline_snapshots"
-        for key in ("selection_policy", "candidate_lines", "rejected_lines"):
-            if isinstance(latest_ah, dict) and key in latest_ah:
-                ah[key] = latest_ah.get(key)
-        shadow = card.get("pricing_shadow")
-        if isinstance(shadow, dict):
-            self._reconcile_pricing_shadow_ah_mainline(shadow, signed_line)
-        self._attach_ah_display_contract(card)
-
-    def _reconcile_pricing_shadow_ah_mainline(
-        self,
-        pricing_shadow: dict[str, Any],
-        selector_line: float,
-        *,
-        overwrite_materialized: bool = True,
-    ) -> None:
-        materialized_line = self._snapshot_float(pricing_shadow, "market_ah")
-        if materialized_line is not None and abs(materialized_line - selector_line) > 0.001:
-            pricing_shadow["materialized_market_ah"] = materialized_line
-            pricing_shadow["selector_market_ah"] = selector_line
-            pricing_shadow["mainline_materialization_status"] = "STALE"
-            pricing_shadow["mainline_materialization_blocker"] = AH_MAINLINE_STALE_MATERIALIZATION
-        elif materialized_line is not None:
-            pricing_shadow["mainline_materialization_status"] = "READY"
-        if not overwrite_materialized:
-            return
-        pricing_shadow["market_ah"] = selector_line
-        fair = pricing_shadow.get("fair_ah")
-        try:
-            if fair is None:
-                raise TypeError
-            pricing_shadow["edge_ah"] = round(float(selector_line) - float(fair), 6)
-        except (TypeError, ValueError):
-            pricing_shadow["edge_ah"] = None
 
     def _attach_ah_display_contract(self, card: dict[str, Any]) -> None:
         odds = card.get("current_odds")
@@ -5551,111 +5401,6 @@ class ReadModelService:
         ah["line"] = f"{abs(canonical_home_line):g}"
         ah.update(display)
 
-    def _timeline_ah_snapshot_is_canonical_ready(
-        self,
-        snapshot: dict[str, Any] | None,
-    ) -> bool:
-        signed_line = self._snapshot_float(snapshot, "line")
-        home_price = self._snapshot_float(snapshot, "home_price")
-        away_price = self._snapshot_float(snapshot, "away_price")
-        if signed_line is None or home_price is None or away_price is None:
-            return False
-        market = canonical_ah_market(
-            current_odds={
-                "ah": {
-                    "home_line": signed_line,
-                    "away_line": -signed_line,
-                    "home_price": home_price,
-                    "away_price": away_price,
-                    "source": "market_timeline_snapshots",
-                    "as_of": snapshot.get("as_of") if isinstance(snapshot, dict) else None,
-                    "bookmaker_count": snapshot.get("bookmaker_count")
-                    if isinstance(snapshot, dict)
-                    else None,
-                }
-            },
-            pricing_shadow={"market_ah": signed_line},
-        )
-        return market is not None and market.validation_status == "READY"
-
-    def _latest_signed_ah_line(self, timeline: dict[str, Any]) -> float | None:
-        return self._snapshot_float(
-            self._consensus_first_ah_snapshot(self._latest_ah_snapshot(timeline)),
-            "line",
-        )
-
-    def _latest_ah_snapshot(self, timeline: dict[str, Any]) -> dict[str, Any] | None:
-        snapshots = timeline.get("snapshots") if isinstance(timeline, dict) else None
-        if not isinstance(snapshots, list):
-            return None
-        ah_rows = [
-            row
-            for row in snapshots
-            if isinstance(row, dict)
-            and str(row.get("market")) == "ASIAN_HANDICAP"
-            and row.get("line") is not None
-        ]
-        if not ah_rows:
-            return None
-        return max(
-            ah_rows,
-            key=lambda row: str(row.get("as_of") or row.get("generated_at") or ""),
-        )
-
-    def _consensus_first_ah_snapshot(
-        self,
-        snapshot: dict[str, Any] | None,
-    ) -> dict[str, Any] | None:
-        if not isinstance(snapshot, dict):
-            return snapshot
-        candidate_lines = snapshot.get("candidate_lines")
-        if not isinstance(candidate_lines, list):
-            return snapshot
-        candidates = [item for item in candidate_lines if isinstance(item, dict)]
-        if not candidates:
-            return snapshot
-        max_count = max(int(item.get("bookmaker_count") or 0) for item in candidates)
-        if max_count <= 0:
-            return snapshot
-        eligible = [
-            item for item in candidates if int(item.get("bookmaker_count") or 0) == max_count
-        ]
-        selected = min(
-            eligible,
-            key=lambda item: (
-                self._snapshot_float(item, "balance_distance") or 999.0,
-                self._snapshot_float(item, "price_gap") or 999.0,
-                self._snapshot_float(item, "mid_distance") or 999.0,
-                abs(self._snapshot_float(item, "line") or 999.0),
-            ),
-        )
-        selected_line = self._snapshot_float(selected, "line")
-        if selected_line is None:
-            return snapshot
-        current_line = self._snapshot_float(snapshot, "line")
-        if current_line is not None and abs(current_line - selected_line) <= 0.001:
-            return snapshot
-        corrected = dict(snapshot)
-        corrected["line"] = selected_line
-        corrected["bookmaker_count"] = int(selected.get("bookmaker_count") or max_count)
-        corrected["selection_policy"] = "consensus_first_bookmaker_count_then_balance"
-        corrected["selection_warning"] = "READTIME_CONSENSUS_MAINLINE_CORRECTED"
-        for key in ("home_price", "away_price"):
-            value = selected.get(key)
-            if value is not None:
-                corrected[key] = value
-        corrected["candidate_lines"] = [
-            {
-                **item,
-                "selection_rank": 1
-                if self._snapshot_float(item, "line") == selected_line
-                else int(item.get("selection_rank") or 999),
-                "consensus_eligible": int(item.get("bookmaker_count") or 0) == max_count,
-            }
-            for item in candidates
-        ]
-        return corrected
-
     def _snapshot_float(self, snapshot: dict[str, Any] | None, key: str) -> float | None:
         if not isinstance(snapshot, dict):
             return None
@@ -5663,11 +5408,6 @@ class ReadModelService:
             return float(snapshot[key])
         except (KeyError, TypeError, ValueError):
             return None
-
-    def _market_timeline_payload(self, fixture_id: str) -> dict[str, Any]:
-        configured = os.getenv("W2_MARKET_TIMELINE_RUNTIME_ROOT")
-        root = Path(configured) if configured else ROOT / DEFAULT_TIMELINE_DIR
-        return load_timeline(timeline_path(root, fixture_id))
 
     def _first_text(self, *values: Any) -> str:
         for value in values:
@@ -5825,25 +5565,6 @@ class ReadModelService:
         return rows
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:
-        dashboard = self.repository.dashboard_fixture(fixture_id)
-        if dashboard is not None:
-            return [
-                {
-                    "captured_at": datetime.fromisoformat(
-                        str(row["captured_at_utc"]).replace("Z", "+00:00")
-                    ),
-                    "snapshot_semantics": "CAPTURED_AT",
-                    "market": row["market"],
-                    "selection": row["selection"],
-                    "line": row.get("line"),
-                    "decimal_odds": str(row.get("executable_odds")),
-                    "bookmaker": row.get("bookmaker"),
-                    "bookmaker_count": int(row.get("available_bookmaker_count", 0)),
-                    "first_seen": False,
-                    "closing": False,
-                }
-                for row in dashboard.get("value_rows", [])
-            ]
         points: list[dict[str, Any]] = []
         first_seen: set[tuple[str, str, str | None, str | None]] = set()
         observations = self._fixture_observations_bounded(fixture_id)
@@ -5883,43 +5604,23 @@ class ReadModelService:
                 }
             )
             first_seen.add(identity)
-        for snapshot in self._market_snapshots_bounded(fixture_id):
-            probabilities = snapshot.get("power_probabilities") or {}
-            for selection, probability in probabilities.items():
-                points.append(
-                    {
-                        "captured_at": datetime.fromisoformat(snapshot["captured_at"]),
-                        "snapshot_semantics": "CAPTURED_AT",
-                        "market": "ONE_X_TWO",
-                        "selection": selection,
-                        "line": None,
-                        "decimal_odds": f"{1 / probability:.4f}" if probability else None,
-                        "bookmaker_count": snapshot.get("bookmaker_count", 0),
-                        "first_seen": True,
-                        "closing": False,
-                    }
-                )
         return sorted(points, key=lambda item: item["captured_at"])
 
     def market_probabilities(self, fixture_id: str) -> dict[str, Any]:
-        dashboard = self.repository.dashboard_fixture(fixture_id)
-        if dashboard is not None:
+        observations = self._fixture_observations_bounded(fixture_id)
+        probabilities = self._market_probabilities_from_observations(observations)
+        if probabilities:
+            captured_at = max(
+                datetime.fromisoformat(str(row["captured_at"]).replace("Z", "+00:00"))
+                for row in observations
+            )
             return {
                 "probability_type": "market_fair_probability",
-                "probabilities": dashboard.get("market_probabilities", {}),
-                "source": "POWER devig from append-only dashboard read model",
-                "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
-                "quality": dashboard.get("data_status", "READY"),
+                "probabilities": probabilities,
+                "source": "POWER devig from matchday_market_observations",
+                "as_of_time": captured_at,
+                "quality": "READY",
             }
-        for snapshot in self._market_snapshots_bounded(fixture_id):
-            if snapshot.get("power_probabilities"):
-                return {
-                    "probability_type": "market_fair_probability",
-                    "probabilities": snapshot["power_probabilities"],
-                    "source": "POWER devig from captured market snapshot",
-                    "as_of_time": datetime.fromisoformat(snapshot["captured_at"]),
-                    "quality": snapshot["quality"],
-                }
         return {
             "probability_type": "market_fair_probability",
             "probabilities": {},
@@ -6375,7 +6076,9 @@ class ReadModelService:
         fixture_id = str(row.get("fixture_id") or "")
         analysis = analysis_override
         if analysis is None and fixture_id:
-            if self._uses_frozen_public_authority():
+            if isinstance(self.repository, ReadModelRepository):
+                analysis = self.public_analysis_card_bounded(fixture_id)
+            elif self._uses_frozen_public_authority():
                 analysis = self.public_analysis_card_bounded(fixture_id)
             elif row.get("_dashboard_source") == "future_fixture_payload":
                 item = self._fixture_payload_by_id(fixture_id)
@@ -6952,51 +6655,6 @@ class ReadModelService:
             "future_fixture_max_kickoff_utc": max(kickoffs).isoformat().replace("+00:00", "Z")
             if kickoffs
             else None,
-        }
-
-    def _seed_dashboard_response(
-        self,
-        seed: dict[str, Any],
-        *,
-        requested_date: date,
-        window: str,
-        timezone: str,
-        version: dict[str, Any],
-        counts: dict[str, int],
-        include_debug: bool,
-    ) -> dict[str, Any]:
-        cards = [
-            item for item in seed.get("all", seed.get("upcoming", [])) if isinstance(item, dict)
-        ]
-        debug = (
-            {
-                **counts,
-                "selected_date": requested_date.isoformat(),
-                "selected_date_has_data": bool(cards),
-                "next_available_date": requested_date.isoformat() if cards else None,
-                "empty_reason": None if cards else "STAGING_SEED_EMPTY",
-                "suggested_actions": ["staging seed is active; run live ingestion for real data"],
-            }
-            if include_debug
-            else {}
-        )
-        return {
-            "generated_at": datetime.now(UTC),
-            "date": requested_date.isoformat(),
-            "timezone": timezone,
-            "window": window,
-            "data_profile": "staging-seed",
-            "data_source": "staging-json-fallback",
-            "version": {
-                "api_git_sha": version["api_git_sha"],
-                "release_id": version["release_id"],
-            },
-            "debug": debug,
-            "performance": self._dashboard_performance(cards),
-            "recommendations": [card for card in cards if card.get("recommendation")],
-            "upcoming": cards,
-            "finished": [],
-            "all": cards,
         }
 
     def _fixture_summary(self, item: dict[str, Any], timezone: str) -> dict[str, Any]:
