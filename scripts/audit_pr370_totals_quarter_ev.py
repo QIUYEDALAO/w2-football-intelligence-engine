@@ -10,6 +10,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from w2.api.frozen_analysis import read_frozen_analysis_artifact
+from w2.infrastructure.database import create_engine
 from w2.markets.value_engine import expected_value, settlement_distribution_totals
 from w2.strategy.simulate import _exact_score_matrix
 
@@ -85,7 +87,11 @@ def main() -> int:
         "PUSH": _number(distribution.get("PUSH", 0)),
         "HALF_LOSS": _number(distribution.get("HALF_LOSS", 0)),
     }
-    simulation = card.get("simulation") or {}
+    artifact = read_frozen_analysis_artifact(create_engine(), FIXTURE_ID)
+    analysis_card = artifact.payload.get("analysis_card") or {}
+    simulation = analysis_card.get("simulation") or {}
+    if not simulation:
+        raise ValueError("TOTALS_QUARTER_FROZEN_SIMULATION_MISSING")
     calibration = simulation.get("calibration") or {}
     home = _number(simulation.get("lambda_home"))
     away = _number(simulation.get("lambda_away"))
@@ -145,6 +151,8 @@ def main() -> int:
         "expected": EXPECTED,
         "tolerance": TOLERANCE,
         "simulation": {
+            "artifact_hash": artifact.artifact_hash,
+            "artifact_source_hash": artifact.source_hash,
             "matrix_hash": _hash({str(key): str(value) for key, value in matrix.items()}),
             "lambda_home": home,
             "lambda_away": away,
