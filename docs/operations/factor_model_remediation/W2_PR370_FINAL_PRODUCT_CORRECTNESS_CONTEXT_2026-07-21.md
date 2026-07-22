@@ -274,11 +274,12 @@ Private runtime evidence remains outside GitHub under
 `pr370_totals_quarter_ev_audit.json`, `pr370_market_mainline_ladder_audit.json`, and
 `pr370_20read_canary_current.json`.
 
-### Remaining blockers
+### Remaining follow-up
 
-HTTPS plus authentication/private-network access is still absent. The raw public HTTP listener
-therefore remains a staging access-control blocker. The root-page A1 ordering requirement is
-also not yet met. Both are outside the accepted model and market-authority changes.
+The root-page A1 ordering requirement is not yet met. HTTPS and authentication/private-network
+access are not configured on the current host either; however, the operator has explicitly
+classified domain-only access as an operations follow-up rather than a PR #370 analysis or
+staging acceptance blocker. No claim of HTTPS deployment is made.
 
 ```text
 FORWARD_LEDGER_MAINLINE_SUPERSESSION_PASS
@@ -289,7 +290,7 @@ MODE_AWARE_DEPLOYMENT_READINESS_PASS
 OBSERVATION_REMATERIALIZER_IDEMPOTENCY_PASS
 LIVE_FROZEN_HTTP_PARITY_PASS
 REAL_PRODUCTION_SCREENSHOT_PASS: NOT CLAIMED (A6, not A1)
-STAGING_ACCESS_CONTROL_PASS: NOT CLAIMED (HTTP without auth/HTTPS)
+STAGING_ACCESS_CONTROL: OPERATOR-DEFERRED (not a PR #370 blocker)
 FORMAL_DISABLED
 LOCK_DISABLED
 PRODUCTION_DISABLED
