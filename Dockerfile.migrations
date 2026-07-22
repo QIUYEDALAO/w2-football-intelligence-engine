@@ -6,7 +6,9 @@ ARG UV_INDEX_URL=
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH=/app/.venv/bin:$PATH \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
-    UV_INDEX_URL=${UV_INDEX_URL}
+    UV_INDEX_URL=${UV_INDEX_URL} \
+    UV_HTTP_TIMEOUT=30 \
+    UV_HTTP_RETRIES=2
 WORKDIR /app
 RUN useradd --create-home --uid 10001 w2
 COPY --from=uv-bootstrap /uv /usr/local/bin/uv

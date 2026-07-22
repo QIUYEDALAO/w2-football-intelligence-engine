@@ -25,7 +25,10 @@ ARCHIVE="/tmp/w2-${REVISION}.tar.gz"
 START_AFTER_DEPLOY="${W2_STAGING_START_AFTER_DEPLOY:-false}"
 PRUNE_BUILD_CACHE="${W2_STAGING_PRUNE_BUILD_CACHE:-false}"
 BUILD_PIP_INDEX_URL="${PIP_INDEX_URL:-}"
-BUILD_UV_INDEX_URL="${UV_INDEX_URL:-}"
+# This China-based staging host can reach PyPI but has stalled repeatedly while
+# resolving wheels there. Use an explicit reachable mirror unless an operator
+# supplied a different index for this deployment.
+BUILD_UV_INDEX_URL="${UV_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple}"
 ROLLBACK_REVISION="$(ssh "${SSH_HOST}" "basename \"\$(readlink -f /opt/w2/current)\"")"
 
 echo "=== W2 Stage7H Deploy v0.1 ==="
