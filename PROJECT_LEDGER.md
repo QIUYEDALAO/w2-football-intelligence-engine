@@ -468,3 +468,26 @@ Detailed evidence:
   watchdog remained active, and provider calls remained zero.
 - Current operational blocker is `STAGING_IMAGE_BUILD_STALLED`, not a fabricated
   live-lineup-window result.
+
+## 2026-07-22 — Dynamic lifecycle deployed; fixture recovery and pending live canary
+
+- Draft PR #370 head `81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8` passed GitHub
+  Actions run `29916913849` (`verify`, `staging-parity`, `predeploy-e2e`). It
+  is deployed to `root@118.196.30.136`; API, web, worker, scheduler, Postgres
+  and Redis are healthy. The scheduler healthcheck was corrected so a
+  deliberately disabled Draft provider refresh is not falsely reported as
+  unhealthy.
+- The slow cold Docker dependency path was bypassed safely for source-only
+  releases by deriving the candidate image from the previously verified
+  dependency image and verifying imports from candidate `/app/src`. No cache
+  prune or dependency redownload was used for the final releases.
+- Existing raw fixture/odds captures were repaired with zero provider calls.
+  Eliteserien, Brasileirao Serie A and Chinese Super League each now have eight
+  fixture identities and eight observed fixtures; each has zero orphan market
+  fixtures. Public dashboard proof for 2026-07-25 is `1494712` (Eliteserien),
+  `1492308` (Brasileirao Serie A), and `1523211` (Chinese Super League).
+- The dynamic and lineup code is deployed, but no real official XI followed by
+  a fresh exact odds quote has yet occurred. The live canary, post-canary
+  20-read zero-delta probe, reviewed Transfermarkt crosswalk/player identity,
+  and as-of valuation materialization remain pending. This is why lineup stays
+  advisory-only and all numeric lineup adjustments remain zero.

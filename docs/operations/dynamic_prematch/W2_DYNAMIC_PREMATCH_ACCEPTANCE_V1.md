@@ -1,9 +1,27 @@
 # W2 Dynamic Prematch Acceptance V1
 
-Exact code implementation `d44db97abd46c4e78814e4787d61db41ffc2acb7`, based on PR #370 head `c62fa82d883633f3b33ff44810a5fbc294b215c5`, passed 1438 Python tests with 4 environment-dependent skips, Ruff, Mypy, Web typecheck, the protected Boss Console baseline, all 26 Web Playwright tests and the SQLite migration roundtrip.
+PR #370 remains Draft. Exact release
+`81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8` is deployed to
+`root@118.196.30.136`. GitHub Actions run `29916913849` passed `verify`,
+`staging-parity` and `predeploy-e2e`; all staging services are healthy.
 
-The eight requested contract assertions pass locally. No staging deployment or provider call is claimed by this artifact.
+The dynamic EV and confirmed-lineup lifecycle is implemented and deployed:
+immutable evaluation versions/supersession, `LINEUP_CONFIRMED`, the
+post-lineup fresh-odds barrier, expected-XI baseline/change features, and the
+single `T-30m_VALIDATION_LOCK` snapshot. This deploy deliberately reuses the
+previously verified dependency image for source-only changes; it does not claim
+a new third-party dependency installation.
 
-GitHub Actions run `29897588312` passed `verify`, `staging-parity` and `predeploy-e2e` on head `d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec`. The correct staging target, `root@118.196.30.136`, accepted the supplied key. Exact head `0d6ff59…` then stalled at Docker's `pip install uv` build layer; the incomplete release was safely restored to `284a646…`. The corrected operational state is `STAGING_IMAGE_BUILD_STALLED`; no provider call or real lineup window was evaluated, and the 20-read probe remains pending.
+Staging recovery also repaired existing raw market data without provider calls.
+Eliteserien, Brasileirao Serie A and Chinese Super League each have eight
+fixture identities, eight observed fixtures and zero orphan market fixtures.
+The public 2026-07-25 dashboard contains `1494712`, `1492308` and `1523211`.
 
-Lineup remains `LINEUP_NUMERIC_ADJUSTMENT_DISABLED` and `LINEUP_ADVISORY_ONLY`. PR #370 stays Draft; Formal, Lock and Production remain disabled and require manual approval.
+Not accepted as complete: no real confirmed-lineup window has yet produced a
+post-confirmation exact odds quote, so no live lifecycle canary or 20-read
+zero-delta probe exists. Transfermarkt source availability is verified only;
+reviewed identity/crosswalk and as-of valuation materialization are still
+pending. Consequently lineup is `LINEUP_ADVISORY_ONLY` and numerical AH,
+totals and lambda adjustments remain `0.0`.
+
+Formal, Lock and Production remain disabled and require manual approval.

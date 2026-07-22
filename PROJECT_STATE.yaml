@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-22T00:00:00Z"
+updated_at: "2026-07-22T12:00:00Z"
 authority: GITHUB_DRAFT_PR_WITH_LOCAL_EVIDENCE
 
 delivery_status_vocabulary:
@@ -27,12 +27,12 @@ repository:
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/w2-factor-model-remediation-master
   task_baseline_sha: c62fa82d883633f3b33ff44810a5fbc294b215c5
-  local_code_implementation_sha: d44db97abd46c4e78814e4787d61db41ffc2acb7
+  local_code_implementation_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
   local_work_branch: codex/w2-dynamic-ev-lineup-v1
   github_sync_status: SYNCED_TO_DRAFT_PR
-  github_verified_head_sha: d284c12f9ecac7d3cb92149fed3c9d7b2a77c6ec
+  github_verified_head_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
   ci_status: PASS
-  ci_run_id: 29897588312
+  ci_run_id: 29916913849
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -42,8 +42,8 @@ current_phase:
   id: W2_DYNAMIC_PREMATCH_V1
   name: dynamic_quote_ev_and_lineup_value_pipeline
   status: locally_verified
-  acceptance_state: awaiting_exact_sha_image_build
-  blocker: STAGING_IMAGE_BUILD_STALLED
+  acceptance_state: STAGING_DEPLOYED_WAITING_REAL_LINEUP_CANARY
+  blocker: WAITING_FOR_REAL_LINEUP_WINDOW_AND_POST_LINEUP_FRESH_ODDS
   next_phase: W2_DYNAMIC_PREMATCH_STAGING
   checkpoints:
     dynamic_quote_lifecycle: locally_verified
@@ -81,16 +81,42 @@ local_verification:
   migration_sqlite_roundtrip: PASS
 
 staging:
-  deployed_sha: null
-  deployment_status: ATTEMPTED_AND_ROLLED_BACK
+  deployed_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  deployment_status: DEPLOYED_HEALTHY_REUSE_DEPENDENCY_IMAGE
   production_deployed: false
   provider_calls: 0
   staging_host: 118.196.30.136
   ssh_preflight: PASS_AS_ROOT
-  attempted_release_sha: 0d6ff597e110873dba6eb7a2a064e4c267b5f212
-  restored_release_sha: 284a646f3a6fe9641b965d0d3d4d807f66b46c85
-  real_lineup_canary: NOT_EVALUATED_IMAGE_BUILD_STALLED
-  public_read_20x: NOT_RUN_BEFORE_STAGING_DEPLOY
+  attempted_release_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  restored_release_sha: null
+  real_lineup_canary: WAITING_FOR_REAL_LINEUP_WINDOW
+  public_read_20x: NOT_RUN
+  public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
+
+fixture_recovery:
+  source: existing_staging_raw_fixture_and_odds_captures
+  provider_calls: 0
+  recovered_fixture_identities:
+    eliteserien: 8
+    brasileirao_serie_a: 8
+    chinese_super_league: 8
+  orphan_market_fixture_counts:
+    eliteserien: 0
+    brasileirao_serie_a: 0
+    chinese_super_league: 0
+  public_dashboard_proof:
+    date: "2026-07-25"
+    fixture_ids:
+      eliteserien: "1494712"
+      brasileirao_serie_a: "1492308"
+      chinese_super_league: "1523211"
+
+valuation_materialization:
+  transfermarkt_source_asset: SOURCE_READY
+  reviewed_team_crosswalk: NOT_MATERIALIZED
+  reviewed_player_identity: NOT_MATERIALIZED
+  asof_valuation_observations: NOT_MATERIALIZED
+  consequence: LINEUP_VALUE_FEATURES_FAIL_CLOSED_WHEN_COVERAGE_IS_MISSING
 
 lineup_policy:
   mode: LINEUP_ADVISORY_ONLY
