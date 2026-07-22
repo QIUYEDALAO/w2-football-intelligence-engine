@@ -106,7 +106,7 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 ```text
 Status: IN_PROGRESS
 Branch: codex/w2-pr370-baseline-integration
-PR: PENDING
+PR: #374 (Draft)
 Base SHA: cb2a040f826926af98154c644718f013e96d0e79
 Started at: 2026-07-22T23:20:00+0800
 Owner: Codex
