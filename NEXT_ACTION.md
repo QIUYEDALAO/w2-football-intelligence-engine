@@ -2,6 +2,9 @@
 
 ## Current gate
 
+W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
+W2_DYNAMIC_PREMATCH_STAGING is authorized.
+
 W2_DYNAMIC_PREMATCH_V1 is deployed to staging and is waiting for a real
 confirmed-lineup window. The exact running release is
 `81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8`; Draft PR #370 remains Draft.
