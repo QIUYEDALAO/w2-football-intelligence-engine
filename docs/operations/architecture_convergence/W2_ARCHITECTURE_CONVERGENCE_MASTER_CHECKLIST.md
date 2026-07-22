@@ -99,18 +99,24 @@ FEATURE_DEVELOPMENT_FREEZE_RECORDED
 - [x] 核验 migration current=head。
 - [x] 核验 recommendation、lock、OFFICIAL、formal settlement 仍为 0。
 - [x] exact-head CI 全绿。
-- [ ] 独立 baseline integration PR exact-head CI 全绿并完成外部审核。
-- [ ] baseline integration PR 合并到 `main`。
-- [ ] 基线接入后关闭 PR #370，并确认所有证据已进入 `main`。
+- [x] 独立 baseline integration PR exact-head CI 全绿并完成外部审核。
+- [x] baseline integration PR 合并到 `main`。
+- [x] 基线接入后关闭 PR #370，并确认所有证据已进入 `main`。
 
 ```text
-Status: IN_PROGRESS
+Status: DONE
 Branch: codex/w2-pr370-baseline-integration
-PR: #374 (Draft)
+PR: #374 (Merged)
 Base SHA: cb2a040f826926af98154c644718f013e96d0e79
 Started at: 2026-07-22T23:20:00+0800
 Owner: Codex
+Merged PR: #374
+Merge SHA: 160a67505e2ba725b70250635ee71ce99e11b812
+CI run: 29933191521
+Staging acceptance: STAGING_PARITY_AND_PREDEPLOY_E2E_PASS
+Completed at: 2026-07-22T22:59:28Z
 PR_370_SCOPE_FROZEN
+PR_370_STATE_CLOSED
 REAL_LINEUP_CANARY_DEFERRED
 P0_ARCHITECTURE_WORK_UNBLOCKED
 Evidence: PR #370 exact head remains 210367a99fa8b448e2ab00bdd878ec485fe1e42a;
@@ -170,6 +176,20 @@ NO_ARCHITECTURE_SCOPE_ADDED_TO_PR_370
 ## ARCH-P0-01：删除 API 对不存在 reports 文件的读取
 
 **独立 PR，只处理这一项。**
+
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p0-01-remove-report-reads
+PR: #375 (Draft)
+Base SHA: 160a67505e2ba725b70250635ee71ce99e11b812
+Started at: 2026-07-23T07:08:42+0800
+Owner: Codex
+Evidence: All 12 production API report targets are absent; tracked reports/ file
+  count is 0. Remove every API report read, preserve writer-only audit output,
+  return explicit empty/NOT_READY states, and add a static regression guard.
+Rollback: Revert this PR. No schema, data, configuration, provider or safety
+  switch change is included.
+```
 
 - [ ] 全量列出 `src/w2/api/repository.py` 及相关生产代码读取的 `reports/*.json`。
 - [ ] 逐项证明目标文件不存在或生产运行不应依赖。

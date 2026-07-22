@@ -24,7 +24,7 @@ SETTLEMENT_SCHEMA_VERSION = "w2_formal_recommendation_settlement.v1"
 REPORT_SCHEMA_VERSION = "w2_formal_tracking_report.v1"
 SNAPSHOT_DIRNAME = "formal_recommendation_snapshots"
 SETTLEMENT_DIRNAME = "formal_recommendation_settlements"
-DEFAULT_REPORT_PATH = Path("reports/w2_formal_tracking/latest/report.json")
+DEFAULT_REPORT_OUTPUT_PATH = Path("reports/w2_formal_tracking/latest/report.json")
 VOID_STATUSES = {"VOID", "POSTPONED", "ABANDONED", "CANCELLED"}
 FINISHED_STATUSES = {"FINISHED", "FT", "AET", "PEN"}
 
@@ -62,8 +62,10 @@ def settlement_dir(runtime_root: Path | None = None) -> Path:
     return (runtime_root or runtime_root_from_env()) / SETTLEMENT_DIRNAME
 
 
-def report_path(path: Path | None = None) -> Path:
-    return path or Path(os.getenv("W2_FORMAL_TRACKING_REPORT", str(DEFAULT_REPORT_PATH)))
+def report_output_path(path: Path | None = None) -> Path:
+    return path or Path(
+        os.getenv("W2_FORMAL_TRACKING_REPORT", str(DEFAULT_REPORT_OUTPUT_PATH))
+    )
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -724,23 +726,12 @@ def build_tracking_report(
         "posthoc_only": True,
     }
     if write:
-        write_json_atomic(report_path(output_report), report)
+        write_json_atomic(report_output_path(output_report), report)
     return report
 
 
-def load_tracking_report(
-    path: Path | None = None,
-    runtime_root: Path | None = None,
-) -> dict[str, Any]:
-    target = report_path(path)
-    payload = load_json(target, {})
-    if isinstance(payload, dict) and payload:
-        return payload
-    return build_tracking_report(runtime_root=runtime_root, output_report=target, write=False)
-
-
-def endpoint_summary(path: Path | None = None, runtime_root: Path | None = None) -> dict[str, Any]:
-    report = load_tracking_report(path=path, runtime_root=runtime_root)
+def endpoint_summary(runtime_root: Path | None = None) -> dict[str, Any]:
+    report = build_tracking_report(runtime_root=runtime_root, write=False)
     return {
         "generated_at": report.get("generated_at"),
         "status": report.get("status", "OBSERVING"),

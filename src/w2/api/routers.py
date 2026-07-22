@@ -424,9 +424,12 @@ def providers_status(request: Request) -> dict[str, Any]:
 def backtests_latest(request: Request) -> dict[str, Any]:
     return {
         "request_id": request_id(request),
-        "status": "READY",
+        "status": "NOT_READY",
         "gate4_national_1x2": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "metrics": service.repository.stage8_summary(),
+        "metrics": {
+            "status": "NOT_READY",
+            "reason": "BACKTEST_READ_MODEL_UNAVAILABLE",
+        },
     }
 
 

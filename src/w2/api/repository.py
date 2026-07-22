@@ -156,7 +156,6 @@ from w2.tracking.formal_results import (
 from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
-REPORTS = ROOT / "reports"
 RUNTIME = Path(os.getenv("W2_RUNTIME_ROOT", ROOT / "runtime")).resolve()
 FORWARD_LEDGER_LEGACY_RECOVERY = (
     ROOT / "config/policies/forward_ledger_legacy_recovery.staging.v1.json"
@@ -565,10 +564,6 @@ class ReadModelRepository:
         stage10c_cards = self.stage10c_matchday_cards()
         if stage10c_cards:
             return stage10c_cards
-        report = load_json(REPORTS / "W2_STAGE10C_ALL_MARKET_CARDS.json", {})
-        items = report.get("items", []) if isinstance(report, dict) else []
-        if isinstance(items, list) and items:
-            return cast(list[dict[str, Any]], items)
         dashboard = self.dashboard_latest_fixtures()
         return [
             {
@@ -611,22 +606,6 @@ class ReadModelRepository:
             }
             for item in dashboard
         ]
-
-    def stage7e_usage(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_API_USAGE.json", {}))
-
-    def stage7e_first_cycle(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_FIRST_LIVE_CYCLE.json", {}))
-
-    def stage7e_scheduler(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE7E_SCHEDULER_AUDIT.json", {}))
-
-    def stage7e_result(self) -> str:
-        path = REPORTS / "W2_STAGE7E_RESULT.md"
-        return path.read_text(encoding="utf-8") if path.exists() else ""
-
-    def stage8_summary(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE8_REPLAY_SUMMARY.json", {}))
 
     def fixture_payloads(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
@@ -845,9 +824,6 @@ class ReadModelRepository:
         return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
 
     def world_cup_readiness(self) -> dict[str, Any]:
-        existing = load_json(REPORTS / "W2_STAGE13A_READINESS.json", {})
-        if existing:
-            return cast(dict[str, Any], existing)
         try:
             profile = load_tournament_profile(WORLD_CUP_PROFILE)
             fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
@@ -869,19 +845,26 @@ class ReadModelRepository:
             }
 
     def league_readiness(self) -> dict[str, Any]:
-        existing = load_json(REPORTS / "W2_STAGE14A_READINESS.json", {})
-        if existing:
-            return cast(dict[str, Any], existing)
         try:
             return cast(dict[str, Any], run_top_five_audit()["readiness"])
         except Exception:
             return {}
 
     def operations_report(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_OPERATIONS.json", {}))
+        return {
+            "status": "NOT_READY",
+            "reason": "OPERATIONS_READ_MODEL_UNAVAILABLE",
+            "cycles": [],
+            "retention": {},
+        }
 
     def release_readiness(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE15A_RELEASE_READINESS.json", {}))
+        return {
+            "status": "NOT_READY",
+            "approval_status": "NOT_READY",
+            "production_release": "DISABLED",
+            "dependency_blocker": "RELEASE_READ_MODEL_UNAVAILABLE",
+        }
 
     def shadow_strategy_replay(self) -> dict[str, Any]:
         try:
@@ -1004,10 +987,17 @@ class ReadModelRepository:
         ]
 
     def gate5_preflight(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_GATE5_PREFLIGHT.json", {}))
+        return {
+            "status": "NOT_READY",
+            "gate5_result": "NOT_READY",
+            "reason": "GATE5_READ_MODEL_UNAVAILABLE",
+        }
 
     def w1_w2_shadow_comparison(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(REPORTS / "W2_STAGE12B_W1_W2_COMPARISON.json", {}))
+        return {
+            "status": "NOT_READY",
+            "reason": "SHADOW_COMPARISON_READ_MODEL_UNAVAILABLE",
+        }
 
     def _dashboard_fixture_to_provider_payload(self, item: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -5970,13 +5960,7 @@ class ReadModelService:
                 "gate4_progress": dashboard.get("gate4_progress", {}),
                 "generated_at": datetime.fromisoformat(str(dashboard["generated_at"])),
             }
-        scheduler = self.repository.stage7e_scheduler()
-        gate = load_json(REPORTS / "W2_STAGE7E_FIRST_LIVE_CYCLE.json", {}).get("gate", {})
         provider = self.provider_status()
-        finished = scheduler.get("finished_at")
-        age = None
-        if finished:
-            age = int((datetime.now(UTC) - datetime.fromisoformat(finished)).total_seconds())
         stale_count = 0
         now = datetime.now(UTC)
         public_reader = getattr(self.repository, "public_fixture_payloads", None)
@@ -5989,9 +5973,12 @@ class ReadModelService:
                 stale_count += 1
         return {
             "stale_data_count": stale_count,
-            "provider_status": str(provider.get("status", "UNKNOWN")),
-            "forward_cycle_age_seconds": age,
-            "gate4_progress": gate,
+            "provider_status": str(provider.get("status", "NOT_READY")),
+            "forward_cycle_age_seconds": None,
+            "gate4_progress": {
+                "status": "NOT_READY",
+                "reason": "DATA_HEALTH_READ_MODEL_UNAVAILABLE",
+            },
             "generated_at": datetime.now(UTC),
         }
 
@@ -6041,21 +6028,16 @@ class ReadModelService:
                     "blockers": projected_db.get("blockers", []),
                     "quota_policy": api_football_quota_policy(parsed_remaining_quota),
                 }
-        usage = self.repository.stage7e_usage()
-        audit = usage.get("audit") or []
-        last = audit[-1] if audit else {}
-        remaining_quota = usage.get("remaining_quota")
-        parsed_remaining_quota = parse_int(remaining_quota)
         return {
             "provider": "api_football",
-            "status": "READY" if parsed_remaining_quota else "UNKNOWN",
-            "remaining_quota": parsed_remaining_quota,
-            "credential_status": "PRESENT" if usage else "UNKNOWN",
-            "last_request_status": last.get("status_code"),
+            "status": "NOT_READY",
+            "remaining_quota": None,
+            "credential_status": "UNKNOWN",
+            "last_request_status": None,
             "last_successful_refresh_at": None,
             "refresh_age_seconds": None,
-            "blockers": [],
-            "quota_policy": api_football_quota_policy(parsed_remaining_quota),
+            "blockers": ["PROVIDER_READ_MODEL_UNAVAILABLE"],
+            "quota_policy": api_football_quota_policy(None),
         }
 
     def forward_status(self) -> dict[str, Any]:
@@ -6068,29 +6050,31 @@ class ReadModelService:
                 "current_settled_n": int(dashboard.get("current_settled_n", 0)),
                 "target_n": int(dashboard.get("target_n", 50)),
             }
-        first = self.repository.stage7e_first_cycle()
-        gate = first.get("gate", {})
         return {
-            "status": "WATCH",
+            "status": "NOT_READY",
             "locks": len(self.repository.forward_locks()),
-            "market_comparable": first.get("checkpoint", {}).get("market_snapshot_count", 0),
-            "current_settled_n": gate.get("current_settled_n", 0),
-            "target_n": gate.get("target_n", 50),
+            "market_comparable": 0,
+            "current_settled_n": 0,
+            "target_n": 50,
         }
 
     def operations_items(self, name: str) -> list[dict[str, Any]]:
+        not_ready = {
+            "status": "NOT_READY",
+            "reason": "OPERATIONS_READ_MODEL_UNAVAILABLE",
+        }
         mapping = {
             "quota": self.provider_status(),
-            "tasks": self.repository.stage7e_scheduler(),
+            "tasks": not_ready,
             "alerts": {"status": "READY", "items": []},
             "mapping-conflicts": {"status": "READY", "items": []},
-            "forward-cycles": self.repository.stage7e_first_cycle(),
+            "forward-cycles": not_ready,
             "locks": {"count": len(self.repository.forward_locks())},
             "settlements": {"count": len(self.repository.result_events())},
-            "gates": self.repository.stage7e_first_cycle().get("gate", {}),
+            "gates": not_ready,
         }
         payload = mapping.get(name, {})
-        return [{"key": name, "status": "READY", "payload": payload}]
+        return [{"key": name, "status": str(payload.get("status", "READY")), "payload": payload}]
 
     def competition_operations_profile(self, competition_id: str) -> dict[str, Any] | None:
         payload = self.repository.world_cup_profile()
