@@ -298,10 +298,14 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
 **独立 PR，必须复用现有 `league_profile / league_season` 或已确认的等价表。**
 
 ```text
-Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-p0-03-db-competition-authority
-PR: #377 (Draft)
+PR: #377 (Merged)
 Base SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
+Final PR head: 1a57272c7e1d7f509430d85a0ef8b6e4baacec73
+Final exact-head CI: 29974016905 (verify, staging-parity,
+  predeploy-e2e passed)
+Merge SHA: 7bd5088b034a36ec12a23a6aa647a53524ecdce8
 Final validated implementation head: dd2063b835eb7a0e2097b745e298a22570bd3794
 Final implementation-head CI: 29973536625 (verify, staging-parity,
   predeploy-e2e passed)
@@ -366,7 +370,7 @@ Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1455 passed,
 - [x] 修改 DB 中 enabled 后无需部署即可令 Registry、future scheduler、matchday scheduler 同步生效。
 - [x] 所有修改有审计记录。
 - [x] 最新实现 head 完整 CI、staging 同进程变更测试和回滚测试通过。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 **验收**
 
@@ -380,13 +384,52 @@ STAGING_ENV_WHITELIST_OVERRIDE = REMOVED
 
 ## ARCH-P0-04：P0 总验收
 
-- [ ] 生产 API 不读取不存在的 reports 文件。
-- [ ] 生产赔率只经过一套读取仓储。
-- [ ] runtime JSON 不影响当前赔率。
-- [ ] 联赛启用状态来自数据库。
-- [ ] 修改联赛配置不需要构建或部署。
-- [ ] Provider calls、Formal、Lock、Production 安全边界不变。
-- [ ] P0 staging 连续稳定运行至少一个审核周期。
+```text
+Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
+Branch: codex/arch-p0-04-p0-acceptance
+Base/Main SHA: 7bd5088b034a36ec12a23a6aa647a53524ecdce8
+PR: #378 (Ready for review)
+Validated implementation head: b5055f73a3a6503e80e39cab5484d22d61f46a49
+Implementation-head CI: 29976169675 (verify, staging-parity,
+  predeploy-e2e passed)
+Owner: Codex
+Static authority proof: production API reports reference files=0;
+  production odds read authority count=1
+  (matchday_market_observations through
+  future_market_observations_for_fixtures); runtime JSON odds authority=0;
+  competition runtime JSON authority hits=0.
+DB hot-change proof: in one staging process (PID 24), allsvenskan
+  true -> false stopped Registry, future scheduler and matchday scheduler;
+  false -> true restored all three without build, deploy or restart, and the
+  original true state was restored. league_readiness_audit advanced 18 -> 20.
+Staging release: main SHA 7bd5088b034a36ec12a23a6aa647a53524ecdce8;
+  migration remained 0037_seed_competition_runtime_authority.
+Stability observation: 2026-07-23T02:47:32Z ->
+  2026-07-23T03:03:20Z; 948 seconds; 31 samples. Every ready/version/meta
+  HTTP probe passed; api, worker, scheduler, web, postgres and redis remained
+  healthy; every container restart count stayed 0; release SHA never changed.
+Post-observation authority proof: 32 current market snapshots all reported
+  source=matchday_market_observations; enabled DB competitions remained
+  allsvenskan, brasileirao_serie_a, chinese_super_league, eliteserien and
+  world_cup_2026.
+Post-observation safety proof: provider_request_logs stayed 162;
+  matchday_market_observations stayed 44644; recommendations,
+  recommendation_locks, settlements and gate5_recommendation_lock_event stayed
+  0. Provider calls disabled=true, provider scheduler=false, recommendation,
+  candidate, formal recommendation, production release and DeepSeek remained
+  false. Formal AH, recommendation lock and production recommendation
+  capabilities remained disabled and non-production.
+Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1458 passed,
+  4 skipped. P0 focused authority and safety suite: 36 passed.
+```
+
+- [x] 生产 API 不读取不存在的 reports 文件。
+- [x] 生产赔率只经过一套读取仓储。
+- [x] runtime JSON 不影响当前赔率。
+- [x] 联赛启用状态来自数据库。
+- [x] 修改联赛配置不需要构建或部署。
+- [x] Provider calls、Formal、Lock、Production 安全边界不变。
+- [x] P0 staging 连续稳定运行至少一个审核周期。
 - [ ] 更新本总清单并由人工审核。
 - [ ] P0 验收 PR 合并。
 
