@@ -300,6 +300,7 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
 ```text
 Status: IMPLEMENTED_LOCAL_VALIDATED_AWAITING_EXACT_HEAD_CI_AND_STAGING
 Branch: codex/arch-p0-03-db-competition-authority
+PR: #377 (Draft)
 Base SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
 Owner: Codex
 Runtime authority tables: league_profile, league_season
