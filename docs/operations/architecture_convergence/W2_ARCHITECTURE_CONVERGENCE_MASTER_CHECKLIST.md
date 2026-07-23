@@ -218,15 +218,16 @@ NEW_FALLBACKS = 0
 **独立 PR，只收敛“读”，不先重写所有写入。**
 
 ```text
-Status: IN_PROGRESS
+Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
 Branch: codex/arch-p0-02-odds-read-authority
 PR: #376 (Draft)
 Base SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
-Implementation-head CI: 29967281687 (verify, staging-parity, predeploy-e2e passed)
+Implementation-head CI: 29968317105 (verify, staging-parity, predeploy-e2e passed)
 Started at: 2026-07-23T07:34:21+0800
 Owner: Codex
 Authority table: matchday_market_observations
 Authority method: ReadModelRepository.future_market_observations_for_fixtures()
+Market snapshot source: matchday_market_observations
 Scope: Read convergence only; no schema, write-path, provider, configuration or
   safety-switch change.
 Rollback: Revert this PR. Historical tables and all existing writers remain.
@@ -237,8 +238,24 @@ Inventory: matchday_market_observations is the sole production quote/readiness
   cannot fill a production response; offline projectors/writers remain audit-only.
 Reconciliation: fixture, bookmaker, market, selection, signed line, odds,
   captured_at and observation_id quote identity matched the canonical row.
-Read-only proof: 20 sequential scoped reads returned identical identity; SQL
-  INSERT/UPDATE/DELETE/MERGE count was 0 and authority row count stayed 1.
+Real staging acceptance: host 118.196.30.136; previous SHA
+  81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8; accepted code SHA
+  655164def0f1044d967809c2f1f0f122bfcfe3a8. Visible upcoming fixture IDs:
+  1492141, 1492292, 1492293, 1492296, 1492298.
+Real staging reconciliation: fixture, bookmaker, market, selection, signed
+  line, odds, captured_at and observation_id hashes remained identical for all
+  five fixtures. Authority counts/hashes were respectively 344/37ac4543,
+  411/632bc69b, 388/0769d26a, 402/14447a47 and 391/65fb9b03.
+Real HTTP proof: 20 complete read cycles, 11 requests per cycle and 220 HTTP
+  200 responses total. Every cycle returned five Dashboard fixtures, five
+  analysis cards and five stable 256-row odds timelines. Dashboard odds/readiness
+  hash remained a15b5fe2e385b6360b4c0832006a37394ed97b2426a99dbff8c6efd33acee1a7.
+Real staging zero-write proof: provider_request_logs stayed 162, refresh audits
+  stayed 60, matchday_market_observations stayed 44644, recommendation/lock/
+  settlement stayed 0, and pg_stat_user_tables INSERT/UPDATE/DELETE counters
+  plus aggregate hash stayed 58111/374/0 and 462502a1e012bbc269e906568483fc71.
+  MERGE delta was 0 because neither INSERT nor UPDATE changed. Provider calls
+  and scheduler flags remained disabled throughout the acceptance window.
 Local full validation: W2 all-stage verify PASS; 1450 passed, 4 skipped.
 ```
 
