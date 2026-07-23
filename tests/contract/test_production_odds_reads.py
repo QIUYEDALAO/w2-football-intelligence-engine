@@ -305,3 +305,57 @@ def test_bounded_projection_read_has_a_total_deterministic_order() -> None:
     # selection and left these four rows in an arbitrary order.
     assert [row["line"] for row in reads[0]] == ["-0.25", "-0.5", "-1.5", "0.5"]
     assert all(read == reads[0] for read in reads)
+
+
+def test_projection_keeps_two_providers_that_reuse_the_same_numeric_ids() -> None:
+    """ARCH-P1-02: fixture and bookmaker ids are unique per provider, not globally.
+
+    Two providers reusing the same numeric ids must stay two quotes; partitioning
+    on the bare provider fixture id would drop one of them.
+    """
+    engine = _engine()
+    captured_at = datetime(2026, 7, 23, 1, 2, 3, tzinfo=UTC)
+    with Session(engine) as session:
+        for provider, odds in (("api_football", "1.91"), ("other_provider", "2.05")):
+            session.add(
+                MatchdayMarketObservationModel(
+                    observation_id=f"{provider}-quote",
+                    fixture_id=f"{provider}:123",
+                    provider_fixture_id="123",
+                    competition_id="eliteserien",
+                    provider=provider,
+                    bookmaker_id="7",
+                    bookmaker_name="Bookmaker Seven",
+                    capture_id="capture-1",
+                    provider_bet_id="4",
+                    raw_market_label="Asian Handicap",
+                    canonical_market="ASIAN_HANDICAP",
+                    canonical_selection="HOME",
+                    provider_selection="Home -0.5",
+                    line="-0.5",
+                    decimal_odds=odds,
+                    suspended=False,
+                    live=False,
+                    provider_updated_at="2026-07-23T01:01:00Z",
+                    captured_at=captured_at,
+                    ingested_at=captured_at,
+                    raw_payload_sha256="a" * 64,
+                    source_revision="authority-revision",
+                )
+            )
+        session.commit()
+
+    with Session(engine) as session:
+        rows = list(session.execute(select(current_market_projection)).mappings())
+
+    assert sorted(row["provider"] for row in rows) == ["api_football", "other_provider"]
+    assert sorted(row["decimal_odds"] for row in rows) == ["1.91", "2.05"]
+
+    # The bounded read resolves a bare fixture id inside the api_football
+    # namespace by its existing caller contract, so it returns that provider's
+    # quote only - it must never pick up the other provider's row by numeric
+    # collision.
+    repository = FutureRefreshDbRepository(engine=engine)
+    bounded = repository.latest_market_observations_for_fixtures(["123"])
+    assert [row["provider"] for row in bounded] == ["api_football"]
+    assert [row["decimal_odds"] for row in bounded] == ["1.91"]

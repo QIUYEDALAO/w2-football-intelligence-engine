@@ -1220,6 +1220,7 @@ class FutureRefreshDbRepository:
         if canonical_markets is not None:
             query = query.where(projection.c.canonical_market.in_(canonical_markets))
         query = query.order_by(
+            projection.c.provider,
             projection.c.projection_fixture_id,
             projection.c.canonical_market,
             projection.c.bookmaker_id,
@@ -1275,10 +1276,17 @@ class FutureRefreshDbRepository:
             canonical_markets=("ASIAN_HANDICAP", "TOTALS"),
         )
 
+        # Grouped by provider as well: fixture ids are only unique within a
+        # provider, so grouping on the bare id would let two providers share one
+        # bound and truncate each other's quotes.
         bounded: list[dict[str, Any]] = []
-        grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         for row in latest_rows:
-            group_key = (str(row["fixture_id"]), str(row["canonical_market"]))
+            group_key = (
+                str(row["provider"]),
+                str(row["fixture_id"]),
+                str(row["canonical_market"]),
+            )
             grouped.setdefault(group_key, []).append(row)
         for group_key in sorted(grouped):
             bounded.extend(grouped[group_key][:SCOPED_OBSERVATION_ROWS_PER_MARKET])

@@ -84,9 +84,14 @@ from (
         o.raw_payload_sha256,
         o.source_revision,
         row_number() over (
+            -- Partitioned on the provider-namespaced identity. `fixture_id` and
+            -- `bookmaker_id` are only unique within a provider, so partitioning
+            -- on the bare provider fixture id would let two providers that
+            -- happen to reuse the same numeric ids collapse into one row and
+            -- silently drop a quote.
             partition by
-                coalesce(nullif(o.provider_fixture_id, ''),
-                         replace(o.fixture_id, 'api_football:', '')),
+                o.provider,
+                o.fixture_id,
                 o.canonical_market,
                 o.bookmaker_id,
                 o.canonical_selection,

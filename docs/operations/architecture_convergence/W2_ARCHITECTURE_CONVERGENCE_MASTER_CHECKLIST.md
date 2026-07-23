@@ -39,7 +39,7 @@
 | 6 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | 已验收合并 | 见该任务节 |
 | 7 | ARCH-P1-01 僵尸表盘点与删除 | #379 | `76201af8` | 已验收合并 | 见该任务节 |
 | 8 | 第 0 步 P1-01 收口 + 清单修订 | #380 | `8af05dd` | **已合并** | **0.2** |
-| 9 | ARCH-P1-02 赔率表收敛 | #381 | 未合并 | **待老板验收** | **0.3** |
+| 9 | ARCH-P1-02 赔率表收敛 | #381 | 未合并 | **外部验收不通过，整改中** | **0.3 / 0.4** |
 
 第 1–7 项由前序会话完成，其回执保留在各自任务节内，本节不重复。第 8、9 项
 为本轮工作，详细变更依据见 0.2 与 0.3。
@@ -55,7 +55,7 @@ P1-06 → P1-07 → P1-08 → P2-01…P2-05。
 | 数据库改动 | 无 | drop 1 表、建 1 视图（migration `0041`） |
 | Dashboard 展示变化 | 无 | 有，**已获老板批准**，见 0.3 三节 |
 | 安全开关 | 未动 | 未动 |
-| 完整 CI | 全绿（run `30002502410`） | 待重跑，见 0.3 六节 |
+| 完整 CI | 全绿（run `30002502410`） | 整改前全绿（run `30008088208`）；整改后待重跑 |
 | staging 验收 | 不涉及 | **未做** |
 | 可否回滚 | 可，revert 即可 | 可，revert + `0041 → 0040` |
 
@@ -348,13 +348,15 @@ CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
 
 #### 八、待补（合并前必须完成）
 
-**当前状态：应老板要求暂停，等待逐项验收通过后才继续。**
+**当前状态：GitHub 二次验收不通过，整改中。整改明细见 0.4。**
 
-- [ ] 老板对 0.3 全节逐项验收通过
-- [ ] 分支推送到 GitHub（本地已重做为单提交，摘除两个误提交文件，见九节）
-- [ ] 完整 CI 全绿（run 号补入本节）
+- [x] 分支推送到 GitHub（`4195e63`，单提交，已摘除两个误提交文件，见九节）
+- [x] 整改前完整 CI 全绿：run `30008088208`，`verify`、`staging-parity`、
+      `predeploy-e2e` 三项均 `success`
+- [ ] 0.4 三项代码整改的完整 CI 全绿（run 号补入本节）
 - [ ] staging 验收：部署 → migration 至 `0041` → 20 轮只读探测 → 零写证明
       → 表数 `66 → 65` 核对
+- [ ] 老板对 0.3 与 0.4 逐项验收通过
 - [ ] PR 合并，本任务状态翻 `DONE`
 
 #### 九、本轮执行方的自查与更正
@@ -380,6 +382,128 @@ CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
 git ls-tree --name-only HEAD ARCH_EXECUTION_HANDOFF.md
 git ls-tree -r --name-only HEAD docs/audits/system_truth/ | head
 git log --oneline main..HEAD
+```
+
+---
+
+### 0.4 ARCH-P1-02 对 GitHub 二次验收意见的整改
+
+外部验收结论：`ARCH-P1-02_CODE_DIRECTION_PASS`、`ARCH-P1-02_CI_PASS`，但
+`DROP_GUARD_REMEDIATION_REQUIRED`、
+`PROJECTION_PROVIDER_IDENTITY_REMEDIATION_REQUIRED`、
+`STAGING_ACCEPTANCE_PENDING`、`CHECKLIST_SYNC_PENDING`、`DO_NOT_MERGE`。
+
+执行方逐条复核后确认**五条意见全部成立，无一误判**。整改如下。
+
+#### 整改一：0041 删除守卫扩展为完整共同语义
+
+- **原问题**：守卫只比较 8 个字段（fixture、bookmaker_id、market、selection、
+  line、odds、captured_at、raw_payload_sha256）。价格身份相同但
+  `provider_bet_id` 或 `raw_market_label` 不同的行会被误判为已覆盖并删除。
+- **整改**：比较字段扩展为两表**全部 15 个共同业务字段**：
+
+  ```text
+  provider, fixture_id, bookmaker_id, bookmaker_name, provider_bet_id,
+  raw_market_label, canonical_market, selection, line, decimal_odds,
+  suspended, live, provider_last_update(=provider_updated_at),
+  captured_at, raw_payload_sha256
+  ```
+
+  有意排除并在迁移中写明理由（常量 `EXCLUDED_SEMANTIC_FIELDS`）：
+  `ingested_at`（本地写入时间，不属于报价）、`source_revision`（执行写入的
+  代码版本）。
+- **新增前置断言**：`candidate` 或 `formal_recommendation` 为真的行抛
+  `ODDS_CONVERGENCE_FLAGGED_LEGACY_ROWS`。这类行带决策含义，canonical 表
+  不建模，任何情况下都不得当作重复删除。该断言在覆盖检查**之前**执行。
+- **staging 数据实测**（只读，整改后口径）：
+
+  ```text
+  UNCOVERED_UNDER_EXTENDED_SEMANTICS = 0
+  LEGACY_CANDIDATE_TRUE              = 0
+  LEGACY_FORMAL_TRUE                 = 0
+  ```
+
+  即加严后迁移在真实数据上仍可通过，不会卡死。
+
+#### 整改二：补齐守卫的自动化回归测试
+
+- **原问题**：总清单声称 `pytest tests/integration/test_migrations.py` 可证明
+  守卫生效，但该文件的实际 diff 只把"表应存在"改成了"表不应存在"，并未新增
+  守卫测试。执行方当时只做了一次性人工验证就写入文档，**这是不合格的**。
+- **整改**：新增 **11 个**自动化测试（验收意见要求 4 个），全部在
+  `tests/integration/test_migrations.py`：
+
+  | 测试 | 断言 |
+  |---|---|
+  | legacy 报价完全无 canonical 对应 | upgrade 失败，`UNCOVERED`，表仍在，视图未创建 |
+  | 价格身份相同但共同语义字段不同（7 例参数化：`provider_bet_id`、`raw_market_label`、`bookmaker_name`、`provider`、`provider_last_update`、`suspended`、`live`） | 每例 upgrade 失败，`UNCOVERED`，表仍在 |
+  | `candidate = true` | upgrade 失败，`FLAGGED`，表仍在 |
+  | `formal_recommendation = true` | upgrade 失败，`FLAGGED`，表仍在 |
+  | 全部行完整覆盖 | upgrade 成功，表被删，投影为 VIEW 而非 TABLE |
+
+  失败用例同时断言**视图未被部分替换**，证明守卫失败时数据库状态未被改动。
+
+#### 整改三：投影视图的 Provider 命名空间隔离
+
+- **原问题**：视图分区为
+  `(projection_fixture_id, canonical_market, bookmaker_id, canonical_selection, line)`，
+  其中 `projection_fixture_id` 是裸 provider fixture id。两个 Provider 若复用
+  相同数字 fixture/bookmaker id，两条报价会落入同一分区，其中一条被覆盖丢失。
+- **整改**：分区身份改为**带 Provider 命名空间**：
+
+  ```text
+  provider, fixture_id(canonical 带命名空间), canonical_market,
+  bookmaker_id, canonical_selection, line
+  ```
+
+- **同类问题的第二处（验收意见未提，执行方一并修复）**：有界读的 128 行
+  截断此前按裸 fixture id 分组，两个 Provider 撞号会互相挤占同一配额。已改为
+  按 `(provider, fixture_id, canonical_market)` 分组；投影读取排序也以
+  `provider` 为首键。
+- **staging 数据实测**（只读）：新旧分区在现有数据上结果完全一致，属纯加固、
+  不改变现有行为：
+
+  ```text
+  OLD_PARTITION_ROWS = 10648    NEW_PARTITION_ROWS = 10648
+  OLD_PARTITION_HASH = 3bf130fc8209be2ac990c3cd212d7622
+  NEW_PARTITION_HASH = 3bf130fc8209be2ac990c3cd212d7622
+  CANONICAL_FIXTURE_ID_ALL_NAMESPACED = 44644 / 44644
+  DISTINCT_PROVIDERS_IN_CANONICAL     = 1
+  ```
+
+- **新增双 Provider 回归测试**
+  `test_projection_keeps_two_providers_that_reuse_the_same_numeric_ids`：两个
+  Provider 复用同一数字 fixture/bookmaker id 时，投影必须保留两条报价。
+- **如实说明一处边界**：该测试中有界读只返回一个 Provider 的报价。原因是
+  `latest_market_observations_for_fixtures(["123"])` 的**既有调用契约**把裸
+  fixture id 固定解析到 `api_football:` 命名空间，这是调用侧的既有收窄，不是
+  投影层的行丢失——视图本身两条都保留。测试断言如实描述该行为，未包装成
+  "两个都返回"。若需放开该契约，属独立任务。
+
+#### 整改四：staging 验收
+
+未执行。代码整改的 CI 通过后按验收意见列出的全部项目执行，包括：部署 SHA =
+PR exact head、migration current = `0041`、legacy 表不存在、投影对象类型为
+`VIEW`、表数 `66 → 65`、legacy 3840 行完整共同语义覆盖、canonical 44644 行
+无丢失、旧/新投影行数与 hash 对账、20 轮真实 HTTP 全 200 且结果 hash 稳定、
+Provider calls 增量 0、DML 增量 0、recommendation/lock/settlement 全 0、
+`0041 → 0040 → 0041` 往返通过。
+
+#### 整改五：总清单同步
+
+已同步：0.1 状态改为"外部验收不通过，整改中"；八节勾选"分支已推送"与
+"整改前完整 CI 全绿 run `30008088208`"；staging 项按要求保持未勾选，待真实
+验收后再勾。
+
+#### 整改状态
+
+```text
+GUARD_SEMANTIC_COMPLETENESS      = FIXED
+GUARD_REGRESSION_TESTS           = FIXED (11 tests)
+PROJECTION_PROVIDER_NAMESPACE    = FIXED (view + bounded read grouping)
+CHECKLIST_SYNC                   = FIXED
+STAGING_ACCEPTANCE               = PENDING
+POST_REMEDIATION_CI              = PENDING
 ```
 
 ---

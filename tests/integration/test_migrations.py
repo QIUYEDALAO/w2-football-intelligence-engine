@@ -292,3 +292,182 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
     assert "shadow_strategy_run" in tables
     assert "future_market_observation" not in tables
     assert "matchday_market_observations" in tables
+
+
+def _arch_p1_02_env(root: Path, database_url: str) -> dict[str, str]:
+    return {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+
+
+def _alembic(root: Path, env: dict[str, str], *command: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "alembic", *command],
+        cwd=root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+_CANONICAL_QUOTE = {
+    "observation_id": "canonical-1",
+    "fixture_id": "api_football:123",
+    "provider_fixture_id": "123",
+    "competition_id": "eliteserien",
+    "provider": "api_football",
+    "bookmaker_id": "7",
+    "bookmaker_name": "Bookmaker Seven",
+    "capture_id": "capture-1",
+    "provider_bet_id": "4",
+    "raw_market_label": "Asian Handicap",
+    "canonical_market": "ASIAN_HANDICAP",
+    "canonical_selection": "HOME",
+    "provider_selection": "Home -0.5",
+    "line": "-0.5",
+    "decimal_odds": "1.91",
+    "suspended": False,
+    "live": False,
+    "provider_updated_at": "2026-07-23T01:01:00Z",
+    "captured_at": "2026-07-23 01:02:03+00:00",
+    "ingested_at": "2026-07-23 01:02:03+00:00",
+    "raw_payload_sha256": "a" * 64,
+    "source_revision": "canonical-revision",
+}
+
+# Same quote as the canonical row, expressed in the legacy column names.
+_LEGACY_QUOTE = {
+    "observation_id": "legacy-1",
+    "fixture_id": "123",
+    "provider": "api_football",
+    "bookmaker_id": "7",
+    "bookmaker_name": "Bookmaker Seven",
+    "provider_bet_id": "4",
+    "raw_market_label": "Asian Handicap",
+    "canonical_market": "ASIAN_HANDICAP",
+    "selection": "HOME",
+    "line": "-0.5",
+    "decimal_odds": "1.91",
+    "suspended": False,
+    "live": False,
+    "provider_last_update": "2026-07-23T01:01:00Z",
+    "captured_at": "2026-07-23 01:02:03+00:00",
+    "ingested_at": "2026-07-23 01:02:03+00:00",
+    "raw_payload_sha256": "a" * 64,
+    "source_revision": "legacy-revision",
+    "candidate": False,
+    "formal_recommendation": False,
+}
+
+
+def _seed_capture(connection: object) -> None:
+    """The canonical observation carries a NOT NULL FK to its endpoint capture."""
+    connection.execute(  # type: ignore[attr-defined]
+        text(
+            "insert into matchday_endpoint_captures "
+            "(capture_id, endpoint, sanitized_params, params_hash, request_task_key, "
+            " attempt, requested_at, provider_captured_at, status_code, elapsed_ms, "
+            " response_count, quota_values, raw_payload_sha256, capture_status) "
+            "values ('capture-1', 'odds', '{}', :sha, 'task-1', 1, :at, :at, 200, 1, "
+            " 1, '{}', :sha, 'CAPTURED')"
+        ),
+        {"sha": "a" * 64, "at": _CANONICAL_QUOTE["captured_at"]},
+    )
+
+
+def _insert_statement(table: str, row: dict[str, object]) -> str:
+    columns = ", ".join(row)
+    values = ", ".join(f":{key}" for key in row)
+    return f"insert into {table} ({columns}) values ({values})"  # noqa: S608
+
+
+def _prepare_0040_with_quotes(
+    tmp_path: Path,
+    name: str,
+    legacy_overrides: dict[str, object],
+) -> tuple[Path, dict[str, str], str]:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / name}"
+    env = _arch_p1_02_env(root, database_url)
+    assert _alembic(root, env, "upgrade", "0040_drop_empty_fk_components").returncode == 0
+
+    engine = create_engine(database_url)
+    legacy = {**_LEGACY_QUOTE, **legacy_overrides}
+    # Column names come from the literal dicts above and values are always bound
+    # parameters, so no caller input reaches either statement.
+    canonical_insert = _insert_statement("matchday_market_observations", _CANONICAL_QUOTE)
+    legacy_insert = _insert_statement("future_market_observation", legacy)
+    with engine.begin() as connection:
+        _seed_capture(connection)
+        connection.execute(text(canonical_insert), _CANONICAL_QUOTE)
+        connection.execute(text(legacy_insert), legacy)
+    return root, env, database_url
+
+
+def test_arch_p1_02_guard_blocks_a_legacy_quote_with_no_canonical_match(
+    tmp_path: Path,
+) -> None:
+    root, env, database_url = _prepare_0040_with_quotes(
+        tmp_path, "guard-uncovered.db", {"fixture_id": "999", "observation_id": "legacy-orphan"}
+    )
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS" in result.stderr
+    inspector = inspect(create_engine(database_url))
+    assert "future_market_observation" in inspector.get_table_names()
+    assert "current_market_projection" not in inspector.get_view_names()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("provider_bet_id", "999"),
+        ("raw_market_label", "Asian Handicap 1st Half"),
+        ("bookmaker_name", "Some Other Bookmaker"),
+        ("provider", "other_provider"),
+        ("provider_last_update", "2026-07-23T09:09:09Z"),
+        ("suspended", True),
+        ("live", True),
+    ],
+)
+def test_arch_p1_02_guard_blocks_a_price_twin_that_differs_semantically(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    """Same fixture, bookmaker, market, selection, line, odds, time and raw hash,
+    but a different shared business field: not a duplicate, must not be dropped."""
+    root, env, database_url = _prepare_0040_with_quotes(
+        tmp_path, f"guard-{field}.db", {field: value}
+    )
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS" in result.stderr
+    assert "future_market_observation" in inspect(create_engine(database_url)).get_table_names()
+
+
+@pytest.mark.parametrize("flag", ["candidate", "formal_recommendation"])
+def test_arch_p1_02_guard_blocks_flagged_legacy_rows(tmp_path: Path, flag: str) -> None:
+    root, env, database_url = _prepare_0040_with_quotes(
+        tmp_path, f"guard-{flag}.db", {flag: True}
+    )
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "ODDS_CONVERGENCE_FLAGGED_LEGACY_ROWS" in result.stderr
+    assert "future_market_observation" in inspect(create_engine(database_url)).get_table_names()
+
+
+def test_arch_p1_02_drops_the_legacy_table_when_every_row_is_covered(tmp_path: Path) -> None:
+    root, env, database_url = _prepare_0040_with_quotes(tmp_path, "guard-covered.db", {})
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode == 0, result.stderr
+    inspector = inspect(create_engine(database_url))
+    assert "future_market_observation" not in inspector.get_table_names()
+    assert "current_market_projection" in inspector.get_view_names()
+    assert "current_market_projection" not in inspector.get_table_names()

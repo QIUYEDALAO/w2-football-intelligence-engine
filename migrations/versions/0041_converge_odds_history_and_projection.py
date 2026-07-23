@@ -34,9 +34,17 @@ depends_on: str | None = None
 LEGACY_TABLE = "future_market_observation"
 CANONICAL_TABLE = "matchday_market_observations"
 
-# Full quote identity: fixture, bookmaker, market, selection, signed line, odds,
-# capture time and the raw payload the quote was normalized from. Matching on the
-# primary key alone would not prove the quote itself is preserved.
+# Coverage is proven on every business field the two tables share, not just on
+# the price identity. Two quotes can carry the same fixture, bookmaker, market,
+# selection, line, odds, capture time and raw payload hash and still differ in
+# `provider_bet_id` or `raw_market_label`; comparing only the price identity
+# would call such a row covered and delete it.
+#
+# Deliberately excluded, per the canonical observation identity contract:
+#   - `ingested_at`   local write time, not part of the quote
+#   - `source_revision` code revision that performed the write
+# Legacy-only bookkeeping columns are not compared but are asserted to be unset
+# below, so no candidate or formal-recommendation row is ever dropped silently.
 UNCOVERED_LEGACY_ROWS = """
 select count(*)
 from future_market_observation f
@@ -44,15 +52,49 @@ where not exists (
     select 1
     from matchday_market_observations m
     where m.provider_fixture_id = replace(f.fixture_id, 'api_football:', '')
+      and m.provider = f.provider
       and m.bookmaker_id = f.bookmaker_id
+      and m.bookmaker_name = f.bookmaker_name
+      and m.provider_bet_id = f.provider_bet_id
+      and m.raw_market_label = f.raw_market_label
       and m.canonical_market = f.canonical_market
       and m.canonical_selection = f.selection
       and coalesce(m.line, '') = coalesce(f.line, '')
       and m.decimal_odds = f.decimal_odds
+      and m.suspended = f.suspended
+      and m.live = f.live
+      and m.provider_updated_at = f.provider_last_update
       and m.captured_at = f.captured_at
       and m.raw_payload_sha256 = f.raw_payload_sha256
 )
 """
+
+# A candidate or formal-recommendation row carries decision meaning that the
+# canonical table does not model, so it can never be treated as a duplicate.
+FLAGGED_LEGACY_ROWS = """
+select count(*)
+from future_market_observation
+where candidate or formal_recommendation
+"""
+
+COMPARED_SEMANTIC_FIELDS = (
+    "provider",
+    "fixture_id",
+    "bookmaker_id",
+    "bookmaker_name",
+    "provider_bet_id",
+    "raw_market_label",
+    "canonical_market",
+    "selection",
+    "line",
+    "decimal_odds",
+    "suspended",
+    "live",
+    "provider_last_update",
+    "captured_at",
+    "raw_payload_sha256",
+)
+EXCLUDED_SEMANTIC_FIELDS = ("ingested_at", "source_revision")
 
 LEGACY_COLUMNS: tuple[tuple[str, sa.types.TypeEngine[object], bool, bool], ...] = (
     ("observation_id", sa.String(length=64), False, True),
@@ -93,12 +135,22 @@ def upgrade() -> None:
                 "ODDS_CONVERGENCE_CANONICAL_TABLE_MISSING:"
                 f"{CANONICAL_TABLE} must exist before {LEGACY_TABLE} can be dropped"
             )
+        flagged = bind.execute(sa.text(FLAGGED_LEGACY_ROWS)).scalar_one()
+        if flagged:
+            raise RuntimeError(
+                "ODDS_CONVERGENCE_FLAGGED_LEGACY_ROWS:"
+                f"{flagged} row(s) in {LEGACY_TABLE} are marked candidate or "
+                "formal_recommendation and carry decision meaning the canonical "
+                "table does not model; resolve them before dropping the table"
+            )
         uncovered = bind.execute(sa.text(UNCOVERED_LEGACY_ROWS)).scalar_one()
         if uncovered:
             raise RuntimeError(
                 "ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS:"
                 f"{uncovered} row(s) in {LEGACY_TABLE} have no matching quote in "
-                f"{CANONICAL_TABLE}; migrate them before dropping the table"
+                f"{CANONICAL_TABLE} across "
+                f"{len(COMPARED_SEMANTIC_FIELDS)} shared business fields; "
+                "migrate them before dropping the table"
             )
         op.drop_table(LEGACY_TABLE)
 
