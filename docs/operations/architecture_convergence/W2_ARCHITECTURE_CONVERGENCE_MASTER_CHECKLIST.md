@@ -390,7 +390,7 @@ STAGING_ENV_WHITELIST_OVERRIDE = REMOVED
 Status: DONE
 Branch: codex/arch-p0-04-p0-acceptance
 Base/Main SHA: 7bd5088b034a36ec12a23a6aa647a53524ecdce8
-PR: #378 (Ready for review)
+PR: #378 (MERGED)
 Merge SHA: d62e335100ebd41856a5b7822938424a511a5fb0
 Validated implementation head: b5055f73a3a6503e80e39cab5484d22d61f46a49
 Implementation-head CI: 29976169675 (verify, staging-parity,
@@ -464,7 +464,7 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 - [x] 证据不足的表保持名称、schema 和运行状态不变并记录缺失证据；
   不通过 rename、archive、backup、兼容 view 或其他隔离结构延后决策。
 - [x] 历史 migration 文件保留；只通过新的可验证 migration 执行正式 drop。
-- [ ] migration upgrade/downgrade、完整 CI 和 staging 验收通过。
+- [x] migration upgrade/downgrade、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
 
 ### ARCH-P1-01 本轮直接证据
@@ -681,19 +681,27 @@ SQL、任务及报表引用扫描。
 
 **本轮验收回执**
 
-- PR：`#379`；
-- implementation head：
-  `1a07244747c917afdbcfad4cbcfcde0f64daf831`；
-- implementation exact-head CI：run `29978871376`，`verify`、
+- 当前状态：`STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW`；
+- PR：`#379`（修复期间为 Draft；本回执 exact-head CI 全绿后转 Ready）；
+- validated implementation/final code head：
+  `1b9f0141bba0c8f5a18e7fa0c57819826446bc4d`；
+- PR final receipt head：GitHub canonical `refs/pull/379/head`；该引用必须与
+  本清单回执提交和 GitHub PR `headRefOid` 一致，避免在提交内容中硬编码
+  不可能自引用的 commit SHA；
+- implementation exact-head CI：run `29981212391`，`verify`、
   `staging-parity`、`predeploy-e2e` 全绿；
+- final receipt exact-head CI：以 PR #379 最新 required checks 为准，提交
+  外部审核前必须全部 `SUCCESS`；
 - staging release SHA：
-  `1a07244747c917afdbcfad4cbcfcde0f64daf831`；
+  `1b9f0141bba0c8f5a18e7fa0c57819826446bc4d`；
 - staging migration：
-  `0038_drop_unused_system_metadata`；
+  `0039_drop_evidence_backed_dead_tables`；
 - migration 往返：
-  `0038 -> 0037 -> 0038` 通过；downgrade 后表存在、0 行且原四列 schema
-  恢复，upgrade 后表再次不存在；
-- staging 表数：`144 -> 143`，仅删除 `system_metadata`；
+  `0039 -> 0038 -> 0039` 通过；downgrade 后 42/42 张第二批表恢复且总行数
+  为 0，schema/constraint/index 规范化 MD5 为
+  `a5c7a527a36c983474b47b085df5a58d`（418 条）；upgrade 后 42 张表再次
+  全部不存在；
+- staging 表数：`144 -> 101`，共删除 43 张直接证据完整的空表；
 - 20 轮真实 HTTP 只读检查全部通过；
 - Provider request logs：`162 -> 162`，增量 0；
 - staging 全业务表 DML 统计：
