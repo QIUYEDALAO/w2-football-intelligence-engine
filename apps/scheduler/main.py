@@ -89,6 +89,22 @@ def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
     )
 
 
+def matchday_checkpoint_policies() -> dict[str, Any]:
+    from w2.matchday.intake_v2 import competition_policies, load_matchday_policy
+
+    return competition_policies(load_matchday_policy())
+
+
+def matchday_checkpoint_competition_ids() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            competition_id
+            for competition_id, policy in matchday_checkpoint_policies().items()
+            if policy.enabled
+        )
+    )
+
+
 def future_fixture_refresh_contract_ready() -> bool:
     if not future_fixture_refresh_enabled():
         return False
@@ -152,15 +168,13 @@ def due_checkpoint_refresh_batch(
     )
     from w2.matchday.intake_v2 import (
         build_checkpoint_plans,
-        competition_policies,
-        load_matchday_policy,
         parse_utc,
         require_competition_policy,
         stable_hash,
     )
     from w2.matchday.repository import MatchdayRuntimeRepository
 
-    policy_map = competition_policies(load_matchday_policy())
+    policy_map = matchday_checkpoint_policies()
     repository = MatchdayRuntimeRepository()
     fixtures = future_refresh_fixture_payloads(provider_league_id=provider_league_id)
     fixture_payload_count = len(fixtures)

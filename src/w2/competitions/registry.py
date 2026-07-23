@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -103,11 +104,23 @@ class CompetitionRegistry:
         except SQLAlchemyError as exc:
             raise CompetitionRegistryError("COMPETITION_DB_AUTHORITY_UNAVAILABLE") from exc
         entries: dict[str, CompetitionRegistryEntry] = {}
+        runtime_environment = os.environ.get("W2_ENVIRONMENT", "local").strip().lower()
         for profile, season in rows:
             if profile.competition_id in entries:
                 continue
             profile_payload = dict(profile.payload or {})
             season_payload = dict(season.payload or {})
+            database_environment = str(season_payload.get("environment") or "").strip().lower()
+            if not database_environment:
+                raise CompetitionRegistryError(
+                    f"COMPETITION_DB_ENVIRONMENT_MISSING:{profile.competition_id}:{season.season}"
+                )
+            if database_environment != runtime_environment:
+                raise CompetitionRegistryError(
+                    "COMPETITION_DB_ENVIRONMENT_MISMATCH:"
+                    f"db={database_environment}:runtime={runtime_environment}:"
+                    f"competition={profile.competition_id}:season={season.season}"
+                )
             current_season = str(profile_payload.get("current_season") or "")
             if current_season and season.season != current_season:
                 continue

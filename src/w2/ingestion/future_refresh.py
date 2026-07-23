@@ -232,7 +232,6 @@ def load_refresh_policy(
             "max_fixture_candidates": int,
             "max_odds_requests": int,
             "market_freshness_seconds": int,
-            "enabled": bool,
         }
         for field_name, field_type in required.items():
             if not isinstance(item.get(field_name), field_type):
@@ -259,7 +258,7 @@ def load_refresh_policy(
             max_fixture_candidates=item["max_fixture_candidates"],
             max_odds_requests=item["max_odds_requests"],
             market_freshness_seconds=item["market_freshness_seconds"],
-            enabled=item["enabled"],
+            enabled=entry.enabled and entry.refresh_switches.get("fixtures") is True,
             daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
             daily_reserve=int(item.get("daily_reserve", quota_reserve)),
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),

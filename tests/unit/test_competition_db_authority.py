@@ -3,16 +3,25 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+from apps.scheduler.main import (
+    future_fixture_refresh_competition_ids,
+    matchday_checkpoint_competition_ids,
+)
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CompetitionRegistry
 from w2.competitions.seed import seed_competition_runtime_authority, set_competition_enabled
 from w2.infrastructure.database import Base
-from w2.infrastructure.persistence.league_models import LeagueReadinessAuditModel
+from w2.infrastructure.persistence.league_models import (
+    LeagueReadinessAuditModel,
+    LeagueSeasonModel,
+)
+from w2.ingestion.future_refresh import load_refresh_policy
+from w2.matchday.intake_v2 import competition_policies, load_matchday_policy
 
 
-def _seeded_engine(environment: str = "production"):  # type: ignore[no-untyped-def]
+def _seeded_engine(environment: str = "test"):  # type: ignore[no-untyped-def]
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     report = seed_competition_runtime_authority(
@@ -29,7 +38,7 @@ def test_seed_is_idempotent_and_reconciles_all_json_profiles() -> None:
     engine, first = _seeded_engine()
     second = seed_competition_runtime_authority(
         engine,
-        environment="production",
+        environment="test",
         updated_by="unit-test-seed-rerun",
     )
 
@@ -42,7 +51,8 @@ def test_seed_is_idempotent_and_reconciles_all_json_profiles() -> None:
     assert second.audits_written == 0
 
 
-def test_staging_policy_is_seeded_into_database_without_env_override() -> None:
+def test_staging_policy_is_seeded_into_database_without_env_override(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     engine, _report = _seeded_engine("staging")
 
     assert CompetitionRegistry(engine).enabled_ids() == {
@@ -77,6 +87,61 @@ def test_enabled_change_is_visible_to_same_registry_without_deploy() -> None:
             )
             == 1
         )
+
+
+def test_top_level_enabled_gates_registry_and_both_schedulers_in_same_process(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    engine, _report = _seeded_engine("staging")
+    monkeypatch.setattr("w2.competitions.registry.create_engine", lambda: engine)
+    registry = CompetitionRegistry(engine)
+
+    def visible() -> tuple[bool, bool, bool]:
+        return (
+            "allsvenskan" in registry.enabled_ids(),
+            "allsvenskan" in future_fixture_refresh_competition_ids(),
+            "allsvenskan" in matchday_checkpoint_competition_ids(),
+        )
+
+    assert visible() == (True, True, True)
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=False,
+        updated_by="same-process-toggle-test",
+    )
+    assert visible() == (False, False, False)
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="same-process-rollback-test",
+    )
+    assert visible() == (True, True, True)
+
+
+def test_seed_policy_enabled_is_not_an_independent_runtime_authority(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    engine, _report = _seeded_engine("staging")
+    with Session(engine) as session:
+        row = session.scalar(
+            select(LeagueSeasonModel).where(
+                LeagueSeasonModel.competition_id == "allsvenskan"
+            )
+        )
+        assert row is not None
+        payload = dict(row.payload)
+        payload["future_refresh_policy"] = dict(payload["future_refresh_policy"]) | {
+            "enabled": False
+        }
+        payload["matchday_policy"] = dict(payload["matchday_policy"]) | {"enabled": False}
+        row.payload = payload
+        session.commit()
+
+    registry = CompetitionRegistry(engine)
+    assert load_refresh_policy(competition_id="allsvenskan", registry=registry).enabled is True
+    assert competition_policies(load_matchday_policy(registry))["allsvenskan"].enabled is True
 
 
 def test_runtime_authority_modules_do_not_read_install_seed_json() -> None:

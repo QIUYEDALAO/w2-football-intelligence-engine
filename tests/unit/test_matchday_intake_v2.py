@@ -6,11 +6,13 @@ from typing import Any, cast
 
 import pytest
 
+from w2.competitions.seed import set_competition_enabled
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
     build_recommendation_decision_v3,
     validate_decision_v3_identity,
 )
+from w2.infrastructure.database import create_engine
 from w2.ingestion.checkpoint_refresh import checkpoint_plan_for_fixture
 from w2.matchday.intake_v2 import (
     MatchdayCompetitionPolicy,
@@ -36,6 +38,26 @@ from w2.matchday.intake_v2 import (
 
 NOW = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 7, 20, 18, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def enabled_matchday_competition():  # type: ignore[no-untyped-def]
+    engine = create_engine()
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="matchday-unit-test",
+    )
+    try:
+        yield
+    finally:
+        set_competition_enabled(
+            engine,
+            competition_id="allsvenskan",
+            enabled=False,
+            updated_by="matchday-unit-test-cleanup",
+        )
 
 
 def _policy() -> MatchdayCompetitionPolicy:

@@ -826,7 +826,8 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
         FakeRepository,
     )
 
-    result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = due_checkpoint_refresh_batch(now, provider_league_id="71")
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
     assert result["generated_plan_count"] > 0

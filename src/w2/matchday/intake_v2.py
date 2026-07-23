@@ -172,11 +172,36 @@ class ExecutorResult:
 def load_matchday_policy(
     registry: CompetitionRegistry | None = None,
 ) -> dict[str, Any]:
-    policies = [
-        entry.matchday_policy
-        for entry in (registry or CompetitionRegistry()).entries().values()
-        if isinstance(entry.matchday_policy, dict)
-    ]
+    policies = []
+    for entry in (registry or CompetitionRegistry()).entries().values():
+        if not isinstance(entry.matchday_policy, dict):
+            continue
+        odds_enabled = entry.refresh_switches.get("odds") is True
+        lineups_enabled = entry.refresh_switches.get("lineups") is True
+        policy = dict(entry.matchday_policy)
+        policy["enabled"] = entry.enabled
+        checkpoints = []
+        for source_checkpoint in _list(policy.get("checkpoints")):
+            checkpoint = dict(source_checkpoint)
+            endpoints = tuple(str(value) for value in _list(checkpoint.get("endpoints")))
+            checkpoint["endpoints"] = [
+                endpoint
+                for endpoint in endpoints
+                if (endpoint != "odds" or odds_enabled)
+                and (endpoint != "lineups" or lineups_enabled)
+            ]
+            checkpoints.append(checkpoint)
+        policy["checkpoints"] = checkpoints
+        endpoint_matrix = {}
+        for key, source_endpoints in _mapping(policy.get("endpoint_matrix")).items():
+            endpoint_matrix[str(key)] = [
+                endpoint
+                for endpoint in (str(value) for value in _list(source_endpoints))
+                if (endpoint != "odds" or odds_enabled)
+                and (endpoint != "lineups" or lineups_enabled)
+            ]
+        policy["endpoint_matrix"] = endpoint_matrix
+        policies.append(policy)
     payload = {"version": POLICY_VERSION, "competitions": policies}
     competition_ids = {
         str(item.get("competition_id"))

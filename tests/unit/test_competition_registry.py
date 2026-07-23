@@ -57,13 +57,26 @@ def test_score_card_non_whitelisted_competition_defaults_to_skip() -> None:
 def test_registry_rejects_missing_coverage_profile() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    seed_competition_runtime_authority(engine)
+    seed_competition_runtime_authority(engine, environment="test")
     with Session(engine) as session:
         profile = session.query(LeagueProfileModel).filter_by(competition_id="world_cup_2026").one()
         profile.payload = dict(profile.payload) | {"coverage_profile": {}}
         session.commit()
 
     with pytest.raises(CompetitionRegistryError, match="COVERAGE_PROFILE_MISSING"):
+        CompetitionRegistry(engine).entries()
+
+
+def test_registry_fails_closed_when_database_environment_differs(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    seed_competition_runtime_authority(engine, environment="production")
+
+    with pytest.raises(
+        CompetitionRegistryError,
+        match="COMPETITION_DB_ENVIRONMENT_MISMATCH:db=production:runtime=staging",
+    ):
         CompetitionRegistry(engine).entries()
 
 
@@ -80,7 +93,6 @@ def test_registry_uses_static_config_not_runtime_time() -> None:
 
 
 def test_removed_staging_env_override_cannot_enable_competitions(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     monkeypatch.setenv(
         "W2_STAGING_ENABLED_COMPETITIONS",
         "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
@@ -92,7 +104,6 @@ def test_removed_staging_env_override_cannot_enable_competitions(monkeypatch) ->
 
 
 def test_staging_enabled_competitions_do_not_apply_to_production(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("W2_ENVIRONMENT", "production")
     monkeypatch.setenv(
         "W2_STAGING_ENABLED_COMPETITIONS",
         "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
