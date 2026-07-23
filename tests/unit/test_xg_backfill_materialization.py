@@ -316,17 +316,34 @@ def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> N
 
 
 def test_xg_backfill_competition_id_is_configurable(monkeypatch: Any) -> None:
+    from w2.competitions.seed import set_competition_enabled
+    from w2.infrastructure.database import create_engine
+
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
     monkeypatch.setenv("W2_XG_BACKFILL_COMPETITION_ID", "allsvenskan")
     monkeypatch.setenv("W2_XG_BACKFILL_REQUEST_BUDGET", "20")
 
     client = FakeClient()
-    result = run_xg_history_backfill(
-        client=client,
-        repository=MultiCompetitionRepository(),
-        now=NOW,
+    engine = create_engine()
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="xg-test",
     )
+    try:
+        result = run_xg_history_backfill(
+            client=client,
+            repository=MultiCompetitionRepository(),
+            now=NOW,
+        )
+    finally:
+        set_competition_enabled(
+            engine,
+            competition_id="allsvenskan",
+            enabled=False,
+            updated_by="xg-test-cleanup",
+        )
 
     assert result.team_count == 2
     assert [call for call in client.calls if call[0] == "fixtures"] == [

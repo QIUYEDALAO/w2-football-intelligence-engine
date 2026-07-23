@@ -757,11 +757,7 @@ def _expected_team_count(entry: CompetitionRegistryEntry) -> int:
 
 
 def _payload(entry: CompetitionRegistryEntry) -> Mapping[str, Any]:
-    try:
-        payload = json.loads(entry.config_path.read_text(encoding="utf-8"))
-    except OSError:
-        return {}
-    return payload if isinstance(payload, Mapping) else {}
+    return entry.profile_payload
 
 
 def _norm(value: Any) -> str:

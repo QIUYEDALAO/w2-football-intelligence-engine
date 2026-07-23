@@ -214,19 +214,14 @@ def sanitize_params(params: dict[str, str]) -> dict[str, str]:
 def load_refresh_policy(
     *,
     competition_id: str,
-    policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
+    registry: CompetitionRegistry | None = None,
 ) -> CompetitionRefreshPolicy:
     try:
-        CompetitionRegistry().require_enabled(competition_id)
+        entry = (registry or CompetitionRegistry()).require_enabled(competition_id)
     except CompetitionRegistryError as exc:
         raise FutureRefreshError(str(exc)) from exc
-    payload = load_json(policy_path, {})
-    competitions = payload.get("competitions")
-    if not isinstance(competitions, list):
-        raise FutureRefreshError("FUTURE_REFRESH_POLICY_INVALID")
-    for item in competitions:
-        if not isinstance(item, dict) or item.get("competition_id") != competition_id:
-            continue
+    item = entry.future_refresh_policy
+    if isinstance(item, dict):
         required = {
             "provider_league_id": str,
             "season": str,
@@ -278,9 +273,9 @@ def config_from_policy(
     *,
     competition_id: str = "world_cup_2026",
     runtime_root: Path | None = None,
-    policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
+    registry: CompetitionRegistry | None = None,
 ) -> FutureRefreshConfig:
-    policy = load_refresh_policy(competition_id=competition_id, policy_path=policy_path)
+    policy = load_refresh_policy(competition_id=competition_id, registry=registry)
     return FutureRefreshConfig(
         runtime_root=runtime_root or FutureRefreshConfig().runtime_root,
         competition_id=policy.competition_id,
@@ -1859,7 +1854,6 @@ def run_future_fixture_refresh(
     runtime_root: Path | None = None,
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
-    policy_path: Path = Path("config/policies/future_fixture_refresh.v1.json"),
     persistence: str | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
@@ -1868,7 +1862,6 @@ def run_future_fixture_refresh(
     config = config_from_policy(
         competition_id=competition_id,
         runtime_root=runtime_root,
-        policy_path=policy_path,
     )
     if persistence is not None:
         config = replace(config, persistence=persistence)

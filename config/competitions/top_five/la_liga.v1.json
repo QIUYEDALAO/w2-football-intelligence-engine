@@ -1,5 +1,6 @@
 {
   "competition_id": "la_liga",
+  "audit_order": 2,
   "name": "La Liga",
   "country": "Spain",
   "timezone": "Europe/Madrid",

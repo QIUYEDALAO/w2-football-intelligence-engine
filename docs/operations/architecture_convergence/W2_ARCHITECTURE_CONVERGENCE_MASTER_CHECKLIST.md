@@ -218,11 +218,12 @@ NEW_FALLBACKS = 0
 **独立 PR，只收敛“读”，不先重写所有写入。**
 
 ```text
-Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-p0-02-odds-read-authority
-PR: #376 (Draft)
+PR: #376 (Merged)
 Base SHA: 1e9e811dc5393eb6b270bbe0bfa1fb8579142b4a
 Implementation-head CI: 29968317105 (verify, staging-parity, predeploy-e2e passed)
+Merge SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
 Started at: 2026-07-23T07:34:21+0800
 Owner: Codex
 Authority table: matchday_market_observations
@@ -281,7 +282,7 @@ Local full validation: W2 all-stage verify PASS; 1450 passed, 4 skipped.
   - quote identity。
 - [x] Dashboard 与分析读取均经过唯一仓储入口。
 - [x] 完整 CI、staging 对账、20 次只读零写通过。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 **验收**
 
@@ -296,7 +297,32 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
 
 **独立 PR，必须复用现有 `league_profile / league_season` 或已确认的等价表。**
 
-- [ ] 核实现有 DB 表是否足以承载：
+```text
+Status: IMPLEMENTED_LOCAL_VALIDATED_AWAITING_EXACT_HEAD_CI_AND_STAGING
+Branch: codex/arch-p0-03-db-competition-authority
+Base SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
+Owner: Codex
+Runtime authority tables: league_profile, league_season
+Audit table: league_readiness_audit
+Migration head: 0037_seed_competition_runtime_authority
+Seed reconciliation: 14 profiles + 14 seasons inserted; 14 audit rows;
+  second identical run 14 unchanged; 0 conflicts; staging seed enables the
+  five policy-authorized competitions.
+No-deploy proof: an audited league_season.payload.enabled update changed the
+  result returned by the same uncached CompetitionRegistry instance without a
+  process restart, build or deploy; rollback update restored the prior result.
+Removed authorities: competition/policy JSON runtime reads,
+  W2_STAGING_ENABLED_COMPETITIONS,
+  W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID(S), and Python league-ID tuples.
+Safety boundary: W2_FUTURE_FIXTURE_REFRESH_ENABLED,
+  W2_PROVIDER_SCHEDULER_ENABLED, W2_PROVIDER_CALLS_DISABLED, endpoint allowlist,
+  quota caps and all recommendation/formal/lock/production switches unchanged.
+Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1455 passed,
+  4 skipped; migration empty-upgrade/downgrade/re-upgrade PASS; web typecheck,
+  build and 26 Playwright E2E PASS.
+```
+
+- [x] 核实现有 DB 表是否足以承载：
   - competition ID；
   - environment；
   - enabled；
@@ -308,20 +334,20 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
   - fixture/odds/lineup refresh switches；
   - updated_by/updated_at；
   - config hash/version。
-- [ ] 不新增新表；优先扩展或复用老板指定的现有表。
-- [ ] 编写一次性、幂等种子脚本：
+- [x] 不新增新表；优先扩展或复用老板指定的现有表。
+- [x] 编写一次性、幂等种子脚本：
   - 导入 `config/competitions/*.json`；
   - 导入相关 policy JSON；
   - 导入 enabled/provider_id/season；
   - 输出冲突报告。
-- [ ] `CompetitionRegistry` 运行时改为读取数据库。
-- [ ] JSON 降级为首次安装种子，不再是运行时权威。
-- [ ] 删除 `W2_STAGING_ENABLED_COMPETITIONS` 的业务覆盖机制。
-- [ ] 删除 `league_whitelist_scope.py` 中联赛硬编码元组。
-- [ ] 保留 Provider 总熔断等安全环境变量。
-- [ ] scheduler 从 DB 读取启用联赛。
-- [ ] 修改 DB 中 enabled 后无需部署即可生效。
-- [ ] 所有修改有审计记录。
+- [x] `CompetitionRegistry` 运行时改为读取数据库。
+- [x] JSON 降级为首次安装种子，不再是运行时权威。
+- [x] 删除 `W2_STAGING_ENABLED_COMPETITIONS` 的业务覆盖机制。
+- [x] 删除 `league_whitelist_scope.py` 中联赛硬编码元组。
+- [x] 保留 Provider 总熔断等安全环境变量。
+- [x] scheduler 从 DB 读取启用联赛。
+- [x] 修改 DB 中 enabled 后无需部署即可生效。
+- [x] 所有修改有审计记录。
 - [ ] 完整 CI、staging 变更测试和回滚测试通过。
 - [ ] PR 合并。
 

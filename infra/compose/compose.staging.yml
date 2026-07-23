@@ -132,7 +132,6 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
       W2_PROVIDER_DAILY_HARD_CAP: "120"
-      W2_STAGING_ENABLED_COMPETITIONS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
       W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_XG_BACKFILL_ENABLED: "false"
@@ -197,7 +196,6 @@ services:
       - ../../runtime:/app/runtime
       - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
-      - ../../config/policies:/app/config/policies:ro
     environment:
       W2_APP_ROOT: /app
       W2_RUNTIME_ROOT: /app/runtime
@@ -216,7 +214,6 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
       W2_PROVIDER_DAILY_HARD_CAP: "120"
-      W2_STAGING_ENABLED_COMPETITIONS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
       W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
       W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
       W2_XG_BACKFILL_ENABLED: "false"
@@ -275,7 +272,6 @@ services:
       - ../../runtime:/app/runtime
       - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
       - ../../config:/app/config:ro
-      - ../../config/policies:/app/config/policies:ro
     environment:
       W2_APP_ROOT: /app
       W2_RUNTIME_ROOT: /app/runtime
@@ -290,8 +286,6 @@ services:
       W2_FORWARD_HOLDOUT_AUTORUN: "true"
       W2_FORWARD_HOLDOUT_NETWORK: "true"
       W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS: ""
-      W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID: "allsvenskan"
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
       W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
@@ -299,7 +293,6 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
       W2_PROVIDER_DAILY_HARD_CAP: "120"
-      W2_STAGING_ENABLED_COMPETITIONS: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
       W2_XG_BACKFILL_ENABLED: "false"
       W2_MARKET_TIMELINE_REFRESH_ENABLED: "true"
       W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS: "600"

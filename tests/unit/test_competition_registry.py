@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
+from w2.competitions.seed import seed_competition_runtime_authority
+from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.league_models import LeagueProfileModel
 from w2.ingestion.future_refresh import FutureRefreshError, load_refresh_policy
 from w2.strategy.score_card import build_score_card
 
@@ -32,30 +35,9 @@ def test_only_world_cup_2026_is_enabled_in_competition_registry() -> None:
     )
 
 
-def test_future_refresh_policy_rejects_non_whitelisted_competition(tmp_path: Path) -> None:
-    policy = {
-        "competitions": [
-            {
-                "competition_id": "summer_low_quality",
-                "provider": "api_football",
-                "provider_league_id": "999",
-                "season": "2026",
-                "horizon_days": 14,
-                "scheduler_interval_seconds": 900,
-                "quota_reserve": 1500,
-                "request_budget": 40,
-                "max_fixture_candidates": 20,
-                "max_odds_requests": 10,
-                "market_freshness_seconds": 3600,
-                "enabled": True,
-            }
-        ]
-    }
-    path = tmp_path / "future_fixture_refresh.v1.json"
-    path.write_text(json.dumps(policy), encoding="utf-8")
-
+def test_future_refresh_policy_rejects_non_whitelisted_competition() -> None:
     with pytest.raises(FutureRefreshError, match="COMPETITION_NOT_REGISTERED"):
-        load_refresh_policy(competition_id="summer_low_quality", policy_path=path)
+        load_refresh_policy(competition_id="summer_low_quality")
 
 
 def test_score_card_non_whitelisted_competition_defaults_to_skip() -> None:
@@ -72,16 +54,17 @@ def test_score_card_non_whitelisted_competition_defaults_to_skip() -> None:
     assert card.formal_recommendation is False
 
 
-def test_registry_rejects_missing_coverage_profile(tmp_path: Path) -> None:
-    root = tmp_path / "competitions"
-    root.mkdir()
-    (root / "bad.json").write_text(
-        json.dumps({"competition_id": "bad", "season": "2026", "enabled": False}),
-        encoding="utf-8",
-    )
+def test_registry_rejects_missing_coverage_profile() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    seed_competition_runtime_authority(engine)
+    with Session(engine) as session:
+        profile = session.query(LeagueProfileModel).filter_by(competition_id="world_cup_2026").one()
+        profile.payload = dict(profile.payload) | {"coverage_profile": {}}
+        session.commit()
 
     with pytest.raises(CompetitionRegistryError, match="COVERAGE_PROFILE_MISSING"):
-        CompetitionRegistry(root).entries()
+        CompetitionRegistry(engine).entries()
 
 
 def test_future_refresh_world_cup_policy_remains_enabled() -> None:
@@ -96,7 +79,7 @@ def test_registry_uses_static_config_not_runtime_time() -> None:
     assert CompetitionRegistry().is_enabled("world_cup_2026") is True
 
 
-def test_staging_enabled_competitions_are_environment_scoped(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_removed_staging_env_override_cannot_enable_competitions(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     monkeypatch.setenv(
         "W2_STAGING_ENABLED_COMPETITIONS",
@@ -105,13 +88,7 @@ def test_staging_enabled_competitions_are_environment_scoped(monkeypatch) -> Non
 
     registry = CompetitionRegistry()
 
-    assert {
-        "world_cup_2026",
-        "brasileirao_serie_a",
-        "chinese_super_league",
-        "allsvenskan",
-        "eliteserien",
-    } <= registry.enabled_ids()
+    assert registry.enabled_ids() == {"world_cup_2026"}
 
 
 def test_staging_enabled_competitions_do_not_apply_to_production(monkeypatch) -> None:  # type: ignore[no-untyped-def]

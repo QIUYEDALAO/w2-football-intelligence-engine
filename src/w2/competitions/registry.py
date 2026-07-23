@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.league_models import LeagueProfileModel, LeagueSeasonModel
 
 
 class CompetitionRegistryError(RuntimeError):
@@ -22,14 +28,7 @@ class CoverageProfile:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> CoverageProfile:
-        required = {
-            "xg",
-            "lineups_injuries",
-            "squad_value",
-            "bookmaker_depth",
-            "h2h",
-            "settled_ah",
-        }
+        required = {"xg", "lineups_injuries", "squad_value", "bookmaker_depth", "h2h", "settled_ah"}
         missing = sorted(required - set(payload))
         if missing:
             raise CompetitionRegistryError(f"COVERAGE_PROFILE_MISSING:{','.join(missing)}")
@@ -54,17 +53,26 @@ class CompetitionRegistryEntry:
     coverage_profile: CoverageProfile
     config_path: Path
     provider_mapping: dict[str, str]
+    timezone: str
+    market_scope: tuple[str, ...]
+    refresh_switches: dict[str, bool]
+    future_refresh_policy: dict[str, Any] | None
+    matchday_policy: dict[str, Any] | None
+    scope_group: str
+    audit_cohort: str
+    audit_order: int
+    config_hash: str
+    profile_payload: dict[str, Any]
 
 
 class CompetitionRegistry:
-    def __init__(self, root: Path = Path("config/competitions")) -> None:
-        self.root = root
-        self._entries: dict[str, CompetitionRegistryEntry] | None = None
+    """Uncached DB-backed runtime authority for competition configuration."""
+
+    def __init__(self, engine: Engine | None = None) -> None:
+        self.engine = engine or create_engine()
 
     def entries(self) -> dict[str, CompetitionRegistryEntry]:
-        if self._entries is None:
-            self._entries = self._load()
-        return self._entries
+        return self._load()
 
     def enabled_ids(self) -> set[str]:
         return {key for key, entry in self.entries().items() if entry.enabled}
@@ -82,49 +90,64 @@ class CompetitionRegistry:
         return bool(entry and entry.enabled)
 
     def _load(self) -> dict[str, CompetitionRegistryEntry]:
-        if not self.root.exists():
-            raise CompetitionRegistryError(f"COMPETITION_CONFIG_ROOT_MISSING:{self.root}")
+        try:
+            with Session(self.engine) as session:
+                rows = session.execute(
+                    select(LeagueProfileModel, LeagueSeasonModel)
+                    .join(
+                        LeagueSeasonModel,
+                        LeagueSeasonModel.competition_id == LeagueProfileModel.competition_id,
+                    )
+                    .order_by(LeagueProfileModel.competition_id, LeagueSeasonModel.season.desc())
+                ).all()
+        except SQLAlchemyError as exc:
+            raise CompetitionRegistryError("COMPETITION_DB_AUTHORITY_UNAVAILABLE") from exc
         entries: dict[str, CompetitionRegistryEntry] = {}
-        staging_enabled_ids = _staging_enabled_competition_ids()
-        for path in sorted(self.root.rglob("*.json")):
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            competition_id = str(payload.get("competition_id") or "")
-            if not competition_id:
-                raise CompetitionRegistryError(f"COMPETITION_ID_MISSING:{path}")
-            if competition_id in entries:
-                raise CompetitionRegistryError(f"COMPETITION_DUPLICATE:{competition_id}")
-            coverage = payload.get("coverage_profile")
+        for profile, season in rows:
+            if profile.competition_id in entries:
+                continue
+            profile_payload = dict(profile.payload or {})
+            season_payload = dict(season.payload or {})
+            current_season = str(profile_payload.get("current_season") or "")
+            if current_season and season.season != current_season:
+                continue
+            coverage = profile_payload.get("coverage_profile")
             if not isinstance(coverage, dict):
-                raise CompetitionRegistryError(f"COVERAGE_PROFILE_MISSING:{competition_id}")
-            enabled = bool(payload.get("enabled") is True)
-            if competition_id in staging_enabled_ids:
-                enabled = True
-            entries[competition_id] = CompetitionRegistryEntry(
-                competition_id=competition_id,
-                season=str(payload.get("season") or ""),
-                enabled=enabled,
+                raise CompetitionRegistryError(f"COVERAGE_PROFILE_MISSING:{profile.competition_id}")
+            source = dict(profile_payload.get("install_seed") or {}).get("source") or ""
+            provider_mapping = {
+                str(key): str(value)
+                for key, value in dict(season_payload.get("provider_mapping") or {}).items()
+            } | {
+                "provider": str(season_payload.get("provider") or ""),
+                "api_football_league_id": str(season_payload.get("provider_league_id") or ""),
+                "api_football_season": str(season_payload.get("provider_season") or season.season),
+            }
+            entries[profile.competition_id] = CompetitionRegistryEntry(
+                competition_id=profile.competition_id,
+                season=season.season,
+                enabled=bool(season_payload.get("enabled") is True),
                 coverage_profile=CoverageProfile.from_payload(coverage),
-                config_path=path,
-                provider_mapping={
-                    str(key): str(value)
-                    for key, value in (payload.get("provider_mapping") or {}).items()
-                }
-                if isinstance(payload.get("provider_mapping"), dict)
-                else {},
+                config_path=Path(str(source)),
+                provider_mapping=provider_mapping,
+                timezone=str(season_payload.get("timezone") or "UTC"),
+                market_scope=tuple(str(item) for item in season_payload.get("market_scope") or []),
+                refresh_switches={
+                    str(key): bool(value)
+                    for key, value in dict(season_payload.get("refresh_switches") or {}).items()
+                },
+                future_refresh_policy=dict(season_payload["future_refresh_policy"])
+                if isinstance(season_payload.get("future_refresh_policy"), dict)
+                else None,
+                matchday_policy=dict(season_payload["matchday_policy"])
+                if isinstance(season_payload.get("matchday_policy"), dict)
+                else None,
+                scope_group=str(profile_payload.get("scope_group") or ""),
+                audit_cohort=str(profile_payload.get("audit_cohort") or ""),
+                audit_order=int(profile_payload.get("audit_order") or 999),
+                config_hash=str(season_payload.get("config_hash") or ""),
+                profile_payload=dict(profile_payload.get("competition_profile") or {}),
             )
-        missing_staging = sorted(staging_enabled_ids - set(entries))
-        if missing_staging:
-            raise CompetitionRegistryError(
-                f"STAGING_ENABLED_COMPETITION_NOT_REGISTERED:{','.join(missing_staging)}"
-            )
+        if not entries:
+            raise CompetitionRegistryError("COMPETITION_DB_AUTHORITY_EMPTY")
         return entries
-
-
-def _staging_enabled_competition_ids() -> set[str]:
-    raw = os.environ.get("W2_STAGING_ENABLED_COMPETITIONS", "")
-    if not raw.strip():
-        return set()
-    environment = os.environ.get("W2_ENVIRONMENT", "").strip().lower()
-    if environment != "staging":
-        return set()
-    return {item.strip() for item in raw.split(",") if item.strip()}

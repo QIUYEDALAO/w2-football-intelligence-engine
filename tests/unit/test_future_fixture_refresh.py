@@ -988,42 +988,17 @@ def test_future_refresh_w2_budget_scope_ignores_provider_header_usage(
 
 
 def test_future_refresh_policy_allows_only_registered_competitions(tmp_path: Path) -> None:
-    policy_path = tmp_path / "policy.json"
-    policy_path.write_text(
-        """
-        {
-          "competitions": [
-            {
-              "competition_id": "world_cup_2026",
-              "provider_league_id": "1",
-              "season": "2026",
-              "horizon_days": 14,
-              "scheduler_interval_seconds": 900,
-              "quota_reserve": 1500,
-              "request_budget": 40,
-              "max_fixture_candidates": 20,
-              "max_odds_requests": 20,
-              "market_freshness_seconds": 3600,
-              "enabled": true
-            }
-          ]
-        }
-        """,
-        encoding="utf-8",
-    )
-
-    policy = load_refresh_policy(competition_id="world_cup_2026", policy_path=policy_path)
+    policy = load_refresh_policy(competition_id="world_cup_2026")
     config = config_from_policy(
         competition_id="world_cup_2026",
         runtime_root=tmp_path / "runtime",
-        policy_path=policy_path,
     )
 
     assert policy.provider_league_id == "1"
     assert config.season == "2026"
     assert config.max_odds_requests == 20
     try:
-        load_refresh_policy(competition_id="premier_league", policy_path=policy_path)
+        load_refresh_policy(competition_id="premier_league")
     except FutureRefreshError as exc:
         assert str(exc) == "COMPETITION_NOT_ENABLED:premier_league"
     else:  # pragma: no cover

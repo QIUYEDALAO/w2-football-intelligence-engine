@@ -1,8 +1,10 @@
 {
   "competition_id": "chinese_super_league",
+  "audit_order": 4,
   "name": "Chinese Super League",
   "country": "China",
   "timezone": "Asia/Shanghai",
+  "audit_cohort": "IN_SEASON",
   "provider_mapping": {
     "api_football_league_id": "169",
     "api_football_league_name": "Super League",

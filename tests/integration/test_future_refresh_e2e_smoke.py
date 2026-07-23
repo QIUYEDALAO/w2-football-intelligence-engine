@@ -8,7 +8,9 @@ from typing import Any
 from apps.scheduler import main as scheduler_main
 from apps.worker import celery_app as worker_module
 
+from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
+from w2.infrastructure.database import create_engine
 from w2.ingestion import future_refresh as future_refresh_core
 from w2.providers.api_football import LiveApiFootballResponse
 from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
@@ -179,9 +181,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     monkeypatch.setattr(scheduler_main, "datetime", FixedDatetime)
@@ -212,9 +212,29 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     monkeypatch.setattr(worker_module, "run_future_refresh_task", fake_runtime_run_task)
     monkeypatch.setattr(worker_module.celery_app, "send_task", eager_send_task)
     monkeypatch.setattr(worker_module.celery_app.conf, "task_always_eager", True)
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("allsvenskan",),
+    )
 
-    first = scheduler_main.future_fixture_refresh_tick()
-    second = scheduler_main.future_fixture_refresh_tick()
+    engine = create_engine()
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="e2e-test",
+    )
+    try:
+        first = scheduler_main.future_fixture_refresh_tick()
+        second = scheduler_main.future_fixture_refresh_tick()
+    finally:
+        set_competition_enabled(
+            engine,
+            competition_id="allsvenskan",
+            enabled=False,
+            updated_by="e2e-test-cleanup",
+        )
 
     assert first["status"] == "QUEUED"
     assert second["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"

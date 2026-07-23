@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from w2.competitions.registry import CompetitionRegistry
 from w2.features.framework import (
@@ -53,9 +51,9 @@ def build_feature_set(
     context: FeatureContext,
     inputs: FeatureInputs,
     registry: CompetitionRegistry | None = None,
-    config_root: Path = Path("config/competitions"),
 ) -> FeatureSet:
-    coverage = require_competition_enabled(context, registry)
+    resolved_registry = registry or CompetitionRegistry()
+    coverage = require_competition_enabled(context, resolved_registry)
     if isinstance(coverage, FeatureContribution):
         return FeatureSet(
             fixture_id=context.fixture_id,
@@ -64,7 +62,7 @@ def build_feature_set(
             contributions=(coverage,),
             status=FeatureStatus.NOT_WHITELISTED,
         )
-    importance = load_importance_config(context.competition_id, config_root=config_root)
+    importance = load_importance_config(context.competition_id, registry=resolved_registry)
     contributions = (
         market_movement_factor(
             context=context,
@@ -124,26 +122,22 @@ def build_feature_set(
 def load_importance_config(
     competition_id: str,
     *,
-    config_root: Path = Path("config/competitions"),
+    registry: CompetitionRegistry | None = None,
 ) -> MatchImportanceConfig:
-    for path in sorted(config_root.rglob("*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if payload.get("competition_id") != competition_id:
-            continue
-        profile = payload.get("importance_profile")
-        if not isinstance(profile, dict):
-            return MatchImportanceConfig(stage_weights={}, default_weight=0.5)
-        raw_weights = profile.get("stage_weights")
-        weights: dict[str, float] = {}
-        if isinstance(raw_weights, dict):
-            weights = {
-                str(key): float(value)
-                for key, value in raw_weights.items()
-                if isinstance(value, int | float)
-            }
-        default = profile.get("default_weight", 0.5)
-        return MatchImportanceConfig(
-            stage_weights=weights,
-            default_weight=float(default) if isinstance(default, int | float) else 0.5,
-        )
-    return MatchImportanceConfig(stage_weights={}, default_weight=0.5)
+    entry = (registry or CompetitionRegistry()).entries().get(competition_id)
+    profile = entry.profile_payload.get("importance_profile") if entry else None
+    if not isinstance(profile, dict):
+        return MatchImportanceConfig(stage_weights={}, default_weight=0.5)
+    raw_weights = profile.get("stage_weights")
+    weights: dict[str, float] = {}
+    if isinstance(raw_weights, dict):
+        weights = {
+            str(key): float(value)
+            for key, value in raw_weights.items()
+            if isinstance(value, int | float)
+        }
+    default = profile.get("default_weight", 0.5)
+    return MatchImportanceConfig(
+        stage_weights=weights,
+        default_weight=float(default) if isinstance(default, int | float) else 0.5,
+    )

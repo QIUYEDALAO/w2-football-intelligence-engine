@@ -16,10 +16,6 @@ COMPOSE_FILES = [
     ROOT / "infra/compose/compose.staging.yml",
     ROOT / "infra/compose/staging-lite.override.yml",
 ]
-EXPECTED_POLICY_MOUNT_SOURCES = {
-    ROOT / "infra/compose/compose.staging.yml": "../../config/policies",
-    ROOT / "infra/compose/staging-lite.override.yml": "./config/policies",
-}
 EXPECTED_RUNTIME_MOUNT_SOURCES = {
     ROOT / "infra/compose/compose.staging.yml": "../../runtime",
     ROOT / "infra/compose/staging-lite.override.yml": "./runtime",
@@ -165,31 +161,15 @@ def split_volume(volume: Any) -> tuple[str, str, str | None]:
     fail(f"unsupported volume mount shape: {volume!r}")
 
 
-def assert_policy_mount(path: Path, compose: dict[str, Any]) -> None:
-    expected_source = EXPECTED_POLICY_MOUNT_SOURCES[path]
-    for service in ("worker", "scheduler"):
-        matches = [
-            split_volume(volume)
-            for volume in service_volumes(compose, service)
-            if split_volume(volume)[1] == POLICY_MOUNT_TARGET
-        ]
-        if len(matches) != 1:
-            fail(f"{path}: {service} must have exactly one policy mount")
-        source, target, mode = matches[0]
-        if source != expected_source:
-            fail(f"{path}: {service} policy mount source mismatch")
-        if target != POLICY_MOUNT_TARGET:
-            fail(f"{path}: {service} policy mount target mismatch")
-        if mode != "ro":
-            fail(f"{path}: {service} policy mount must be read-only")
-    for service in ("api", "web"):
+def assert_no_runtime_policy_mount(path: Path, compose: dict[str, Any]) -> None:
+    for service in ("api", "web", "worker", "scheduler"):
         mounts = [
             split_volume(volume)
             for volume in service_volumes(compose, service)
             if split_volume(volume)[1] == POLICY_MOUNT_TARGET
         ]
         if mounts:
-            fail(f"{path}: {service} must not mount scheduler policy")
+            fail(f"{path}: {service} must not mount install-seed policy as runtime authority")
 
 
 def assert_config_mount(path: Path, compose: dict[str, Any]) -> None:
@@ -268,21 +248,19 @@ def assert_public_ports_allowlisted(compose: dict[str, Any], path: Path) -> None
 def assert_compose(path: Path) -> None:
     compose = load_yaml(path)
     assert_config_mount(path, compose)
-    assert_policy_mount(path, compose)
+    assert_no_runtime_policy_mount(path, compose)
     assert_runtime_mount(path, compose)
     assert_worker_runtime_healthcheck(path, compose)
     scheduler_env = service_env(compose, "scheduler")
     if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED") != "false":
         fail(f"{path}: scheduler future refresh must default disabled")
-    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID") != "allsvenskan":
-        fail(f"{path}: scheduler future refresh competition mismatch")
-    if scheduler_env.get("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS") != "":
-        fail(f"{path}: scheduler future refresh competition list must default empty")
-    expected_staging_competitions = (
-        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-    )
-    if scheduler_env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
-        fail(f"{path}: scheduler staging competition override mismatch")
+    for removed in (
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID",
+        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
+        "W2_STAGING_ENABLED_COMPETITIONS",
+    ):
+        if removed in scheduler_env:
+            fail(f"{path}: scheduler removed DB-owned switch remains: {removed}")
     if scheduler_env.get("W2_PROVIDER_CALLS_DISABLED") != "true":
         fail(f"{path}: scheduler provider calls must default disabled")
     if scheduler_env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
@@ -310,15 +288,15 @@ def assert_compose(path: Path) -> None:
                 fail(f"{path}: api provider calls must stay disabled")
             if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
                 fail(f"{path}: api provider scheduler must stay disabled")
-            if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
-                fail(f"{path}: api staging competition override mismatch")
+            if "W2_STAGING_ENABLED_COMPETITIONS" in env:
+                fail(f"{path}: api staging competition override remains")
         if service == "worker":
             if env.get("W2_PROVIDER_CALLS_DISABLED") != "true":
                 fail(f"{path}: worker provider calls must default disabled")
             if env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
                 fail(f"{path}: worker provider scheduler must default disabled")
-            if env.get("W2_STAGING_ENABLED_COMPETITIONS") != expected_staging_competitions:
-                fail(f"{path}: worker staging competition override mismatch")
+            if "W2_STAGING_ENABLED_COMPETITIONS" in env:
+                fail(f"{path}: worker staging competition override remains")
         if service in {"api", "worker"} and env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != (
             MARKET_TIMELINE_MOUNT_TARGET
         ):

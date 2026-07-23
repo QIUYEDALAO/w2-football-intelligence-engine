@@ -1,5 +1,6 @@
 {
   "competition_id": "bundesliga",
+  "audit_order": 3,
   "name": "Bundesliga",
   "country": "Germany",
   "timezone": "Europe/Berlin",

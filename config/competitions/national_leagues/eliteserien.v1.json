@@ -1,8 +1,10 @@
 {
   "competition_id": "eliteserien",
+  "audit_order": 6,
   "name": "Eliteserien",
   "country": "Norway",
   "timezone": "Europe/Oslo",
+  "audit_cohort": "IN_SEASON",
   "provider_mapping": {
     "api_football_league_id": "103",
     "api_football_season": "2026",

@@ -108,6 +108,10 @@ class MatchImportanceContext:
 
 def load_tournament_profile(path: Path) -> TournamentProfile:
     payload = json.loads(path.read_text(encoding="utf-8"))
+    return tournament_profile_from_payload(payload)
+
+
+def tournament_profile_from_payload(payload: dict[str, Any]) -> TournamentProfile:
     return TournamentProfile(
         competition_id=payload["competition_id"],
         version=payload["version"],

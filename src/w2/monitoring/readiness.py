@@ -198,15 +198,16 @@ def _env_flag(name: str, *, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _env_csv(name: str) -> list[str]:
-    raw = os.environ.get(name, "")
-    return [item.strip() for item in raw.split(",") if item.strip()]
-
-
 def _provider_intake_readiness(settings: Settings) -> ProviderIntakeOperationalReadinessV1:
+    from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
+
     endpoint_allowlist = sorted(provider_endpoint_allowlist())
-    competition_ids = _env_csv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS")
-    allsvenskan_registered = "allsvenskan" in competition_ids
+    try:
+        competition_ids = sorted(CompetitionRegistry().enabled_ids())
+        allsvenskan_registered = "allsvenskan" in competition_ids
+    except CompetitionRegistryError:
+        competition_ids = []
+        allsvenskan_registered = False
     api_key_visible = bool(os.environ.get("W2_API_FOOTBALL_API_KEY"))
     db_persistence = os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").strip().lower() == "db"
     redis_dedupe = settings.redis_url is not None
