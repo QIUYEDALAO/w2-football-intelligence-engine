@@ -365,7 +365,8 @@ CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
       20 轮只读探测 80/80 → 零写证明 → 表数 `66 → 65` → `0041→0040→0041`
       往返通过。完整回执见 0.5
 - [x] exact-head CI：run `30011857074` @ `1d02a45`，`success`
-- [ ] 最终回执提交的完整 CI 全绿（run 号补入本节）
+- [x] 最终回执提交的完整 CI 全绿：run `30016906612` @ `db55523`，
+      `verify`、`staging-parity`、`predeploy-e2e` 三项均 `success`
 - [ ] 老板对 0.3、0.4、0.5 逐项最终验收通过
 - [ ] PR 合并，本任务状态翻 `DONE`
 
@@ -596,7 +597,7 @@ schema 变更对上一版本向后兼容。此项不作为验收依据。）
 #### 尚待完成
 
 ```text
-FINAL_RECEIPT_CI      = 待本回执提交推送后运行
+FINAL_RECEIPT_CI      = PASS (run 30016906612 @ db55523)
 EXTERNAL_FINAL_REVIEW = PENDING
 MERGE                 = 禁止，待最终外部验收通过
 ```
@@ -1454,6 +1455,8 @@ Validated implementation head: 1d02a45c6f38c3613ac3dddab784869095bf6804
 Exact-head CI: 30011857074 (success)
 CI history: 30005506955 (predeploy-e2e 失败，已修) -> 30008088208 (pass)
   -> 30011185720 (整改后 pass) -> 30011857074 (exact head, pass)
+  -> 30016906612 (最终回执 db55523, pass)
+Final receipt head: db555238616088996a3bec0260cbab44feba2673
 Staging acceptance: PASS — release 1d02a45，migration 0041，表数 66 -> 65，
   投影为 VIEW，canonical 44644 不变，投影 10648 行 hash 3bf130fc，
   20 轮 HTTP 80/80 且 hash 稳定，Provider 与业务 DML 增量 0，
