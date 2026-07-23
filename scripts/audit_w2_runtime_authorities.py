@@ -21,6 +21,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "runtime" / "audits" / "system_truth"
 DEFAULT_FOOTBALL_DATA_ROOT = ROOT / "runtime" / "data" / "football-data-co-uk"
+OUTPUT_MARKER_NAME = ".w2-system-truth-audit-output"
+OUTPUT_MARKER_CONTENT = "w2.system_truth.audit_generator.v1\n"
+SCANNED_SOURCE_ROOTS = ("src", "apps", "scripts", "tests", "migrations")
 SCHEMA_PREFIX = "w2.system_consolidation"
 CORE_CONCEPTS = (
     "fixture_discovery",
@@ -235,6 +238,65 @@ def _kw_string(node: ast.Call, key: str) -> str | None:
 
 def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+
+def _git_paths(*args: str) -> list[str]:
+    output = subprocess.check_output(["git", *args], cwd=ROOT, text=True)
+    return sorted(line for line in output.splitlines() if line)
+
+
+def _untracked_scanned_python_files() -> list[str]:
+    pathspecs = (
+        *(f"{root}/**/*.py" for root in SCANNED_SOURCE_ROOTS),
+        *(f"{root}/*.py" for root in SCANNED_SOURCE_ROOTS),
+    )
+    untracked = _git_paths(
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        *pathspecs,
+    )
+    ignored = _git_paths(
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--",
+        *pathspecs,
+    )
+    return sorted(set(untracked) | set(ignored))
+
+
+def _source_tree_mismatches() -> dict[str, list[str]]:
+    mismatches = {
+        "staged changes": _git_paths(
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACDMRTUXB",
+        ),
+        "unstaged tracked changes": _git_paths(
+            "diff",
+            "--name-only",
+            "--diff-filter=ACDMRTUXB",
+        ),
+        "untracked scanned Python files": _untracked_scanned_python_files(),
+    }
+    return {kind: paths for kind, paths in mismatches.items() if paths}
+
+
+def _ensure_source_tree_matches_head(generation_head: str) -> None:
+    mismatches = _source_tree_mismatches()
+    if not mismatches:
+        return
+    details = "; ".join(
+        f"{kind}: {', '.join(paths)}" for kind, paths in mismatches.items()
+    )
+    raise RuntimeError(
+        "Audit source tree does not match generation HEAD "
+        f"{generation_head}; {details}"
+    )
 
 
 def _football_data_root() -> Path:
@@ -936,22 +998,8 @@ def write_md(output_dir: Path, name: str, payload: dict[str, Any]) -> None:
     )
 
 
-def replace_absolute_paths(output_dir: Path) -> None:
-    replacements = {
-        str(_football_data_root()): "$W2_FOOTBALL_DATA_ROOT",
-        str(ROOT): "$W2_REPOSITORY_ROOT",
-        str(Path.home()): "$HOME",
-    }
-    for path in output_dir.glob("W2_*.*"):
-        text = path.read_text(encoding="utf-8")
-        for absolute, alias in replacements.items():
-            text = text.replace(absolute, alias)
-        path.write_text(text, encoding="utf-8")
-
-
 def build_manifest(
     generated_dir: Path,
-    published_dir: Path,
     *,
     generated_at: str,
     source_sha: str,
@@ -961,14 +1009,9 @@ def build_manifest(
     for path in sorted(generated_dir.glob("W2_*.*")):
         if path.name == "W2_CONSOLIDATION_MANIFEST_V1.json":
             continue
-        published_path = published_dir / path.name
-        try:
-            display_path = published_path.relative_to(ROOT).as_posix()
-        except ValueError:
-            display_path = published_path.as_posix()
         files.append(
             {
-                "path": display_path,
+                "path": f"$W2_AUDIT_OUTPUT_DIR/{path.name}",
                 "sha256": _sha_file(path),
                 "bytes": path.stat().st_size,
             }
@@ -1009,6 +1052,78 @@ def _validate_source_review_sha(
         )
 
 
+def _manifest_proves_generator_ownership(output_dir: Path) -> bool:
+    manifest_path = output_dir / "W2_CONSOLIDATION_MANIFEST_V1.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if manifest.get("schema_version") != "W2_CONSOLIDATION_MANIFEST_V1":
+        return False
+    if not manifest.get("source_review_sha") or not manifest.get("audit_generator_sha"):
+        return False
+    expected_sha = manifest.get("artifact_sha")
+    body = {key: value for key, value in manifest.items() if key != "artifact_sha"}
+    return isinstance(expected_sha, str) and expected_sha == _sha_payload(body)
+
+
+def _is_generator_owned_output(output_dir: Path) -> bool:
+    marker = output_dir / OUTPUT_MARKER_NAME
+    try:
+        if marker.read_text(encoding="utf-8") == OUTPUT_MARKER_CONTENT:
+            return True
+    except OSError:
+        pass
+    return _manifest_proves_generator_ownership(output_dir)
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_output_dir(output_dir: Path) -> None:
+    repository_root = ROOT.resolve()
+    home = Path.home().resolve()
+    filesystem_root = Path(output_dir.anchor).resolve()
+    critical_roots = tuple(
+        (repository_root / name).resolve()
+        for name in ("src", "apps", "scripts", "tests", "migrations", "docs", "config", ".git")
+    )
+    if output_dir in {filesystem_root, home, repository_root} or any(
+        output_dir == critical or _is_relative_to(output_dir, critical)
+        for critical in critical_roots
+    ):
+        raise RuntimeError(f"Unsafe audit output directory: {output_dir}")
+
+    allowed_new_roots = (
+        (repository_root / "runtime" / "audits").resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    )
+    if not output_dir.exists() and not any(
+        _is_relative_to(output_dir, allowed_root) for allowed_root in allowed_new_roots
+    ):
+        raise RuntimeError(
+            "New audit output directory must be under runtime/audits or the "
+            f"system temporary directory: {output_dir}"
+        )
+    if output_dir.exists():
+        if not output_dir.is_dir():
+            raise RuntimeError(f"Audit output path is not a directory: {output_dir}")
+        if not _is_generator_owned_output(output_dir):
+            raise RuntimeError(
+                "Existing audit output directory is not owned by this generator: "
+                f"{output_dir}"
+            )
+
+
+def _replace_directory(source: Path, destination: Path) -> None:
+    source.replace(destination)
+
+
 def _publish_generated_audits(
     staged_dir: Path,
     output_dir: Path,
@@ -1020,15 +1135,38 @@ def _publish_generated_audits(
             "Git HEAD changed during audit generation; refusing to publish "
             f"{generation_head} -> {current_head}"
         )
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    staged_dir.replace(output_dir)
+    _ensure_source_tree_matches_head(generation_head)
+    _validate_output_dir(output_dir)
+    if not _is_generator_owned_output(staged_dir):
+        raise RuntimeError(f"Staged audit directory lacks generator ownership proof: {staged_dir}")
+    if not output_dir.exists():
+        _replace_directory(staged_dir, output_dir)
+        return
+
+    backup_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output_dir.name}.previous.",
+            dir=output_dir.parent,
+        )
+    )
+    backup_dir.rmdir()
+    _replace_directory(output_dir, backup_dir)
+    try:
+        _replace_directory(staged_dir, output_dir)
+    except Exception:
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        _replace_directory(backup_dir, output_dir)
+        raise
+    shutil.rmtree(backup_dir)
 
 
 def write_all(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
     output_dir = output_dir.expanduser().resolve()
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
     generation_head = _git("rev-parse", "HEAD")
+    _ensure_source_tree_matches_head(generation_head)
+    _validate_output_dir(output_dir)
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     generator_sha = generation_head
     index = build_symbol_index()
@@ -1176,10 +1314,8 @@ def write_all(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
         for stem, payload in reports.items():
             write_json(staged_path, f"{stem}.json", payload)
             write_md(staged_path, f"{stem}.md", payload)
-        replace_absolute_paths(staged_path)
         manifest = build_manifest(
             staged_path,
-            output_dir,
             generated_at=generated_at,
             source_sha=generation_head,
             generator_sha=generator_sha,
@@ -1190,6 +1326,10 @@ def write_all(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
         )
         write_json(staged_path, "W2_CONSOLIDATION_MANIFEST_V1.json", manifest)
         write_md(staged_path, "W2_CONSOLIDATION_MANIFEST_V1.md", manifest)
+        (staged_path / OUTPUT_MARKER_NAME).write_text(
+            OUTPUT_MARKER_CONTENT,
+            encoding="utf-8",
+        )
         _publish_generated_audits(staged_path, output_dir, generation_head)
     finally:
         if staged_path.exists():

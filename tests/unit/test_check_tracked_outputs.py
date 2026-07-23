@@ -39,6 +39,7 @@ def test_generated_system_truth_is_forbidden_but_human_evidence_is_allowed() -> 
         "docs/audits/system_truth/W2_AUTHORITY_MAP_V4.json",
         "docs/audits/system_truth/W2_AUTHORITY_MAP_V4.md",
         "docs/audits/system_truth/W2_NEW_MACHINE_REPORT_V1.json",
+        "docs/audits/system_truth/W2_NEW_MACHINE_REPORT_V1.md",
         "docs/audits/system_truth/W2_CONSOLIDATION_IMPLEMENTATION_REPORT_V1.json",
         "docs/audits/system_truth/W2_CONSOLIDATION_IMPLEMENTATION_REPORT_V1.md",
         "docs/audits/system_truth/W2_SIMPLIFICATION_PLAN_V1.md",
@@ -48,6 +49,7 @@ def test_generated_system_truth_is_forbidden_but_human_evidence_is_allowed() -> 
         "docs/audits/system_truth/W2_AUTHORITY_MAP_V4.json",
         "docs/audits/system_truth/W2_AUTHORITY_MAP_V4.md",
         "docs/audits/system_truth/W2_NEW_MACHINE_REPORT_V1.json",
+        "docs/audits/system_truth/W2_NEW_MACHINE_REPORT_V1.md",
     ]
 
 
