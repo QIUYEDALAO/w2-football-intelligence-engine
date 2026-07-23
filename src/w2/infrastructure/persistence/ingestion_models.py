@@ -59,39 +59,3 @@ class QuotaUsageModel(Base):
     limit: Mapped[int] = mapped_column(Integer, nullable=False)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class SyncCursorModel(Base):
-    __tablename__ = "sync_cursors"
-    __table_args__ = (
-        UniqueConstraint("provider", "endpoint", "cursor_name", name="uq_sync_cursor"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    provider: Mapped[str] = mapped_column(String(64), nullable=False)
-    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
-    cursor_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    cursor_value: Mapped[str] = mapped_column(String(512), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class FreshnessAlertModel(Base):
-    __tablename__ = "freshness_alerts"
-    __table_args__ = (
-        UniqueConstraint(
-            "entity_type",
-            "entity_id",
-            "observed_at",
-            "threshold_seconds",
-            name="uq_freshness_alert",
-        ),
-        Index("ix_freshness_alerts_observed_at", "observed_at"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    threshold_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
-    severity: Mapped[str] = mapped_column(String(32), nullable=False)
-    message: Mapped[str] = mapped_column(String(512), nullable=False)

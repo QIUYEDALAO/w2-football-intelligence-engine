@@ -45,10 +45,6 @@ def main() -> int:
         "ForwardHoldoutCycleService",
         "ForwardCircuitBreaker",
         "RequestQuotaPolicy",
-        "forward_cycle_checkpoint",
-        "forward_scheduler_run",
-        "forward_state_transition",
-        "forward_operational_alert",
         "W2_FORWARD_HOLDOUT_AUTORUN",
         "W2_FORWARD_HOLDOUT_NETWORK",
     ]:

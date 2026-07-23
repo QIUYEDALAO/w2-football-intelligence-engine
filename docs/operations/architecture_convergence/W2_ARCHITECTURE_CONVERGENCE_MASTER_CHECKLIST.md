@@ -53,7 +53,9 @@ REAL LINEUP CANARY AS A SEPARATE OPS ACCEPTANCE TASK
 6. 每个 PR 只解决一个明确问题，必须可独立回滚。
 7. 历史业务数据不删除。
 8. 删除或 drop 前必须证明该路径零读、零写、零依赖。
-9. 僵尸表先 rename/deprecate 并观察一个稳定周期，再决定 drop。
+9. 已证明零读、零写、零任务、零报表、零外键阻塞且无独有数据价值的表，
+   必须在当前任务同一 PR 通过新 migration 正式 drop；证据不足的表保持原状
+   并继续调查，不 rename 隔离。
 10. Provider、Formal、Lock 等安全熔断环境变量继续保留。
 11. 不以本地测试或 Markdown 报告代替 GitHub CI 和 staging 证据。
 12. 不使用 `[skip ci]` 作为任何任务的最终验收提交。
@@ -385,10 +387,11 @@ STAGING_ENV_WHITELIST_OVERRIDE = REMOVED
 ## ARCH-P0-04：P0 总验收
 
 ```text
-Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-p0-04-p0-acceptance
 Base/Main SHA: 7bd5088b034a36ec12a23a6aa647a53524ecdce8
-PR: #378 (Ready for review)
+PR: #378 (MERGED)
+Merge SHA: d62e335100ebd41856a5b7822938424a511a5fb0
 Validated implementation head: b5055f73a3a6503e80e39cab5484d22d61f46a49
 Implementation-head CI: 29976169675 (verify, staging-parity,
   predeploy-e2e passed)
@@ -430,8 +433,8 @@ Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1458 passed,
 - [x] 修改联赛配置不需要构建或部署。
 - [x] Provider calls、Formal、Lock、Production 安全边界不变。
 - [x] P0 staging 连续稳定运行至少一个审核周期。
-- [ ] 更新本总清单并由人工审核。
-- [ ] P0 验收 PR 合并。
+- [x] 更新本总清单并由人工审核。
+- [x] P0 验收 PR 合并。
 
 **完成标准**
 
@@ -443,27 +446,316 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 
 # 阶段 P1：收敛，参考 3–4 周
 
-## ARCH-P1-01：数据库僵尸表清单和 deprecation
+## ARCH-P1-01：数据库僵尸表盘点与直接删除
 
-- [ ] 列出全部表及：
+Status: READY_FOR_EXTERNAL_REVIEW
+
+- [x] 列出全部表及：
   - migration 来源；
   - 当前行数；
   - 最近读写时间；
   - 代码读写调用点；
   - 外键；
   - 报告/脚本依赖。
-- [ ] 对候选僵尸表逐张给出证据。
-- [ ] 不直接 drop。
-- [ ] 第一周期只 rename 为 `_deprecated_*` 或通过兼容视图隔离。
-- [ ] 旧代码如果仍访问，CI/staging 必须立即暴露。
-- [ ] 备份 schema、row count、hash。
-- [ ] 完整 CI 和 staging 观察通过。
+- [x] 对候选僵尸表逐张给出证据。
+- [x] 已证明零读、零写、零任务、零报表、零外键阻塞且无独有数据价值的表，
+  在本任务同一 PR 新增 drop migration 并立即删除。
+- [x] 重复表如有独有数据，先迁入唯一权威表并完成行数与 hash 对账，
+  再在本任务同一 PR drop。
+- [x] 同时删除仅服务被删表的 ORM、Repository、脚本、测试、配置和 import。
+- [x] 证据不足的表保持名称、schema 和运行状态不变并记录缺失证据；
+  不通过 rename、archive、backup、兼容 view 或其他隔离结构延后决策。
+- [x] 历史 migration 文件保留；只通过新的可验证 migration 执行正式 drop。
+- [x] migration upgrade/downgrade、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
+
+### ARCH-P1-01 本轮直接证据
+
+基线为 `main@d62e335100ebd41856a5b7822938424a511a5fb0`，staging
+为 `7bd5088b034a36ec12a23a6aa647a53524ecdce8`、migration
+`0037_seed_competition_runtime_authority`。已对 staging `public` schema 的
+144 张表逐表核验精确行数、`pg_stat_user_tables` 读写计数、全部外键，并对
+`src/`、`apps/`、`scripts/`、`tests/`、`config/`、`infra/` 和 CI 做 ORM、
+SQL、任务及报表引用扫描。
+
+### 144 表逐表矩阵
+
+口径：`row_count` 为 staging 精确 `count(*)`；生产读写来自 `src/` 与
+`apps/` 的 ORM/SQL 静态调用点，模型注册、历史 migration、脚本和测试不计为
+生产路径；外键按 `出站/入站` 计数。矩阵基于 drop 前 144 表基线，其中
+`system_metadata` 的删除证据取自 migration `0038` 前的验收快照。
+
+| table | row_count | 生产读 | 生产写 | 任务 | 报表 | 外键（出/入） | 独有数据价值 | 决定 |
+|---|---:|---|---|---|---|---:|---|---|
+| `ablation_run` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `alembic_version` | 1 | 有 | 有 | 无 | 无 | 0/0 | 有（1 行） | 保留 |
+| `api_request_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `asof_samples` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（空 dataset/as-of 组件） | 删除（0040） |
+| `audit_events` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `backup_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `bookmakers` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（旧 Stage3 赔率叶子） | 删除（0040） |
+| `calibration_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
+| `canonical_historical_ah_facts` | 0 | 有 | 有 | 无 | 无 | 1/0 | 运行/安全契约 | 保留 |
+| `canonical_team_match_history` | 102 | 有 | 有 | 有 | 无 | 3/0 | 有（102 行） | 保留 |
+| `canonical_teams` | 16 | 有 | 有 | 无 | 无 | 0/4 | 有（16 行） | 保留 |
+| `challenger_model` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `competitions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 正式推荐/结算 Fixture FK 安全合同 | 保留 |
+| `data_provenance` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空旧 provenance 组件） | 删除（0040） |
+| `data_quality_runs` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `dataset_artifacts` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 dataset/as-of 组件） | 删除（0040） |
+| `dataset_sources` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `dataset_versions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 无（空 dataset/as-of 组件） | 删除（0040） |
+| `dependency_risk` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `dynamic_prematch_evaluations` | 0 | 有 | 有 | 有 | 无 | 0/2 | 运行/安全契约 | 保留 |
+| `dynamic_prematch_supersessions` | 0 | 有 | 有 | 有 | 无 | 2/0 | 运行/安全契约 | 保留 |
+| `evaluation_record` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `feature_snapshots` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 特征叶子） | 删除（0040） |
+| `fixtures` | 0 | 无 | 无 | 无 | 无 | 7/11 | 正式推荐、锁、赛果、结算当前 FK 安全合同 | 保留 |
+| `football_data_team_crosswalks` | 0 | 有 | 有 | 无 | 无 | 0/0 | 运行/安全契约 | 保留 |
+| `forward_cycle_checkpoint` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `forward_cycle_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空旧 forward cycle 组件） | 删除（0040） |
+| `forward_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 forward holdout 组件） | 删除（0040） |
+| `forward_gate_audit` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空旧 forward cycle 组件） | 删除（0040） |
+| `forward_holdout_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 forward holdout 组件） | 删除（0040） |
+| `forward_market_snapshot` | 0 | 有 | 无 | 无 | 有 | 0/0 | 报表读取契约 | 保留 |
+| `forward_operational_alert` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `forward_prediction_lock` | 0 | 无 | 无 | 无 | 无 | 1/1 | 无（空 forward holdout 组件） | 删除（0040） |
+| `forward_result_event` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `forward_scheduler_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `forward_state_transition` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `freshness_alerts` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `future_market_observation` | 3840 | 无 | 有 | 有 | 无 | 0/0 | 有（3840 行） | 保留 |
+| `future_refresh_checkpoint_audit` | 1 | 无 | 有 | 有 | 无 | 0/0 | 有（1 行） | 保留 |
+| `future_refresh_checkpoint_plan` | 0 | 有 | 无 | 有 | 无 | 0/0 | scheduler 运行契约 | 保留 |
+| `future_refresh_run_audit` | 60 | 有 | 有 | 有 | 无 | 0/0 | 有（60 行） | 保留 |
+| `future_refresh_task_audit` | 55 | 有 | 有 | 有 | 无 | 0/0 | 有（55 行） | 保留 |
+| `gate5_recommendation_lock_event` | 0 | 有 | 有 | 无 | 无 | 0/0 | 安全锁账本 | 保留 |
+| `historical_market_source_snapshots` | 0 | 有 | 有 | 无 | 无 | 0/1 | 历史权威契约 | 保留 |
+| `ingestion_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | Provider 请求审计账本当前 FK 安全合同 | 保留 |
+| `injuries` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（旧 Stage3 伤停叶子） | 删除（0040） |
+| `label_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 dataset/as-of 组件） | 删除（0040） |
+| `league_profile` | 14 | 有 | 有 | 无 | 无 | 0/0 | 有（14 行） | 保留 |
+| `league_readiness_audit` | 20 | 有 | 有 | 无 | 无 | 0/0 | 有（20 行） | 保留 |
+| `league_season` | 14 | 有 | 有 | 无 | 无 | 0/0 | 有（14 行） | 保留 |
+| `league_team_membership` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `lineup_confirmed_events` | 0 | 无 | 有 | 有 | 无 | 0/0 | prematch 运行契约 | 保留 |
+| `lineup_source_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/0 | lineup 运行契约 | 保留 |
+| `lineups` | 0 | 无 | 无 | 无 | 无 | 3/0 | 无（旧 Stage3 阵容叶子） | 删除（0040） |
+| `market_baseline_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 market baseline 组件） | 删除（0040） |
+| `market_consensus` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 market consensus 叶子） | 删除（0040） |
+| `market_fit_diagnostic` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 market baseline 组件） | 删除（0040） |
+| `market_quality_assessment` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `markets` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 market 叶子） | 删除（0040） |
+| `matchday_checkpoint_plans` | 608 | 有 | 有 | 有 | 无 | 0/1 | 有（608 行） | 保留 |
+| `matchday_endpoint_capture_plans` | 0 | 有 | 有 | 有 | 无 | 2/0 | matchday 运行契约 | 保留 |
+| `matchday_endpoint_captures` | 231 | 有 | 有 | 有 | 无 | 0/4 | 有（231 行） | 保留 |
+| `matchday_evidence_manifests` | 2 | 有 | 有 | 有 | 无 | 0/0 | 有（2 行） | 保留 |
+| `matchday_fixture_identities` | 38 | 有 | 有 | 有 | 无 | 1/0 | 有（38 行） | 保留 |
+| `matchday_market_observations` | 44644 | 有 | 有 | 有 | 无 | 1/0 | 有（44644 行） | 保留 |
+| `migration_dry_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `migration_quarantine_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `migration_source_asset` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `migration_validation_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `model_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
+| `model_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
+| `model_experiment` | 0 | 无 | 无 | 无 | 无 | 0/3 | 无（空 model experiment 组件） | 删除（0040） |
+| `model_gate_decision` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `model_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | 正式 Recommendation.prediction_id FK 安全合同 | 保留 |
+| `odds_observations` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（当前赔率权威为 matchday_market_observations） | 删除（0040） |
+| `operational_alert` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `operational_metric_snapshot` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `operations_check_result` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `operations_cycle` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `player_club_membership_observations` | 0 | 无 | 有 | 无 | 无 | 0/0 | 历史身份写入契约 | 保留 |
+| `player_identity_crosswalks` | 0 | 有 | 有 | 无 | 无 | 0/0 | ARCH-P1-03 待对账 | 保留 |
+| `player_identity_mappings` | 0 | 有 | 有 | 有 | 无 | 0/1 | lineup 身份契约 | 保留 |
+| `player_valuation_observations` | 0 | 有 | 有 | 有 | 无 | 0/0 | 估值运行契约 | 保留 |
+| `players` | 0 | 无 | 无 | 无 | 无 | 0/4 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
+| `prediction_snapshot` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `predictions` | 0 | 无 | 无 | 无 | 无 | 2/1 | Recommendation.prediction_id 当前正式追踪合同 | 保留 |
+| `promotion_relegation_mapping` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `provider_entity_mappings` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `provider_request_logs` | 162 | 有 | 有 | 有 | 无 | 1/0 | 有（162 行） | 保留 |
+| `provider_team_identity_crosswalks` | 16 | 有 | 有 | 有 | 无 | 1/0 | 有（16 行） | 保留 |
+| `quota_usage` | 9 | 有 | 有 | 有 | 无 | 0/0 | 有（9 行） | 保留 |
+| `raw_payload` | 220 | 有 | 有 | 有 | 无 | 0/0 | 有（220 行） | 保留 |
+| `raw_payload_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（现行原始载荷权威为 raw_payload） | 删除（0040） |
+| `read_model_checkpoint` | 8 | 有 | 有 | 无 | 有 | 0/0 | 有（8 行） | 保留 |
+| `recommendation_locks` | 0 | 有 | 无 | 无 | 有 | 3/2 | 安全锁账本 | 保留 |
+| `recommendations` | 0 | 有 | 有 | 无 | 有 | 2/2 | 正式推荐安全账本 | 保留 |
+| `referees` | 0 | 无 | 无 | 无 | 无 | 0/1 | Fixture 正式推荐/结算身份合同字段 | 保留 |
+| `registered_roster_snapshots` | 0 | 有 | 有 | 无 | 无 | 0/0 | roster 运行契约 | 保留 |
+| `release_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `release_candidate` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `replay_checkpoint` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `replay_event` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `replay_run` | 0 | 无 | 无 | 无 | 无 | 0/5 | 无（空 replay 组件） | 删除（0040） |
+| `restore_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `results` | 0 | 有 | 无 | 无 | 有 | 1/1 | 结算读取契约 | 保留 |
+| `retention_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `season_rollover_plan` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `seasons` | 0 | 无 | 无 | 无 | 无 | 1/3 | Fixture 正式推荐/结算身份合同 | 保留 |
+| `security_audit_event` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `settlements` | 0 | 有 | 有 | 无 | 有 | 4/0 | 结算安全账本 | 保留 |
+| `shadow_comparison_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `shadow_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `shadow_strategy_candidate` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `shadow_strategy_evaluation` | 0 | 有 | 无 | 无 | 有 | 0/0 | Dashboard 读取契约 | 保留 |
+| `shadow_strategy_event` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `shadow_strategy_lock` | 0 | 有 | 无 | 无 | 有 | 0/0 | 安全锁账本 | 保留 |
+| `shadow_strategy_run` | 0 | 有 | 无 | 无 | 有 | 0/0 | Dashboard 读取契约 | 保留 |
+| `shadow_strategy_settlement` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `slo_evaluation` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `squads` | 0 | 无 | 无 | 无 | 无 | 3/0 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
+| `stage7i_lifecycle_event` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
+| `stage7i_lifecycle_heartbeat` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
+| `stage7i_lifecycle_run` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
+| `stages` | 0 | 无 | 无 | 无 | 无 | 1/1 | Fixture 正式推荐/结算身份合同 | 保留 |
+| `structured_lineup_players` | 0 | 有 | 有 | 有 | 无 | 2/0 | lineup 运行契约 | 保留 |
+| `structured_lineup_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/1 | lineup 运行契约 | 保留 |
+| `suspensions` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
+| `sync_cursors` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `system_metadata` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0038） |
+| `t30_validation_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/0 | prematch 运行契约 | 保留 |
+| `team_identity_crosswalks` | 16 | 有 | 有 | 无 | 无 | 0/0 | 有（16 行） | 保留 |
+| `team_lineup_baselines` | 0 | 有 | 有 | 有 | 无 | 0/0 | lineup 运行契约 | 保留 |
+| `team_rating_snapshots` | 16 | 有 | 有 | 有 | 无 | 1/0 | 有（16 行） | 保留 |
+| `team_ratings` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（现行评分权威为 team_rating_snapshots） | 删除（0040） |
+| `team_value_asof_artifacts` | 0 | 有 | 有 | 无 | 无 | 0/0 | FAH 运行契约 | 保留 |
+| `team_xg_match` | 104 | 有 | 有 | 有 | 无 | 0/0 | 有（104 行） | 保留 |
+| `team_xg_rolling_snapshot` | 28 | 有 | 有 | 有 | 无 | 0/0 | 有（28 行） | 保留 |
+| `teams` | 0 | 无 | 无 | 无 | 无 | 0/7 | Fixture 正式推荐/结算身份合同 | 保留 |
+| `tournament_operations_plan` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `tournament_profile` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `tournament_readiness_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
+| `transfermarkt_player_references` | 0 | 有 | 有 | 有 | 无 | 0/0 | player identity 运行契约 | 保留 |
+| `venues` | 0 | 无 | 无 | 无 | 无 | 0/1 | Fixture 正式推荐/结算身份合同字段 | 保留 |
+| `weather_observations` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 天气叶子） | 删除（0040） |
+
+**本 PR 直接 drop**
+
+- migration `0038_drop_unused_system_metadata`：`system_metadata`。
+- migration `0039_drop_evidence_backed_dead_tables`：
+  `api_request_audit`、`audit_events`、`backup_run`、`challenger_model`、
+  `data_quality_runs`、`dataset_sources`、`dependency_risk`、
+  `forward_cycle_checkpoint`、`forward_operational_alert`、
+  `forward_result_event`、`forward_scheduler_run`、
+  `forward_state_transition`、`freshness_alerts`、
+  `league_team_membership`、`market_quality_assessment`、
+  `migration_dry_run`、`migration_quarantine_record`、
+  `migration_source_asset`、`migration_validation_record`、
+  `model_gate_decision`、`operational_alert`、
+  `operational_metric_snapshot`、`operations_check_result`、
+  `operations_cycle`、`promotion_relegation_mapping`、
+  `provider_entity_mappings`、`release_audit`、`release_candidate`、
+  `restore_run`、`retention_audit`、`season_rollover_plan`、
+  `security_audit_event`、`shadow_comparison_record`、`shadow_run`、
+  `shadow_strategy_candidate`、`shadow_strategy_event`、
+  `shadow_strategy_settlement`、`slo_evaluation`、`sync_cursors`、
+  `tournament_operations_plan`、`tournament_profile`、
+  `tournament_readiness_audit`。
+- migration `0040_drop_empty_fk_components` 追加按 FK 依赖顺序删除 35 表：
+  - replay：`replay_run`、`replay_event`、`replay_checkpoint`、
+    `prediction_snapshot`、`evaluation_record`、`ablation_run`；
+  - dataset/as-of：`dataset_versions`、`dataset_artifacts`、
+    `label_references`、`asof_samples`；
+  - model experiment/artifact：`model_experiment`、`model_artifact`、
+    `calibration_artifact`、`model_evaluation`；
+  - forward holdout/evaluation：`forward_holdout_run`、
+    `forward_prediction_lock`、`forward_evaluation`；
+  - market baseline：`market_baseline_run`、`market_fit_diagnostic`；
+  - 旧 provenance：`raw_payload_references`、`data_provenance`；
+  - 旧 forward cycle：`forward_cycle_run`、`forward_gate_audit`；
+  - Stage3 空叶子：`bookmakers`、`odds_observations`、
+    `market_consensus`、`markets`、`feature_snapshots`、`players`、
+    `squads`、`lineups`、`injuries`、`suspensions`、`team_ratings`、
+    `weather_observations`。
+- 0038/0039 的 43 表均为 0 行、0 入站/出站外键、0 生产读写、0 任务、0 报表，
+  不含独有数据；只存在的 ORM 注册、历史脚本或旧测试未作为保留理由。
+- 0040 的 35 表在 drop 前均为 0 行、0 生产读写、0 任务、0 报表；其
+  FK 连通子图经递归检查后没有当前业务入口。外键只用于确定子表先删、
+  父表后删的顺序，不作为保留理由。
+- 数据迁移行数为 0；每张表的规范化空集 hash 均为 SHA-256
+  `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`。
+- 历史 migration 与已在 staging 执行的 `0039` 原样保留；追加删除只在
+  `0040` 中实施。各 revision downgrade 恢复原列、外键、唯一约束和索引，
+  upgrade 再次正式删除。
+
+**迁移后 drop**
+
+- 无。没有非空重复表同时满足唯一权威已确认、字段身份可逆和 hash 对账
+  三项直接证据，因此本任务不搬运或删除任何业务数据。
+
+**保持原状并继续调查**
+
+- 赔率身份组：`future_market_observation`、`matchday_market_observations`。
+  两者存在实际生产路径和数据，后续身份收敛仍由 ARCH-P1-02 处理；已为空
+  且无生产路径的旧 `odds_observations` 不再参与对账，在 0040 直接删除。
+- 球队/球员身份组：`football_data_team_crosswalks`、
+  `team_identity_crosswalks`、
+  `provider_team_identity_crosswalks`、`player_identity_crosswalks`、
+  `player_identity_mappings`。存在实际 Repository 路径、有效数据或
+  canonical 对账依赖，由 ARCH-P1-03 处理。
+- Stage3 核心保留组件为 `competitions -> seasons/stages -> fixtures`、
+  `teams/referees/venues -> fixtures` 与
+  `model_runs -> predictions -> recommendations`。当前
+  `tracking/formal_results.py`、`settlement/history.py`、
+  `recommendation_lock_snapshot.py` 和 `audit_export/tables.py` 直接执行
+  正式推荐、不可变锁、赛果、结算及审计合同；因此相关 FK 核心表属于当前
+  安全合同，不以“关系结构”作为保留理由。
+- `ingestion_runs` 由非空且当前生产写入的 `provider_request_logs` 引用，
+  用于 Provider 请求审计账本身份，属于当前安全合同。
+- 其余保留表的逐表理由以矩阵为准：有非空数据、生产读写、任务、报表或
+  明确的当前安全/已批准业务合同；不存在仅写“关系结构待收敛”的保留项。
+- `alembic_version` 是 migration 控制表，不是业务表，不得删除。
+
+**本轮验收回执**
+
+- 状态流转：外部二次验收修复期间为 `FIX_IN_PROGRESS`；递归组件审计、
+  0040 migration、完整 CI、staging 往返与零写验收全部完成后，当前为
+  `READY_FOR_EXTERNAL_REVIEW`。0039 始终保持不变，追加删除只通过新
+  revision `0040` 执行；
+- PR：`#379`（最终回执 exact-head CI 全绿后转 Ready 并提交外部审核）；
+- validated implementation/final code head：
+  `d004cd946a42ad2fade0799d297ca31358c2f41e`；
+- PR final receipt head：GitHub canonical `refs/pull/379/head`；该引用必须与
+  本清单回执提交和 GitHub PR `headRefOid` 一致，避免在提交内容中硬编码
+  不可能自引用的 commit SHA；
+- implementation exact-head CI：run `29993024046`，`verify`、
+  `staging-parity`、`predeploy-e2e` 全绿；
+- final receipt exact-head CI：以 PR #379 最新 required checks 为准，提交
+  外部审核前必须全部 `SUCCESS`；
+- staging release SHA：
+  `d004cd946a42ad2fade0799d297ca31358c2f41e`；
+- staging migration：
+  `0040_drop_empty_fk_components`；
+- migration 往返：
+  `0040 -> 0039 -> 0040` 通过；downgrade 后 staging 为 101 表，
+  0040 的 35/35 张表全部恢复且均为 0 行；upgrade 后 staging 为 66 表，
+  35/35 张表再次全部不存在；
+- staging 表数：`144 -> 66`，共删除 78 张直接证据完整的空表，其中
+  0038/0039 删除 43 张、0040 追加删除 35 张；
+- 20 轮真实公共 HTTP 只读检查全部通过：`20/20 HTTP 200`，读取
+  `/v1/dashboard/day-view`、`/v1/dashboard/summary`、`/v1/fixtures`、
+  `/v1/providers/status` 各 5 次，p95 `151.3ms`、max `154.3ms`；
+- Provider request logs：`162 -> 162`，增量 0；
+- staging 全业务表 DML 统计：
+  `insert/update/delete = 58159/390/0 -> 58159/390/0`，增量 0；
+- `recommendations=0`、`recommendation_locks=0`、
+  `gate5_recommendation_lock_event=0`、`settlements=0`、
+  `shadow_strategy_lock=0`；
+- `W2_PROVIDER_CALLS_DISABLED=true`、
+  `W2_PROVIDER_SCHEDULER_ENABLED=false`、
+  `W2_RECOMMENDATION_ENABLED=false`、`W2_CANDIDATE_ENABLED=false`、
+  `W2_PRODUCTION_RELEASE=false`；
+- API、worker、scheduler、web、PostgreSQL、Redis 全部 healthy；
+  `/opt/w2/current`、`release.env`、API/Web release SHA 与 staging release
+  SHA 一致。
 
 **验收**
 
 ```text
-DEPRECATED_TABLE_CANDIDATES_EVIDENCE_BACKED
+DEAD_TABLES_EVIDENCE_BACKED_AND_DROPPED
 NO_BUSINESS_HISTORY_DELETED
 ```
 
@@ -476,10 +768,13 @@ NO_BUSINESS_HISTORY_DELETED
   - 一张当前盘口投影（表或视图）。
 - [ ] 不创建第二套历史表。
 - [ ] 完成历史数据迁移和 identity/hash 对账。
-- [ ] 新写入先双写，对账后停止 legacy 写入。
+- [ ] 停止 legacy 写入，禁止新增或保留双写过渡。
 - [ ] 所有读路径切到 canonical 历史 + 当前投影。
-- [ ] 旧表进入只读 deprecated 状态。
-- [ ] 一个稳定周期后再提交 drop 决策。
+- [ ] 删除 legacy ORM、Repository、脚本、测试、配置及其全部运行时引用。
+- [ ] 在同一 PR 使用新 migration drop 已完成迁移且证据充分的旧表；
+  不创建 archive、backup、兼容 view 或替代 fallback。
+- [ ] 证据不足的表保持原状并继续调查，不重命名隔离。
+- [ ] migration upgrade/downgrade、行数/hash 对账、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
 
 **验收**
@@ -496,7 +791,8 @@ CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1
 - [ ] 盘点全部球队身份和 provider crosswalk 表。
 - [ ] 指定 canonical team 体系为唯一权威。
 - [ ] 迁移有效映射及 review provenance。
-- [ ] 其他 crosswalk 停止写入并进入 deprecated。
+- [ ] 其他 crosswalk 在有效映射迁移及对账完成后停止写入，并在同一 PR
+  删除代码引用与正式 drop；证据不足的表保持原状继续调查。
 - [ ] provider IDs 仅作 provenance，不再作为模型主身份。
 - [ ] 完成 fixture、history、rating、lineup 读取对账。
 - [ ] PR 合并。
@@ -586,22 +882,6 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 
 ---
 
-## ARCH-P1-07：Deprecated 表观察周期与最终 drop 决策
-
-- [ ] 完成至少一个稳定观察周期。
-- [ ] 证明 `_deprecated_*` 表：
-  - 无生产读；
-  - 无生产写；
-  - 无任务依赖；
-  - 无报表依赖；
-  - 无外键阻塞。
-- [ ] 导出最终 schema 和数据备份。
-- [ ] 逐表提交 drop 清单供人工批准。
-- [ ] 只有明确批准的表才能 drop。
-- [ ] PR 合并。
-
----
-
 ## ARCH-P1-08：P1 总验收
 
 - [ ] 一套赔率历史。
@@ -611,7 +891,7 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 - [ ] CI 镜像发布。
 - [ ] 服务器 pull-only。
 - [ ] 无生产 fallback。
-- [ ] P1 稳定周期通过。
+- [ ] P1 完整 CI 与 staging 验收通过。
 - [ ] 人工验收。
 
 **完成标准**
@@ -676,8 +956,8 @@ P1_ARCHITECTURE_CONVERGENCE_PASS
 - [ ] 无竞争运行时权威。
 - [ ] 无生产 fallback。
 - [ ] 无服务器源码构建。
-- [ ] 无未审核的 deprecated 表 drop。
-- [ ] 完整 CI 与 staging 稳定周期通过。
+- [ ] 所有表 drop 均有零依赖或迁移后 hash 对账的直接证据。
+- [ ] 完整 CI 与 staging 验收通过。
 - [ ] 老板最终验收。
 
 **最终状态**

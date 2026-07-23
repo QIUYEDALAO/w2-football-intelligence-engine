@@ -21,15 +21,11 @@ from w2.infrastructure.database import create_engine  # noqa: E402
 
 AUDIT_TABLES = (
     "provider_request_logs",
-    "raw_payload_references",
     "matchday_endpoint_captures",
     "recommendations",
     "recommendation_locks",
-    "forward_prediction_lock",
     "gate5_recommendation_lock_event",
     "shadow_strategy_lock",
-    "shadow_strategy_event",
-    "shadow_strategy_settlement",
     "settlements",
     "matchday_evidence_manifests",
 )
@@ -38,13 +34,10 @@ COHORT_TABLES = (
     "recommendation_locks",
     "settlements",
     "shadow_strategy_lock",
-    "shadow_strategy_event",
-    "shadow_strategy_settlement",
 )
 OFFICIAL_TABLES = (
     "recommendations",
     "recommendation_locks",
-    "forward_prediction_lock",
     "gate5_recommendation_lock_event",
     "settlements",
     "matchday_evidence_manifests",

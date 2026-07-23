@@ -13,7 +13,6 @@ REQUIRED = [
     "src/w2/markets/poisson.py",
     "src/w2/markets/movement.py",
     "src/w2/markets/quality.py",
-    "src/w2/infrastructure/persistence/market_models.py",
     "migrations/versions/0005_create_stage6_market_baseline.py",
     "docs/adr/ADR-0006-market-baseline.md",
     "docs/models/W2_MARKET_BASELINE_V1.md",
@@ -59,10 +58,6 @@ def main() -> int:
         "MovementFeatureBuilder",
         "CALIBRATION_REQUIRED",
         "FORWARD_ONLY",
-        "market_consensus",
-        "market_baseline_run",
-        "market_fit_diagnostic",
-        "market_quality_assessment",
     ]:
         if token not in combined:
             fail(f"missing Stage6 token {token}")

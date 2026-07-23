@@ -69,11 +69,6 @@ def main() -> int:
         "OPERATOR",
         "ADMIN",
         "LocalBackupRestoreDrill",
-        "operational_alert",
-        "slo_evaluation",
-        "backup_run",
-        "restore_run",
-        "security_audit_event",
     ]:
         if token not in combined:
             fail(f"missing Stage11A token {token}")

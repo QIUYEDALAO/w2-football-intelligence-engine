@@ -54,9 +54,6 @@ def main() -> int:
         "OperationsSchedule",
         "EXPLANATORY_ONLY_UNVALIDATED",
         "NOT_AVAILABLE_GATE4",
-        "tournament_profile",
-        "tournament_operations_plan",
-        "tournament_readiness_audit",
     ]:
         if token not in combined:
             fail(f"missing token {token}")

@@ -5,17 +5,12 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
-    BookmakerModel,
     CompetitionModel,
     FixtureModel,
-    OddsObservationModel,
-    ProviderEntityMappingModel,
-    RawPayloadReferenceModel,
     RecommendationLockModel,
     RecommendationModel,
     ResultModel,
@@ -32,7 +27,6 @@ from w2.tracking.formal_results import capture_formal_locks
 
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 6, 22, 3, 0, tzinfo=UTC)
-DIGEST = "b" * 64
 
 
 @pytest.fixture()
@@ -43,7 +37,7 @@ def session() -> Session:
         yield active
 
 
-def _fixture_graph(session: Session) -> tuple[FixtureModel, BookmakerModel]:
+def _fixture_graph(session: Session) -> FixtureModel:
     competition = CompetitionModel(name="synthetic competition")
     home = TeamModel(name="synthetic home")
     away = TeamModel(name="synthetic away")
@@ -58,8 +52,7 @@ def _fixture_graph(session: Session) -> tuple[FixtureModel, BookmakerModel]:
     session.add(season)
     session.flush()
     stage = StageModel(season_id=season.id, name="synthetic stage", order_index=1)
-    bookmaker = BookmakerModel(name="synthetic bookmaker")
-    session.add_all([stage, bookmaker])
+    session.add(stage)
     session.flush()
     fixture = FixtureModel(
         competition_id=competition.id,
@@ -72,92 +65,11 @@ def _fixture_graph(session: Session) -> tuple[FixtureModel, BookmakerModel]:
     )
     session.add(fixture)
     session.flush()
-    return fixture, bookmaker
+    return fixture
 
 
-def test_relationships_and_unique_constraints(session: Session) -> None:
-    fixture, bookmaker = _fixture_graph(session)
-    odds = OddsObservationModel(
-        fixture_id=fixture.id,
-        bookmaker_id=bookmaker.id,
-        market="TOTALS",
-        selection="OVER",
-        line=Decimal("2.25"),
-        decimal_odds=Decimal("1.9000"),
-        suspended=False,
-        live=False,
-        stale=False,
-        provider_updated_at=NOW,
-        captured_at=NOW,
-        raw_label="O 2.25",
-        canonical_selection="OVER",
-        settlement_rule="total_goals",
-    )
-    session.add(odds)
-    session.commit()
-    assert session.get(FixtureModel, fixture.id).odds_observations[0].canonical_selection == "OVER"
-
-    duplicate = OddsObservationModel(
-        fixture_id=fixture.id,
-        bookmaker_id=bookmaker.id,
-        market="TOTALS",
-        selection="OVER",
-        line=Decimal("2.25"),
-        decimal_odds=Decimal("1.9000"),
-        suspended=False,
-        live=False,
-        stale=False,
-        provider_updated_at=NOW,
-        captured_at=NOW,
-        raw_label="O 2.25",
-        canonical_selection="OVER",
-        settlement_rule="total_goals",
-    )
-    session.add(duplicate)
-    with pytest.raises(IntegrityError):
-        session.commit()
-
-
-def test_provider_mapping_unique_constraint(session: Session) -> None:
-    mapping = ProviderEntityMappingModel(
-        entity_type="team",
-        entity_id="00000000-0000-0000-0000-000000000001",
-        provider="synthetic",
-        external_id="external-1",
-        source="provider payload",
-        confidence=Decimal("0.9000"),
-        valid_from=NOW,
-    )
-    duplicate = ProviderEntityMappingModel(
-        entity_type="team",
-        entity_id="00000000-0000-0000-0000-000000000002",
-        provider="synthetic",
-        external_id="external-1",
-        source="provider payload",
-        confidence=Decimal("0.9000"),
-        valid_from=NOW,
-    )
-    session.add_all([mapping, duplicate])
-    with pytest.raises(IntegrityError):
-        session.commit()
-
-
-def test_raw_payload_and_recommendation_lock_are_not_updatable(session: Session) -> None:
-    raw = RawPayloadReferenceModel(
-        provider="synthetic",
-        object_uri="object://payload",
-        sha256=DIGEST,
-        captured_at=NOW,
-        immutable=True,
-    )
-    session.add(raw)
-    session.commit()
-    raw.object_uri = "object://changed"
-    with pytest.raises(ValueError):
-        session.commit()
-    session.rollback()
-
-    fixture, _bookmaker = _fixture_graph(session)
+def test_recommendation_lock_is_not_updatable(session: Session) -> None:
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,
@@ -182,7 +94,7 @@ def test_raw_payload_and_recommendation_lock_are_not_updatable(session: Session)
 def test_recommendation_lock_can_store_reproducible_prematch_snapshot(
     session: Session,
 ) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,
@@ -220,7 +132,7 @@ def test_recommendation_lock_can_store_reproducible_prematch_snapshot(
 def test_legacy_recommendation_lock_defaults_to_non_reproducible_marker(
     session: Session,
 ) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,
@@ -246,7 +158,7 @@ def test_legacy_recommendation_lock_defaults_to_non_reproducible_marker(
 
 
 def test_formal_tracking_db_capture_uses_reproducible_lock_builder(session: Session) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,
@@ -275,7 +187,7 @@ def test_formal_tracking_db_capture_uses_reproducible_lock_builder(session: Sess
 
 
 def test_formal_tracking_db_capture_blocks_missing_recommendation_id(session: Session) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     card = _formal_card(fixture.id, fixture.kickoff_at)
 
     result = capture_formal_locks(
@@ -292,7 +204,7 @@ def test_formal_tracking_db_capture_blocks_missing_recommendation_id(session: Se
 def test_formal_tracking_capture_creates_recommendation_marker_for_payload_id(
     session: Session,
 ) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     card = _formal_card(fixture.id, fixture.kickoff_at)
     recommendation_id = "11111111-1111-5111-8111-111111111111"
     card["recommendation"]["recommendation_id"] = recommendation_id  # type: ignore[index]
@@ -321,7 +233,7 @@ def test_formal_tracking_capture_creates_recommendation_marker_for_payload_id(
 def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
     session: Session,
 ) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,
@@ -380,7 +292,7 @@ def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
 
 
 def test_settlement_is_append_only(session: Session) -> None:
-    fixture, _bookmaker = _fixture_graph(session)
+    fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
         prediction_id=None,

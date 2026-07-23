@@ -9,11 +9,9 @@ from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ingestion_models import (
-    FreshnessAlertModel,
     IngestionRunModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
-    SyncCursorModel,
 )
 
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
@@ -70,7 +68,7 @@ def test_ingestion_run_and_request_log_idempotency(session: Session) -> None:
         session.commit()
 
 
-def test_quota_cursor_and_freshness_tables(session: Session) -> None:
+def test_quota_usage_table(session: Session) -> None:
     session.add(
         QuotaUsageModel(
             provider="api_football",
@@ -81,27 +79,5 @@ def test_quota_cursor_and_freshness_tables(session: Session) -> None:
             window_end=NOW + timedelta(days=1),
         )
     )
-    session.add(
-        SyncCursorModel(
-            provider="api_football",
-            endpoint="fixtures",
-            cursor_name="offline",
-            cursor_value="synthetic-cursor",
-            updated_at=NOW,
-        )
-    )
-    session.add(
-        FreshnessAlertModel(
-            entity_type="raw_payload",
-            entity_id="00000000-0000-0000-0000-000000000001",
-            observed_at=NOW,
-            threshold_seconds=60,
-            severity="WARN",
-            message="freshness threshold exceeded",
-        )
-    )
     session.commit()
     assert session.query(QuotaUsageModel).count() == 1
-    assert session.query(SyncCursorModel).count() == 1
-    assert session.query(FreshnessAlertModel).count() == 1
-

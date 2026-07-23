@@ -27,29 +27,6 @@ class ShadowStrategyRunModel(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
-class ShadowStrategyCandidateModel(Base):
-    __tablename__ = "shadow_strategy_candidate"
-    __table_args__ = (
-        UniqueConstraint(
-            "fixture_id",
-            "phase",
-            "strategy_version",
-            "rank",
-            name="uq_shadow_strategy_candidate_rank",
-        ),
-        Index("ix_shadow_strategy_candidate_fixture", "fixture_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    phase: Mapped[str] = mapped_column(String(32), nullable=False)
-    strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    rank: Mapped[int] = mapped_column(nullable=False)
-    shadow_action: Mapped[str] = mapped_column(String(32), nullable=False)
-    public_decision: Mapped[str] = mapped_column(String(16), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
 class ShadowStrategyLockModel(Base):
     __tablename__ = "shadow_strategy_lock"
     __table_args__ = (
@@ -68,41 +45,6 @@ class ShadowStrategyLockModel(Base):
     strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     decision_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
-class ShadowStrategyEventModel(Base):
-    __tablename__ = "shadow_strategy_event"
-    __table_args__ = (
-        UniqueConstraint("event_id", name="uq_shadow_strategy_event_id"),
-        Index("ix_shadow_strategy_event_fixture", "fixture_id"),
-        Index("ix_shadow_strategy_event_time", "event_time"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    event_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
-class ShadowStrategySettlementModel(Base):
-    __tablename__ = "shadow_strategy_settlement"
-    __table_args__ = (
-        UniqueConstraint(
-            "fixture_id",
-            "phase",
-            "strategy_version",
-            name="uq_shadow_strategy_settlement_fixture_phase_version",
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    phase: Mapped[str] = mapped_column(String(32), nullable=False)
-    strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    settled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 

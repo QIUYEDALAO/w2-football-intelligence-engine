@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "src/w2/backtest/replay.py",
-    "src/w2/infrastructure/persistence/replay_models.py",
     "migrations/versions/0007_create_stage8_replay.py",
     "docs/adr/ADR-0008-event-driven-backtest.md",
     "docs/backtest/W2_REPLAY_ENGINE_V1.md",
@@ -60,11 +59,6 @@ def main() -> int:
         "walk_forward",
         "season_based_future_test",
         "nested_walk_forward",
-        "replay_run",
-        "replay_event",
-        "prediction_snapshot",
-        "evaluation_record",
-        "ablation_run",
     ]:
         if token not in combined:
             fail(f"missing Stage8 token {token}")
