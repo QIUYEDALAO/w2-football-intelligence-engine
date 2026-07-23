@@ -298,10 +298,13 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
 **独立 PR，必须复用现有 `league_profile / league_season` 或已确认的等价表。**
 
 ```text
-Status: IMPLEMENTED_LOCAL_VALIDATED_AWAITING_EXACT_HEAD_CI_AND_STAGING
+Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
 Branch: codex/arch-p0-03-db-competition-authority
 PR: #377 (Draft)
 Base SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
+Accepted implementation SHA: 78110a5543339cb25066746e44b9a8e8e500ae42
+Implementation-head CI: 29971270970 (verify, staging-parity,
+  predeploy-e2e passed)
 Owner: Codex
 Runtime authority tables: league_profile, league_season
 Audit table: league_readiness_audit
@@ -312,6 +315,20 @@ Seed reconciliation: 14 profiles + 14 seasons inserted; 14 audit rows;
 No-deploy proof: an audited league_season.payload.enabled update changed the
   result returned by the same uncached CompetitionRegistry instance without a
   process restart, build or deploy; rollback update restored the prior result.
+Real staging acceptance: host 118.196.30.136; previous SHA
+  d1ab48ccd213838c41b5d1e3f6a58016efe9a483; accepted SHA
+  78110a5543339cb25066746e44b9a8e8e500ae42; migration advanced from
+  0036_require_reviewed_player_identity to
+  0037_seed_competition_runtime_authority. Seeded counts were league_profile=14,
+  league_season=14 and league_readiness_audit=14; enabled Registry IDs and
+  scheduler IDs both resolved to allsvenskan, brasileirao_serie_a,
+  chinese_super_league, eliteserien and world_cup_2026.
+Real staging hot-change/rollback: in one live scheduler process,
+  premier_league enabled read false -> true immediately after the audited DB
+  update -> false after audited rollback, with no image build, deploy or process
+  restart. Audit count advanced 14 -> 16. Provider request logs remained 162;
+  recommendations, recommendation_locks, settlements and
+  gate5_recommendation_lock_event remained 0.
 Removed authorities: competition/policy JSON runtime reads,
   W2_STAGING_ENABLED_COMPETITIONS,
   W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID(S), and Python league-ID tuples.
@@ -349,7 +366,7 @@ Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1455 passed,
 - [x] scheduler 从 DB 读取启用联赛。
 - [x] 修改 DB 中 enabled 后无需部署即可生效。
 - [x] 所有修改有审计记录。
-- [ ] 完整 CI、staging 变更测试和回滚测试通过。
+- [x] 完整 CI、staging 变更测试和回滚测试通过。
 - [ ] PR 合并。
 
 **验收**
