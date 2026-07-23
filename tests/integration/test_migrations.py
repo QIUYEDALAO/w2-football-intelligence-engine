@@ -29,6 +29,41 @@ def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr
 
 
+def test_arch_p1_01_drops_and_restores_system_metadata(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-01.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+
+    def migrate(*args: str) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", *args],
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    migrate("upgrade", "0037_seed_competition_runtime_authority")
+    engine = create_engine(database_url)
+    assert "system_metadata" in inspect(engine).get_table_names()
+
+    migrate("upgrade", "head")
+    assert "system_metadata" not in inspect(engine).get_table_names()
+
+    migrate("downgrade", "0037_seed_competition_runtime_authority")
+    assert "system_metadata" in inspect(engine).get_table_names()
+
+    migrate("upgrade", "head")
+    assert "system_metadata" not in inspect(engine).get_table_names()
+
+
 def test_staging_state_stage9a_head_upgrades_to_future_refresh_head(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_path = tmp_path / "staging-state.db"

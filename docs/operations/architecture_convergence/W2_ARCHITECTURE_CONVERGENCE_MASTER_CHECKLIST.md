@@ -53,7 +53,9 @@ REAL LINEUP CANARY AS A SEPARATE OPS ACCEPTANCE TASK
 6. 每个 PR 只解决一个明确问题，必须可独立回滚。
 7. 历史业务数据不删除。
 8. 删除或 drop 前必须证明该路径零读、零写、零依赖。
-9. 僵尸表先 rename/deprecate 并观察一个稳定周期，再决定 drop。
+9. 已证明零读、零写、零任务、零报表、零外键阻塞且无独有数据价值的表，
+   必须在当前任务同一 PR 通过新 migration 正式 drop；证据不足的表保持原状
+   并继续调查，不 rename 隔离。
 10. Provider、Formal、Lock 等安全熔断环境变量继续保留。
 11. 不以本地测试或 Markdown 报告代替 GitHub CI 和 staging 证据。
 12. 不使用 `[skip ci]` 作为任何任务的最终验收提交。
@@ -443,7 +445,7 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 
 # 阶段 P1：收敛，参考 3–4 周
 
-## ARCH-P1-01：数据库僵尸表清单和 deprecation
+## ARCH-P1-01：数据库僵尸表盘点与直接删除
 
 - [ ] 列出全部表及：
   - migration 来源；
@@ -453,17 +455,118 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
   - 外键；
   - 报告/脚本依赖。
 - [ ] 对候选僵尸表逐张给出证据。
-- [ ] 不直接 drop。
-- [ ] 第一周期只 rename 为 `_deprecated_*` 或通过兼容视图隔离。
-- [ ] 旧代码如果仍访问，CI/staging 必须立即暴露。
-- [ ] 备份 schema、row count、hash。
-- [ ] 完整 CI 和 staging 观察通过。
+- [ ] 已证明零读、零写、零任务、零报表、零外键阻塞且无独有数据价值的表，
+  在本任务同一 PR 新增 drop migration 并立即删除。
+- [ ] 重复表如有独有数据，先迁入唯一权威表并完成行数与 hash 对账，
+  再在本任务同一 PR drop。
+- [ ] 同时删除仅服务被删表的 ORM、Repository、脚本、测试、配置和 import。
+- [ ] 证据不足的表保持名称、schema 和运行状态不变并记录缺失证据；
+  不通过 rename、archive、backup、兼容 view 或其他隔离结构延后决策。
+- [ ] 历史 migration 文件保留；只通过新的可验证 migration 执行正式 drop。
+- [ ] migration upgrade/downgrade、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
+
+### ARCH-P1-01 本轮直接证据
+
+基线为 `main@d62e335100ebd41856a5b7822938424a511a5fb0`，staging
+为 `7bd5088b034a36ec12a23a6aa647a53524ecdce8`、migration
+`0037_seed_competition_runtime_authority`。已对 staging `public` schema 的
+144 张表逐表核验精确行数、`pg_stat_user_tables` 读写计数、全部外键，并对
+`src/`、`apps/`、`scripts/`、`tests/`、`config/`、`infra/` 和 CI 做 ORM、
+SQL、任务及报表引用扫描。
+
+**本 PR 直接 drop**
+
+- `system_metadata`
+  - 来源：`0001_create_system_metadata`；
+  - staging 行数：0；
+  - staging 统计：`seq_scan=2`、`idx_scan=0`、`insert=0`、`update=0`、
+    `delete=0`，仅来自本轮只读盘点；
+  - 生产读/写、scheduler/worker 任务、报表/脚本、ORM/Repository、配置
+    引用：0；
+  - 入站/出站外键：0；
+  - 数据价值：空集，规范化 `[]` SHA-256
+    `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`；
+  - 删除方式：新 migration `0038_drop_unused_system_metadata`，历史
+    migration 保留，downgrade 精确恢复原 schema。
+
+**迁移后 drop**
+
+- 无。没有非空重复表同时满足唯一权威已确认、字段身份可逆和 hash 对账
+  三项直接证据，因此本任务不搬运或删除任何业务数据。
+
+**保持原状并继续调查**
+
+- 赔率身份组：`odds_observations`、`future_market_observation`、
+  `matchday_market_observations`。缺少跨表完整 identity/hash 迁移证据，
+  由 ARCH-P1-02 处理。
+- 球队/球员身份组：`provider_entity_mappings`、
+  `football_data_team_crosswalks`、`team_identity_crosswalks`、
+  `provider_team_identity_crosswalks`、`player_identity_crosswalks`、
+  `player_identity_mappings`。存在 Repository、数据或后续 canonical
+  对账依赖，由 ARCH-P1-03 处理。
+- 当前生产权威及调度组：`league_profile`、`league_season`、
+  `league_readiness_audit`、`matchday_checkpoint_plans`、
+  `matchday_endpoint_capture_plans`、`matchday_endpoint_captures`、
+  `matchday_evidence_manifests`、`matchday_fixture_identities`、
+  `future_refresh_checkpoint_plan`、`future_refresh_checkpoint_audit`、
+  `future_refresh_run_audit`、`future_refresh_task_audit`、`raw_payload`、
+  `provider_request_logs`、`quota_usage`、`read_model_checkpoint`、
+  `dynamic_prematch_evaluations`、`dynamic_prematch_supersessions`、
+  `lineup_confirmed_events`、`t30_validation_snapshots`。存在生产读写、
+  scheduler/worker、审计或安全门控证据。
+- 比赛、阵容、特征、模型、推荐和结算基础组：`competitions`、`seasons`、
+  `stages`、`teams`、`players`、`squads`、`venues`、`referees`、
+  `fixtures`、`bookmakers`、`markets`、`lineups`、
+  `lineup_source_snapshots`、`structured_lineup_snapshots`、
+  `structured_lineup_players`、`team_lineup_baselines`、`injuries`、
+  `suspensions`、`weather_observations`、`team_ratings`、
+  `team_rating_snapshots`、`feature_snapshots`、`model_runs`、
+  `predictions`、`recommendations`、`recommendation_locks`、
+  `gate5_recommendation_lock_event`、`results`、`settlements`。存在
+  生产代码、外键、安全账本或当前报告依赖。
+- 历史、FAH、xG 和模型实验组：`dataset_sources`、`dataset_versions`、
+  `dataset_artifacts`、`asof_samples`、`label_references`、
+  `data_quality_runs`、`historical_market_source_snapshots`、
+  `canonical_historical_ah_facts`、`registered_roster_snapshots`、
+  `player_club_membership_observations`、`player_valuation_observations`、
+  `transfermarkt_player_references`、`team_value_asof_artifacts`、
+  `canonical_teams`、`canonical_team_match_history`、`team_xg_match`、
+  `team_xg_rolling_snapshot`、`model_experiment`、`model_artifact`、
+  `calibration_artifact`、`model_evaluation`、`model_gate_decision`。
+  存在离线建模、正式 readiness、Repository、外键或数据价值证据。
+- forward、shadow、replay 和治理审计组：`challenger_model`、
+  `forward_holdout_run`、`forward_prediction_lock`、`forward_evaluation`、
+  `forward_cycle_run`、`forward_result_event`、`forward_market_snapshot`、
+  `forward_gate_audit`、`forward_cycle_checkpoint`、
+  `forward_scheduler_run`、`forward_state_transition`、
+  `forward_operational_alert`、`replay_run`、`replay_event`、
+  `replay_checkpoint`、`prediction_snapshot`、`evaluation_record`、
+  `ablation_run`、`shadow_strategy_run`、`shadow_strategy_candidate`、
+  `shadow_strategy_lock`、`shadow_strategy_event`、
+  `shadow_strategy_settlement`、`shadow_strategy_evaluation`、
+  `operations_cycle`、`operations_check_result`、`release_candidate`、
+  `release_audit`、`retention_audit`、`dependency_risk`。存在审计导出、
+  检查脚本、报告或外键证据，尚不能证明零依赖。
+- 其余 schema/运维支撑组：`ingestion_runs`、`sync_cursors`、
+  `freshness_alerts`、`raw_payload_references`、`data_provenance`、
+  `audit_events`、`api_request_audit`、`operational_metric_snapshot`、
+  `market_consensus`、`market_baseline_run`、`market_fit_diagnostic`、
+  `market_quality_assessment`、`operational_alert`、`slo_evaluation`、
+  `backup_run`、`restore_run`、`security_audit_event`、
+  `migration_source_asset`、`migration_dry_run`、
+  `migration_validation_record`、`migration_quarantine_record`、
+  `shadow_run`、`shadow_comparison_record`、`tournament_profile`、
+  `tournament_operations_plan`、`tournament_readiness_audit`、
+  `league_team_membership`、`promotion_relegation_mapping`、
+  `season_rollover_plan`。仍存在 ORM、历史 migration、阶段检查、
+  报表/脚本或外键中的至少一项依赖；本 PR 不重命名、不隔离、不修改。
+- `alembic_version` 是 migration 控制表，不是业务表，不得删除。
 
 **验收**
 
 ```text
-DEPRECATED_TABLE_CANDIDATES_EVIDENCE_BACKED
+DEAD_TABLES_EVIDENCE_BACKED_AND_DROPPED
 NO_BUSINESS_HISTORY_DELETED
 ```
 
@@ -476,10 +579,13 @@ NO_BUSINESS_HISTORY_DELETED
   - 一张当前盘口投影（表或视图）。
 - [ ] 不创建第二套历史表。
 - [ ] 完成历史数据迁移和 identity/hash 对账。
-- [ ] 新写入先双写，对账后停止 legacy 写入。
+- [ ] 停止 legacy 写入，禁止新增或保留双写过渡。
 - [ ] 所有读路径切到 canonical 历史 + 当前投影。
-- [ ] 旧表进入只读 deprecated 状态。
-- [ ] 一个稳定周期后再提交 drop 决策。
+- [ ] 删除 legacy ORM、Repository、脚本、测试、配置及其全部运行时引用。
+- [ ] 在同一 PR 使用新 migration drop 已完成迁移且证据充分的旧表；
+  不创建 archive、backup、兼容 view 或替代 fallback。
+- [ ] 证据不足的表保持原状并继续调查，不重命名隔离。
+- [ ] migration upgrade/downgrade、行数/hash 对账、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
 
 **验收**
@@ -496,7 +602,8 @@ CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1
 - [ ] 盘点全部球队身份和 provider crosswalk 表。
 - [ ] 指定 canonical team 体系为唯一权威。
 - [ ] 迁移有效映射及 review provenance。
-- [ ] 其他 crosswalk 停止写入并进入 deprecated。
+- [ ] 其他 crosswalk 在有效映射迁移及对账完成后停止写入，并在同一 PR
+  删除代码引用与正式 drop；证据不足的表保持原状继续调查。
 - [ ] provider IDs 仅作 provenance，不再作为模型主身份。
 - [ ] 完成 fixture、history、rating、lineup 读取对账。
 - [ ] PR 合并。
@@ -586,22 +693,6 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 
 ---
 
-## ARCH-P1-07：Deprecated 表观察周期与最终 drop 决策
-
-- [ ] 完成至少一个稳定观察周期。
-- [ ] 证明 `_deprecated_*` 表：
-  - 无生产读；
-  - 无生产写；
-  - 无任务依赖；
-  - 无报表依赖；
-  - 无外键阻塞。
-- [ ] 导出最终 schema 和数据备份。
-- [ ] 逐表提交 drop 清单供人工批准。
-- [ ] 只有明确批准的表才能 drop。
-- [ ] PR 合并。
-
----
-
 ## ARCH-P1-08：P1 总验收
 
 - [ ] 一套赔率历史。
@@ -611,7 +702,7 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 - [ ] CI 镜像发布。
 - [ ] 服务器 pull-only。
 - [ ] 无生产 fallback。
-- [ ] P1 稳定周期通过。
+- [ ] P1 完整 CI 与 staging 验收通过。
 - [ ] 人工验收。
 
 **完成标准**
@@ -676,8 +767,8 @@ P1_ARCHITECTURE_CONVERGENCE_PASS
 - [ ] 无竞争运行时权威。
 - [ ] 无生产 fallback。
 - [ ] 无服务器源码构建。
-- [ ] 无未审核的 deprecated 表 drop。
-- [ ] 完整 CI 与 staging 稳定周期通过。
+- [ ] 所有表 drop 均有零依赖或迁移后 hash 对账的直接证据。
+- [ ] 完整 CI 与 staging 验收通过。
 - [ ] 老板最终验收。
 
 **最终状态**
