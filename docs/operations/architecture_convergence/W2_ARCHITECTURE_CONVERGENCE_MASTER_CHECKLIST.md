@@ -388,7 +388,7 @@ STAGING_ENV_WHITELIST_OVERRIDE = REMOVED
 Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
 Branch: codex/arch-p0-04-p0-acceptance
 Base/Main SHA: 7bd5088b034a36ec12a23a6aa647a53524ecdce8
-PR: #378 (Draft)
+PR: #378 (Ready for review)
 Validated implementation head: b5055f73a3a6503e80e39cab5484d22d61f46a49
 Implementation-head CI: 29976169675 (verify, staging-parity,
   predeploy-e2e passed)
