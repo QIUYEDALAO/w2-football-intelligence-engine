@@ -3,11 +3,14 @@ from __future__ import annotations
 # ruff: noqa: E501,I001
 
 import ast
+import argparse
 import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -16,9 +19,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "audits" / "system_truth"
-PRIVATE_FOOTBALL_DATA_ROOT = Path("/Users/liudehua/.hermes/data/w2/football-data-co-uk")
-SOURCE_REVIEW_SHA = "94ba834559c0beba5b38075bd358a8e92a434a51"
+DEFAULT_OUTPUT_DIR = ROOT / "runtime" / "audits" / "system_truth"
+DEFAULT_FOOTBALL_DATA_ROOT = ROOT / "runtime" / "data" / "football-data-co-uk"
 SCHEMA_PREFIX = "w2.system_consolidation"
 CORE_CONCEPTS = (
     "fixture_discovery",
@@ -235,6 +237,11 @@ def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
+def _football_data_root() -> Path:
+    configured = os.getenv("W2_FOOTBALL_DATA_ROOT")
+    return Path(configured).expanduser().resolve() if configured else DEFAULT_FOOTBALL_DATA_ROOT
+
+
 def _sha_file(path: Path) -> str | None:
     if not path.exists():
         return None
@@ -353,9 +360,8 @@ def build_call_graph(index: SymbolIndex, *, generated_at: str, source_sha: str, 
     payload = {
         "schema_version": "W2_RUNTIME_CALL_GRAPH_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "summary": {
             "symbol_count": len(symbols),
@@ -377,7 +383,13 @@ def build_call_graph(index: SymbolIndex, *, generated_at: str, source_sha: str, 
     return payload
 
 
-def build_env_matrix(index: SymbolIndex, *, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_env_matrix(
+    index: SymbolIndex,
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     names = sorted(set(index.env_readers) | set(index.compose_env) | set(index.github_env) | set(index.shell_env))
     rows = []
     for name in names:
@@ -408,9 +420,8 @@ def build_env_matrix(index: SymbolIndex, *, generated_at: str, generator_sha: st
     payload = {
         "schema_version": "W2_CONFIG_FLAG_MATRIX_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "finding_refs": ["P0-PROVIDER-INTAKE-SPLIT", "P0-CHECKPOINT-AUTHORITY-SPLIT"],
         "summary": {"actual_env_count": len(rows), "schema_false_positive_policy": "EXCLUDED"},
@@ -487,7 +498,12 @@ def _env_deprecation(name: str) -> str:
     return "DEPRECATE_AFTER_CONSOLIDATION" if _replacement_env(name) else "ACTIVE"
 
 
-def build_findings(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_findings(
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     findings = [
         ("P0-DATA-ASSET-REGISTRY-MISSING", "P0", "Historical data assets lack durable registry/backup/restore proof"),
         ("P0-PROVIDER-INTAKE-SPLIT", "P0", "Provider intake remains split between future refresh and matchday endpoint capture"),
@@ -500,9 +516,8 @@ def build_findings(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
     payload = {
         "schema_version": "W2_FINDING_REGISTRY_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "findings": [
             {
@@ -520,7 +535,13 @@ def build_findings(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
     return payload
 
 
-def build_authority_map(findings: dict[str, Any], *, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_authority_map(
+    findings: dict[str, Any],
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     p0_refs = [item["finding_id"] for item in findings["findings"] if item["severity"] == "P0"]
     entries = []
     p0_concepts = {
@@ -558,9 +579,8 @@ def build_authority_map(findings: dict[str, Any], *, generated_at: str, generato
     payload = {
         "schema_version": "W2_AUTHORITY_MAP_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "finding_refs": p0_refs,
         "summary": {
@@ -594,7 +614,13 @@ def _resolution_condition(concept: str) -> str:
     return "compatibility deletion condition required before removal"
 
 
-def build_database_map(index: SymbolIndex, *, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_database_map(
+    index: SymbolIndex,
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     model_to_file = {row["table"]: row for row in index.sqlalchemy_models}
     rows = []
     for table in sorted(model_to_file):
@@ -629,9 +655,8 @@ def build_database_map(index: SymbolIndex, *, generated_at: str, generator_sha: 
     payload = {
         "schema_version": "W2_DATABASE_OWNERSHIP_MAP_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "finding_refs": ["P0-PROVIDER-INTAKE-SPLIT", "P0-F5-RUNTIME-DATA-MISSING", "P0-F8-RUNTIME-DATA-MISSING"],
         "summary": {
@@ -731,9 +756,15 @@ def _safe_alembic_head() -> str:
         return "UNKNOWN"
 
 
-def build_data_asset_registry(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
-    dataset_manifest = PRIVATE_FOOTBALL_DATA_ROOT / "manifests" / "DATASET_MANIFEST.json"
-    ingest = PRIVATE_FOOTBALL_DATA_ROOT / "reports" / "ingest_01r" / "FOOTBALL_DATA_INGEST_MANIFEST.json"
+def build_data_asset_registry(
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
+    football_data_root = _football_data_root()
+    dataset_manifest = football_data_root / "manifests" / "DATASET_MANIFEST.json"
+    ingest = football_data_root / "reports" / "ingest_01r" / "FOOTBALL_DATA_INGEST_MANIFEST.json"
     dataset = _read_json(dataset_manifest)
     ingest_payload = _read_json(ingest)
     backup_root = os.getenv("W2_DATA_BACKUP_ROOT")
@@ -742,15 +773,14 @@ def build_data_asset_registry(*, generated_at: str, generator_sha: str) -> dict[
         backup_path = Path(backup_root).expanduser().resolve()
         backup_status = (
             "BACKUP_LOCATION_CONFIGURED"
-            if backup_path != PRIVATE_FOOTBALL_DATA_ROOT.resolve()
+            if backup_path != football_data_root
             else "SECOND_COPY_SAME_DEVICE_NOT_DURABLE"
         )
     payload = {
         "schema_version": "W2_DATA_ASSET_REGISTRY_V3",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "finding_refs": ["P0-DATA-ASSET-REGISTRY-MISSING", "P0-F5-RUNTIME-DATA-MISSING"],
         "tracked_registry_scope": "ALIASES_AND_HASHES_ONLY",
@@ -766,10 +796,10 @@ def build_data_asset_registry(*, generated_at: str, generator_sha: str) -> dict[
                 "coverage_summary": {
                     "seasons": dataset.get("seasons", []),
                     "leagues": dataset.get("leagues", {}),
-                    "closing_ah_facts": _line_count_alias("reports/ingest_01r/FOOTBALL_DATA_CLOSING_AH_FACTS_V2.jsonl"),
-                    "pre_closing_ah_facts": _line_count_alias("reports/ingest_01r/FOOTBALL_DATA_PRE_CLOSING_AH_FACTS_V2.jsonl"),
-                    "phase_market_evidence": _line_count_alias("reports/ingest_01r/FOOTBALL_DATA_PHASE_MARKET_EVIDENCE.jsonl"),
-                    "f5_dataset_rows": _line_count_alias("reports/ingest_01r/FOOTBALL_DATA_F5_DATASET.jsonl"),
+                    "closing_ah_facts": _line_count_alias(football_data_root, "reports/ingest_01r/FOOTBALL_DATA_CLOSING_AH_FACTS_V2.jsonl"),
+                    "pre_closing_ah_facts": _line_count_alias(football_data_root, "reports/ingest_01r/FOOTBALL_DATA_PRE_CLOSING_AH_FACTS_V2.jsonl"),
+                    "phase_market_evidence": _line_count_alias(football_data_root, "reports/ingest_01r/FOOTBALL_DATA_PHASE_MARKET_EVIDENCE.jsonl"),
+                    "f5_dataset_rows": _line_count_alias(football_data_root, "reports/ingest_01r/FOOTBALL_DATA_F5_DATASET.jsonl"),
                 },
                 "consumer_versions": ["football_data_co_uk_adapter.v2", "fah_repository"],
                 "license_review_state": dataset.get("license_review_status", "HUMAN_REVIEW_REQUIRED"),
@@ -788,15 +818,20 @@ def build_data_asset_registry(*, generated_at: str, generator_sha: str) -> dict[
     return payload
 
 
-def _line_count_alias(relative: str) -> int | None:
-    path = PRIVATE_FOOTBALL_DATA_ROOT / relative
+def _line_count_alias(root: Path, relative: str) -> int | None:
+    path = root / relative
     if not path.exists():
         return None
     with path.open("rb") as handle:
         return sum(1 for _ in handle)
 
 
-def build_lineage(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_lineage(
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     prs = []
     for number in range(352, 365):
         try:
@@ -824,9 +859,8 @@ def build_lineage(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
     payload = {
         "schema_version": "W2_PR_LINEAGE_MAP_V2",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "pull_requests": prs,
     }
@@ -834,13 +868,20 @@ def build_lineage(*, generated_at: str, generator_sha: str) -> dict[str, Any]:
     return payload
 
 
-def build_simple_report(schema: str, finding_refs: list[str], summary: dict[str, Any], *, generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_simple_report(
+    schema: str,
+    finding_refs: list[str],
+    summary: dict[str, Any],
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     payload = {
         "schema_version": schema,
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "finding_refs": finding_refs,
         "summary": summary,
@@ -849,18 +890,20 @@ def build_simple_report(schema: str, finding_refs: list[str], summary: dict[str,
     return payload
 
 
-def write_json(name: str, payload: dict[str, Any]) -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write_json(output_dir: Path, name: str, payload: dict[str, Any]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / name).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
-def write_md(name: str, payload: dict[str, Any]) -> None:
+def write_md(output_dir: Path, name: str, payload: dict[str, Any]) -> None:
     lines = [
         f"# {payload['schema_version']}",
         "",
         f"- source_review_sha: `{payload.get('source_review_sha')}`",
         f"- audit_generator_sha: `{payload.get('audit_generator_sha')}`",
-        f"- audit_output_commit_sha: `{payload.get('audit_output_commit_sha')}`",
         f"- artifact_sha: `{payload.get('artifact_sha')}`",
         f"- generated_at: `{payload.get('generated_at')}`",
         f"- finding_refs: `{', '.join(payload.get('finding_refs', []))}`",
@@ -887,29 +930,54 @@ def write_md(name: str, payload: dict[str, Any]) -> None:
         for item in payload["assets"]:
             lines.append(f"- `{item['asset_id']}` alias=`{item['asset_alias']}` backup=`{item['backup_state']}` restore=`{item['restore_state']}`")
         lines.append("")
-    (OUT / name).write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    (output_dir / name).write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
 
 
-def replace_absolute_paths() -> None:
-    for path in OUT.glob("W2_*.*"):
+def replace_absolute_paths(output_dir: Path) -> None:
+    replacements = {
+        str(_football_data_root()): "$W2_FOOTBALL_DATA_ROOT",
+        str(ROOT): "$W2_REPOSITORY_ROOT",
+        str(Path.home()): "$HOME",
+    }
+    for path in output_dir.glob("W2_*.*"):
         text = path.read_text(encoding="utf-8")
-        text = text.replace("/Users/liudehua/.hermes/data/w2/football-data-co-uk", "$W2_FOOTBALL_DATA_ROOT")
-        text = text.replace("/Users/liudehua/.hermes/workspace", "$W2_STAGING_ROOT/workspace")
+        for absolute, alias in replacements.items():
+            text = text.replace(absolute, alias)
         path.write_text(text, encoding="utf-8")
 
 
-def build_manifest(generated_at: str, generator_sha: str) -> dict[str, Any]:
+def build_manifest(
+    generated_dir: Path,
+    published_dir: Path,
+    *,
+    generated_at: str,
+    source_sha: str,
+    generator_sha: str,
+) -> dict[str, Any]:
     files = []
-    for path in sorted(OUT.glob("W2_*.*")):
+    for path in sorted(generated_dir.glob("W2_*.*")):
         if path.name == "W2_CONSOLIDATION_MANIFEST_V1.json":
             continue
-        files.append({"path": path.relative_to(ROOT).as_posix(), "sha256": _sha_file(path), "bytes": path.stat().st_size})
+        published_path = published_dir / path.name
+        try:
+            display_path = published_path.relative_to(ROOT).as_posix()
+        except ValueError:
+            display_path = published_path.as_posix()
+        files.append(
+            {
+                "path": display_path,
+                "sha256": _sha_file(path),
+                "bytes": path.stat().st_size,
+            }
+        )
     payload = {
         "schema_version": "W2_CONSOLIDATION_MANIFEST_V1",
         "generated_at": generated_at,
-        "source_review_sha": SOURCE_REVIEW_SHA,
+        "source_review_sha": source_sha,
         "audit_generator_sha": generator_sha,
-        "audit_output_commit_sha": "PENDING_COMMIT",
         "artifact_sha": "",
         "files": files,
         "safety": {
@@ -925,17 +993,84 @@ def build_manifest(generated_at: str, generator_sha: str) -> dict[str, Any]:
     return payload
 
 
-def write_all() -> None:
+def _validate_source_review_sha(
+    reports: dict[str, dict[str, Any]],
+    generation_head: str,
+) -> None:
+    mismatches = sorted(
+        stem
+        for stem, payload in reports.items()
+        if payload.get("source_review_sha") != generation_head
+    )
+    if mismatches:
+        raise RuntimeError(
+            "source_review_sha does not match generation HEAD: "
+            + ", ".join(mismatches)
+        )
+
+
+def _publish_generated_audits(
+    staged_dir: Path,
+    output_dir: Path,
+    generation_head: str,
+) -> None:
+    current_head = _git("rev-parse", "HEAD")
+    if current_head != generation_head:
+        raise RuntimeError(
+            "Git HEAD changed during audit generation; refusing to publish "
+            f"{generation_head} -> {current_head}"
+        )
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    staged_dir.replace(output_dir)
+
+
+def write_all(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
+    output_dir = output_dir.expanduser().resolve()
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    generation_head = _git("rev-parse", "HEAD")
     generated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    generator_sha = _git("rev-parse", "HEAD")
+    generator_sha = generation_head
     index = build_symbol_index()
-    findings = build_findings(generated_at=generated_at, generator_sha=generator_sha)
-    authority = build_authority_map(findings, generated_at=generated_at, generator_sha=generator_sha)
-    call_graph = build_call_graph(index, generated_at=generated_at, source_sha=SOURCE_REVIEW_SHA, generator_sha=generator_sha)
-    env_matrix = build_env_matrix(index, generated_at=generated_at, generator_sha=generator_sha)
-    db_map = build_database_map(index, generated_at=generated_at, generator_sha=generator_sha)
-    data_registry = build_data_asset_registry(generated_at=generated_at, generator_sha=generator_sha)
-    lineage = build_lineage(generated_at=generated_at, generator_sha=generator_sha)
+    findings = build_findings(
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    authority = build_authority_map(
+        findings,
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    call_graph = build_call_graph(
+        index,
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    env_matrix = build_env_matrix(
+        index,
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    db_map = build_database_map(
+        index,
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    data_registry = build_data_asset_registry(
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
+    lineage = build_lineage(
+        generated_at=generated_at,
+        source_sha=generation_head,
+        generator_sha=generator_sha,
+    )
     reports = {
         "W2_FINDING_REGISTRY_V3": findings,
         "W2_AUTHORITY_MAP_V3": authority,
@@ -949,6 +1084,7 @@ def write_all() -> None:
             ["P0-CHECKPOINT-AUTHORITY-SPLIT"],
             {"canonical_policy": "config/policies/matchday_intake.v2.json", "phase_a_status": "BLOCKED_PENDING_PHASE0_GATE"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_PROVIDER_ENDPOINT_MATRIX_V3": build_simple_report(
@@ -956,6 +1092,7 @@ def write_all() -> None:
             ["P0-PROVIDER-INTAKE-SPLIT"],
             {"provider_calls": 0, "canonical_front_door": "target MatchdayIntakeExecutor", "phase_a_status": "BLOCKED_PENDING_PHASE0_GATE"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_FACTOR_STRATEGY_REGISTRY_V3": build_simple_report(
@@ -963,6 +1100,7 @@ def write_all() -> None:
             ["P0-F5-RUNTIME-DATA-MISSING", "P0-F8-RUNTIME-DATA-MISSING"],
             {"factor_scope": "F1-F10 plus LMM and market baseline", "numeric_weights_changed": False, "status": "AUDIT_ONLY"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_RECOMMENDATION_LIFECYCLE_TRACE_V3": build_simple_report(
@@ -970,6 +1108,7 @@ def write_all() -> None:
             ["P0-RECOMMENDATION-STATE-SPLIT"],
             {"canonical_target": "RecommendationDecisionV3.decision_hash", "formal": False, "lock": False, "status": "AUDIT_ONLY"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_TEST_COVERAGE_AUTHORITY_MATRIX_V3": build_simple_report(
@@ -977,6 +1116,7 @@ def write_all() -> None:
             [],
             {"baseline_pytest": "1355 passed, 4 skipped", "new_phase0_tests": "see tests/unit/test_runtime_authority_audit.py"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_RUNTIME_DEPLOYMENT_DELTA_V3": build_simple_report(
@@ -984,6 +1124,7 @@ def write_all() -> None:
             ["P1-RUNTIME-DEPLOYMENT-TRUTH-UNVERIFIED"],
             {"staging_runtime": "STAGING_RUNTIME_AUDIT_NOT_EXECUTED_NO_AUTHORIZATION", "production_access": 0},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_LEGACY_DUPLICATE_CODE_REGISTER_V3": build_simple_report(
@@ -991,6 +1132,7 @@ def write_all() -> None:
             ["P0-CHECKPOINT-AUTHORITY-SPLIT", "P0-PROVIDER-INTAKE-SPLIT", "P0-RECOMMENDATION-STATE-SPLIT"],
             {"deletions_performed": 0, "reason": "Phase 0 gate retains unknown dynamic entrypoints"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_RISK_REGISTER_V2": build_simple_report(
@@ -998,6 +1140,7 @@ def write_all() -> None:
             [item["finding_id"] for item in findings["findings"]],
             {"p0_count": 6, "p1_count": 1, "final_state": "SYSTEM_CONSOLIDATION_PARTIAL_EXTERNAL_BLOCKERS"},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_SYSTEM_TRUTH_MATRIX_V3": build_simple_report(
@@ -1005,6 +1148,7 @@ def write_all() -> None:
             [item["finding_id"] for item in findings["findings"]],
             {"p0_count": 6, "p1_count": 1, "phase0_gate": "FAILED_UNKNOWN_P0_AUTHORITY_REMAINS", "provider_calls": 0},
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
         "W2_CONSOLIDATION_ACCEPTANCE_REPORT_V1": build_simple_report(
@@ -1017,37 +1161,60 @@ def write_all() -> None:
                 "manual_approval_required": True,
             },
             generated_at=generated_at,
+            source_sha=generation_head,
             generator_sha=generator_sha,
         ),
     }
-    for stem, payload in reports.items():
-        write_json(f"{stem}.json", payload)
-        write_md(f"{stem}.md", payload)
-    phase0_aliases = {
-        "W2_RUNTIME_CALL_GRAPH_V2": call_graph,
-        "W2_SCHEDULER_CHECKPOINT_MATRIX_V2": reports["W2_SCHEDULER_CHECKPOINT_MATRIX_V3"],
-        "W2_PROVIDER_ENDPOINT_MATRIX_V2": reports["W2_PROVIDER_ENDPOINT_MATRIX_V3"],
-        "W2_FACTOR_STRATEGY_REGISTRY_V2": reports["W2_FACTOR_STRATEGY_REGISTRY_V3"],
-        "W2_RECOMMENDATION_LIFECYCLE_TRACE_V2": reports[
-            "W2_RECOMMENDATION_LIFECYCLE_TRACE_V3"
-        ],
-        "W2_TEST_COVERAGE_AUTHORITY_MATRIX_V2": reports[
-            "W2_TEST_COVERAGE_AUTHORITY_MATRIX_V3"
-        ],
-        "W2_SYSTEM_TRUTH_AUDIT_MANIFEST_V2": reports["W2_SYSTEM_TRUTH_MATRIX_V3"],
+    _validate_source_review_sha(reports, generation_head)
+    staged_path = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output_dir.name}.",
+            dir=output_dir.parent,
+        )
+    )
+    try:
+        for stem, payload in reports.items():
+            write_json(staged_path, f"{stem}.json", payload)
+            write_md(staged_path, f"{stem}.md", payload)
+        replace_absolute_paths(staged_path)
+        manifest = build_manifest(
+            staged_path,
+            output_dir,
+            generated_at=generated_at,
+            source_sha=generation_head,
+            generator_sha=generator_sha,
+        )
+        _validate_source_review_sha(
+            {"W2_CONSOLIDATION_MANIFEST_V1": manifest},
+            generation_head,
+        )
+        write_json(staged_path, "W2_CONSOLIDATION_MANIFEST_V1.json", manifest)
+        write_md(staged_path, "W2_CONSOLIDATION_MANIFEST_V1.md", manifest)
+        _publish_generated_audits(staged_path, output_dir, generation_head)
+    finally:
+        if staged_path.exists():
+            shutil.rmtree(staged_path)
+    return {
+        "output_dir": output_dir.as_posix(),
+        "source_review_sha": generation_head,
+        "audit_generator_sha": generator_sha,
     }
-    for stem, source in phase0_aliases.items():
-        alias = dict(source)
-        alias["schema_version"] = stem
-        alias["artifact_sha"] = ""
-        alias["artifact_sha"] = _sha_payload(alias)
-        write_json(f"{stem}.json", alias)
-        write_md(f"{stem}.md", alias)
-    replace_absolute_paths()
-    manifest = build_manifest(generated_at, generator_sha)
-    write_json("W2_CONSOLIDATION_MANIFEST_V1.json", manifest)
-    write_md("W2_CONSOLIDATION_MANIFEST_V1.md", manifest)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Generate W2 system-truth audit artifacts outside Git.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output directory (default: runtime/audits/system_truth).",
+    )
+    result = write_all(parser.parse_args().output_dir)
+    print(json.dumps(result, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":
-    write_all()
+    raise SystemExit(main())

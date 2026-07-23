@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-23T17:44:42Z"
+updated_at: "2026-07-23T18:43:42Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -24,18 +24,18 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: f53b073f5f53e078d75831ad4f2c0c648f32db88
+  main_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 381
+  pull_request: 382
   pull_request_mode: MERGED
-  pull_request_head_branch: codex/arch-p1-02-odds-table-convergence
-  task_baseline_sha: 8af05ddbacf32370303fb0e57e5097d6634c278e
-  local_code_implementation_sha: f53b073f5f53e078d75831ad4f2c0c648f32db88
-  local_work_branch: null
-  github_sync_status: SYNCED_TO_MAIN
-  github_verified_head_sha: 47c7ef7da368fa54b4643e56c0efdeb2990f23f5
+  pull_request_head_branch: codex/arch-hygiene-checklist-sequence
+  task_baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+  local_code_implementation_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+  local_work_branch: codex/arch-hygiene-01-generated-audits-exit-git
+  github_sync_status: BRANCHED_FROM_EXACT_MAIN
+  github_verified_head_sha: 6b9b496bd8867a060a621175f72da1d5e06e337e
   ci_status: PASS
-  ci_run_id: 30017659192
+  ci_run_id: 30030832487
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -78,6 +78,14 @@ architecture_convergence:
     - ARCH-P2-06
     - ARCH-P2-05
   next_task: ARCH-HYGIENE-01
+  current_task:
+    id: ARCH-HYGIENE-01
+    status: IN_PROGRESS
+    started_at: "2026-07-23T18:43:42Z"
+    baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+    branch: codex/arch-hygiene-01-generated-audits-exit-git
+    production_behavior_changed: false
+    safety_switches_changed: false
   governance_contracts:
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
