@@ -563,6 +563,35 @@ SQL、任务及报表引用扫描。
   报表/脚本或外键中的至少一项依赖；本 PR 不重命名、不隔离、不修改。
 - `alembic_version` 是 migration 控制表，不是业务表，不得删除。
 
+**本轮验收回执**
+
+- PR：`#379`；
+- implementation head：
+  `1a07244747c917afdbcfad4cbcfcde0f64daf831`；
+- implementation exact-head CI：run `29978871376`，`verify`、
+  `staging-parity`、`predeploy-e2e` 全绿；
+- staging release SHA：
+  `1a07244747c917afdbcfad4cbcfcde0f64daf831`；
+- staging migration：
+  `0038_drop_unused_system_metadata`；
+- migration 往返：
+  `0038 -> 0037 -> 0038` 通过；downgrade 后表存在、0 行且原四列 schema
+  恢复，upgrade 后表再次不存在；
+- staging 表数：`144 -> 143`，仅删除 `system_metadata`；
+- 20 轮真实 HTTP 只读检查全部通过；
+- Provider request logs：`162 -> 162`，增量 0；
+- staging 全业务表 DML 统计：
+  `insert/update/delete = 58158/345/0 -> 58158/345/0`，增量 0；
+- `recommendations=0`、`recommendation_locks=0`、
+  `gate5_recommendation_lock_event=0`、`settlements=0`、
+  `shadow_strategy_lock=0`；
+- `W2_PROVIDER_CALLS_DISABLED=true`、
+  `W2_PROVIDER_SCHEDULER_ENABLED=false`、
+  `W2_RECOMMENDATION_ENABLED=false`、`W2_CANDIDATE_ENABLED=false`、
+  `W2_PRODUCTION_RELEASE=false`；
+- API、worker、scheduler、web、PostgreSQL、Redis 全部 healthy；
+  API/Web release SHA 与 staging release SHA 一致。
+
 **验收**
 
 ```text
