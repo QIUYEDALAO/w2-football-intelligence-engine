@@ -298,12 +298,13 @@ RUNTIME_JSON_ODDS_AUTHORITY = 0
 **独立 PR，必须复用现有 `league_profile / league_season` 或已确认的等价表。**
 
 ```text
-Status: FIX_IN_PROGRESS
+Status: STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW
 Branch: codex/arch-p0-03-db-competition-authority
 PR: #377 (Draft)
 Base SHA: dae21e59f949be4ac70b75bbcf0f96d1d03f8266
-Final PR head: PENDING
-Final exact-head CI: PENDING
+Final validated implementation head: dd2063b835eb7a0e2097b745e298a22570bd3794
+Final implementation-head CI: 29973536625 (verify, staging-parity,
+  predeploy-e2e passed)
 Owner: Codex
 Runtime authority tables: league_profile, league_season
 Audit table: league_readiness_audit
@@ -313,9 +314,20 @@ Seed reconciliation: 14 profiles + 14 seasons inserted; 14 audit rows;
   five policy-authorized competitions.
 Correction: prior implementation/CI/staging acceptance was revoked because the
   seed policy.enabled value remained an independent runtime authority and the
-  Registry did not fail closed on a DB/runtime environment mismatch. Unified
-  Registry/future scheduler/matchday scheduler toggle and rollback evidence is
-  pending against the corrected exact head.
+  Registry did not fail closed on a DB/runtime environment mismatch.
+Corrected staging acceptance: deployed exact implementation head
+  dd2063b835eb7a0e2097b745e298a22570bd3794 over
+  78110a5543339cb25066746e44b9a8e8e500ae42; all services became healthy and
+  migration remained 0037_seed_competition_runtime_authority. DB and runtime
+  environments both resolved to staging.
+Corrected same-process toggle/rollback: with allsvenskan initially enabled, one
+  Python process (PID 25) observed true -> false -> true for Registry, future
+  scheduler, matchday checkpoint scheduler, odds refresh and lineup refresh,
+  without restart or deploy between updates. The final audited update restored
+  the original true state. league_readiness_audit advanced 16 -> 18.
+Corrected zero-side-effect proof: provider_request_logs stayed 162 (delta 0);
+  recommendations, recommendation_locks, settlements and
+  gate5_recommendation_lock_event all stayed 0.
 Removed authorities: competition/policy JSON runtime reads,
   W2_STAGING_ENABLED_COMPETITIONS,
   W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID(S), and Python league-ID tuples.
@@ -345,15 +357,15 @@ Local validation: W2 all-stage PASS; ruff PASS; mypy PASS; 1455 passed,
   - 导入相关 policy JSON；
   - 导入 enabled/provider_id/season；
   - 输出冲突报告。
-- [ ] `CompetitionRegistry` 运行时改为读取数据库，并校验 DB environment。
+- [x] `CompetitionRegistry` 运行时改为读取数据库，并校验 DB environment。
 - [x] JSON 降级为首次安装种子，不再是运行时权威。
 - [x] 删除 `W2_STAGING_ENABLED_COMPETITIONS` 的业务覆盖机制。
 - [x] 删除 `league_whitelist_scope.py` 中联赛硬编码元组。
 - [x] 保留 Provider 总熔断等安全环境变量。
-- [ ] scheduler 从 DB 顶层 enabled 读取启用联赛，policy.enabled 不再独立生效。
-- [ ] 修改 DB 中 enabled 后无需部署即可令 Registry、future scheduler、matchday scheduler 同步生效。
+- [x] scheduler 从 DB 顶层 enabled 读取启用联赛，policy.enabled 不再独立生效。
+- [x] 修改 DB 中 enabled 后无需部署即可令 Registry、future scheduler、matchday scheduler 同步生效。
 - [x] 所有修改有审计记录。
-- [ ] 最新 exact-head 完整 CI、staging 同进程变更测试和回滚测试通过。
+- [x] 最新实现 head 完整 CI、staging 同进程变更测试和回滚测试通过。
 - [ ] PR 合并。
 
 **验收**
