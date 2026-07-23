@@ -448,7 +448,7 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 
 ## ARCH-P1-01：数据库僵尸表盘点与直接删除
 
-Status: FIX_IN_PROGRESS
+Status: READY_FOR_EXTERNAL_REVIEW
 
 - [x] 列出全部表及：
   - migration 来源；
@@ -711,33 +711,36 @@ SQL、任务及报表引用扫描。
 
 **本轮验收回执**
 
-- 当前状态：`FIX_IN_PROGRESS`；正在按外部二次验收意见递归审计所有
-  `0 行 + 0 生产读写 + 0 任务 + 0 报表` 的外键连通组件；0039 保持不变，
-  后续追加删除只通过新 revision `0040` 执行；
-- PR：`#379`（修复期间为 Draft；本回执 exact-head CI 全绿后转 Ready）；
+- 状态流转：外部二次验收修复期间为 `FIX_IN_PROGRESS`；递归组件审计、
+  0040 migration、完整 CI、staging 往返与零写验收全部完成后，当前为
+  `READY_FOR_EXTERNAL_REVIEW`。0039 始终保持不变，追加删除只通过新
+  revision `0040` 执行；
+- PR：`#379`（最终回执 exact-head CI 全绿后转 Ready 并提交外部审核）；
 - validated implementation/final code head：
-  `1b9f0141bba0c8f5a18e7fa0c57819826446bc4d`；
+  `d004cd946a42ad2fade0799d297ca31358c2f41e`；
 - PR final receipt head：GitHub canonical `refs/pull/379/head`；该引用必须与
   本清单回执提交和 GitHub PR `headRefOid` 一致，避免在提交内容中硬编码
   不可能自引用的 commit SHA；
-- implementation exact-head CI：run `29981212391`，`verify`、
+- implementation exact-head CI：run `29993024046`，`verify`、
   `staging-parity`、`predeploy-e2e` 全绿；
 - final receipt exact-head CI：以 PR #379 最新 required checks 为准，提交
   外部审核前必须全部 `SUCCESS`；
 - staging release SHA：
-  `1b9f0141bba0c8f5a18e7fa0c57819826446bc4d`；
+  `d004cd946a42ad2fade0799d297ca31358c2f41e`；
 - staging migration：
-  `0039_drop_evidence_backed_dead_tables`；
+  `0040_drop_empty_fk_components`；
 - migration 往返：
-  `0039 -> 0038 -> 0039` 通过；downgrade 后 42/42 张第二批表恢复且总行数
-  为 0，schema/constraint/index 规范化 MD5 为
-  `a5c7a527a36c983474b47b085df5a58d`（418 条）；upgrade 后 42 张表再次
-  全部不存在；
-- staging 表数：`144 -> 101`，共删除 43 张直接证据完整的空表；
-- 20 轮真实 HTTP 只读检查全部通过；
+  `0040 -> 0039 -> 0040` 通过；downgrade 后 staging 为 101 表，
+  0040 的 35/35 张表全部恢复且均为 0 行；upgrade 后 staging 为 66 表，
+  35/35 张表再次全部不存在；
+- staging 表数：`144 -> 66`，共删除 78 张直接证据完整的空表，其中
+  0038/0039 删除 43 张、0040 追加删除 35 张；
+- 20 轮真实公共 HTTP 只读检查全部通过：`20/20 HTTP 200`，读取
+  `/v1/dashboard/day-view`、`/v1/dashboard/summary`、`/v1/fixtures`、
+  `/v1/providers/status` 各 5 次，p95 `151.3ms`、max `154.3ms`；
 - Provider request logs：`162 -> 162`，增量 0；
 - staging 全业务表 DML 统计：
-  `insert/update/delete = 58158/345/0 -> 58158/345/0`，增量 0；
+  `insert/update/delete = 58159/390/0 -> 58159/390/0`，增量 0；
 - `recommendations=0`、`recommendation_locks=0`、
   `gate5_recommendation_lock_event=0`、`settlements=0`、
   `shadow_strategy_lock=0`；
@@ -746,7 +749,8 @@ SQL、任务及报表引用扫描。
   `W2_RECOMMENDATION_ENABLED=false`、`W2_CANDIDATE_ENABLED=false`、
   `W2_PRODUCTION_RELEASE=false`；
 - API、worker、scheduler、web、PostgreSQL、Redis 全部 healthy；
-  API/Web release SHA 与 staging release SHA 一致。
+  `/opt/w2/current`、`release.env`、API/Web release SHA 与 staging release
+  SHA 一致。
 
 **验收**
 
