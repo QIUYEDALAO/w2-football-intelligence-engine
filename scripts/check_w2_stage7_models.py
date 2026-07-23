@@ -12,7 +12,6 @@ REQUIRED = [
     "src/w2/models/calibration.py",
     "src/w2/models/evaluation.py",
     "src/w2/models/residuals.py",
-    "src/w2/infrastructure/persistence/model_experiment_models.py",
     "migrations/versions/0006_create_stage7_independent_models.py",
     "docs/adr/ADR-0007-independent-models.md",
     "docs/models/W2_INDEPENDENT_MODEL_V1.md",
@@ -62,10 +61,6 @@ def main() -> int:
         "DIRICHLET_MULTICLASS",
         "paired_bootstrap_delta",
         "independent_minus_market",
-        "model_experiment",
-        "model_artifact",
-        "calibration_artifact",
-        "model_evaluation",
     ]:
         if token not in combined:
             fail(f"missing Stage7 token {token}")

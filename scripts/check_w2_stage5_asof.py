@@ -15,7 +15,6 @@ REQUIRED = [
     "src/w2/historical/leakage.py",
     "src/w2/historical/quality.py",
     "src/w2/historical/splitters.py",
-    "src/w2/infrastructure/persistence/historical_models.py",
     "migrations/versions/0004_create_stage5_asof_foundation.py",
     "docs/adr/ADR-0005-historical-asof-dataset.md",
     "docs/data/W2_ASOF_DATASET_V1.md",

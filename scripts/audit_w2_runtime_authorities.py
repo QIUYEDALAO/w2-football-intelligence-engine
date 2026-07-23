@@ -73,9 +73,7 @@ CORE_CONCEPTS = (
 
 P0_P1_TABLE_DOMAINS = {
     "raw_payload",
-    "raw_payload_references",
     "matchday_endpoint_captures",
-    "odds_observations",
     "future_market_observation",
     "fixtures",
     "teams",
@@ -89,11 +87,9 @@ P0_P1_TABLE_DOMAINS = {
     "settlements",
     "results",
     "forward_market_snapshot",
-    "forward_evaluation",
     "canonical_historical_ah_facts",
     "historical_market_source_snapshots",
     "team_value_asof_artifacts",
-    "calibration_artifact",
     "matchday_evidence_manifests",
 }
 
@@ -723,8 +719,6 @@ def _replacement_table(table: str) -> str | None:
         return "matchday_checkpoint_plans"
     if table == "future_market_observation":
         return "canonical observation target after Phase B"
-    if table == "raw_payload_references":
-        return "raw_payload + matchday_endpoint_captures"
     return None
 
 

@@ -142,6 +142,75 @@ def test_arch_p1_01_drops_and_restores_all_evidence_backed_dead_tables(
     assert dropped_tables.isdisjoint(inspect(engine).get_table_names())
 
 
+def test_arch_p1_01_drops_and_restores_empty_fk_components(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-01-fk-components.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    dropped_tables = {
+        "ablation_run",
+        "asof_samples",
+        "bookmakers",
+        "calibration_artifact",
+        "data_provenance",
+        "dataset_artifacts",
+        "dataset_versions",
+        "evaluation_record",
+        "feature_snapshots",
+        "forward_cycle_run",
+        "forward_evaluation",
+        "forward_gate_audit",
+        "forward_holdout_run",
+        "forward_prediction_lock",
+        "injuries",
+        "label_references",
+        "lineups",
+        "market_baseline_run",
+        "market_consensus",
+        "market_fit_diagnostic",
+        "markets",
+        "model_artifact",
+        "model_evaluation",
+        "model_experiment",
+        "odds_observations",
+        "players",
+        "prediction_snapshot",
+        "raw_payload_references",
+        "replay_checkpoint",
+        "replay_event",
+        "replay_run",
+        "squads",
+        "suspensions",
+        "team_ratings",
+        "weather_observations",
+    }
+
+    def migrate(*args: str) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", *args],
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    migrate("upgrade", "head")
+    engine = create_engine(database_url)
+    assert dropped_tables.isdisjoint(inspect(engine).get_table_names())
+
+    migrate("downgrade", "0039_drop_evidence_backed_dead_tables")
+    assert dropped_tables.issubset(inspect(engine).get_table_names())
+
+    migrate("upgrade", "head")
+    assert dropped_tables.isdisjoint(inspect(engine).get_table_names())
+
+
 def test_staging_state_stage9a_head_upgrades_to_future_refresh_head(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_path = tmp_path / "staging-state.db"

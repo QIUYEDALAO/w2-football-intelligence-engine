@@ -1,11 +1,6 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
-from w2.infrastructure.persistence.challenger_models import (
-    ForwardEvaluationModel,
-    ForwardHoldoutRunModel,
-    ForwardPredictionLockModel,
-)
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchSupersessionModel,
@@ -18,11 +13,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
-from w2.infrastructure.persistence.forward_ops_models import (
-    ForwardCycleRunModel,
-    ForwardGateAuditModel,
-    ForwardMarketSnapshotModel,
-)
+from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
@@ -32,12 +23,6 @@ from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
-)
-from w2.infrastructure.persistence.historical_models import (
-    AsOfSampleModel,
-    DatasetArtifactModel,
-    DatasetVersionModel,
-    LabelReferenceModel,
 )
 from w2.infrastructure.persistence.ingestion_models import (
     IngestionRunModel,
@@ -49,11 +34,6 @@ from w2.infrastructure.persistence.league_models import (
     LeagueReadinessAuditModel,
     LeagueSeasonModel,
 )
-from w2.infrastructure.persistence.market_models import (
-    MarketBaselineRunModel,
-    MarketConsensusModel,
-    MarketFitDiagnosticModel,
-)
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -61,30 +41,15 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
-from w2.infrastructure.persistence.model_experiment_models import (
-    CalibrationArtifactModel,
-    ModelArtifactModel,
-    ModelEvaluationModel,
-    ModelExperimentModel,
-)
 from w2.infrastructure.persistence.models import (
-    BookmakerModel,
     CanonicalHistoricalAhFactModel,
     CompetitionModel,
-    DataProvenanceModel,
-    FeatureSnapshotModel,
     FixtureModel,
     HistoricalMarketSourceSnapshotModel,
-    InjuryModel,
-    LineupModel,
-    MarketModel,
     ModelRunModel,
-    OddsObservationModel,
     PlayerClubMembershipObservationModel,
     PlayerIdentityCrosswalkModel,
-    PlayerModel,
     PredictionModel,
-    RawPayloadReferenceModel,
     RecommendationLockModel,
     RecommendationModel,
     RefereeModel,
@@ -92,26 +57,14 @@ from w2.infrastructure.persistence.models import (
     ResultModel,
     SeasonModel,
     SettlementModel,
-    SquadModel,
     StageModel,
-    SuspensionModel,
     TeamIdentityCrosswalkModel,
     TeamModel,
-    TeamRatingModel,
     TeamValueAsOfArtifactModel,
     VenueModel,
-    WeatherObservationModel,
 )
 from w2.infrastructure.persistence.recommendation_lock_models import (
     Gate5RecommendationLockEventModel,
-)
-from w2.infrastructure.persistence.replay_models import (
-    AblationRunModel,
-    EvaluationRecordModel,
-    PredictionSnapshotModel,
-    ReplayCheckpointModel,
-    ReplayEventModel,
-    ReplayRunModel,
 )
 from w2.infrastructure.persistence.shadow_strategy_models import (
     ShadowStrategyEvaluationModel,
@@ -125,66 +78,38 @@ from w2.infrastructure.persistence.stage7i_lifecycle_models import (
 )
 
 __all__ = [
-    "AblationRunModel",
-    "AsOfSampleModel",
-    "BookmakerModel",
     "CanonicalHistoricalAhFactModel",
     "CanonicalTeamMatchHistoryModel",
     "CanonicalTeamModel",
-    "CalibrationArtifactModel",
     "CompetitionModel",
-    "DataProvenanceModel",
-    "DatasetArtifactModel",
-    "DatasetVersionModel",
     "DynamicPrematchEvaluationModel",
     "DynamicPrematchSupersessionModel",
-    "FeatureSnapshotModel",
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshCheckpointPlanModel",
     "FutureMarketObservationModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
     "Gate5RecommendationLockEventModel",
-    "ForwardEvaluationModel",
-    "ForwardCycleRunModel",
-    "ForwardGateAuditModel",
-    "ForwardHoldoutRunModel",
     "ForwardMarketSnapshotModel",
-    "ForwardPredictionLockModel",
     "FixtureModel",
     "HistoricalMarketSourceSnapshotModel",
-    "EvaluationRecordModel",
-    "InjuryModel",
     "IngestionRunModel",
-    "LineupModel",
     "LineupConfirmedEventModel",
     "LeagueProfileModel",
     "LeagueReadinessAuditModel",
     "LeagueSeasonModel",
-    "LabelReferenceModel",
-    "MarketModel",
-    "MarketBaselineRunModel",
-    "MarketConsensusModel",
-    "MarketFitDiagnosticModel",
     "MatchdayCheckpointPlanModel",
     "MatchdayEndpointCaptureModel",
     "MatchdayEvidenceManifestModel",
     "MatchdayFixtureIdentityModel",
     "MatchdayMarketObservationModel",
     "ModelRunModel",
-    "ModelArtifactModel",
-    "ModelEvaluationModel",
-    "ModelExperimentModel",
-    "OddsObservationModel",
-    "PlayerModel",
     "PlayerClubMembershipObservationModel",
     "PlayerIdentityCrosswalkModel",
     "PredictionModel",
-    "PredictionSnapshotModel",
     "ProviderTeamIdentityCrosswalkModel",
     "ProviderRequestLogModel",
     "QuotaUsageModel",
-    "RawPayloadReferenceModel",
     "RegisteredRosterSnapshotModel",
     "RawPayloadModel",
     "ReadModelCheckpointModel",
@@ -192,9 +117,6 @@ __all__ = [
     "RecommendationModel",
     "RefereeModel",
     "ResultModel",
-    "ReplayCheckpointModel",
-    "ReplayEventModel",
-    "ReplayRunModel",
     "SeasonModel",
     "SettlementModel",
     "ShadowStrategyEvaluationModel",
@@ -203,17 +125,13 @@ __all__ = [
     "Stage7ILifecycleEventModel",
     "Stage7ILifecycleHeartbeatModel",
     "Stage7ILifecycleRunModel",
-    "SquadModel",
     "StageModel",
-    "SuspensionModel",
     "TeamModel",
     "T30ValidationSnapshotModel",
     "TeamIdentityCrosswalkModel",
-    "TeamRatingModel",
     "TeamRatingSnapshotModel",
     "TeamValueAsOfArtifactModel",
     "TeamXgMatchModel",
     "TeamXgRollingSnapshotModel",
     "VenueModel",
-    "WeatherObservationModel",
 ]

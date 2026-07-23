@@ -72,27 +72,6 @@ class TeamModel(Base):
     country: Mapped[str | None] = mapped_column(String(128))
 
 
-class PlayerModel(Base):
-    __tablename__ = "players"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    birth_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class SquadModel(Base):
-    __tablename__ = "squads"
-    __table_args__ = (
-        UniqueConstraint("team_id", "player_id", "season_id", name="uq_squad_member"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False)
-    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"), nullable=False)
-    season_id: Mapped[str] = mapped_column(ForeignKey("seasons.id"), nullable=False)
-    shirt_number: Mapped[int | None] = mapped_column(Integer)
-
-
 class VenueModel(Base):
     __tablename__ = "venues"
 
@@ -134,111 +113,7 @@ class FixtureModel(Base):
     kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
 
-    odds_observations: Mapped[list[OddsObservationModel]] = relationship(back_populates="fixture")
     result: Mapped[ResultModel | None] = relationship(back_populates="fixture")
-
-
-class BookmakerModel(Base):
-    __tablename__ = "bookmakers"
-    __table_args__ = (UniqueConstraint("name", name="uq_bookmaker_name"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-
-
-class MarketModel(Base):
-    __tablename__ = "markets"
-    __table_args__ = (
-        UniqueConstraint("fixture_id", "market", "settlement_rule", name="uq_market_fixture_rule"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
-    market: Mapped[str] = mapped_column(String(64), nullable=False)
-    settlement_rule: Mapped[str] = mapped_column(String(128), nullable=False)
-
-
-class OddsObservationModel(Base):
-    __tablename__ = "odds_observations"
-    __table_args__ = (
-        UniqueConstraint(
-            "fixture_id",
-            "bookmaker_id",
-            "market",
-            "canonical_selection",
-            "line",
-            "provider_updated_at",
-            "captured_at",
-            name="uq_odds_observation_idempotency",
-        ),
-        Index("ix_odds_provider_updated_at", "provider_updated_at"),
-        Index("ix_odds_captured_at", "captured_at"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
-    bookmaker_id: Mapped[str] = mapped_column(ForeignKey("bookmakers.id"), nullable=False)
-    market: Mapped[str] = mapped_column(String(64), nullable=False)
-    selection: Mapped[str] = mapped_column(String(64), nullable=False)
-    line: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
-    decimal_odds: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
-    suspended: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    live: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    stale: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    provider_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    raw_label: Mapped[str] = mapped_column(String(255), nullable=False)
-    canonical_selection: Mapped[str] = mapped_column(String(64), nullable=False)
-    settlement_rule: Mapped[str] = mapped_column(String(128), nullable=False)
-
-    fixture: Mapped[FixtureModel] = relationship(back_populates="odds_observations")
-
-
-class RawPayloadReferenceModel(Base):
-    __tablename__ = "raw_payload_references"
-    __table_args__ = (
-        UniqueConstraint("provider", "object_uri", "sha256", name="uq_raw_payload_reference"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    provider: Mapped[str] = mapped_column(String(64), nullable=False)
-    object_uri: Mapped[str] = mapped_column(String(512), nullable=False)
-    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    immutable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-
-
-class DataProvenanceModel(Base):
-    __tablename__ = "data_provenance"
-    __table_args__ = (
-        Index("ix_provenance_event_time", "event_time"),
-        Index("ix_provenance_as_of_time", "as_of_time"),
-        Index("ix_provenance_layer", "layer"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    layer: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_ref_id: Mapped[str | None] = mapped_column(ForeignKey("raw_payload_references.id"))
-    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    provider_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    as_of_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class LineupModel(Base):
-    __tablename__ = "lineups"
-    __table_args__ = (
-        UniqueConstraint("fixture_id", "team_id", "player_id", name="uq_lineup_player"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
-    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False)
-    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"), nullable=False)
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class LineupSourceSnapshotModel(Base):
@@ -656,65 +531,6 @@ class TeamValueAsOfArtifactModel(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
-class InjuryModel(Base):
-    __tablename__ = "injuries"
-    __table_args__ = (Index("ix_injuries_as_of_time", "as_of_time"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"), nullable=False)
-    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(64), nullable=False)
-    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class SuspensionModel(Base):
-    __tablename__ = "suspensions"
-    __table_args__ = (Index("ix_suspensions_as_of_time", "as_of_time"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"), nullable=False)
-    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False)
-    reason: Mapped[str] = mapped_column(String(128), nullable=False)
-    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class WeatherObservationModel(Base):
-    __tablename__ = "weather_observations"
-    __table_args__ = (Index("ix_weather_observed_at", "observed_at"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    temperature_c: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-
-
-class TeamRatingModel(Base):
-    __tablename__ = "team_ratings"
-    __table_args__ = (
-        UniqueConstraint("team_id", "as_of_time", name="uq_team_rating_as_of"),
-        Index("ix_team_ratings_as_of_time", "as_of_time"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False)
-    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    rating: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
-
-
-class FeatureSnapshotModel(Base):
-    __tablename__ = "feature_snapshots"
-    __table_args__ = (
-        UniqueConstraint("fixture_id", "as_of_time", name="uq_feature_fixture_as_of"),
-        Index("ix_feature_snapshots_as_of_time", "as_of_time"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
-    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    features: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    layer: Mapped[str] = mapped_column(String(32), nullable=False)
-
-
 class ModelRunModel(Base):
     __tablename__ = "model_runs"
 
@@ -848,7 +664,6 @@ def _prevent_update_delete(_mapper: Any, _connection: Any, target: Any) -> None:
 
 
 for immutable_model in (
-    RawPayloadReferenceModel,
     RecommendationLockModel,
     SettlementModel,
 ):

@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "src/w2/models/challenger.py",
-    "src/w2/infrastructure/persistence/challenger_models.py",
     "migrations/versions/0008_create_stage7b_challenger.py",
     "docs/adr/ADR-0009-national-challenger-and-forward-holdout.md",
     "docs/models/W2_CHALLENGER_POLICY_V1.md",
@@ -48,9 +47,6 @@ def main() -> int:
         "GRADIENT_BOOSTING",
         "ELO_POISSON_STACKING",
         "CONSTRAINED_ENSEMBLE",
-        "forward_holdout_run",
-        "forward_prediction_lock",
-        "forward_evaluation",
     ]:
         if token not in combined:
             fail(f"missing Stage7B token {token}")

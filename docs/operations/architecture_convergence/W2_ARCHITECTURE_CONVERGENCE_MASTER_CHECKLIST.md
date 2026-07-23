@@ -448,6 +448,8 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 
 ## ARCH-P1-01：数据库僵尸表盘点与直接删除
 
+Status: FIX_IN_PROGRESS
+
 - [x] 列出全部表及：
   - migration 来源；
   - 当前行数；
@@ -485,39 +487,39 @@ SQL、任务及报表引用扫描。
 
 | table | row_count | 生产读 | 生产写 | 任务 | 报表 | 外键（出/入） | 独有数据价值 | 决定 |
 |---|---:|---|---|---|---|---:|---|---|
-| `ablation_run` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `ablation_run` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
 | `alembic_version` | 1 | 有 | 有 | 无 | 无 | 0/0 | 有（1 行） | 保留 |
 | `api_request_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `asof_samples` | 0 | 无 | 无 | 无 | 无 | 2/0 | 关系结构待后续收敛 | 保留 |
+| `asof_samples` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（空 dataset/as-of 组件） | 删除（0040） |
 | `audit_events` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `backup_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `bookmakers` | 0 | 无 | 无 | 无 | 无 | 0/1 | 关系结构待后续收敛 | 保留 |
-| `calibration_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `bookmakers` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（旧 Stage3 赔率叶子） | 删除（0040） |
+| `calibration_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
 | `canonical_historical_ah_facts` | 0 | 有 | 有 | 无 | 无 | 1/0 | 运行/安全契约 | 保留 |
 | `canonical_team_match_history` | 102 | 有 | 有 | 有 | 无 | 3/0 | 有（102 行） | 保留 |
 | `canonical_teams` | 16 | 有 | 有 | 无 | 无 | 0/4 | 有（16 行） | 保留 |
 | `challenger_model` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `competitions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 关系结构待后续收敛 | 保留 |
-| `data_provenance` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `competitions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 正式推荐/结算 Fixture FK 安全合同 | 保留 |
+| `data_provenance` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空旧 provenance 组件） | 删除（0040） |
 | `data_quality_runs` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `dataset_artifacts` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `dataset_artifacts` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 dataset/as-of 组件） | 删除（0040） |
 | `dataset_sources` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `dataset_versions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 关系结构待后续收敛 | 保留 |
+| `dataset_versions` | 0 | 无 | 无 | 无 | 无 | 0/2 | 无（空 dataset/as-of 组件） | 删除（0040） |
 | `dependency_risk` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `dynamic_prematch_evaluations` | 0 | 有 | 有 | 有 | 无 | 0/2 | 运行/安全契约 | 保留 |
 | `dynamic_prematch_supersessions` | 0 | 有 | 有 | 有 | 无 | 2/0 | 运行/安全契约 | 保留 |
-| `evaluation_record` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `feature_snapshots` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `fixtures` | 0 | 无 | 无 | 无 | 无 | 7/11 | 关系结构待后续收敛 | 保留 |
+| `evaluation_record` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `feature_snapshots` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 特征叶子） | 删除（0040） |
+| `fixtures` | 0 | 无 | 无 | 无 | 无 | 7/11 | 正式推荐、锁、赛果、结算当前 FK 安全合同 | 保留 |
 | `football_data_team_crosswalks` | 0 | 有 | 有 | 无 | 无 | 0/0 | 运行/安全契约 | 保留 |
 | `forward_cycle_checkpoint` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `forward_cycle_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 关系结构待后续收敛 | 保留 |
-| `forward_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `forward_gate_audit` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `forward_holdout_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 关系结构待后续收敛 | 保留 |
+| `forward_cycle_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空旧 forward cycle 组件） | 删除（0040） |
+| `forward_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 forward holdout 组件） | 删除（0040） |
+| `forward_gate_audit` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空旧 forward cycle 组件） | 删除（0040） |
+| `forward_holdout_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 forward holdout 组件） | 删除（0040） |
 | `forward_market_snapshot` | 0 | 有 | 无 | 无 | 有 | 0/0 | 报表读取契约 | 保留 |
 | `forward_operational_alert` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `forward_prediction_lock` | 0 | 无 | 无 | 无 | 无 | 1/1 | 关系结构待后续收敛 | 保留 |
+| `forward_prediction_lock` | 0 | 无 | 无 | 无 | 无 | 1/1 | 无（空 forward holdout 组件） | 删除（0040） |
 | `forward_result_event` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `forward_scheduler_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `forward_state_transition` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
@@ -529,21 +531,21 @@ SQL、任务及报表引用扫描。
 | `future_refresh_task_audit` | 55 | 有 | 有 | 有 | 无 | 0/0 | 有（55 行） | 保留 |
 | `gate5_recommendation_lock_event` | 0 | 有 | 有 | 无 | 无 | 0/0 | 安全锁账本 | 保留 |
 | `historical_market_source_snapshots` | 0 | 有 | 有 | 无 | 无 | 0/1 | 历史权威契约 | 保留 |
-| `ingestion_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
-| `injuries` | 0 | 无 | 无 | 无 | 无 | 2/0 | 关系结构待后续收敛 | 保留 |
-| `label_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
+| `ingestion_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | Provider 请求审计账本当前 FK 安全合同 | 保留 |
+| `injuries` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（旧 Stage3 伤停叶子） | 删除（0040） |
+| `label_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 dataset/as-of 组件） | 删除（0040） |
 | `league_profile` | 14 | 有 | 有 | 无 | 无 | 0/0 | 有（14 行） | 保留 |
 | `league_readiness_audit` | 20 | 有 | 有 | 无 | 无 | 0/0 | 有（20 行） | 保留 |
 | `league_season` | 14 | 有 | 有 | 无 | 无 | 0/0 | 有（14 行） | 保留 |
 | `league_team_membership` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `lineup_confirmed_events` | 0 | 无 | 有 | 有 | 无 | 0/0 | prematch 运行契约 | 保留 |
 | `lineup_source_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/0 | lineup 运行契约 | 保留 |
-| `lineups` | 0 | 无 | 无 | 无 | 无 | 3/0 | 关系结构待后续收敛 | 保留 |
-| `market_baseline_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
-| `market_consensus` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `market_fit_diagnostic` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `lineups` | 0 | 无 | 无 | 无 | 无 | 3/0 | 无（旧 Stage3 阵容叶子） | 删除（0040） |
+| `market_baseline_run` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（空 market baseline 组件） | 删除（0040） |
+| `market_consensus` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 market consensus 叶子） | 删除（0040） |
+| `market_fit_diagnostic` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 market baseline 组件） | 删除（0040） |
 | `market_quality_assessment` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `markets` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `markets` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 market 叶子） | 删除（0040） |
 | `matchday_checkpoint_plans` | 608 | 有 | 有 | 有 | 无 | 0/1 | 有（608 行） | 保留 |
 | `matchday_endpoint_capture_plans` | 0 | 有 | 有 | 有 | 无 | 2/0 | matchday 运行契约 | 保留 |
 | `matchday_endpoint_captures` | 231 | 有 | 有 | 有 | 无 | 0/4 | 有（231 行） | 保留 |
@@ -554,12 +556,12 @@ SQL、任务及报表引用扫描。
 | `migration_quarantine_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `migration_source_asset` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `migration_validation_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `model_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `model_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `model_experiment` | 0 | 无 | 无 | 无 | 无 | 0/3 | 外键目标 | 保留 |
+| `model_artifact` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
+| `model_evaluation` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 model experiment 组件） | 删除（0040） |
+| `model_experiment` | 0 | 无 | 无 | 无 | 无 | 0/3 | 无（空 model experiment 组件） | 删除（0040） |
 | `model_gate_decision` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `model_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
-| `odds_observations` | 0 | 无 | 无 | 无 | 无 | 2/0 | ARCH-P1-02 待对账 | 保留 |
+| `model_runs` | 0 | 无 | 无 | 无 | 无 | 0/1 | 正式 Recommendation.prediction_id FK 安全合同 | 保留 |
+| `odds_observations` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（当前赔率权威为 matchday_market_observations） | 删除（0040） |
 | `operational_alert` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `operational_metric_snapshot` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `operations_check_result` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
@@ -568,31 +570,31 @@ SQL、任务及报表引用扫描。
 | `player_identity_crosswalks` | 0 | 有 | 有 | 无 | 无 | 0/0 | ARCH-P1-03 待对账 | 保留 |
 | `player_identity_mappings` | 0 | 有 | 有 | 有 | 无 | 0/1 | lineup 身份契约 | 保留 |
 | `player_valuation_observations` | 0 | 有 | 有 | 有 | 无 | 0/0 | 估值运行契约 | 保留 |
-| `players` | 0 | 无 | 无 | 无 | 无 | 0/4 | 外键目标 | 保留 |
-| `prediction_snapshot` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `predictions` | 0 | 无 | 无 | 无 | 无 | 2/1 | 关系结构待后续收敛 | 保留 |
+| `players` | 0 | 无 | 无 | 无 | 无 | 0/4 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
+| `prediction_snapshot` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `predictions` | 0 | 无 | 无 | 无 | 无 | 2/1 | Recommendation.prediction_id 当前正式追踪合同 | 保留 |
 | `promotion_relegation_mapping` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `provider_entity_mappings` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `provider_request_logs` | 162 | 有 | 有 | 有 | 无 | 1/0 | 有（162 行） | 保留 |
 | `provider_team_identity_crosswalks` | 16 | 有 | 有 | 有 | 无 | 1/0 | 有（16 行） | 保留 |
 | `quota_usage` | 9 | 有 | 有 | 有 | 无 | 0/0 | 有（9 行） | 保留 |
 | `raw_payload` | 220 | 有 | 有 | 有 | 无 | 0/0 | 有（220 行） | 保留 |
-| `raw_payload_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
+| `raw_payload_references` | 0 | 无 | 无 | 无 | 无 | 0/1 | 无（现行原始载荷权威为 raw_payload） | 删除（0040） |
 | `read_model_checkpoint` | 8 | 有 | 有 | 无 | 有 | 0/0 | 有（8 行） | 保留 |
 | `recommendation_locks` | 0 | 有 | 无 | 无 | 有 | 3/2 | 安全锁账本 | 保留 |
 | `recommendations` | 0 | 有 | 有 | 无 | 有 | 2/2 | 正式推荐安全账本 | 保留 |
-| `referees` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
+| `referees` | 0 | 无 | 无 | 无 | 无 | 0/1 | Fixture 正式推荐/结算身份合同字段 | 保留 |
 | `registered_roster_snapshots` | 0 | 有 | 有 | 无 | 无 | 0/0 | roster 运行契约 | 保留 |
 | `release_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `release_candidate` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `replay_checkpoint` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `replay_event` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
-| `replay_run` | 0 | 无 | 无 | 无 | 无 | 0/5 | 外键目标 | 保留 |
+| `replay_checkpoint` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `replay_event` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（空 replay 组件） | 删除（0040） |
+| `replay_run` | 0 | 无 | 无 | 无 | 无 | 0/5 | 无（空 replay 组件） | 删除（0040） |
 | `restore_run` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `results` | 0 | 有 | 无 | 无 | 有 | 1/1 | 结算读取契约 | 保留 |
 | `retention_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `season_rollover_plan` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `seasons` | 0 | 无 | 无 | 无 | 无 | 1/3 | 关系结构待后续收敛 | 保留 |
+| `seasons` | 0 | 无 | 无 | 无 | 无 | 1/3 | Fixture 正式推荐/结算身份合同 | 保留 |
 | `security_audit_event` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `settlements` | 0 | 有 | 有 | 无 | 有 | 4/0 | 结算安全账本 | 保留 |
 | `shadow_comparison_record` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
@@ -604,31 +606,31 @@ SQL、任务及报表引用扫描。
 | `shadow_strategy_run` | 0 | 有 | 无 | 无 | 有 | 0/0 | Dashboard 读取契约 | 保留 |
 | `shadow_strategy_settlement` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `slo_evaluation` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
-| `squads` | 0 | 无 | 无 | 无 | 无 | 3/0 | 关系结构待后续收敛 | 保留 |
+| `squads` | 0 | 无 | 无 | 无 | 无 | 3/0 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
 | `stage7i_lifecycle_event` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
 | `stage7i_lifecycle_heartbeat` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
 | `stage7i_lifecycle_run` | 0 | 有 | 有 | 有 | 无 | 0/0 | supervision 运行契约 | 保留 |
-| `stages` | 0 | 无 | 无 | 无 | 无 | 1/1 | 关系结构待后续收敛 | 保留 |
+| `stages` | 0 | 无 | 无 | 无 | 无 | 1/1 | Fixture 正式推荐/结算身份合同 | 保留 |
 | `structured_lineup_players` | 0 | 有 | 有 | 有 | 无 | 2/0 | lineup 运行契约 | 保留 |
 | `structured_lineup_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/1 | lineup 运行契约 | 保留 |
-| `suspensions` | 0 | 无 | 无 | 无 | 无 | 2/0 | 关系结构待后续收敛 | 保留 |
+| `suspensions` | 0 | 无 | 无 | 无 | 无 | 2/0 | 无（旧 Stage3 player 子图整体为空） | 删除（0040） |
 | `sync_cursors` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `system_metadata` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0038） |
 | `t30_validation_snapshots` | 0 | 有 | 有 | 有 | 无 | 0/0 | prematch 运行契约 | 保留 |
 | `team_identity_crosswalks` | 16 | 有 | 有 | 无 | 无 | 0/0 | 有（16 行） | 保留 |
 | `team_lineup_baselines` | 0 | 有 | 有 | 有 | 无 | 0/0 | lineup 运行契约 | 保留 |
 | `team_rating_snapshots` | 16 | 有 | 有 | 有 | 无 | 1/0 | 有（16 行） | 保留 |
-| `team_ratings` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `team_ratings` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（现行评分权威为 team_rating_snapshots） | 删除（0040） |
 | `team_value_asof_artifacts` | 0 | 有 | 有 | 无 | 无 | 0/0 | FAH 运行契约 | 保留 |
 | `team_xg_match` | 104 | 有 | 有 | 有 | 无 | 0/0 | 有（104 行） | 保留 |
 | `team_xg_rolling_snapshot` | 28 | 有 | 有 | 有 | 无 | 0/0 | 有（28 行） | 保留 |
-| `teams` | 0 | 无 | 无 | 无 | 无 | 0/7 | 外键目标 | 保留 |
+| `teams` | 0 | 无 | 无 | 无 | 无 | 0/7 | Fixture 正式推荐/结算身份合同 | 保留 |
 | `tournament_operations_plan` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `tournament_profile` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `tournament_readiness_audit` | 0 | 无 | 无 | 无 | 无 | 0/0 | 无（空表） | 删除（0039） |
 | `transfermarkt_player_references` | 0 | 有 | 有 | 有 | 无 | 0/0 | player identity 运行契约 | 保留 |
-| `venues` | 0 | 无 | 无 | 无 | 无 | 0/1 | 外键目标 | 保留 |
-| `weather_observations` | 0 | 无 | 无 | 无 | 无 | 1/0 | 关系结构待后续收敛 | 保留 |
+| `venues` | 0 | 无 | 无 | 无 | 无 | 0/1 | Fixture 正式推荐/结算身份合同字段 | 保留 |
+| `weather_observations` | 0 | 无 | 无 | 无 | 无 | 1/0 | 无（旧 Stage3 天气叶子） | 删除（0040） |
 
 **本 PR 直接 drop**
 
@@ -652,12 +654,32 @@ SQL、任务及报表引用扫描。
   `shadow_strategy_settlement`、`slo_evaluation`、`sync_cursors`、
   `tournament_operations_plan`、`tournament_profile`、
   `tournament_readiness_audit`。
-- 上述 43 表均为 0 行、0 入站/出站外键、0 生产读写、0 任务、0 报表，
+- migration `0040_drop_empty_fk_components` 追加按 FK 依赖顺序删除 35 表：
+  - replay：`replay_run`、`replay_event`、`replay_checkpoint`、
+    `prediction_snapshot`、`evaluation_record`、`ablation_run`；
+  - dataset/as-of：`dataset_versions`、`dataset_artifacts`、
+    `label_references`、`asof_samples`；
+  - model experiment/artifact：`model_experiment`、`model_artifact`、
+    `calibration_artifact`、`model_evaluation`；
+  - forward holdout/evaluation：`forward_holdout_run`、
+    `forward_prediction_lock`、`forward_evaluation`；
+  - market baseline：`market_baseline_run`、`market_fit_diagnostic`；
+  - 旧 provenance：`raw_payload_references`、`data_provenance`；
+  - 旧 forward cycle：`forward_cycle_run`、`forward_gate_audit`；
+  - Stage3 空叶子：`bookmakers`、`odds_observations`、
+    `market_consensus`、`markets`、`feature_snapshots`、`players`、
+    `squads`、`lineups`、`injuries`、`suspensions`、`team_ratings`、
+    `weather_observations`。
+- 0038/0039 的 43 表均为 0 行、0 入站/出站外键、0 生产读写、0 任务、0 报表，
   不含独有数据；只存在的 ORM 注册、历史脚本或旧测试未作为保留理由。
+- 0040 的 35 表在 drop 前均为 0 行、0 生产读写、0 任务、0 报表；其
+  FK 连通子图经递归检查后没有当前业务入口。外键只用于确定子表先删、
+  父表后删的顺序，不作为保留理由。
 - 数据迁移行数为 0；每张表的规范化空集 hash 均为 SHA-256
   `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`。
-- 历史 migration 原样保留；`0038`/`0039` downgrade 恢复原列、唯一约束
-  和索引，upgrade 再次正式删除。
+- 历史 migration 与已在 staging 执行的 `0039` 原样保留；追加删除只在
+  `0040` 中实施。各 revision downgrade 恢复原列、外键、唯一约束和索引，
+  upgrade 再次正式删除。
 
 **迁移后 drop**
 
@@ -666,22 +688,32 @@ SQL、任务及报表引用扫描。
 
 **保持原状并继续调查**
 
-- 赔率身份组：`odds_observations`、`future_market_observation`、
-  `matchday_market_observations`。缺少跨表完整 identity/hash 迁移证据，
-  由 ARCH-P1-02 处理。
+- 赔率身份组：`future_market_observation`、`matchday_market_observations`。
+  两者存在实际生产路径和数据，后续身份收敛仍由 ARCH-P1-02 处理；已为空
+  且无生产路径的旧 `odds_observations` 不再参与对账，在 0040 直接删除。
 - 球队/球员身份组：`football_data_team_crosswalks`、
   `team_identity_crosswalks`、
   `provider_team_identity_crosswalks`、`player_identity_crosswalks`、
   `player_identity_mappings`。存在实际 Repository 路径、有效数据或
   canonical 对账依赖，由 ARCH-P1-03 处理。
-- 其余保留表的逐表理由以矩阵为准：有非空数据、生产读写、任务、报表、
-  安全账本或外键中的至少一项直接证据。只有外键/关系结构证据的表继续
-  调查，不重命名、不隔离、不提前删除。
+- Stage3 核心保留组件为 `competitions -> seasons/stages -> fixtures`、
+  `teams/referees/venues -> fixtures` 与
+  `model_runs -> predictions -> recommendations`。当前
+  `tracking/formal_results.py`、`settlement/history.py`、
+  `recommendation_lock_snapshot.py` 和 `audit_export/tables.py` 直接执行
+  正式推荐、不可变锁、赛果、结算及审计合同；因此相关 FK 核心表属于当前
+  安全合同，不以“关系结构”作为保留理由。
+- `ingestion_runs` 由非空且当前生产写入的 `provider_request_logs` 引用，
+  用于 Provider 请求审计账本身份，属于当前安全合同。
+- 其余保留表的逐表理由以矩阵为准：有非空数据、生产读写、任务、报表或
+  明确的当前安全/已批准业务合同；不存在仅写“关系结构待收敛”的保留项。
 - `alembic_version` 是 migration 控制表，不是业务表，不得删除。
 
 **本轮验收回执**
 
-- 当前状态：`STAGING_ACCEPTED_AWAITING_EXTERNAL_REVIEW`；
+- 当前状态：`FIX_IN_PROGRESS`；正在按外部二次验收意见递归审计所有
+  `0 行 + 0 生产读写 + 0 任务 + 0 报表` 的外键连通组件；0039 保持不变，
+  后续追加删除只通过新 revision `0040` 执行；
 - PR：`#379`（修复期间为 Draft；本回执 exact-head CI 全绿后转 Ready）；
 - validated implementation/final code head：
   `1b9f0141bba0c8f5a18e7fa0c57819826446bc4d`；

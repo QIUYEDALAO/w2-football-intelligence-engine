@@ -90,9 +90,20 @@ def main() -> int:
             fail(f"missing domain entity {entity}")
         persistence_optional = {
             "AuditEvent",
+            "Bookmaker",
+            "DataProvenance",
+            "FeatureSnapshot",
+            "Injury",
+            "Lineup",
+            "Market",
+            "OddsObservation",
+            "Player",
             "ProviderEntityMapping",
             "RawPayloadReference",
-            "DataProvenance",
+            "Squad",
+            "Suspension",
+            "TeamRating",
+            "WeatherObservation",
         }
         if f"{entity}Model" not in models_text and entity not in persistence_optional:
             fail(f"missing persistence model for {entity}")
@@ -106,7 +117,6 @@ def main() -> int:
         "UniqueConstraint",
         "ForeignKey",
         "ix_fixtures_kickoff",
-        "uq_odds_observation_idempotency",
     ]:
         if token not in models_text:
             fail(f"missing persistence constraint/index token {token}")

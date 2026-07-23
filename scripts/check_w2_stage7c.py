@@ -47,8 +47,6 @@ def main() -> int:
         "ForwardCycleLedger",
         "preregistered_evaluation_plan",
         "forward_market_snapshot",
-        "forward_gate_audit",
-        "forward_cycle_run",
     ]:
         if token not in combined:
             fail(f"missing Stage7C token {token}")
