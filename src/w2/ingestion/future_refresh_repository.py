@@ -1800,7 +1800,7 @@ class FutureRefreshDbRepository:
                     "snapshot_semantics": "CAPTURED_AT",
                     "bookmaker_count": len(bookmakers),
                     "quality": "READY" if rows else "MARKET_NOT_COMPARABLE",
-                    "source": "future_refresh_db",
+                    "source": "matchday_market_observations",
                     "market_coverage": {market: True for market in sorted(markets)},
                     "candidate": False,
                     "formal_recommendation": False,

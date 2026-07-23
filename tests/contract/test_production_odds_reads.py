@@ -149,6 +149,20 @@ def test_matchday_observation_is_the_only_database_read_authority() -> None:
         "authority-quote-1",
     )
     assert repository.latest_market_observations_for_fixtures(["999"]) == []
+    assert repository.market_snapshots() == [
+        {
+            "fixture_id": "123",
+            "captured_at": "2026-07-23T01:02:03Z",
+            "captured_at_utc": "2026-07-23T01:02:03Z",
+            "snapshot_semantics": "CAPTURED_AT",
+            "bookmaker_count": 1,
+            "quality": "READY",
+            "source": AUTHORITY_TABLE,
+            "market_coverage": {"ASIAN_HANDICAP": True},
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    ]
     assert (
         repository.market_refresh_status_for_fixtures(
             ["123"],

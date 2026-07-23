@@ -520,6 +520,7 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert observations[0]["candidate"] is False
     assert observations[0]["formal_recommendation"] is False
     assert snapshots[0]["fixture_id"] == "1489404"
+    assert snapshots[0]["source"] == "matchday_market_observations"
     assert provider["remaining_quota"] == 7000
     assert provider["blockers"] == []
 
