@@ -28,8 +28,6 @@ AUDIT_TABLES = (
     "forward_prediction_lock",
     "gate5_recommendation_lock_event",
     "shadow_strategy_lock",
-    "shadow_strategy_event",
-    "shadow_strategy_settlement",
     "settlements",
     "matchday_evidence_manifests",
 )
@@ -38,8 +36,6 @@ COHORT_TABLES = (
     "recommendation_locks",
     "settlements",
     "shadow_strategy_lock",
-    "shadow_strategy_event",
-    "shadow_strategy_settlement",
 )
 OFFICIAL_TABLES = (
     "recommendations",

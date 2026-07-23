@@ -48,7 +48,6 @@ def main() -> int:
         "GRADIENT_BOOSTING",
         "ELO_POISSON_STACKING",
         "CONSTRAINED_ENSEMBLE",
-        "challenger_model",
         "forward_holdout_run",
         "forward_prediction_lock",
         "forward_evaluation",

@@ -9,6 +9,5 @@ def test_stage7_model_tables_are_registered() -> None:
         "model_artifact",
         "calibration_artifact",
         "model_evaluation",
-        "model_gate_decision",
     }:
         assert table in Base.metadata.tables

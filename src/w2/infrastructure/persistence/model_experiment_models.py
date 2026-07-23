@@ -66,16 +66,3 @@ class ModelEvaluationModel(Base):
     split: Mapped[str] = mapped_column(String(32), nullable=False)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     slices: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
-class ModelGateDecisionModel(Base):
-    __tablename__ = "model_gate_decision"
-    __table_args__ = (
-        UniqueConstraint("gate_name", "decided_at", name="uq_model_gate_decision"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    gate_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    decision: Mapped[str] = mapped_column(String(64), nullable=False)
-    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    rationale: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

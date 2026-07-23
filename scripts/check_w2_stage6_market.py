@@ -62,7 +62,6 @@ def main() -> int:
         "market_consensus",
         "market_baseline_run",
         "market_fit_diagnostic",
-        "market_quality_assessment",
     ]:
         if token not in combined:
             fail(f"missing Stage6 token {token}")

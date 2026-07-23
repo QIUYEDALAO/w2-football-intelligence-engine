@@ -11,10 +11,7 @@ REPORTS = ROOT / "reports"
 
 REQUIRED_TABLES = {
     "shadow_strategy_run",
-    "shadow_strategy_candidate",
     "shadow_strategy_lock",
-    "shadow_strategy_event",
-    "shadow_strategy_settlement",
     "shadow_strategy_evaluation",
 }
 

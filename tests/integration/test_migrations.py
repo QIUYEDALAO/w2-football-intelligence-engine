@@ -64,6 +64,84 @@ def test_arch_p1_01_drops_and_restores_system_metadata(tmp_path: Path) -> None:
     assert "system_metadata" not in inspect(engine).get_table_names()
 
 
+def test_arch_p1_01_drops_and_restores_all_evidence_backed_dead_tables(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-01-dead-tables.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    dropped_tables = {
+        "api_request_audit",
+        "audit_events",
+        "backup_run",
+        "challenger_model",
+        "data_quality_runs",
+        "dataset_sources",
+        "dependency_risk",
+        "forward_cycle_checkpoint",
+        "forward_operational_alert",
+        "forward_result_event",
+        "forward_scheduler_run",
+        "forward_state_transition",
+        "freshness_alerts",
+        "league_team_membership",
+        "market_quality_assessment",
+        "migration_dry_run",
+        "migration_quarantine_record",
+        "migration_source_asset",
+        "migration_validation_record",
+        "model_gate_decision",
+        "operational_alert",
+        "operational_metric_snapshot",
+        "operations_check_result",
+        "operations_cycle",
+        "promotion_relegation_mapping",
+        "provider_entity_mappings",
+        "release_audit",
+        "release_candidate",
+        "restore_run",
+        "retention_audit",
+        "season_rollover_plan",
+        "security_audit_event",
+        "shadow_comparison_record",
+        "shadow_run",
+        "shadow_strategy_candidate",
+        "shadow_strategy_event",
+        "shadow_strategy_settlement",
+        "slo_evaluation",
+        "sync_cursors",
+        "tournament_operations_plan",
+        "tournament_profile",
+        "tournament_readiness_audit",
+    }
+
+    def migrate(*args: str) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", *args],
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    migrate("upgrade", "head")
+    engine = create_engine(database_url)
+    assert dropped_tables.isdisjoint(inspect(engine).get_table_names())
+
+    migrate("downgrade", "0038_drop_unused_system_metadata")
+    assert dropped_tables.issubset(inspect(engine).get_table_names())
+
+    migrate("upgrade", "head")
+    assert dropped_tables.isdisjoint(inspect(engine).get_table_names())
+
+
 def test_staging_state_stage9a_head_upgrades_to_future_refresh_head(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_path = tmp_path / "staging-state.db"

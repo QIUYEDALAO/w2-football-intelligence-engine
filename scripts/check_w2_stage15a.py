@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "src/w2/operations/governance.py",
-    "src/w2/infrastructure/persistence/governance_models.py",
     "migrations/versions/0016_create_stage15a_operational_governance.py",
     "docs/adr/ADR-0018-operational-governance.md",
     "docs/operations/W2_DAILY_OPERATIONS_V1.md",
@@ -61,8 +60,6 @@ def main() -> int:
         "RollbackManifest",
         "ChangeFreeze",
         "ReleaseAudit",
-        "operations_cycle",
-        "dependency_risk",
         "DISABLED_GATE4",
     ]:
         if token not in combined:

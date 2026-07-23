@@ -66,7 +66,6 @@ def main() -> int:
         "model_artifact",
         "calibration_artifact",
         "model_evaluation",
-        "model_gate_decision",
     ]:
         if token not in combined:
             fail(f"missing Stage7 token {token}")

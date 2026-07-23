@@ -14,7 +14,6 @@ from w2.infrastructure.persistence.models import (
     CompetitionModel,
     FixtureModel,
     OddsObservationModel,
-    ProviderEntityMappingModel,
     RawPayloadReferenceModel,
     RecommendationLockModel,
     RecommendationModel,
@@ -114,30 +113,6 @@ def test_relationships_and_unique_constraints(session: Session) -> None:
         settlement_rule="total_goals",
     )
     session.add(duplicate)
-    with pytest.raises(IntegrityError):
-        session.commit()
-
-
-def test_provider_mapping_unique_constraint(session: Session) -> None:
-    mapping = ProviderEntityMappingModel(
-        entity_type="team",
-        entity_id="00000000-0000-0000-0000-000000000001",
-        provider="synthetic",
-        external_id="external-1",
-        source="provider payload",
-        confidence=Decimal("0.9000"),
-        valid_from=NOW,
-    )
-    duplicate = ProviderEntityMappingModel(
-        entity_type="team",
-        entity_id="00000000-0000-0000-0000-000000000002",
-        provider="synthetic",
-        external_id="external-1",
-        source="provider payload",
-        confidence=Decimal("0.9000"),
-        valid_from=NOW,
-    )
-    session.add_all([mapping, duplicate])
     with pytest.raises(IntegrityError):
         session.commit()
 

@@ -86,8 +86,6 @@ def main() -> int:
         "ingestion_runs",
         "provider_request_logs",
         "quota_usage",
-        "sync_cursors",
-        "freshness_alerts",
     ]:
         if table not in migration:
             fail(f"missing migration table {table}")

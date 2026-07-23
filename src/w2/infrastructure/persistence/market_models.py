@@ -69,22 +69,3 @@ class MarketFitDiagnosticModel(Base):
     diagnostic_type: Mapped[str] = mapped_column(String(64), nullable=False)
     residual: Mapped[Decimal] = mapped_column(Numeric(12, 8), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
-class MarketQualityAssessmentModel(Base):
-    __tablename__ = "market_quality_assessment"
-    __table_args__ = (
-        UniqueConstraint("fixture_id", "market", "as_of_time", name="uq_market_quality_identity"),
-        Index("ix_market_quality_status", "quality_status"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    market: Mapped[str] = mapped_column(String(64), nullable=False)
-    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    liquidity: Mapped[str] = mapped_column(String(32), nullable=False)
-    bookmaker_coverage: Mapped[str] = mapped_column(String(32), nullable=False)
-    freshness: Mapped[str] = mapped_column(String(32), nullable=False)
-    dispersion: Mapped[str] = mapped_column(String(32), nullable=False)
-    conflict: Mapped[str] = mapped_column(String(32), nullable=False)
-    quality_status: Mapped[str] = mapped_column(String(32), nullable=False)

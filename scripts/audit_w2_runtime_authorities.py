@@ -79,7 +79,6 @@ P0_P1_TABLE_DOMAINS = {
     "future_market_observation",
     "fixtures",
     "teams",
-    "provider_entity_mappings",
     "team_identity_crosswalks",
     "matchday_checkpoint_plans",
     "future_refresh_checkpoint_plan",
@@ -90,13 +89,11 @@ P0_P1_TABLE_DOMAINS = {
     "settlements",
     "results",
     "forward_market_snapshot",
-    "forward_result_event",
     "forward_evaluation",
     "canonical_historical_ah_facts",
     "historical_market_source_snapshots",
     "team_value_asof_artifacts",
     "calibration_artifact",
-    "model_gate_decision",
     "matchday_evidence_manifests",
 }
 

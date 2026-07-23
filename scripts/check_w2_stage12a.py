@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "src/w2/migration/foundation.py",
     "src/w2/migration/shadow.py",
-    "src/w2/infrastructure/persistence/migration_models.py",
     "migrations/versions/0013_create_stage12a_migration_shadow.py",
     "docs/adr/ADR-0015-w1-migration-shadow-foundation.md",
     "docs/migration/W1_TO_W2_MAPPING_V1.md",
@@ -59,9 +58,6 @@ def main() -> int:
         "ShadowComparisonEngine",
         "W1SnapshotAdapter",
         "W2SnapshotAdapter",
-        "migration_source_asset",
-        "migration_dry_run",
-        "shadow_comparison_record",
         "NOT_AVAILABLE_GATE4",
     ]:
         if token not in combined:

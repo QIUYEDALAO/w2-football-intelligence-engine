@@ -89,6 +89,7 @@ def main() -> int:
         if f"class {entity}" not in domain_text:
             fail(f"missing domain entity {entity}")
         persistence_optional = {
+            "AuditEvent",
             "ProviderEntityMapping",
             "RawPayloadReference",
             "DataProvenance",

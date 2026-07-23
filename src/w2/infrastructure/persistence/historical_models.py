@@ -10,17 +10,6 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import uuid_str
 
 
-class DatasetSourceModel(Base):
-    __tablename__ = "dataset_sources"
-    __table_args__ = (UniqueConstraint("source_id", name="uq_dataset_source_id"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    source_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    provider: Mapped[str] = mapped_column(String(128), nullable=False)
-    registry_ref: Mapped[str] = mapped_column(String(255), nullable=False)
-    provenance: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
 class DatasetVersionModel(Base):
     __tablename__ = "dataset_versions"
     __table_args__ = (UniqueConstraint("dataset_id", "version", name="uq_dataset_version"),)
@@ -91,18 +80,3 @@ class LabelReferenceModel(Base):
     away_goals: Mapped[int | None] = mapped_column(Integer)
     confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     raw_payload_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-
-
-class DataQualityRunModel(Base):
-    __tablename__ = "data_quality_runs"
-    __table_args__ = (
-        Index("ix_data_quality_run_at", "run_at"),
-        Index("ix_data_quality_dataset_version", "dataset_id", "version"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    dataset_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    version: Mapped[str] = mapped_column(String(128), nullable=False)
-    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
-    checks: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

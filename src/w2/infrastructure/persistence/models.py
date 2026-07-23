@@ -194,30 +194,6 @@ class OddsObservationModel(Base):
     fixture: Mapped[FixtureModel] = relationship(back_populates="odds_observations")
 
 
-class ProviderEntityMappingModel(Base):
-    __tablename__ = "provider_entity_mappings"
-    __table_args__ = (
-        UniqueConstraint(
-            "provider",
-            "entity_type",
-            "external_id",
-            "valid_from",
-            name="uq_provider_external_identity",
-        ),
-        Index("ix_mapping_entity", "entity_type", "entity_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    provider: Mapped[str] = mapped_column(String(64), nullable=False)
-    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    source: Mapped[str] = mapped_column(String(128), nullable=False)
-    confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
-    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
 class RawPayloadReferenceModel(Base):
     __tablename__ = "raw_payload_references"
     __table_args__ = (
@@ -867,18 +843,6 @@ class SettlementModel(Base):
     result: Mapped[ResultModel] = relationship(back_populates="settlements")
 
 
-class AuditEventModel(Base):
-    __tablename__ = "audit_events"
-    __table_args__ = (Index("ix_audit_events_occurred_at", "occurred_at"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    action: Mapped[str] = mapped_column(String(64), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    actor: Mapped[str] = mapped_column(String(128), nullable=False)
-
-
 def _prevent_update_delete(_mapper: Any, _connection: Any, target: Any) -> None:
     raise ValueError(f"{target.__class__.__name__} is append-only or immutable")
 
@@ -887,7 +851,6 @@ for immutable_model in (
     RawPayloadReferenceModel,
     RecommendationLockModel,
     SettlementModel,
-    AuditEventModel,
 ):
     event.listen(immutable_model, "before_update", _prevent_update_delete)
     event.listen(immutable_model, "before_delete", _prevent_update_delete)

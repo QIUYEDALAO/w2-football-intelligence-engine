@@ -10,17 +10,6 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import uuid_str
 
 
-class ChallengerModelModel(Base):
-    __tablename__ = "challenger_model"
-    __table_args__ = (UniqueConstraint("model_key", name="uq_challenger_model_key"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    model_key: Mapped[str] = mapped_column(String(128), nullable=False)
-    family: Mapped[str] = mapped_column(String(128), nullable=False)
-    config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    manifest: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-
-
 class ForwardHoldoutRunModel(Base):
     __tablename__ = "forward_holdout_run"
     __table_args__ = (UniqueConstraint("run_key", name="uq_forward_holdout_run_key"),)

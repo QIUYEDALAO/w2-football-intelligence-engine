@@ -43,11 +43,9 @@ def main() -> int:
             fail(f"missing {path}")
     combined = "\n".join(read(path) for path in REQUIRED if path.endswith((".py", ".md")))
     for token in [
-        "ForwardResultEvent",
         "ForwardMarketSnapshot",
         "ForwardCycleLedger",
         "preregistered_evaluation_plan",
-        "forward_result_event",
         "forward_market_snapshot",
         "forward_gate_audit",
         "forward_cycle_run",
