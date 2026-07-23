@@ -1679,8 +1679,11 @@ Next task: 本 docs-only 清单修订 PR 合并后开始
 - [ ] 对已跟踪的机器生成审计产物执行 `git rm`，不删除人工维护证据。
 - [ ] 将所有相关生成器的默认输出迁到 `runtime/` 或临时目录。
 - [ ] 停止生成 V2 兼容别名，并删除既有 V2 别名输出。
-- [ ] 删除生成器、模板和审计产物中的硬编码个人路径及旧
+- [ ] 删除生成器、模板和审计产物中的硬编码个人路径及硬编码的旧
   `SOURCE_REVIEW_SHA`。
+- [ ] 生成器每次运行时必须通过 `git rev-parse HEAD` 从当前 Git HEAD
+  动态取得完整 `source_review_sha`；不得从静态常量、模板默认值或人工复制值
+  读取。
 - [ ] 全量扫描并删除所有 `PENDING_COMMIT` 占位，不得把数量写死为“三处”。
 - [ ] 同时在 `.gitignore` 与 `check_tracked_outputs.py` 增加守卫，阻止机器生成
   审计产物再次进入 Git。
@@ -1696,6 +1699,7 @@ TRACKED_GENERATED_AUDIT_FILES = 0
 V2_ALIAS_OUTPUTS = 0
 HARDCODED_PERSONAL_PATHS = 0
 HARDCODED_SOURCE_REVIEW_SHA = 0
+SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
@@ -1768,6 +1772,30 @@ KNOWN_DEPENDENCY_CYCLE_BASELINE = api <-> ingestion
   simulation` 的读时计算依赖。
 - `ARCH-P1-04C`：加入 `DEPENDENCY_CONTRACT_V1`；将 `api <-> ingestion`
   循环归零；增加 AST import graph 静态守卫并禁止新增循环依赖。
+
+#### `DEPENDENCY_CONTRACT_V1` 分层规则
+
+```text
+LAYER_ORDER = apps -> api -> infrastructure -> domain
+```
+
+上层可以直接依赖任意更下层；下层不得反向依赖上层。四层合同如下：
+
+- `domain`（`src/w2/domain`）：只承载领域模型、值对象和纯业务合同；除标准库
+  与第三方纯计算依赖外，不得 import `infrastructure`、`api` 或 `apps`。
+- `infrastructure`（`src/w2/infrastructure`）：实现持久化和外部系统 adapter，
+  可以 import `domain`，不得 import `api` 或 `apps`，不得把 transport 合同
+  下沉到基础设施层。
+- `api`（`src/w2/api`）：只负责读模型、应用服务编排和 API 合同，可以 import
+  `domain` 与 `infrastructure`，不得 import `apps`；按 `ARCH-P1-04B` 删除
+  对 `ingestion/features/markets/pricing/strategy/simulation` 的读时计算依赖。
+- `apps`（仓库根目录 `apps/`）：只作为进程入口和 composition root，可以向下
+  import `api`、`infrastructure`、`domain` 并完成依赖注入，不得承载可复用
+  领域规则或另建业务权威；任何 `src/w2` 包均不得反向 import `apps`。
+
+`ARCH-P1-04C` 的 AST import graph 守卫必须覆盖普通 import、from import 和
+相对 import，将所有违反上述方向的边归零；不得以宽泛 allowlist 固化违规边，
+并必须阻止新增分层反向依赖或循环。
 
 ---
 
@@ -1899,6 +1927,11 @@ LEGACY_DECISION_CONTRACT_LOC = 0
 DECISION_OUTPUT_FORMAT_COUNT = 1
 UNREFERENCED_REPOSITORY_COMPUTE_METHODS = 0
 DEPENDENCY_CONTRACT = DEPENDENCY_CONTRACT_V1
+DOMAIN_TO_INFRASTRUCTURE_API_APPS = 0
+INFRASTRUCTURE_TO_API_APPS = 0
+API_TO_APPS = 0
+SRC_W2_TO_APPS = 0
+APPS_BUSINESS_AUTHORITY_COUNT = 0
 API_INGESTION_CYCLE_COUNT = 0
 NEW_DEPENDENCY_CYCLES = 0
 ```
@@ -2085,10 +2118,20 @@ archive。
 
 ## ARCH-P2-02：Docs 整理
 
-- [ ] 日期型一次性证据移入 `docs/archive/`。
+```text
+Scope: HUMAN_MAINTAINED_DOCUMENTS_ONLY
+Generated audit artifacts owner: ARCH-HYGIENE-01
+```
+
+本任务只处理人工编写和人工维护的文档。机器生成的审计产物、其别名、生成器
+及输出目录治理全部且仅归 `ARCH-HYGIENE-01`，不得在 P2-02 重复处理。
+
+- [ ] 只盘点人工维护文档；人工编写的日期型一次性证据移入
+  `docs/archive/`。
 - [ ] 同一审计只保留最新权威版本。
 - [ ] 旧文档添加 `SUPERSEDED_BY`。
 - [ ] 不删除仍有审计价值的历史证据。
+- [ ] 不修改、移动或删除机器生成审计产物及其生成器。
 - [ ] PR 合并。
 
 ---

@@ -45,8 +45,9 @@ order is merged. Do not begin its code changes earlier. When it starts:
    the status format in section 四.
 3. Limit the task to its checklist contract: classify generated versus
    human-maintained audit files, move generator defaults out of Git-tracked
-   paths, remove compatibility aliases and stale placeholders, and add both
-   ignore and static guards.
+   paths, derive `source_review_sha` dynamically from the current Git HEAD,
+   remove compatibility aliases and stale placeholders, and add both ignore
+   and static guards.
 4. A task is finished only when its acceptance counters are zero, generator
    runs leave Git clean, full CI is green, the PR is merged, and the checklist
    status is flipped to `DONE`.
