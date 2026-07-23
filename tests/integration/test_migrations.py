@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 
 def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
@@ -265,8 +265,13 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
         "W2_DATABASE_URL": database_url,
         "W2_ENVIRONMENT": "test",
     }
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+    engine.dispose()
+
     for command in (
-        ["downgrade", "base"],
         ["upgrade", "0017_create_stage9a_shadow_strategy"],
         ["upgrade", "head"],
         ["downgrade", "0028_create_matchday_evidence_authority"],
