@@ -15,10 +15,8 @@ task status that the checklist already owns.
 Feature development is frozen. The only work in flight is the architecture
 convergence programme.
 
-`ARCH-P0-01` … `ARCH-P0-04` and `ARCH-P1-01` are merged and accepted. `main` is
-at `76201af8aad43976ffbcd7d2f72726bac4bc8106` with migration head
-`0040_drop_empty_fk_components`; staging went from 144 tables to 66. PR #370 is
-closed; its verified baseline reached `main` through PR #374.
+Architecture convergence is complete through `ARCH-P1-02`. The master
+checklist owns all completion evidence and repository/staging coordinates.
 
 W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
 W2_DYNAMIC_PREMATCH_STAGING is authorized.
@@ -33,18 +31,27 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-02 -> ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03
+ARCH-HYGIENE-01 -> ARCH-HYGIENE-02
+  -> ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03
   -> ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The next task is **ARCH-P1-02: odds table convergence**. One PR, one task,
-independently revertible. Before starting it:
+The next task is **ARCH-HYGIENE-01: generated audit artifacts exit Git**.
+It starts only after the docs-only checklist-revision PR that established this
+order is merged. Do not begin its code changes earlier. When it starts:
 
 1. `git fetch github-w2 main` and branch from the latest `main`.
 2. Write `Status: IN_PROGRESS` under that task in the master checklist, using
    the status format in section 四.
-3. A task is finished only when full CI is green, staging acceptance passed,
-   the PR is merged, and the checklist status is flipped to `DONE`.
+3. Limit the task to its checklist contract: classify generated versus
+   human-maintained audit files, move generator defaults out of Git-tracked
+   paths, record `audit_generator_sha` as the generator-code version, derive
+   `source_review_sha` as the audited-tree version dynamically from the current
+   Git HEAD and verify it matches the generation HEAD, remove compatibility
+   aliases and stale placeholders, and add both ignore and static guards.
+4. A task is finished only when its acceptance counters are zero, generator
+   runs leave Git clean, full CI is green, the PR is merged, and the checklist
+   status is flipped to `DONE`.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server
