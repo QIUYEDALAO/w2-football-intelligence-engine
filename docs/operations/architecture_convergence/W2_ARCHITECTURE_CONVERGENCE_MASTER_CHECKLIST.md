@@ -353,7 +353,9 @@ CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
 - [x] 分支推送到 GitHub（`4195e63`，单提交，已摘除两个误提交文件，见九节）
 - [x] 整改前完整 CI 全绿：run `30008088208`，`verify`、`staging-parity`、
       `predeploy-e2e` 三项均 `success`
-- [ ] 0.4 三项代码整改的完整 CI 全绿（run 号补入本节）
+- [x] 0.4 三项代码整改的完整 CI 全绿：run `30011185720` @ `4f137d2`，
+      `verify`、`staging-parity`、`predeploy-e2e` 三项均 `success`
+      （已核对 run `conclusion` 字段，非仅监听命令退出码）
 - [ ] staging 验收：部署 → migration 至 `0041` → 20 轮只读探测 → 零写证明
       → 表数 `66 → 65` 核对
 - [ ] 老板对 0.3 与 0.4 逐项验收通过
@@ -502,8 +504,8 @@ GUARD_SEMANTIC_COMPLETENESS      = FIXED
 GUARD_REGRESSION_TESTS           = FIXED (11 tests)
 PROJECTION_PROVIDER_NAMESPACE    = FIXED (view + bounded read grouping)
 CHECKLIST_SYNC                   = FIXED
-STAGING_ACCEPTANCE               = PENDING
-POST_REMEDIATION_CI              = PENDING
+POST_REMEDIATION_CI              = PASS (run 30011185720 @ 4f137d2)
+STAGING_ACCEPTANCE               = PENDING（需授权：0041 会 drop 一张 3840 行的表）
 ```
 
 ---
